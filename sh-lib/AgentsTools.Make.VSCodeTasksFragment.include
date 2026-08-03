@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+cat <<CODEWORKSPACE
+			{
+				"label": "🤖 Start Agents Console...",
+				"type": "shell",
+				"command": "bash '$MMDAPP/DistroAgentsConsole.sh'",
+				"group": {
+					"kind": "build",
+					"isDefault": true
+				}
+			},
+CODEWORKSPACE

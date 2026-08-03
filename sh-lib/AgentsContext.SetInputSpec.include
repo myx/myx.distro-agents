@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
+
+
+
+
+case "$1" in
+	--run-from-.local)
+		export MDLT_ORIGIN="$MMDAPP/.local"
+		export MDLC_INMODE=".local"
+		export MDLT_OPTION="--run-from-.local"
+		echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+		return 0
+	;;
+	''|--run-from-detect|--init-variables)
+		local MDLT_CONSOLE_ORIGIN="$(
+			set -- --.local-config-option-select-default MDLT_CONSOLE_ORIGIN .local
+			. "${MDLT_ORIGIN:-"$MMDAPP/.local"}/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+		)"
+		MDLC_INMODE="${MDLT_CONSOLE_ORIGIN#$MMDAPP/}"
+		case "$MDLC_INMODE" in
+			.local)
+				export MDLT_ORIGIN="$MMDAPP/.local"
+				export MDLC_INMODE=".local"
+				export MDLT_OPTION="--run-from-.local"
+				echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+				return 0
+			;;
+			source)
+				if [ -f "$MMDAPP/source/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
+					export MDLT_ORIGIN="$MMDAPP/$MDLC_INMODE"
+					export MDLC_INMODE="source"
+					export MDLT_OPTION="--run-from-source"
+					echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+					return 0
+				fi
+				export MDLT_ORIGIN="$MMDAPP/.local"
+				export MDLC_INMODE=".local"
+				export MDLT_OPTION="--run-from-.local"
+				echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+				return 0
+			;;
+			/*)
+				if [ -f "$MDLC_INMODE/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
+					export MDLT_ORIGIN="$MDLC_INMODE"
+					export MDLC_INMODE="extern"
+					export MDLT_OPTION="--run-from-path $MDLC_INMODE"
+					echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+					return 0
+				fi
+				export MDLT_ORIGIN="$MMDAPP/.local"
+				export MDLC_INMODE=".local"
+				export MDLT_OPTION="--run-from-.local"
+				echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+				return 0
+			;;
+			*)
+				echo "🙋 WARNING: AgentsContext.SetInputSpec: MDLT_CONSOLE_ORIGIN spec: '$MDLC_INMODE', defaulting to '.local'" >&2
+				export MDLT_ORIGIN="$MMDAPP/.local"
+				export MDLC_INMODE=".local"
+				export MDLT_OPTION="--run-from-.local"
+				echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+				return 0
+			;;
+		esac
+	;;
+	--run-from-path)
+		if [ -n "$2" ] && [ -f "$2/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
+			export MDLT_ORIGIN="$2"
+			export MDLC_INMODE="extern"
+			export MDLT_OPTION="--run-from-path $2"
+
+			echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+			return 0
+		fi
+		echo "🙋 WARNING: AgentsContext.SetInputSpec: $1 requested but source is not available at '$2', defaulting to --run-from-.local" >&2
+		export MDLT_ORIGIN="$MMDAPP/.local"
+		export MDLC_INMODE=".local"
+		export MDLT_OPTION="--run-from-.local"
+		echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+		return 0
+	;;
+	--run-from-source)
+		if [ ! -f "$MMDAPP/source/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
+			export MDLT_ORIGIN="$MMDAPP/$MDLC_INMODE"
+			export MDLC_INMODE="source"
+			export MDLT_OPTION="--run-from-source"
+			echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+			return 0
+		fi
+		echo "🙋 WARNING: AgentsContext.SetInputSpec: $1 requested but source is not available, defaulting to --run-from-.local" >&2
+		export MDLT_ORIGIN="$MMDAPP/.local"
+		export MDLC_INMODE=".local"
+		export MDLT_OPTION="--run-from-.local"
+		echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+		return 0
+	;;
+	*)
+		echo "⛔ ERROR: AgentsContext.SetInputSpec: Invalid input spec: $1" >&2
+		exit 1
+	;;
+esac
+
+echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2

@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## Origin-detection context for myx.distro-agents.
+##
+## Structurally smaller than its siblings (RemoteContext.include /
+## SystemContext.include): those also define an interactive `Require`/`<Name>`
+## bash-dispatcher pair, consumed by their own `console-<name>-bashrc.rc` when
+## a console opens an interactive bash session. DistroAgentsConsole.sh never
+## opens a bash session at all -- it execs `claude`/`copilot` directly (see
+## AgentsTools.Make.include's --make-console-script) -- so there is no
+## interactive dispatcher for this file to define. What DistroAgentsConsole.sh
+## and other consoles' origin-detection blocks actually need from this file is
+## just its own existence at this exact path (checked with `[ -f ... ]`, never
+## sourced by the console script itself) as the origin marker for
+## myx.distro-agents. The `DistroAgentsContext` function below is kept for
+## consistency with the sibling `<Name>Context` shape and any future in-console
+## use, not because anything currently calls it.
+
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
+
+: "${MDLT_ORIGIN:=$MMDAPP/.local}"
+
+if ! type DistroAgentsContext >/dev/null 2>&1 ; then
+	DistroAgentsContext(){
+		case "$1" in
+			--is-spec-option)
+				case "$2" in
+					--run-from-source|--run-from-.local|--run-from-detect|--init-variables|--run-from-path)
+						return 0
+					;;
+				esac
+				set +e ; return 1
+			;;
+			--init-variables|--run-from-detect)
+				if [ -n "$MDLT_ORIGIN" ] && [ -n "$MDLT_OPTION" ] ; then
+					return 0
+				fi
+				[ -z "$MDSC_DETAIL" ] || echo "DistroAgentsContext: input spec: $1" >&2
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.SetInputSpec.include"
+				return 0
+			;;
+			--run-from-*|--init-*)
+				if DistroAgentsContext --is-spec-option "$1" ; then
+					[ -z "$MDSC_DETAIL" ] || echo "DistroAgentsContext: input spec: $1" >&2
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.SetInputSpec.include"
+					return 0
+				fi
+			;;
+		esac
+	}
+fi
+
+while true ; do
+	case "$1" in
+		'')
+			return 0
+		;;
+		--verbose)
+			export MDSC_DETAIL=true ; shift
+			continue
+		;;
+		--distro-*|--run-from-*|--init-*)
+			if DistroAgentsContext --is-spec-option "$1" ; then
+				[ -n "$MDSC_DETAIL" ] && echo "DistroAgentsContext: input spec: $1" >&2
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.SetInputSpec.include"
+				shift
+				continue
+			fi
+			break
+		;;
+	esac
+	return 0
+done

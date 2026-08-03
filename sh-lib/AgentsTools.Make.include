@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## NOTE ON THE WRAPPER FUNCTION NAME BELOW ("DistroAgentsTools"):
+## `myx.distro-.local/sh-lib/LocalTools.Make.include`'s `--make-workspace-
+## integration-files` loop mechanically builds a wrapper function named
+## `Distro${ITEM}Tools` for each installed subsystem ITEM ("System","Source",
+## "Deploy","Remote", now "Agents") sourcing that subsystem's own
+## `<Item>Tools.Make.include`. For ITEM="Agents" this mechanically produces
+## the name `DistroAgentsTools` -- the exact same name already used, elsewhere
+## in the tree, for the real, unrelated, heavily-used magic-tooling command
+## `myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh` (Slack/email/board/
+## console-session automation for the magic-* team). These are two genuinely
+## different things sharing one name, not a copy/typo. It is safe in practice
+## because:
+##  - The wrapper here is defined only inside a subshell `( ... )`, scoped to
+##    one `--make-console-command` call, then discarded -- it never leaks into
+##    a parent shell or an interactive console session.
+##  - It runs only during the one-off local-tools install/update step (fresh
+##    `bash '.../DistroLocalTools.fn.sh' ...` process), never inside a live
+##    console session that also has the real DistroAgentsTools.fn.sh sourced.
+## Flagged here deliberately (not silently reused) -- reviewed with
+## magic-architect/magic-developer before landing; see the myx.distro-agents
+## build session's own review notes.
+
+case "$1" in
+	--make-workspace-integration-files)
+		shift
+
+		if [ -z "$MDLT_ORIGIN" ] || [ "$MDLT_ORIGIN" = "$MMDAPP/.local" ] ; then
+			touch $MMDAPP/.local/MDLC.agents.settings.env
+		fi
+
+		DistroAgentsTools --make-console-command "$@"
+		return 0
+	;;
+	--make-console-command)
+		shift
+		set -e
+		## NOTE: unlike the Deploy/Remote siblings this was otherwise mirrored
+		## from (both hardcode "$MMDAPP/.local/..." here), this uses
+		## "$MDLT_ORIGIN/..." instead -- matching myx.distro-source's own
+		## SourceTools.Make.include, which already uses $MDLT_ORIGIN for this
+		## exact self-reference. Confirmed real, not cosmetic: this reference
+		## workspace runs source-origin (MDLT_CONSOLE_ORIGIN=source) with no
+		## .local/myx/myx.distro-agents mirror (out of scope this pass -- the
+		## "source/-vs-installed sync question"), so the hardcoded-.local form
+		## fails here with a real "No such file or directory". $MDLT_ORIGIN is
+		## already exported by the caller chain (DistroLocalTools.fn.sh), so
+		## this needs no new sync infrastructure to work correctly either way.
+		(
+			DistroAgentsTools(){
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Make.include"
+			}
+			DistroAgentsTools --make-console-script > "$MMDAPP/DistroAgentsConsole.sh"
+		)
+		chmod 770 "$MMDAPP/DistroAgentsConsole.sh"
+
+		if [ "$1" != "--quiet" ] ; then
+			local consoles="$( ls $MMDAPP/Distro*Console.sh | sed 's|^|	|g' )"
+			printf \
+				"\nNote: DistroAgentsConsole.sh created, now you can run:\n%s\n\n" \
+				"$consoles" \
+			>&2
+		fi
+
+		return 0
+	;;
+	--make-console-script)
+		shift
+
+		cat <<- 'DISTROCONSOLE'
+			#!/usr/bin/env bash
+
+			set -e
+
+			if [ -z "$MMDAPP" ] || [ ! -d "$MMDAPP" ] ; then
+				MMDAPP="$( ( cd $(dirname "$0") ; pwd ) )"
+			fi
+
+			[ -d "$MMDAPP/.local" ] || ( echo "⛔ ERROR: expecting '$MMDAPP/.local' directory." >&2 && exit 1 )
+
+			MDLT_CONSOLE_ORIGIN="$( ( \
+				. "$MMDAPP/.local/MDLT.settings.env" ; \
+				echo "${MDLT_CONSOLE_ORIGIN:-.local}" \
+			) )"
+			MDLC_INMODE="${MDLT_CONSOLE_ORIGIN#$MMDAPP/}"
+			case "$MDLC_INMODE" in
+				.local)
+					export MDLT_ORIGIN="$MMDAPP/.local"
+				;;
+				source)
+					if [ -f "$MMDAPP/source/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
+						export MDLT_ORIGIN="$MMDAPP/$MDLC_INMODE"
+					else
+						export MDLT_ORIGIN="$MMDAPP/.local"
+					fi
+				;;
+				/*)
+					if [ -f "$MDLC_INMODE/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
+						export MDLT_ORIGIN="$MDLC_INMODE"
+					else
+						export MDLT_ORIGIN="$MMDAPP/.local"
+					fi
+				;;
+				*)
+					export MDLT_ORIGIN="$MMDAPP/.local"
+				;;
+			esac
+			if [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
+				echo "⛔ ERROR: AgentsContext.SetInputSpec: can't find/detect origin, spec: $MDLT_CONSOLE_ORIGIN, origin: $MDLT_ORIGIN" >&2
+				exit 1
+			fi
+
+			cd "$MMDAPP"
+			export MMDAPP
+
+			## Which agent CLI to run -- claude (default) or copilot. Unlike the
+			## other four consoles, this one never opens a bash session: it execs
+			## the chosen CLI directly, so there is nothing to fall back to if the
+			## CLI is missing -- that is a hard error, not a silent bash fallback.
+			DAGC_CLI="claude"
+			while true ; do
+				case "$1" in
+					--cli)
+						if [ -z "$2" ] ; then
+							echo "⛔ ERROR: DistroAgentsConsole: --cli requires a value (claude|copilot)" >&2
+							exit 1
+						fi
+						DAGC_CLI="$2"
+						shift 2
+					;;
+					*)
+						break
+					;;
+				esac
+			done
+			case "$DAGC_CLI" in
+				claude|copilot) ;;
+				*)
+					echo "⛔ ERROR: DistroAgentsConsole: unsupported --cli: $DAGC_CLI (expected claude|copilot)" >&2
+					exit 1
+				;;
+			esac
+			command -v "$DAGC_CLI" >/dev/null 2>&1 || {
+				if [ "$DAGC_CLI" = "claude" ] ; then
+					echo "⛔ ERROR: DistroAgentsConsole: 'claude' CLI not found in PATH -- run 'myx.common install/claude' first; this console never falls back to a bash session." >&2
+				else
+					echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' CLI not found in PATH -- install it first; this console never falls back to a bash session." >&2
+				fi
+				exit 1
+			}
+
+			## --non-interactive: headless-terminal mode (interaction-channel:
+			## headless) -- one-shot, no attached TTY. Any remaining arguments are
+			## joined as the prompt; with none given, the CLI's own -p/--print
+			## reads the prompt from stdin, same "pipe stdin through" shape the
+			## sibling bash consoles use for their own --non-interactive mode.
+			##
+			## Default (no --non-interactive): harness-interactive mode
+			## (interaction-channel: harness-*) -- attaches a real interactive CLI
+			## session, same role the siblings' `bash --rcfile ... -i` plays.
+			if [ "$1" == "--non-interactive" ] ; then
+				shift
+				if [ $# -gt 0 ] ; then
+					## Join remaining args into one prompt string ($*, not "$@") --
+					## claude/copilot's own -p/--print takes one prompt argument, not
+					## several positional tokens.
+					exec "$DAGC_CLI" -p "$*"
+				fi
+				exec "$DAGC_CLI" -p
+			fi
+
+			exec "$DAGC_CLI" "$@"
+		DISTROCONSOLE
+
+		return 0
+	;;
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

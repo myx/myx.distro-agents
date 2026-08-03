@@ -1,0 +1,9 @@
+Name: myx.distro-agents
+Title: magic-team & its tooling, installation and integration package
+Augments: developer-sdk:recommended
+
+Requires: \
+	myx/myx.distro-source \
+
+Provides: myx/myx.distro-agents \
+
