@@ -207,7 +207,7 @@ case "$1" in
 	## shape calls --intern-op-board-scan directly instead. Always
 	## backlog/pending (not yet dispatched) plus running/blocked/parked
 	## (routine-grooming.routine.md's own step 1 "Gather the backlog"
-	## wording) -- processed/archived/retained/cleanup are settled/
+	## wording) -- processed/archived/retained are settled/
 	## terminal, never scanned here. Always every frontmatter field -- safe
 	## interim choice until a separate investigation narrows it to just
 	## what grooming Stage 1 actually needs. Always --all-types -- grooming

@@ -1586,10 +1586,10 @@ $1"
 				set +e ; return 1
 			fi
 			case "$boardState" in
-				backlog|pending|running|blocked|parked|processed|archived|retained|cleanup)
+				backlog|pending|running|blocked|parked|processed|archived|retained)
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --write-board-item: unrecognized board state: $boardState (must be one of backlog/pending/running/blocked/parked/processed/archived/retained/cleanup)" >&2
+					echo "⛔ ERROR: $MDSC_CMD --write-board-item: unrecognized board state: $boardState (must be one of backlog/pending/running/blocked/parked/processed/archived/retained)" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -1599,7 +1599,9 @@ $1"
 					set +e ; return 1
 				;;
 			esac
-			local boardDir="$HOME/.claude/skills/magic-team/board/$boardState"
+			local teamDataDir
+			teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+			local boardDir="$teamDataDir/board/$boardState"
 			if [ ! -d "$boardDir" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --write-board-item: no such board state directory: $boardDir" >&2
 				set +e ; return 1
@@ -1664,6 +1666,35 @@ $1"
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpBoardScan.include"
 			return $?
 		;;
+
+		--intern-op-board-trash)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpBoardTrash.include"
+			return $?
+		;;
+
+		--intern-config-board-location)
+			shift
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-config-board-location: takes no arguments" >&2
+				set +e ; return 1
+			fi
+			local teamDataDir
+			teamDataDir="$( DistroAgentsTools --agents-config-option magic-coordinator --select TEAM_DATA_DIRECTORY )"
+			if [ -z "$teamDataDir" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-config-board-location: TEAM_DATA_DIRECTORY is not configured -- set it first: DistroAgentsTools.fn.sh --agents-config-option magic-coordinator --upsert TEAM_DATA_DIRECTORY <path>" >&2
+				set +e ; return 1
+			fi
+			case "$teamDataDir" in
+				/*)
+					printf '%s\n' "$teamDataDir"
+				;;
+				*)
+					printf '%s\n' "$MMDAPP/$teamDataDir"
+				;;
+			esac
+			return 0
+		;;
+
 
 		## routine-grooming's own operation group (--magic-grooming-to-*,
 		## --magic-grooming-input-scan) -- see

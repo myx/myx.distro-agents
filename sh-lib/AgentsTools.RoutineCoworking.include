@@ -82,7 +82,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local allStates=( backlog pending running blocked parked processed archived retained cleanup )
+		local allStates=( backlog pending running blocked parked processed archived retained )
 		local phaseAArgs=() s n
 
 		for s in "${allStates[@]}" ; do phaseAArgs+=( --state "$s" ) ; done

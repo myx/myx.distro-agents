@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpBoardTrash.include -- the --intern-op-board-trash op
+## for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily from that exact
+## op's own dispatcher arm via the standard $MDLT_ORIGIN-based path. Not
+## standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD. One
+## intern-op primitive per file, same convention as
+## AgentsTools.InternOpBoardRename.include -- not bundled with it.
+##
+## Explicit board-item <-> trash/ relocation, both directions via one op.
+## trash/ is a standalone sibling of board/ under the team data directory
+## (--intern-config-board-location's own root) -- not one of board/'s own
+## states. <board-state> in the --untrash direction names the RESTORE
+## target, not a state trash/ itself belongs to.
+##
+## No --help entry: internal plumbing, called by
+## --magic-heartbeat-board-item-trash.
+##
+
+case "$1" in
+
+	--intern-op-board-trash)
+		shift
+		local boardState="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$boardState" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: syntax is <board-state> <item-name> [--untrash]" >&2
+			set +e ; return 1
+		fi
+		local doUntrash="false"
+		if [ "$1" = "--untrash" ] ; then
+			doUntrash="true"
+			shift
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		case "$boardState" in
+			backlog|pending|running|blocked|parked|processed|archived|retained)
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: invalid board-state: $boardState" >&2
+				set +e ; return 1
+			;;
+		esac
+		case "$itemName" in
+			*/*|.|..)
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: item filename must be a bare filename: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		local teamDataDir
+		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+
+		if [ "$doUntrash" = "true" ] ; then
+			local sourcePath="$teamDataDir/trash/$itemName"
+			local targetDir="$teamDataDir/board/$boardState"
+			local targetPath="$targetDir/$itemName"
+			if [ ! -f "$sourcePath" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: --untrash: item not found in trash/: $sourcePath" >&2
+				set +e ; return 1
+			fi
+			if [ ! -d "$targetDir" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: --untrash: no such board state directory: $targetDir" >&2
+				set +e ; return 1
+			fi
+			mv "$sourcePath" "$targetPath"
+			echo "# $MDSC_CMD --intern-op-board-trash: restored $sourcePath to $targetPath" >&2
+		else
+			local sourceDir="$teamDataDir/board/$boardState"
+			local sourcePath="$sourceDir/$itemName"
+			local targetPath="$teamDataDir/trash/$itemName"
+			if [ ! -f "$sourcePath" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: item not found: $sourcePath" >&2
+				set +e ; return 1
+			fi
+			mv "$sourcePath" "$targetPath"
+			echo "# $MDSC_CMD --intern-op-board-trash: moved $sourcePath to $targetPath" >&2
+		fi
+		return 0
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

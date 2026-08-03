@@ -43,6 +43,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-heartbeat <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-release <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
 📘 syntax: DistroAgentsTools.fn.sh --purge-cleanup
 📘 syntax: DistroAgentsTools.fn.sh [--help]
 
@@ -123,14 +124,11 @@
 			per-workspace, not global.
 
 		--agents-config-option <entity-id> <operation>
-			Reads/writes one settings file per named entity,
-			$MMDAPP/.local/.agents/<entity-id>.agent.env — same per-entity
+			Reads/writes one settings file per named entity -- same per-entity
 			mechanism as myx.distro-.local's --remote-config-option
 			(<entity-id> is a required first argument, same way
-			<remote-id> is), kept under the existing .local/.agents/
-			credential directory rather than --remote-config-option's own
-			root-level remote/static/ path. Backed by the same shared
-			myx.distro-.local/sh-lib/LocalTools.Config.include used by
+			<remote-id> is), kept in its own dedicated credential scope
+			rather than --remote-config-option's own. Same shared backend as
 			DistroLocalTools/DistroSourceTools's --system-config-option, with
 			added chmod 700 (dir) / 600 (file) hardening on creation since
 			this scope holds real credentials (--remote-config-option's own
@@ -140,7 +138,7 @@
 			<operation> is one of: --select-all, --select <key>|--all,
 			--select-default <key> <default>, --upsert <key> <val>,
 			--upsert-if <key> <val> <ifval>, --delete <key>, --delete-if
-			<key> <ifval> — see LocalTools.Config.include itself for the
+			<key> <ifval> — the underlying config backend defines the
 			authoritative behavior of each.
 
 		--member-config-option <member-name> <operation>
@@ -166,8 +164,8 @@
 			Posts a message to Slack via chat.postMessage, attributed to
 			<team-member>. The only Slack-post op -- there is no separate
 			anonymous/unattributed variant. <team-member> is a required first
-			argument, validated as an existing skill directory under
-			~/.claude/skills/<team-member> (bare name, no path characters); the
+			argument, validated as an existing team member (bare name, no
+			path characters); the
 			outgoing text is prefixed with a "*<team-member>:*" attribution
 			line ahead of the message (also used as the --format blocks case's
 			own static text-fallback content). <target> is
@@ -429,10 +427,9 @@
 			one single-line command, since a heredoc body spans multiple lines
 			and stops matching a single-line settings.json allowlist glob).
 			<member-name> is a bare directory name only (no `/`, not `.`/`..`)
-			that must already exist under $HOME/.claude/skills/ -- same
+			that must already exist as a real team member -- same
 			fixed-target-per-identifier shape as --purge-cleanup, never a
-			free-form path. Writes
-			$HOME/.claude/skills/<member-name>/<member-name>.SLIB.md, refusing
+			free-form path. Writes that member's own assembled SLIB file, refusing
 			empty content (whether from stdin or --file) rather than truncating
 			the file to nothing. SLIB files are generated content, so this op
 			exists to avoid needing per-write approval the way real source
@@ -449,18 +446,17 @@
 			a general-purpose board-writing op for any member. No caller-
 			identity enforcement exists (same convention-based-trust model as
 			every other op here) — this is documented, not code-enforced.
-			<state> must be one of the board's real state-folder names
+			<state> must be one of the board's real state names
 			(backlog/pending/running/blocked/parked/processed/
-			archived/retained/cleanup); <item-filename> must be a bare filename (no
+			archived/retained); <item-filename> must be a bare filename (no
 			`/`, not `.`/`..`). Content via stdin only. Writes (creates or
-			overwrites) `$HOME/.claude/skills/magic-team/board/<state>/
-			<item-filename>`. Moving an Item between states is two calls
+			overwrites) that item under board/<state>/. Moving an Item between states is two calls
 			(write into the new state, then remove the old file separately) —
 			this op has no built-in move/rename primitive.
 
 		--member-upsert-inbox-note <member> <item-filename> [--file <path>]
 			Writes (creates or overwrites) a note into any member's own
-			personal inbox (`~/.claude/skills/<member>/inbox/`) — unlike
+			personal inbox — unlike
 			the board, inbox write access is not exclusive to one member;
 			any member may post into any other member's inbox (the
 			standard cross-member handoff mechanism, see
@@ -489,20 +485,18 @@
 			though they currently resolve to the identical mechanism.
 
 		--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
-			Appends exactly one canonical transcript-entry block into
-			$HOME/.claude/audit/<YYYY-MM>/<transcript-file-name>:
+			Appends exactly one canonical transcript-entry block:
 			<speaker-name> (<timestamp>): followed by quoted message lines.
-			Per magic-team.shared.md's transcript-* location predicate,
-			transcripts save under the shared audit tree -- not a
+			Transcripts save under the team's shared audit tree -- not a
 			board/<state>/ folder; see --write-board-item above for the real
-			board state-folder names. <YYYY-MM> is derived from the date
+			board state names. <YYYY-MM> is derived from the date
 			embedded in <transcript-file-name> (transcript-YYYY-MM-DD-*),
 			falling back to the current UTC year-month otherwise.
 			<team-member> is an enforced first positional argument, not a
-			--member flag. Its skill directory must already exist (sanity check
-			that the member is real); audit/ and its <YYYY-MM>/ subfolder are
+			--member flag. It must already be a real team member (sanity check);
+			the target month's own bucket is
 			created on demand if missing (same laziness as
-			--member-upsert-inbox-note's inbox/ handling). --workspace-root is
+			--member-upsert-inbox-note's inbox handling). --workspace-root is
 			still required and validated (absolute, existing directory) but
 			does not determine the target path. Does not rewrite prior content.
 			Missing target transcript is an error unless --create is passed.
@@ -668,6 +662,16 @@
 			specific consuming step's own verified text the way sibling
 			ops' defaults are; see AgentsTools.MagicHeartbeat.include's own
 			header for the full finding.
+
+		--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
+			Relocates one terminal board-item out of the board entirely, for
+			routine-heartbeat's own GC step. <team-member> is the calling
+			member's own identity (logged, not otherwise enforced);
+			<board-state> is the item's current real board state
+			(backlog/pending/running/blocked/parked/processed/archived/
+			retained); <item-name> is a bare filename. Thin wrapper, always
+			trashes, never restores -- restoring is a separate, internal-only
+			capability, not exposed through this op.
 
 		--purge-cleanup
 			Empties $MMDAPP/.local/.cleanup/ (the folder itself stays) --

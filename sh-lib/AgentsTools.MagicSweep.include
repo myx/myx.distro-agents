@@ -20,8 +20,8 @@ case "$1" in
 	## for every open thread" text: always scans backlog/pending/running/
 	## blocked -- deliberately NOT parked, unlike --magic-grooming-input-
 	## scan's own list (that routine text is explicit: the tracked set is
-	## board-items "currently open", i.e. not yet processed/archived/
-	## cleanup, and parked items are not part of the live comms-thread
+	## board-items "currently open", i.e. not yet processed/archived,
+	## and parked items are not part of the live comms-thread
 	## tracking set either). Fixed, hardcoded state-list -- no caller-facing
 	## --state override flag: dedicated wrappers are fixed, not flexible; a
 	## caller wanting a different scan shape calls --intern-op-board-scan

@@ -59,8 +59,9 @@ case "$1" in
 	## the same field: last wins; repeat appends on the same field:
 	## cumulative, in order) -- then the result is written to a temp file
 	## and `mv`'d into place atomically. On an actual move (--from-state !=
-	## <to-state>), the OLD file is `mv`'d to board/cleanup/ rather than
-	## removed -- not destroyed, just relocated, for now.
+	## <to-state>), the OLD file is `mv`'d to trash/ (a standalone sibling
+	## of board/, not one of its own states) rather than removed -- not
+	## destroyed, just relocated, for now.
 	--intern-op-board-upsert-move-edit)
 		shift
 		local toState="$1"
@@ -72,7 +73,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		case "$toState" in
-			backlog|pending|running|blocked|parked|processed|archived|retained|cleanup)
+			backlog|pending|running|blocked|parked|processed|archived|retained)
 			;;
 			*)
 				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit: invalid to-state: $toState" >&2
@@ -86,7 +87,9 @@ case "$1" in
 			;;
 		esac
 
-		local boardRoot="$HOME/.claude/skills/magic-team/board"
+		local teamDataDir
+		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+		local boardRoot="$teamDataDir/board"
 		local fromState="" isCreate="false" sourcePath="" bodyMode="" scriptLang="" bodyModeCount=0
 		local headerOpsFile
 		headerOpsFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-headers.XXXXXX" )" || { set +e ; return 1 ; }
@@ -97,7 +100,7 @@ case "$1" in
 				--from-state:*)
 					fromState="${1#--from-state:}"
 					case "$fromState" in
-						backlog|pending|running|blocked|parked|processed|archived|retained|cleanup)
+						backlog|pending|running|blocked|parked|processed|archived|retained)
 						;;
 						*)
 							echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit: --from-state: invalid state: $fromState" >&2
@@ -275,8 +278,8 @@ case "$1" in
 		mv "$tmpFile" "$targetPath"
 
 		if [ "$isCreate" = "false" ] && [ "$sourcePath" != "$targetPath" ] ; then
-			mv "$sourcePath" "$boardRoot/cleanup/$itemName"
-			echo "# $MDSC_CMD --intern-op-board-upsert-move-edit: wrote $targetPath, previous $sourcePath moved to $boardRoot/cleanup/$itemName" >&2
+			mv "$sourcePath" "$teamDataDir/trash/$itemName"
+			echo "# $MDSC_CMD --intern-op-board-upsert-move-edit: wrote $targetPath, previous $sourcePath moved to $teamDataDir/trash/$itemName" >&2
 		else
 			echo "# $MDSC_CMD --intern-op-board-upsert-move-edit: wrote $targetPath" >&2
 		fi

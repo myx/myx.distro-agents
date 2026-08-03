@@ -54,7 +54,7 @@
 ## through a wrapper never actually hits these -- every current wrapper
 ## always resolves and passes its own explicit list first):
 ##   - no --state given -> every real board state (backlog/pending/running/
-##     blocked/parked/processed/archived/retained/cleanup) -- a sensible,
+##     blocked/parked/processed/archived/retained) -- a sensible,
 ##     always-correct universal default ("no restriction" = "everything"),
 ##     unlike type.
 ##   - no --header given -> every frontmatter field, verbatim (via the
@@ -86,7 +86,7 @@ case "$1" in
 						set +e ; return 1
 					fi
 					case "$2" in
-						backlog|pending|running|blocked|parked|processed|archived|retained|cleanup)
+						backlog|pending|running|blocked|parked|processed|archived|retained)
 						;;
 						*)
 							echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan: --state: invalid state: $2" >&2
@@ -150,10 +150,12 @@ case "$1" in
 		fi
 
 		if [ ${#states[@]} -eq 0 ] ; then
-			states=( backlog pending running blocked parked processed archived retained cleanup )
+			states=( backlog pending running blocked parked processed archived retained )
 		fi
 
-		local boardRoot="$HOME/.claude/skills/magic-team/board"
+		local teamDataDir
+		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+		local boardRoot="$teamDataDir/board"
 		local frontmatterPrintAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentBoardItemFrontmatterPrint.awk"
 
 		local state f base h val it tp matched ownerVal

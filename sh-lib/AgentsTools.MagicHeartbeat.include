@@ -76,6 +76,28 @@ case "$1" in
 		return $?
 	;;
 
+	## Explicit board-item->trash relocation for this routine's own GC step
+	## (routine-heartbeat.routine.md's GC sub-step).
+	--magic-heartbeat-board-item-trash)
+		shift
+		local callingMember="$1"
+		shift || true
+		local boardState="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$boardState" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-board-item-trash: syntax is <team-member> <board-state> <item-name>" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-board-item-trash: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-board-trash "$boardState" "$itemName"
+		return $?
+	;;
+
 	##
 	## --magic-heartbeat-lock-* -- magic-coordinator's main-loop-mode
 	## single-instance lock: mkdir-based mutex, 900s stale threshold, stdout

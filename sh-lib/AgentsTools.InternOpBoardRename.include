@@ -55,7 +55,9 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local boardRoot="$HOME/.claude/skills/magic-team/board"
+		local teamDataDir
+		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+		local boardRoot="$teamDataDir/board"
 		local oldEscaped
 		oldEscaped="$( printf '%s' "$oldName" | LC_ALL=C sed -e 's/[.[\*^$/]/\\&/g' )"
 		local f base touched=0
@@ -80,7 +82,7 @@ case "$1" in
 		## edit (--from-state == <to-state>, same filename both sides) --
 		## purely to stamp `supersedes`, not a second rename attempt.
 		local state oldFile renamed="false"
-		for state in backlog pending running blocked parked processed archived retained cleanup ; do
+		for state in backlog pending running blocked parked processed archived retained ; do
 			oldFile="$boardRoot/$state/$oldName"
 			if [ -f "$oldFile" ] ; then
 				mv "$oldFile" "$boardRoot/$state/$newName"
