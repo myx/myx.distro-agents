@@ -171,8 +171,9 @@
 			own static text-fallback content). <target> is
 			`magic-team` or `human-owner` (channel id resolved from
 			SLACK_CHANNEL_MAGIC_TEAM/SLACK_CHANNEL_HUMAN_OWNER in
-			--agents-config-option), `event-track` or `event-alert` (fixed
-			channels `#bot-messages`/`#cloud-alert`, not resolved via
+			--agents-config-option), `event-track` or `event-alert`
+			(channel id resolved from
+			SLACK_CHANNEL_EVENT_TRACK/SLACK_CHANNEL_EVENT_ALERT in
 			--agents-config-option), or a literal `<channel>:<ts>` string
 			(posted as a threaded reply via thread_ts — the caller supplies
 			this directly; nothing is looked up by name). Plain trailing

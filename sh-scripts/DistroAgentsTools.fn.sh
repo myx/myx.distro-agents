@@ -167,11 +167,11 @@ DistroAgentsToolsResolveTarget(){
 	local channel threadTs
 	case "$target" in
 		event-track|event-track:*)
-			channel="#bot-messages"
+			channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_TRACK )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		event-alert|event-alert:*)
-			channel="#cloud-alert"
+			channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_ALERT )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		magic-team|magic-team:*)
@@ -982,8 +982,9 @@ $1"
 			## caller keep hand-rolling a python3 -c 'import json...'
 			## one-liner just to read a Slack reply" pattern, not another
 			## one-off workaround.
+			local awkStatus=0
 			if [ "$pretty" = "true" ] ; then
-				curl "${curlArgs[@]}" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackMessagesFormat.awk"
+				curl "${curlArgs[@]}" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackMessagesFormat.awk" || awkStatus=$?
 			else
 				curl "${curlArgs[@]}"
 				echo
@@ -991,6 +992,10 @@ $1"
 
 			rm -f "$headerFile"
 			trap - EXIT
+
+			if [ "$awkStatus" != "0" ] ; then
+				set +e ; return 1
+			fi
 			return 0
 		;;
 
@@ -1111,7 +1116,9 @@ $1"
 				## with an empty thread ts -- a bare channel id alone isn't
 				## valid target grammar (matches neither a known name nor
 				## channel:ts).
-				DistroAgentsTools --check-slack "$channel:" "${recurseArgs[@]}"
+				if ! DistroAgentsTools --check-slack "$channel:" "${recurseArgs[@]}" ; then
+					echo "# $MDSC_CMD --sweep-read-incoming-comms: --check-slack failed for '$name', see error above" >&2
+				fi
 			done
 
 			echo "## target=email"

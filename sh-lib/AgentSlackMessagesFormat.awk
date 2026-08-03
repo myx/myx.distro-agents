@@ -33,7 +33,7 @@
 # MCP JSON-RPC fields). Not a general-purpose formatter: only understands
 # the flat messages[] array shape Slack's own API actually returns.
 
-BEGIN { msgCount = 0; }
+BEGIN { msgCount = 0; apiOk = "true"; apiOkSeen = 0; }
 
 function skipws(   c) {
 	while (p <= n) {
@@ -124,6 +124,8 @@ function parseString(   c, out, hex, code, hex2, code2, cp) {
 ## message index; print in END once every field has been seen -- field
 ## order in Slack's real API responses isn't something to depend on.
 function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afterJ, jNum) {
+	if (path == "ok") { apiOk = val; apiOkSeen = 1; return; }
+	if (path == "error") { apiError = val; return; }
 	if (index(path, "messages.") != 1) return
 	rest = substr(path, length("messages.") + 1)
 	idx = rest
@@ -243,6 +245,11 @@ function parseArray(path,   idx, c) {
 ## annotations are appended to the same line, never a separate output line,
 ## so a "ts | user | text" parser downstream keeps working unchanged.
 END {
+	if (apiOkSeen && apiOk == "false") {
+		printf("⛔ ERROR: Slack API call failed: ok:false%s\n", (apiError != "" ? " error=" apiError : "")) > "/dev/stderr"
+		exit 1
+	}
+
 	for (i = msgCount - 1; i >= 0; i--) {
 		line = sprintf("%s | %s | %s", tsOf[i], (i in userOf ? userOf[i] : "?"), textOf[i])
 
