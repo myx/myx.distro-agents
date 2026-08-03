@@ -821,7 +821,7 @@
 
 		# Send an email with a multi-line body from stdin instead of fragile trailing argv
 		```
-		DistroAgentsTools.fn.sh --send-email-message myx@meloscope.com -- "Status update" -- --from-stdin <<'EOF'
+		DistroAgentsTools.fn.sh --send-email-message example@example.org -- "Status update" -- --from-stdin <<'EOF'
 		Line one of the body.
 		Line two, with 'quotes' and (parens) that would have been fragile as argv.
 		EOF
