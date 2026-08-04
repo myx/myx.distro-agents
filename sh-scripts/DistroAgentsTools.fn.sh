@@ -1466,100 +1466,6 @@ $1"
 			return 0
 		;;
 
-		## Regenerates one member's own <name>.SLIB.md without going through this
-		## session's own Edit/Write tool call, since SLIB files are generated
-		## content that shouldn't need per-write approval the way real source
-		## edits do.
-		##
-		## Same fixed-target-per-identifier shape as --purge-cleanup: <routine-name> is
-		## never a free-form path -- it's validated as a bare directory name (no '/', not
-		## '.'/'..') and must already exist as a real skill directory under
-		## $HOME/.claude/skills/, so this op can only ever touch that one directory's own
-		## <name>.SLIB.md, never an arbitrary path. Content comes from stdin by
-		## default, or from a plain file via --file <path>, same motivation/shape as
-		## --member-slack-send-message/--send-email-message's own --file: lets a caller write the
-		## regenerated content to a plain temp file first, an ordinary Write tool call,
-		## and still invoke this op as one single-line command, since a heredoc body
-		## spans multiple lines and stops matching a single-line settings.json allowlist
-		## glob. Call with this tool's absolute path leading and either a heredoc
-		## supplying stdin content (per magic-team/CONSOLE-SESSIONS.md's "Heredoc for
-		## stdin" convention) or --file <path>.
-		##
-		## Caller-identity gap, stated plainly rather than silently ignored: this tool
-		## has no privilege separation -- nothing stops any caller from regenerating any
-		## routine's SLIB file. Convention-based trust only, same model as every other op
-		## here (see magic-coordinator/SKILL.md's DistroAgentsTools trust-policy entry).
-		## Intended caller is magic-librarian, regenerating a routine's own merged
-		## contract file after a source SKILL.md/ACCESS.md change -- not enforced, just
-		## documented.
-		##
-		## --write-board-item/--write-inbox-note are documented (their own comment
-		## blocks below), not code-enforced, as magic-coordinator-only -- exposing them
-		## as general callable ops does not create a bypass of BOARD.md's "write
-		## authority is exclusive over the board," since nothing about calling these ops
-		## grants a caller any authority BOARD.md itself doesn't already recognize; they
-		## are simply the sanctioned mechanism magic-coordinator itself uses to write,
-		## same convention-based-trust model as every other op here.
-		--write-slib)
-			shift
-			local routineName="$1"
-			shift || true
-			if [ -z "$routineName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --write-slib: member name required (e.g. routine-grooming, keeper-acm) -- content via stdin or --file <path>" >&2
-				set +e ; return 1
-			fi
-			case "$routineName" in
-				*/*|.|..)
-					echo "⛔ ERROR: $MDSC_CMD --write-slib: member name must be a bare directory name, not a path: $routineName" >&2
-					set +e ; return 1
-				;;
-			esac
-			local skillDir="$HOME/.claude/skills/$routineName"
-			if [ ! -d "$skillDir" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --write-slib: no such skill directory: $skillDir" >&2
-				set +e ; return 1
-			fi
-			## There is only ONE SLIB filename convention across the whole team, acting
-			## members and routine-* virtual members alike: <name>.SLIB.md -- every real
-			## routine-*/ folder has its own <routine-name>.SLIB.md, e.g.
-			## routine-daily.SLIB.md; no routine-contract.SLIB.md file exists anywhere in
-			## ~/.claude/skills. Hardcoding routine-contract.SLIB.md as the target here
-			## would silently mis-write every other target (e.g. keeper-acm) to a stray,
-			## wrongly-named file instead of that member's real <name>.SLIB.md.
-			local target="$skillDir/$routineName.SLIB.md"
-			local content contentFromFile="false"
-			while [ $# -gt 0 ] ; do
-				case "$1" in
-					--file)
-						## Same shape as --send-email-message's own --file (an explicit
-						## contentFromFile flag gates the later
-						## stdin-read, rather than inferring source from whether
-						## $content is non-empty, which would wrongly fall through to
-						## reading stdin if the given file happened to be empty).
-						if [ -z "$2" ] || [ ! -f "$2" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --write-slib: --file: file not found: $2" >&2
-							set +e ; return 1
-						fi
-						content="$( cat "$2" )"
-						contentFromFile="true"
-						shift 2
-					;;
-					*)
-						echo "⛔ ERROR: $MDSC_CMD --write-slib: unrecognized argument: $1" >&2
-						set +e ; return 1
-					;;
-				esac
-			done
-			[ "$contentFromFile" = "true" ] || content="$( cat )"
-			if [ -z "$content" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --write-slib: empty content -- refusing to write an empty $( basename "$target" )" >&2
-				set +e ; return 1
-			fi
-			printf '%s\n' "$content" > "$target"
-			echo "# $MDSC_CMD --write-slib: wrote $target ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
-			return 0
-		;;
-
 		## **magic-coordinator-only by design** -- BOARD.md states plainly
 		## "magic-coordinator's write authority is
 		## exclusive over the board -- full stop... creating an Item, moving one
@@ -1732,6 +1638,14 @@ $1"
 		## AgentsTools.MagicHeartbeat.include's own header.
 		--magic-heartbeat-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicHeartbeat.include"
+			return $?
+		;;
+
+		## routine-advance's own operation group
+		## (--magic-advance-input-scan, also consumed by routine-update-board)
+		## -- see AgentsTools.MagicAdvance.include's own header.
+		--magic-advance-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicAdvance.include"
 			return $?
 		;;
 

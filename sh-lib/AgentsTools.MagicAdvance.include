@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MagicAdvance.include -- routine-advance's own --magic-advance-*
+## operation group for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily
+## from the `--magic-advance-*)` wildcard arm via the standard
+## $MDLT_ORIGIN-based path. Not standalone: relies on being dot-sourced for
+## $1/$@/$MDSC_CMD. Same "own dedicated namespace/.include per routine"
+## convention as AgentsTools.MagicGrooming.include -- one op today, room for
+## more of this routine's own ops later.
+##
+## Two routines consume this one namespace, deliberately: routine-advance
+## (the owning routine, whose name the prefix echoes) and
+## routine-update-board, which reads the same board state to recompute
+## dependency edges. That second consumer is the human-owner's own explicit
+## call -- update-board's board-read tooling lives under advance's
+## operation-namespace rather than getting a separately-named wrapper of its
+## own. No --magic-update-board-* namespace exists, and none should be added
+## for this read.
+##
+## State-list, investigated directly against routine-advance.routine.md's own
+## "Scope" section rather than copied off a sibling: that routine's in-scope
+## set is running (every item, every pass), backlog + pending (every item,
+## every pass), and blocked + parked narrowly (only items whose recorded
+## recheck-date has arrived, per its own step 3e). The recheck-date narrowing
+## is a judgment that step applies to already-loaded rows -- a date
+## comparison the scan primitive cannot make -- so all five states load here
+## and the routine narrows afterwards. This lands on the same "active work"
+## backlog/pending/running/blocked/parked five-state list already established
+## for --magic-grooming-input-scan/--member-work-session-input-scan/
+## --magic-heartbeat-input-scan; sharing that shape is convergence on the
+## board's own active/terminal split, not a copied default.
+##
+## routine-update-board's own narrower need (running + blocked only, its step
+## 1's "states that represent real, current, unresolved work") is a genuine
+## subset of the five above, so that routine consumes this same document and
+## ignores the backlog/pending/parked rows it does not use -- every row is
+## already labelled <state>/<item-filename>, so a caller narrowing by state
+## needs nothing from the op to do it. Note the subset relation holds only
+## because blocked is in this list: routine-advance's own step 1 prose names
+## just running/backlog/pending, which would NOT cover update-board's blocked
+## rows, and would not cover advance's own step 3e either.
+##
+## Fixed, hardcoded state-list/header-list -- no caller-facing --state/
+## --header override flags, and specifically none added for the second
+## consumer's narrower view: dedicated wrappers are fixed, not flexible; a
+## caller wanting a different scan shape calls --intern-op-board-scan
+## directly instead. Contrast --routine-coworking-session-input-scan's own
+## positional <item-name> list, which is that op's real defining input rather
+## than an override of an already-fixed default. Always --all-types -- neither
+## consuming routine filters by board-item type prefix -- and always every
+## frontmatter field: update-board reads blocks/blocked-by/references while
+## advance reads recheck-date/condition/session-id/restart-session/
+## approved-by/approved-at, and no narrower union has been identified.
+##
+
+case "$1" in
+
+	## Takes no arguments -- read-only discovery, same document shape as
+	## --magic-grooming-input-scan (thin wrapper over
+	## --intern-op-board-scan). See this file's own header comment for the
+	## state-list's derivation and for the second consuming routine.
+	--magic-advance-input-scan)
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## tooling operation discipline convention, same as every sibling
+		## input-scan op. The op's own "no arguments" nature now means exactly
+		## one: the calling member.
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: syntax is <team-member>" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: takes no arguments" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-board-scan \
+			--state backlog --state pending --state running --state blocked --state parked \
+			--all-types
+		return $?
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

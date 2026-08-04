@@ -157,12 +157,19 @@ case "$1" in
 		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
 		local boardRoot="$teamDataDir/board"
 		local frontmatterPrintAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentBoardItemFrontmatterPrint.awk"
+		local headersJoined="" sep=""
+		if [ ${#headers[@]} -gt 0 ] ; then
+			for h in "${headers[@]}" ; do
+				headersJoined+="$sep$h"
+				sep=$'\034'
+			done
+		fi
 
 		local state f base h val it tp matched ownerVal
 		for state in "${states[@]}" ; do
 			for f in "$boardRoot/$state"/*.md ; do
 				[ -f "$f" ] || continue
-				base="$( basename "$f" )"
+				base="${f##*/}"
 
 				## Cheapest check first: bare basename compare, no file I/O.
 				if [ ${#items[@]} -gt 0 ] ; then
@@ -189,7 +196,7 @@ case "$1" in
 				## file -- plain exact-match line extraction, same sed idiom
 				## the named-header display case below already uses.
 				if [ -n "$owner" ] ; then
-					ownerVal="$( LC_ALL=C sed -n 's/^owner: //p' "$f" | head -n 1 )"
+					ownerVal="$( LC_ALL=C sed -n 's/^owner: //p;q' "$f" )"
 					[ "$ownerVal" = "$owner" ] || continue
 				fi
 
@@ -197,10 +204,37 @@ case "$1" in
 				if [ ${#headers[@]} -eq 0 ] ; then
 					LC_ALL=C awk -f "$frontmatterPrintAwk" "$f"
 				else
-					for h in "${headers[@]}" ; do
-						val="$( LC_ALL=C sed -n "s/^$h: //p" "$f" | head -n 1 )"
-						printf '%s: %s\n' "$h" "$val"
-					done
+					LC_ALL=C awk -v headers="$headersJoined" '
+						BEGIN {
+							n = split(headers, order, "\034")
+							for (i = 1; i <= n; i++) {
+								vals[order[i]] = ""
+							}
+						}
+						NR == 1 {
+							if ($0 == "---") {
+								in_fm = 1
+								next
+							}
+						}
+						in_fm {
+							if ($0 == "---") {
+								exit
+							}
+							pos = index($0, ": ")
+							if (pos > 0) {
+								key = substr($0, 1, pos - 1)
+								if ((key in vals) && vals[key] == "") {
+									vals[key] = substr($0, pos + 2)
+								}
+							}
+						}
+						END {
+							for (i = 1; i <= n; i++) {
+								printf "%s: %s\\n", order[i], vals[order[i]]
+							}
+						}
+					' "$f"
 				fi
 				printf '\n'
 			done

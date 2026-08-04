@@ -39,6 +39,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <item-name>...
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-heartbeat <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-release <team-member>
@@ -601,68 +602,60 @@
 			line, with every frontmatter field. Always scans backlog/
 			pending/running/blocked/parked, --all-types. Use this to find an
 			item's actual current state before calling --magic-grooming-to-*.
-			Thin wrapper over the internal --intern-op-board-scan primitive
-			(no --help entry of its own) -- fixed, hardcoded state-list/
-			header-list, no caller-facing --state/--header override
-			(dedicated wrappers are fixed, not flexible; call
-			--intern-op-board-scan directly for a different scan shape).
-			Default scan output unchanged from this op's own pre-primitive
-			implementation; the override-flag capability that
-			implementation had is not.
+			<team-member> is the only argument -- no --state/--header
+			override.
 
 		--magic-sweep-input-scan <team-member>
 			Read-only: routine-communication-sweep's own first-stage board
-			scan. Thin wrapper over --intern-op-board-scan. Always scans
-			backlog/pending/running/blocked -- deliberately not parked, per
-			that routine's own "Enumeration mechanism for every open
-			thread" text (the tracked set is board-items "currently open").
-			Always --all-types, always full frontmatter -- no caller-facing
-			--state override. Two-call pattern internally: discovers which
-			items have both source_slack_channel/source_slack_ts set (only
-			those track a live, reply-pending Slack thread), then re-scans
-			restricted to exactly those survivors for the real display
-			output. Empty result (no live-tracked thread) is a normal,
-			clean outcome, not an error.
+			scan. Scans backlog/pending/running/blocked -- not parked.
+			Returns only the items carrying both source_slack_channel and
+			source_slack_ts, i.e. those tracking a live, reply-pending
+			Slack thread, every board-item type, every frontmatter field.
+			An empty result (no live-tracked thread) is a normal, clean
+			outcome, not an error. <team-member> is the only argument -- no
+			--state/--header override.
 
 		--member-work-session-input-scan <team-member>
 			Read-only: one member's own current work-session input --
 			personal, not routine-dictated (every armed member runs this
 			against its own name as it becomes armed, regardless of which
-			routine triggered the arming). Thin wrapper over
-			--intern-op-board-scan, fixed --owner <member> and --all-types.
-			Always scans backlog/pending/running/blocked/parked, always
-			every frontmatter field -- <member> is this op's only argument,
-			no --state/--header override. Appends that same member's own
+			routine triggered the arming). Scans backlog/pending/running/
+			blocked/parked, restricted to the items owned by <team-member>,
+			every board-item type, every frontmatter field. <team-member>
+			is the only argument -- no --state/--header override. Appends
+			that same member's own
 			inbox/ contents as a second, identically shaped section
 			(`## inbox/<item-filename>` + frontmatter) -- a not-yet-created
 			inbox/ prints an empty section, not an error.
 
 		--routine-coworking-session-input-scan <team-member> <item-name>...
 			Read-only: routine-coworking's own step-1 board scan once the
-			session's shared goal names specific board-item(s). Thin
-			wrapper over --intern-op-board-scan. At least one <item-name>
-			required -- this is the op's real defining input, no --state/
-			--header override alongside it. Always scans every real board
-			state (a named item may live in any of them) and is never
-			--owner-filtered (contrast with --member-work-session-input-scan:
-			this is about specific named items regardless of who owns
-			them). Two-call pattern internally: discovers every item named
-			in the given items' own references/blocks/blocked-by fields,
-			then re-scans restricted to the union of the originally-given
-			names plus every discovered related name, for the real display
-			output (always every frontmatter field).
+			session's shared goal names specific board-item(s). At least one
+			<item-name> is required -- no --state/--header override
+			alongside it. Searches every real board state (a named item may
+			live in any of them) and never filters by owner (contrast
+			--member-work-session-input-scan: this is about specific named
+			items regardless of who owns them). Returns the named items
+			plus every item reached through their own references/blocks/
+			blocked-by fields, every board-item type, every frontmatter
+			field.
 
 		--magic-heartbeat-input-scan <team-member>
-			Read-only: routine-heartbeat's own board scan (name
-			deliberately does not echo that routine's own name -- confirmed
-			intentional). Thin wrapper over --intern-op-board-scan, always
-			--all-types. Always scans backlog/pending/running/blocked/
-			parked, always every frontmatter field -- no caller-facing
-			--state/--header override -- an interim default (a broad
-			"pulse of the whole active board" reading), not yet tied to one
-			specific consuming step's own verified text the way sibling
-			ops' defaults are; see AgentsTools.MagicHeartbeat.include's own
-			header for the full finding.
+			Read-only: routine-heartbeat's own board scan. Scans backlog/
+			pending/running/blocked/parked -- a broad "pulse of the whole
+			active board" reading -- every board-item type, every
+			frontmatter field. <team-member> is the only argument -- no
+			--state/--header override.
+
+		--magic-advance-input-scan <team-member>
+			Read-only: routine-advance's own board scan, and the same scan
+			routine-update-board reads to recompute what blocks what. Scans
+			backlog/pending/running/blocked/parked, every board-item type,
+			every frontmatter field. A caller needing a narrower view
+			(routine-update-board uses only running/blocked) selects from
+			the returned rows itself -- each one is labelled
+			<state>/<item-filename>. <team-member> is the only argument --
+			no --state/--header override.
 
 		--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
 			Relocates one terminal board-item out of the board entirely, for
