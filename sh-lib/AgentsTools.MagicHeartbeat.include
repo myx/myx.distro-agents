@@ -10,11 +10,13 @@
 ## owning routine's own name (routine-heartbeat) -- confirmed
 ## intentional, not a defect.
 ##
-## Two op families share this one file/namespace: --magic-heartbeat-input-
-## scan (board-scan, documented right below) and --magic-heartbeat-lock-*
+## Three op families share this one file/namespace: --magic-heartbeat-input-
+## scan (board-scan, documented right below), --magic-heartbeat-lock-*
 ## (the single-instance lock, documented near its own case arms further
-## down). Op names carry a "-lock-" infix precisely so --magic-heartbeat-*
-## stays available as the bare namespace for non-lock ops too. This is the
+## down), and --magic-heartbeat-state-* (the day-rhythm state record,
+## documented near its own case arms at the end). Op names carry a "-lock-"
+## / "-state-" infix precisely so --magic-heartbeat-* stays available as the
+## bare namespace for un-infixed ops too. This is the
 ## only namespace these lock ops exist under -- no --main-loop-lock-*
 ## compatibility names remain (AgentsTools.MainLoop.include is gone).
 ##
@@ -231,6 +233,95 @@ case "$1" in
 			cat "$meta"
 		else
 			echo "NO_LOCK"
+		fi
+		return 0
+	;;
+
+	##
+	## --magic-heartbeat-state-* -- routine-heartbeat's own day-rhythm state
+	## record (that routine's `heartbeat-state-note`). Storage is tool-owned
+	## and tool-resolved (via
+	## --intern-config-board-location), deliberately outside
+	## ~/.claude/skills/: a skillset file must never be rewritten by ordinary
+	## routine iteration, and this record is rewritten every next-iteration.
+	## Callers name the operation, never a path -- hence no filename argument.
+	##
+	## Singleton, not member-keyed: <team-member> is captured for future
+	## logging/validation, unused today, exactly as the sibling
+	## --magic-heartbeat-lock-* ops treat it. One shared record, the same way
+	## the lock is one shared mutex -- a per-member path would hand a
+	## non-magic-coordinator executor of this routine a fresh empty state.
+	##
+
+	## Content via stdin, or --from-file <path>.
+	--magic-heartbeat-state-upsert)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: syntax is <team-member> -- content via stdin or --from-file <path>" >&2
+			set +e ; return 1
+		fi
+		local teamDataDir
+		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+		local stateDir="$teamDataDir/runtime"
+		mkdir -p "$stateDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: can't create runtime directory: $stateDir" >&2
+			set +e ; return 1
+		}
+		local target="$stateDir/main-loop-state.md"
+		local content contentFromFile="false"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-file)
+					if [ -z "$2" ] || [ ! -f "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: --from-file: file not found: $2" >&2
+						set +e ; return 1
+					fi
+					content="$( cat "$2" )"
+					contentFromFile="true"
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: unrecognized argument: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		[ "$contentFromFile" = "true" ] || content="$( cat )"
+		## An empty write erases the day-rhythm state, which then reads back
+		## as "first next-iteration today" -- re-running a day's grooming.
+		if [ -z "$content" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: empty content -- refusing to erase the stored heartbeat state" >&2
+			set +e ; return 1
+		fi
+		printf '%s\n' "$content" > "$target"
+		echo "# $MDSC_CMD --magic-heartbeat-state-upsert: wrote $target ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+		return 0
+	;;
+
+	## Read-only. Prints the record on stdout, or NO_STATE when nothing is
+	## stored yet -- same "absent is not an error" contract as
+	## --magic-heartbeat-lock-status's own NO_LOCK.
+	--magic-heartbeat-state-read)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-read: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-read: takes no arguments" >&2
+			set +e ; return 1
+		fi
+		local teamDataDir
+		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+		local target="$teamDataDir/runtime/main-loop-state.md"
+		if [ -f "$target" ] ; then
+			cat "$target"
+		else
+			echo "NO_STATE"
 		fi
 		return 0
 	;;

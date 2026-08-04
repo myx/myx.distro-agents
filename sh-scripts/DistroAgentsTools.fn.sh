@@ -570,7 +570,7 @@ DistroAgentsTools(){
 						## meant to come from stdin.
 						if [ "$state" = "body" ] ; then
 							if [ "$bodyFromFile" = "true" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --send-email-message: --from-stdin given alongside --file -- use one or the other, not both" >&2
+								echo "⛔ ERROR: $MDSC_CMD --send-email-message: --from-stdin given alongside --from-file -- use one or the other, not both" >&2
 								set +e ; return 1
 							fi
 							bodyFromStdin="true" ; shift
@@ -582,8 +582,8 @@ DistroAgentsTools(){
 							shift
 						fi
 					;;
-					--file)
-						## Same motivation as --member-slack-send-message's own --file (lets a
+					--from-file)
+						## Same motivation as --member-slack-send-message's own --from-file (lets a
 						## caller write the body to a plain temp file first, a normal
 						## Write tool call, and still invoke this op as one
 						## single-line command). Validated and consumed
@@ -595,11 +595,11 @@ DistroAgentsTools(){
 						## as an empty-default placeholder.
 						if [ "$state" = "body" ] ; then
 							if [ "$bodyFromStdin" = "true" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --send-email-message: --file given alongside --from-stdin -- use one or the other, not both" >&2
+								echo "⛔ ERROR: $MDSC_CMD --send-email-message: --from-file given alongside --from-stdin -- use one or the other, not both" >&2
 								set +e ; return 1
 							fi
 							if [ -z "$2" ] || [ ! -f "$2" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --send-email-message: --file: file not found: $2" >&2
+								echo "⛔ ERROR: $MDSC_CMD --send-email-message: --from-file: file not found: $2" >&2
 								set +e ; return 1
 							fi
 							bodyLines="$( cat "$2" )"
@@ -619,7 +619,7 @@ DistroAgentsTools(){
 							subject) subject="$subject $1" ;;
 							body)
 								if [ "$bodyFromFile" = "true" ] ; then
-									echo "⛔ ERROR: $MDSC_CMD --send-email-message: --file given alongside trailing body argv -- use one or the other, not both" >&2
+									echo "⛔ ERROR: $MDSC_CMD --send-email-message: --from-file given alongside trailing body argv -- use one or the other, not both" >&2
 									set +e ; return 1
 								fi
 								bodyLines="$bodyLines

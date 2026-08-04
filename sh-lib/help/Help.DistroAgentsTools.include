@@ -7,10 +7,10 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> 
 echo "📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> --from-stdin [--format text|blocks]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> --file <path> [--format text|blocks]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> --from-file <path> [--format text|blocks]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- <body...>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-stdin" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --file <path>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-file <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --react-slack <channel>:<ts> <emoji-name>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --check-email" >&2
@@ -28,9 +28,9 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>..
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --write-slib <member-name> [--file <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --write-board-item <state> <item-filename>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--file <path>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--file <path>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--file <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <path>" >&2
@@ -49,6 +49,8 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-heartbeat <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-release <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-member>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --purge-cleanup" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh [--help]" >&2
 if [ "$1" = "--help" ]; then

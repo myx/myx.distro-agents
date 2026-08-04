@@ -7,10 +7,10 @@
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]
 📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> --from-stdin [--format text|blocks]
-📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> --file <path> [--format text|blocks]
+📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> --from-file <path> [--format text|blocks]
 📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- <body...>
 📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-stdin
-📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --file <path>
+📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-file <path>
 📘 syntax: DistroAgentsTools.fn.sh --check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --check-email
 📘 syntax: DistroAgentsTools.fn.sh --mark-email-seen <uid>
@@ -27,9 +27,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --write-slib <member-name> [--file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --write-board-item <state> <item-filename>
-📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--file <path>]
-📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--file <path>]
-📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -44,6 +44,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-heartbeat <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-release <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
 📘 syntax: DistroAgentsTools.fn.sh --purge-cleanup
 📘 syntax: DistroAgentsTools.fn.sh [--help]
@@ -161,7 +163,7 @@
 
 		--member-slack-send-message <team-member> <target> [text...]
 		--member-slack-send-message <team-member> <target> --from-stdin [--format text|blocks]
-		--member-slack-send-message <team-member> <target> --file <path> [--format text|blocks]
+		--member-slack-send-message <team-member> <target> --from-file <path> [--format text|blocks]
 			Posts a message to Slack via chat.postMessage, attributed to
 			<team-member>. The only Slack-post op -- there is no separate
 			anonymous/unattributed variant. <team-member> is a required first
@@ -185,17 +187,17 @@
 			call this op with its absolute path leading and a heredoc, never a
 			separate command piping into it); `--message-from-stdin` is the
 			original name and still works identically, unchanged, for
-			anything already written against it. `--file <path>` reads
+			anything already written against it. `--from-file <path>` reads
 			content from a file instead — lets a caller
 			write content with a plain `Write` tool call first (no Bash
 			permission prompt for the write itself) and still invoke
 			--member-slack-send-message as a single-line command, since a multi-line
 			heredoc body means the invoked command no longer matches a
 			single-line settings.json allowlist glob the same way. Giving
-			both `--from-stdin`/`--message-from-stdin` and `--file` together
+			both `--from-stdin`/`--message-from-stdin` and `--from-file` together
 			is not a supported combination (whichever is parsed first wins
 			silently) — use exactly one.
-			--from-stdin/--file --format blocks treats the content as a raw
+			--from-stdin/--from-file --format blocks treats the content as a raw
 			JSON array assigned directly to the `blocks` field (caller-supplied
 			Block Kit). That content is validated before it's
 			spliced into the payload: it must pass this command's own
@@ -226,7 +228,7 @@
 			become the entire posted message text (e.g. a stray "--from-stdin"
 			posted as-is with `ok:true` and no visible failure); this guard
 			prevents that. Genuine literal text starting with `--` must
-			go through `--from-stdin`/`--file` instead. SLACK_BOT_TOKEN is
+			go through `--from-stdin`/`--from-file` instead. SLACK_BOT_TOKEN is
 			resolved on demand from --agents-config-option immediately before
 			the request and is never echoed; the constructed request
 			(endpoint, channel, payload) is printed to stderr before sending
@@ -234,7 +236,7 @@
 
 		--send-email-message <email@address>... -- <subject> -- <body...>
 		--send-email-message <email@address>... -- <subject> -- --from-stdin
-		--send-email-message <email@address>... -- <subject> -- --file <path>
+		--send-email-message <email@address>... -- <subject> -- --from-file <path>
 			Real, standalone SMTP send via curl (EMAIL_USER/EMAIL_APP_PASSWORD/
 			EMAIL_SMTP_HOST/EMAIL_SMTP_PORT from --agents-config-option),
 			not just an internal fallback -- --member-slack-send-message's exhausted-retry
@@ -245,11 +247,11 @@
 			`--from-stdin` in place of trailing body argv reads the whole body
 			from stdin instead (call with the tool's absolute path leading and
 			a heredoc, per the team-wide convention above), avoiding
-			multi-line/shell-metacharacter argv fragility. `--file <path>`
+			multi-line/shell-metacharacter argv fragility. `--from-file <path>`
 			reads the body from a file instead — same motivation
-			as --member-slack-send-message's own --file (write the body with a plain Write
+			as --member-slack-send-message's own --from-file (write the body with a plain Write
 			tool call first, then invoke this op as one single-line command).
-			Giving more than one of `--from-stdin`/`--file`/trailing body argv
+			Giving more than one of `--from-stdin`/`--from-file`/trailing body argv
 			together is an error (`⛔ ERROR: ... given alongside ... -- use one
 			or the other, not both`), not silently resolved one way or the
 			other -- exactly one body source is required.
@@ -437,8 +439,9 @@
 			exists to avoid needing per-write approval the way real source
 			edits do. No caller-identity
 			enforcement -- convention-based trust only, same model as every other
-			op here; intended caller is magic-librarian. --write-board-item and
-			--write-inbox-note also carry the same --file option.
+			op here; intended caller is magic-librarian. --write-inbox-note also
+			carries the same --from-file option (--write-board-item does not --
+			it's content-via-stdin only).
 
 		--write-board-item <state> <item-filename>
 			**magic-coordinator-only op by design** — BOARD.md states plainly
@@ -456,7 +459,7 @@
 			(write into the new state, then remove the old file separately) —
 			this op has no built-in move/rename primitive.
 
-		--member-upsert-inbox-note <member> <item-filename> [--file <path>]
+		--member-upsert-inbox-note <member> <item-filename> [--from-file <path>]
 			Writes (creates or overwrites) a note into any member's own
 			personal inbox — unlike
 			the board, inbox write access is not exclusive to one member;
@@ -468,7 +471,7 @@
 			missing inbox/ is not an error, unlike a missing board-state
 			directory, since board states are a fixed known set and a
 			member's inbox may simply not have been created yet). Content
-			via stdin by default, or via --file <path>. Renamed
+			via stdin by default, or via --from-file <path>. Renamed
 			from --write-inbox-note (verb-suffixed to match the existing
 			--owner-workspace-upsert/-forget/-list/-current convention,
 			first op under the --member-* prefix category) —
@@ -476,7 +479,7 @@
 			backward-compatible shim calling this op, but is no longer
 			documented separately here.
 
-		--member-upsert-member-inquiry <member> <item-filename> [--file <path>]
+		--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
 			Passes an inquiry along to a specific named member's own
 			inbox — same argument shape and file-writing mechanics as
 			--member-upsert-inbox-note (in fact self-recurses directly
@@ -667,6 +670,29 @@
 			trashes, never restores -- restoring is a separate, internal-only
 			capability, not exposed through this op.
 
+		--magic-heartbeat-state-upsert <team-member> [--from-file <path>]
+			Writes (creates or overwrites) routine-heartbeat's own day-rhythm
+			state record -- the state that routine's own day-rhythm-state
+			procedure branches on, plus routine-communication-sweep's
+			per-platform mechanical sweep state. Content comes via stdin by
+			default, or via --from-file <path>. Always a whole-record
+			overwrite, never an append. Empty content is refused rather than
+			written, since an erased record reads back as "no state yet".
+			<team-member> is the calling member's own identity (captured, not
+			otherwise enforced). Takes no filename or path argument: storage
+			is tool-owned and tool-resolved, deliberately outside
+			~/.claude/skills/ so that ordinary routine iteration never
+			rewrites a skillset file. Callers name this operation, never a
+			path. Read the record back with --magic-heartbeat-state-read.
+
+		--magic-heartbeat-state-read <team-member>
+			Read-only: prints the whole record written by
+			--magic-heartbeat-state-upsert on stdout, verbatim. Prints
+			NO_STATE and returns 0 when nothing is stored yet -- a normal
+			first-run outcome, not an error, same "absent is not a failure"
+			contract as --magic-heartbeat-lock-status's own NO_LOCK.
+			<team-member> is the only argument.
+
 		--purge-cleanup
 			Empties $MMDAPP/.local/.cleanup/ (the folder itself stays) --
 			exists because Claude Code's own permission engine has no
@@ -770,9 +796,9 @@
 		EOF
 		```
 
-		# Send the same via --file instead -- write content with a plain Write tool
+		# Send the same via --from-file instead -- write content with a plain Write tool
 		# call first, then this stays a single-line command
-		`DistroAgentsTools.fn.sh --member-slack-send-message keeper-myx magic-team --file /path/to/message.txt`
+		`DistroAgentsTools.fn.sh --member-slack-send-message keeper-myx magic-team --from-file /path/to/message.txt`
 
 		# Mark an email UID as read after processing it
 		`DistroAgentsTools.fn.sh --mark-email-seen 48`
@@ -791,9 +817,9 @@
 		EOF
 		```
 
-		# Same, via --file instead -- write content with a plain Write tool call
+		# Same, via --from-file instead -- write content with a plain Write tool call
 		# first, then this stays a single-line command
-		`DistroAgentsTools.fn.sh --member-upsert-inbox-note keeper-myx 2026-07-22-note-example.md --file /path/to/note.md`
+		`DistroAgentsTools.fn.sh --member-upsert-inbox-note keeper-myx 2026-07-22-note-example.md --from-file /path/to/note.md`
 
 		# Pass an inquiry along to another member's own inbox
 		```
