@@ -248,7 +248,8 @@ case "$1" in
 		done
 		if [ -z "$serverScript" ] && command -v myx.common >/dev/null 2>&1 ; then
 			local root
-			root="$( myx.common which lib/catMarkdown 2>/dev/null | sed -e 's|/bin/lib/catMarkdown.*$||' )"
+			root="$( myx.common which lib/catMarkdown 2>/dev/null )"
+			root="${root%/bin/lib/catMarkdown*}"
 			if [ -n "$root" ] && [ -x "$root/include/data/agentMcpServer.sh" ] ; then
 				serverScript="$root/include/data/agentMcpServer.sh"
 			fi

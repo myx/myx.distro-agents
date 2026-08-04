@@ -63,7 +63,7 @@ case "$1" in
 		local f base touched=0
 		for f in "$boardRoot"/*/*.md ; do
 			[ -f "$f" ] || continue
-			base="$( basename "$f" )"
+			base="${f##*/}"
 			[ "$base" = "$oldName" ] && continue
 			if grep -q -F -- "$oldName" "$f" ; then
 				local tmp

@@ -81,7 +81,8 @@ elif   [ -f "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.co
 elif [ -f "/usr/local/share/myx.common/bin/lib/catMarkdown.Common" ]; then
 	export MYXROOT="/usr/local/share/myx.common"
 elif command -v myx.common 2>/dev/null && myx.common which lib/catMarkdown 2>/dev/null ; then
-	export MYXROOT="$( myx.common which lib/catMarkdown | sed -e 's|/bin/lib/catMarkdown.*$||' )"
+	export MYXROOT="$( myx.common which lib/catMarkdown )"
+	export MYXROOT="${MYXROOT%/bin/lib/catMarkdown*}"
 else
 	export MYXROOT=''
 fi
@@ -455,7 +456,7 @@ DistroAgentsTools(){
 				fi
 			fi
 
-			local channelId ; channelId="$( basename "$channelDir" )"
+			local channelId ; channelId="${channelDir##*/}"
 			rm -rf "$channelDir"
 			echo "STOPPED=$channelId"
 			return 0
@@ -491,7 +492,7 @@ DistroAgentsTools(){
 				ws="$( sed -n 's/^MDAT_WORKSPACE=//p' "$dir/meta.env" 2>/dev/null )"
 				[ "$ws" = "$workspace" ] || continue
 				found=1
-				local id ; id="$( basename "$dir" )"
+				local id ; id="${dir##*/}"
 				cons="$( sed -n 's/^MDAT_CONSOLE=//p' "$dir/meta.env" 2>/dev/null )"
 				consoleAlive="dead"
 				holderAlive="dead"

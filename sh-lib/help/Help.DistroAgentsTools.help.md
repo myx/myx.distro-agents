@@ -64,6 +64,8 @@
 		to the same path across restarts — safe to add once to an allowlist
 		(e.g. Claude Code's settings.json) and never invalidated by a new run.
 
+		**Authorization**: every operation below is usable by a team member only if that member's own .armed.md (or a shared file it defers to) names it. Not named = not authorized.
+
 ##  Arguments:
 
 		channel
@@ -79,6 +81,8 @@
 			CHANNEL/CHANNEL_DIR/FIFO/LOG/CONSOLE/WORKSPACE/HOLDER_PID/CONSOLE_PID
 			to stdout. A channel dir that exists but has no live processes is
 			wiped and recreated rather than reused.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--override-workspace <path>
 			Target a workspace other than this tool's own ($MMDAPP). Accepted
@@ -112,6 +116,8 @@
 			bare direct invocations instead; neither goes through
 			--send-console.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--stop-console <channel>
 			Sends `exit` into the channel, then kills the console and
 			FIFO-holder processes (TERM, then KILL after a 1s grace period if
@@ -119,12 +125,16 @@
 			channel with already-dead processes — cleanup still runs through
 			to completion.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--list-consoles [--override-workspace <path>]
 			Lists channels belonging to one workspace (default: this tool's
 			own; see --override-workspace) with their console/holder
 			liveness. Never lists another workspace's channels unless
 			explicitly overridden — this command's scope is intentionally
 			per-workspace, not global.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--agents-config-option <entity-id> <operation>
 			Reads/writes one settings file per named entity -- same per-entity
@@ -144,11 +154,15 @@
 			<key> <ifval> — the underlying config backend defines the
 			authoritative behavior of each.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--member-config-option <member-name> <operation>
 			Friendly synonym for --agents-config-option <member-name>
 			<operation> — self-recurses into it directly, same <operation>
 			set. Exists so a caller thinking in terms of "this member's own
 			settings" doesn't need to know the underlying scope's name.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--members --backend <member-name> <operation>
 			Second synonym, one hop further — mirrors myx.distro-remote's
@@ -160,6 +174,8 @@
 			--delete wrappers are not mirrored here; call --members
 			--backend (or --member-config-option, or --agents-config-option
 			directly) for every operation.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--member-slack-send-message <team-member> <target> [text...]
 		--member-slack-send-message <team-member> <target> --from-stdin [--format text|blocks]
@@ -234,6 +250,8 @@
 			(endpoint, channel, payload) is printed to stderr before sending
 			with the token itself redacted.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--send-email-message <email@address>... -- <subject> -- <body...>
 		--send-email-message <email@address>... -- <subject> -- --from-stdin
 		--send-email-message <email@address>... -- <subject> -- --from-file <path>
@@ -255,6 +273,8 @@
 			together is an error (`⛔ ERROR: ... given alongside ... -- use one
 			or the other, not both`), not silently resolved one way or the
 			other -- exactly one body source is required.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]
 			Reads Slack activity for ONE specific, caller-chosen target --
@@ -288,6 +308,8 @@
 			(needed for fields the pretty formatter doesn't surface, e.g.
 			`reply_count`/`thread_ts` metadata).
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--react-slack <channel>:<ts> <emoji-name>
 			Posts one Slack reaction (`reactions.add`) to a specific message --
 			<channel>:<ts> only, same target grammar as --read-slack (no
@@ -306,9 +328,13 @@
 			present and this tool family's design already expects that as
 			success, not a retry/investigate case. Any other error returns 1.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--check-email
 			IMAP STATUS INBOX (UNSEEN) check only -- unread count, not a full
 			fetch. Same EMAIL_* config as --send-email-message.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--mark-email-seen <uid>
 			Marks one specific email (by IMAP UID, same identifier
@@ -317,9 +343,13 @@
 			Same EMAIL_* config as --check-email/
 			--send-email-message.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--check-trello
 			Unread Trello notifications only (`read_filter=unread`), not a
 			full board read. TRELLO_KEY/TRELLO_TOKEN from --agents-config-option.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--sweep-read-incoming-comms [--oldest <ts>] [--raw]
 			**Not a general-purpose Slack reader -- takes no target at all.**
@@ -335,6 +365,8 @@
 			argument. `--oldest`/`--raw` are passed through to each
 			--check-slack call it makes internally.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--self-test
 			Exercises the --agents-config-option permission-hardening chain
 			(chmod 700 dir / 600 file) under a deliberately permissive
@@ -348,6 +380,8 @@
 			value round-trips, then always deletes the probe key (pass or
 			fail) so no test residue is left in the real credentials file.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--verify-permissions
 			Walks $MMDAPP/.local/.agents/* and flags anything not chmod 700
 			(the directory) / 600 (each file) -- a standing defensive layer
@@ -355,6 +389,8 @@
 			Prints one `OK`/`BAD` line per path to stdout and returns
 			non-zero if anything is out of hardening, without modifying
 			anything.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--validate-json [<path>]
 			Checks that a JSON file (<path>) or stdin (no argument) is
@@ -383,6 +419,8 @@
 			pasted into a heredoc), independent of any specific op, when you
 			just want to know "is this syntactically valid JSON" on its own.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--list-md <path>...
 			Existence + line count for one or more caller-supplied file paths,
 			one line of output per path: `<path>: <N> lines` if found, `<path>:
@@ -394,6 +432,8 @@
 			Read-only, no credentials, no
 			network. Despite the flag name, not restricted to `.md` files --
 			any path works; at least one path argument is required.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--librarian-list-team-files [<path>...]
 			find-based (not a hand-rolled directory walk) read-only path
@@ -410,6 +450,8 @@
 			Prints one skill-root-relative path per matched file (never
 			absolute), sorted alphabetically.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--librarian-list-team-files-dates [<path>...]
 			Same as --librarian-list-team-files above (identical scope-
 			argument grammar and error handling), but with a per-file
@@ -421,6 +463,8 @@
 			line per matched file: mtime (`YYYY-MM-DD HH:MM:SS`) then two
 			spaces then the path relative to the skill-root (never
 			absolute), sorted newest-first.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--write-slib <member-name> [--file <path>]
 			Regenerates one member's own <member-name>.SLIB.md -- content
@@ -459,6 +503,8 @@
 			(write into the new state, then remove the old file separately) —
 			this op has no built-in move/rename primitive.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--member-upsert-inbox-note <member> <item-filename> [--from-file <path>]
 			Writes (creates or overwrites) a note into any member's own
 			personal inbox — unlike
@@ -479,6 +525,8 @@
 			backward-compatible shim calling this op, but is no longer
 			documented separately here.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
 			Passes an inquiry along to a specific named member's own
 			inbox — same argument shape and file-writing mechanics as
@@ -488,6 +536,8 @@
 			later" vs. "pass it to another member," per
 			magic-team.armed.md's Process/dynamics rule formulation) even
 			though they currently resolve to the identical mechanism.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
 			Appends exactly one canonical transcript-entry block:
@@ -510,6 +560,8 @@
 			Returns append audit details: target path plus added line and byte
 			counts.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--owner-workspace-upsert <path>
 			Adds one filesystem path to the human-owner's tracked workspace
 			list at $HOME/.claude/skills/human-owner/human-owner.workspaces.md
@@ -527,11 +579,15 @@
 			as a standing skill folder) -- this op does not create that
 			directory, only the workspaces.md file inside it on first use.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--owner-workspace-forget <path>
 			Removes one filesystem path from the same tracked workspace list.
 			Same trailing-slash normalization as --owner-workspace-upsert.
 			Forgetting a path that isn't tracked, or when the file doesn't
 			exist yet at all, is a harmless no-op, not an error.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--owner-workspace-list
 			Prints every currently-tracked workspace path, one per line, in
@@ -541,6 +597,8 @@
 			arguments. Prints nothing (and does not error) if the file
 			doesn't exist yet or has no tracked paths.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--owner-workspace-current
 			Registers this tool's own workspace root ($MMDAPP) into the
 			tracked workspace list (delegates to --owner-workspace-upsert
@@ -549,6 +607,8 @@
 			arguments. Convenience op for a caller that wants "track my
 			current workspace and tell me its path" in one call instead of
 			spelling out $MMDAPP itself for --owner-workspace-upsert.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--owner-install-vscode-integrations [--workspace <path>]
 			Installs/updates baseline VS Code + Claude Code integrations
@@ -567,6 +627,8 @@
 			VS Code CLI (`code`) is not present in PATH. Prints a compact
 			OK/FAIL checklist, plus Command Palette trust/restart guidance
 			for MCP visibility.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item to board/backlog/ and/or patches its
@@ -587,6 +649,8 @@
 			--magic-grooming-to-pending/-processed (room for its own future
 			backlog-specific validation).
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as --magic-grooming-to-backlog, target fixed to
 			board/pending/ -- the Advancement-review case (backlog->pending,
@@ -596,9 +660,13 @@
 			<date-time>) with an ISO UTC date-time (suffix Z). Own dedicated
 			case arm.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as --magic-grooming-to-backlog, target fixed to
 			board/processed/. Own dedicated case arm.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--magic-grooming-input-scan <team-member>
 			Read-only: lists board items as <state>/<item-filename>, one per
@@ -607,6 +675,8 @@
 			item's actual current state before calling --magic-grooming-to-*.
 			<team-member> is the only argument -- no --state/--header
 			override.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--magic-sweep-input-scan <team-member>
 			Read-only: routine-communication-sweep's own first-stage board
@@ -617,6 +687,8 @@
 			An empty result (no live-tracked thread) is a normal, clean
 			outcome, not an error. <team-member> is the only argument -- no
 			--state/--header override.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--member-work-session-input-scan <team-member>
 			Read-only: one member's own current work-session input --
@@ -631,6 +703,8 @@
 			(`## inbox/<item-filename>` + frontmatter) -- a not-yet-created
 			inbox/ prints an empty section, not an error.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--routine-coworking-session-input-scan <team-member> <item-name>...
 			Read-only: routine-coworking's own step-1 board scan once the
 			session's shared goal names specific board-item(s). At least one
@@ -643,12 +717,16 @@
 			blocked-by fields, every board-item type, every frontmatter
 			field.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--magic-heartbeat-input-scan <team-member>
 			Read-only: routine-heartbeat's own board scan. Scans backlog/
 			pending/running/blocked/parked -- a broad "pulse of the whole
 			active board" reading -- every board-item type, every
 			frontmatter field. <team-member> is the only argument -- no
 			--state/--header override.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--magic-advance-input-scan <team-member>
 			Read-only: routine-advance's own board scan, and the same scan
@@ -660,6 +738,8 @@
 			<state>/<item-filename>. <team-member> is the only argument --
 			no --state/--header override.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
 			Relocates one terminal board-item out of the board entirely, for
 			routine-heartbeat's own GC step. <team-member> is the calling
@@ -669,6 +749,8 @@
 			retained); <item-name> is a bare filename. Thin wrapper, always
 			trashes, never restores -- restoring is a separate, internal-only
 			capability, not exposed through this op.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--magic-heartbeat-state-upsert <team-member> [--from-file <path>]
 			Writes (creates or overwrites) routine-heartbeat's own day-rhythm
@@ -685,6 +767,8 @@
 			rewrites a skillset file. Callers name this operation, never a
 			path. Read the record back with --magic-heartbeat-state-read.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--magic-heartbeat-state-read <team-member>
 			Read-only: prints the whole record written by
 			--magic-heartbeat-state-upsert on stdout, verbatim. Prints
@@ -692,6 +776,8 @@
 			first-run outcome, not an error, same "absent is not a failure"
 			contract as --magic-heartbeat-lock-status's own NO_LOCK.
 			<team-member> is the only argument.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--purge-cleanup
 			Empties $MMDAPP/.local/.cleanup/ (the folder itself stays) --
@@ -711,6 +797,8 @@
 			injection surface exists because there's no path input to
 			validate in the first place.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--read-slack <channel>:<ts> [--thread]
 			Full detail for one specific message (default) or its whole
 			thread (--thread) -- all meta-info, reactions, formatting,
@@ -720,6 +808,8 @@
 			processing one specific item. Always returns full raw JSON,
 			never pretty-formatted -- "full" is the entire point.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--read-email <uid>
 			Full RFC822 message (headers + body + MIME multipart,
 			attachments included as their raw MIME parts) for one specific
@@ -727,11 +817,15 @@
 			`;SECTION=` means the whole message) -- contrast with
 			--check-email's STATUS-only unread count.
 
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
+
 		--read-trello <notification-id>
 			Full detail for one specific Trello notification (the unit
 			--check-trello's unread list returns), including its related
 			card/board summary. Contrast with --check-trello's unread-list
 			scan.
+
+			Requires authorization -- usable only if named in the calling member's own .armed.md (or a shared file it defers to).
 
 		--help
 			Prints this syntax + summary and exits.
