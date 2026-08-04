@@ -231,7 +231,7 @@ case "$1" in
 						}
 						END {
 							for (i = 1; i <= n; i++) {
-								printf "%s: %s\\n", order[i], vals[order[i]]
+								printf "%s: %s\n", order[i], vals[order[i]]
 							}
 						}
 					' "$f"
