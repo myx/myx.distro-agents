@@ -58,7 +58,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: syntax is <member> <item-filename> -- content via stdin or --from-file <path>" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: syntax is <member> <item-filename> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
 			set +e ; return 1
 		fi
 		case "$memberName" in
@@ -86,7 +86,7 @@ case "$1" in
 			set +e ; return 1
 		}
 		local target="$inboxDir/$itemName"
-		local content contentFromFile="false"
+		local content contentFromFile="false" bodyMode="" bodyModeCount=0
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-file)
@@ -101,7 +101,20 @@ case "$1" in
 					fi
 					content="$( cat "$2" )"
 					contentFromFile="true"
+					bodyMode="file"
+					bodyModeCount=$(( bodyModeCount + 1 ))
 					shift 2
+				;;
+				--edit-patch-from-stdin)
+					## Same JSON-patch-array shape and mutual-exclusivity
+					## convention as --intern-op-board-upsert-move-edit's own
+					## --edit-patch-from-stdin (AgentsTools.InternOpBoardUpsertMoveEdit.include)
+					## -- reuses that same AgentBoardItemPatchApply.py
+					## unmodified. Existing target content (empty if the note
+					## doesn't exist yet) is patched, not replaced outright.
+					bodyMode="patch"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift
 				;;
 				*)
 					echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: unrecognized argument: $1" >&2
@@ -109,7 +122,23 @@ case "$1" in
 				;;
 			esac
 		done
-		[ "$contentFromFile" = "true" ] || content="$( cat )"
+		if [ "$bodyModeCount" -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
+			set +e ; return 1
+		fi
+		if [ "$bodyMode" = "patch" ] ; then
+			local patchJson existingContent contentFile patchFile
+			patchJson="$( cat )"
+			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
+			contentFile="$( mktemp "${TMPDIR:-/tmp}/mdat-inbox-note-patch-content.XXXXXX" )" || { set +e ; return 1 ; }
+			patchFile="$( mktemp "${TMPDIR:-/tmp}/mdat-inbox-note-patch-spec.XXXXXX" )" || { set +e ; return 1 ; }
+			printf '%s' "$existingContent" > "$contentFile"
+			printf '%s' "$patchJson" > "$patchFile"
+			content="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentBoardItemPatchApply.py" "$contentFile" "$patchFile" )" || { rm -f "$contentFile" "$patchFile" ; set +e ; return 1 ; }
+			rm -f "$contentFile" "$patchFile"
+		else
+			[ "$contentFromFile" = "true" ] || content="$( cat )"
+		fi
 		if [ -z "$content" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: empty content -- refusing to write an empty inbox note" >&2
 			set +e ; return 1
