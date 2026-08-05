@@ -86,6 +86,121 @@ case "$1" in
 		return $?
 	;;
 
+	##
+	## --magic-sweep-state-* -- routine-communication-sweep's own persisted
+	## state (that routine's own "sweep-state-note"): last_swept_ts,
+	## watched_slack_conversations, known_comms_gaps -- exactly the 3 fields
+	## TEAM-COMMS.md's own 2026-07-29 retirement note scoped as comms-sweep's
+	## own state, previously folded into routine-heartbeat's
+	## --magic-heartbeat-state-* record instead of getting this routine's own
+	## namespace -- a real SOLID violation (main-loop managing a different
+	## routine's own internal bookkeeping), corrected here. Storage is
+	## tool-owned/tool-resolved (via --intern-config-board-location),
+	## deliberately outside ~/.claude/skills/, same convention as
+	## --magic-heartbeat-state-*. Singleton, not member-keyed, same reasoning
+	## as that sibling pair.
+	##
+
+	## Content via stdin, --from-file <path>, or --edit-patch-from-stdin (a
+	## JSON array of {"old": <text>, "new": <text>, "replace_all": <bool,
+	## default false>} patch objects, applied in order against the existing
+	## record as an exact literal substring match-and-replace) -- same
+	## externalized AgentBoardItemPatchApply.py, same semantics, as
+	## --magic-heartbeat-state-upsert's own --edit-patch-from-stdin. The
+	## three body-input modes are mutually exclusive.
+	--magic-sweep-state-upsert)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: syntax is <team-member> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
+			set +e ; return 1
+		fi
+		local teamDataDir
+		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+		local stateDir="$teamDataDir/runtime"
+		mkdir -p "$stateDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: can't create runtime directory: $stateDir" >&2
+			set +e ; return 1
+		}
+		local target="$stateDir/sweep-state.md"
+		local content contentFromFile="false" bodyMode="" bodyModeCount=0
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-file)
+					if [ -z "$2" ] || [ ! -f "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: --from-file: file not found: $2" >&2
+						set +e ; return 1
+					fi
+					content="$( cat "$2" )"
+					contentFromFile="true"
+					bodyMode="file"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift 2
+				;;
+				--edit-patch-from-stdin)
+					bodyMode="patch"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: unrecognized argument: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ "$bodyModeCount" -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
+			set +e ; return 1
+		fi
+		if [ "$bodyMode" = "patch" ] ; then
+			local patchJson existingContent contentFile patchFile
+			patchJson="$( cat )"
+			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
+			contentFile="$( mktemp "${TMPDIR:-/tmp}/mdat-sweep-state-patch-content.XXXXXX" )" || { set +e ; return 1 ; }
+			patchFile="$( mktemp "${TMPDIR:-/tmp}/mdat-sweep-state-patch-spec.XXXXXX" )" || { set +e ; return 1 ; }
+			printf '%s' "$existingContent" > "$contentFile"
+			printf '%s' "$patchJson" > "$patchFile"
+			content="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentBoardItemPatchApply.py" "$contentFile" "$patchFile" )" || { rm -f "$contentFile" "$patchFile" ; set +e ; return 1 ; }
+			rm -f "$contentFile" "$patchFile"
+		else
+			[ "$contentFromFile" = "true" ] || content="$( cat )"
+		fi
+		if [ -z "$content" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: empty content -- refusing to erase the stored sweep state" >&2
+			set +e ; return 1
+		fi
+		printf '%s\n' "$content" > "$target"
+		echo "# $MDSC_CMD --magic-sweep-state-upsert: wrote $target ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+		return 0
+	;;
+
+	## Read-only. Prints the record on stdout, or NO_STATE when nothing is
+	## stored yet -- same "absent is not an error" contract as
+	## --magic-heartbeat-state-read/--magic-heartbeat-lock-status.
+	--magic-sweep-state-read)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-read: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-read: takes no arguments" >&2
+			set +e ; return 1
+		fi
+		local teamDataDir
+		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+		local target="$teamDataDir/runtime/sweep-state.md"
+		if [ -f "$target" ] ; then
+			cat "$target"
+		else
+			echo "NO_STATE"
+		fi
+		return 0
+	;;
+
 	*)
 		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
 		set +e ; return 1

@@ -3,22 +3,17 @@
 
 ## Origin-detection context for myx.distro-agents.
 ##
-## Structurally smaller than its siblings (RemoteContext.include /
-## SystemContext.include): those also define an interactive `Require`/`<Name>`
-## bash-dispatcher pair, consumed by their own `console-<name>-bashrc.rc` when
-## a console opens an interactive bash session. DistroAgentsConsole.sh execs
-## `claude`/`copilot` directly when `--cli` is given (see
-## AgentsTools.Make.include's --make-console-script); with no `--cli` given
-## and the default CLI missing, it falls back to an interactive bash console
-## via console-agents-bashrc.rc -- but that bashrc has no `Require`/`<Name>`
-## dispatcher of its own yet (unlike its siblings), so this file still defines
-## no interactive dispatcher either. What DistroAgentsConsole.sh
-## and other consoles' origin-detection blocks actually need from this file is
-## just its own existence at this exact path (checked with `[ -f ... ]`, never
-## sourced by the console script itself) as the origin marker for
-## myx.distro-agents. The `DistroAgentsContext` function below is kept for
-## consistency with the sibling `<Name>Context` shape and any future in-console
-## use, not because anything currently calls it.
+## Structurally aligned with sibling contexts (RemoteContext.include /
+## SystemContext.include): this file now defines an interactive `Require`/
+## `Agents` dispatcher pair used by `console-agents-bashrc.rc` fallback
+## sessions. DistroAgentsConsole.sh still execs `claude`/`copilot` directly
+## when `--cli` is given (see AgentsTools.Make.include's --make-console-script);
+## when no CLI is available, the bash fallback uses the dispatcher surface
+## defined here.
+##
+## As with sibling contexts, origin-detection callers may also use this file's
+## stable path as an origin marker. `DistroAgentsContext` remains the context
+## initializer entrypoint for that role.
 
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
