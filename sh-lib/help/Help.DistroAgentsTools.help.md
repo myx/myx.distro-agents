@@ -25,7 +25,6 @@
 📘 syntax: DistroAgentsTools.fn.sh --list-md <path>...
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
-📘 syntax: DistroAgentsTools.fn.sh --write-slib <member-name> [--file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --write-board-item <state> <item-filename>
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
@@ -469,27 +468,6 @@
 			absolute), sorted newest-first.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
-		--write-slib <member-name> [--file <path>]
-			Regenerates one member's own <member-name>.SLIB.md -- content
-			comes from stdin by default, or from a plain file via --file <path>
-			(same shape as --member-slack-send-message/--send-email-message's own --file:
-			lets a caller write the regenerated content to a plain temp file
-			first, an ordinary Write tool call, and still invoke this op as
-			one single-line command, since a heredoc body spans multiple lines
-			and stops matching a single-line settings.json allowlist glob).
-			<member-name> is a bare directory name only (no `/`, not `.`/`..`)
-			that must already exist as a real team member -- same
-			fixed-target-per-identifier shape as --purge-cleanup, never a
-			free-form path. Writes that member's own assembled SLIB file, refusing
-			empty content (whether from stdin or --file) rather than truncating
-			the file to nothing. SLIB files are generated content, so this op
-			exists to avoid needing per-write approval the way real source
-			edits do. No caller-identity
-			enforcement -- convention-based trust only, same model as every other
-			op here; intended caller is magic-librarian. --write-inbox-note also
-			carries the same --from-file option (--write-board-item does not --
-			it's content-via-stdin only).
 
 		--write-board-item <state> <item-filename>
 			**magic-coordinator-only op by design** — BOARD.md states plainly
@@ -1039,17 +1017,6 @@
 		[{"type":"section","text":{"type":"mrkdwn","text":"*ok*"}}]
 		EOF
 		```
-
-		# Regenerate a member's own assembled SLIB file -- heredoc, not a piping command in front
-		```
-		DistroAgentsTools.fn.sh --write-slib routine-grooming <<'EOF'
-		... full routine-grooming.SLIB.md content ...
-		EOF
-		```
-
-		# Same, via --file instead -- write content with a plain Write tool call
-		# first, then this stays a single-line command
-		`DistroAgentsTools.fn.sh --write-slib keeper-acm --file /path/to/keeper-acm.SLIB.md`
 
 		# Existence + line count for a batch of files in one call, instead of a hand-rolled `for`/`wc -l` loop
 		`DistroAgentsTools.fn.sh --list-md /path/to/one.md /path/to/two.md /path/to/missing.md`

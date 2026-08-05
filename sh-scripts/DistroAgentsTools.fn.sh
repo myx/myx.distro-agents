@@ -1326,8 +1326,8 @@ $1"
 		;;
 
 		## No sanctioned read-only listing op existed for skill-folder files
-		## before this (--write-slib/
-		## --write-board-item/--member-upsert-* all cover different, specific
+		## before this (--write-board-item/--member-upsert-* cover different,
+		## specific
 		## write targets, not this). find-based (not a hand-rolled directory
 		## walk), pure path listing -- no per-file stat call, so this stays
 		## fast even across the whole skill-root (measured: the mtime variant
@@ -1475,15 +1475,15 @@ $1"
 		## writing/moving without going through a separate Edit/Write tool call --
 		## it is NOT a general-purpose board-writing op for any member to call. Same
 		## convention-based-trust model as every other op here (no caller-identity
-		## enforcement exists in this tool at all, see --write-slib's own comment) --
+		## enforcement exists in this tool at all) --
 		## this is documented, not code-enforced, exactly like every other trust
 		## boundary in this file.
 		##
-		## Same fixed-target-per-identifier shape as --write-slib/--purge-cleanup:
+		## Same fixed-target-per-identifier shape as --purge-cleanup:
 		## <state> must be one of the board's own real state-folder names (never a
 		## free-form path), <item-filename> must be a bare filename (no '/', not
 		## '.'/'..'). Content via stdin only (a board Item is a multi-paragraph
-		## markdown document, same reasoning as --write-slib). Writing to an
+		## markdown document, not a single-line value). Writing to an
 		## already-existing <state>/<item-filename> overwrites it in place (an
 		## update to an existing Item's content) -- moving an Item between states is
 		## two calls (write into the new state, then a separate cleanup of the old
