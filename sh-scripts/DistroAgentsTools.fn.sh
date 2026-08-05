@@ -1659,6 +1659,15 @@ $1"
 			return $?
 		;;
 
+		## check-process-board's own operation group (--magic-board-to-pending,
+		## --magic-board-to-blocked) -- first cross-routine namespace in this
+		## family, since check-process-board is callable by any routine, not
+		## owned by one. See AgentsTools.MagicBoard.include's own header.
+		--magic-board-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicBoard.include"
+			return $?
+		;;
+
 		## Marks a message read after it's been processed -- otherwise every
 		## comms-sweep pass keeps re-seeing the same UIDs as unseen. IMAP UID
 		## STORE with the \Seen flag, same curl --request pattern
