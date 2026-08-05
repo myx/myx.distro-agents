@@ -83,6 +83,63 @@ case "$1" in
 		return $?
 	;;
 
+	## <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...
+	##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+	## Closes the real tooling gap found live in routine-heartbeat next-iteration
+	## cycle 15 (2026-08-05): check-execute-board's own "basic task: start now,
+	## move to board-running" branch had no sanctioned one-call op to do that
+	## move (--write-board-item's own move recipe never had a paired removal
+	## step; --magic-grooming-to-* only covers backlog/pending/processed).
+	## Deliberately its own --magic-advance-* op, not a fourth
+	## --magic-grooming-to-* sibling: this move is check-execute-board's/
+	## routine-advance's own action, not routine-grooming's -- the grooming
+	## ops' groomed-at/groomed-from/track auto-stamps are grooming-specific
+	## concepts that do not apply here. Auto-stamps started-at instead
+	## (magic-team.armed.md's own global header list) -- --header:*/
+	## --upsert-from-stdin/--edit-script-from-stdin/--edit-patch-from-stdin
+	## pass straight through for anything else a caller wants to set, same
+	## convention as the grooming ops. Thin logic over
+	## --intern-op-board-upsert-move-edit -- this op owns only the
+	## started-at auto-stamp, the intern-op owns the generic mechanics.
+	--magic-advance-to-running)
+		shift
+		## <team-member> is every calling routine's own name/identity, captured
+		## even though unused here today -- reserved for logging/validation
+		## (tooling operation discipline convention), not this op's own logic.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-running: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local fromStateArg=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) fromStateArg="$1" ; shift ;;
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-running: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$fromStateArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-running: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		local startedAt ; startedAt="$( date -u +%Y-%m-%d )"
+		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
+			"$fromStateArg" \
+			--header:upsert:started-at:"$startedAt" \
+			"${passthrough[@]}"
+		return $?
+	;;
+
 	*)
 		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
 		set +e ; return 1
