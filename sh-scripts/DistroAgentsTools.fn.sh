@@ -1586,6 +1586,15 @@ $1"
 			return $?
 		;;
 
+		## Internal plumbing, no --help entry -- the shared generic
+		## primitive underlying --member-upsert-inbox-note/
+		## --member-upsert-member-inquiry/--member-upsert-inbox-reflection.
+		## See AgentsTools.InternOpMemberInboxUpsert.include's own header.
+		--intern-op-member-inbox-upsert)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpMemberInboxUpsert.include"
+			return $?
+		;;
+
 		--intern-config-board-location)
 			shift
 			if [ $# -gt 0 ] ; then

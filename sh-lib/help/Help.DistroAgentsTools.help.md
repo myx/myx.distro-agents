@@ -505,19 +505,23 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-upsert-inbox-note <member> <item-filename> [--from-file <path>]
-			Writes (creates or overwrites) a note into any member's own
-			personal inbox — unlike
-			the board, inbox write access is not exclusive to one member;
-			any member may post into any other member's inbox (the
-			standard cross-member handoff mechanism, see
-			routine-process-inbox). <member> must already exist as a real
+		--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
+			Writes (creates or overwrites) a note into your own personal
+			inbox. <member> must already exist as a real
 			skill directory; <item-filename> must be a bare filename. The
 			inbox/ directory is created lazily if it doesn't exist yet (a
 			missing inbox/ is not an error, unlike a missing board-state
 			directory, since board states are a fixed known set and a
 			member's inbox may simply not have been created yet). Content
-			via stdin by default, or via --from-file <path>. Renamed
+			via stdin by default, or via --from-file <path> -- either
+			overwrites the target outright. --edit-patch-from-stdin instead
+			takes a JSON array of {"old": <text>, "new": <text>,
+			"replace_all": <bool, default false>} patch objects on stdin
+			and applies each, in order, as an exact literal (non-regex)
+			substring match-and-replace against the existing note -- a
+			patch whose old text isn't found, or matches more than once
+			without replace_all, fails loud before anything is written.
+			Renamed
 			from --write-inbox-note (verb-suffixed to match the existing
 			--owner-workspace-upsert/-forget/-list/-current convention,
 			first op under the --member-* prefix category) —
@@ -528,14 +532,12 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
-			Passes an inquiry along to a specific named member's own
-			inbox — same argument shape and file-writing mechanics as
-			--member-upsert-inbox-note (in fact self-recurses directly
-			into it), kept as its own distinctly-named op because the two
-			represent semantically distinct fallback cases ("note it for
-			later" vs. "pass it to another member," per
-			magic-team.armed.md's Process/dynamics rule formulation) even
-			though they currently resolve to the identical mechanism.
+			Passes an inquiry into a specific member's own personal inbox,
+			the standard mechanism for handing something off to another
+			team member. <member> must already exist as a real skill
+			directory; <item-filename> must be a bare filename. The
+			inbox/ directory is created lazily if it doesn't exist yet.
+			Content via stdin by default, or via --from-file <path>.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

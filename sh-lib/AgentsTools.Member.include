@@ -36,161 +36,59 @@ case "$1" in
 
 	## Verb-suffixed name matches the existing
 	## --owner-workspace-upsert/-forget/-list/-current convention for the
-	## --owner-* prefix.
-	## Backs magic-team.armed.md's Process/dynamics rule formulation "note
-	## it for later" no-approval-available fallback. Behavior is unchanged
-	## from --write-inbox-note: writes a note into any member's own
-	## personal inbox (path resolved via --intern-config-board-location, see
-	## routine-process-inbox) -- unlike the board, inbox write access is NOT
-	## exclusive to one member; any member may post a note into any other
-	## member's inbox (that's the whole cross-member handoff mechanism).
-	## <member> must already exist as a real skill directory; <item-filename>
-	## must be a bare filename. The inbox/ directory itself is created
-	## lazily if it doesn't exist yet (matches the established
-	## lazily-created-inbox convention, see BOARD.md/routine-process-inbox),
-	## not treated as an error the way a missing board-state directory is
-	## (board states are a fixed, known set; a member's inbox may simply not
-	## have been created yet).
+	## --owner-* prefix. Backs magic-team.armed.md's Process/dynamics rule
+	## formulation "note it for later" no-approval-available fallback --
+	## unlike the board, inbox write access is NOT exclusive to one member;
+	## any member may post a note into any other member's inbox (that's the
+	## whole cross-member handoff mechanism). Thin wrapper over the shared
+	## --intern-op-member-inbox-upsert primitive -- not called by, and does
+	## not call, its sibling --member-upsert-member-inquiry/
+	## --member-upsert-inbox-reflection ops below.
 	--member-upsert-inbox-note)
 		shift
-		local memberName="$1"
-		shift || true
-		local itemName="$1"
-		shift || true
-		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: syntax is <member> <item-filename> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
-			set +e ; return 1
-		fi
-		case "$memberName" in
-			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: member name must be a bare directory name, not a path: $memberName" >&2
-				set +e ; return 1
-			;;
-		esac
-		case "$itemName" in
-			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: item filename must be a bare filename, not a path: $itemName" >&2
-				set +e ; return 1
-			;;
-		esac
-		local memberDir="$HOME/.claude/skills/$memberName"
-		if [ ! -d "$memberDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: no such member skill directory: $memberDir" >&2
-			set +e ; return 1
-		fi
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local inboxDir="$teamDataDir/inboxes/$memberName"
-		mkdir -p "$inboxDir" || {
-			echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: can't create inbox directory: $inboxDir" >&2
-			set +e ; return 1
-		}
-		local target="$inboxDir/$itemName"
-		local content contentFromFile="false" bodyMode="" bodyModeCount=0
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--from-file)
-					## Lets a caller write content to a plain file first (an
-					## ordinary Write tool call, no Bash heredoc) and still
-					## invoke this op as one single-line command -- same
-					## motivation as --member-slack-send-message's own
-					## --from-file. Validated and consumed directly here.
-					if [ -z "$2" ] || [ ! -f "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: --from-file: file not found: $2" >&2
-						set +e ; return 1
-					fi
-					content="$( cat "$2" )"
-					contentFromFile="true"
-					bodyMode="file"
-					bodyModeCount=$(( bodyModeCount + 1 ))
-					shift 2
-				;;
-				--edit-patch-from-stdin)
-					## Same JSON-patch-array shape and mutual-exclusivity
-					## convention as --intern-op-board-upsert-move-edit's own
-					## --edit-patch-from-stdin (AgentsTools.InternOpBoardUpsertMoveEdit.include)
-					## -- reuses that same AgentBoardItemPatchApply.py
-					## unmodified. Existing target content (empty if the note
-					## doesn't exist yet) is patched, not replaced outright.
-					bodyMode="patch"
-					bodyModeCount=$(( bodyModeCount + 1 ))
-					shift
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: unrecognized argument: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		if [ "$bodyModeCount" -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
-			set +e ; return 1
-		fi
-		if [ "$bodyMode" = "patch" ] ; then
-			local patchJson existingContent contentFile patchFile
-			patchJson="$( cat )"
-			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
-			contentFile="$( mktemp "${TMPDIR:-/tmp}/mdat-inbox-note-patch-content.XXXXXX" )" || { set +e ; return 1 ; }
-			patchFile="$( mktemp "${TMPDIR:-/tmp}/mdat-inbox-note-patch-spec.XXXXXX" )" || { set +e ; return 1 ; }
-			printf '%s' "$existingContent" > "$contentFile"
-			printf '%s' "$patchJson" > "$patchFile"
-			content="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentBoardItemPatchApply.py" "$contentFile" "$patchFile" )" || { rm -f "$contentFile" "$patchFile" ; set +e ; return 1 ; }
-			rm -f "$contentFile" "$patchFile"
-		else
-			[ "$contentFromFile" = "true" ] || content="$( cat )"
-		fi
-		if [ -z "$content" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-upsert-inbox-note: empty content -- refusing to write an empty inbox note" >&2
-			set +e ; return 1
-		fi
-		printf '%s\n' "$content" > "$target"
-		echo "# $MDSC_CMD --member-upsert-inbox-note: wrote $target ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" || return 1
 		return 0
 	;;
 
 	## The real op backing magic-team.armed.md's Process/dynamics rule
 	## formulation's other no-approval-available fallback, "pass it to
 	## another member" (as distinct from that section's "note it for
-	## later," which --member-upsert-inbox-note backs). Verb-suffixed name
-	## matches the --owner-workspace-upsert/-forget/-list/-current
-	## convention. Same <member> <item-filename> argument shape and
-	## file-writing mechanics
-	## as --member-upsert-inbox-note -- this op self-recurses directly into
-	## it (same self-call idiom as --owner-workspace-current delegating to
-	## --owner-workspace-upsert, or --member-slack-send-message's own
-	## exhausted-retry path calling --send-email-message) rather than duplicating the write
-	## logic a second time. Kept as its own distinctly-named op, not just
-	## an alias, because the two fallback cases are semantically distinct
-	## callsites in the routine text even though they currently resolve to
-	## the identical mechanism -- a future revision could give
-	## --member-upsert-member-inquiry its own real behavior (e.g. routing
-	## metadata, a required "from" field) without touching
-	## --member-upsert-inbox-note.
+	## later," which --member-upsert-inbox-note backs). Thin wrapper over
+	## the shared --intern-op-member-inbox-upsert primitive, same as
+	## --member-upsert-inbox-note -- does not call that sibling op directly.
+	## --edit-patch-from-stdin is not part of this op's own contract (its
+	## fallback case has no established patch use yet) -- rejected here,
+	## before it would otherwise reach the shared primitive.
 	--member-upsert-member-inquiry)
 		shift
-		DistroAgentsTools --member-upsert-inbox-note "$@" || return 1
+		for arg in "$@" ; do
+			case "$arg" in
+				--edit-patch-from-stdin)
+					echo "⛔ ERROR: $MDSC_CMD --member-upsert-member-inquiry: --edit-patch-from-stdin is not supported here" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" || return 1
 		return 0
 	;;
 
-	## For reflection-type inbox items specifically. Same argument shape and
-	## file-writing mechanics as --member-upsert-inbox-note (self-recurses
-	## directly into it, same idiom as --member-upsert-member-inquiry) --
-	## kept as its own distinctly-named op because reflection notes are a
-	## real, already-established content family in this team's inboxes
-	## (see e.g. this team's own reflection-note examples: a frontmatter
-	## block -- source/type/from/posted_at/owner/approved_by/references --
-	## followed by a "# Reflection: <title>" heading and "## What
-	## happened"/"## Why this is worth keeping"-style sections), distinct
-	## from a plain free-form note or a passed inquiry. <item-filename> is
-	## conventionally expected to contain "reflection-" in its slug,
-	## matching every existing example, but this is a naming convention to
-	## follow, not something enforced here -- this op does not validate or
-	## impose the frontmatter/heading shape on content either; the caller
-	## supplies real, already-formed reflection content via stdin or
-	## --from-file, same as every other content-carrying op in this file.
+	## For reflection-type inbox items specifically -- kept as its own
+	## distinctly-named op because reflection notes are a real,
+	## already-established content family in this team's inboxes (see e.g.
+	## this team's own reflection-note examples: a frontmatter block --
+	## source/type/from/posted_at/owner/approved_by/references -- followed
+	## by a "# Reflection: <title>" heading and "## What happened"/"## Why
+	## this is worth keeping"-style sections), distinct from a plain
+	## free-form note or a passed inquiry. <item-filename> is conventionally
+	## expected to contain "reflection-" in its slug, matching every
+	## existing example, but this is a naming convention to follow, not
+	## something enforced here. Thin wrapper over the shared
+	## --intern-op-member-inbox-upsert primitive, same as
+	## --member-upsert-inbox-note -- does not call that sibling op directly.
 	--member-upsert-inbox-reflection)
 		shift
-		DistroAgentsTools --member-upsert-inbox-note "$@" || return 1
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" || return 1
 		return 0
 	;;
 
