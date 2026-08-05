@@ -67,8 +67,10 @@ function AgentsConsoleCompletionHelperAgents(){
 					fi
 				done
 
-				find $MDPATH -type 'f' -name '*.fn.sh' \
-				| sed -E "s:^$MDLT_ORIGIN/myx/myx.distro-(.local|system|deploy|source|remote|agents)/sh-scripts/::g"
+				if [ -n "$MDPATH" ] ; then
+					find $MDPATH -type 'f' -name '*.fn.sh' \
+					| sed -E "s:^$MDLT_ORIGIN/myx/myx.distro-(.local|system|deploy|source|remote|agents)/sh-scripts/::g"
+				fi
 			) \
 			| grep "$compGrepOthers"
 

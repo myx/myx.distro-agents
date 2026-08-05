@@ -1,0 +1,26 @@
+echo "'Agents' command runs agents-stage distro commands in current Agents context." >&2
+echo "📘 syntax: Agents <distro-agents-command-name> [<arguments>...]" >&2
+echo "📘 syntax: Agents --help" >&2
+echo "📘 syntax: Agents --start-console [args...]" >&2
+echo "📘 syntax: Agents --start-<subsystem>-tools-console [args...]" >&2
+echo "📘 syntax: Agents --completion-<mode>" >&2
+echo "📘 syntax: Agents --shell-prompt" >&2
+echo >&2
+echo "	Options:" >&2
+echo "		--help  Print this help text." >&2
+echo "		--help-syntax  Alias for --help." >&2
+echo "		--start-console  Start agents interactive tools console." >&2
+echo "		--start-agents-tools-console  Alias for --start-console." >&2
+echo "		--start-local-tools-console  Start local tools console from agents context." >&2
+echo "		--start-<subsystem>-tools-console  Start another installed subsystem console." >&2
+echo "		--completion-<mode>  Completion dispatcher entry points used by shell completion." >&2
+echo "		--shell-prompt  Print prompt template for interactive console rendering." >&2
+echo >&2
+echo "	Info:" >&2
+echo "		MMDAPP ROOT: $MMDAPP" >&2
+echo "		MDLT_ORIGIN: ${MDLT_ORIGIN:-"Not Set"}" >&2
+echo "		MDSC_INMODE: ${MDSC_INMODE:-"Not Set"}" >&2
+echo "		MDSC_OPTION: ${MDSC_OPTION:-"Not Set"}" >&2
+echo >&2
+
+set +e ; return 1

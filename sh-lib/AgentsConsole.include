@@ -16,7 +16,7 @@ case "$1" in
 	;;
 	''|--help|--help-syntax)
 		shift
-		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.ConsoleAgents.include" )
+		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/HelpConsoleAgents.include" )
 		set +e ; return 1
 	;;
 	--start-console|--start-agents-tools-console)
