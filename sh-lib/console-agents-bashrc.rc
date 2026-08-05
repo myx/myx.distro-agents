@@ -77,6 +77,10 @@ export LANG=en_US.UTF-8
 
 echo "AgentsConsole: bash fallback — no --cli given (or the CLI wasn't found). Run 'claude' or 'copilot' directly to start a CLI session." >&2
 
+complete -W "Help Require claude copilot" \
+		 -o default -o filenames \
+		 "*"
+
 PROMPT_COMMAND='set +e ; history -w; history -r ; PS1="[agents:$( basename "$MMDAPP" )] \w \$ "'
 
 export PATH
