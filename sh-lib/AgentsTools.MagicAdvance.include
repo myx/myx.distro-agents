@@ -132,7 +132,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-running: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
-		local startedAt ; startedAt="$( date -u +%Y-%m-%d )"
+		local startedAt ; startedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:started-at:"$startedAt" \

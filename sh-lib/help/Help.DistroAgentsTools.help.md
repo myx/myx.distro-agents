@@ -743,6 +743,21 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Moves a board item into board/running/, in one call, and/or
+			patches its frontmatter. Auto-stamps started-at (date-time) on
+			every move. --from-state:<state> is required. --header:*
+			applies upsert/append/remove field operations on top of the
+			resolved body, in the order given. --upsert-from-stdin takes
+			stdin verbatim as the new body; --edit-script-from-stdin runs a
+			given py/awk script against the existing body; --edit-patch-from-stdin
+			applies a JSON array of exact-literal-substring patches. The
+			three body-input modes are mutually exclusive; none given means
+			the body carries over unchanged except for the started-at stamp
+			and any --header:* ops.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
 			Relocates one terminal board-item out of the board entirely, for
 			routine-heartbeat's own GC step. <team-member> is the calling

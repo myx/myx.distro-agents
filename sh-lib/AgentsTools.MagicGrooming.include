@@ -75,7 +75,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
-		local groomedAt ; groomedAt="$( date -u +%Y-%m-%d )"
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		DistroAgentsTools --intern-op-board-upsert-move-edit backlog "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -131,7 +131,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
-		local groomedAt ; groomedAt="$( date -u +%Y-%m-%d )"
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		DistroAgentsTools --intern-op-board-upsert-move-edit pending "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -187,7 +187,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
-		local groomedAt ; groomedAt="$( date -u +%Y-%m-%d )"
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
