@@ -10,6 +10,10 @@ case "$1" in
 		printf "$TEMPLATE1" ""
 		return 0
 	;;
+	--completion-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsole.Completion.include"
+		set +e ; return 1
+	;;
 	''|--help|--help-syntax)
 		shift
 		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.ConsoleAgents.include" )
