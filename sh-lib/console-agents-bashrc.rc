@@ -81,7 +81,7 @@ complete -W "Help Require claude copilot" \
 		 -o default -o filenames \
 		 "*"
 
-PROMPT_COMMAND='set +e ; history -w; history -r ; PS1="[agents:$( basename "$MMDAPP" )] \w \$ "'
+PROMPT_COMMAND='set +e ; history -w; history -r ; PS1="\[\e]0;\u@\H: \w\a\]\n┌─[ 🤖 AGTC:agents: \[\e[0;32m\]\u@\H\[\e[m\]:\[\e[0;34m\]\w\[\e[m\] ]\n└─\[\e[0;33m\]\$\[\e[m\] \[\e[0m\]"'
 
 export PATH
 

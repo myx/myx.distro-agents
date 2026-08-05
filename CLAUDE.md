@@ -92,11 +92,14 @@ with the real tool) and deliberately kept rather than special-cased, per the
 myx.distro-agents build session's own quorum review (magic-architect + magic-developer).
 See `AgentsTools.Make.include`'s own header comment for the full reasoning.
 
-`DistroAgentsConsole.sh` never opens a bash session and never falls back to one — if the
-selected CLI (`claude` default, or `copilot` via `--cli`) isn't on `PATH`, it exits with
-an error instead of silently dropping into bash. `--non-interactive` (headless-terminal)
-joins remaining args into one prompt string passed to the CLI's own `-p`/`--print`; with
-none given, that flag reads the prompt from stdin instead. The exact `-p`/`--print` flag
-is verified real, documented behavior for the Claude Code CLI; the equivalent for the
-standalone `copilot` CLI is a documented assumption, not independently verified — neither
-binary exists on the workspace-build host this package was authored on.
+`DistroAgentsConsole.sh` starts the selected CLI directly when `--cli` is given
+explicitly, and hard-fails if that CLI is not on `PATH`. With no explicit `--cli`, it
+defaults to `claude`; if that default CLI is not on `PATH`, the interactive launcher
+falls back to a bash session instead of exiting immediately. `--non-interactive`
+(headless-terminal) still exits with an error in that case — it has no bash-session
+fallback. Remaining args in `--non-interactive` mode are joined into one prompt string
+passed to the CLI's own `-p`/`--print`; with none given, that flag reads the prompt from
+stdin instead. The exact `-p`/`--print` flag is verified real, documented behavior for
+the Claude Code CLI; the equivalent for the standalone `copilot` CLI is a documented
+assumption, not independently verified — neither binary exists on the workspace-build
+host this package was authored on.
