@@ -17,16 +17,20 @@ Palette wiring.
 
 	DistroAgentsConsole.sh [--cli claude|copilot] [--non-interactive] [args...]
 
-- Default (no flags): harness-interactive mode -- attaches a real interactive
-  `claude`/`copilot` CLI session (equivalent role to the sibling consoles'
-  `bash --rcfile ... -i`).
+- Default (no flags): harness-interactive mode -- starts a real interactive
+  `claude`/`copilot` CLI session when the default CLI is available; otherwise,
+  falls back to an interactive bash console where the CLI can be started
+  manually.
 - `--non-interactive`: headless-terminal mode -- one-shot, no attached TTY. Remaining
   arguments are joined into a single prompt string; with none given, the CLI reads its
   prompt from stdin (same "pipe stdin through" shape the sibling consoles use for their
   own `--non-interactive`).
 - `--cli claude|copilot`: which CLI to start. Default: `claude`.
-- Never silently falls back to a bash session -- if the selected CLI isn't on `PATH`,
-  the console exits with an error instead.
+- `--cli` given explicitly: starts that CLI or exits with an error if it is not on
+  `PATH`.
+- `--cli` not given: defaults to `claude`; if it is not on `PATH`, the console falls
+  back to an interactive bash session. `--non-interactive` still exits with an error
+  in that case.
 
 ---
 
@@ -42,7 +46,7 @@ Palette wiring.
 
 See: [distro](https://github.com/myx/myx.distro?tab=readme-ov-file#myxdistro)
 See: [distro-.local](https://github.com/myx/myx.distro-.local?tab=readme-ov-file#myxdistro-.local)
-See: [distro-system](https://github.com/myx/myx.distro-agents?tab=readme-ov-file#myxdistro-system)
+See: [distro-system](https://github.com/myx/myx.distro-system?tab=readme-ov-file#myxdistro-system)
 See: [distro-deploy](https://github.com/myx/myx.distro-deploy?tab=readme-ov-file#myxdistro-deploy)
 See: [distro-source](https://github.com/myx/myx.distro-source?tab=readme-ov-file#myxdistro-source)
 See: [distro-remote](https://github.com/myx/myx.distro-remote?tab=readme-ov-file#myxdistro-remote)
