@@ -43,6 +43,11 @@ if [ -d "$MDLT_ORIGIN/myx/myx.distro-remote/sh-scripts" ] ; then
 	PATH+=":$MDLT_ORIGIN/myx/myx.distro-remote/sh-scripts"
 fi
 
+Help(){
+	Agents --help
+	set +e ; return 1
+}
+
 [ "$USER" = "$( id -un )" ] || {
 	export USER="$( id -un )"
 }
@@ -84,9 +89,14 @@ complete -W "Help Require claude copilot" \
 		 -o default -o filenames \
 		 "*"
 
+for f in "$MDLT_ORIGIN"/myx/myx.distro-{agents,.local,system,deploy,source,remote}/sh-scripts/*.fn.sh; do
+	[ -x "$f" ] || continue
+	complete -F Agents "${f##*/}"
+done
+
 complete -F Agents \
 		 -o nospace \
-		"Action" "Require" "Remote" "Distro" "Deploy" "Source"
+		"Action" "Require" "Remote" "Distro" "Deploy" "Source" "Agents"
 
 PROMPT_COMMAND='set +e ; history -w; history -r ; PS1="$( Agents --shell-prompt )"'
 
