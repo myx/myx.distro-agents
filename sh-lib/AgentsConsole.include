@@ -15,6 +15,27 @@ case "$1" in
 		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.ConsoleAgents.include" )
 		set +e ; return 1
 	;;
+	--start-console|--start-agents-tools-console)
+		shift
+		export MDSC_ARGUMENTS="$@"
+		bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
+		return 0
+	;;
+	--start-local-tools-console)
+		set -- --start-.local-tools-console "$@"
+	;;
+	--start-*-tools-console)
+		local type=${1#--start-}; type=${type%-tools-console}
+		local file="$MDLT_ORIGIN/myx/myx.distro-$type/sh-lib/console-$type-bashrc.rc"
+		[ -f "$file" ] || {
+			echo "⛔ ERROR: Agents: $1 subsystem is not installed in this workspace" >&2
+			set +e ; return 1
+		}
+		shift
+		export MDSC_ARGUMENTS="$@"
+		bash --rcfile "$file" -i
+		return 0
+	;;
 	*)
 		echo "⛔ ERROR: Agents: Invalid argument: $1" >&2
 		set +e ; return 1
