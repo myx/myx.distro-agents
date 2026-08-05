@@ -115,11 +115,13 @@ case "$1" in
 			cd "$MMDAPP"
 			export MMDAPP
 
-			## Which agent CLI to run -- claude (default) or copilot. Unlike the
-			## other four consoles, this one never opens a bash session: it execs
-			## the chosen CLI directly, so there is nothing to fall back to if the
-			## CLI is missing -- that is a hard error, not a silent bash fallback.
+			## Which agent CLI to run -- claude (default) or copilot. --cli given
+			## explicitly: exec that CLI or hard-fail, same as before. --cli not
+			## given at all: fall back to an interactive bash console instead of
+			## defaulting to claude -- the CLI can then be started manually from
+			## inside it (see console-agents-bashrc.rc).
 			DAGC_CLI="claude"
+			DAGC_CLI_GIVEN="false"
 			while true ; do
 				case "$1" in
 					--cli)
@@ -128,6 +130,7 @@ case "$1" in
 							exit 1
 						fi
 						DAGC_CLI="$2"
+						DAGC_CLI_GIVEN="true"
 						shift 2
 					;;
 					*)
@@ -142,14 +145,18 @@ case "$1" in
 					exit 1
 				;;
 			esac
-			command -v "$DAGC_CLI" >/dev/null 2>&1 || {
-				if [ "$DAGC_CLI" = "claude" ] ; then
-					echo "⛔ ERROR: DistroAgentsConsole: 'claude' CLI not found in PATH -- run 'myx.common install/claude' first; this console never falls back to a bash session." >&2
-				else
-					echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' CLI not found in PATH -- install it first; this console never falls back to a bash session." >&2
+			if [ "$DAGC_CLI_GIVEN" = "true" ] ; then
+				command -v "$DAGC_CLI" >/dev/null 2>&1 || {
+					echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' CLI not found in PATH -- install it first; --cli was given explicitly, so this does not fall back to a bash session." >&2
+					exit 1
+				}
+			elif ! command -v "$DAGC_CLI" >/dev/null 2>&1 ; then
+				if [ "$1" == "--non-interactive" ] ; then
+					echo "⛔ ERROR: DistroAgentsConsole: 'claude' CLI not found in PATH -- run 'myx.common install/claude' first; --non-interactive has no bash session to fall back to." >&2
+					exit 1
 				fi
-				exit 1
-			}
+				exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
+			fi
 
 			## --non-interactive: headless-terminal mode (interaction-channel:
 			## headless) -- one-shot, no attached TTY. Any remaining arguments are

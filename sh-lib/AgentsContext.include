@@ -6,10 +6,13 @@
 ## Structurally smaller than its siblings (RemoteContext.include /
 ## SystemContext.include): those also define an interactive `Require`/`<Name>`
 ## bash-dispatcher pair, consumed by their own `console-<name>-bashrc.rc` when
-## a console opens an interactive bash session. DistroAgentsConsole.sh never
-## opens a bash session at all -- it execs `claude`/`copilot` directly (see
-## AgentsTools.Make.include's --make-console-script) -- so there is no
-## interactive dispatcher for this file to define. What DistroAgentsConsole.sh
+## a console opens an interactive bash session. DistroAgentsConsole.sh execs
+## `claude`/`copilot` directly when `--cli` is given (see
+## AgentsTools.Make.include's --make-console-script); with no `--cli` given
+## and the default CLI missing, it falls back to an interactive bash console
+## via console-agents-bashrc.rc -- but that bashrc has no `Require`/`<Name>`
+## dispatcher of its own yet (unlike its siblings), so this file still defines
+## no interactive dispatcher either. What DistroAgentsConsole.sh
 ## and other consoles' origin-detection blocks actually need from this file is
 ## just its own existence at this exact path (checked with `[ -f ... ]`, never
 ## sourced by the console script itself) as the origin marker for

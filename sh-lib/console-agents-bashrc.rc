@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+[ -z "$MDLT_ORIGIN" ] && echo "AgentsConsole: Working in $MMDAPP" >&2
+[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
+
+[ -z "MDSC_ARGUMENTS" ] || {
+	set -- $MDSC_ARGUMENTS
+	export MDSC_ARGUMENTS=""
+}
+
+if [ -x "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/bin/myx.common" ] ; then
+	export MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
+	PATH="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/bin:$PATH"
+fi
+
+# add paths, replace if any
+PATH=$(
+  printf '%s:%s:%s' \
+    "${PATH//:$MDLT_ORIGIN\/myx\/myx.distro-*\/sh-scripts/}" \
+    "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts" \
+    "$MDLT_ORIGIN/myx/myx.distro-.local/sh-scripts"
+)
+
+# search: 1) previous path; 2) distro {system|deploy|source|remote} scripts.
+
+if [ -d "$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts" ] ; then
+	PATH+=":$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts"
+fi
+
+if [ -d "$MDLT_ORIGIN/myx/myx.distro-deploy/sh-scripts" ] ; then
+	PATH+=":$MDLT_ORIGIN/myx/myx.distro-deploy/sh-scripts"
+fi
+
+if [ -d "$MDLT_ORIGIN/myx/myx.distro-source/sh-scripts" ] ; then
+	PATH+=":$MDLT_ORIGIN/myx/myx.distro-source/sh-scripts"
+fi
+
+if [ -d "$MDLT_ORIGIN/myx/myx.distro-remote/sh-scripts" ] ; then
+	PATH+=":$MDLT_ORIGIN/myx/myx.distro-remote/sh-scripts"
+fi
+
+[ "$USER" = "$( id -un )" ] || {
+	export USER="$( id -un )"
+}
+
+while true; do
+	case "$(
+		set -- --.local-config-option-select-default MDLT_CONSOLE_HISTORY default
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+	)" in
+		workspace-personal|default)
+			mkdir -p "$MMDAPP/.local/home/${USER}"
+			export HISTFILE="$MMDAPP/.local/home/${USER}/.bash_history_agents" ;;
+		workspace-separate)
+			mkdir -p "$MMDAPP/.local/home/${USER}"
+			export HISTFILE="$MMDAPP/.local/home/${USER}/.bash_history_agents" ;;
+		local-machine-home)
+			export HISTFILE="$HOME/.bash_history_${MMDAPP##*/}" ;;
+		workspace-shared)
+			export HISTFILE="$MMDAPP/.local/.common_bash_history" ;;
+		bash-default)
+			export HISTFILE="$HOME/.bash_history"; break ;;
+		user-default)
+			break ;;
+		*)
+			echo "⛔ ERROR: unknown MDSC_HISTORY: $MDSC_HISTORY" >&2; exit 1 ;;
+	esac
+	export HISTCONTROL=ignoredups:erasedups
+	export HISTSIZE=999
+	export HISTFILESIZE=99999
+	shopt -s histappend 2>/dev/null || :
+	break
+done
+
+export LANG=en_US.UTF-8
+
+echo "AgentsConsole: bash fallback — no --cli given (or the CLI wasn't found). Run 'claude' or 'copilot' directly to start a CLI session." >&2
+
+PROMPT_COMMAND='set +e ; history -w; history -r ; PS1="[agents:$( basename "$MMDAPP" )] \w \$ "'
+
+export PATH
+
+export CLICOLOR='YES'
+export LSCOLORS='ExGxFxdxCxDxDxhbadExEx'
+export GREP_COLORS='00;38;5;157'
+export LOCALE=en_US.UTF-8
+export LANG=en_US.UTF-8
