@@ -110,6 +110,49 @@ case "$1" in
 		return $?
 	;;
 
+	## Same shape as --magic-board-to-pending/-to-blocked, target fixed to
+	## backlog -- covers board-reopen-signaled-items (board-processed/
+	## board-archived -> board-backlog) and board-reassess-parked-blocked's
+	## own backlog-target case (board-parked/board-blocked -> board-backlog).
+	## The pending/running targets of that same reassess step are already
+	## covered generically by --magic-board-to-pending/--magic-advance-to-running
+	## (both accept any --from-state:<state>, not hardcoded to backlog) --
+	## this op is only for the one remaining uncovered target, moving to
+	## backlog itself.
+	--magic-board-to-backlog)
+		shift
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-backlog: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local fromStateArg=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) fromStateArg="$1" ; shift ;;
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-board-to-backlog: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$fromStateArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-backlog: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-board-upsert-move-edit backlog "$itemName" \
+			"$fromStateArg" \
+			"${passthrough[@]}"
+		return $?
+	;;
+
 	*)
 		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
 		set +e ; return 1
