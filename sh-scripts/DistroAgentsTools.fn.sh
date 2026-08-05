@@ -1551,6 +1551,155 @@ $1"
 			return 0
 		;;
 
+		--install-skillset-symlinks)
+			shift
+			local scope workspaceArg
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--scope)
+						scope="$2" ; shift 2
+					;;
+					--workspace)
+						workspaceArg="$2" ; shift 2
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			if [ -n "$scope" ] ; then
+				case "$scope" in
+					workspace|user-home)
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --scope must be workspace or user-home" >&2
+						set +e ; return 1
+					;;
+				esac
+			fi
+
+			local workspace="${workspaceArg:-$PWD}"
+			if [ ! -d "$workspace" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: workspace not found: $workspace" >&2
+				set +e ; return 1
+			fi
+			workspace="$( cd "$workspace" && pwd )"
+
+			local homeSkills="$HOME/.claude/skills"
+			if [ ! -d "$homeSkills" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: home skillset root not found: $homeSkills" >&2
+				set +e ; return 1
+			fi
+
+			local workspaceSkillsDir="$workspace/.claude"
+			local workspaceSkillsLink="$workspaceSkillsDir/skills"
+			local workspaceErr=0
+
+			if [ -z "$scope" ] || [ "$scope" = "workspace" ] ; then
+				mkdir -p "$workspaceSkillsDir"
+				if [ -L "$workspaceSkillsLink" ] ; then
+					local currentTarget
+					currentTarget="$( readlink "$workspaceSkillsLink" )"
+					if [ "$currentTarget" = "$homeSkills" ] ; then
+						echo "OK --install-skillset-symlinks workspace already-linked $workspaceSkillsLink -> $homeSkills" >&2
+						return 0
+					fi
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: workspace link exists but points elsewhere: $workspaceSkillsLink -> $currentTarget" >&2
+					workspaceErr=1
+				elif [ -e "$workspaceSkillsLink" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: path exists and is not a symlink: $workspaceSkillsLink" >&2
+					workspaceErr=1
+				else
+					if ln -s "$homeSkills" "$workspaceSkillsLink" ; then
+						echo "OK --install-skillset-symlinks workspace linked $workspaceSkillsLink -> $homeSkills" >&2
+						return 0
+					fi
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create workspace symlink" >&2
+					workspaceErr=1
+				fi
+				if [ "$scope" = "workspace" ] ; then
+					set +e ; return 1
+				fi
+			fi
+
+			if [ -z "$scope" ] || [ "$scope" = "user-home" ] ; then
+				echo "OK --install-skillset-symlinks user-home using existing skillset root: $homeSkills" >&2
+				if [ "$workspaceErr" -eq 0 ] ; then
+					return 0
+				fi
+				return 0
+			fi
+			return 0
+		;;
+
+		--install-workspace-integrations)
+			shift
+			local scope workspaceArg
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--scope)
+						scope="$2" ; shift 2
+					;;
+					--workspace)
+						workspaceArg="$2" ; shift 2
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			local workspace="${workspaceArg:-$PWD}"
+			if [ ! -d "$workspace" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: workspace not found: $workspace" >&2
+				set +e ; return 1
+			fi
+			workspace="$( cd "$workspace" && pwd )"
+
+			echo "# $MDSC_CMD --install-workspace-integrations: step 1/2 skillset symlinks" >&2
+			if [ -n "$scope" ] ; then
+				DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" || { set +e ; return 1 ; }
+			else
+				DistroAgentsTools --install-skillset-symlinks --workspace "$workspace" || { set +e ; return 1 ; }
+			fi
+
+			echo "# $MDSC_CMD --install-workspace-integrations: step 2/2 vscode + mcp integrations" >&2
+			DistroAgentsTools --owner-install-vscode-integrations --workspace "$workspace" || { set +e ; return 1 ; }
+
+			echo "OK --install-workspace-integrations" >&2
+			return 0
+		;;
+
+		--install-vscode-integrations)
+			shift
+			local workspaceArg
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--workspace)
+						workspaceArg="$2" ; shift 2
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			local workspace="${workspaceArg:-$PWD}"
+			if [ ! -d "$workspace" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: workspace not found: $workspace" >&2
+				set +e ; return 1
+			fi
+			workspace="$( cd "$workspace" && pwd )"
+
+			DistroAgentsTools --owner-install-vscode-integrations --workspace "$workspace" || { set +e ; return 1 ; }
+			echo "OK --install-vscode-integrations" >&2
+			return 0
+		;;
+
 
 		--owner-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Owner.include"

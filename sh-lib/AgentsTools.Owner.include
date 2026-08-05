@@ -160,7 +160,7 @@ case "$1" in
 	;;
 
 	## Installs/updates the baseline VS Code + Claude Code integrations for
-	## this workspace: VS Code extensions (GitHub.copilot, GitHub.copilot-chat,
+	## this workspace: VS Code extensions (github.copilot, github.copilot-chat,
 	## anthropic.claude-code), then ensures workspace-local MCP wiring exists
 	## for both clients -- .vscode/mcp.json ("servers" key, VS Code/
 	## Copilot-Chat's own schema) and .mcp.json ("mcpServers" key, Claude
@@ -208,15 +208,30 @@ case "$1" in
 		fi
 
 		local failed=0
+		local copilotBuiltinPresent=0
 		local extensions
-		extensions="GitHub.copilot GitHub.copilot-chat anthropic.claude-code"
+		extensions="github.copilot github.copilot-chat anthropic.claude-code"
 
 		echo "# $MDSC_CMD --owner-install-vscode-integrations: workspace=$workspace" >&2
 		echo "# Installing VS Code extensions..." >&2
 		local ext
 		for ext in $extensions ; do
-			if code --install-extension "$ext" --force >/dev/null 2>&1 ; then
+			local installOut
+			local installRc
+			set +e
+			installOut="$( code --install-extension "$ext" --force 2>&1 )"
+			installRc=$?
+			set -e
+			if [ "$installRc" -eq 0 ] ; then
 				echo "OK extension $ext" >&2
+			elif [ "$ext" = "github.copilot" ] || [ "$ext" = "github.copilot-chat" ] ; then
+				if printf '%s\n' "$installOut" | grep -q "github.copilot-chat' is a built-in extension" ; then
+					echo "OK extension $ext (copilot-chat built-in; downgrade blocked by VS Code packaging)" >&2
+					copilotBuiltinPresent=1
+				else
+					echo "FAIL extension $ext" >&2
+					failed=1
+				fi
 			else
 				echo "FAIL extension $ext" >&2
 				failed=1
@@ -226,6 +241,10 @@ case "$1" in
 		local installed
 		installed="$( code --list-extensions 2>/dev/null || true )"
 		for ext in $extensions ; do
+			if [ "$copilotBuiltinPresent" -eq 1 ] && { [ "$ext" = "github.copilot" ] || [ "$ext" = "github.copilot-chat" ]; } ; then
+				echo "OK installed-check $ext (treated as built-in packaged state)" >&2
+				continue
+			fi
 			if printf '%s\n' "$installed" | grep -Fxq "$ext" ; then
 				echo "OK installed-check $ext" >&2
 			else
@@ -296,7 +315,7 @@ case "$1" in
 		echo "# 1) MCP (VS Code/Copilot-Chat): MCP: List Servers -> expect 'myx' visible" >&2
 		echo "# 2) MCP (Claude Code): run 'claude mcp list' in $workspace -> expect 'myx' visible" >&2
 		echo "# 3) Chat: Open Chat -> tools list includes myx tools once trusted/started" >&2
-		echo "# 4) Extensions: Show Installed Extensions -> confirm GitHub.copilot + GitHub.copilot-chat + Claude Code" >&2
+		echo "# 4) Extensions: Show Installed Extensions -> confirm github.copilot + github.copilot-chat + anthropic.claude-code" >&2
 		echo "# Trust/Restart note: after mcp.json/.mcp.json changes, trust/start the server if prompted; reload VS Code window if tools are not visible." >&2
 
 		if [ "$failed" -eq 0 ] ; then

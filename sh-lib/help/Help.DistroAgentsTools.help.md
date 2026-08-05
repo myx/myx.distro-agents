@@ -30,6 +30,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
+📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
+📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
+📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -611,6 +614,41 @@
 			VS Code CLI (`code`) is not present in PATH. Prints a compact
 			OK/FAIL checklist, plus Command Palette trust/restart guidance
 			for MCP visibility.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
+			Installs skillset-link integration with workspace-first behavior.
+			With `--scope workspace`, ensures `<workspace>/.claude/skills`
+			is a symlink to `$HOME/.claude/skills` (creates
+			`<workspace>/.claude/` on demand; refuses to overwrite a
+			non-symlink or a symlink targeting a different path). With
+			`--scope user-home`, validates and uses the existing
+			`$HOME/.claude/skills` root without modifying other entries.
+			With no `--scope`, it tries workspace first, then falls back to
+			user-home mode if workspace linking cannot be applied.
+			Default workspace is current shell directory; `--workspace <path>`
+			overrides it.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
+			Composed integration op: runs
+			`--install-skillset-symlinks` first, then
+			`--owner-install-vscode-integrations` against the same workspace.
+			Scope/workspace arguments follow the same grammar as
+			`--install-skillset-symlinks`; with no scope it preserves
+			workspace-first behavior for the symlink step. Fails fast if either
+			step fails.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--install-vscode-integrations [--workspace <path>]
+			Team-facing wrapper for `--owner-install-vscode-integrations`.
+			Resolves the workspace path (default current shell directory,
+			override with `--workspace <path>`) and delegates to the owner
+			backend unchanged, so extension installation + MCP upsert behavior
+			stays centralized in one implementation.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
