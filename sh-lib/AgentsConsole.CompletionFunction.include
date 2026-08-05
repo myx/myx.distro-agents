@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+set -e
+
+local cmd sub cur roots_list roots list
+
+cmd="${COMP_WORDS[0]}"
+sub="${COMP_WORDS[1]}"
+cur="${COMP_WORDS[COMP_CWORD]}"
+
+roots_list="Require Agents"
+roots=""
+for v in $roots_list; do
+	[ "$(type -t "$v")" = function ] && roots="$roots $v"
+done
+
+if [ -z "$cmd" ] || [ "$COMP_CWORD" -eq 1 ] && ! printf '%s\n' $roots | grep -qx "$cmd" ; then
+	case "$cmd" in
+		*.fn.sh)
+		;;
+		*)
+			COMPREPLY=( $(compgen -W "$roots" -- "") )
+			COMPREPLY=( $(printf '%s\n' "${COMPREPLY[@]}" | sort -u) )
+			return 0
+		;;
+	esac
+fi
+
+case "$cmd" in
+	Require)
+		list=$(Agents --completion-require)
+		if [ "$COMP_CWORD" -eq 1 ]; then
+			COMPREPLY=( $(compgen -W "$list" -- "$cur") )
+			return 0
+		fi
+		COMPREPLY=()
+		set +e ; return 1
+	;;
+	Agents)
+		while IFS= read -r line; do
+			COMPREPLY+=("$line")
+		done < <( Agents --completion-helper-agents \
+			"$COMP_LINE" "agents" \
+			'^\(DistroAgents\|Agents\).*.fn.sh$' \
+		) && return 0
+	;;
+	*.fn.sh)
+		if COMPREPLY=( $( Agents --completion-helper-agents \
+			"$COMP_LINE" "$cmd" \
+		) ) ; then
+			return 0
+		fi
+	;;
+esac
+
+set +e
+
+COMPREPLY=( $(compgen -c -- "$cur") $(compgen -f -- "$cur") )
+return 0

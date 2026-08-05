@@ -49,12 +49,13 @@ if ! type DistroAgentsContext >/dev/null 2>&1 ; then
 
 	if ! type Agents >/dev/null 2>&1 ; then
 		Agents(){
+			if [[ -n "$COMP_LINE" || -n "$COMP_WORDS" ]] && [ "${1#--completion}" = "$1" ]; then
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsole.CompletionFunction.include"
+				return 0
+			fi
 			case "$1" in
 				''|--*)
-					( set -e ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsole.include" ) || {
-						echo "⛔ ERROR: missing mirrored console include: $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsole.include" >&2
-						set +e ; return 1
-					}
+					( set -e ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsole.include" "$@" )
 					return 0
 				;;
 			esac

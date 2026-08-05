@@ -2,6 +2,13 @@
 # ^^^ for syntax checking in the editor only
 
 case "$1" in
+	--completion-helper-agents)
+		shift
+		(
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsole.CompletionHelperAgents.fn.include"
+			AgentsConsoleCompletionHelperAgents "$@"
+		)
+	;;
 	--completion-require)
 		shift
 		Agents --completion-all \

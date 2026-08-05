@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+# --completion-helper-agents <full-input-string> <sys-path-name> <grep-all>
+# COMP_LINE COMP_CWORD COMP_WORDS env variables are required.
+# intended COMPREPLY returned as stdout text
+
+function AgentsConsoleCompletionHelperAgents(){
+
+	set -e
+
+	: "${COMP_LINE:?⛔ ERROR: --completion-helper-agents: COMP_LINE env variable is empty: $@}"
+	: "${COMP_CWORD:?⛔ ERROR: --completion-helper-agents: COMP_CWORD env variable is empty: $@}"
+	: "${COMP_WORDS:?⛔ ERROR: --completion-helper-agents: COMP_WORDS env variable is empty: $@}"
+
+	: "${1:?⛔ ERROR: --completion-helper-agents: full-input-string argument is empty: $@}"
+
+	local compPrompt="$1" ; shift
+
+	[ "$COMP_LINE" = "$compPrompt" ] || {
+		echo "⛔ ERROR: --completion-helper-agents: full-input-string != \$COMP_LINE: $@" >&2
+		set +e ; return 1
+	}
+
+	local compSystemName
+	case "${COMP_WORDS[0]}" in
+		*.fn.sh)
+			local cmd="${COMP_WORDS[0]}"
+			if [ "$compPrompt" = "$cmd " ] && command -v "$cmd" >/dev/null 2>&1; then
+				if [ "$COMP_CWORD" -eq 1 ]; then
+					(
+						COMP_CWORD= COMP_WORDS=
+
+						echo >&2
+						( set +e ; $cmd --help 1>&2 </dev/null || : )
+						echo >&2
+
+						. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.EchoBashPrompt.include"
+						DistroLocalEchoBashPrompt "$COMP_LINE" >&2
+					)
+					return 0
+				fi
+				COMPREPLY=()
+				set +e ; return 1
+			fi
+			set +e ; return 1
+		;;
+		Agents)
+			compSystemName="${COMP_WORDS[0]}"
+		;;
+		*)
+			echo "⛔ ERROR: --completion-helper-agents: must be called to complete 'Agents' commands: ${COMP_WORDS[0]}" >&2
+			set +e ; return 1
+		;;
+	esac
+
+	local compSystemPath="${1:?⛔ ERROR: --completion-helper-agents: sys-path is required}" ; shift
+	local compGrepOthers="${1:-'^\(DistroDeploy\|DistroSource\|DistroLocal\|DistroRemote\|Clean\).*.fn.sh$'}" ; shift
+
+	local list
+	list=$(
+		{
+			(
+				MDPATH=""
+				for ITEM in ".local" "system" "deploy" "source" "remote" "agents" ; do
+					if [ "$ITEM" != "$compSystemPath" ] && [ -d "$MDLT_ORIGIN/myx/myx.distro-$ITEM/sh-scripts" ] ; then
+						MDPATH+=" $MDLT_ORIGIN/myx/myx.distro-$ITEM/sh-scripts"
+					fi
+				done
+
+				find $MDPATH -type 'f' -name '*.fn.sh' \
+				| sed -E "s:^$MDLT_ORIGIN/myx/myx.distro-(.local|system|deploy|source|remote|agents)/sh-scripts/::g"
+			) \
+			| grep "$compGrepOthers"
+
+			(
+				MDPATH="$MDLT_ORIGIN/myx/myx.distro-$compSystemPath/sh-scripts"
+				if [ -d "$MDPATH" ] ; then
+					find $MDPATH -type 'f' -name '*.fn.sh' \
+					| sed -E "s:^$MDLT_ORIGIN/myx/myx.distro-(.local|system|deploy|source|remote|agents)/sh-scripts/::g"
+				fi
+			) \
+			| grep '^.*.fn.sh$'
+		} \
+		| sort -u \
+		| sed 's:\.fn\.sh$::'
+	)
+
+	if [ "$COMP_CWORD" -eq 1 ]; then
+		if [ -z "$cur" ]; then
+			echo "$list"
+			return 0
+		fi
+
+		local line COMPREPLY=()
+		while IFS= read -r line; do
+			[[ "$line" != *"$cur"* ]] || COMPREPLY+=("$line")
+		done < <( echo "$list" )
+
+		case "${#COMPREPLY[@]}" in
+			0) return 0 ;;
+			1) printf '%b\n' "${COMPREPLY[@]} " ; return 0 ;;
+		esac
+
+		for idx in "${!COMPREPLY[@]}"; do
+			if [[ ${COMPREPLY[$idx]} != "$cur"* ]]; then
+				COMPREPLY+=(" 🔀[ Filter by: \"$cur\" ]:")
+				printf '%b\n' "${COMPREPLY[@]}"
+				return 0
+			fi
+		done
+
+		printf '%b\n' "${COMPREPLY[@]}"
+		return 0
+	fi
+
+	if [ "$COMP_CWORD" -eq 2 ] && [ -z "$cur" ] ; then
+		if printf '%s\n' "$list" | grep -Fxq -- "$sub" ; then
+			(
+				COMP_CWORD= COMP_WORDS=
+
+				echo >&2
+				"$sub.fn.sh" --help 1>&2 || :
+				echo >&2
+
+				. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.EchoBashPrompt.include"
+				DistroLocalEchoBashPrompt "$COMP_LINE" >&2
+			)
+			return 0
+		fi
+
+		return 0
+	fi
+
+	set +e ; return 1
+}
