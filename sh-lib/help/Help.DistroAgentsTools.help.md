@@ -746,7 +746,10 @@
 		--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item into board/running/, in one call, and/or
 			patches its frontmatter. Auto-stamps started-at (date-time) on
-			every move. --from-state:<state> is required. --header:*
+			every move. --from-state:running is also valid (same-state, no
+			relocation) -- patches frontmatter on an item already in
+			board/running/, existing content preserved. --from-state:<state>
+			is required. --header:*
 			applies upsert/append/remove field operations on top of the
 			resolved body, in the order given. --upsert-from-stdin takes
 			stdin verbatim as the new body; --edit-script-from-stdin runs a

@@ -101,6 +101,12 @@ case "$1" in
 	## convention as the grooming ops. Thin logic over
 	## --intern-op-board-upsert-move-edit -- this op owns only the
 	## started-at auto-stamp, the intern-op owns the generic mechanics.
+	## --from-state:running also works (same-state, not a real transition)
+	## -- closes a second gap found live in cycle 16: patching
+	## session-id/recheck-date bookkeeping onto an item already in
+	## board-running, with no relocation and existing content preserved,
+	## since --intern-op-board-upsert-move-edit already reads-and-preserves
+	## the current body whenever --from-state equals the target state.
 	--magic-advance-to-running)
 		shift
 		## <team-member> is every calling routine's own name/identity, captured
