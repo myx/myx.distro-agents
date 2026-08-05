@@ -25,6 +25,57 @@
 : "${MDLT_ORIGIN:=$MMDAPP/.local}"
 
 if ! type DistroAgentsContext >/dev/null 2>&1 ; then
+	if ! type Require >/dev/null 2>&1 ; then
+		Require(){
+			local distroCommand="$1" ; shift
+			if [ -z "$distroCommand" ] || [ "--help" = "$distroCommand" ] ; then
+				( . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/help/Help.Require.include" )
+				set +e ; return 1
+			fi
+			if type "${distroCommand%.fn.sh}" >/dev/null 2>&1 ; then
+				return 0
+			fi
+
+			local ITEM
+			for ITEM in agents .local system source deploy remote ; do
+				if [ -f "$MDLT_ORIGIN/myx/myx.distro-$ITEM/sh-scripts/${distroCommand%.fn.sh}.fn.sh" ] ; then
+					. "$MDLT_ORIGIN/myx/myx.distro-$ITEM/sh-scripts/${distroCommand%.fn.sh}.fn.sh"
+					return 0
+				fi
+			done
+			source "${distroCommand%.fn.sh}.fn.sh"
+		}
+	fi
+
+	if ! type Agents >/dev/null 2>&1 ; then
+		Agents(){
+			case "$1" in
+				''|--*)
+					( set -e ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsole.include" ) || {
+						echo "⛔ ERROR: missing mirrored console include: $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsole.include" >&2
+						set +e ; return 1
+					}
+					return 0
+				;;
+			esac
+			local distroCommand="$1" ; shift
+			if ! type "${distroCommand%.fn.sh}" >/dev/null 2>&1 ; then
+				if ! command -v "${distroCommand%.fn.sh}.fn.sh" >/dev/null 2>&1; then
+					echo "⛔ ERROR: unknown command: ${distroCommand%.fn.sh}" >&2
+					set +e ; return 1
+				fi
+				. "${distroCommand%.fn.sh}.fn.sh"
+			fi
+
+			set +e ; "${distroCommand%.fn.sh}" "$@" || {
+				EXITCODE=$?
+				echo "⛔ ERROR: exited with error status ($EXITCODE)" >&2
+				set +e ; return $EXITCODE
+			}
+			return 0
+		}
+	fi
+
 	DistroAgentsContext(){
 		case "$1" in
 			--is-spec-option)

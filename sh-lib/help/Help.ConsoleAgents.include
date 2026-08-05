@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include" )
+set +e ; return 1

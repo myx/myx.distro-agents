@@ -9,6 +9,9 @@
 	export MDSC_ARGUMENTS=""
 }
 
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsContext.include"
+DistroAgentsContext --run-from-detect
+
 if [ -x "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/bin/myx.common" ] ; then
 	export MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
 	PATH="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/bin:$PATH"
@@ -81,7 +84,11 @@ complete -W "Help Require claude copilot" \
 		 -o default -o filenames \
 		 "*"
 
-PROMPT_COMMAND='set +e ; history -w; history -r ; PS1="\[\e]0;\u@\H: \w\a\]\n┌─[ 🤖 MDAC:agents: \[\e[0;32m\]\u@\H\[\e[m\]:\[\e[0;34m\]\w\[\e[m\] ]\n└─\[\e[0;33m\]\$\[\e[m\] \[\e[0m\]"'
+complete -F Agents \
+		 -o nospace \
+		"Action" "Require" "Remote" "Distro" "Deploy" "Source"
+
+PROMPT_COMMAND='set +e ; history -w; history -r ; PS1="$( Agents --shell-prompt )"'
 
 export PATH
 
