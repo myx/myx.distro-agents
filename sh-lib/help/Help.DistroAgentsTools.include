@@ -16,6 +16,9 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --react-slack <channel>:<ts> <emoji-n
 echo "📘 syntax: DistroAgentsTools.fn.sh --check-email" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --mark-email-seen <uid>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --check-trello" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> [text...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> --from-stdin" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> --from-file <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --sweep-read-incoming-comms [--oldest <ts>] [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --read-slack <channel>:<ts> [--thread]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --read-email <uid>" >&2

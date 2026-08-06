@@ -151,7 +151,13 @@ This unit model applies to ordinary README/CLAUDE.md/AGENTS.md work. The two sta
 
 **Narrative mode** (logs, transcripts, dated records): narration is fine. Still compact, not watery — except direct quotes, which stay verbatim.
 
-Checked via `routine-conventions-check`.
+## Keeper/partner references stay generic in shared files
+
+A shared/cross-cutting skillset file — anything other than a `keeper-*`/`partner-*` member's own definition file about itself — never hardcodes a specific `keeper-*`/`partner-*` member's name in a real, substantive rule. Genericize to the wildcard form instead: "the owning `keeper-*`", "any matching `partner-*`".
+
+An illustrative example (marked "e.g." or otherwise clearly hypothetical) names an ordinary `magic-*` team member as its example subject, not a specific keeper/partner.
+
+Reason: the `keeper-*`/`partner-*`/`oncall-*`/`expert-*`/`warden-*` roster is deliberately open-ended — new members can be added at any time — so a hardcoded name bakes in a wrong assumption.
 
 # Verbatim-intents and Verbatim-benchmarks convention (authoritative definition)
 

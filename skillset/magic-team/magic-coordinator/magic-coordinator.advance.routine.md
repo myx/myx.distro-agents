@@ -141,7 +141,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- A Keep-Alive Console Session must already be open before this routine's real file reads/writes and Slack API calls (including `check-process-board`'s own `--react-slack` calls) — invoked inline mid-iteration from `routine-heartbeat`, that iteration's own session (opened per `routine-heartbeat`'s own **Open a fresh Keep-Alive Console Session** step) already covers this.
+- Every real file read/write and communications API call this routine makes (including `check-process-board`'s own `--react-slack` calls) is its own direct `lib/execShStdin` call — no Keep-Alive Console Session assumed or required, per `magic-team.armed.md`'s process-flow rule.
 - Never resolves an open design/judgment question surfaced by an investigation subtask — flags it for `routine-grooming`/`magic-architect`.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as things are found, not batch it artificially.

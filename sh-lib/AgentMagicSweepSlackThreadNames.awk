@@ -2,7 +2,8 @@
 ##
 ## AgentMagicSweepSlackThreadNames.awk -- reads an --intern-op-board-scan
 ## document (## <state>/<item> blocks, blank-line-separated, each carrying at
-## least `source_slack_channel:`/`source_slack_ts:` lines -- the caller must
+## least `source-slack-channel:`/`source-slack-ts:` lines -- the caller must
+## have requested both headers. Legacy underscore aliases are accepted too.
 ## have requested both headers) on stdin, and prints one bare item-filename
 ## per line for every block where BOTH values are non-empty. Backs
 ## --magic-sweep-input-scan's own phase-1 (discover survivors) / phase-2
@@ -21,13 +22,13 @@ BEGIN { reset() ; }
 	sub(/^## [^\/]*\//, "", curName) ;
 	next ;
 }
-/^source_slack_channel: / {
-	val = $0 ; sub(/^source_slack_channel: /, "", val) ; gsub(/^[ \t]+|[ \t]+$/, "", val) ;
+/^source-slack-channel: |^source_slack_channel: / {
+	val = $0 ; sub(/^source-slack-channel: /, "", val) ; sub(/^source_slack_channel: /, "", val) ; gsub(/^[ \t]+|[ \t]+$/, "", val) ;
 	if (val != "") { hasChannel = 1 ; }
 	next ;
 }
-/^source_slack_ts: / {
-	val = $0 ; sub(/^source_slack_ts: /, "", val) ; gsub(/^[ \t]+|[ \t]+$/, "", val) ;
+/^source-slack-ts: |^source_slack_ts: / {
+	val = $0 ; sub(/^source-slack-ts: /, "", val) ; sub(/^source_slack_ts: /, "", val) ; gsub(/^[ \t]+|[ \t]+$/, "", val) ;
 	if (val != "") { hasTs = 1 ; }
 	next ;
 }

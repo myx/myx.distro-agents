@@ -219,7 +219,15 @@ DistroAgentsTools(){
 			if [ -n "$teamDataDir" ] ; then
 				case "$teamDataDir" in
 					/*) MDAT_DATA_ROOT="$teamDataDir" ;;
-					*) MDAT_DATA_ROOT="$MMDAPP/source/$teamDataDir" ;;
+					*)
+						if [ -d "$MMDAPP/$teamDataDir" ] ; then
+							MDAT_DATA_ROOT="$MMDAPP/$teamDataDir"
+						elif [ -d "$MMDAPP/source/$teamDataDir" ] ; then
+							MDAT_DATA_ROOT="$MMDAPP/source/$teamDataDir"
+						else
+							MDAT_DATA_ROOT="$MMDAPP/$teamDataDir"
+						fi
+					;;
 				esac
 				export MDAT_DATA_ROOT
 			fi
@@ -1852,6 +1860,14 @@ $1"
 		## AgentsTools.MagicSweep.include's own header.
 		--magic-sweep-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicSweep.include"
+			return $?
+		;;
+
+		## direct Trello write operations for process-flow steps
+		## (--magic-trello-post-comment) -- see
+		## AgentsTools.MagicTrello.include's own header.
+		--magic-trello-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicTrello.include"
 			return $?
 		;;
 

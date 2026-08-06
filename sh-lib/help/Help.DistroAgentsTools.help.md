@@ -15,6 +15,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --check-email
 📘 syntax: DistroAgentsTools.fn.sh --mark-email-seen <uid>
 📘 syntax: DistroAgentsTools.fn.sh --check-trello
+📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> [text...]
+📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> --from-stdin
+📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> --from-file <path>
 📘 syntax: DistroAgentsTools.fn.sh --sweep-read-incoming-comms [--oldest <ts>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --read-slack <channel>:<ts> [--thread]
 📘 syntax: DistroAgentsTools.fn.sh --read-email <uid>
@@ -358,7 +361,19 @@
 
 		--check-trello
 			Unread Trello notifications only (`read_filter=unread`), not a
-			full board read. TRELLO_KEY/TRELLO_TOKEN from --agents-config-option.
+			full board read. Uses configured Trello credentials.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-trello-post-comment <team-member> <card-id> [text...]
+		--magic-trello-post-comment <team-member> <card-id> --from-stdin
+		--magic-trello-post-comment <team-member> <card-id> --from-file <path>
+			Direct Trello write operation for process-flow use (no
+			console-session mechanism required): posts one comment onto one
+			card (`/1/cards/{id}/actions/comments`) using
+			configured Trello credentials. Exactly one
+			content source: trailing text args, --from-stdin, or --from-file.
+			Returns Trello API response JSON on success.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -745,8 +760,8 @@
 		--magic-sweep-input-scan <team-member>
 			Read-only: routine-communication-sweep's own first-stage board
 			scan. Scans backlog/pending/running/blocked -- not parked.
-			Returns only the items carrying both source_slack_channel and
-			source_slack_ts, i.e. those tracking a live, reply-pending
+			Returns only the items carrying both source-slack-channel and
+			source-slack-ts, i.e. those tracking a live, reply-pending
 			Slack thread, every board-item type, every frontmatter field.
 			An empty result (no live-tracked thread) is a normal, clean
 			outcome, not an error. <team-member> is the only argument -- no

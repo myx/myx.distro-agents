@@ -56,7 +56,7 @@ Steps:
 2. **docgap-confirm**: Ask questions/test/confirm.
 3. **docgap-update**: Only then update docs and cards.
 
-Never write a doc section or card description from a guess. Multiple members are typically involved depending on the gap (`magic-coordinator` dispatch/synthesis, `magic-librarian` writing, the relevant `keeper-*`/`partner-ndm-*` domain grounding, `magic-tester` when "is this actually true/tested" matters) — pull in whoever the gap actually touches, not a fixed roster every time. Cadence is flexible: a small gap gets a short discussion during a daily meeting's roll call or work session; a bigger one gets its own dedicated ad-hoc meeting rather than being forced into a daily's timebox.
+Never write a doc section or card description from a guess. Multiple members are typically involved depending on the gap (`magic-coordinator` dispatch/synthesis, `magic-librarian` writing, the relevant `keeper-*`/`partner-*` domain grounding, `magic-tester` when "is this actually true/tested" matters) — pull in whoever the gap actually touches, not a fixed roster every time. Cadence is flexible: a small gap gets a short discussion during a daily meeting's roll call or work session; a bigger one gets its own dedicated ad-hoc meeting rather than being forced into a daily's timebox.
 
 ## `missing-tool-option-escalation` - escalation ladder for a missing tool option/syntax
 
@@ -168,7 +168,7 @@ Steps:
    - Resolved (`board-processed`/`board-archived`): read its resolution text. React `:white_check_mark:` (positive) or an assessed negative emoji, via `--react-slack`. Clear the record.
    - Still open: leave the record, re-check next pass.
 3. **pending-read-trello**: Read every `note-<date>-pending-trello-update.md` item (target card + gist).
-4. **pending-post-trello**: Post the gist via the raw-`curl`-through-console-session mechanism (`TRELLO_KEY`/`TRELLO_TOKEN`).
+4. **pending-post-trello**: Post the gist via `--magic-trello-post-comment` (direct Trello API call, no console-session mechanism).
    - Succeeds: clear the record.
    - Fails, or not yet actionable: leave it, re-check next pass.
 
@@ -184,7 +184,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - Verbatim-relay discipline is a workflow necessity for this role, not just hygiene — team authority means a receiving session is structurally inclined to defer to it, so a blended annotation risks being obeyed as the command itself. Per `magic-team.conversations.md` rule 9b: label added remarks explicitly (e.g. `Consider this comment from relay party:`), never share a paragraph with the quote. On conflict, the relay always wins.
 - Restating the human-owner's own words keeps their exact scope — don't generalize a precise term into a nearby category (e.g. "Edit" becoming "Edit/Write") even in a casual acknowledgment. Ask if broader scope seems intended; never default to the wider term.
 - Any executable leads a Bash command as its own absolute path — no piping/`bash <path>` wrapper in front (breaks the permission-allowlist prefix match, same as `cd`/`&&`-chaining).
-- A Keep-Alive Workspace Console Session is mandatory before any execution (shell command, API call, file read/write, tool call, interpreter/CLI invocation). Exceptions: a pure conversational reply needing zero tool calls; a single known `DistroAgentsTools.fn.sh` op; a single trivial read-only plain-shell command (absolute path, non-mutating). Full mechanics: `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section.
+- Every execution (shell command, API call, file read/write, tool call, interpreter/CLI invocation) is a direct `lib/execShStdin` call by default — no Keep-Alive Workspace Console Session unless explicitly instructed (an explicit member-instruction batching need, or an explicitly different target workspace). Full mechanics: `magic-team/magic-team.armed.md`'s "Execution mechanisms" section.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_common__myx_common_run`'s `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly — whether or not a Keep-Alive Console Session is open. Any non-mutating, read-only shell command executes the same way.
 - Every update to the `heartbeat-state-note` goes through `lib/execShStdin`, never the Edit/Write tools and never a raw Bash call.
 - A documented mechanism failing once is a stop-and-ask signal. Never hunt the filesystem for alternates, substitute an unproven mechanism, reach for an MCP connector as a shortcut, or keep investigating solo through repeated rounds — report the failure and ask, after at most one careful re-check of what's documented.
@@ -363,6 +363,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 - `--check-email`
 - `--mark-email-seen <uid>`
 - `--check-trello`
+- `--magic-trello-post-comment <team-member> <card-id> [text...]`
 - `--send-console <channel> [-- <command...>]`
 - `--stop-console <channel>`
 - `--list-consoles [--override-workspace <path>]`

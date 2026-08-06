@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MagicTrello.include -- direct Trello write operations for
+## process-flow usage. Keeps Trello posting off ad-hoc raw curl snippets and
+## off console-session-only mechanics.
+##
+
+case "$1" in
+
+	## Post one comment to one Trello card via direct API call.
+	##
+	## Syntax:
+	##   --magic-trello-post-comment <team-member> <card-id> [text...]
+	##   --magic-trello-post-comment <team-member> <card-id> --from-stdin
+	##   --magic-trello-post-comment <team-member> <card-id> --from-file <path>
+	##
+	## Exactly one content source is allowed.
+	--magic-trello-post-comment)
+		shift
+		local callingMember="$1"
+		shift || true
+		local cardId="$1"
+		shift || true
+
+		if [ -z "$callingMember" ] || [ -z "$cardId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: syntax is <team-member> <card-id> [text...]|--from-stdin|--from-file <path>" >&2
+			set +e ; return 1
+		fi
+
+		case "$cardId" in
+			*/*|*" "*)
+				echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: card-id must be a bare Trello card id" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		local bodyMode="args" bodyText fromFilePath
+		case "$1" in
+			--from-stdin)
+				bodyMode="stdin"
+				shift
+				[ $# -eq 0 ] || {
+					echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: --from-stdin takes no trailing arguments" >&2
+					set +e ; return 1
+				}
+			;;
+			--from-file)
+				bodyMode="file"
+				fromFilePath="$2"
+				shift 2 || true
+				if [ -z "$fromFilePath" ] || [ ! -f "$fromFilePath" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: --from-file requires an existing file" >&2
+					set +e ; return 1
+				fi
+				[ $# -eq 0 ] || {
+					echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: --from-file takes no trailing arguments" >&2
+					set +e ; return 1
+				}
+			;;
+		esac
+
+		case "$bodyMode" in
+			stdin)
+				bodyText="$( cat )"
+			;;
+			file)
+				bodyText="$( cat "$fromFilePath" )"
+			;;
+			args)
+				bodyText="$*"
+			;;
+		esac
+
+		if [ -z "$bodyText" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: empty comment text" >&2
+			set +e ; return 1
+		fi
+
+		local trelloKey trelloToken
+		trelloKey="$( DistroAgentsTools --agents-config-option magic-coordinator --select TRELLO_KEY )"
+		trelloToken="$( DistroAgentsTools --agents-config-option magic-coordinator --select TRELLO_TOKEN )"
+		if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: TRELLO_KEY/TRELLO_TOKEN not fully set in .local/.agents" >&2
+			set +e ; return 1
+		fi
+
+		echo "# $MDSC_CMD --magic-trello-post-comment: posting comment to card=$cardId" >&2
+		curl -sS -X POST "https://api.trello.com/1/cards/${cardId}/actions/comments" \
+			--data-urlencode "key=${trelloKey}" \
+			--data-urlencode "token=${trelloToken}" \
+			--data-urlencode "text=${bodyText}"
+		return $?
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

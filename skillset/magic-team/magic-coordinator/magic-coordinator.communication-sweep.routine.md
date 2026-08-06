@@ -32,7 +32,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - exception: a check call errors or returns something ambiguous → go deliberate.
    - a newly-joined/missing Slack conversation surfaced by `--check-slack`'s discovery diff is an **analyze** candidate, not acted on here.
 2. **read**: pull the actual content of what's new.
-3. **analyze**: cross-reference **check**/**read** against current state (`TodoWrite`, the board) and identify: anything unblocked and ready to dispatch, anything a keeper-*/partner-ndm-* idle pass would pick up, new-knowledge candidates for `magic-librarian`, what needs a reply and what it should say. Empty result is normal, not a failure.
+3. **analyze**: cross-reference **check**/**read** against current state (`TodoWrite`, the board) and identify: anything unblocked and ready to dispatch, anything a keeper-*/partner-* idle pass would pick up, new-knowledge candidates for `magic-librarian`, what needs a reply and what it should say. Empty result is normal, not a failure.
    - Slack: apply the `slack-reaction-tracking` procedure's Analyze-stage reaction.
 4. **act**: route each candidate by size.
    - Approved, simple, obvious → do it inline, now, standard dispatch mechanism only.

@@ -28,12 +28,12 @@ case "$1" in
 	## directly instead. Always --all-types (no board-item-type restriction
 	## stated anywhere in that text) and always every frontmatter field on
 	## the final display -- the phase-1/phase-2 split below needs full
-	## access to source_slack_channel/source_slack_ts regardless, and no
+	## access to source-slack-channel/source-slack-ts regardless, and no
 	## narrower-header need has been identified for this op.
 	##
 	## Two-call pattern, same shape --routine-coworking-session-input-scan
 	## uses (see AgentsTools.RoutineCoworking.include): phase 1 asks the
-	## primitive for source_slack_channel/source_slack_ts only, across the
+	## primitive for source-slack-channel/source-slack-ts only, across the
 	## fixed state-list, --all-types, no --item restriction (a genuine
 	## whole-folder scan); AgentMagicSweepSlackThreadNames.awk (external,
 	## per this package's own externalize-awk/py convention) reads that
@@ -61,7 +61,9 @@ case "$1" in
 		local phaseAOutput
 		phaseAOutput="$( DistroAgentsTools --intern-op-board-scan \
 			--state backlog --state pending --state running --state blocked \
-			--header source_slack_channel --header source_slack_ts --all-types )" || return 1
+			--header source-slack-channel --header source-slack-ts \
+			--header source_slack_channel --header source_slack_ts \
+			--all-types )" || return 1
 
 		local survivorsFile
 		survivorsFile="$( mktemp "${TMPDIR:-/tmp}/mdat-magic-sweep-survivors.XXXXXX" )" || { set +e ; return 1 ; }

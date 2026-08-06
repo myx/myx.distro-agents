@@ -43,14 +43,14 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **On failure**: `sleep 15`, then exit — no further steps run this cycle, nothing else touched.
    - **On success**: continue.
    - **An anomaly here (an undocumented lock state, an unexpected owner/meta) is assess→investigate work**: governed by `magic-coordinator.harness.md`'s `harness-session-rules`, not restated here.
-2. **Open a fresh Keep-Alive Console Session** — this `next-iteration`'s own dispatch boundary, not carried over from a previous `next-iteration`, not discretionary.
+2. **Direct tooling calls, no console session** — this `next-iteration`'s own execution model, per `magic-team.armed.md`'s process-flow rule: no Keep-Alive Console Session opens, none is assumed.
    - Every command from here on (`DistroAgentsTools.fn.sh` or any other shell check) goes through `mcp__myx_common__myx_common_run`'s `lib/execShStdin` — never Bash, Python, or any other tool that runs a process directly.
    - Every `heartbeat-state-note` update goes through `--magic-heartbeat-state-upsert` via `lib/execShStdin` — never the Edit/Write tools, never a raw shell redirect, never a raw Bash call.
    - That record is rewritten every `next-iteration`; a permission prompt on it halts this whole unattended loop until a human clicks it.
 3. **Start a Slack thread in `slack-event-track`** — `--member-slack-send-message` operation, literal target argument `event-track` (no `slack-` prefix), a short opening line for this `next-iteration`.
    - Not `slack-magic-team` — that's the human-facing channel; this thread is this routine's own execution log for this run.
 4. **Read the `heartbeat-state-note`**, branch per the `day-rhythm-state` procedure — weekend / first-today / later-today.
-5. Run one bounded step for that branch — not everything at once, all through the session opened in step 2.
+5. Run one bounded step for that branch — not everything at once; each sub-step's own calls are direct per step 2, no shared session to carry between them.
    - After each sub-step: post a short progress report into the thread opened in step 3.
    - Between each sub-step: check for incoming console messages and messages from sub-spawned and parent sessions — same think/spawn/relay pattern `magic-coordinator.armed.md`'s shared loop-body rule uses for the outer cycle, applied here to this `next-iteration`'s own internal sub-steps.
    - Sub-steps, in order:
@@ -97,11 +97,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - Once escalated: record `escalated: <timestamp>` alongside the flag in the `heartbeat-state-note`'s `active_project` field, and don't re-escalate the same flag on later `next-iteration`s unless the human-owner's response itself calls for a follow-up.
      - **Board advance, end of loop, every `next-iteration`**: one `routine-advance` pass. Every pass, no first-today/later-today gate.
 6. **Release the lock**, per the `single-instance-lock` procedure, using the `--magic-heartbeat-lock-release` operation.
-7. **Conclude the `slack-event-track` thread opened in step 3** via the `--react-slack` operation, reacting ✅ on that thread — while the console session is still open, since this is itself a tool call.
-8. **Close the console session opened in step 2, explicitly** — `--stop-console` operation: tear down the FIFO-holder, confirm no leftover process, per this routine's own console-teardown rule, before reporting status and exiting.
-   - Don't leave it open "in case the next `next-iteration` can reuse it."
-   - `--send-console` self-heals a dead channel on its own within this `next-iteration` — no manual liveness check is needed before calling it.
-9. **Report status** to whatever session spawned this `next-iteration`, via `SendMessage`, then exit.
+7. **Conclude the `slack-event-track` thread opened in step 3** via the `--react-slack` operation, reacting ✅ on that thread — a direct `lib/execShStdin` call, same as every other call this `next-iteration` makes.
+8. **Report status** to whatever session spawned this `next-iteration`, via `SendMessage`, then exit.
    - `SendMessage(to:"main", ...)` always reaches the true root, never a mid-tree ancestor — if the actual spawner is `main-loop-mode`'s own iterator rather than root, report to `"main"` instead and let it relay down.
    - Repeating, if it happens at all, is entirely up to whatever spawned this `next-iteration` — never this routine itself.
 
@@ -189,7 +186,7 @@ All statements apply at the same time, always. These rules override a participan
     - `main-loop` uses this to know whether real work happened this cycle; it never calls the lock ops itself.
   - Runtime cap: `main-loop` doesn't stop on its own — it keeps cycling until the user says stop or a soft safety cap of roughly 8 hours total runtime is reached.
     - Approaching the cap: let the current `next-iteration` finish (it releases the lock itself), leave a clear note, then stop rather than hard-cutting mid-iteration.
-- A permission prompt appears mid-`next-iteration`: per this routine's own console-session diagnostic, that is proof the console session is not actually open correctly — stop and fix it, don't click through and continue as if it were normal.
+- A permission prompt appears mid-`next-iteration`: a direct `lib/execShStdin` call should never trigger one — it's a sign a call bypassed the mandated tooling channel, or a real config/auth gap. Stop and fix it, don't click through and continue as if it were normal.
 - A day's real activity level doesn't match the assumed weekend/weekday branch: still follow the branch logic as written — the day-rhythm state machine is date-driven, not activity-driven, so low activity is not a signal to skip steps, only genuinely being a weekend is.
 - **DistroAgentsTools trust policy**: `DistroAgentsTools.fn.sh` is the team's own tool.
   - Trust it by default day to day — no defensive re-verification of its own correctness on every call.
@@ -206,7 +203,6 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 - `--member-slack-send-message <team-member> <target> [text...]` (step 3: open the `event-track` thread)
 - `--react-slack <channel>:<ts> <emoji-name>` (step 7: close the `event-track` thread with a checkmark)
-- `--stop-console <channel>` (step 8: tear down the console session each `next-iteration`)
 - `--magic-heartbeat-config-check` (step 0: check magic-coordinator config upfront, before anything else runs)
 - `--magic-heartbeat-input-scan <team-member>` (step 5: load heartbeat board-scan input)
 - `--magic-heartbeat-lock-acquire <team-member> <owner-label>` (step 1: acquire the single-instance lock)
@@ -224,10 +220,6 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## `--react-slack` operation reference
 
 `DistroAgentsTools.fn.sh --react-slack <channel>:<ts> <emoji-name>` — posts one Slack reaction (`reactions.add`) to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut, since a reaction always targets one exact message, not a channel. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). An `already_reacted` error is treated as a harmless no-op, not a failure. This routine's own step 7 usage: `event-track:<thread-ts> white_check_mark`.
-
-## `--stop-console` operation reference
-
-`DistroAgentsTools.fn.sh --stop-console <channel>` — sends `exit` into the channel, then kills the console and FIFO-holder processes (TERM, then KILL after a 1s grace period if still alive), and removes the channel directory.
 
 ## `--magic-heartbeat-config-check` operation reference
 
@@ -292,7 +284,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-daily` — later-today sub-step.
 - `routine-retro` — carries an "Autonomous invocation" addendum for consistency, not currently called by any default branch.
 - `heartbeat-state-note` — day-rhythm persistent state, librarian-owned.
-- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, per-nudge lifetime rule, console-teardown rule, permission-prompt diagnostic.
+- `magic-team/magic-team.armed.md`'s "Execution mechanisms" section — the process-flow direct-tooling-call rule this routine's own step 2 follows; its "Team-Member's (-specific) tooling" section for calling convention and the permission-prompt diagnostic.
 - `magic-team/magic-team.armed.md` — delegated-authority rule the weekend-detection branch relies on.
 - `magic-coordinator/TEAM-ORGANIZATION-VISION.md` — the main-loop-elevation facets and architect-resolution addendum.
 - `magic-librarian/SKILL.md` — "Own inbox: collect and batch, don't fix ad hoc" standard, applied by the first-today-only sub-step.
@@ -301,4 +293,4 @@ Used to check this files own definitions against its own goals when this file's 
 
 ### Conventions
 
-- This is the largest/densest routine folder in the team — preserve the single-instance lock mechanics, the day-rhythm state machine, the per-run bounded-iteration shape, the stale-flag escalation rule, and the "console session lifetime is NOT a discretionary choice" note precisely. Summarizing any of these away risks silently reintroducing the failure modes each one exists to prevent.
+- This is the largest/densest routine folder in the team — preserve the single-instance lock mechanics, the day-rhythm state machine, the per-run bounded-iteration shape, the stale-flag escalation rule, and the "process-flow runs as direct tooling calls, no console session" rule precisely. Summarizing any of these away risks silently reintroducing the failure modes each one exists to prevent.

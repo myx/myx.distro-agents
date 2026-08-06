@@ -31,7 +31,7 @@ Routine-daily is the team's standing daily checkpoint: surface every member's st
   - **Invocation**:
     - Manually: the human-owner (or a member, narrated) asks for a "daily meeting"/"standup".
     - Autonomously: via `routine-heartbeat`'s day-rhythm state (see that routine's "Day-rhythm state" section).
-  - **Precondition**: requires a Keep-Alive Console Session already open, or opened as this routine's first action.
+  - **Precondition**: none — every tool call this routine makes is its own direct `lib/execShStdin` call, per `magic-team.armed.md`'s process-flow rule.
 - Doesn't do:
   - Spawn a new dispatch — never calls `check-execute-board` (`magic-coordinator.advance.routine.md`, `routine-advance`-only: starts a never-yet-dispatched `board-pending` item, restarts/nudges `board-running` work). Step 7's own member fan-out is the one exception.
   - Backlog re-triage needing investigation/design — `routine-grooming`'s job.
@@ -147,7 +147,7 @@ All statements apply at the same time, always. These rules override a participan
 - Board writes during the fan-out (step 7) stay `magic-coordinator`-exclusive: a dispatched agent that discovers a block or completion only flags it — `magic-coordinator` performs the actual `board-running`→`board-blocked` move, or notes a claimed completion in place.
 - Something surfaces that needs a real decision outside this routine's own mandate (a design question, a resource commitment, genuine doubt): route it through `magic-coordinator` as the sole mandated channel to the human-owner — never resolved inline as an ordinary judgment call, and never a dispatched member seeking approval independently.
 - Truly unsure whether something is a small in-routine call or a real decision needing escalation: default to escalation — an unnecessary escalation costs a short question, an inline wrong guess costs rework and board noise later.
-- A step's stated precondition looks unmet (no console session actually open, the `roster-note`/`magic-team.armed.md` tooling section looking stale beyond what step 1 caught): stop and fix the precondition before proceeding, rather than continuing on the assumption it sorts itself out later.
+- A step's stated precondition looks unmet (the `roster-note`/`magic-team.armed.md` tooling section looking stale beyond what step 1 caught): stop and fix the precondition before proceeding, rather than continuing on the assumption it sorts itself out later.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal.
 - Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as the routine actually runs — proactive, as-it-happens posts, not only a summary batched into steps 8/9's close-out.
@@ -200,7 +200,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-camunda-diagram-sync` — BPMN diagram staleness check, step 5a.
 - `routine-communication-sweep` — read half (step 2) and write half (step 8).
 - `routine-process-inbox` — this routine's own inbox processing, step 1c; see its own "Execution mode is decided by identity match" section for why this explicit call is required.
-- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, calling convention, sole-sanctioned Slack-posting mechanism.
+- `magic-team/magic-team.armed.md`'s "Execution mechanisms" section — the process-flow direct-tooling-call rule this routine follows; its "Team-Member's (-specific) tooling" section for calling convention and the sole-sanctioned Slack-posting mechanism.
 - `magic-team/magic-team.board.md` — the board's own state-model definition (`board-running`→`board-blocked` trigger, `board-running` entry verification) steps 7 relies on.
 - `magic-coordinator/magic-coordinator.armed.md`'s "Operating discipline" section.
 
