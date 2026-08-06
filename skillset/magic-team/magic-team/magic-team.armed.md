@@ -465,7 +465,7 @@ Rules/predicates/definitions:
 - Timestamp predicate: date-time stamps are UTC.
 - Append-only predicate: new content lands only via the dedicated `--member-append-session-transcript` operation, never `Edit`/`Write` directly. Already-recorded content is never rewritten — the one exception is backfilling (appending content that should have been recorded at the time but wasn't), which itself still only appends, never rewrites what's already there.
 - Relocation predicate: the file may still be moved (`mv`). Replacing a superseded copy with a short stub (`superseded-by:` plus a one-line pointer to the new location) is a relocation, not an edit — a stubbed file has already stopped being the live record once the real copy moved.
-- Location predicate: every transcript's home is `~/.claude/audit/<YYYY-MM>/transcript-<date>-<slug>.md`, written via `--member-append-session-transcript` (the op's destination is enforced by the tool itself, not a caller-supplied path) - a single, universal destination, not split by transcript kind.
+- Location predicate: every transcript is written via `--member-append-session-transcript` (the op's destination is enforced by the tool itself, not a caller-supplied path) — a single, universal destination, not split by transcript kind.
 
 Type-specific headers:
 - `type: transcript` (fixed constant)

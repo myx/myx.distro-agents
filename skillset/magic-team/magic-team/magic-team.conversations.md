@@ -146,7 +146,7 @@ practice: generate several candidate phrasings, not just one, and compare them d
 
 11. **Transcripts are verbatim records, not summaries.**
     For interview/discuss/brainstorm and archived communication evidence, save
-    `transcript-<date>-<short-topic>` under the shared `audit/<YYYY-MM>/` tree. Commentary may be
+    `transcript-<date>-<short-topic>` via `--member-append-session-transcript`. Commentary may be
     added separately, never as a replacement.
 
 11a. **Transcript save/append behavior is strict and UTC-stamped.**

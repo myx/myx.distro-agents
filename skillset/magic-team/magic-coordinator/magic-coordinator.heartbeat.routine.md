@@ -38,6 +38,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Message whatever session spawned this `next-iteration` (`SendMessage`) with the outcome.
    - **On failure**: `sleep 15`, then exit — no further steps run this cycle, nothing else touched.
    - **On success**: continue.
+   - **An anomaly here (an undocumented lock state, an unexpected owner/meta) is assess→investigate work**: governed by `magic-coordinator.harness.md`'s `harness-session-rules`, not restated here.
 2. **Open a fresh Keep-Alive Console Session** — this `next-iteration`'s own dispatch boundary, not carried over from a previous `next-iteration`, not discretionary.
    - Every command from here on (`DistroAgentsTools.fn.sh` or any other shell check) goes through `mcp__myx_common__myx_common_run`'s `lib/execShStdin` — never Bash, Python, or any other tool that runs a process directly.
    - Every `heartbeat-state-note` update goes through `--magic-heartbeat-state-upsert` via `lib/execShStdin` — never the Edit/Write tools, never a raw shell redirect, never a raw Bash call.
@@ -124,7 +125,7 @@ Named procedure blocks. Steps above call them by name. Not separate routines - n
 
 - This routine's own concern — it protects itself, since only a real filesystem lock works across separate OS processes anyway.
 - Implemented as a `--magic-heartbeat-lock-*` option group in `DistroAgentsTools.fn.sh` (`myx.distro-agents/sh-scripts/`, body in `sh-lib/AgentsTools.MagicHeartbeat.include`) — don't hand-roll the mkdir/heartbeat logic inline, call these ops via `mcp__myx_common__myx_common_run`'s `lib/execShStdin`, the same way as every other `DistroAgentsTools.fn.sh` call, never raw Bash.
-- The parent `~/.claude/skills/magic-coordinator/.runtime/` directory is pre-created so the `mkdir` on the final `main-loop.lock` path component stays a single atomic call.
+- The lock directory's parent is pre-created by the tool so the `mkdir` on the final lock-directory path component stays a single atomic call — storage location itself is resolved and owned by the tool internally (the same board-location config the sibling `--magic-heartbeat-state-*`/`--magic-sweep-state-*` ops use), never a path this doc states or a caller supplies.
 
 - The `--magic-heartbeat-lock-acquire` operation attempts the `mkdir`. Prints `ACQUIRED` and returns 0 on success. On failure it checks the existing lock's heartbeat age: stale (>15 min) reclaims it (`RECLAIMED_STALE:...`, returns 0, treating it as a crashed prior owner); fresh prints `ACTIVE:owner=...:since=...:heartbeat_age=...` and returns 1.
 - The `--magic-heartbeat-lock-heartbeat` operation refreshes the heartbeat timestamp; call periodically if a single run's own work (e.g. a first-today grooming + daily-meeting fan-out) runs long, so a concurrent check doesn't mistake a slow-but-alive run for a stale one.
@@ -229,7 +230,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-heartbeat-lock-acquire` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>` — `mkdir`-based mutex on `$HOME/.claude/skills/magic-coordinator/.runtime/main-loop.lock`, 900s stale threshold. `<owner-label>` should identify the actual running agent/process by a fixed, discoverable name (e.g. `"main-loop"`), not an ephemeral chat/conversation-session id — distinct from `<team-member>`, which is the calling team-member's own identity. Prints `ACQUIRED` and returns 0 on a fresh acquire; `RECLAIMED_STALE:prev_owner=...:age=...s` and returns 0 if the existing lock's heartbeat is older than 900s (treated as a crashed prior owner); `ACTIVE:owner=...:since=...:heartbeat_age=...s` and returns 1 if a fresh lock is genuinely held by someone else. This routine's own step 1 usage: `<team-member> "<owner-label>"`.
+`DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>` — `mkdir`-based mutex on a lock directory the tool resolves and manages internally (see this routine's own `single-instance-lock` procedure above; storage is never a path this doc states or a caller supplies), 900s stale threshold. `<owner-label>` should identify the actual running agent/process by a fixed, discoverable name (e.g. `"main-loop"`), not an ephemeral chat/conversation-session id — distinct from `<team-member>`, which is the calling team-member's own identity. Prints `ACQUIRED` and returns 0 on a fresh acquire; `RECLAIMED_STALE:prev_owner=...:age=...s` and returns 0 if the existing lock's heartbeat is older than 900s (treated as a crashed prior owner); `ACTIVE:owner=...:since=...:heartbeat_age=...s` and returns 1 if a fresh lock is genuinely held by someone else. This routine's own step 1 usage: `<team-member> "<owner-label>"`.
 
 ## `--magic-heartbeat-lock-heartbeat` operation reference
 

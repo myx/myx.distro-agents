@@ -14,7 +14,7 @@ A session's own transcript is not durable — closing is the one guaranteed chec
 
 ## Scope
 
-Does: continuity (inbox memo/reflection note), session-type-branched external broadcast for coworking-like sessions. Runs at the end of every structured routine (`routine-daily`, `routine-retro`, `routine-grooming`, `routine-one-on-one`, `routine-coworking`, `routine-librarian-morning-review`) and any ad-hoc/IDE-chat session wrapping up. Session-type definition itself lives once in `routine-session-start`'s own typed files, referenced here not restated; default to ad-hoc when unsure.
+Does: continuity (inbox memo/reflection note), session-type-branched external broadcast for coworking-like sessions. Runs at the end of every structured routine (`routine-daily`, `routine-retro`, `routine-grooming`, `routine-one-on-one`, `routine-coworking`, `routine-librarian-morning-review`) and any ad-hoc/IDE-chat session wrapping up. Session-type definition itself lives once in `routine-session-start`'s own typed files, referenced here not restated; default to coworking-like when unsure.
 Doesn't do: grooming/cleanup/GC, any status-file compaction pass. `routine-process-reflections` doesn't run here — moved to `routine-session-start`.
 
 # Steps
@@ -24,6 +24,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 0. **Post to `slack-magic-team`** — every session, both types, unconditional.
    - post the actual substance (resolutions, triage outcomes, highlights) — not a one-line summary; skip only genuinely internal mechanics
    - any member posts directly via the `--member-slack-send-message` operation
+   - targets `<channel>:<session_thread_ts>` captured at this session's own opening post — never a fresh bare `magic-team` post, per `routine-session-start`'s own thread-continuity rule
    - coworking-like sessions only: queue a `note-*` to `magic-coordinator`'s inbox via the `--member-upsert-inbox-note` operation, describing the Trello card update needed — never write to Trello directly, `routine-advance` is the sole executor of actual Trello writes
 1. **Continuity** — every session, both types.
    - check: does anything genuinely important from this session exist only in this transcript, no durable file backing it? If so, write it now via the `--member-upsert-inbox-note` operation (plain memo) or `--member-upsert-inbox-reflection` operation (`reflection-*` note) — or a drafted proposal if the durable form is a `SKILL.md`/routine-file change
@@ -47,7 +48,7 @@ All statements apply at the same time, always. These rules override a participan
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - Session was short or produced little: still run every step that applies to this session's type — a short session skipping steps "because there's not much to report" is exactly the gap this routine exists to prevent.
-- Unsure whether a session is coworking-like or ad-hoc: default to ad-hoc — a session that isn't clearly one of the named structured/coworking routines shouldn't be treated as having a team-visible participant set it doesn't actually have.
+- Unsure whether a session is coworking-like or ad-hoc: default to coworking-like — a session that isn't clearly one of the named structured/coworking routines, and wasn't explicitly declared ad-hoc, still gets a team-visible participant set and the broadcast this routine's step 0 requires.
 - Unsure whether something is worth a `reflection-*` note: default to writing one if genuinely durable/generalizable — a redundant reflection costs little, a lost lesson costs the team repeating a mistake.
 - A skill-update gap (step 3) looks bigger than a small, clear fix: still just offer it, never apply it directly — the user decides whether it becomes real build work now or later.
 - Genuinely nothing needs the external broadcast (step 0): still a valid single-line "nothing to report" post, never a skip.

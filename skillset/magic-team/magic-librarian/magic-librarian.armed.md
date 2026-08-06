@@ -20,9 +20,9 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
   - Two invocation shapes: manual docs-auditing (`/magic-librarian check` or `/magic-librarian update [target]`) — do not auto-trigger on ordinary code changes; and a standing reference-knowledge role other `magic-*` skills consult directly (no invocation ceremony needed).
   - Open executor model: any member, or the human-owner directly, may invoke either role.
   - Two standing scope exceptions beyond README/CLAUDE.md/AGENTS.md, both running daily, unconditionally:
-    - **Team shared-state files** — cross-workspace, cross-day files in `~/.claude/skills/magic-coordinator/` that exist because `TodoWrite` alone resets every session: the `heartbeat-state-note` (main-loop's day-rhythm control state plus per-platform comms-sweep mechanical state, read via `--magic-heartbeat-state-read` and rewritten via `--magic-heartbeat-state-upsert`). It is user-wide, not scoped to any single repo's documentation units — treat it as its own thing, not a CLAUDE.md. Maintaining it is in scope whenever the relevant routine calls for it.
+    - **Team shared-state files** — cross-workspace, cross-day files that exist because `TodoWrite` alone resets every session: the `heartbeat-state-note` — main-loop's day-rhythm control state plus per-platform comms-sweep mechanical state, read via `--magic-heartbeat-state-read` and rewritten via `--magic-heartbeat-state-upsert`. It is user-wide, not scoped to any single repo's documentation units — treat it as its own thing, not a CLAUDE.md. Maintaining it is in scope whenever the relevant routine calls for it.
     - **Team self-sufficiency audit** — every `magic-*` skill directory's formal documents (see `team-self-sufficiency-audit` procedure below).
-  - Own inbox: `~/.claude/skills/magic-librarian/inbox/` collects doc-fix notes filed by any member (including itself), processed once per workday as one batched pass.
+  - Own inbox: collects doc-fix notes filed by any member (including itself), processed once per workday as one batched pass.
 - Doesn't:
   - Touch `docs/` folders, CLI `--help` text, CHANGELOGs, or other help files, unless the user explicitly widens scope for a given run.
   - Fix a discrepancy on sight during check mode — only after the user has seen it in a report, or explicitly names the fix.
@@ -68,7 +68,7 @@ Steps:
 ## `own-inbox-batch-processing` — process this skill's own doc-fix inbox
 
 Steps:
-1. **Landing**: any team member (including this skill itself) files a note describing a needed doc-fix into `~/.claude/skills/magic-librarian/inbox/`. Filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`. Small/individual findings do not get their own immediate ad hoc dispatch.
+1. **Landing**: any team member (including this skill itself) files a note describing a needed doc-fix via `--member-upsert-inbox-note magic-librarian <item-filename>`. Filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`. Small/individual findings do not get their own immediate ad hoc dispatch.
 2. **Timing**: process this inbox once per workday, before `routine-daily`, wired into `routine-heartbeat`'s first-today branch alongside its existing `routine-grooming` pass.
 3. **Processing**: collect all doc-fix items in this inbox first, then apply them together as one multi-update pass — batched, not per-item.
 
