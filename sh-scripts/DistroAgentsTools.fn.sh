@@ -1803,6 +1803,13 @@ $1"
 			return $?
 		;;
 
+		## Internal plumbing, no --help entry -- shared generic file-read
+		## primitive with optional line-range selection.
+		--intern-op-data-read)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include"
+			return $?
+		;;
+
 		--intern-config-board-location)
 			shift
 			if [ $# -gt 0 ] ; then
