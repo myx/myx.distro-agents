@@ -55,9 +55,11 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local boardRoot="$teamDataDir/board"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local boardRoot="$MDAT_DATA_ROOT/board"
 		local oldEscaped
 		oldEscaped="$( printf '%s' "$oldName" | LC_ALL=C sed -e 's/[.[\*^$/]/\\&/g' )"
 		local f base touched=0

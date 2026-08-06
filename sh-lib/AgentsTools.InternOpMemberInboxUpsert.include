@@ -56,9 +56,11 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-inbox-upsert: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
 		fi
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local inboxDir="$teamDataDir/inboxes/$memberName"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-inbox-upsert: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local inboxDir="$MDAT_DATA_ROOT/inboxes/$memberName"
 		mkdir -p "$inboxDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-inbox-upsert: can't create inbox directory: $inboxDir" >&2
 			set +e ; return 1

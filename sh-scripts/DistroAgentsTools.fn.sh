@@ -208,6 +208,24 @@ DistroAgentsTools(){
 	[ -z "$MDSC_DETAIL" ] || echo "> $MDSC_CMD $@" >&2
 	set -e
 
+	## NOT CACHE BUT MANDATED ENV CONTEXT VARIABLE
+	if [ "$1" != "--agents-config-option" ] ; then
+		if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
+			local teamDataDir
+			teamDataDir="$(
+				set -- --agents-config-option magic-coordinator --select TEAM_DATA_DIRECTORY
+				. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+			)" || teamDataDir=""
+			if [ -n "$teamDataDir" ] ; then
+				case "$teamDataDir" in
+					/*) MDAT_DATA_ROOT="$teamDataDir" ;;
+					*) MDAT_DATA_ROOT="$MMDAPP/$teamDataDir" ;;
+				esac
+				export MDAT_DATA_ROOT
+			fi
+		fi
+	fi
+
 	case "$1" in
 		--start-console)
 			shift
@@ -1513,9 +1531,11 @@ $1"
 					set +e ; return 1
 				;;
 			esac
-			local teamDataDir
-			teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-			local boardDir="$teamDataDir/board/$boardState"
+			[ -n "${MDAT_DATA_ROOT:-}" ] || {
+				echo "⛔ ERROR: $MDSC_CMD --write-board-item: MDAT_DATA_ROOT is not set" >&2
+				set +e ; return 1
+			}
+			local boardDir="$MDAT_DATA_ROOT/board/$boardState"
 			if [ ! -d "$boardDir" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --write-board-item: no such board state directory: $boardDir" >&2
 				set +e ; return 1
@@ -1783,20 +1803,11 @@ $1"
 				echo "⛔ ERROR: $MDSC_CMD --intern-config-board-location: takes no arguments" >&2
 				set +e ; return 1
 			fi
-			local teamDataDir
-			teamDataDir="$( DistroAgentsTools --agents-config-option magic-coordinator --select TEAM_DATA_DIRECTORY )"
-			if [ -z "$teamDataDir" ] ; then
+			if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --intern-config-board-location: TEAM_DATA_DIRECTORY is not configured -- set it first: DistroAgentsTools.fn.sh --agents-config-option magic-coordinator --upsert TEAM_DATA_DIRECTORY <path>" >&2
 				set +e ; return 1
 			fi
-			case "$teamDataDir" in
-				/*)
-					printf '%s\n' "$teamDataDir"
-				;;
-				*)
-					printf '%s\n' "$MMDAPP/$teamDataDir"
-				;;
-			esac
+			printf '%s\n' "$MDAT_DATA_ROOT"
 			return 0
 		;;
 

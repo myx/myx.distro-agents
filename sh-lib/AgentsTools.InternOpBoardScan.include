@@ -153,9 +153,11 @@ case "$1" in
 			states=( backlog pending running blocked parked processed archived retained )
 		fi
 
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local boardRoot="$teamDataDir/board"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local boardRoot="$MDAT_DATA_ROOT/board"
 		local frontmatterPrintAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentBoardItemFrontmatterPrint.awk"
 		local headersJoined="" sep=""
 		if [ ${#headers[@]} -gt 0 ] ; then

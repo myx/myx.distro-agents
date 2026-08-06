@@ -250,9 +250,11 @@ case "$1" in
 				yearMonth="$( date -u +%Y-%m )"
 			;;
 		esac
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local transcriptDir="$teamDataDir/audit/$yearMonth"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local transcriptDir="$MDAT_DATA_ROOT/audit/$yearMonth"
 		mkdir -p "$transcriptDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: can't create transcript directory: $transcriptDir" >&2
 			set +e ; return 1
@@ -348,9 +350,11 @@ case "$1" in
 			--state backlog --state pending --state running --state blocked --state parked \
 			--all-types --owner "$memberName" || return 1
 
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local inboxDir="$teamDataDir/inboxes/$memberName" f base
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local inboxDir="$MDAT_DATA_ROOT/inboxes/$memberName" f base
 		if [ -d "$inboxDir" ] ; then
 			for f in "$inboxDir"/*.md ; do
 				[ -f "$f" ] || continue

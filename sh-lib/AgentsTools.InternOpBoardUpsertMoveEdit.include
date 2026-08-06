@@ -87,9 +87,11 @@ case "$1" in
 			;;
 		esac
 
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local boardRoot="$teamDataDir/board"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local boardRoot="$MDAT_DATA_ROOT/board"
 		local fromState="" isCreate="false" sourcePath="" bodyMode="" scriptLang="" bodyModeCount=0
 		local headerOpsFile
 		headerOpsFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-headers.XXXXXX" )" || { set +e ; return 1 ; }

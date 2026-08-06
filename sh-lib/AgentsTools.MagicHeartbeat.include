@@ -146,9 +146,11 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-acquire: <team-member> <owner-label> required" >&2
 			set +e ; return 1
 		fi
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local stateDir="$teamDataDir/.runtime"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-acquire: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local stateDir="$MDAT_DATA_ROOT/.runtime"
 		mkdir -p "$stateDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-acquire: can't create runtime directory: $stateDir" >&2
 			set +e ; return 1
@@ -196,9 +198,11 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-heartbeat: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local lockDir="$teamDataDir/.runtime/main-loop.lock"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-heartbeat: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local lockDir="$MDAT_DATA_ROOT/.runtime/main-loop.lock"
 		local meta="$lockDir/meta"
 		if [ -d "$lockDir" ] && [ -f "$meta" ] ; then
 			local tmp="$meta.tmp.$$"
@@ -222,9 +226,11 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-release: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local lockDir="$teamDataDir/.runtime/main-loop.lock"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-release: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local lockDir="$MDAT_DATA_ROOT/.runtime/main-loop.lock"
 		rm -rf "$lockDir" || true
 		echo "RELEASED"
 		return 0
@@ -241,9 +247,11 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-status: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local lockDir="$teamDataDir/.runtime/main-loop.lock"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-status: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local lockDir="$MDAT_DATA_ROOT/.runtime/main-loop.lock"
 		local meta="$lockDir/meta"
 		if [ -f "$meta" ] ; then
 			cat "$meta"
@@ -288,9 +296,11 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: syntax is <team-member> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
 			set +e ; return 1
 		fi
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local stateDir="$teamDataDir/runtime"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local stateDir="$MDAT_DATA_ROOT/.runtime"
 		mkdir -p "$stateDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: can't create runtime directory: $stateDir" >&2
 			set +e ; return 1
@@ -364,9 +374,11 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-read: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		local teamDataDir
-		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
-		local target="$teamDataDir/runtime/main-loop-state.md"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-read: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local target="$MDAT_DATA_ROOT/.runtime/main-loop-state.md"
 		if [ -f "$target" ] ; then
 			cat "$target"
 		else
