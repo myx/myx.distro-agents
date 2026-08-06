@@ -115,11 +115,11 @@ case "$1" in
 			cd "$MMDAPP"
 			export MMDAPP
 
-			## Which agent CLI to run -- copilot (today default) or claude. --cli given
-			## explicitly: exec that CLI or hard-fail, same as before. --cli not
-			## given at all: fall back to an interactive bash console instead of
-			## defaulting to bash -- the CLI can then be started manually from
-			## inside it (see console-agents-bashrc.rc).
+			## Which agent CLI to run. Known CLIs are checked in preference order;
+			## --cli-auto picks the first available one, while no-flag mode uses the
+			## default then falls back through the same list before bash fallback.
+			DAGC_KNOWN_CLIS="copilot claude grok"
+			DAGC_NONINTERACTIVE_CLIS="copilot claude"
 			DAGC_CLI="copilot"
 			DAGC_CLI_GIVEN="false"
 			DAGC_CLI_AUTO="false"
@@ -131,7 +131,7 @@ case "$1" in
 					;;
 					--cli)
 						if [ -z "$2" ] ; then
-							echo "⛔ ERROR: DistroAgentsConsole: --cli requires a value (claude|copilot)" >&2
+							echo "⛔ ERROR: DistroAgentsConsole: --cli requires a value (known: $DAGC_KNOWN_CLIS)" >&2
 							exit 1
 						fi
 						DAGC_CLI="$2"
@@ -143,10 +143,18 @@ case "$1" in
 					;;
 				esac
 			done
-			# --cli-auto probes all supported CLIs and picks the preferred one that actually works.
+			# --cli-auto checks known CLIs by preference and picks the first installed one.
 			if [ "$DAGC_CLI_AUTO" = "true" ] ; then
 				DAGC_CLI_GIVEN="false"
-				for DAGC_AUTO_CLI in copilot claude ; do
+				for DAGC_AUTO_CLI in $DAGC_KNOWN_CLIS ; do
+					if [ "$1" == "--non-interactive" ] ; then
+						case " $DAGC_NONINTERACTIVE_CLIS " in
+							*" $DAGC_AUTO_CLI "*) ;;
+							*)
+								continue
+							;;
+						esac
+					fi
 					if command -v "$DAGC_AUTO_CLI" >/dev/null 2>&1 ; then
 						DAGC_CLI="$DAGC_AUTO_CLI"
 						DAGC_CLI_GIVEN="true"
@@ -154,31 +162,53 @@ case "$1" in
 					fi
 				done
 				if [ "$DAGC_CLI_GIVEN" != "true" ] && [ "$1" == "--non-interactive" ] ; then
-					echo "⛔ ERROR: DistroAgentsConsole: --cli-auto found no supported CLI in PATH (tried: copilot claude)." >&2
+					echo "⛔ ERROR: DistroAgentsConsole: --cli-auto found no supported non-interactive CLI in PATH (tried: $DAGC_NONINTERACTIVE_CLIS)." >&2
 					exit 1
 				fi
 			fi
 			case "$DAGC_CLI" in
-				claude|copilot) ;;
+				copilot|claude|grok) ;;
 				*)
-					echo "⛔ ERROR: DistroAgentsConsole: unsupported --cli: $DAGC_CLI (expected claude|copilot)" >&2
+					echo "⛔ ERROR: DistroAgentsConsole: unsupported --cli: $DAGC_CLI (known: $DAGC_KNOWN_CLIS)" >&2
 					exit 1
 				;;
 			esac
+			if [ "$1" == "--non-interactive" ] ; then
+				case " $DAGC_NONINTERACTIVE_CLIS " in
+					*" $DAGC_CLI "*) ;;
+					*)
+						echo "⛔ ERROR: DistroAgentsConsole: --non-interactive is currently supported only for: $DAGC_NONINTERACTIVE_CLIS (got: $DAGC_CLI)." >&2
+						exit 1
+					;;
+				esac
+			fi
 			if [ "$DAGC_CLI_GIVEN" = "true" ] ; then
 				command -v "$DAGC_CLI" >/dev/null 2>&1 || {
 					echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' CLI not found in PATH -- install it first; --cli was given explicitly, so this does not fall back to a bash session." >&2
 					exit 1
 				}
 			elif ! command -v "$DAGC_CLI" >/dev/null 2>&1 ; then
-				# Today default is copilot; if absent, try claude before bash fallback.
-				if command -v claude >/dev/null 2>&1 ; then
-					DAGC_CLI="claude"
-				fi
+				for DAGC_FALLBACK_CLI in $DAGC_KNOWN_CLIS ; do
+					if [ "$DAGC_FALLBACK_CLI" = "$DAGC_CLI" ] ; then
+						continue
+					fi
+					if [ "$1" == "--non-interactive" ] ; then
+						case " $DAGC_NONINTERACTIVE_CLIS " in
+							*" $DAGC_FALLBACK_CLI "*) ;;
+							*)
+								continue
+							;;
+						esac
+					fi
+					if command -v "$DAGC_FALLBACK_CLI" >/dev/null 2>&1 ; then
+						DAGC_CLI="$DAGC_FALLBACK_CLI"
+						break
+					fi
+				done
 				if command -v "$DAGC_CLI" >/dev/null 2>&1 ; then
 					:
 				elif [ "$1" == "--non-interactive" ] ; then
-					echo "⛔ ERROR: DistroAgentsConsole: no supported CLI found in PATH (tried: copilot claude) -- --non-interactive has no bash session to fall back to." >&2
+					echo "⛔ ERROR: DistroAgentsConsole: no supported non-interactive CLI found in PATH (tried: $DAGC_NONINTERACTIVE_CLIS) -- --non-interactive has no bash session to fall back to." >&2
 					exit 1
 				else
 					exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
