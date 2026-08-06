@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpDataRead.include -- --intern-op-data-read.
+## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. Generic internal file-read primitive
+## with optional line-range selection.
+##
+## Supported form (the only mode):
+##   --intern-op-data-read <document-name> --lookup-folder <absolute-folder> [--lookup-folder <absolute-folder>]... [--start-line <N> --end-line <N>]
+##
+
+case "$1" in
+
+	--intern-op-data-read)
+		shift
+		local documentName="$1"
+		shift || true
+		if [ -z "$documentName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: syntax is <document-name> --lookup-folder <absolute-folder> [--lookup-folder <absolute-folder>]... [--start-line <N> --end-line <N>]" >&2
+			set +e ; return 1
+		fi
+		case "$documentName" in
+			*/*|.|..)
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: document name must be a bare filename, not a path: $documentName" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		local lookupFolders=()
+		local startLine="" endLine=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--lookup-folder)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: --lookup-folder: value required" >&2
+						set +e ; return 1
+					fi
+					case "$2" in
+						/*)
+							lookupFolders+=( "$2" )
+						;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: --lookup-folder must be absolute: $2" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
+				--start-line)
+					startLine="$2"
+					shift 2
+				;;
+				--end-line)
+					endLine="$2"
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		if [ ${#lookupFolders[@]} -eq 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: at least one --lookup-folder is required" >&2
+			set +e ; return 1
+		fi
+
+		local folder sourcePath="" candidate
+		for folder in "${lookupFolders[@]}" ; do
+			[ -d "$folder" ] || continue
+			candidate="$folder/$documentName"
+			if [ -f "$candidate" ] ; then
+				sourcePath="$candidate"
+				break
+			fi
+		done
+		if [ -z "$sourcePath" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: document not found in lookup folders: $documentName" >&2
+			set +e ; return 1
+		fi
+
+		if [ -n "$startLine" ] || [ -n "$endLine" ] ; then
+			if [ -z "$startLine" ] || [ -z "$endLine" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: --start-line and --end-line must be provided together" >&2
+				set +e ; return 1
+			fi
+			if ! printf '%s' "$startLine" | grep -Eq '^[0-9]+$' || [ "$startLine" -lt 1 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: invalid --start-line: $startLine" >&2
+				set +e ; return 1
+			fi
+			if ! printf '%s' "$endLine" | grep -Eq '^[0-9]+$' || [ "$endLine" -lt 1 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: invalid --end-line: $endLine" >&2
+				set +e ; return 1
+			fi
+			if [ "$endLine" -lt "$startLine" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: --end-line must be >= --start-line" >&2
+				set +e ; return 1
+			fi
+			sed -n "${startLine},${endLine}p" "$sourcePath"
+		else
+			cat "$sourcePath"
+		fi
+		return 0
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

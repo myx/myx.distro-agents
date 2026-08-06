@@ -30,6 +30,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
+📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsTools.fn.sh --member-read-board-item <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
@@ -552,6 +554,33 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]
+			Read-only accessor for one audit document by logical identity,
+			not by caller-provided filesystem path. The caller provides only
+			<team-member> and a bare <document-name> filename. The operation
+			validates member existence, rejects path-like names, computes ordered
+			lookup folders under the shared audit tree (month bucket first for
+			transcript-YYYY-MM-DD-* names, then audit root), and resolves via
+			the shared internal lookup primitive. Fails loud if missing or
+			ambiguous. It currently permits only transcript-* file names,
+			enforcing the type policy directly from the filename.
+			Optional line range is supported via --start-line/--end-line and
+			must be provided as a complete pair.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-read-board-item <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
+			Read-only accessor for one board item by bare <item-name> filename.
+			<item-name> must match <type>-<name>.md. Optional repeatable
+			--board-state narrows lookup folders; when omitted, all board
+			states are searched in canonical order. Resolution and low-level
+			read validation are delegated to the shared internal
+			--intern-op-data-read lookup primitive. Optional line range is
+			supported via --start-line/--end-line and must be provided as a
+			pair.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--owner-workspace-upsert <path>
 			Adds one filesystem path to the human-owner's tracked workspace
 			list at $HOME/.claude/skills/human-owner/human-owner.workspaces.md
@@ -1039,6 +1068,18 @@
 
 		# Append one session transcript entry (one call = one entry block)
 		`DistroAgentsTools.fn.sh --member-append-session-transcript magic-coordinator --speaker human-owner --timestamp 2026-07-26T12:34:56Z --message "Approved. Proceed." --transcript-name transcript-2026-07-26-example.md --workspace-root /Users/myx/.claude/skills/magic-team --create`
+
+		# Read a transcript audit document by filename (no raw path argument)
+		`DistroAgentsTools.fn.sh --member-read-audit-item magic-coordinator transcript-2026-07-26-example.md`
+
+		# Read only a selected line range from the same audit document
+		`DistroAgentsTools.fn.sh --member-read-audit-item magic-coordinator transcript-2026-07-26-example.md --start-line 10 --end-line 25`
+
+		# Read a board item by filename (search all board states)
+		`DistroAgentsTools.fn.sh --member-read-board-item magic-coordinator task-example.md`
+
+		# Read from specific state(s) only, with optional line range
+		`DistroAgentsTools.fn.sh --member-read-board-item magic-coordinator task-example.md --board-state pending --board-state running --start-line 1 --end-line 40`
 
 		# Track a workspace path for the human-owner
 		`DistroAgentsTools.fn.sh --owner-workspace-upsert /Volumes/ws-2017/myx-work`
