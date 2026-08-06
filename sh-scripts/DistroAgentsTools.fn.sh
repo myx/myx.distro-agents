@@ -234,12 +234,15 @@ DistroAgentsTools(){
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					--override-workspace)
+						[ -n "$2" ] || { echo "⛔ ERROR: $MDSC_CMD --start-console: --override-workspace requires a path" >&2 ; set +e ; return 1 ; }
 						workspaceArg="$2" ; shift 2
 					;;
 					--console)
+						[ -n "$2" ] || { echo "⛔ ERROR: $MDSC_CMD --start-console: --console requires a value" >&2 ; set +e ; return 1 ; }
 						consoleOverride="$2" ; shift 2
 					;;
 					--ttl)
+						[ -n "$2" ] || { echo "⛔ ERROR: $MDSC_CMD --start-console: --ttl requires seconds" >&2 ; set +e ; return 1 ; }
 						ttl="$2" ; shift 2
 					;;
 					*)
@@ -248,6 +251,8 @@ DistroAgentsTools(){
 					;;
 				esac
 			done
+			case "$ttl" in ''|*[!0-9]*) echo "⛔ ERROR: $MDSC_CMD --start-console: --ttl must be a positive integer" >&2 ; set +e ; return 1 ;; esac
+			[ "$ttl" -gt 0 ] || { echo "⛔ ERROR: $MDSC_CMD --start-console: --ttl must be a positive integer" >&2 ; set +e ; return 1 ; }
 
 			local workspace
 			workspace="$( DistroAgentsToolsResolveWorkspace "$workspaceArg" )" || { set +e ; return 1 ; }
@@ -406,7 +411,13 @@ DistroAgentsTools(){
 					set +e ; return 1
 				fi
 				local MDAT_WORKSPACE MDAT_CONSOLE MDAT_TTL
-				set -a ; . "$channelDir/meta.env" ; set +a
+				MDAT_WORKSPACE="$( sed -n 's/^MDAT_WORKSPACE=//p' "$channelDir/meta.env" | head -n 1 )"
+				MDAT_CONSOLE="$( sed -n 's/^MDAT_CONSOLE=//p' "$channelDir/meta.env" | head -n 1 )"
+				MDAT_TTL="$( sed -n 's/^MDAT_TTL=//p' "$channelDir/meta.env" | head -n 1 )"
+				[ -n "$MDAT_WORKSPACE" ] || { echo "⛔ ERROR: $MDSC_CMD --send-console: missing MDAT_WORKSPACE in meta.env: $channelDir" >&2 ; set +e ; return 1 ; }
+				case "$MDAT_CONSOLE" in DistroSourceConsole.sh|DistroDeployConsole.sh) ;; *) echo "⛔ ERROR: $MDSC_CMD --send-console: invalid MDAT_CONSOLE in meta.env: $channelDir" >&2 ; set +e ; return 1 ;; esac
+				case "$MDAT_TTL" in ''|*[!0-9]*) echo "⛔ ERROR: $MDSC_CMD --send-console: invalid MDAT_TTL in meta.env: $channelDir" >&2 ; set +e ; return 1 ;; esac
+				[ "$MDAT_TTL" -gt 0 ] || { echo "⛔ ERROR: $MDSC_CMD --send-console: invalid MDAT_TTL in meta.env: $channelDir" >&2 ; set +e ; return 1 ; }
 				DistroAgentsTools --start-console --override-workspace "$MDAT_WORKSPACE" --console "$MDAT_CONSOLE" --ttl "$MDAT_TTL" >/dev/null || {
 					echo "⛔ ERROR: $MDSC_CMD --send-console: auto-restart failed for $channelDir" >&2
 					set +e ; return 1
