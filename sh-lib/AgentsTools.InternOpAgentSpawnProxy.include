@@ -191,7 +191,7 @@ case "$1" in
 		if [ "$waitMode" = "true" ] ; then
 			local exitCode
 			set +e
-			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --non-interactive < "$contextFile" > "$outputFile" 2>&1
+			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto --non-interactive < "$contextFile" > "$outputFile" 2>&1
 			exitCode=$?
 			set -e
 			{
@@ -215,7 +215,7 @@ case "$1" in
 			return 0
 		fi
 
-		nohup env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --non-interactive < "$contextFile" > "$outputFile" 2>&1 &
+		nohup env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto --non-interactive < "$contextFile" > "$outputFile" 2>&1 &
 		local spawnPid=$!
 		{
 			echo "receipt_id=$receiptId"
