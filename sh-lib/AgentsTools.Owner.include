@@ -188,7 +188,7 @@ case "$1" in
 		done
 
 		local workspace
-		workspace="${workspaceArg:-$PWD}"
+		workspace="${workspaceArg:-$MMDAPP}"
 		if [ ! -d "$workspace" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --owner-install-vscode-integrations: workspace not found: $workspace" >&2
 			set +e ; return 1
