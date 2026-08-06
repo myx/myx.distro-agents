@@ -19,7 +19,12 @@ case "$1" in
 		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/HelpConsoleAgents.include" )
 		set +e ; return 1
 	;;
-	--start-console|--start-agents-tools-console)
+	--start-console)
+		shift
+		"$MMDAPP/DistroAgentsConsole.sh" --cli-auto "$@"
+		set +e ; return $?
+	;;
+	--start-agents-tools-console)
 		shift
 		export MDSC_ARGUMENTS="$@"
 		bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
