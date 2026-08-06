@@ -669,23 +669,20 @@
 		--install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
 			Installs skillset-link integration. `$MDLT_ORIGIN/myx/
 			myx.distro-agents/skillset/magic-team` is the canonical, real
-			location of the bundled team skillset (bundle-as-native-source);
-			`$HOME/.claude/skills` must already exist.
-			With `--scope user-home`, migrates each member directory found
-			directly under `$HOME/.claude/skills` (skipping `trash`) into
-			the bundle and replaces it with a symlink back to the bundle --
-			idempotent (an already-correct symlink is skipped); a symlink
-			pointing elsewhere, an existing bundle entry, or a failed
-			move/link is an error, never silently overwritten. Rewrites the
-			bundle's own `.managed-by-install-skillset-symlinks` manifest
-			from the real current listing each run.
-			With `--scope workspace`, ensures `<workspace>/.claude/skills`
-			is a symlink to the bundle directory itself (creates
-			`<workspace>/.claude/` on demand; refuses to overwrite a
-			non-symlink or a symlink targeting a different path).
-			With no `--scope`, runs both steps: user-home migration first,
-			then the workspace link -- the workspace step only runs once
-			the user-home step succeeds.
+			location of the bundled team skillset (bundle-as-native-source).
+			Target root is `<workspace>/.claude/skills` for `--scope workspace`
+			or `$HOME/.claude/skills` for `--scope user-home`.
+			For each member name seen in either target root or bundle root
+			(skipping `trash` and skipping names matching
+			`keeper-*|partner-*|oncall-*|expert-*|warden-*`), ensures
+			target/member is a symlink to bundle/member. Already-correct
+			symlinks are kept; a symlink to another target, missing bundle
+			content, existing real content at target, or link-creation failure
+			is an error (never overwritten).
+			With no `--scope`, default is workspace; if the resolved workspace
+			is not a set-up myx.distro workspace and scope was not explicitly
+			provided, falls back to user-home. If `--scope workspace` was
+			explicitly requested for a non-set-up workspace, this is an error.
 			Default workspace is current shell directory; `--workspace <path>`
 			overrides it.
 
@@ -695,10 +692,12 @@
 			Composed integration op: runs
 			`--install-skillset-symlinks` first, then
 			`--owner-install-vscode-integrations` against the same workspace.
-			Scope/workspace arguments follow the same grammar as
-			`--install-skillset-symlinks`; with no scope it runs that op's
-			same no-scope behavior (both symlink steps) before the MCP/
-			extension step. Fails fast if either step fails.
+			If `--scope` is provided, forwards it directly to
+			`--install-skillset-symlinks`.
+			With no `--scope`, runs user-home step only when
+			`$HOME/.claude/skills` exists, then always runs workspace step,
+			then runs the MCP/extension step. Fails fast if any executed step
+			fails.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
