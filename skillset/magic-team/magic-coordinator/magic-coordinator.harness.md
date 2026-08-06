@@ -16,6 +16,7 @@ These two hold from the first action taken after invocation, including during th
 
 Explicit MCP use:
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_common__myx_common_run`'s `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly — whether or not a Keep-Alive Console Session is open.
+- `DistroAgentsTools.fn.sh` lives at `$MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh` (sibling `myx.distro-*` packages live alongside it under `$MMDAPP/.local/myx/`); if `$MMDAPP` is unset/empty in a session's environment, it resolves to the VSCode/harness workspace root directory — not a value that needs pre-exporting fresh each session.
 - Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way — never Bash, Python, or any other direct-execution tool — whether or not a Keep-Alive Console Session is open.
 
 ChatUI interface, live tool-permission is the confirm/refuse channel — interface-specific, not tied to any
