@@ -115,20 +115,20 @@ case "$1" in
 			cd "$MMDAPP"
 			export MMDAPP
 
-			## Which agent CLI to run -- claude (default) or copilot. --cli given
+			## Which agent CLI to run -- copilot (today default) or claude. --cli given
 			## explicitly: exec that CLI or hard-fail, same as before. --cli not
 			## given at all: fall back to an interactive bash console instead of
-			## defaulting to claude -- the CLI can then be started manually from
+			## defaulting to bash -- the CLI can then be started manually from
 			## inside it (see console-agents-bashrc.rc).
-			DAGC_CLI="claude"
+			DAGC_CLI="copilot"
 			DAGC_CLI_GIVEN="false"
+			DAGC_CLI_AUTO="false"
 			while true ; do
 				case "$1" in
-						--cli-auto)
-							DAGC_CLI="copilot"
-							DAGC_CLI_GIVEN="true"
-							shift
-						;;
+					--cli-auto)
+						DAGC_CLI_AUTO="true"
+						shift
+					;;
 					--cli)
 						if [ -z "$2" ] ; then
 							echo "⛔ ERROR: DistroAgentsConsole: --cli requires a value (claude|copilot)" >&2
@@ -143,6 +143,21 @@ case "$1" in
 					;;
 				esac
 			done
+			# --cli-auto probes all supported CLIs and picks the preferred one that actually works.
+			if [ "$DAGC_CLI_AUTO" = "true" ] ; then
+				DAGC_CLI_GIVEN="false"
+				for DAGC_AUTO_CLI in copilot claude ; do
+					if command -v "$DAGC_AUTO_CLI" >/dev/null 2>&1 ; then
+						DAGC_CLI="$DAGC_AUTO_CLI"
+						DAGC_CLI_GIVEN="true"
+						break
+					fi
+				done
+				if [ "$DAGC_CLI_GIVEN" != "true" ] && [ "$1" == "--non-interactive" ] ; then
+					echo "⛔ ERROR: DistroAgentsConsole: --cli-auto found no supported CLI in PATH (tried: copilot claude)." >&2
+					exit 1
+				fi
+			fi
 			case "$DAGC_CLI" in
 				claude|copilot) ;;
 				*)
@@ -156,11 +171,18 @@ case "$1" in
 					exit 1
 				}
 			elif ! command -v "$DAGC_CLI" >/dev/null 2>&1 ; then
-				if [ "$1" == "--non-interactive" ] ; then
-					echo "⛔ ERROR: DistroAgentsConsole: 'claude' CLI not found in PATH -- run 'myx.common install/claude' first; --non-interactive has no bash session to fall back to." >&2
-					exit 1
+				# Today default is copilot; if absent, try claude before bash fallback.
+				if command -v claude >/dev/null 2>&1 ; then
+					DAGC_CLI="claude"
 				fi
-				exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
+				if command -v "$DAGC_CLI" >/dev/null 2>&1 ; then
+					:
+				elif [ "$1" == "--non-interactive" ] ; then
+					echo "⛔ ERROR: DistroAgentsConsole: no supported CLI found in PATH (tried: copilot claude) -- --non-interactive has no bash session to fall back to." >&2
+					exit 1
+				else
+					exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
+				fi
 			fi
 
 			## Ensure MCP registration exists for this workspace before direct CLI
