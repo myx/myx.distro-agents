@@ -153,6 +153,43 @@ case "$1" in
 		return $?
 	;;
 
+	## Same shape as --magic-board-to-pending/-to-blocked/-to-backlog,
+	## target fixed to parked. Used by autonomous heartbeat/advance fallback
+	## when spawn is required but cannot be executed in this pass.
+	--magic-advance-to-parked)
+		shift
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local fromStateArg=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) fromStateArg="$1" ; shift ;;
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$fromStateArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
+			"$fromStateArg" \
+			"${passthrough[@]}"
+		return $?
+	;;
+
 	*)
 		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
 		set +e ; return 1

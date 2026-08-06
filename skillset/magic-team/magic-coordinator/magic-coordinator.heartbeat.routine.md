@@ -133,22 +133,71 @@ Named procedure blocks. Steps above call them by name. Not separate routines - n
 - The `--magic-heartbeat-lock-release` operation removes the lock; called as this routine's own last step, every time.
 - The `--magic-heartbeat-lock-status` operation prints current lock metadata; what anyone deciding whether to start a new run should check first.
 
-## `spawn-request-relay` procedure
+## `spawn-proxy` procedure
 
-This routine has no `Agent`-spawn tool of its own, same as whatever sub-routine it runs (e.g. `routine-daily`'s step 0 or step 7). When one of those needs to spawn a background `Agent`, this routine passes the request upward, unresolved, to whatever session spawned it — it doesn't fulfill the request itself:
+This routine executes spawn requests itself via `DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy`.
 
-```
+- **Protocol shape is mandatory**: every spawn attempt must carry a structured prompt packet and produce a structured receipt packet.
+
+### Prompt packet (required)
+
+```text
 SPAWN-REQUEST: <short label, e.g. "librarian-morning-review">
-GOAL: <one-line description — same as Agent's own `description` field>
-CONTEXT: <self-contained prompt for the new agent: which Skill to invoke first, what to do, what state to pick up>
-NAME: <fixed name to spawn under, if needed later; omit for a one-shot dispatch>
-WAIT: <yes|no — block on the result, or just start it and move on>
+GOAL: <one-line description -- same as Agent's own description field>
+CONTEXT: <self-contained prompt body>
+NAME: <fixed name to spawn under, or omit for one-shot>
+WAIT: <yes|no>
 ```
 
-- `WAIT: yes` blocks this routine until the relay arrives; `WAIT: no` notes it as sent and continues.
-- How the receiving parent fulfills a `SPAWN-REQUEST` is that parent's own concern (`main-loop-mode`), not this routine's.
-- **`WAIT: yes` is bounded by this `next-iteration`'s own natural wrap-up, not indefinite**: if the relay hasn't arrived by the point this `next-iteration` would otherwise be closing out, treat this cycle the same as step 1's own acquire-failed-and-exited-early case — release the lock, report the outcome to whatever spawned this `next-iteration`, and let the next `next-iteration` retry.
-- Consistent with this routine's own "one bounded pass" design — a `WAIT: yes` relay never turns one `next-iteration` into an unbounded hang.
+Exact formatted example:
+
+```text
+SPAWN-REQUEST: librarian-morning-review
+GOAL: Run routine-librarian-morning-review for board state-shape drift check
+CONTEXT: Review magic-team board files and report only actual drift findings.
+NAME: routine-librarian-morning-review
+WAIT: no
+```
+
+- Field rules:
+  - `SPAWN-REQUEST` required.
+  - `GOAL` required.
+  - `CONTEXT` required.
+  - `NAME` optional.
+  - `WAIT` required (`yes` or `no`).
+- Source rules:
+  - Prompt packet comes from stdin by default, or from one explicit selector:
+    - `--from-board <board-item-name> [--board-state <state>]...`
+    - `--from-vault <audit-item-name>`
+    - `--from-audit <vault-item-name>`
+  - Compatibility path `--from-file` may exist for legacy callers but is not the documented path for routine usage.
+
+### Receipt packet (required)
+
+```text
+RECEIPT_ID=<id>
+RECEIPT_FILE=<path>
+STATUS=<started|succeeded|failed>
+PID=<pid-if-async>
+EXIT_CODE=<code-if-wait>
+OUTPUT_FILE=<path>
+```
+
+Exact formatted example:
+
+```text
+RECEIPT_ID=heartbeat-20260806T095318Z-9f3a1c2e
+RECEIPT_FILE=/runtime/md/heartbeats/receipts/heartbeat-20260806T095318Z-9f3a1c2e.receipt
+STATUS=started
+PID=48217
+EXIT_CODE=
+OUTPUT_FILE=/runtime/md/heartbeats/receipts/heartbeat-20260806T095318Z-9f3a1c2e.output
+```
+
+- `RECEIPT_ID` and `RECEIPT_FILE` are mandatory outputs on every call.
+- This routine's caller records receipt evidence on the related board item as `execution-receipt`.
+- `WAIT: no` is default path (async, `STATUS=started`); `WAIT: yes` is for explicit blocking cases.
+- Any spawn-required branch that cannot produce a successful proxy call in the same pass is a hard execution failure and must follow `routine-advance` parked fallback (never silent defer).
 
 # Routine's local rules
 
@@ -212,6 +261,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-heartbeat-state-read <team-member>` (step 4: read the `heartbeat-state-note`)
 - `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (steps 2 and 5: rewrite the `heartbeat-state-note`)
 - `--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` (GC step: relocate a terminal board-item to `trash/`)
+- `--magic-heartbeat-spawn-proxy <team-member> [--from-file <path>|--wait]` (spawn relay used by unattended heartbeat/advance execution paths)
 
 ## `--member-slack-send-message` operation reference
 
@@ -256,6 +306,10 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## `--magic-heartbeat-board-item-trash` operation reference
 
 `DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` — relocates one terminal board-item out of the board entirely, for this routine's own GC step. `<board-state>` is the item's current real board state (`backlog/pending/running/blocked/parked/processed/archived/retained`); `<item-name>` is a bare filename. Thin wrapper, always trashes, never restores — restoring is a separate, internal-only capability, not exposed through this op.
+
+## `--magic-heartbeat-spawn-proxy` operation reference
+
+`DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-file <path>|--wait]` — executes a spawn prompt through `DistroAgentsConsole.sh` and writes a runtime receipt (`RECEIPT_ID`/`RECEIPT_FILE`, plus `OUTPUT_FILE`) for per-item execution accounting. Body source is exactly one of stdin (default) or `--from-file <path>`; empty body is rejected. Default mode is async (`STATUS=started` + `PID`), while `--wait` blocks for completion and returns non-zero on failure.
 
 # Maintainer Notes
 

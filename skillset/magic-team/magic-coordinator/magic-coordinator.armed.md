@@ -376,6 +376,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 - `--magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:...]...`
+- `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
 - `--owner-workspace-list`
@@ -390,6 +391,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 - `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]`
 - `--magic-heartbeat-state-read <team-member>`
 - `--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>`
+- `--magic-heartbeat-spawn-proxy <team-member> [--from-file <path>|--wait]`
 
 ## `--member-slack-send-message` Operation Reference
 

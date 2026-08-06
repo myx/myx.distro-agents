@@ -90,7 +90,12 @@ Process all `board-pending` items each pass — some, all, or none started. Not 
   - Exception: `routine-daily`'s standing work-sessions take continuous task feed as each finishes.
 - Repeated conflicts: item stays `board-pending`, re-checks on `recheck-date` indefinitely — no auto-escalation here.
 - Before spawning: one last `AskUserQuestion` confirmation (`start this co-working session now?`), `yes`/`no`.
-- **Autonomous invocation** (unattended, via `routine-heartbeat`): skip all three interactive prompts above. Ambiguous conflict evidence defaults to `treat as conflict`. No unattended coworking-session starts at all — leave every `restart-session:` candidate in `board-pending` for a human-present pass. Basic non-spawn tasks still start normally.
+- **Autonomous invocation** (unattended, via `routine-heartbeat`): skip all three interactive prompts above. Ambiguous conflict evidence defaults to `treat as conflict`. Spawn-required candidates execute through `--magic-heartbeat-spawn-proxy` (no direct `Agent` tool). Proxy success in the same pass is required to move the item to `board-running`; failure keeps or moves the item to `board-parked` in the same pass via `--magic-advance-to-parked` with all of:
+  - `condition: spawn required, proxy execution failed in this pass`
+  - `handoff-action: human-present harness-session retry required`
+  - `recheck-date: now + 17 minutes`
+  - `execution-receipt: <proxy-receipt-id-or-failure-marker>`
+  and posts one `event-track` notification for this attempt. On each later recheck pass, retry once; success moves back to `board-running`, failure stays in `board-parked`, updates `recheck-date` to now + 17 minutes, and posts again.
 - Sole starter of never-started `board-pending` items: another place may call `spawn-one-dispatch` directly on its own instruction, but an unrequested pending dispatch only starts here.
 
 ### Continuing already-dispatched `board-running` items
@@ -111,7 +116,8 @@ Continue an already-dispatched `board-running` item. Never a first-time start (s
 No pass-wide blanket defer is allowed for `board-running` restart work. Apply this mechanism item-by-item within the existing per-pass concurrency caps.
 
 **Per-pass completion requirement**:
-- For each `board-running` item, finish the pass with one explicit outcome record from this procedure (`nudged` / `respawned` / `redispatched` / `flagged-once` / `no-action-with-explicit-reason`).
+- For each `board-running` item, finish the pass with one explicit outcome record from this procedure (`nudged` / `respawned` / `redispatched` / `parked-spawn-failed` / `flagged-once` / `no-action-with-explicit-reason`).
+- Every outcome record includes `execution-receipt`: spawn receipt id for spawn-proxy paths, dispatch/session id for redispatch/nudge paths, or explicit `inline:<timestamp>` / `no-action:<reason-code>` markers for non-spawn paths.
 - "No action" is valid only with an explicit reason tied to current signals (e.g. `recheck-date` not due, unresolved-dispatch age below stale threshold, no relevant updates this pass).
 - "Deferred" without one of these item-level outcomes is invalid.
 
@@ -173,6 +179,8 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 - `--magic-advance-input-scan <team-member>` (step 1: read the in-scope board state; also `check-process-board`'s own dependency-recompute step, on the same already-loaded read)
 - `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board`'s own never-started-`board-pending`-items step: basic-task start)
+- `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board` fallback when spawn is required but cannot execute in this pass)
+- `--magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <audit-item-name>] [--from-audit <vault-item-name>] [--wait]` (`check-execute-board` autonomous spawn relay with execution receipt)
 - `--member-slack-send-message <team-member> <target> [text...]` (step 5: post the `event-track` report trace; also `check-execute-board`'s own per-type re-ask rules)
 
 ## `--magic-advance-input-scan` operation reference
