@@ -79,6 +79,11 @@ Steps:
 3. **spawn-launch**: Launch: background `Agent`, that member's own `Skill` as its first action.
 4. **spawn-record-dispatch**: If this is board-tracked process-flow work: write/update the `dispatch-*` board-item, move it to `board-running`.
 
+Execution discipline (explicit):
+- If the caller requested a spawn, this procedure performs one real launch in this same pass or returns a loud error; it must not silently downgrade to "defer".
+- "Unknown liveness" is not a skip condition by itself. When prior session liveness is uncertain, probe via the caller's own same-pass liveness mechanism first; then either launch, nudge, or return an explicit conflict/error.
+- A pass-level summary without an item-level outcome (`spawned` / `nudged` / `conflict-held` / `error`) is invalid.
+
 Never decides *whether* to spawn — the caller already made that call (an explicit instruction, or `check-execute-board`). This procedure only executes the actual launch of one job.
 
 ## `dispatch-to-board` - assess board state, then act on a task
