@@ -351,7 +351,7 @@ DistroAgentsTools(){
 			## Console self-locates its own workspace root from $0 (see
 			## DistroSourceConsole.sh's own MMDAPP bootstrap), so an absolute path
 			## here doesn't require changing this shell's cwd.
-			nohup "$workspace/$consoleName" --non-interactive < "$fifo" >> "$log" 2>&1 &
+			nohup env MMDAPP="$workspace" "$workspace/$consoleName" --non-interactive < "$fifo" >> "$log" 2>&1 &
 			local consolePid=$!
 			disown 2>/dev/null || true
 			echo "$consolePid" > "$channelDir/console.pid"
