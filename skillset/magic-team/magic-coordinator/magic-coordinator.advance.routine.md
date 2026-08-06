@@ -37,6 +37,12 @@ The board isn't trustworthy between daily/grooming cycles — sessions die mid-w
 - Trello-board-content review/grooming (reading/assessing existing cards) — distinct from `check-pending-comms-actions`'s narrow, mechanical execution of an already-queued Trello write, which IS in scope.
 - Google Drive/Sheets.
 
+**No-blanket-defer rule for `board-running` follow-up**:
+- "Judgment-heavy" exclusion applies to blocker-resolution triage (`board-blocked`/`board-parked`) only.
+- It does not apply to `check-execute-board`'s own running-item continuation loop.
+- Every `board-running` item must receive one concrete per-pass outcome, every pass: `nudged`, `respawned`, `redispatched`, `flagged-once`, or `no-action-with-explicit-reason`.
+- A pass-level summary like "deferred for later" is invalid for `board-running` as a class.
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
@@ -100,6 +106,11 @@ Continue an already-dispatched `board-running` item. Never a first-time start (s
     - set `recheck-date` to now + 7min (jittered ±2min) and `session-id` to the new session's identifier, via `--magic-advance-to-running <team-member> <item-filename> --from-state:running --header:upsert:recheck-date:<value> --header:upsert:session-id:<value>` (same-state patch, existing content preserved)
   - `restart-session:` absent → execute the corresponding routine inline instead
 
+**Per-pass completion requirement**:
+- For each `board-running` item, finish the pass with one explicit outcome record from this procedure (`nudged` / `respawned` / `redispatched` / `flagged-once` / `no-action-with-explicit-reason`).
+- "No action" is valid only with an explicit reason tied to current signals (e.g. `recheck-date` not due, unresolved-dispatch age below stale threshold, no relevant updates this pass).
+- "Deferred" without one of these item-level outcomes is invalid.
+
 **Staleness inputs feeding the mechanism above**:
 - Console-session-backed work: for any in-scope item naming/depending on a `DistroAgentsTools` workspace console session, run `--list-consoles`, cross-reference. Console expected but gone → flag/report it; do not autonomously restart the console.
 - Agent/Task-dispatch-backed work: for any `board-running` item recording an unresolved dispatch note, compute how long unresolved. Treat "unresolved past ~5 main-loop iterations or ~1 hour, whichever comes first" as the staleness signal.
@@ -132,6 +143,8 @@ Apply these per-`board-running`-item task rules, by filename prefix. State-only 
 - `note-*` / `reflection-*` / `transcript-*`: not expected in `board-running` → flag for `routine-grooming`.
 
 After all per-type checks: send one Slack DM to human-owner naming every item that stayed `board-running` with `recheck-date` untouched this pass (across this procedure's own pass and `check-process-board`'s already-run pass), plus any autonomous-invocation restart-session spawns from this same pass (above) — at most once per `routine-advance` run, not per item.
+
+The same DM includes a compact `board-running` outcome count for this pass (`nudged`/`respawned`/`redispatched`/`flagged-once`/`no-action-with-explicit-reason`) so missing follow-up is visible immediately.
 
 **Thread continuity**: read `human_owner_broadcast_thread_ts`/`human_owner_broadcast_thread_date` from the `heartbeat-state-note` first. Date matches today's real date → post this DM as a threaded reply, target `<channel>:<ts>` using that stored value, never the bare `human-owner` keyword. No match (absent, or a stale prior day) → post with the bare `human-owner` target as today's first such DM, capture `channel`/`ts` from this call's own JSON response, and write them back via `--magic-heartbeat-state-upsert` so every later `next-iteration` this same day threads into it instead of starting fresh.
 
