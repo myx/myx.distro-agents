@@ -1797,6 +1797,12 @@ $1"
 			return $?
 		;;
 
+		## Internal plumbing, no --help entry -- backs --magic-heartbeat-config-check.
+		--intern-op-check-configs)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpCheckConfigs.include"
+			return $?
+		;;
+
 		--intern-config-board-location)
 			shift
 			if [ $# -gt 0 ] ; then

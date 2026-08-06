@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpCheckConfigs.include -- --intern-op-check-configs.
+## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. Generic config-key status-check
+## primitive (name only, never the value); --required gates exit 1,
+## --optional is informational only. No --help entry: internal plumbing.
+##
+
+case "$1" in
+
+	--intern-op-check-configs)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs: syntax is <team-member> [--required <KEY>:<hint>]... [--optional <KEY>:<hint>]..." >&2
+			set +e ; return 1
+		fi
+		local requiredMissing=0
+		local checkMode checkSpec checkKey checkHint checkVal
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--required) checkMode="required" ;;
+				--optional) checkMode="optional" ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+			checkSpec="$2"
+			if [ -z "$checkSpec" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs: $1 needs a <KEY>:<hint> argument" >&2
+				set +e ; return 1
+			fi
+			shift 2
+			checkKey="${checkSpec%%:*}"
+			checkHint="${checkSpec#*:}"
+			if [ "$checkHint" = "$checkSpec" ] ; then checkHint="<value>" ; fi
+			checkVal="$( DistroAgentsTools --agents-config-option "$callingMember" --select "$checkKey" )"
+			if [ -n "$checkVal" ] ; then
+				echo "$checkKey: OK"
+			else
+				echo "$checkKey: FAIL"
+				if [ "$checkMode" = "required" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs: $checkKey is not configured -- set it first: DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey $checkHint" >&2
+					requiredMissing=1
+				else
+					echo "  fix: DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey $checkHint"
+				fi
+			fi
+		done
+		if [ "$requiredMissing" -ne 0 ] ; then
+			set +e ; return 1
+		fi
+		return 0
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

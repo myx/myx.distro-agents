@@ -43,6 +43,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <item-name>...
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -772,6 +773,23 @@
 			active board" reading -- every board-item type, every
 			frontmatter field. <team-member> is the only argument -- no
 			--state/--header override.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-heartbeat-config-check
+			Read-only, no arguments -- routine-heartbeat's step-0 upfront
+			config gate, always against magic-coordinator's own config.
+			Prints one `<KEY>: OK`/`<KEY>: FAIL` line per key checked (name
+			only, never the value): TEAM_DATA_DIRECTORY, SLACK_BOT_TOKEN,
+			SLACK_CHANNEL_EVENT_TRACK, SLACK_CHANNEL_MAGIC_TEAM,
+			SLACK_CHANNEL_HUMAN_OWNER, EMAIL_IMAP_HOST, EMAIL_USER,
+			EMAIL_APP_PASSWORD, TRELLO_KEY, TRELLO_TOKEN. Only
+			TEAM_DATA_DIRECTORY is required -- missing, also prints a
+			`⛔ ERROR ... set it first: DistroAgentsTools.fn.sh
+			--agents-config-option magic-coordinator --upsert TEAM_DATA_DIRECTORY <path>`
+			line and returns 1. The other nine are optional/informational --
+			each FAIL prints its own fix command too, but never affects the
+			exit code.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

@@ -78,6 +78,31 @@ case "$1" in
 		return $?
 	;;
 
+	## routine-heartbeat step 0: thin wrapper over --intern-op-check-configs,
+	## fixed to magic-coordinator (no <team-member> arg -- only call site).
+	## Only TEAM_DATA_DIRECTORY is --required (gates exit code); the rest
+	## are --optional (reported, informational only -- each already fails
+	## loud on its own at point of use).
+	--magic-heartbeat-config-check)
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-config-check: takes no arguments" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-check-configs magic-coordinator \
+			--required "TEAM_DATA_DIRECTORY:<path>" \
+			--optional "SLACK_BOT_TOKEN:<token>" \
+			--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
+			--optional "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
+			--optional "SLACK_CHANNEL_HUMAN_OWNER:<channel-id>" \
+			--optional "EMAIL_IMAP_HOST:<host>" \
+			--optional "EMAIL_USER:<email-address>" \
+			--optional "EMAIL_APP_PASSWORD:<app-password>" \
+			--optional "TRELLO_KEY:<key>" \
+			--optional "TRELLO_TOKEN:<token>"
+		return $?
+	;;
+
 	## Explicit board-item->trash relocation for this routine's own GC step
 	## (routine-heartbeat.routine.md's GC sub-step).
 	--magic-heartbeat-board-item-trash)

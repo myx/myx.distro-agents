@@ -34,6 +34,10 @@ Routine-heartbeat is the team's continuous, self-driven operating rhythm — com
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud. Each step below runs once per `next-iteration`, in sequence — one bounded pass, not a continuous loop of its own.
 
+0. **Check required config** — `--magic-heartbeat-config-check` operation.
+   - Message whatever session spawned this `next-iteration` (`SendMessage`) with the outcome — each missing key's line already carries its own exact fix command.
+   - **On failure**: `sleep 15`, then exit — no further steps run this cycle, nothing else touched.
+   - **On success**: continue.
 1. **Acquire the lock** — `single-instance-lock` procedure, `--magic-heartbeat-lock-acquire` operation.
    - Message whatever session spawned this `next-iteration` (`SendMessage`) with the outcome.
    - **On failure**: `sleep 15`, then exit — no further steps run this cycle, nothing else touched.
@@ -203,6 +207,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--member-slack-send-message <team-member> <target> [text...]` (step 3: open the `event-track` thread)
 - `--react-slack <channel>:<ts> <emoji-name>` (step 7: close the `event-track` thread with a checkmark)
 - `--stop-console <channel>` (step 8: tear down the console session each `next-iteration`)
+- `--magic-heartbeat-config-check` (step 0: check magic-coordinator config upfront, before anything else runs)
 - `--magic-heartbeat-input-scan <team-member>` (step 5: load heartbeat board-scan input)
 - `--magic-heartbeat-lock-acquire <team-member> <owner-label>` (step 1: acquire the single-instance lock)
 - `--magic-heartbeat-lock-heartbeat <team-member>` (refresh the heartbeat during a long-running `next-iteration`)
@@ -223,6 +228,10 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## `--stop-console` operation reference
 
 `DistroAgentsTools.fn.sh --stop-console <channel>` — sends `exit` into the channel, then kills the console and FIFO-holder processes (TERM, then KILL after a 1s grace period if still alive), and removes the channel directory.
+
+## `--magic-heartbeat-config-check` operation reference
+
+`DistroAgentsTools.fn.sh --magic-heartbeat-config-check` — takes no arguments, always checks magic-coordinator's own config. Prints one `<KEY>: OK`/`<KEY>: FAIL` line per key (name only, never the value) for `TEAM_DATA_DIRECTORY`, `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_EVENT_TRACK`, `SLACK_CHANNEL_MAGIC_TEAM`, `SLACK_CHANNEL_HUMAN_OWNER`, `EMAIL_IMAP_HOST`, `EMAIL_USER`, `EMAIL_APP_PASSWORD`, `TRELLO_KEY`, `TRELLO_TOKEN`, each FAIL with its own exact fix command. Only `TEAM_DATA_DIRECTORY` gates the exit code (1 if missing); the rest are informational — a FAIL there returns 0 regardless.
 
 ## `--magic-heartbeat-input-scan` operation reference
 
