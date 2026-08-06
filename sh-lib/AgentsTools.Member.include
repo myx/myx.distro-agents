@@ -686,85 +686,107 @@ case "$1" in
 			esac
 		done
 
-		local rawText blocksJson
+		local rawText blocksJson sourceText
 		if [ "$fromStdin" = "true" ] ; then
 			## stdinContent may already be populated by --from-file above; only
 			## read real stdin here if it wasn't (--from-stdin, not --from-file,
 			## is what set fromStdin=true in that case).
 			[ -n "$stdinContent" ] || stdinContent="$( cat )"
-			if [ "$format" = "blocks" ] ; then
-				blocksJson="$stdinContent"
-
-				## `blocksJson` gets spliced straight into the payload below
-				## (`"blocks":$blocksJson`) with no escaping, unlike `rawText`
-				## (which goes through agentMcpJsonEscape.awk) -- this command's
-				## own contract for --format blocks always expects a bare JSON
-				## array here, so validate that before it ever reaches curl.
-				## Guards against a caller's stdin content carrying a stray
-				## leading ":" (leftover from a "blocks: [...]" -style paste,
-				## i.e. not actually a bare array), which would splice
-				## into a literal `"blocks"::[...]` in the payload -- Slack's
-				## chat.postMessage would bounce that as invalid_json on all 5
-				## retries, with nothing in the error pointing at the actual
-				## cause. Reuses this same file's own --validate-json op via
-				## self-recursion (same convention as --send-email-message's
-				## fallback call below) for full JSON-syntax validation,
-				## rather than hand-rolling a second, weaker JSON check here.
-				## --validate-json accepts any syntactically
-				## valid top-level JSON value though (object, string, number,
-				## ...), so a cheap bare `[` ... `]` shape check is layered on
-				## top of it to enforce the array-specifically requirement
-				## Slack's `blocks` field actually has.
-				if ! printf '%s' "$blocksJson" | DistroAgentsTools --validate-json ; then
-					echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --format blocks stdin failed --validate-json (see above)" >&2
-					set +e ; return 1
-				fi
-				local blocksTrimmed
-				blocksTrimmed="$( printf '%s' "$blocksJson" | LC_ALL=C awk 'BEGIN{RS="\0"} { gsub(/^[ \t\r\n]+/, ""); gsub(/[ \t\r\n]+$/, ""); printf "%s", $0 }' )"
-				case "$blocksTrimmed" in
-					'['*']')
-					;;
-					*)
-						echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --format blocks stdin is valid JSON but not a bare array (must start with '[' and end with ']')" >&2
-						set +e ; return 1
-					;;
-				esac
-
-				## Guards against a chat.postMessage rejection shaped like
-				## `invalid_blocks: unsupported type "mrkdwn" [json-pointer:/blocks/3/type]`
-				## -- a caller nesting a text-object type (`mrkdwn`, only valid
-				## inside a block's own `text` field) directly as a top-level
-				## block's own `type`, which Slack's Block Kit does not accept as
-				## a block type. Neither the
-				## --validate-json check above (syntax only) nor the bare-array
-				## check above (shape only) catches this -- both are satisfied by
-				## a syntactically-valid array of objects regardless of what each
-				## object's own "type" value actually is. This is a cheap,
-				## non-recursive structural check (does every top-level element
-				## have a "type" key whose value is one of Slack's known top-level
-				## block types) layered on top of the syntax/shape checks, same
-				## spirit as those -- NOT a full Block Kit schema validator (this
-				## shell layer has no real JSON parser beyond what python3/awk give
-				## it here), so it deliberately does not recurse into each block's
-				## own nested fields (text objects, elements, accessory, ...).
-				local blocksBadTypes
-				blocksBadTypes="$( printf '%s' "$blocksJson" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentBlockKitValidate.py" 2>/dev/null )"
-				if [ -n "$blocksBadTypes" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --format blocks stdin has an invalid/missing top-level 'type' at block index(es) $blocksBadTypes -- mrkdwn/plain_text/etc. are TEXT-OBJECT types, valid only nested inside a block's own \"text\" field, never as a block's own \"type\" (valid top-level types: section, divider, header, context, image, actions, input, video, rich_text, file)" >&2
-					set +e ; return 1
-				fi
-
-				## NOTE: not auto-deriving a text fallback from the blocks' own
-				## text.text fields yet (that needs real JSON parsing this shell
-				## layer doesn't have) -- using a static fallback instead. Revisit
-				## with a real parser (e.g. agentMcpJsonParseRequest.awk's
-				## approach) if Slack's own notification quality demands better.
-				rawText="(formatted message -- see blocks)"
-			else
-				rawText="$stdinContent"
-			fi
+			sourceText="$stdinContent"
 		else
-			rawText="${textArgs# }"
+			sourceText="${textArgs# }"
+		fi
+
+		## --format markdown builds blocksJson from sourceText via this
+		## repo's own sh-lib/AgentSlackBlocksBuild.awk (small restricted
+		## markdown-ish syntax -> Slack Block Kit JSON array -- see that
+		## file's own header for the exact rules), then falls straight into
+		## the SAME validation/send path as --format blocks below -- not a
+		## parallel/duplicated path. Unlike --format blocks (stdin/file-only,
+		## unchanged below), --format markdown accepts any input source
+		## (trailing argv included) since a short markdown-ish message is a
+		## realistic thing to type directly as argv text, unlike a raw Block
+		## Kit JSON array.
+		if [ "$format" = "markdown" ] ; then
+			if [ -z "$sourceText" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: no text/blocks content given" >&2
+				set +e ; return 1
+			fi
+			blocksJson="$( printf '%s\n' "$sourceText" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackBlocksBuild.awk" )"
+		elif [ "$fromStdin" = "true" ] && [ "$format" = "blocks" ] ; then
+			blocksJson="$sourceText"
+		fi
+
+		if [ -n "$blocksJson" ] ; then
+			## `blocksJson` gets spliced straight into the payload below
+			## (`"blocks":$blocksJson`) with no escaping, unlike `rawText`
+			## (which goes through agentMcpJsonEscape.awk) -- both --format
+			## blocks' caller-supplied array and --format markdown's
+			## awk-built array share this same bare-JSON-array contract, so
+			## both get validated here, once, before either ever reaches
+			## curl. Guards against stray content (a leftover
+			## "blocks: [...]"-style paste, or a malformed awk build) that
+			## isn't actually a bare array, which would splice into a
+			## literal `"blocks"::[...]` or similar in the payload -- Slack's
+			## chat.postMessage would bounce that as invalid_json on all 5
+			## retries, with nothing in the error pointing at the actual
+			## cause. Reuses this same file's own --validate-json op via
+			## self-recursion (same convention as --send-email-message's
+			## fallback call below) for full JSON-syntax validation,
+			## rather than hand-rolling a second, weaker JSON check here.
+			## --validate-json accepts any syntactically
+			## valid top-level JSON value though (object, string, number,
+			## ...), so a cheap bare `[` ... `]` shape check is layered on
+			## top of it to enforce the array-specifically requirement
+			## Slack's `blocks` field actually has.
+			if ! printf '%s' "$blocksJson" | DistroAgentsTools --validate-json ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --format $format content failed --validate-json (see above)" >&2
+				set +e ; return 1
+			fi
+			local blocksTrimmed
+			blocksTrimmed="$( printf '%s' "$blocksJson" | LC_ALL=C awk 'BEGIN{RS="\0"} { gsub(/^[ \t\r\n]+/, ""); gsub(/[ \t\r\n]+$/, ""); printf "%s", $0 }' )"
+			case "$blocksTrimmed" in
+				'['*']')
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --format $format content is valid JSON but not a bare array (must start with '[' and end with ']')" >&2
+					set +e ; return 1
+				;;
+			esac
+
+			## Guards against a chat.postMessage rejection shaped like
+			## `invalid_blocks: unsupported type "mrkdwn" [json-pointer:/blocks/3/type]`
+			## -- a caller (or, for --format markdown, a bug in
+			## AgentSlackBlocksBuild.awk) nesting a text-object type
+			## (`mrkdwn`, only valid inside a block's own `text` field)
+			## directly as a top-level block's own `type`, which Slack's
+			## Block Kit does not accept as a block type. Neither the
+			## --validate-json check above (syntax only) nor the bare-array
+			## check above (shape only) catches this -- both are satisfied by
+			## a syntactically-valid array of objects regardless of what each
+			## object's own "type" value actually is. This is a cheap,
+			## non-recursive structural check (does every top-level element
+			## have a "type" key whose value is one of Slack's known top-level
+			## block types) layered on top of the syntax/shape checks, same
+			## spirit as those -- NOT a full Block Kit schema validator (this
+			## shell layer has no real JSON parser beyond what python3/awk give
+			## it here), so it deliberately does not recurse into each block's
+			## own nested fields (text objects, elements, accessory, ...).
+			local blocksBadTypes
+			blocksBadTypes="$( printf '%s' "$blocksJson" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentBlockKitValidate.py" 2>/dev/null )"
+			if [ -n "$blocksBadTypes" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --format $format content has an invalid/missing top-level 'type' at block index(es) $blocksBadTypes -- mrkdwn/plain_text/etc. are TEXT-OBJECT types, valid only nested inside a block's own \"text\" field, never as a block's own \"type\" (valid top-level types: section, divider, header, context, image, actions, input, video, rich_text, file)" >&2
+				set +e ; return 1
+			fi
+
+			## NOTE: not auto-deriving a text fallback from the blocks' own
+			## text.text fields yet (that needs real JSON parsing this shell
+			## layer doesn't have) -- using a static fallback instead. Revisit
+			## with a real parser (e.g. agentMcpJsonParseRequest.awk's
+			## approach) if Slack's own notification quality demands better.
+			rawText="(formatted message -- see blocks)"
+		else
+			rawText="$sourceText"
 		fi
 
 		if [ -z "$rawText" ] && [ -z "$blocksJson" ] ; then
