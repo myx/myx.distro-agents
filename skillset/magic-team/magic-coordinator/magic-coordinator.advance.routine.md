@@ -79,6 +79,7 @@ Process all `board-pending` items each pass — some, all, or none started. Not 
   - Package/topic overlap with a currently running job.
   - Resource contention: current MCP/machine load and concurrent complexity make a new start unsafe (no fixed max-job count; small non-intersecting no-console tasks pass).
   - Document-lock contention: documents the candidate needs are actively locked/edited by another live session.
+- Contention-evidence rule: "was dispatched earlier today" or "liveness unknown" alone is never conflict evidence. Resource contention here needs a live signal from this pass (active lock/channel or a successful same-pass nudge/heartbeat).
 - Handling:
   - Clear conflict evidence → keep in `board-pending`, note it, advance `recheck-date`.
   - Ambiguous evidence → ask via `AskUserQuestion` — conflict dimension, observed signal, two options (`treat as conflict` / `allow start now`).
@@ -101,10 +102,13 @@ Continue an already-dispatched `board-running` item. Never a first-time start (s
   - nudge it with this pass's own findings/updates, every time
   - never spawn a second session for this same item
   - failed nudge → treat as if `session-id` absent, continue below
+- liveness unknown and no nudge path available from this pass alone → treat as if `session-id` absent (do not convert this into a pass-level blanket defer)
 - `session-id` absent:
   - `restart-session: <team-member> [<team-member>...]` present → spawn a coworking session (`magic-coordinator` + the named member(s)) via `spawn-one-dispatch`, passing the corresponding routine, document name, context
     - set `recheck-date` to now + 7min (jittered ±2min) and `session-id` to the new session's identifier, via `--magic-advance-to-running <team-member> <item-filename> --from-state:running --header:upsert:recheck-date:<value> --header:upsert:session-id:<value>` (same-state patch, existing content preserved)
   - `restart-session:` absent → execute the corresponding routine inline instead
+
+No pass-wide blanket defer is allowed for `board-running` restart work. Apply this mechanism item-by-item within the existing per-pass concurrency caps.
 
 **Per-pass completion requirement**:
 - For each `board-running` item, finish the pass with one explicit outcome record from this procedure (`nudged` / `respawned` / `redispatched` / `flagged-once` / `no-action-with-explicit-reason`).
