@@ -38,6 +38,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <item-name>...
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>
@@ -50,7 +52,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-heartbeat <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-release <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
 📘 syntax: DistroAgentsTools.fn.sh --purge-cleanup
@@ -722,6 +724,19 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
+			Writes routine-communication-sweep state to
+			`$MDAT_DATA_ROOT/.runtime/sweep-state.md`.
+			Input source is exactly one of: stdin (default), `--from-file`, or
+			`--edit-patch-from-stdin`. Empty content is rejected. If
+			`--edit-patch-from-stdin` is used, stdin must be a JSON patch array
+			for exact-literal replace operations.
+
+		--magic-sweep-state-read <team-member>
+			Reads `$MDAT_DATA_ROOT/.runtime/sweep-state.md`.
+			Outputs file content, or `NO_STATE` if it does not exist.
+			Read-only.
+
 		--member-work-session-input-scan <team-member>
 			Read-only: one member's own current work-session input --
 			personal, not routine-dictated (every armed member runs this
@@ -844,30 +859,20 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-heartbeat-state-upsert <team-member> [--from-file <path>]
-			Writes (creates or overwrites) routine-heartbeat's own day-rhythm
-			state record -- the state that routine's own day-rhythm-state
-			procedure branches on, plus routine-communication-sweep's
-			per-platform mechanical sweep state. Content comes via stdin by
-			default, or via --from-file <path>. Always a whole-record
-			overwrite, never an append. Empty content is refused rather than
-			written, since an erased record reads back as "no state yet".
-			<team-member> is the calling member's own identity (captured, not
-			otherwise enforced). Takes no filename or path argument: storage
-			is tool-owned and tool-resolved, deliberately outside
-			~/.claude/skills/ so that ordinary routine iteration never
-			rewrites a skillset file. Callers name this operation, never a
-			path. Read the record back with --magic-heartbeat-state-read.
+		--magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
+			Writes routine-heartbeat state to
+			`$MDAT_DATA_ROOT/.runtime/main-loop-state.md`.
+			Input source is exactly one of: stdin (default), `--from-file`, or
+			`--edit-patch-from-stdin`. Empty content is rejected. If
+			`--edit-patch-from-stdin` is used, stdin must be a JSON patch array
+			for exact-literal replace operations.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-heartbeat-state-read <team-member>
-			Read-only: prints the whole record written by
-			--magic-heartbeat-state-upsert on stdout, verbatim. Prints
-			NO_STATE and returns 0 when nothing is stored yet -- a normal
-			first-run outcome, not an error, same "absent is not a failure"
-			contract as --magic-heartbeat-lock-status's own NO_LOCK.
-			<team-member> is the only argument.
+			Reads `$MDAT_DATA_ROOT/.runtime/main-loop-state.md`.
+			Outputs file content, or `NO_STATE` if it does not exist.
+			Read-only.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
