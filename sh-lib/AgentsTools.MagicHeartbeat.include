@@ -104,10 +104,13 @@ case "$1" in
 	## --magic-heartbeat-lock-* -- magic-coordinator's main-loop-mode
 	## single-instance lock: mkdir-based mutex, 900s stale threshold, stdout
 	## contract ACQUIRED / RECLAIMED_STALE:... / ACTIVE:... / HEARTBEAT_OK /
-	## NO_LOCK_HELD / RELEASED / NO_LOCK / raw meta-file dump. Lock
-	## directory: $HOME/.claude/skills/magic-coordinator/.runtime/
-	## main-loop.lock. routine-heartbeat.routine.md's "Single-
-	## instance lock" section documents the calling contract.
+	## NO_LOCK_HELD / RELEASED / NO_LOCK / raw meta-file dump. Storage is
+	## tool-owned and tool-resolved (via --intern-config-board-location),
+	## same convention as the sibling --magic-heartbeat-state-* ops below --
+	## deliberately outside ~/.claude/skills/: a skillset file must never be
+	## rewritten by ordinary routine iteration. Callers name the operation,
+	## never a path. routine-heartbeat.routine.md's "Single-instance lock"
+	## section documents the calling contract.
 	##
 	## "pid=" in the meta file is the calling shell's own $$ -- informational
 	## only, never read back programmatically.
@@ -143,7 +146,14 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-acquire: <team-member> <owner-label> required" >&2
 			set +e ; return 1
 		fi
-		local lockDir="$HOME/.claude/skills/magic-coordinator/.runtime/main-loop.lock"
+		local teamDataDir
+		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+		local stateDir="$teamDataDir/.runtime"
+		mkdir -p "$stateDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-acquire: can't create runtime directory: $stateDir" >&2
+			set +e ; return 1
+		}
+		local lockDir="$stateDir/main-loop.lock"
 		local meta="$lockDir/meta"
 		local staleSeconds=900
 		if mkdir "$lockDir" 2>/dev/null ; then
@@ -186,7 +196,9 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-heartbeat: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		local lockDir="$HOME/.claude/skills/magic-coordinator/.runtime/main-loop.lock"
+		local teamDataDir
+		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+		local lockDir="$teamDataDir/.runtime/main-loop.lock"
 		local meta="$lockDir/meta"
 		if [ -d "$lockDir" ] && [ -f "$meta" ] ; then
 			local tmp="$meta.tmp.$$"
@@ -210,7 +222,9 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-release: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		local lockDir="$HOME/.claude/skills/magic-coordinator/.runtime/main-loop.lock"
+		local teamDataDir
+		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+		local lockDir="$teamDataDir/.runtime/main-loop.lock"
 		rm -rf "$lockDir" || true
 		echo "RELEASED"
 		return 0
@@ -227,7 +241,9 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-status: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		local lockDir="$HOME/.claude/skills/magic-coordinator/.runtime/main-loop.lock"
+		local teamDataDir
+		teamDataDir="$( DistroAgentsTools --intern-config-board-location )" || { set +e ; return 1 ; }
+		local lockDir="$teamDataDir/.runtime/main-loop.lock"
 		local meta="$lockDir/meta"
 		if [ -f "$meta" ] ; then
 			cat "$meta"
