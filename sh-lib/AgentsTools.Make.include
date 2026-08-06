@@ -165,14 +165,11 @@ case "$1" in
 
 			## Ensure MCP registration exists for this workspace before direct CLI
 			## execution (especially headless --cli-auto spawn-proxy paths).
-			DAGC_MYX_COMMON_BIN=""
-			if [ -x "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/bin/myx.common" ] ; then
-				DAGC_MYX_COMMON_BIN="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/bin/myx.common"
+			DAGC_MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
+			if [ -x "$DAGC_MYXROOT/bin/setup/agentMcp.Common" ] ; then
+				MYXROOT="$DAGC_MYXROOT" MYX_AGENTMCP_TARGET_CWD="$MMDAPP" "$DAGC_MYXROOT/bin/setup/agentMcp.Common" >/dev/null 2>&1 || :
 			elif command -v myx.common >/dev/null 2>&1 ; then
-				DAGC_MYX_COMMON_BIN="$(command -v myx.common)"
-			fi
-			if [ -n "$DAGC_MYX_COMMON_BIN" ] ; then
-				MYX_AGENTMCP_TARGET_CWD="$MMDAPP" "$DAGC_MYX_COMMON_BIN" setup/agentMcp.Common >/dev/null 2>&1 || :
+				MYX_AGENTMCP_TARGET_CWD="$MMDAPP" myx.common setup/agentMcp >/dev/null 2>&1 || :
 			fi
 
 			## --non-interactive: headless-terminal mode (interaction-channel:
