@@ -219,7 +219,7 @@ DistroAgentsTools(){
 			if [ -n "$teamDataDir" ] ; then
 				case "$teamDataDir" in
 					/*) MDAT_DATA_ROOT="$teamDataDir" ;;
-					*) MDAT_DATA_ROOT="$MMDAPP/$teamDataDir" ;;
+					*) MDAT_DATA_ROOT="$MMDAPP/source/$teamDataDir" ;;
 				esac
 				export MDAT_DATA_ROOT
 			fi

@@ -280,8 +280,8 @@ case "$1" in
 		mv "$tmpFile" "$targetPath"
 
 		if [ "$isCreate" = "false" ] && [ "$sourcePath" != "$targetPath" ] ; then
-			mv "$sourcePath" "$teamDataDir/trash/$itemName"
-			echo "# $MDSC_CMD --intern-op-board-upsert-move-edit: wrote $targetPath, previous $sourcePath moved to $teamDataDir/trash/$itemName" >&2
+			mv "$sourcePath" "$MDAT_DATA_ROOT/trash/$itemName"
+			echo "# $MDSC_CMD --intern-op-board-upsert-move-edit: wrote $targetPath, previous $sourcePath moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
 		else
 			echo "# $MDSC_CMD --intern-op-board-upsert-move-edit: wrote $targetPath" >&2
 		fi
