@@ -1,0 +1,45 @@
+# MCP (Model Context Protocol) / JSON-RPC 2.0
+
+Read this for building, reviewing, or debugging a hand-rolled MCP server — JSON-RPC message handling, tools/resources capabilities, async execution and cancellation semantics — especially where a framework/SDK isn't available and JSON-RPC has to be parsed/emitted by hand (e.g. POSIX shell with no jq/python/node). Formerly the standalone `magic-mcp` skill's own `SKILL.md`; retired and folded in here 2026-07-21 (`magic-mcp`'s territory reasoned to be reference knowledge — protocol/wire-format specifics — rather than a language-idiom axis, hence a home in `magic-librarian`'s protocol/format axis rather than `magic-developer`'s per-language one).
+
+## Prior art
+
+Built once already for `os-myx.common` (`source/myx/myx.common/os-myx.common/host/tarball/share/myx.common/include/data/agentMcpServer.sh`, registered via `setup/agentMcp`). `myx.distro-*` is planned to get its own, separate one later — read the actual prior implementation before starting a new one, but don't assume the two share code; each tool family's server is independent. For portable-shell conventions beyond MCP itself (dispatcher patterns, OS-variant files, general POSIX gotchas), see `magic-developer`'s [reference/shell.md](../../magic-developer/reference/shell.md) — that module and this one are meant to be used together for myx.common MCP work, not as substitutes for each other. For actually operating/deploying the real `agentMcpServer.sh` on myx.common hardware, that's `magic-devops`'s/the owning `keeper-*`'s territory, not this reference module.
+
+If the target environment isn't POSIX shell (e.g. Python/Node is actually available there), the protocol knowledge below still applies, but the hand-rolled-parsing advice doesn't — use a real JSON/MCP library instead of reinventing this.
+
+## Protocol shape
+
+- JSON-RPC 2.0, one message per line, newline-delimited over stdio.
+- `initialize`'s response must advertise capabilities (`tools`, `resources`, etc.) that exactly match what's actually implemented — don't advertise a capability with no handler behind it.
+- A notification (no `id` field in the request) gets no response, ever — `notifications/initialized`, `notifications/cancelled`, etc.
+- `resources/list` + `resources/read` are a separate capability from `tools/*` — for exposing read-only reference content (docs, config) without spending a tool call. Validate any caller-supplied URI server-side before touching the filesystem (reject `..`, absolute paths, unexpected characters) — never assume only your own `resources/list` will ever hand back a URI to `resources/read`.
+
+## Hand-rolling JSON in POSIX awk (no jq/python/node)
+
+- Small recursive-descent parser: path-based leaf callback (e.g. `params.arguments.command` → write to a file), reading one line at a time. Not a general JSON library — only implement the flat/one-level-nested shapes MCP messages actually use.
+- Write decoded values to files under a per-request scratch dir, not to shell variables directly — command substitution round-trips embedded newlines/quotes safely through files in a way that's fragile through awk's own stdout/variable capture.
+- **AWK's uninitialized-variable gotcha bites here specifically**: a counter used to build a filename (`"prefix_" myCounter`) must be `BEGIN`-initialized to a real `0` — awk's implicit uninitialized value is `0` in numeric context but `""` in string concatenation, so the very first use silently produces `"prefix_"` (no index) instead of `"prefix_0"`. Found live: this exact bug shipped, passed a first round of testing, and only broke on the *first* entry of a multi-entry list.
+- **AWK axiom**: always put `;` before a closing `}` when a statement precedes it on the same line (`close(f); }`, not `close(f) }`) — some non-gawk AWK implementations hard-error on the missing-semicolon form even though gawk/mawk/"one true awk" tolerate it. Don't trust "it ran fine on my dev box" as proof of portability across the actual target fleet. (Same axiom as `magic-developer`'s shell module — kept here too since it's the exact failure mode that bites a hand-rolled JSON-RPC parser first.)
+
+## Tool-call semantics
+
+- Check a wrapped command's actual documented exit-code convention before assuming it means what it usually means — e.g. a "displayed help" convention that exits 1 even on success. A tool wrapper must not blindly treat non-zero exit as MCP `isError` without checking.
+- If the host already gates tool calls behind its own permission-prompt/confirmation mechanism, don't duplicate that safety logic (e.g. a hard-coded destructive-command exclusion list) inside the server — that's redundant and another place for the two to drift out of sync.
+
+## Async execution and cancellation
+
+`notifications/cancelled` only means something if the request loop can still read/act on it while a long tool call is running — a naive synchronous "read line, fully handle it, read next line" loop makes cancellation a no-op by construction.
+
+- **Workable POSIX-sh shape for "single long-running call at a time, but still cancellable"**: background the call, track its PID + the request id it belongs to in two files. On a matching cancellation notification, send TERM immediately and clear the tracking right away (so a follow-up call isn't needlessly held "busy" waiting for the old one to actually die) — run the KILL escalation in its own detached background check so the cancellation handler itself never blocks the main loop.
+- **Reject a second concurrent long call with an error rather than queuing it or trying to support true parallelism.** The tracking/locking complexity to do that properly (a PID table, per-response-id bookkeeping, ordering guarantees) usually isn't worth it unless the real client genuinely needs concurrent long-running calls. This is a real scope fork, not a natural next step — ask the user which they want before building either; it changes the risk profile a lot.
+- **A hand-rolled wall-clock timeout with no GNU `timeout(1)`**: background the target directly (not inside a `( ... )` subshell, so `$!` is the real killable PID, not a wrapper), a watcher subshell polls `kill -0` and does TERM-then-KILL after the deadline, then `wait` on the real PID in the foreground. PID-based, not process-group-based — document as a known tradeoff that a grandchild the target itself forks (e.g. `curl`) isn't guaranteed to die with it.
+- **Concurrency reopens the stdout-interleaving question even at "one background job at a time"**: once ANY response can be written from somewhere other than the main synchronous path, two writers (the main loop's own fast synchronous replies, and the one background job's eventual result) can race on the same stdout pipe. Serialize every response write through a portable mutex — `mkdir` is atomic on every POSIX filesystem and doesn't need `flock`/`lockf` (not guaranteed present on bare FreeBSD/Darwin): tight-loop `mkdir "$lockDir" 2>/dev/null` retry, `rmdir` to release, with a bounded `sleep` fallback purely as a deadlock guard, not the expected path. JSON-RPC framing breaks completely if two response lines ever interleave mid-line - this isn't optional once any concurrency exists.
+- **Building a dynamic argv (env vars + binary + args) without `eval`**: POSIX sh only gives you one `$@` array. Lean on `env`'s own parsing instead of string-building: `env` treats each leading argv token matching `identifier=value` as an assignment and stops at the first token that doesn't match, then execs the rest — so append `NAME=value` pairs to `$@`, then the target binary's *absolute path* (can never look like `identifier=value` since it starts with `/`), then its args, and always invoke via `env "$@"` (harmless no-op prefix when there are zero pairs, no branching needed). No injection risk: each `NAME=value` is one argv token, never re-parsed as a string by anything.
+
+## Testing
+
+- **A synchronous-looking test suite (`send request, sleep, read response, repeat`) cannot catch a request loop that's secretly still blocking.** Prove non-blocking behavior with real interleaved timing, not sequential calls.
+- FIFO-based harness: `mkfifo`, start the server reading from it *first* (`&`), **then** open the write end (`exec 3>fifo`). Reversing that order deadlocks — a FIFO open blocks until both ends are open, so opening the write end before anything exists to open the read end hangs forever.
+- Interleave `sleep`s and writes to `&3` to actually prove: a fast reply arrives while a slow call is still in flight, a busy-rejection fires correctly for a second concurrent call, and a cancellation actually kills the right process (check `ps` afterward for orphans, not just that *a* response arrived).
+- Test the real dispatch path — pipe raw JSON-RPC through the actual server script — not just calling internal functions directly with hand-built arguments. Parser bugs (like the awk uninitialized-counter gotcha above) only show up when real JSON goes through the real parser.

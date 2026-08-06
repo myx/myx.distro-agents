@@ -1,0 +1,220 @@
+---
+maintainers: magic-librarian, magic-coordinator
+---
+# Board
+
+The team's current-work index — a shared, cross-workspace, cross-day status source every routine reads/writes, with a concrete `board-item`/folder shape. See `magic-team.armed.md`'s "Board & Inbox board-items entity model" section for the `board-item` entity model this operates on.
+
+**Ownership**:
+- `magic-coordinator` reads/modifies this continuously, on its own authority — its own active work tool (think: a PM's own Jira board).
+- `magic-librarian` joins once per workday, jointly, under `magic-coordinator`'s lead — not an independent pass. See `routine-librarian-morning-review` for what that session actually does.
+
+**`magic-coordinator`'s write authority is exclusive over the board — full stop.** Same structural shape as the "sole mandated channel to the human-owner" rule (`SKILL.md`). Covers:
+- Creating a `board-item`.
+- Moving one between states: `board-running`, `board-blocked`, `board-parked`, `board-processed`, `board-archived`, `board-retained`.
+- Scoring one (RICE).
+- This file itself.
+
+**The board does not include inboxes.** Each member's personal inbox lives separately — not nested here. See `routine-process-inbox` for the full model (location, write-access, non-acting-owner handling, Slack visibility, the main-loop nudge, the morning self-review pattern).
+
+This file itself stays thin: a rollup pointing into `board/`'s folders, not where substance lives. Substance lives in the individual `board-item` files.
+
+## States
+
+- **`triage` is a process, not a folder** — not board-only.
+  - Trigger: something in a member's own inbox (see `routine-process-inbox`) needs to become a real, formally-tracked `board-item`.
+  - Performed by: the three-person authority group (`magic-coordinator` + `magic-librarian` + `magic-architect`) during grooming, or by `magic-coordinator` alone via `routine-process-inbox` for smaller/faster cases.
+  - There is no `triage/` folder.
+- **Approval is a header fact, not a folder.** `approved-by`/`approved-at` (see `magic-team.armed.md`'s field list) record that the authority group or the human-owner approved an item, whatever state folder it's actually sitting in — there is no dedicated `approved/` state.
+- **`board-backlog`** — concurrency-safe drop point for a freshly-triaged board-item; the default landing spot for one.
+  - Who may place one here directly (without needing `magic-coordinator`'s otherwise-exclusive board-write turn): grooming, `magic-coordinator` itself, and other session-routine-mandated members (e.g. `routine-interview` step 3a).
+  - An item sitting here hasn't been assessed yet — the next `routine-advance`/`routine-grooming` pass picks it up.
+- **`board-pending`**
+  - An item whose `approved-by`/`approved-at` is already recorded (the "go" decision, made by the authority group or the human-owner during grooming/triage) but that hasn't actually been dispatched (no real work-session/Agent/console spun up for it) yet.
+  - A physical resting-place keyed strictly off that existing header fact, not a second/parallel approval mechanism — an item can in principle carry `approved-by`/`approved-at` while sitting in any folder; `board-pending` is simply where one rests between that fact being recorded and its actual dispatch. Does not reopen "approval is a header fact, not a folder" above.
+  - `routine-advance` moves an item `board-backlog`→`board-pending` purely mechanically, the moment it notices `approved-by`/`approved-at` already set — it never makes the "go" decision itself (see its own routine file's Scope).
+  - Exits to `board-running` the instant real dispatch happens — dispatching work that has `approved-by`/`approved-at` recorded includes moving the board-item to `board-running` as the same action, not a separate step (see `magic-coordinator.armed.md`).
+  - **Deferred, not implemented**: a session running under `routine-heartbeat` may in principle skip `board-pending` and move a `board-backlog` item straight to `board-running` when its own restart is trivial enough not to need the intermediate rest-stop — a legitimate future refinement, not built yet. The current mechanism always rests in `board-pending` first, no bypass.
+- **A `board-backlog` board-item needing human-owner-level approval** (real doubt, not the ordinary authority-group-decides-inline case above) moves to `board-blocked` instead, under the existing "human-owner decision" reason (not a new reason category).
+  - Gated by a dedicated `approval-*` board-item (see `magic-team.armed.md`'s item-type list) that runs the actual negotiation.
+  - Once resolved: approved sets `approved-by`/`approved-at` and moves it to `board-pending`; denied moves it to `board-processed`/`board-archived` per the existing denial handling below.
+  - Full mechanic (who decides, who executes the mechanical move) lives in the owning routines' own files, not here.
+- **`board-running`**
+  - Where an item lands the instant it's actually dispatched (see `board-pending` above for what precedes this), and where it stays through active work, claimed-completion, and its own testing round — there is no separate queued/testing folder, all of that happens in place.
+  - An inbox item never sits *in* `board-running` directly — triage creates a formal board-item in `board-backlog`, which then moves through `board-pending` on its way here.
+  - Once a `board-running` item's implementation is claimed complete (live during a work session, or grooming's advancement review), `magic-coordinator` dispatches `magic-tester` to run its testing round against the claimed-complete work — real test-suite execution per its own methodology, plus its security/CRA-style due-diligence pass (both part of `magic-tester`'s own `SKILL.md`).
+  - Two outcomes, item stays in `board-running` throughout:
+    - **Clean** — no concerns raised.
+      - If the item's type/scope genuinely calls for human-owner sign-off before it can be considered final (per `routine-grooming`'s staged task-creation lifecycle — "any doubts, approval with human-owner"), it moves to `board-blocked`, filed under `board-blocked`'s existing "human-owner decision" reason (not a new reason category) — this is the state that "may become final" once the human-owner actually approves it, after which it moves to `board-processed`.
+      - If no human-owner approval is genuinely warranted (small/clear, no doubt), it moves straight to `board-processed`.
+    - **Concerns raised** — `magic-tester` opens an investigation subtask (a `task-*` `board-item`, `references` the parent) — the same "investigation subtask → escalate or solve" shape used elsewhere in the team's docs (see `magic-team.armed.md`'s "Duties: three kinds, plus reflection" common abstract shape, and `magic-tester`'s own `SKILL.md` Security/CRA section). Resolves to either:
+      - **escalate** — needs a decision from `magic-architect`/`magic-coordinator`/the human-owner before the parent can proceed. The parent stays in `board-running`, or moves to `board-blocked` if the escalation itself becomes an external stall.
+      - **solve** — a fix is identified: a solution/implementation subtask is created, also `references`-ing the parent; once it lands, the parent's testing round repeats in place.
+  - A `board-running` item mid-testing is never a dead end and never sits idle on its own — it either resolves onward or spins off a tracked subtask each time it's reviewed, same active-pursuit spirit as `board-blocked` below, just scoped to verification instead of external dependencies.
+  - Distinct from `board-blocked`: `board-running` is scheduled to continue (including its own testing round); `board-blocked` was supposed to continue and couldn't.
+- **`board-blocked`** — an item that **was supposed to be `board-running`** but a work-session actually hitting it found something that requires action, another job to resolve or a decision before it can genuinely proceed.
+  - **The defining property is that `board-blocked` demands periodic active pursuit** — every time it's reviewed (typically at grooming), something is actually attempted: a request sent, a follow-up chase, an investigation into an alternative path — not just "checked and still stuck" with nothing done.
+  - Reasons include:
+    - A human-owner decision (including a `board-running` item's own testing round awaiting final human-owner approval, see above).
+    - An external dependency (an unlocated credential, a third party's response, a human-hands-on action).
+    - Waiting on another task/project's own completion (an internal dependency — item X can't proceed until item Y ships).
+  - Outcome set at each review (see `routine-grooming`): escalate / stays blocked (only legitimate when a real attempt was actually made this pass, not a pure no-op) / becomes `board-parked` / unblocks.
+
+**Uncommitted repo state is never itself a blocking condition.** The rule:
+- Uncommitted repo changes are normal, active working state — never a reason to pause further iteration on the same epic. Work continues freely on uncommitted files, same as any other in-progress state.
+- `git commit` (human-owner-only, per the standing rule in `magic-team/magic-team.armed.md`'s "Engineering & operating discipline" section) happens only once, as the actual final step, once the whole unit of work — the full epic, not one piece of it — is genuinely finished and ready, either to cleanly start a new epic or to release/ship this one.
+- "Awaiting the human-owner's commit sign-off" is only a legitimate `board-blocked` reason once the referenced epic is actually, fully finished — every piece of work it needs is done and verified, with nothing left to build. If any real remaining work still exists, the item belongs in `board-running` (including mid-testing-round), not `board-blocked` — finish the work first, and only land in `board-blocked` once there's genuinely nothing left but the human's own keystroke.
+- This never blocks *other*, independent work either: another item that merely depends on the same uncommitted files/epic is not itself validly blocked just because that epic hasn't been committed yet. A real dependency is "the other epic's own content/design isn't finished yet," not "isn't committed yet."
+
+**`board-running`→`board-blocked` has at least four paths in** (not exhaustive — whichever discovers it first fires this):
+- Live, during a `daily-meeting.md` work session, when a dispatched agent genuinely can't make progress.
+- Grooming's own periodic advancement review, catching what wasn't flagged live.
+- A member's own async block-report — posted any time, into `magic-coordinator`'s own personal inbox (a cross-member handoff, so it sends an immediate reply to `slack-magic-team` per [routine-process-inbox](../routine-process-inbox/)'s own step 3), acted on the next time that routine runs over it.
+- A `board-running` item's own testing round finishes clean but needs human-owner sign-off before it can be finalized (see `board-running` above).
+
+All four are equally valid; none is the "real" or "canonical" one. **Not the same as `board-parked`**: `board-blocked` keeps getting worked *at* even while it can't move; `board-parked` is the team consciously choosing to stop that active effort and just wait instead (see below).
+
+- **`board-parked`**
+  - **The defining property is pure passivity** — no periodic action is expected or taken, unlike `board-blocked`; it just sits until its trigger condition arrives on its own.
+  - Deliberately deferred by the team's/human-owner's own choice, waiting on a future internal condition or trigger (other work clearing, a project completing, priorities shifting) — not cancelled, not stalled on an external party.
+  - Re-visited periodically (typically at grooming) to check whether the trigger condition has arrived — that check is itself passive (has it happened yet?), not an active push; if the team decides it never will, that's when it moves to `board-archived`, not before.
+  - **Not the same as `board-blocked`**: parked items aren't waiting on anyone else, the team is simply choosing not to work them yet.
+  - Reachable from `board-running` directly (a fresh deferral decision), or from `board-blocked` (the team stops actively chasing a resolution and decides to just wait instead — same destination, different starting point).
+- **`board-processed`**
+  - Terminal, resolved state. Covers both successfully-completed items *and* denied items — there is no separate `done/` folder.
+  - Both get grooming's resolution text appended plus a substantive reply logged (as many reply rounds as actually happened over the item's life).
+  - Reached either:
+    - Directly — a quick denial matching an obvious rule in `magic-coordinator/magic-coordinator.armed.md`'s "Dispatch & delegation" section, no deep work needed.
+    - Via `board-running`'s own testing round — a testing round confirms a completion claim clean, and either no human-owner approval is warranted, or the human-owner has since approved a `board-blocked` item that was awaiting exactly that (see `board-running` above) — then the item moves here and statuses update.
+  - **Before filing anything here (or into any archive-style migration), verify it's actually closed — don't mechanically relocate content just because it's old.** Ask concretely: does this content describe work that's actually finished, or does it just happen to be old? If any part is still open/actionable, that part needs its own live tracked item (`board-running`/`board-blocked`-equivalent), not just a historical note — even when most of the surrounding content really is closed. Don't trust a dispatch instruction's mention of this check to have been followed just because it was written in the prompt — verify it was actually applied, especially across a bulk/repetitive migration where the same mistake can repeat silently many times.
+- **Ignored** items do not go to `board-processed` — removed from the board entirely instead, no resolution text, nothing else kept.
+- **`board-archived`** — terminal, with two distinct populations:
+  - Items the team has decided are genuinely abandoned/cancelled for good, not just deferred — reached directly, if dropped outright at triage with no future intent, or from `board-parked`, once the team concludes the trigger condition it was waiting on is never coming.
+  - A `board-processed` item grooming judged worth permanent retention, marked `archive: true` (presence-only header, no `archive: false` — its absence is the ordinary default) — this diverts the item from GC's normal eventual-removal path to `board-archived` instead once its retention threshold fires.
+  - Neither population is part of grooming's regular all-board scan.
+- **`board-retained`**
+  - Terminal-adjacent, passive holding state for an item that has otherwise concluded (would ordinarily proceed through `board-processed` toward GC) but is kept from being removed/`board-archived` because at least one other still-*live* board-item's `references:` field points to it.
+  - This is a **structural** reason ("something else still needs this to resolve"), distinct from `board-archived`'s `archive: true` population, which is a **value judgment** about the item's own importance — `archive: true` is always checked first and always wins: an item carrying it goes straight to `board-archived` regardless of reference status, so `board-retained` only ever catches what `archive: true` doesn't, never both at once.
+  - No new frontmatter field for the still-referenced check itself: that fact is never hand-set — it's derived fresh via lookup whenever it's actually checked, the same "no reciprocal referenced-by stored, derive via lookup" rule `references:` itself already follows (`magic-team.armed.md`). Scheduling a **`recheck-and-exit`** pass (below) reuses the existing `recheck-date` header instead of a new field name — it already fits `board-retained`'s own "when to next look" need the same way it fits `board-blocked`/`board-parked` (`magic-team.armed.md`'s frontmatter field list).
+  - A qualifying reference must originate from an active state (`board-backlog`/`board-pending`/`board-running`/`board-blocked`/`board-parked`) or from `board-archived` itself — one from another `board-processed`/`board-retained` item, or from an already-removed item, never qualifies, which is what stops two mutually-referencing concluded items from retaining each other forever.
+  - Reached either:
+    - Directly — an item concludes and is immediately still-referenced (e.g. an assessed `inquiry-*` whose spawned children reference it back, never passing through `board-processed` at all).
+    - From `board-processed` — the same periodic GC check that already looks for `archive: true` also finds it newly still-referenced.
+  - **`recheck-and-exit`**: grooming's own job, not automatic GC — a judgment call for the authority group (`magic-coordinator` + `magic-librarian` + `magic-architect`), `recheck-date`-scheduled rather than run unconditionally every pass. Still referenced → stays, `recheck-date` renewed. No longer referenced → exits into the normal `board-processed` GC flow (eligible for removal or `board-archived` per `archive: true`).
+  - **Settled**: a qualifying reference must be structurally load-bearing (e.g. a child that genuinely depends on its parent still being resolvable, such as an `inquiry-*`'s spawned children) — an incidental passing mention never qualifies. Decided this way because `references:` is documented elsewhere as informational/soft, and an unrestricted reading risks `board-retained` slowly absorbing most of `board-processed` over time. This same definition backs `recheck-and-exit` too — defined once, here.
+
+**Resolving a Slack-originated `board-item` also closes the loop on its originating message.**
+- Whenever a `board-item` carrying `source-slack-channel`/`source-slack-ts` (see `magic-team.armed.md`'s "Board & Inbox board-items entity model" section) moves into `board-processed`, `board-archived`, or `board-retained`, the originating Slack message eventually gets a reaction reflecting the real outcome.
+- `:white_check_mark:` for a positive/successful resolution; an assessed negative-outcome emoji for a negative one (denied, dropped, archived without a positive outcome) — `:x:`/❌ is a sensible floor/fallback, not a fixed choice, `:-1:`/thumbsdown or another may fit a given case better.
+
+**The move and the reaction are decoupled, not one write-time action.**
+- Whichever routine resolves the `board-item` (`routine-grooming`'s triage, an inline `magic-coordinator` resolution, or any other path) does not react itself — it only needs to write a clear resolution (so positive-vs-negative can be judged later, since `board-processed` holds both outcomes and folder placement alone never distinguishes them).
+- Separately, at the moment a message's reaction first needs to stay deferred (its handling spawned/is the source of a still-open `board-item`), `routine-communication-sweep` files a lightweight `note-pending-slack-reaction-*.md` record — `source-slack-channel`/`source-slack-ts` + a `references` pointer to the tied `board-item`, no deep classification — into `magic-coordinator`'s own inbox or `board-running`.
+- **`routine-advance`'s own pending-reaction-lookup step (its step 6) is the actual reactor** — every `routine-heartbeat` iteration, once that pass's own board read has already loaded, it looks up all outstanding pending-reaction records, checks whether each referenced `board-item` has resolved, reacts via `DistroAgentsTools.fn.sh --react-slack` if so, and clears the record.
+- It never *performs the move itself* (its own Scope only ever moves items *out of* `board-processed`/`board-archived`, the narrow step-3c reopen case) — it is the sole reactor for this mechanism, via its own independent queue-lookup, not by being the trigger for the move.
+
+`board-item`s with no `source-slack-channel`/`source-slack-ts` recorded (no real originating Slack message) simply have nothing to react to — this rule is silent for them, not a gap.
+
+## Two independent dimensions: item types vs. routines/activities
+
+Two orthogonal axes — not one list to sort things into:
+- **Dimension 1: workflow queue item *types*** — `task-`, `project-`, `inquiry-`, `reflection-`, `proposal-`, `assignment-`, `change-`, `note-`, `transcript-`, `approval-`, etc. (non-exhaustive). Describes *what kind of thing* an item is.
+- **Dimension 2: team routines/activities** — `daily`, `grooming`, `retro`, `one-on-one`, `main-loop`, `interview`, `discuss`, `brainstorm`, `coworking`, etc. (non-exhaustive). Describes *the session/process* work happens in or through.
+
+Any item type can arise from or relate to any routine (a `proposal-` can come out of an `interview`, a `grooming` session, or a `coworking` session), and any routine can produce/process many different item types.
+
+## General item lifecycle (non-exhaustive — a floor of required beats, not a closed cycle)
+
+The default shape for *any* item — the real flow may have many more beats once fully assessed, this is a floor, not a ceiling:
+
+- A `board-item` gets recorded (e.g. an `inquiry-*` one).
+- It's routed/delivered into whichever inbox matches it, per item-type/routine/member routing rules (see `routine-process-inbox`).
+- The team-member holding that inbox, combined with that inbox owner's own rules (the owner could be a routine-\* virtual member), determines it should process this item now.
+- Processing it (a) moves/updates its state — likely to `board-blocked` — and (b) decomposes it into sub-tasks, each posted to its own correct inbox per the same routing rules.
+- Later, in some other loop/spawn, someone processes their own inbox and picks up a sub-task — sometimes deliberately held until a contextually-right moment (e.g. a `reflection-*` item held until right before retro or a one-on-one).
+- Once every sub-task referencing the blocked parent is done, the parent is reprocessed: it can change state, get updated, or block again on newly-arisen sub-tasks — recursively, until it actually resolves.
+
+**Rigid obvious-vs-non-obvious test for whether an item needs this full treatment at all**: at initial assessment, it's processed right now, in one indivisible step, inline, straight to done/processed — only if both hold:
+- (a) no subtasks need decomposing, **and**
+- (b) no assignee-transfer/hand-off is needed.
+
+Anything failing either part gets the full lifecycle above.
+
+## Denial can happen at any stage, at (at least) two speeds
+
+Not gated to inbox-intake time — an already-approved or in-progress item can still end up denied/cancelled later, possibly after a chain of prior non-denial replies (acks, status updates) before the eventual denial. Two illustrative speeds, not an exhaustive split:
+- **Quick/immediate**: matches a simple rule/permission/common-sense check in `magic-coordinator/magic-coordinator.armed.md`'s "Dispatch & delegation" section — resolved right away, no deep investigation.
+- **Slow/considered**: full grooming discussion + investigation report before the denial.
+
+## Distinct follow-on work spawns a new subtask, it doesn't reopen the original
+
+Genuinely new, distinct work referencing an already-`board-processed` (or any-state) item is a brand-new `board-item` — own scope, own author, own assignee — naming the parent via `references`.
+
+The same item's *own* ongoing back-and-forth (still-pending replies on the identical piece of work) stays in `board-running` instead — both mechanisms coexist, they're not alternatives.
+
+## GC (garbage collection)
+
+`board-processed` items are retained then deleted — timing is **not uniform**, it varies by `board-item` type/size (a completed Project shouldn't be purged on the same clock as a resolved Note).
+
+**(draft) Per-type retention thresholds** — days in `board-processed` before GC removes an item from the board, subject to the `archive: true`/still-referenced diversions below:
+
+| `board-item` prefix | Days |
+|---|---|
+| `project-*` | 60 |
+| `change-*` | 30 |
+| `warning-*` | 30 |
+| `interview-*` | 30 |
+| `task-*` | 21 |
+| `inquiry-*` | 21 |
+| `proposal-*` | 21 |
+| `reflection-*` | 14 |
+| `note-*` | 10 |
+
+GC is not a standalone routine — it's folded into `routine-heartbeat`'s own sub-step:
+- Each run checks whether any `board-processed` items have passed their retention threshold and, if so, removes them from the board rather than deleting them directly (real deletion mechanics live outside this file — see `routine-heartbeat`'s own GC step).
+- Before removal, checked in this order:
+  1. An item carrying `archive: true` diverts to `board-archived` instead (see `board-archived`'s own entry above) — checked first, always wins.
+  2. Failing that, an item still referenced by another live board-item diverts to `board-retained` instead (see `board-retained`'s own entry above).
+  - Both are diversions from the same default removal path; only one ever applies, `archive: true` taking precedence when both would otherwise fire.
+- **Not board-only**: the same GC sub-step covers every per-member `<member>/processed/` folder (each keeper's own converted log) the same way, on the same type-dependent-threshold/removal-or-archived mechanism — see `routine-heartbeat`'s own GC step for the generalized version.
+
+**Per-member `<member>/processed/` file shape** (each keeper's own converted log, same GC treatment as above but not board-items themselves — no `references`/`owner` fields, this isn't the board's own `board-item` model):
+- One file per dated entry, named `<board-item-type>-<date>-<short-topic>.md` — the prefix is one real, already-established board-item type, same vocabulary the board itself uses (see "Two independent dimensions" above: `task-`, `note-`, `proposal-`, `inquiry-`, `interview-`, etc.), picked per entry to fit what it actually is; never an invented word.
+- Frontmatter carries:
+  - `date` — the entry's own date.
+  - `type` — a separate, finer-grained genre-of-work tag describing what kind of entry this is, distinct from the filename's board-item-type — e.g. `investigation`, `proposal`, `bug-fix`, `feature`, `verification`, `audit`, `documentation`, `interview` — never a selection-mechanism label like `idle`/`assigned`/`ad-hoc`, since which idle-menu item got picked or how the work was dispatched is prose context, not the entry's actual kind.
+  - `topic` — short slug, matching the filename.
+- Floor, not ceiling — add a new genre `type` value when a genuinely new kind of entry shows up, don't force-fit into the existing set.
+
+# Process-Flow, the board dynamics
+
+Two routines drive the board, each a distinct, non-overlapping part:
+- `routine-grooming` — decides state, once per workday or on request. Works on backlog progress:
+  - triage
+  - RICE re-score
+  - `check-backlog-promote` (backlog readiness)
+  - `check-reassess` (recall to backlog)
+- `routine-advance` — mechanically applies already-decided moves only, never new judgment, every main-loop iteration. Works on active non-terminal states (`board-pending`/`board-running`/`board-blocked`/`board-parked`):
+  - `check-process-board` — board-state work only, never a board-item's own task: mechanical moves (`board-mechanical-moves`), dependency-edge recompute (`board-recompute-dependencies`, bounded to once a day or on direct request — this procedure's own one bounded exception to "never new judgment"), parked/blocked reassessment (`board-reassess-parked-blocked`), backlog readiness flagging (`board-scan-backlog-readiness`), deferred Slack/Trello actions (`check-pending-comms-actions`)
+  - `check-execute-board` — all work on a board-item's own task, spawned or inline: starting `board-pending` items, continuing already-dispatched `board-running` items
+
+## Who actually reads/writes the board
+
+`magic-coordinator` — exclusively, per the write-authority note at the top of this file.
+
+Not something every individual member independently maintains or is expected to check: a member with a properly-registered task (dispatched the normal way — background `Agent` invoking its own `Skill`, with a clearly assigned item, per `SKILL.md`'s Dispatch section) doesn't need separate "go check the board" behavior; the dispatch itself already carries what it needs to do.
+
+The board matters at three points:
+- **Grooming** — the authority group's periodic deep read/write pass (triage, advancement, re-scoring).
+- **Daily-meeting** — the roll call narrates from it, and the coordinator's own todo-assignment step (step 4) is where a relevant board item gets folded into a properly-scoped dispatch for that day's work session, same as any other assignment.
+- **On request** — any member (or the human-owner) can ask about the board's current state at any time; it's a legitimate thing to consult, just not a mandatory per-dispatch step for everyone.
+
+This board has exactly one writer, so there's no multi-writer race to solve here — that concern only applies to personal inboxes (many members writing into each other's), which is `routine-process-inbox`'s territory, not this file's.
+
+## Relationship to TEAM-STATUS.md/TEAM-COMMS.md
+
+`TEAM-STATUS.md` is a minimal stub. No routine reads or writes it anymore — `board/` (via this file plus the individual `board-item` files) is the sole live source.
+
+`TEAM-COMMS.md` is likewise a retired stub.
+- Its per-platform mechanical comms-sweep state lives as structured fields in the `heartbeat-state-note` (`last_swept_ts`/`watched_slack_conversations`/`known_comms_gaps`), read via the `--magic-heartbeat-state-read` operation and rewritten via `--magic-heartbeat-state-upsert`.
+- Open-thread status lives on the owning `board-item`s directly (`source-slack-channel`/`source-slack-ts`) — `routine-communication-sweep` reads/writes those, not this file.

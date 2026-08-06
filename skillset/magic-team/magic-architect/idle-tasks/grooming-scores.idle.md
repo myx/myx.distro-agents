@@ -1,0 +1,5 @@
+Review the open backlog items in `board-backlog` and `board-running` (and `board-blocked`/`board-parked` where relevant). For items in this skill's own domain of judgment — architecture-level concerns: complexity, blast radius, what systems/patterns get touched, risk — set or refine a RICE-style score per `~/.claude/skills/magic-coordinator/RICE-SCORING.md`'s formula. This is a scoring-only pass, not a full triage: don't reassign, split, or drop items, that's `grooming.md`'s job.
+
+A score set weeks ago may no longer reflect what's actually true now. If refining one depends on something outside this skill's own direct knowledge — e.g. how much a domain area has actually changed since the score was last set — consult the domain-owning member (or other relevant skills/current context) rather than guessing.
+
+Don't create a separate scoring record — record the score directly on the board item's own file (frontmatter or a dated note), per `RICE-SCORING.md`'s "official scores" convention. Report back the items scored or changed, the new/refined score, and the reasoning. (`TEAM-STATUS.md` retired 2026-07-22 — don't reference it here going forward.)
