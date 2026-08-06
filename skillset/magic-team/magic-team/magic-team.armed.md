@@ -523,6 +523,8 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 - `--member-upsert-member-inquiry`
 - `--member-upsert-inbox-reflection`
 - `--member-append-session-transcript`
+- `--member-read-audit-item`
+- `--member-read-board-item`
 - `--member-work-session-input-scan`
 - `--owner-workspace-list` / `--owner-workspace-upsert` / `--owner-workspace-forget`
 - `--magic-heartbeat-state-read` / `--magic-heartbeat-state-upsert`
@@ -562,6 +564,12 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 
 ## `--member-append-session-transcript` Operation Reference
 "Appends exactly one canonical transcript-entry block: <speaker-name> (<timestamp>): followed by quoted message lines. Does not rewrite prior content. Missing target transcript is an error unless --create is passed."
+
+## `--member-read-audit-item` Operation Reference
+`📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]` — "Read-only audit-item access without exposing raw path handling to the caller: only `<team-member>` and a bare `<document-name>` (`transcript-*` only) are supplied, the tool resolves lookup folders itself (month bucket first for `transcript-YYYY-MM-DD-*` names, then the audit root). `--start-line`/`--end-line` must be given together."
+
+## `--member-read-board-item` Operation Reference
+`📘 syntax: DistroAgentsTools.fn.sh --member-read-board-item <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]` — "Read-only accessor for one board-item by bare `<item-name>` (`<type>-<name>.md`) — path lookup stays inside the shared internal primitive, never caller-supplied. Searches every board state by default; one or more `--board-state` values narrow it. `--start-line`/`--end-line` must be given together."
 
 ## `--member-work-session-input-scan` Operation Reference
 "Read-only: one member's own current work-session input -- personal, not routine-dictated (every armed member runs this against its own name as it becomes armed, regardless of which routine triggered the arming). Fixed --owner <member> and --all-types."
