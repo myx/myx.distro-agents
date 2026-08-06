@@ -90,7 +90,7 @@ Process all `board-pending` items each pass — some, all, or none started. Not 
   - Exception: `routine-daily`'s standing work-sessions take continuous task feed as each finishes.
 - Repeated conflicts: item stays `board-pending`, re-checks on `recheck-date` indefinitely — no auto-escalation here.
 - Before spawning: one last `AskUserQuestion` confirmation (`start this co-working session now?`), `yes`/`no`.
-- **Autonomous invocation** (unattended, via `routine-heartbeat`): skip all three interactive prompts above. Ambiguous conflict evidence defaults to `treat as conflict`. Spawn-required candidates execute through `--magic-heartbeat-spawn-proxy` (no direct `Agent` tool). Proxy success in the same pass is required to move the item to `board-running`; failure keeps or moves the item to `board-parked` in the same pass via `--magic-advance-to-parked` with all of:
+- **Autonomous invocation** (unattended, via `routine-heartbeat`): skip all three interactive prompts above. Ambiguous conflict evidence defaults to `treat as conflict`. Default non-remote process-flow spawn sessions MUST first try normal harness tool; use `--magic-heartbeat-spawn-proxy` only as fallback (no direct `Agent` tool). Proxy success in the same pass is required to move the item to `board-running`; failure keeps or moves the item to `board-parked` in the same pass via `--magic-advance-to-parked` with all of:
   - `condition: spawn required, proxy execution failed in this pass`
   - `handoff-action: human-present harness-session retry required`
   - `recheck-date: now + 17 minutes`

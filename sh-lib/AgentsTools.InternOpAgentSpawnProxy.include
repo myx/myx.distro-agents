@@ -1,0 +1,242 @@
+#!/usr/bin/env bash
+
+##
+## AgentsTools.InternOpAgentSpawnProxy.include -- internal spawn-proxy
+## primitive for agent/routine wrappers. No --help entry.
+##
+## Syntax:
+##   DistroAgentsTools.fn.sh --intern-op-agent-spawn-proxy <agent-or-meta-name>
+##     [--from-file <path>]
+##     [--from-board <board-item-name> [--board-state <state>]...]
+##     [--from-vault <vault-item-name>]
+##     [--from-audit <audit-item-name>]
+##     [--wait]
+##
+## Body source is exactly one of: stdin (default), --from-file, --from-board,
+## --from-vault, --from-audit. Emits RECEIPT_* outputs and writes receipt/prompt
+## files under $MDAT_DATA_ROOT/.runtime/spawn-proxy.
+##
+
+case "$1" in
+
+	--intern-op-agent-spawn-proxy)
+		shift
+		local callerName="$1"
+		shift || true
+		local contextFromFile="false" waitMode="false" spawnContext=""
+		local fromBoardName="" fromVaultName="" fromAuditName="" fromFilePath=""
+		local sourceMode="stdin"
+		local boardStates=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-file)
+					if [ -z "$2" ] || [ ! -f "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: --from-file: file not found: $2" >&2
+						set +e ; return 1
+					fi
+					fromFilePath="$2"
+					contextFromFile="true"
+					sourceMode="file"
+					shift 2
+				;;
+				--from-board)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: --from-board requires <board-item-name>" >&2
+						set +e ; return 1
+					fi
+					fromBoardName="$2"
+					sourceMode="board"
+					shift 2
+				;;
+				--board-state)
+					case "$2" in
+						backlog|pending|running|blocked|parked|processed|archived|retained)
+							boardStates+=( "$2" )
+						;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: invalid --board-state: $2" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
+				--from-vault)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: --from-vault requires <vault-item-name>" >&2
+						set +e ; return 1
+					fi
+					fromVaultName="$2"
+					sourceMode="vault"
+					shift 2
+				;;
+				--from-audit)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: --from-audit requires <audit-item-name>" >&2
+						set +e ; return 1
+					fi
+					fromAuditName="$2"
+					sourceMode="audit"
+					shift 2
+				;;
+				--wait)
+					waitMode="true"
+					shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$callerName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]" >&2
+			set +e ; return 1
+		fi
+		local sourceCount=0
+		[ "$contextFromFile" = "true" ] && sourceCount=$(( sourceCount + 1 ))
+		[ -n "$fromBoardName" ] && sourceCount=$(( sourceCount + 1 ))
+		[ -n "$fromVaultName" ] && sourceCount=$(( sourceCount + 1 ))
+		[ -n "$fromAuditName" ] && sourceCount=$(( sourceCount + 1 ))
+		if [ "$sourceCount" -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: use only one source selector: --from-board | --from-vault | --from-audit (or stdin default)" >&2
+			set +e ; return 1
+		fi
+		if [ ${#boardStates[@]} -gt 0 ] && [ -z "$fromBoardName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: --board-state is only valid with --from-board" >&2
+			set +e ; return 1
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+
+		case "$sourceMode" in
+			file)
+				spawnContext="$( cat "$fromFilePath" )"
+			;;
+			board)
+				case "$fromBoardName" in
+					*/*|.|..)
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: board item name must be a bare filename: $fromBoardName" >&2
+						set +e ; return 1
+					;;
+				esac
+				if [ ${#boardStates[@]} -eq 0 ] ; then
+					boardStates=( backlog pending running blocked parked processed archived retained )
+				fi
+				local readArgs=( --intern-op-data-read "$fromBoardName" ) boardState
+				for boardState in "${boardStates[@]}" ; do
+					readArgs+=( --lookup-folder "$MDAT_DATA_ROOT/board/$boardState" )
+				done
+				spawnContext="$( DistroAgentsTools "${readArgs[@]}" )" || { set +e ; return 1 ; }
+			;;
+			vault)
+				case "$fromVaultName" in
+					*/*|.|..)
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: vault item name must be a bare filename: $fromVaultName" >&2
+						set +e ; return 1
+					;;
+				esac
+				spawnContext="$( DistroAgentsTools --intern-op-data-read "$fromVaultName" --lookup-folder "$MDAT_DATA_ROOT/vault" )" || { set +e ; return 1 ; }
+			;;
+			audit)
+				case "$fromAuditName" in
+					*/*|.|..)
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: audit item name must be a bare filename: $fromAuditName" >&2
+						set +e ; return 1
+					;;
+				esac
+				local auditReadArgs=( --intern-op-data-read "$fromAuditName" )
+				case "$fromAuditName" in
+					transcript-[0-9][0-9][0-9][0-9]-[0-9][0-9]-*)
+						local yearMonth
+						yearMonth="$( printf '%s' "$fromAuditName" | sed -E 's/^transcript-([0-9]{4})-([0-9]{2})-.*/\1-\2/' )"
+						auditReadArgs+=( --lookup-folder "$MDAT_DATA_ROOT/audit/$yearMonth" )
+					;;
+				esac
+				auditReadArgs+=( --lookup-folder "$MDAT_DATA_ROOT/audit" )
+				spawnContext="$( DistroAgentsTools "${auditReadArgs[@]}" )" || { set +e ; return 1 ; }
+			;;
+			stdin)
+				spawnContext="$( cat )"
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: internal source mode error: $sourceMode" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		if [ -z "$spawnContext" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: empty spawn context" >&2
+			set +e ; return 1
+		fi
+		if [ ! -x "$MMDAPP/DistroAgentsConsole.sh" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: DistroAgentsConsole.sh is not executable at $MMDAPP" >&2
+			set +e ; return 1
+		fi
+
+		local runtimeDir="$MDAT_DATA_ROOT/.runtime/spawn-proxy"
+		mkdir -p "$runtimeDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: can't create runtime directory: $runtimeDir" >&2
+			set +e ; return 1
+		}
+		local timestamp receiptId receiptFile contextFile outputFile
+		timestamp="$( date +%Y%m%dT%H%M%S )"
+		receiptId="spawn-proxy-$timestamp-$$"
+		receiptFile="$runtimeDir/$receiptId.receipt.env"
+		contextFile="$runtimeDir/$receiptId.prompt.txt"
+		outputFile="$runtimeDir/$receiptId.output.log"
+		printf '%s\n' "$spawnContext" > "$contextFile"
+
+		if [ "$waitMode" = "true" ] ; then
+			local exitCode
+			set +e
+			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --non-interactive < "$contextFile" > "$outputFile" 2>&1
+			exitCode=$?
+			set -e
+			{
+				echo "receipt_id=$receiptId"
+				echo "status=$( [ "$exitCode" -eq 0 ] && echo succeeded || echo failed )"
+				echo "exit_code=$exitCode"
+				echo "caller_name=$callerName"
+				echo "wait_mode=wait"
+				echo "created_at=$( date +%s )"
+				echo "prompt_file=$contextFile"
+				echo "output_file=$outputFile"
+			} > "$receiptFile"
+			echo "RECEIPT_ID=$receiptId"
+			echo "RECEIPT_FILE=$receiptFile"
+			echo "STATUS=$( [ "$exitCode" -eq 0 ] && echo succeeded || echo failed )"
+			echo "EXIT_CODE=$exitCode"
+			echo "OUTPUT_FILE=$outputFile"
+			if [ "$exitCode" -ne 0 ] ; then
+				set +e ; return 1
+			fi
+			return 0
+		fi
+
+		nohup env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --non-interactive < "$contextFile" > "$outputFile" 2>&1 &
+		local spawnPid=$!
+		{
+			echo "receipt_id=$receiptId"
+			echo "status=started"
+			echo "pid=$spawnPid"
+			echo "caller_name=$callerName"
+			echo "wait_mode=async"
+			echo "created_at=$( date +%s )"
+			echo "prompt_file=$contextFile"
+			echo "output_file=$outputFile"
+		} > "$receiptFile"
+		echo "RECEIPT_ID=$receiptId"
+		echo "RECEIPT_FILE=$receiptFile"
+		echo "STATUS=started"
+		echo "PID=$spawnPid"
+		echo "OUTPUT_FILE=$outputFile"
+		return 0
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

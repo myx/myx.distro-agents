@@ -1832,6 +1832,13 @@ $1"
 			return $?
 		;;
 
+		## Internal plumbing, no --help entry -- shared spawn-proxy primitive
+		## used by routine-specific wrappers (e.g. --magic-heartbeat-spawn-proxy).
+		--intern-op-agent-spawn-proxy)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpAgentSpawnProxy.include"
+			return $?
+		;;
+
 		--intern-config-board-location)
 			shift
 			if [ $# -gt 0 ] ; then

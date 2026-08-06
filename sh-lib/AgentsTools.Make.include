@@ -124,6 +124,11 @@ case "$1" in
 			DAGC_CLI_GIVEN="false"
 			while true ; do
 				case "$1" in
+						--cli-auto)
+							DAGC_CLI="copilot"
+							DAGC_CLI_GIVEN="true"
+							shift
+						;;
 					--cli)
 						if [ -z "$2" ] ; then
 							echo "⛔ ERROR: DistroAgentsConsole: --cli requires a value (claude|copilot)" >&2
