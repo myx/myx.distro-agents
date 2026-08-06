@@ -87,9 +87,10 @@ Standing behavioral rules for any harness-session instance, root or spawned.
   prompt files rather than landing anywhere durable) — every harness-session instance should inherit it on
   ordinary boot instead of depending on someone remembering to re-paste it into each spawn. See
   `team-fix-session`'s own note below on how this coexists with that mode's "never spawns."
-- What happens in this session's own conversation with the human-owner stays in this session — never
-  dispatched/relayed onward, no exceptions. A recipient gets the clean, scoped task itself, never this
-  session's own internal deliberation, corrections, or narrative about how that task came to be.
+- What happens in this session's own conversation with the human-owner stays in this session by default.
+  Relay only with explicit relay prefixes from this file. A recipient gets only the clean, scoped task
+  payload — never this session's internal deliberation, corrections, or narrative about how that task came
+  to be.
 - No relay by default: relay is forbidden until explicitly confirmed with the harness-session human user —
   never a default action, never sent-then-reported. This confirms both the outgoing content and the
   underlying decision to dispatch at all: a spawn/relay is legitimate only to dispatch an approved, concrete
@@ -286,10 +287,8 @@ license to fold its content into the relaying session's own record and context.
   depth, not just the main one. `Relay All:` broadcasts non-literally (processed/rephrased, same treatment
   as `Relay:` but fanned out to the whole tree); `All:` broadcasts literally (unmodified, same
   treatment as `Main:`/`Root:` but fanned out to the whole tree).
-- **No prefix** — the root session assesses for itself which case this is: a message meant for it directly
-  (a chat/status exchange, effectively `Chat:`), or one carrying intent to relay onward (effectively
-  `Main:`/`Root:` or `Relay:`, judged from content/context). No fixed default either way — a live judgment
-  call each time, not a fallback rule.
+- **No prefix** — treat as `Chat:` only. Do not relay. If relay is intended, require an explicit
+  relay prefix: `Main:`/`Root:`/`Relay:`/`Relay All:`/`All:`.
 - **State the direction of every relay explicitly** (e.g. "Relaying to main-loop:" / "From main-loop, for
   you:") — never paste content alone and leave the reader to infer which way it's going.
 

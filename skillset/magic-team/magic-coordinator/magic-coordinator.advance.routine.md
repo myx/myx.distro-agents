@@ -111,7 +111,7 @@ Continue an already-dispatched `board-running` item. Never a first-time start (s
 - `session-id` absent:
   - `restart-session: <team-member> [<team-member>...]` present → spawn a coworking session (`magic-coordinator` + the named member(s)) via `spawn-one-dispatch`, passing the corresponding routine, document name, context
     - set `recheck-date` to now + 7min (jittered ±2min) and `session-id` to the new session's identifier, via `--magic-advance-to-running <team-member> <item-filename> --from-state:running --header:upsert:recheck-date:<value> --header:upsert:session-id:<value>` (same-state patch, existing content preserved)
-  - `restart-session:` absent → execute the corresponding routine inline instead
+  - `restart-session:` absent, no per-type rule matches this item's prefix → post to `slack-event-track` via `--member-slack-send-message` (target `event-track`) — "active `board-running` document with no handler: `<filename>`" — flag for `routine-grooming`. Never execute anything inline for an unhandled prefix.
 
 No pass-wide blanket defer is allowed for `board-running` restart work. Apply this mechanism item-by-item within the existing per-pass concurrency caps.
 
@@ -143,7 +143,7 @@ No pass-wide blanket defer is allowed for `board-running` restart work. Apply th
 Apply these per-`board-running`-item task rules, by filename prefix. State-only half of the same prefixes: `check-process-board` (`magic-coordinator.armed.md`).
 
 - `approval-*` / `approve-*`: not resolved, `recheck-date` due → re-ask via `source-slack-channel`/`source-slack-ts` or the `--member-slack-send-message` operation to human-owner; extend `recheck-date`.
-- `interview-*` / `talk-*`: execute `routine-interview` on the board-item as context document — the routine owns all its own state changes, `recheck-date` setting, re-asking.
+- `interview-*` / `talk-*`: run exactly one round — `routine-interview`'s own step 1b (resume-review) + step 1c (re-assess) — per that routine's own explicit non-blocking design. Never attempt to run the interview to completion inline.
 - `inquiry-*`: `recheck-date` due, no reply → re-ask via `source-slack-channel`/`source-slack-ts` or the `--member-slack-send-message` operation; extend `recheck-date`. Otherwise → no action this pass.
 - `task-*` / `project-*` / `epic-*`: apply the console-session/Agent-dispatch stale-check above.
 - `proposal-*`: `recheck-date` due → re-ask.
