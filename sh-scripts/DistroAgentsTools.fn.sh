@@ -1177,7 +1177,15 @@ $1"
 			## search:read, not confirmed available today; deliberately not
 			## attempted here).
 			local vaneId="" vaneResolveOutput
-			vaneResolveOutput="$( DistroAgentsTools --magic-comms-slack-resolve-ids magic-coordinator )"
+			## --magic-comms-slack-resolve-ids returns 1 whenever it can't confirm
+			## a reachable human-owner target (e.g. a stale/mismatched DM channel
+			## for this identity) even though AUTH_USER_ID is already printed and
+			## perfectly usable -- that non-zero exit must never propagate here
+			## under this script's own `set -e`, or it silently aborts this whole
+			## sweep before any output at all. The `|| true` is what makes the
+			## already-documented "not a hard failure" graceful-degradation
+			## behavior below actually hold.
+			vaneResolveOutput="$( DistroAgentsTools --magic-comms-slack-resolve-ids magic-coordinator )" || true
 			vaneId="$( printf '%s\n' "$vaneResolveOutput" | sed -n 's/^AUTH_USER_ID=//p' | head -1 )"
 			if [ -z "$vaneId" ] ; then
 				echo "# $MDSC_CMD --sweep-read-incoming-comms: could not resolve Vane's own Slack user id via --magic-comms-slack-resolve-ids -- tag/thread-participation widening skipped this pass, base watched-channel/thread-freshness sweep unaffected" >&2

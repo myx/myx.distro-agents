@@ -434,17 +434,13 @@
 			check to freshly-active watched-channel threads that are not yet
 			tracked on the board. It also separately follows a thread whose
 			parent (still only within the two watched channels' own returned
-			history page) was posted by Vane (magic-coordinator's own Slack
-			identity, resolved once per sweep via `--magic-comms-slack-resolve-ids
-			magic-coordinator` -- never a fresh direct `auth.test`/`SLACK_BOT_TOKEN`
-			call here, credential token selection stays isolated behind that
-			existing resolver op), already has Vane among its `reply_users`,
-			or tags Vane in its own text -- this follow happens even when
-			that thread isn't otherwise "fresh" by `--oldest` (see
-			`AgentSlackHistoryThreadTargets.awk`'s own header for the exact
-			selection rule). If Vane's id can't be resolved, this widening is
-			skipped for that pass and only the base freshness heuristic
-			applies -- not a hard failure. If you need to
+			history page) was posted by Vane, already has Vane among its
+			participants, or tags Vane in its own text -- this follow happens
+			even when that thread isn't otherwise "fresh" by `--oldest`.
+			Vane's own identity is resolved once per sweep through the team's
+			existing identity-resolution mechanism; if that resolution fails,
+			this widening is skipped for that pass and only the base
+			freshness heuristic applies -- not a hard failure. If you need to
 			read one specific arbitrary Slack target/thread, call
 			--check-slack directly instead -- --sweep-read-incoming-comms
 			will reject a positional target argument. `--oldest`/`--raw` are
