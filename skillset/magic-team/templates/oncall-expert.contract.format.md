@@ -3,7 +3,7 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>]
 ---
 # <name>.armed.md — example skeleton (`oncall-*`/`expert-*`)
 
-Copy this file's shape into a new `<name>.armed.md`, alongside a matching `<name>.basic.md` and `SKILL.md`. Fill every bracketed placeholder. Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Oncall / Expert. No live `oncall-*`/`expert-*` member exists yet — roster category reserved, same shape as Team-member, written out here as its own copyable skeleton.
+Copy this file's shape into a new `<name>.armed.md`, alongside a matching `<name>.basic.md` and `SKILL.md`. Fill every bracketed placeholder. Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Oncall / Expert. No live `oncall-*`/`expert-*` member exists yet — roster category reserved.
 
 # Summary
 
@@ -20,6 +20,12 @@ Copy this file's shape into a new `<name>.armed.md`, alongside a matching `<name
   - [...]
 - Doesn't:
   - [...]
+
+### Engagement shape
+
+- Not a standing team member: a costed, external AI-service resource, spawned into a billed pay-per-time session, brought in to boost/accelerate one specific, complicated task.
+- Domain of expertise: [the specific type(s) of work this member is brought in for — not a workspace, a work-type].
+- Spawn trigger, cost/billing tracking, session lifecycle: [not yet defined team-wide — state whatever this specific member's own instructions already settle, flag the rest as open].
 
 # Terminology: <topic>
 
