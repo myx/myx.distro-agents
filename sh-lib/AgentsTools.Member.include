@@ -846,6 +846,51 @@ case "$1" in
 			sendIdentity="user"
 		fi
 
+		## Dynamic per-identity DM-channel resolution: Slack DM channel ids
+		## are per-identity-pair -- SLACK_CHANNEL_HUMAN_OWNER (used to
+		## resolve $channel above) was resolved/set against the shared bot
+		## identity's own DM with the human-owner, so it does not exist for
+		## a member's own native user identity (confirmed live:
+		## channel_not_found on 5/5 retries). Scoped strictly to the one
+		## case that's actually broken -- human-owner target + user
+		## identity -- every other target/identity combination
+		## (including magic-team, a standing channel not a DM, so
+		## unaffected by this) is untouched. Reuses the exact same
+		## users.list + hint-match + conversations.open mechanism
+		## --magic-comms-slack-resolve-ids already proves out as a
+		## diagnostic (AgentsTools.MagicComms.include), narrowed to this
+		## one rare branch instead of running on every send -- avoids
+		## adding any new persisted config/state surface (a stored
+		## human-owner user id or a resolved-channel cache would each be
+		## their own config-schema change needing separate review). On any
+		## resolution failure here, $channel is left as the static alias
+		## and the existing retry-then-email-fallback path below handles
+		## it exactly as it does today -- no second fallback branch
+		## invented.
+		case "$target" in
+			human-owner|human-owner:*)
+				if [ "$sendIdentity" = "user" ] ; then
+					local dynUsersJson dynHintUserId dynOpenResp dynOpenOk dynOpenChannel
+					dynUsersJson="$( curl -sS -G https://slack.com/api/users.list -H "Authorization: Bearer $memberUserToken" --data-urlencode "limit=1000" 2>/dev/null )"
+					dynHintUserId="$( USERS_JSON="$dynUsersJson" HINT="myx" \
+						python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackResolveHintUserId.py" 2>/dev/null )"
+					if [ -n "$dynHintUserId" ] ; then
+						dynOpenResp="$( curl -sS -X POST https://slack.com/api/conversations.open -H "Authorization: Bearer $memberUserToken" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$dynHintUserId" 2>/dev/null )"
+						dynOpenOk="$( printf '%s' "$dynOpenResp" | sed -En 's/.*"ok":(true|false).*/\1/p' )"
+						dynOpenChannel="$( printf '%s' "$dynOpenResp" | sed -n 's/.*"id":"\([CDG][^"]*\)".*/\1/p' )"
+						if [ "$dynOpenOk" = "true" ] && [ -n "$dynOpenChannel" ] ; then
+							echo "# $MDSC_CMD --member-slack-send-message: dynamic per-identity resolution: human-owner DM channel for $memberName's own native identity resolved to $dynOpenChannel (static SLACK_CHANNEL_HUMAN_OWNER was $channel)" >&2
+							channel="$dynOpenChannel"
+						else
+							echo "# $MDSC_CMD --member-slack-send-message: dynamic per-identity resolution failed ($dynOpenResp) -- falling back to static SLACK_CHANNEL_HUMAN_OWNER, existing retry/email-fallback path will handle a channel_not_found from here" >&2
+						fi
+					else
+						echo "# $MDSC_CMD --member-slack-send-message: dynamic per-identity resolution: could not resolve a human-owner user id via hint 'myx' -- falling back to static SLACK_CHANNEL_HUMAN_OWNER" >&2
+					fi
+				fi
+			;;
+		esac
+
 		## Preserve the existing attributed bot-message behavior as the
 		## fallback path. Native-user sends go out as the user account itself,
 		## so no synthetic team-member prefix is added there.
