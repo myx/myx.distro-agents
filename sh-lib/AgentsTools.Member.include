@@ -820,14 +820,33 @@ case "$1" in
 		local sendIdentity="bot" memberUserToken=""
 		memberUserToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null || true )"
 
+		## Routine-authored detection: the <team-member> argument itself
+		## being `routine-*`-prefixed means a routine is the "sender," not
+		## an actual team-member persona (e.g. "routine-heartbeat" passed as
+		## $memberName, not "magic-coordinator") -- per direct human-owner
+		## decision, this defaults to bot identity automatically, purely by
+		## name-prefix on this argument value, no flag needed and no
+		## target-based check. Detected once, up front, so both branches
+		## below can consult it without repeating the case match.
+		local routineAuthored="false"
+		case "$memberName" in
+			routine-*) routineAuthored="true" ;;
+		esac
+
 		## `--identity` (optional, additive): if the caller passed it, it
-		## wins outright over the auto-detect below -- `user` insists on the
+		## wins outright over BOTH the routine-authored default above and
+		## the SLACK_USER_TOKEN auto-detect below -- `user` insists on the
 		## native account and fails loud (before any network call) if this
 		## member has no SLACK_USER_TOKEN configured, rather than silently
 		## falling back to bot; `bot` forces the shared bot path regardless
-		## of whether a native token happens to be configured. If the caller
-		## didn't pass it, behavior is byte-for-byte unchanged from before
-		## this flag existed: bot unless a native token is configured, in
+		## of whether a native token happens to be configured. This is the
+		## documented override path for the opposite case: an actual
+		## persona explicitly choosing to post as bot even when not
+		## routine-authored (or vice versa). If the caller didn't pass it:
+		## routine-authored (see above) always resolves to bot, regardless
+		## of any configured SLACK_USER_TOKEN; otherwise, behavior is
+		## byte-for-byte unchanged from before either of these two
+		## mechanisms existed -- bot unless a native token is configured, in
 		## which case user.
 		if [ -n "$identityOverride" ] ; then
 			case "$identityOverride" in
@@ -842,6 +861,8 @@ case "$1" in
 					sendIdentity="bot"
 				;;
 			esac
+		elif [ "$routineAuthored" = "true" ] ; then
+			sendIdentity="bot"
 		elif [ -n "$memberUserToken" ] ; then
 			sendIdentity="user"
 		fi
