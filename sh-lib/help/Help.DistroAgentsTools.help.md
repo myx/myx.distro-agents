@@ -984,6 +984,12 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--magic-advance-sleep-run
+			Read-only, no arguments -- a fixed-duration pacing operation in
+			routine-advance's operation group.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
 			Relocates one terminal board-item out of the board entirely, for
 			routine-heartbeat's own GC step. <team-member> is the calling
@@ -1023,6 +1029,12 @@
 			Reads `$MDAT_DATA_ROOT/.runtime/main-loop-state.md`.
 			Outputs file content, or `NO_STATE` if it does not exist.
 			Read-only.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-heartbeat-sleep-run
+			Read-only, no arguments -- a fixed-duration pacing operation in
+			routine-heartbeat's operation group.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
