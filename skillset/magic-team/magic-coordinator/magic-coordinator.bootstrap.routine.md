@@ -116,6 +116,13 @@ Exact instructions. Execute in order, every step, literally as written.
   - `READY` only if all required targets are operational per step 5.
   - otherwise `NOT READY` plus numbered missing actions.
 
+9a. **AskUserQuestion checkpoint (mandatory when `NOT READY`)**
+- Ask the human-owner for exactly the next missing action, one question at a time.
+- Preferred path: AskUserQuestion in-session (single focused question, explicit expected answer format).
+- Failover path: if AskUserQuestion is unavailable, unanswered, or the session is unattended, send the same question to Slack IM target (`human-owner`) via `--member-slack-send-message`.
+- Slack IM failover failure (`channel_not_found` or equivalent): immediately fall back to posting the question in `magic-team` plus a short `event-alert` blocker note.
+- After each answer, apply only the directly affected fix and re-run only the impacted bootstrap step(s).
+
 10. **Human-owner escalation script (step-by-step, mandatory when blocked)**
 - Use this exact ask sequence, one step per message:
   1. Confirm I should continue bootstrap for `magic-coordinator` under `Magic Vane` identity.
@@ -137,6 +144,7 @@ Exact instructions. Execute in order, every step, literally as written.
 - Fail loud on ambiguity; never report "working" from transport success alone.
 - No guessed target ids, no guessed scope names, no silent fallback identities.
 - Every blocker must map to one concrete ask for human-owner.
+- Every `NOT READY` state must pass through step 9a: one concrete AskUserQuestion before continuing.
 - Keep reports compact and operational: facts first, no narrative padding.
 - Never link this routine file into SKILLSET automatically.
 
@@ -149,6 +157,11 @@ Exact instructions. Execute in order, every step, literally as written.
 - `--member-slack-send-message <member> <target> [text...]`
 - `--check-slack <target> [--oldest <ts>] [--raw]`
 - `--react-slack <channel>:<ts> <emoji-name>`
+
+## AskUserQuestion operation
+
+- `vscode_askQuestions` (or equivalent AskUserQuestion channel in the active harness) is the primary interactive blocker-resolution mechanism for step 9a.
+- Ask one concrete question at a time. Do not batch unrelated blockers into one prompt.
 
 ## Direct Slack API checks used by this routine
 
