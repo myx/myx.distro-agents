@@ -234,18 +234,23 @@ case "$1" in
 
 		## Full multi-line manual entries (Help.DistroAgentsTools.help.md).
 		## Op-header lines are two real tabs then `--op-name` -- everything
-		## from there up to (not including) the next such header line
-		## belongs to that one entry, same block a human reading the raw
-		## file sees. State machine: a new header line decides
-		## match/no-match for `inBlock`; every other line just inherits
-		## whatever `inBlock` the last header line set. `printed[]` dedupes
-		## the same reason as the short-syntax pass above. Same ENVIRON
-		## passing as the short-syntax pass above, same reason.
+		## from there up to (not including) the next such header line, or a
+		## bare `## ` heading (the file's own trailing Notes:/Examples:
+		## appendix after the last op entry -- same termination pattern
+		## ExtractOpNames already uses, otherwise the last matched entry
+		## bleeds into that trailing content all the way to EOF), belongs to
+		## that one entry, same block a human reading the raw file sees.
+		## State machine: a new header line decides match/no-match for
+		## `inBlock`; every other line just inherits whatever `inBlock` the
+		## last header line set. `printed[]` dedupes the same reason as the
+		## short-syntax pass above. Same ENVIRON passing as the short-syntax
+		## pass above, same reason.
 		awk '
 			BEGIN {
 				count = split(ENVIRON["MDAT_MEMBER_HELP_NAMES"], arr, "\n");
 				for (i = 1; i <= count; i++) { if (arr[i] != "") nameList[arr[i]] = 1; };
 			}
+			/^## / { inBlock = 0; }
 			/^\t\t--/ {
 				tmp = $0;
 				sub(/^\t\t/, "", tmp);
