@@ -453,10 +453,9 @@
 			**Still not a workspace-wide mention search.** Older untracked
 			thread parents that fall outside the watched channel-history page,
 			or arbitrary unsubscribed threads/channels elsewhere, are not
-			discoverable here -- true "Vane tagged anywhere in the workspace"
-			coverage needs a user token with `search:read` (not confirmed
-			available today) and is a separate, not-yet-built capability, not
-			something this op's current bot-token design can reach.
+			discoverable here -- true "Vane tagged anywhere, on whatever's
+			being watched" coverage is a separate, not-yet-built capability,
+			not something this op's current design can reach.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
