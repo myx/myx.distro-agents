@@ -51,7 +51,7 @@ All statements apply at the same time, always. These rules override a magic-team
 
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `DistroAgentsTools.fn.sh` always executes via `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way.
-- Console-session authorization: `--start-console`/`--send-console` when its own instructions call for it — available, not a standing requirement.
+- Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement.
 - [Flat, present-tense rule bullet: limit, restriction, or decision-making guidance.]
 
 # Domain knowledge: <topic>
@@ -64,8 +64,8 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--start-console [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]`
-- `--send-console <channel> [-- <command...>]`
+- `--console-start [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]`
+- `--console-send <channel> [-- <command...>]`
 - [`--operation-name <args>`]
 
 ## `--operation-name` Operation Reference

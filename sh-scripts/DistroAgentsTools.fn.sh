@@ -19,7 +19,7 @@
 ## place to drop secrets material. If/when magic-coordinator's consolidated
 ## secrets file ever moves under this tool's management, it should be
 ## sourced directly into the console's own environment, not staged as a
-## file inside a channel dir, so `--stop-console`'s `rm -rf` (scoped to one
+## file inside a channel dir, so `--console-stop`'s `rm -rf` (scoped to one
 ## mktemp-generated channel dir, never a fixed/shared path) can never take
 ## credentials down with it.
 ##
@@ -93,14 +93,14 @@ fi
 ## pair always resolves to the same channel dir/log path across restarts, so
 ## that path can be added once to an allowlist (e.g. Claude Code's
 ## settings.json) and stay valid forever — a random-per-invocation name can
-## never be allowlisted. `--start-console` is idempotent: called again for a
+## never be allowlisted. `--console-start` is idempotent: called again for a
 ## (workspace, console) pair that's already alive, it reuses the existing
 ## channel instead of minting a new one; if the channel dir exists but its
 ## processes are dead, it's wiped and recreated. One channel is naturally
 ## shared by all concurrent callers against the same workspace+console — safe
 ## since read/scan sessions are explicitly not ownership-gated. Default
 ## workspace is the tool's own ($MMDAPP);
-## `--override-workspace` (on --start-console and --list-consoles alike) is
+## `--override-workspace` (on --console-start and --console-list alike) is
 ## the only escape hatch to point at a different workspace.
 MDAT_CHANNEL_PREFIX="myx.distro-agent-console"
 MDAT_DEFAULT_TTL="3600"
@@ -138,8 +138,8 @@ DistroAgentsToolsResolveWorkspaceSlug(){
 }
 
 ## Resolves a workspace argument (or $MMDAPP if empty) to an absolute path,
-## erroring if it's not a directory. Used by both --start-console's
-## --override-workspace and --list-consoles' --override-workspace so the two
+## erroring if it's not a directory. Used by both --console-start's
+## --override-workspace and --console-list' --override-workspace so the two
 ## agree on what "own workspace" means.
 DistroAgentsToolsResolveWorkspace(){
 	local workspace="${1:-$MMDAPP}"
@@ -235,32 +235,32 @@ DistroAgentsTools(){
 	fi
 
 	case "$1" in
-		--start-console)
+		--console-start)
 			shift
 
 			local workspaceArg consoleOverride ttl="$MDAT_DEFAULT_TTL"
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					--override-workspace)
-						[ -n "$2" ] || { echo "⛔ ERROR: $MDSC_CMD --start-console: --override-workspace requires a path" >&2 ; set +e ; return 1 ; }
+						[ -n "$2" ] || { echo "⛔ ERROR: $MDSC_CMD --console-start: --override-workspace requires a path" >&2 ; set +e ; return 1 ; }
 						workspaceArg="$2" ; shift 2
 					;;
 					--console)
-						[ -n "$2" ] || { echo "⛔ ERROR: $MDSC_CMD --start-console: --console requires a value" >&2 ; set +e ; return 1 ; }
+						[ -n "$2" ] || { echo "⛔ ERROR: $MDSC_CMD --console-start: --console requires a value" >&2 ; set +e ; return 1 ; }
 						consoleOverride="$2" ; shift 2
 					;;
 					--ttl)
-						[ -n "$2" ] || { echo "⛔ ERROR: $MDSC_CMD --start-console: --ttl requires seconds" >&2 ; set +e ; return 1 ; }
+						[ -n "$2" ] || { echo "⛔ ERROR: $MDSC_CMD --console-start: --ttl requires seconds" >&2 ; set +e ; return 1 ; }
 						ttl="$2" ; shift 2
 					;;
 					*)
-						echo "⛔ ERROR: $MDSC_CMD --start-console: invalid option: $1" >&2
+						echo "⛔ ERROR: $MDSC_CMD --console-start: invalid option: $1" >&2
 						set +e ; return 1
 					;;
 				esac
 			done
-			case "$ttl" in ''|*[!0-9]*) echo "⛔ ERROR: $MDSC_CMD --start-console: --ttl must be a positive integer" >&2 ; set +e ; return 1 ;; esac
-			[ "$ttl" -gt 0 ] || { echo "⛔ ERROR: $MDSC_CMD --start-console: --ttl must be a positive integer" >&2 ; set +e ; return 1 ; }
+			case "$ttl" in ''|*[!0-9]*) echo "⛔ ERROR: $MDSC_CMD --console-start: --ttl must be a positive integer" >&2 ; set +e ; return 1 ;; esac
+			[ "$ttl" -gt 0 ] || { echo "⛔ ERROR: $MDSC_CMD --console-start: --ttl must be a positive integer" >&2 ; set +e ; return 1 ; }
 
 			local workspace
 			workspace="$( DistroAgentsToolsResolveWorkspace "$workspaceArg" )" || { set +e ; return 1 ; }
@@ -270,12 +270,12 @@ DistroAgentsTools(){
 				case "$consoleOverride" in
 					DistroSourceConsole.sh|DistroDeployConsole.sh) ;;
 					*)
-						echo "⛔ ERROR: $MDSC_CMD --start-console: --console must be DistroSourceConsole.sh or DistroDeployConsole.sh (Local/Remote not supported)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --console-start: --console must be DistroSourceConsole.sh or DistroDeployConsole.sh (Local/Remote not supported)" >&2
 						set +e ; return 1
 					;;
 				esac
 				if [ ! -x "$workspace/$consoleOverride" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --start-console: $consoleOverride not found/executable in $workspace" >&2
+					echo "⛔ ERROR: $MDSC_CMD --console-start: $consoleOverride not found/executable in $workspace" >&2
 					set +e ; return 1
 				fi
 				consoleName="$consoleOverride"
@@ -284,7 +284,7 @@ DistroAgentsTools(){
 			elif [ -x "$workspace/DistroDeployConsole.sh" ] ; then
 				consoleName="DistroDeployConsole.sh"
 			else
-				echo "⛔ ERROR: $MDSC_CMD --start-console: neither DistroSourceConsole.sh nor DistroDeployConsole.sh found in $workspace" >&2
+				echo "⛔ ERROR: $MDSC_CMD --console-start: neither DistroSourceConsole.sh nor DistroDeployConsole.sh found in $workspace" >&2
 				set +e ; return 1
 			fi
 
@@ -307,7 +307,7 @@ DistroAgentsTools(){
 				if [ -f "$channelDir/holder.pid" ] ; then oldHolderPid="$( cat "$channelDir/holder.pid" 2>/dev/null )" ; fi
 				if [ -n "$oldConsolePid" ] && kill -0 "$oldConsolePid" 2>/dev/null \
 					&& [ -n "$oldHolderPid" ] && kill -0 "$oldHolderPid" 2>/dev/null ; then
-					echo "# $MDSC_CMD --start-console: reusing already-active channel for $workspace ($consoleName)" >&2
+					echo "# $MDSC_CMD --console-start: reusing already-active channel for $workspace ($consoleName)" >&2
 					echo "CHANNEL=$channelId"
 					echo "CHANNEL_DIR=$channelDir"
 					echo "FIFO=$fifo"
@@ -317,12 +317,12 @@ DistroAgentsTools(){
 					echo "ORIGIN_SPEC=$MDLT_ORIGIN"
 					echo "HOLDER_PID=$oldHolderPid"
 					echo "CONSOLE_PID=$oldConsolePid"
-					echo "# send a command:  DistroAgentsTools.fn.sh --send-console $channelId -- your command here"
+					echo "# send a command:  DistroAgentsTools.fn.sh --console-send $channelId -- your command here"
 					echo "# tail output:     tail -f \"$log\""
-					echo "# stop session:    DistroAgentsTools.fn.sh --stop-console $channelId"
+					echo "# stop session:    DistroAgentsTools.fn.sh --console-stop $channelId"
 					return 0
 				fi
-				echo "# $MDSC_CMD --start-console: stale channel found (no live processes), recreating: $channelDir" >&2
+				echo "# $MDSC_CMD --console-start: stale channel found (no live processes), recreating: $channelDir" >&2
 				## NOTE: under `set -e` (active for this whole function), a bare
 				## `kill` on an already-dead pid returns non-zero and would
 				## silently abort here mid-recreate — hence the explicit
@@ -333,12 +333,12 @@ DistroAgentsTools(){
 			fi
 
 			mkdir -p "$channelDir" || {
-				echo "⛔ ERROR: $MDSC_CMD --start-console: can't create channel directory: $channelDir" >&2
+				echo "⛔ ERROR: $MDSC_CMD --console-start: can't create channel directory: $channelDir" >&2
 				set +e ; return 1
 			}
 
 			mkfifo "$fifo" || {
-				echo "⛔ ERROR: $MDSC_CMD --start-console: mkfifo failed" >&2
+				echo "⛔ ERROR: $MDSC_CMD --console-start: mkfifo failed" >&2
 				rm -rf "$channelDir"
 				set +e ; return 1
 			}
@@ -383,13 +383,13 @@ DistroAgentsTools(){
 			echo "HOLDER_PID=$holderPid"
 			echo "CONSOLE_PID=$consolePid"
 			echo "# send a command:  printf '%s\n' 'your command' > \"$fifo\""
-			echo "# or:              DistroAgentsTools.fn.sh --send-console $channelId -- your command here"
+			echo "# or:              DistroAgentsTools.fn.sh --console-send $channelId -- your command here"
 			echo "# tail output:     tail -f \"$log\""
-			echo "# stop session:    DistroAgentsTools.fn.sh --stop-console $channelId"
+			echo "# stop session:    DistroAgentsTools.fn.sh --console-stop $channelId"
 			return 0
 		;;
 
-		--send-console)
+		--console-send)
 			shift
 			local ref="$1"
 			shift || true
@@ -398,17 +398,17 @@ DistroAgentsTools(){
 
 			## Checks liveness and restarts rather than trusting the channel is
 			## alive: a dead console still leaves its directory and FIFO special
-			## file behind (only --stop-console's rm -rf removes them), so
+			## file behind (only --console-stop's rm -rf removes them), so
 			## writing here with no liveness check doesn't fail loud -- POSIX
 			## FIFO semantics mean opening the write end with no reader on the
-			## other end blocks indefinitely (see --stop-console's own comment
-			## below for that exact hang). Same liveness test --start-console's own
+			## other end blocks indefinitely (see --console-stop's own comment
+			## below for that exact hang). Same liveness test --console-start's own
 			## idempotent-reuse logic already uses (kill -0 on both stored
 			## PIDs); same recreate mechanism too (self-recursion into
-			## --start-console, which already wipes a stale channel and mints a
+			## --console-start, which already wipes a stale channel and mints a
 			## fresh one under the same deterministic channel id -- not a
 			## second, parallel restart implementation). meta.env (written by
-			## --start-console) is the source of truth for which
+			## --console-start) is the source of truth for which
 			## workspace/console/ttl to restart with, since $ref may have been
 			## a raw path rather than a channel id.
 			local consolePid holderPid
@@ -416,21 +416,21 @@ DistroAgentsTools(){
 			if [ -f "$channelDir/holder.pid" ] ; then holderPid="$( cat "$channelDir/holder.pid" 2>/dev/null )" ; fi
 			if [ -z "$consolePid" ] || ! kill -0 "$consolePid" 2>/dev/null \
 				|| [ -z "$holderPid" ] || ! kill -0 "$holderPid" 2>/dev/null ; then
-				echo "# $MDSC_CMD --send-console: console dead, auto-restarting: $channelDir" >&2
+				echo "# $MDSC_CMD --console-send: console dead, auto-restarting: $channelDir" >&2
 				if [ ! -f "$channelDir/meta.env" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --send-console: console dead and no meta.env to restart from: $channelDir" >&2
+					echo "⛔ ERROR: $MDSC_CMD --console-send: console dead and no meta.env to restart from: $channelDir" >&2
 					set +e ; return 1
 				fi
 				local MDAT_WORKSPACE MDAT_CONSOLE MDAT_TTL
 				MDAT_WORKSPACE="$( sed -n 's/^MDAT_WORKSPACE=//p' "$channelDir/meta.env" | head -n 1 )"
 				MDAT_CONSOLE="$( sed -n 's/^MDAT_CONSOLE=//p' "$channelDir/meta.env" | head -n 1 )"
 				MDAT_TTL="$( sed -n 's/^MDAT_TTL=//p' "$channelDir/meta.env" | head -n 1 )"
-				[ -n "$MDAT_WORKSPACE" ] || { echo "⛔ ERROR: $MDSC_CMD --send-console: missing MDAT_WORKSPACE in meta.env: $channelDir" >&2 ; set +e ; return 1 ; }
-				case "$MDAT_CONSOLE" in DistroSourceConsole.sh|DistroDeployConsole.sh) ;; *) echo "⛔ ERROR: $MDSC_CMD --send-console: invalid MDAT_CONSOLE in meta.env: $channelDir" >&2 ; set +e ; return 1 ;; esac
-				case "$MDAT_TTL" in ''|*[!0-9]*) echo "⛔ ERROR: $MDSC_CMD --send-console: invalid MDAT_TTL in meta.env: $channelDir" >&2 ; set +e ; return 1 ;; esac
-				[ "$MDAT_TTL" -gt 0 ] || { echo "⛔ ERROR: $MDSC_CMD --send-console: invalid MDAT_TTL in meta.env: $channelDir" >&2 ; set +e ; return 1 ; }
-				DistroAgentsTools --start-console --override-workspace "$MDAT_WORKSPACE" --console "$MDAT_CONSOLE" --ttl "$MDAT_TTL" >/dev/null || {
-					echo "⛔ ERROR: $MDSC_CMD --send-console: auto-restart failed for $channelDir" >&2
+				[ -n "$MDAT_WORKSPACE" ] || { echo "⛔ ERROR: $MDSC_CMD --console-send: missing MDAT_WORKSPACE in meta.env: $channelDir" >&2 ; set +e ; return 1 ; }
+				case "$MDAT_CONSOLE" in DistroSourceConsole.sh|DistroDeployConsole.sh) ;; *) echo "⛔ ERROR: $MDSC_CMD --console-send: invalid MDAT_CONSOLE in meta.env: $channelDir" >&2 ; set +e ; return 1 ;; esac
+				case "$MDAT_TTL" in ''|*[!0-9]*) echo "⛔ ERROR: $MDSC_CMD --console-send: invalid MDAT_TTL in meta.env: $channelDir" >&2 ; set +e ; return 1 ;; esac
+				[ "$MDAT_TTL" -gt 0 ] || { echo "⛔ ERROR: $MDSC_CMD --console-send: invalid MDAT_TTL in meta.env: $channelDir" >&2 ; set +e ; return 1 ; }
+				DistroAgentsTools --console-start --override-workspace "$MDAT_WORKSPACE" --console "$MDAT_CONSOLE" --ttl "$MDAT_TTL" >/dev/null || {
+					echo "⛔ ERROR: $MDSC_CMD --console-send: auto-restart failed for $channelDir" >&2
 					set +e ; return 1
 				}
 				## channelDir is deterministic (workspace+console hash), so
@@ -439,7 +439,7 @@ DistroAgentsTools(){
 
 			local fifo="$channelDir/fifo"
 			if [ ! -p "$fifo" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --send-console: fifo not found: $fifo" >&2
+				echo "⛔ ERROR: $MDSC_CMD --console-send: fifo not found: $fifo" >&2
 				set +e ; return 1
 			fi
 			if [ "$1" = "--" ] ; then shift ; fi
@@ -451,7 +451,7 @@ DistroAgentsTools(){
 			return 0
 		;;
 
-		--stop-console)
+		--console-stop)
 			shift
 			local ref="$1"
 			local channelDir
@@ -467,7 +467,7 @@ DistroAgentsTools(){
 			## reader on the other end (POSIX FIFO semantics, not a bash
 			## quirk). A channel whose console process already died still
 			## leaves the FIFO special file behind, so an unconditional write
-			## here can hang --stop-console forever. Only attempt the graceful
+			## here can hang --console-stop forever. Only attempt the graceful
 			## "exit" nudge while the console process is confirmed alive -- if
 			## it's already dead there's no reader to nudge, and the hard-kill
 			## path below still runs either way.
@@ -502,7 +502,7 @@ DistroAgentsTools(){
 			return 0
 		;;
 
-		--list-consoles)
+		--console-list)
 			shift
 			local workspaceArg
 			while [ $# -gt 0 ] ; do
@@ -511,14 +511,14 @@ DistroAgentsTools(){
 						workspaceArg="$2" ; shift 2
 					;;
 					*)
-						echo "⛔ ERROR: $MDSC_CMD --list-consoles: invalid option: $1" >&2
+						echo "⛔ ERROR: $MDSC_CMD --console-list: invalid option: $1" >&2
 						set +e ; return 1
 					;;
 				esac
 			done
 
 			## Default scope is the tool's own workspace — per design direction,
-			## --list-consoles must not surface every workspace's channels by
+			## --console-list must not surface every workspace's channels by
 			## default, only this one's (or an explicitly overridden one).
 			local workspace
 			workspace="$( DistroAgentsToolsResolveWorkspace "$workspaceArg" )" || { set +e ; return 1 ; }

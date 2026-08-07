@@ -176,7 +176,7 @@ Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - "`DistroAgentsTools.fn.sh` always executes via `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way."
-    - "Console-session requirement: doing an actual task with this role-family's own workspace/workspace tooling requires a `--start-console`/`--send-console` session, regardless of command count. Just answering a question or looking at files (not a task) may skip it."
+    - "Console-session requirement: doing an actual task with this role-family's own workspace/workspace tooling requires a `--console-start`/`--console-send` session, regardless of command count. Just answering a question or looking at files (not a task) may skip it."
     - Decision authority: this keeper relays between `magic-coordinator` and the task, never deciding design/approach independently unless explicitly granted — cross-references `magic-team.authority.keeper.contract.md`, never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
@@ -222,7 +222,7 @@ Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - "`DistroAgentsTools.fn.sh` always executes via `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way."
-    - "Console-session authorization: `--start-console`/`--send-console` when its own instructions call for it — available, not a standing requirement."
+    - "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement."
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.

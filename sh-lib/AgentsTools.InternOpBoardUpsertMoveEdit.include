@@ -147,7 +147,7 @@ case "$1" in
 							## deliberately unconstrained beyond "no comma/
 							## parens inside it" -- both a
 							## $CLAUDE_CODE_SESSION_ID (interactive harness/IDE
-							## chat session) and a --start-console
+							## chat session) and a --console-start
 							## console-channel-id
 							## (myx.distro-agent-console.<slug>.<console>, see
 							## DistroAgentsTools.fn.sh's own

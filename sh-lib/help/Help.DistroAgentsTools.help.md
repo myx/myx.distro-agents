@@ -1,7 +1,7 @@
-📘 syntax: DistroAgentsTools.fn.sh --start-console [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]
-📘 syntax: DistroAgentsTools.fn.sh --send-console <channel> [-- <command...>]
-📘 syntax: DistroAgentsTools.fn.sh --stop-console <channel>
-📘 syntax: DistroAgentsTools.fn.sh --list-consoles [--override-workspace <path>]
+📘 syntax: DistroAgentsTools.fn.sh --console-start [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]
+📘 syntax: DistroAgentsTools.fn.sh --console-send <channel> [-- <command...>]
+📘 syntax: DistroAgentsTools.fn.sh --console-stop <channel>
+📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
@@ -84,12 +84,12 @@
 
 		channel
 			Channel id (e.g. `myx.distro-agent-console.<slug>.<source|deploy>`)
-			as printed by --start-console, or an absolute path to its channel
-			directory. Accepted by --send-console and --stop-console.
+			as printed by --console-start, or an absolute path to its channel
+			directory. Accepted by --console-send and --console-stop.
 
 ##  Options:
 
-		--start-console
+		--console-start
 			Starts (or, for an already-alive channel on the same workspace +
 			console, reuses) a Keep-Alive console session. Prints
 			CHANNEL/CHANNEL_DIR/FIFO/LOG/CONSOLE/WORKSPACE/HOLDER_PID/CONSOLE_PID
@@ -100,7 +100,7 @@
 
 		--override-workspace <path>
 			Target a workspace other than this tool's own ($MMDAPP). Accepted
-			by both --start-console and --list-consoles; the two must agree on
+			by both --console-start and --console-list; the two must agree on
 			what "own workspace" means, so pass it identically to both.
 
 		--console DistroSourceConsole.sh|DistroDeployConsole.sh
@@ -114,7 +114,7 @@
 			stays open with no traffic before its holder exits and the console
 			sees EOF. Default: 3600.
 
-		--send-console <channel> [-- <command...>]
+		--console-send <channel> [-- <command...>]
 			Sends one command line into an open channel's FIFO. With a
 			trailing `-- <command...>`, that argument list (joined with
 			spaces) is sent. With no command given, stdin is read and piped
@@ -128,11 +128,11 @@
 			trailing argument -- that has crashed a live console process for
 			real. For free text, call --member-slack-send-message/--send-email-message as
 			bare direct invocations instead; neither goes through
-			--send-console.
+			--console-send.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--stop-console <channel>
+		--console-stop <channel>
 			Sends `exit` into the channel, then kills the console and
 			FIFO-holder processes (TERM, then KILL after a 1s grace period if
 			still alive), and removes the channel directory. Safe to call on a
@@ -141,7 +141,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--list-consoles [--override-workspace <path>]
+		--console-list [--override-workspace <path>]
 			Lists channels belonging to one workspace (default: this tool's
 			own; see --override-workspace) with their console/holder
 			liveness. Never lists another workspace's channels unless
@@ -972,10 +972,10 @@
 		place to stage secrets material; if a credential ever needs to reach a
 		console session, it must be sourced directly into the console's own
 		environment, never dropped as a file inside a channel dir, so
-		--stop-console's `rm -rf` (scoped to one deterministic channel dir,
+		--console-stop's `rm -rf` (scoped to one deterministic channel dir,
 		never a fixed/shared path) can never take it down with it.
 
-		Must be run from inside or outside any console — --start-console's
+		Must be run from inside or outside any console — --console-start's
 		whole job is to create a new console session, so it can't assume one
 		is already open. Bare invocation (`bash sh-scripts/DistroAgentsTools.fn.sh ...`
 		with no leading path component) does not match this script's own
@@ -985,30 +985,30 @@
 ##  Examples:
 
 		# Start a console session against this tool's own workspace (source console)
-		`DistroAgentsTools.fn.sh --start-console`
+		`DistroAgentsTools.fn.sh --console-start`
 
 		# Start (or reuse) a deploy console against a different workspace
-		`DistroAgentsTools.fn.sh --start-console --override-workspace /path/to/other/workspace --console DistroDeployConsole.sh`
+		`DistroAgentsTools.fn.sh --console-start --override-workspace /path/to/other/workspace --console DistroDeployConsole.sh`
 
 		# Send one command into an open channel
-		`DistroAgentsTools.fn.sh --send-console myx.distro-agent-console.<slug>.source -- echo hello`
+		`DistroAgentsTools.fn.sh --console-send myx.distro-agent-console.<slug>.source -- echo hello`
 
 		# Send multiple lines via stdin -- absolute path leading, heredoc for content,
 		# never a separate piping command in front (that breaks the permission
 		# allowlist match; see magic-team/CONSOLE-SESSIONS.md's "Heredoc for stdin"
 		# section)
 		```
-		DistroAgentsTools.fn.sh --send-console myx.distro-agent-console.<slug>.source <<'EOF'
+		DistroAgentsTools.fn.sh --console-send myx.distro-agent-console.<slug>.source <<'EOF'
 		echo one
 		echo two
 		EOF
 		```
 
 		# List this workspace's channels
-		`DistroAgentsTools.fn.sh --list-consoles`
+		`DistroAgentsTools.fn.sh --console-list`
 
 		# Stop a channel and clean up its processes/directory
-		`DistroAgentsTools.fn.sh --stop-console myx.distro-agent-console.<slug>.source`
+		`DistroAgentsTools.fn.sh --console-stop myx.distro-agent-console.<slug>.source`
 
 		# Set/read a credential-bearing setting
 		`DistroAgentsTools.fn.sh --agents-config-option magic-coordinator --upsert SLACK_BOT_TOKEN xoxb-...`

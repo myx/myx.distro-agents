@@ -520,10 +520,10 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 - `--member-slack-send-message`
 - `--member-help`
 - `--help`
-- `--start-console`
-- `--send-console`
-- `--stop-console`
-- `--list-consoles`
+- `--console-start`
+- `--console-send`
+- `--console-stop`
+- `--console-list`
 - `--purge-cleanup`
 - `--react-slack`
 - `--member-upsert-inbox-note`
@@ -542,16 +542,16 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 ## `--help` Operation Reference
 "Prints this syntax + summary and exits."
 
-## `--start-console` Operation Reference
+## `--console-start` Operation Reference
 "Starts (or, for an already-alive channel on the same workspace + console, reuses) a Keep-Alive console session."
 
-## `--send-console` Operation Reference
-"Sends one command line into an open channel's FIFO." It also checks liveness first: if the console or holder process is dead, it restarts the channel automatically (same mechanism `--start-console` uses) before sending. Callers do not need to check liveness manually before calling it.
+## `--console-send` Operation Reference
+"Sends one command line into an open channel's FIFO." It also checks liveness first: if the console or holder process is dead, it restarts the channel automatically (same mechanism `--console-start` uses) before sending. Callers do not need to check liveness manually before calling it.
 
-## `--stop-console` Operation Reference
+## `--console-stop` Operation Reference
 "Sends exit into the channel, then kills the console and FIFO-holder processes (TERM, then KILL after a 1s grace period if still alive), and removes the channel directory."
 
-## `--list-consoles` Operation Reference
+## `--console-list` Operation Reference
 "Lists channels belonging to one workspace (default: this tool's own; see --override-workspace) with their console/holder liveness."
 
 ## `--purge-cleanup` Operation Reference
@@ -590,9 +590,9 @@ Named directly in this file's own "The board" section above: reads/rewrites the 
 ## Execution mechanisms
 - **Every shell command, no exceptions, goes through `mcp__myx_common__myx_common_run`'s `lib/execShStdin` — never Bash, Python, or any other direct-execution tool.** Applies to every member and routine, not just `DistroAgentsTools.fn.sh` calls.
 - Every invocation of `DistroAgentsTools.fn.sh` — every op, no exceptions — uses this same channel.
-- **Global default: do not use console sessions unless explicitly instructed.** A Keep-Alive Console Session (`--start-console`/`--send-console`/`--stop-console`) is for batching several commands into one session only. A single, simple call — one `DistroAgentsTools.fn.sh` op, or any other one-off trivial command — never needs a console session first; call it directly via `lib/execShStdin`.
-- **Keeper exception: `keeper-*`/`partner-*` members may use console sessions only when their own instructions explicitly require it.** A member's own `.armed.md` explicitly listing `--start-console`/`--send-console` for its own domain counts as that instruction — e.g. `keeper-*`/`partner-*` batching multiple domain-investigation commands.
-- **Workspace boundary: in coworking, work on an explicitly different workspace must run in a console session for that target workspace.** Opens (or reuses) a console session scoped to that workspace (`--start-console --override-workspace <path>`, see the Workspace section above) — except the spawned-background-sub-agent single-call override the next bullet already documents, which stays a direct call by design.
+- **Global default: do not use console sessions unless explicitly instructed.** A Keep-Alive Console Session (`--console-start`/`--console-send`/`--console-stop`) is for batching several commands into one session only. A single, simple call — one `DistroAgentsTools.fn.sh` op, or any other one-off trivial command — never needs a console session first; call it directly via `lib/execShStdin`.
+- **Keeper exception: `keeper-*`/`partner-*` members may use console sessions only when their own instructions explicitly require it.** A member's own `.armed.md` explicitly listing `--console-start`/`--console-send` for its own domain counts as that instruction — e.g. `keeper-*`/`partner-*` batching multiple domain-investigation commands.
+- **Workspace boundary: in coworking, work on an explicitly different workspace must run in a console session for that target workspace.** Opens (or reuses) a console session scoped to that workspace (`--console-start --override-workspace <path>`, see the Workspace section above) — except the spawned-background-sub-agent single-call override the next bullet already documents, which stays a direct call by design.
 - **Process-flow default: process-flow steps run as direct tooling calls unless explicitly instructed otherwise.** `routine-heartbeat`/`routine-advance`/`routine-daily` (and any other process-flow step) execute every operation as a direct `lib/execShStdin` call — no console session opens or is assumed, unless the keeper exception or workspace boundary above applies.
 - `DistroAgentsTools.fn.sh` resolves its own workspace root from `$0`. In a spawned background sub-agent session, pass `env={"MMDAPP": "<workspace-root>"}` on the `myx_common_run` `lib/execShStdin` call — confirmed working.
 

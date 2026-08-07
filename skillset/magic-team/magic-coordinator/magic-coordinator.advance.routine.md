@@ -129,12 +129,12 @@ No pass-wide blanket defer is allowed for `board-running` restart work. Apply th
 - "Deferred" without one of these item-level outcomes is invalid.
 
 **Staleness inputs feeding the mechanism above**:
-- Console-session-backed work: for any in-scope item naming/depending on a `DistroAgentsTools` workspace console session, run `--list-consoles`, cross-reference. Console expected but gone → flag/report it; do not autonomously restart the console.
+- Console-session-backed work: for any in-scope item naming/depending on a `DistroAgentsTools` workspace console session, run `--console-list`, cross-reference. Console expected but gone → flag/report it; do not autonomously restart the console.
 - Agent/Task-dispatch-backed work: for any `board-running` item recording an unresolved dispatch note, compute how long unresolved. Treat "unresolved past ~5 main-loop iterations or ~1 hour, whichever comes first" as the staleness signal.
   - Item's current state already prescribes a specific, safe, mechanical next step (e.g. a stale in-place testing round: dispatch a fresh `magic-tester` round): dispatch, record the new dispatch (id/time), report the redispatch once.
   - Otherwise: flag and report once. Escalate-once — don't re-flag the identical stale dispatch every pass; wait for a human/grooming response.
 - For each `board-running` item confirmed alive above: check whether anything this pass did is relevant to that item.
-  - Relevant → relay via that process's own live channel: `--send-console` (command-only) for console-session-backed work, `SendMessage` for Agent/Task-dispatch-backed work.
+  - Relevant → relay via that process's own live channel: `--console-send` (command-only) for console-session-backed work, `SendMessage` for Agent/Task-dispatch-backed work.
   - Not relevant → skip.
 
 **Restart-session spawn concurrency**:
@@ -229,7 +229,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-process-inbox` — this routine's own inbox processing (**advance-process-inbox**).
 - `magic-coordinator/magic-coordinator.armed.md` — `check-process-board`'s own home, called from **advance-run-process-board**; `spawn-one-dispatch`, called from `check-execute-board`.
 - `magic-team/magic-team.board.md` — the board's own state model, write-authority rule, `processed/`/`archived/` outcome-ambiguity note, `# Process-Flow, the board dynamics` section.
-- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, `--list-consoles`, calling convention, `--react-slack`/`--send-console` mechanics.
+- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, `--console-list`, calling convention, `--react-slack`/`--console-send` mechanics.
 - `magic-coordinator/RICE-SCORING.md` — the four normalized dimensions `check-process-board`'s own dependency-recompute step records alongside, never silently reconciled with.
 
 ### Conventions

@@ -7,7 +7,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--work
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --list-consoles [--override-workspace <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --list-md <path>..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run" >&2
@@ -61,12 +61,12 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --read-slack <channel>:<ts> [--thread
 echo "📘 syntax: DistroAgentsTools.fn.sh --read-trello <notification-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <item-name>..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --self-test" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --send-console <channel> [-- <command...>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --console-send <channel> [-- <command...>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- <body...>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-stdin" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-file <path>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --start-console [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --stop-console <channel>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --console-start [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --console-stop <channel>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --sweep-read-incoming-comms [--oldest <ts>] [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --validate-json [<path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --verify-permissions" >&2

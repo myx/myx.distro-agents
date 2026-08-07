@@ -356,7 +356,7 @@ Most of this member's decision-making is embedded directly in the Local rules ab
 
 # Team-Member's (-specific) tooling
 
-Every `magic-tooling` operation this member's own procedures/rules actually invoke by name. Full syntax and behavior pulled from `Help.DistroAgentsTools.help.md` — none invented. `--start-console` and `--member-append-session-transcript` were claimed by the old `magic-coordinator.tooling.md` but are not traceable to any genuine invoking text anywhere in this folder (armed.md's own text, or any of the 9 routine files) — dropped as stale claims, not carried forward. `--help` is dropped as a universal baseline op already covered by `magic-team.armed.md`'s own "Team-Member's (-specific) tooling" section, same as every other member's own Tooling section.
+Every `magic-tooling` operation this member's own procedures/rules actually invoke by name. Full syntax and behavior pulled from `Help.DistroAgentsTools.help.md` — none invented. `--console-start` and `--member-append-session-transcript` were claimed by the old `magic-coordinator.tooling.md` but are not traceable to any genuine invoking text anywhere in this folder (armed.md's own text, or any of the 9 routine files) — dropped as stale claims, not carried forward. `--help` is dropped as a universal baseline op already covered by `magic-team.armed.md`'s own "Team-Member's (-specific) tooling" section, same as every other member's own Tooling section.
 
 ## DistroAgentsTools magic-tooling operations
 
@@ -370,9 +370,9 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 - `--mark-email-seen <uid>`
 - `--check-trello`
 - `--magic-trello-post-comment <team-member> <card-id> [text...]`
-- `--send-console <channel> [-- <command...>]`
-- `--stop-console <channel>`
-- `--list-consoles [--override-workspace <path>]`
+- `--console-send <channel> [-- <command...>]`
+- `--console-stop <channel>`
+- `--console-list [--override-workspace <path>]`
 - `--write-board-item <state> <item-filename>`
 - `--magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:...]...`
@@ -430,17 +430,17 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 `DistroAgentsTools.fn.sh --check-trello` — unread Trello notifications only (`read_filter=unread`), not a full board read.
 
-## `--send-console` Operation Reference
+## `--console-send` Operation Reference
 
-`DistroAgentsTools.fn.sh --send-console <channel> [-- <command...>]` — sends one command line into an open channel's FIFO. With `-- <command...>`, that argument list (joined with spaces) is sent; with no command given, stdin is read and piped through as-is (multi-line/heredocs work). Command-only, not a data-transport — the joined command is written raw and unquoted, exactly like typing at an interactive shell prompt. Never pass free text with shell metacharacters as the trailing argument; use `--member-slack-send-message`/`--send-email-message` directly for that instead.
+`DistroAgentsTools.fn.sh --console-send <channel> [-- <command...>]` — sends one command line into an open channel's FIFO. With `-- <command...>`, that argument list (joined with spaces) is sent; with no command given, stdin is read and piped through as-is (multi-line/heredocs work). Command-only, not a data-transport — the joined command is written raw and unquoted, exactly like typing at an interactive shell prompt. Never pass free text with shell metacharacters as the trailing argument; use `--member-slack-send-message`/`--send-email-message` directly for that instead.
 
-## `--stop-console` Operation Reference
+## `--console-stop` Operation Reference
 
-`DistroAgentsTools.fn.sh --stop-console <channel>` — sends `exit` into the channel, then kills the console and FIFO-holder processes (TERM, then KILL after a 1s grace period), and removes the channel directory. Safe to call on a channel with already-dead processes.
+`DistroAgentsTools.fn.sh --console-stop <channel>` — sends `exit` into the channel, then kills the console and FIFO-holder processes (TERM, then KILL after a 1s grace period), and removes the channel directory. Safe to call on a channel with already-dead processes.
 
-## `--list-consoles` Operation Reference
+## `--console-list` Operation Reference
 
-`DistroAgentsTools.fn.sh --list-consoles [--override-workspace <path>]` — lists channels belonging to one workspace (default: this tool's own) with their console/holder liveness. Never lists another workspace's channels unless explicitly overridden.
+`DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]` — lists channels belonging to one workspace (default: this tool's own) with their console/holder liveness. Never lists another workspace's channels unless explicitly overridden.
 
 ## `--write-board-item` Operation Reference
 
