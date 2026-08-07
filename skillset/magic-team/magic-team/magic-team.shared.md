@@ -204,6 +204,11 @@ Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
     - What it does.
     - What it deliberately doesn't do.
     - Invocation conditions and auto-trigger behavior stated here.
+    - `### External representation` — present even if N/A.
+      - Represents the external party inside our own coworking sessions.
+      - Represents our own team inside the external party's own corporate systems, at the same time.
+      - Communication with the external entity: this member's own dedicated account/email if configured; else routes through `magic-coordinator` — an explicit ask, `magic-coordinator`'s own conscious assessment, escalated to human-owner confirmation when warranted.
+      - Generic role operations run through the shared `magic-tooling` baseline; any external-system tooling specific to this particular partner/client (their own Jira/Slack/Google, etc.) is this member's own addition, documented in its own `Team-Member's (-specific) tooling` section.
 - `# Terminology: <topic>`
   - Pure glossary, `term` → definition.
   - `## Term: <name>` only when a term needs more than one line.
@@ -213,10 +218,12 @@ Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
   - Not separate routines.
   - Not visible outside this file.
 - `# Team-Member's (-specific) local rules`
-  - Flat, present-tense bullets.
-  - Limits, restrictions, decision-making guidance.
-  - No dedicated sub-headings.
-  - Example bullet this role-family's own file carries: a paragraph saying something like "Console-session authorization: `--start-console`/`--send-console` when its own instructions call for it — available, not a standing requirement."
+  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine."
+  - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
+    - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
+    - "`DistroAgentsTools.fn.sh` always executes via `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way."
+    - "Console-session authorization: `--start-console`/`--send-console` when its own instructions call for it — available, not a standing requirement."
+    - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
 - `# Team-Member's (-specific) tooling`
@@ -242,6 +249,10 @@ Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
     - What it does.
     - What it deliberately doesn't do.
     - Invocation conditions and auto-trigger behavior stated here.
+    - `### Engagement shape` — present even if N/A.
+      - Not a standing team member: a costed, external AI-service resource, spawned into a billed pay-per-time session, brought in to boost/accelerate one specific, complicated task.
+      - Domain of expertise: the specific type(s) of work this member is brought in for — not a workspace, a work-type.
+      - Spawn trigger, cost/billing tracking, and session lifecycle: not yet defined team-wide — state whatever this specific member's own instructions already settle, flag the rest as open.
 - `# Terminology: <topic>`
   - Pure glossary, `term` → definition.
   - `## Term: <name>` only when a term needs more than one line.
@@ -251,9 +262,11 @@ Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
   - Not separate routines.
   - Not visible outside this file.
 - `# Team-Member's (-specific) local rules`
-  - Flat, present-tense bullets.
-  - Limits, restrictions, decision-making guidance.
-  - No dedicated sub-headings.
+  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine."
+  - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
+    - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
+    - "`DistroAgentsTools.fn.sh` always executes via `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way."
+    - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
 - `# Team-Member's (-specific) tooling`

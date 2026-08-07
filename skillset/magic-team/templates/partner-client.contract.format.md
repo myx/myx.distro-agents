@@ -21,6 +21,13 @@ Copy this file's shape into a new `<name>.armed.md`, alongside a matching `<name
 - Doesn't:
   - [...]
 
+### External representation
+
+- Represents [named external party] inside our own coworking sessions.
+- Represents our own team inside [named external party]'s own corporate systems, at the same time.
+- Communication with the external entity: [this member's own dedicated account/email, if configured] — else routes through `magic-coordinator`, an explicit ask, `magic-coordinator`'s own conscious assessment, escalated to human-owner confirmation when warranted.
+- Generic role operations run through the shared `magic-tooling` baseline; any external-system tooling specific to this partner/client (their own Jira/Slack/Google, etc.) is documented in this file's own `Team-Member's (-specific) tooling` section below.
+
 # Terminology: <topic>
 
 [Pure glossary, `term` → definition. `# Terminology: none` if empty.]
