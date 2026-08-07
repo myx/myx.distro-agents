@@ -123,6 +123,16 @@ Exact instructions. Execute in order, every step, literally as written.
 - Slack IM failover failure (`channel_not_found` or equivalent): immediately fall back to posting the question in `magic-team` plus a short `event-alert` blocker note.
 - After each answer, apply only the directly affected fix and re-run only the impacted bootstrap step(s).
 
+9b. **Wait-for-reply semantics (required after step 9a)**
+- Do not continue as if answered; explicitly wait for a reply.
+- In interactive harness mode, AskUserQuestion is blocking: wait for the returned answer payload, then proceed.
+- In unattended/async mode, use a bounded wait loop, not a tight busy-loop:
+  - wait interval: approximately 30-90 seconds between checks,
+  - max attempts: 5,
+  - stop condition: first valid answer received,
+  - timeout condition: no answer after max attempts -> escalate in `magic-team` and `event-alert`, keep `NOT READY`.
+- For Slack failover, each retry must post at most one short follow-up nudge; do not spam multiple channels in the same attempt.
+
 10. **Human-owner escalation script (step-by-step, mandatory when blocked)**
 - Use this exact ask sequence, one step per message:
   1. Confirm I should continue bootstrap for `magic-coordinator` under `Magic Vane` identity.
@@ -145,6 +155,7 @@ Exact instructions. Execute in order, every step, literally as written.
 - No guessed target ids, no guessed scope names, no silent fallback identities.
 - Every blocker must map to one concrete ask for human-owner.
 - Every `NOT READY` state must pass through step 9a: one concrete AskUserQuestion before continuing.
+- Never use a tight infinite busy-loop waiting for replies; use step 9b bounded waits and timeout escalation.
 - Keep reports compact and operational: facts first, no narrative padding.
 - Never link this routine file into SKILLSET automatically.
 
@@ -162,6 +173,7 @@ Exact instructions. Execute in order, every step, literally as written.
 
 - `vscode_askQuestions` (or equivalent AskUserQuestion channel in the active harness) is the primary interactive blocker-resolution mechanism for step 9a.
 - Ask one concrete question at a time. Do not batch unrelated blockers into one prompt.
+- Treat unanswered AskUserQuestion as pending state, not implicit rejection; apply step 9b wait semantics before escalation.
 
 ## Direct Slack API checks used by this routine
 
