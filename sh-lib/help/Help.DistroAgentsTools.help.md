@@ -668,8 +668,8 @@
 
 		--install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
 			Installs skillset-link integration. `$MDLT_ORIGIN/myx/
-			myx.distro-agents/skillset/magic-team` is the canonical, real
-			location of the bundled team skillset (bundle-as-native-source).
+			myx.distro-agents/skillset/magic-team` is the operation's source
+			skillset directory used for link targets.
 			Target root is `<workspace>/.claude/skills` for `--scope workspace`
 			or `$HOME/.claude/skills` for `--scope user-home`.
 			For each member name seen in either target root or bundle root
