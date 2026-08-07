@@ -263,6 +263,7 @@ HTTP (HTTP/0.9–1.1, gzip/deflate, chunked transfer, pipelining, headers), TLS,
 
 ### Conventions
 
+- Team-member shape and keeper shape (the mandatory `.armed.md` section order, and keeper-*'s two additional `Domain anchor`/`Tree restriction` subsections) are `magic-team.shared.md`'s own "Folder shape — the typed-suffix scheme" section — read there, not restated here.
 - This file is the authoritative source of the `Verbatim-intents`/`Verbatim-benchmarks` convention itself (see "Verbatim-intents and Verbatim-benchmarks convention" above) — every other member's own `Verbatim-goals (intents)`/`Verbatim-tests (benchmarks)` pair is authored and checked against that definition, not reinvented per-member.
 - Two writing modes (Instructions mode / Narrative mode) and the skill-folder content-hygiene rewrite standard apply to this file itself, same as any other skill-folder `.md` file — checked via `routine-conventions-check`.
 - This file's tag/rule/op lists (local rules, tooling ops, Verbatim-goals/tests) must stay verbatim, enumerated — never compressed into prose. Reference material a reader looks up a specific name from.

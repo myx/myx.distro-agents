@@ -25,25 +25,18 @@ Read `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" sect
 
 ## Folder shape — the typed-suffix scheme
 
+File set:
+
+- **Acting member** (`magic-*`/`keeper-*`/`partner-*` — the only real, separate folder under `~/.claude/skills/`): `SKILL.md`, `<name>.basic.md`, `<name>.armed.md`, optional `<name>.shared.md`, zero-or-more `<name>.<short-name>.routine.md` — each one self-contained, describing one procedure/activity this member owns, never its own folder.
+
 Every acting member (`magic-*`/`keeper-*`/`partner-*`) skill folder under `~/.claude/skills/` contains:
 
 - **`SKILL.md`** — the boot dispatcher only. Claude Code's own skill-discovery mechanism requires this exact filename, so it never gets renamed. Standard skill frontmatter (`description`) plus a short dispatch routine: read `<name>.basic.md` unconditionally first (identity-only), then `<name>.armed.md` directly for genuine active-work-duty. A non-active-duty presence wanting to dig deeper than `basic.md` reads `<name>.armed.md`'s own Maintainer Notes → Librarian Comments → Reference subsection, not a separate reference file.
 - **`<name>.basic.md`** — identity-only content, unconditionally loaded. Enough to respond in a casual/social context, not enough to actually do the work.
-- **`<name>.armed.md`** — professional-readiness content: the one file real work-duty loads after `.basic.md`. Fixed section shape, in order:
-  - `# Summary` (`## Goals` / `## Scope` — `Scope`'s `Does`/`Doesn't` states invocation conditions and auto-trigger behavior).
-  - `# Terminology` — this member's own glossary, or `: none`.
-  - `# Team-Member's (-specific) local procedures` — named procedure blocks its own steps call by name.
-  - `# Team-Member's (-specific) local rules` — flat, present-tense rule bullets: limits, restrictions, decision-making guidance. No dedicated sub-headings.
-  - `# Domain knowledge` — this member's own reference material, or `: none`. A member that owns one or more routines names them here (typically a routines-index subsection, e.g. `magic-coordinator.armed.md`'s `## Routines (index)`) listing each owned routine by its bare glossary term, pointing to that routine's own exact `.routine.md` filename — the only place in a member's own file that filename is spelled out (`magic-team.armed.md`'s own terminology dictionary keeps every routine term bare, no path, even there).
-  - `# Team-Member's (-specific) tooling` — every `magic-tooling` operation this member uses, full syntax and behavior.
-  - `# Maintainer Notes` — this member's own `## Verbatim-goals (intents)` / `## Verbatim-tests (benchmarks)` pair, plus `## Librarian Comments` with `### Reference` (this folder's own knowledge index — pointers to this folder's own typed files, cross-referenced local skill folders, and shared (`*.shared.md`) material) and `### Conventions` subsections.
-  - Frontmatter: `maintainers:` only — who may change this member's own definition (see "Executors vs. maintainers" below). No `executors:` field; who invokes/runs it is stated in `Scope`'s `Does`/`Doesn't` and `Local rules` prose instead.
+- **`<name>.armed.md`** — professional-readiness content, the one file real work-duty loads after `.basic.md`. Frontmatter: `maintainers:` only (see "Executors vs. maintainers" below) — no `executors:` field; who invokes/runs it is stated in `Scope`'s `Does`/`Doesn't` and `Local rules` prose instead. Section shape depends on role-family — see "Armed & Routine contracts" below.
 - **`<name>.access.md`, `<name>.reference.md`, `<name>.librarian.md`, `<name>.tooling.md`** — none of these exist as separate files for an acting member. Their content lives inside `<name>.armed.md`, per the section shape above: who/how/limits/decision-making → `Local rules` + `Scope`; per-member reference material → `Domain knowledge`; the tooling op list → `Team-Member's (-specific) tooling`; the `Verbatim-goals`/`Verbatim-tests` pair and the folder's own knowledge index → `Maintainer Notes`.
 - **`<name>.shared.md`** — **only for a folder that hosts genuinely team-wide, broadest-readership content** (this file is the worked example) — named after its own hosting folder, same as every other typed file, not a free-form descriptive title. Hand-authored/librarian-maintained prose, cross-cutting by design — a source other folders' own files may reference directly.
-- **`<owning-member>.<short-name>.routine.md`** — zero or more, one per routine this member owns/executes. Each file is fully self-contained for that one routine: its own frontmatter (`executors`/`maintainers`/`invitees`) plus a 9-section body — `# Summary` (with `## Goals`/`## Scope`), `# Steps`, `# Closure steps`, `# Routine's local procedures`, `# Routine's local rules`, `# Routine-specific tooling`, and `# Maintainer Notes` (holding that routine's own `## Verbatim-goals (intents)`, `## Verbatim-tests (benchmarks)`, and `## Librarian Comments` with `### Reference`/`### Conventions` subsections). A routine has no `.basic.md`/`.armed.md`-style split, and — like an acting member's own single `.armed.md` — no separate `.access.md`/`.reference.md`/`.librarian.md` either: a routine has no other typed files and no `SKILL.md`.
-- **`# Closure steps`** — same shape and discipline as `# Steps` (numbered, execute-in-order, literal-as-written). Holds this routine's own closing-phase work: whatever must run only after `# Steps` and everything the routine went on to extend, dispatch, or spawn have actually finished. A routine whose `# Steps` already ends with an identifiable closing tail (a released resource, a final status broadcast, a closing reaction, an explicit `routine-close-session` call, a final report-and-exit) relocates that tail here verbatim — no new content invented. A routine with no closing tail of its own states that fact plainly plus a pointer to whatever actually closes it, rather than being filled with invented busywork.
-
-  **Sequencing rule, binding on every routine**: this routine's own `# Steps` complete in full before any routine-run or session-task this routine extends, dispatches, or spawns begins executing; `# Closure steps` run only after all of that — `# Steps` plus everything extended from it — has finished, never interleaved, never skipped. This rule scopes to the routine's own direct, synchronous sub-calls and inline procedure invocations within the same session — an async, board-tracked dispatch or hand-off is considered complete for this purpose once tracked, and does not block `# Closure steps` from running. Stated once here; each routine's own local-rules section cross-references this by name rather than restating it.
+- **`<owning-member>.<short-name>.routine.md`** — zero or more, one per routine this member owns/executes. Section shape — see "Armed & Routine contracts" below.
 - **`inbox/`** — created lazily, first time something needs to land there. Same personal-inbox model for every member — reflections a team-member writes while running an activity land in *its own* personal inbox first; some later get reorganized/promoted into the relevant activity's own inbox (`routine-process-inbox`'s "Reflection-promotion" section covers the mechanics).
 
 **The core rule: every acting member's own source files (`.basic.md`/`.armed.md`, plus every `.routine.md` it owns) must be fully sufficient on their own.**
@@ -51,6 +44,211 @@ Every acting member (`magic-*`/`keeper-*`/`partner-*`) skill folder under `~/.cl
 - "Sufficient on its own" means readable and actionable following the folder's own stated cross-reference graph, not literally zero pointers elsewhere — a cross-reference is fine when it's explicit and named, and the referencing step stays independently actionable without following it.
 - Real work-duty content is loaded by reading `.armed.md` directly, plus whatever it cross-references.
 - A routine's own single `.routine.md` file is independently sufficient the same way, on its own, without needing its owning member's other typed files.
+
+## Armed & Routine contracts
+
+Every `.armed.md`/`.routine.md` file follows one of the contracts below, by its own kind. Each is complete and self-contained — read the one that matches, never a diff against another.
+
+### Routine (`<owning-member>.<short-name>.routine.md`)
+
+- Frontmatter: `executors:`, `maintainers:`, `invitees:`.
+- No `SKILL.md`.
+- No `.basic.md`/`.armed.md` split.
+- No separate `.access.md`/`.reference.md`/`.librarian.md`.
+- `# Summary`
+  - One short sentence, names the routine.
+  - `## Goals`
+    - Compact narrative, still detailed.
+  - `## Scope`
+    - What it does.
+    - What it deliberately doesn't do.
+- `# Steps`
+  - Exact instructions, execute in order, literally as written.
+  - A step that can't execute as written: escalate, or fail loud.
+  - Exact steps as nested lists; step rules nested as sub-lists.
+- `# Closure steps`
+  - Same shape/discipline as `# Steps`.
+  - Runs only after `# Steps`, and everything it extended/dispatched/spawned, have finished.
+  - An already-existing closing tail in `# Steps` relocates here verbatim — no invented content.
+  - No closing tail of its own: state that plainly, plus a pointer to whatever actually closes it.
+  - Sequencing: `# Steps` (including its own direct synchronous sub-calls) completes in full before any extended/dispatched/spawned run begins; `# Closure steps` runs only after all of that finishes.
+  - An async, board-tracked dispatch or hand-off counts as complete for this purpose once tracked.
+- `# Routine's local procedures`
+  - Named procedure blocks, `## <local-procedure-name>`, called by name from `# Steps`.
+  - Not separate routines.
+  - Not visible outside this file.
+- `# Routine's local rules`
+  - All statements apply simultaneously.
+  - Override a participant's own general `.armed.md` rules while this routine is active.
+  - Executor is permitted/obliged to execute every step as written.
+  - Participants obey this routine's own rules over their normal ones.
+  - Any other rules, exceptions, overrides.
+- `# Routine-specific tooling`
+  - Every `magic-tooling` operation this routine uses — not more, not less.
+  - `## DistroAgentsTools magic-tooling operations`
+    - List, with argument syntax.
+  - `## <--operation-name> Operation Reference`
+    - Syntax again.
+    - Every exact description/comment needed to run it correctly, without looking elsewhere.
+- `# Maintainer Notes`
+  - Not part of a participant's own instructions.
+  - `## Verbatim-goals (intents)`
+    - Abstract goal statements, for conflict testing.
+  - `## Verbatim-tests (benchmarks)`
+    - Concrete edge-case tests.
+  - `## Librarian Comments`
+    - `### Reference`
+      - Pointers, folded in from any `.reference.md`.
+    - `### Conventions`
+      - This file's own conventions.
+
+### Team-member (`magic-*`)
+
+- Frontmatter: `maintainers:` only.
+- `# Summary`
+  - One short sentence, names the team-member.
+  - `## Goals`
+    - Compact narrative, still detailed.
+  - `## Scope`
+    - What it does.
+    - What it deliberately doesn't do.
+    - Invocation conditions and auto-trigger behavior stated here.
+- `# Terminology: <topic>`
+  - Pure glossary, `term` → definition.
+  - `## Term: <name>` only when a term needs more than one line.
+  - `# Terminology: none` when empty.
+- `# Team-Member's (-specific) local procedures`
+  - Named procedure blocks, `## <local-procedure-name>`, called by name.
+  - Not separate routines.
+  - Not visible outside this file.
+- `# Team-Member's (-specific) local rules`
+  - Flat, present-tense bullets.
+  - Limits, restrictions, decision-making guidance.
+  - No dedicated sub-headings.
+- `# Domain knowledge: <topic>`
+  - This member's own reference material, or `: none`.
+  - Owned routines named here (typically a routines-index subsection), each pointing to its own exact `.routine.md` filename — the only place in this file that filename is spelled out.
+- `# Team-Member's (-specific) tooling`
+  - Every `magic-tooling` operation this member uses, full syntax and behavior.
+- `# Maintainer Notes`
+  - `## Verbatim-goals (intents)`
+  - `## Verbatim-tests (benchmarks)`
+  - `## Librarian Comments`
+    - `### Reference`
+      - This folder's own knowledge index: pointers to this folder's own typed files, cross-referenced skill folders, shared (`*.shared.md`) material.
+    - `### Conventions`
+
+### Keeper / Warden (`keeper-*`/`warden-*`)
+
+- Frontmatter: `maintainers:` only.
+- `# Summary`
+  - One short sentence, names the team-member.
+  - `## Goals`
+    - Compact narrative, still detailed.
+  - `## Scope`
+    - What it does.
+    - What it deliberately doesn't do.
+    - Invocation conditions and auto-trigger behavior stated here.
+    - `### Domain anchor` — present even if N/A.
+      - Named workspace(s): name only, never a hardcoded path — the workspace registry is the path source of truth.
+      - A path/namespace + project-name restriction within it, if any.
+      - A cross-workspace namespace family, if any.
+    - `### Tree restriction` — present even if N/A.
+      - Source-vs-deployed-output split, if one exists: name both trees, source only ever hand-edited.
+      - Else: "N/A — no deploy-output split in this domain."
+- `# Terminology: <topic>`
+  - Pure glossary, `term` → definition.
+  - `## Term: <name>` only when a term needs more than one line.
+  - `# Terminology: none` when empty.
+- `# Team-Member's (-specific) local procedures`
+  - Named procedure blocks, `## <local-procedure-name>`, called by name.
+  - Not separate routines.
+  - Not visible outside this file.
+- `# Team-Member's (-specific) local rules`
+  - Flat, present-tense bullets.
+  - Limits, restrictions, decision-making guidance.
+  - No dedicated sub-headings.
+- `# Domain knowledge: <topic>`
+  - This member's own reference material, or `: none`.
+- `# Team-Member's (-specific) tooling`
+  - Every `magic-tooling` operation this member uses, full syntax and behavior.
+- `# Maintainer Notes`
+  - `## Verbatim-goals (intents)`
+  - `## Verbatim-tests (benchmarks)`
+  - `## Librarian Comments`
+    - `### Reference`
+    - `### Conventions`
+- Landed examples: `keeper-myx.armed.md`, `keeper-ae3.armed.md`, `keeper-acm.armed.md`, `keeper-ndm.armed.md`.
+
+### Partner (`partner-*`)
+
+- Frontmatter: `maintainers:` only.
+- `# Summary`
+  - One short sentence, names the team-member.
+  - `## Goals`
+    - Compact narrative, still detailed.
+  - `## Scope`
+    - What it does.
+    - What it deliberately doesn't do.
+    - Invocation conditions and auto-trigger behavior stated here.
+- `# Terminology: <topic>`
+  - Pure glossary, `term` → definition.
+  - `## Term: <name>` only when a term needs more than one line.
+  - `# Terminology: none` when empty.
+- `# Team-Member's (-specific) local procedures`
+  - Named procedure blocks, `## <local-procedure-name>`, called by name.
+  - Not separate routines.
+  - Not visible outside this file.
+- `# Team-Member's (-specific) local rules`
+  - Flat, present-tense bullets.
+  - Limits, restrictions, decision-making guidance.
+  - No dedicated sub-headings.
+- `# Domain knowledge: <topic>`
+  - This member's own reference material, or `: none`.
+- `# Team-Member's (-specific) tooling`
+  - Every `magic-tooling` operation this member uses, full syntax and behavior.
+- `# Maintainer Notes`
+  - `## Verbatim-goals (intents)`
+  - `## Verbatim-tests (benchmarks)`
+  - `## Librarian Comments`
+    - `### Reference`
+    - `### Conventions`
+- No distinct mandatory subsection beyond this shape exists yet in any real `partner-*.armed.md` file.
+
+### Oncall / Expert (`oncall-*`/`expert-*`)
+
+- Frontmatter: `maintainers:` only.
+- `# Summary`
+  - One short sentence, names the team-member.
+  - `## Goals`
+    - Compact narrative, still detailed.
+  - `## Scope`
+    - What it does.
+    - What it deliberately doesn't do.
+    - Invocation conditions and auto-trigger behavior stated here.
+- `# Terminology: <topic>`
+  - Pure glossary, `term` → definition.
+  - `## Term: <name>` only when a term needs more than one line.
+  - `# Terminology: none` when empty.
+- `# Team-Member's (-specific) local procedures`
+  - Named procedure blocks, `## <local-procedure-name>`, called by name.
+  - Not separate routines.
+  - Not visible outside this file.
+- `# Team-Member's (-specific) local rules`
+  - Flat, present-tense bullets.
+  - Limits, restrictions, decision-making guidance.
+  - No dedicated sub-headings.
+- `# Domain knowledge: <topic>`
+  - This member's own reference material, or `: none`.
+- `# Team-Member's (-specific) tooling`
+  - Every `magic-tooling` operation this member uses, full syntax and behavior.
+- `# Maintainer Notes`
+  - `## Verbatim-goals (intents)`
+  - `## Verbatim-tests (benchmarks)`
+  - `## Librarian Comments`
+    - `### Reference`
+    - `### Conventions`
+- No live `oncall-*`/`expert-*` member exists yet — roster category reserved, this contract applies once one is created.
 
 ## `.access.md` content lives in `.armed.md`
 

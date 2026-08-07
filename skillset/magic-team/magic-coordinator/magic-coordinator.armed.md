@@ -279,7 +279,7 @@ In any work-session, in any role, `magic-coordinator` relays a message-by-messag
 
 ## Slack destination terms → operations
 
-`slack-magic-team`/`slack-event-track`/`slack-event-alert`/`slack-human-owner` (`magic-team.armed.md`'s terminology) all post via the same underlying op, `DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target>` (`chat.postMessage`) — check its own `.help.md` for the exact target-argument syntax per destination rather than guessing it here. `--react-slack` (`reactions.add`) is the op for reacting to an existing message/thread, same four destinations apply.
+`slack-magic-team`/`slack-event-track`/`slack-event-alert`/`slack-human-owner` (`magic-team.armed.md`'s terminology) all post via the same underlying op, `DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target>` — check its own `.help.md` for the exact target-argument syntax per destination rather than guessing it here. `--react-slack` is the op for reacting to an existing message/thread, same four destinations apply.
 
 ## Inquiry-prefix-lines
 
@@ -408,7 +408,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## `--magic-comms-slack-resolve-ids` Operation Reference
 
-`DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]` — resolves real Slack IDs: authenticates as `<team-member>` (own `SLACK_USER_TOKEN` if configured, else the shared bot token) and reports its own auth identity, any requested `--user-name`/`--channel-name` matches, configured-alias (`magic-team`/`human-owner`/`event-track`/`event-alert`) reachability, and the best-known reachable human-owner DM target. Exit 0 once a reachable human-owner target is confirmed, 1 otherwise.
+`DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]` — resolves real Slack IDs: authenticates as `<team-member>` and reports its own auth identity, any requested `--user-name`/`--channel-name` matches, configured-alias (`magic-team`/`human-owner`/`event-track`/`event-alert`) reachability, and the best-known reachable human-owner DM target. Exit 0 once a reachable human-owner target is confirmed, 1 otherwise.
 
 ## `--sweep-read-incoming-comms` Operation Reference
 
