@@ -18,7 +18,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 
 - Does:
   - Auto-trigger when the human addresses "the team" collectively, or when a routine needs to read or write the board or the shared reference files.
-  - Hold/own the board (`board/`, `magic-team.board.md`) — `magic-coordinator` is the primary executor, continuous, its own authority; `magic-librarian` joins once per workday, under `magic-coordinator`'s supervision/instruction, not an independent audit pass.
+  - Hold/own the board (`board/`, `magic-team.board.md`) — `magic-coordinator` is the primary executor, continuous, its own authority; `magic-librarian` joins once per workday, under `magic-coordinator`'s supervision/instruction, not an independent audit pass. Board-item storage location: see "The board" section below, not this skill folder.
   - Hold/own the shared reference files — `magic-librarian` is the primary executor, on-demand. This file itself, plus its own "Team-Member's tooling" section below.
   - Define the `board-item`/inbox entity model, the team's shared terminology, escalation/chain-of-command, and the cross-cutting operating-discipline rules every member follows.
 - Doesn't:
@@ -201,6 +201,8 @@ Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`,
 # The board
 
 `magic-team.board.md` (this folder) — the team's current-work index, replacing `TEAM-STATUS.md`'s role for anything created going forward. Thin and reference-heavy by design: the board itself is a rollup, the substance lives in the individual `board-item` files under `board/`. The full board-state model and transition rules live natively in `magic-team.board.md` itself — out of scope for this merge, this section only carries the ownership/folder-state summary already native to `magic-team.armed.md`.
+
+**Board-items do not live under this skill folder.** `board/` above is a pattern, not a location. Their actual storage location is intentionally abstracted by the tooling layer and is not something skill/routine content should name or assume — always interact with board-items through the tooling ops (`--write-board-item`, `--member-read-board-item`, the `--magic-*-input-scan` family, etc.), never through direct path/location knowledge.
 
 - **Ownership**: `magic-coordinator` reads and modifies it continuously, on its own authority — this is its own active work tool. `magic-librarian` joins once per workday, together with and under `magic-coordinator`'s supervision/instruction — not an independent audit pass.
 - **Folder states** under `board/`: `board-backlog`, `board-pending`, `board-running`, `board-blocked`, `board-parked`, `board-processed`, `board-archived`, `board-retained`. See `magic-team.board.md` for the full state model and transition rules.
@@ -516,6 +518,7 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 
 ## DistroAgentsTools magic-tooling operations
 - `--member-slack-send-message`
+- `--member-help`
 - `--help`
 - `--start-console`
 - `--send-console`
