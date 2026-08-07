@@ -1,9 +1,9 @@
 ---
 maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>]
 ---
-# <name>.armed.md — example skeleton (`partner-*`)
+# <name>.armed.md — example skeleton (`partner-*`/`client-*`)
 
-Copy this file's shape into a new `<name>.armed.md`, alongside a matching `<name>.basic.md` and `SKILL.md`. Fill every bracketed placeholder. Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Partner. No distinct mandatory subsection beyond this shape exists yet in any real `partner-*.armed.md` file — same shape as Team-member, written out here as its own copyable skeleton.
+Copy this file's shape into a new `<name>.armed.md`, alongside a matching `<name>.basic.md` and `SKILL.md`. Fill every bracketed placeholder. Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Partner / Client.
 
 # Summary
 
@@ -42,8 +42,10 @@ Steps:
 
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine.
 
-- [Flat, present-tense rule bullet: limit, restriction, or decision-making guidance.]
+- This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
+- `DistroAgentsTools.fn.sh` always executes via `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way.
 - Console-session authorization: `--start-console`/`--send-console` when its own instructions call for it — available, not a standing requirement.
+- [Flat, present-tense rule bullet: limit, restriction, or decision-making guidance.]
 
 # Domain knowledge: <topic>
 

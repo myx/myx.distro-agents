@@ -43,6 +43,13 @@ Copy this file's shape into a new `<name>.armed.md`, alongside a matching `<name
 
 Named procedure blocks. Steps below call them by name. Not separate routines — not visible outside this file.
 
+## `daily-idle-task` - pick and run one idle activity, log the outcome
+
+Steps:
+1. Pick one at random from `idle-tasks/*.idle.md`.
+2. Run only that candidate's own instructions.
+3. Log the activity and its outcome as a new dated file under `processed/`.
+
 ## `<local-procedure-name>` — [goal+intent short summary]
 
 Steps:
@@ -52,6 +59,8 @@ Steps:
 
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine.
 
+- This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
+- `DistroAgentsTools.fn.sh` always executes via `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way.
 - This keeper's own decision authority follows `magic-team.authority.keeper.contract.md` — cross-referenced, never restated here.
 - Console-session requirement: doing an actual task with this role-family's own workspace/workspace tooling requires a `--start-console`/`--send-console` session, regardless of command count. Just answering a question or looking at files (not a task) may skip it.
 - [...]
