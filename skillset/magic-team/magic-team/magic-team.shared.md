@@ -265,7 +265,6 @@ Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - "`DistroAgentsTools.fn.sh` always executes via `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way."
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
