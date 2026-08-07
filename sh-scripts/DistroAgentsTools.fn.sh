@@ -1152,14 +1152,45 @@ $1"
 				}
 				anyChecked=1
 				channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
-				echo "## target=$name channel=$channel"
-				## Trailing colon forces the *:* (channel:ts) grammar branch
-				## with an empty thread ts -- a bare channel id alone isn't
-				## valid target grammar (matches neither a known name nor
-				## channel:ts).
-				if ! DistroAgentsTools --check-slack "$channel:" "${recurseArgs[@]}" ; then
+				## Watched-channel pass stays the floor, but we now inspect that raw
+				## history page for parent messages whose thread activity is newer
+				## than --oldest and immediately follow them with the same
+				## --check-slack <channel>:<ts> path. This widens coverage to
+				## freshly-active watched-channel threads that are not yet tracked on
+				## the board, while keeping the same one-op namespace and output
+				## style. It is still NOT a global mention search: old untracked
+				## thread parents outside the returned history page remain invisible.
+				local historyWithHeader historyHeader historyJson threadTargets threadTarget
+				historyWithHeader="$( DistroAgentsTools --check-slack "$channel:" --raw "${recurseArgs[@]}" )" || {
 					echo "# $MDSC_CMD --sweep-read-incoming-comms: --check-slack failed for '$name', see error above" >&2
+					continue
+				}
+
+				historyHeader="$( printf '%s\n' "$historyWithHeader" | sed -n '1p' )"
+				historyJson="$( printf '%s\n' "$historyWithHeader" | sed '1d' )"
+
+				if [ "$pretty" = "true" ] ; then
+					printf '%s\n' "$historyHeader"
+					if ! printf '%s\n' "$historyJson" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackMessagesFormat.awk" ; then
+						echo "# $MDSC_CMD --sweep-read-incoming-comms: pretty-format failed for '$name', see error above" >&2
+					fi
+				else
+					printf '%s\n' "$historyWithHeader"
 				fi
+
+				threadTargets="$( printf '%s\n' "$historyJson" | LC_ALL=C awk -v channel="$channel" -v oldest="${oldest:-}" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackHistoryThreadTargets.awk" | sort -u )" || {
+					echo "# $MDSC_CMD --sweep-read-incoming-comms: thread-target discovery failed for '$name', see error above" >&2
+					threadTargets=""
+				}
+
+				while IFS= read -r threadTarget ; do
+					[ -z "$threadTarget" ] && continue
+					if ! DistroAgentsTools --check-slack "$threadTarget" "${recurseArgs[@]}" ; then
+						echo "# $MDSC_CMD --sweep-read-incoming-comms: --check-slack failed for thread '$threadTarget', see error above" >&2
+					fi
+				done <<- EOF
+				$threadTargets
+				EOF
 			done
 
 			echo "## target=email"

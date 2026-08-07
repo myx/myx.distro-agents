@@ -387,11 +387,22 @@
 			sources (both Slack targets via --check-slack, plus --check-email
 			and --check-trello) in one combined pass, producing one specific
 			mixed output meant as the initial text source for comms
-			processing. If you need to read one specific arbitrary Slack
-			target/thread, call --check-slack directly instead --
+			processing. For Slack, each watched target's own channel-history
+			pass also auto-follows any thread parent visible in that returned
+			history page whose own `reply_count` is non-zero and whose
+			`latest_reply` is newer than `--oldest`, by calling the same
+			`--check-slack <channel>:<ts>` op internally -- this widens the
+			check to freshly-active watched-channel threads that are not yet
+			tracked on the board. If you need to read one specific arbitrary
+			Slack target/thread, call --check-slack directly instead --
 			--sweep-read-incoming-comms will reject a positional target
 			argument. `--oldest`/`--raw` are passed through to each
 			--check-slack call it makes internally.
+
+			**Still not a workspace-wide mention search.** Older untracked
+			thread parents that fall outside the watched channel-history page,
+			or arbitrary unsubscribed threads elsewhere, are not discoverable
+			here under the current bot-token design.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
