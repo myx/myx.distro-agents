@@ -56,16 +56,6 @@ case "$1" in
 		local commonPrefixes
 		case "$targetMember" in
 			magic-coordinator)
-				## Real, investigated grants beyond the floor
-				## (magic-coordinator.armed.md's own tooling section, read
-				## directly) -- not the generic magic-* fallback below, since
-				## it deliberately does NOT include `--start-console`
-				## (dropped as a stale, untraceable claim in that file's own
-				## text) even though it does get `--send-console`/
-				## `--stop-console`/`--list-consoles`. A generic magic-*
-				## common filter would have wrongly implied it has
-				## `--start-console` too -- this dedicated arm is what
-				## prevents that.
 				commonPrefixes=(
 					"--member-*"
 					"--owner-workspace-list"
@@ -93,6 +83,7 @@ case "$1" in
 				## empty list: the whole namespace exists to manage the
 				## human-owner's own workspace registry.
 				commonPrefixes=(
+					"--help"
 					"--member-*"
 					"--owner-*"
 				)
@@ -102,40 +93,19 @@ case "$1" in
 					"--member-*"
 				)
 			;;
-			partner-*)
+			partner-*|client-*)
+				commonPrefixes=(
+					"--member-*"
+				)
+			;;
+			keeper-*|warden-*)
 				commonPrefixes=(
 					"--member-*"
 					"--start-console"
 					"--send-console"
 				)
 			;;
-			client-*)
-				commonPrefixes=(
-					"--member-*"
-					"--start-console"
-					"--send-console"
-				)
-			;;
-			keeper-*)
-				commonPrefixes=(
-					"--member-*"
-					"--start-console"
-					"--send-console"
-				)
-			;;
-			warden-*)
-				commonPrefixes=(
-					"--member-*"
-					"--start-console"
-					"--send-console"
-				)
-			;;
-			oncall-*)
-				commonPrefixes=(
-					"--member-*"
-				)
-			;;
-			expert-*)
+			oncall-*|expert-*)
 				commonPrefixes=(
 					"--member-*"
 				)
