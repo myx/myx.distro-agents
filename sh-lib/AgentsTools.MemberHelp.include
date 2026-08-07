@@ -64,9 +64,7 @@ case "$1" in
 					"--mark-email-seen"
 					"--magic-*"
 					"--write-board-item"
-					"--console-send"
-					"--console-stop"
-					"--console-list"
+					"--console-*"
 					"--sweep-read-incoming-comms"
 					"--react-slack"
 					"--routine-*"
@@ -97,8 +95,7 @@ case "$1" in
 			keeper-*|warden-*)
 				commonPrefixes=(
 					"--member-*"
-					"--console-start"
-					"--console-send"
+					"--console-*"
 				)
 			;;
 			oncall-*|expert-*)
