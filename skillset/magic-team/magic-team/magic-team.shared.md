@@ -174,17 +174,19 @@ Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
   - Flat, present-tense bullets.
   - Limits, restrictions, decision-making guidance.
   - No dedicated sub-headings.
+  - Console-session authorization: this role-family may use `--start-console`/`--send-console` whenever its own instructions require it — listing them in this file's own `Team-Member's (-specific) tooling` section already counts as that instruction. Generic `magic-*` team-members don't get this: they need a live, per-task instruction instead.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
 - `# Team-Member's (-specific) tooling`
   - Every `magic-tooling` operation this member uses, full syntax and behavior.
+  - Console-batching: investigating/executing more than one shell command in a row batches into one `--start-console`/`--send-console` session, not one call per command.
 - `# Maintainer Notes`
   - `## Verbatim-goals (intents)`
   - `## Verbatim-tests (benchmarks)`
   - `## Librarian Comments`
     - `### Reference`
     - `### Conventions`
-- Landed examples: `keeper-myx.armed.md`, `keeper-ae3.armed.md`, `keeper-acm.armed.md`, `keeper-ndm.armed.md`.
+- Landed instances of this shape exist under the owning `keeper-*`/`warden-*` members' own folders.
 
 ### Partner (`partner-*`)
 
@@ -211,17 +213,19 @@ Copyable skeleton: `magic-team/templates/partner.contract.format.md`.
   - Flat, present-tense bullets.
   - Limits, restrictions, decision-making guidance.
   - No dedicated sub-headings.
+  - Console-session authorization: this role-family may use `--start-console`/`--send-console` whenever its own instructions require it — listing them in this file's own `Team-Member's (-specific) tooling` section already counts as that instruction. Generic `magic-*` team-members don't get this: they need a live, per-task instruction instead.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
 - `# Team-Member's (-specific) tooling`
   - Every `magic-tooling` operation this member uses, full syntax and behavior.
+  - Console-batching: investigating/executing more than one shell command in a row batches into one `--start-console`/`--send-console` session, not one call per command.
 - `# Maintainer Notes`
   - `## Verbatim-goals (intents)`
   - `## Verbatim-tests (benchmarks)`
   - `## Librarian Comments`
     - `### Reference`
     - `### Conventions`
-- No distinct mandatory subsection beyond this shape exists yet in any real `partner-*.armed.md` file.
+- Landed instances of this shape exist under the owning `partner-*` members' own folders.
 
 ### Oncall / Expert (`oncall-*`/`expert-*`)
 

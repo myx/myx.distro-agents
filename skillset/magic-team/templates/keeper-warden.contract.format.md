@@ -53,6 +53,7 @@ Steps:
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine.
 
 - This keeper's own decision authority follows `magic-team.authority.keeper.contract.md` — cross-referenced, never restated here.
+- Console-session authorization: this role-family may use `--start-console`/`--send-console` whenever its own instructions require it — listing them in this file's own `Team-Member's (-specific) tooling` section already counts as that instruction. Generic `magic-*` team-members don't get this: they need a live, per-task instruction instead.
 - [...]
 
 # Domain knowledge: <topic>
@@ -61,10 +62,12 @@ All statements apply at the same time, always. These rules override a magic-team
 
 # Team-Member's (-specific) tooling
 
-Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only.
+Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only. Console-batching: investigating/executing more than one shell command in a row batches into one `--start-console`/`--send-console` session, not one call per command.
 
 ## DistroAgentsTools magic-tooling operations
 
+- `--start-console [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]`
+- `--send-console <channel> [-- <command...>]`
 - [`--operation-name <args>`]
 
 ## `--operation-name` Operation Reference
