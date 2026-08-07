@@ -51,6 +51,8 @@ Every `.armed.md`/`.routine.md` file follows one of the contracts below, by its 
 
 ### Routine (`<owning-member>.<short-name>.routine.md`)
 
+Copyable skeleton: `magic-team/templates/routine.contract.format.md`.
+
 - Frontmatter: `executors:`, `maintainers:`, `invitees:`.
 - No `SKILL.md`.
 - No `.basic.md`/`.armed.md` split.
@@ -104,6 +106,8 @@ Every `.armed.md`/`.routine.md` file follows one of the contracts below, by its 
 
 ### Team-member (`magic-*`)
 
+Copyable skeleton: `magic-team/templates/team-member.contract.format.md`.
+
 - Frontmatter: `maintainers:` only.
 - `# Summary`
   - One short sentence, names the team-member.
@@ -139,6 +143,8 @@ Every `.armed.md`/`.routine.md` file follows one of the contracts below, by its 
     - `### Conventions`
 
 ### Keeper / Warden (`keeper-*`/`warden-*`)
+
+Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
 
 - Frontmatter: `maintainers:` only.
 - `# Summary`
@@ -182,6 +188,8 @@ Every `.armed.md`/`.routine.md` file follows one of the contracts below, by its 
 
 ### Partner (`partner-*`)
 
+Copyable skeleton: `magic-team/templates/partner.contract.format.md`.
+
 - Frontmatter: `maintainers:` only.
 - `# Summary`
   - One short sentence, names the team-member.
@@ -216,6 +224,8 @@ Every `.armed.md`/`.routine.md` file follows one of the contracts below, by its 
 - No distinct mandatory subsection beyond this shape exists yet in any real `partner-*.armed.md` file.
 
 ### Oncall / Expert (`oncall-*`/`expert-*`)
+
+Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
 
 - Frontmatter: `maintainers:` only.
 - `# Summary`
