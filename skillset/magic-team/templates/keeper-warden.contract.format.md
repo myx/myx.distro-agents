@@ -62,7 +62,7 @@ All statements apply at the same time, always. These rules override a magic-team
 
 # Team-Member's (-specific) tooling
 
-Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only. Console-batching: investigating/executing more than one shell command in a row batches into one `--start-console`/`--send-console` session, not one call per command — required for this role-family, not optional.
+Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only.
 
 ## DistroAgentsTools magic-tooling operations
 
