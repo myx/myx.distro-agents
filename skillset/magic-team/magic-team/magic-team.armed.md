@@ -552,7 +552,7 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 "Lists channels belonging to one workspace (default: this tool's own; see --override-workspace) with their console/holder liveness."
 
 ## `--purge-cleanup` Operation Reference
-"Empties $MMDAPP/.local/.cleanup/ (the folder itself stays) -- exists because Claude Code's own permission engine has no negative-glob syntax, so a blanket Bash(rm *) deny can never be carved into "except .cleanup/*" at the settings.json layer (deny always wins over allow regardless of specificity)."
+"Empties $MMDAPP/.local/.cleanup/ (the folder itself stays). Takes no arguments -- always targets this one fixed location; nothing to parameterize."
 
 ## `--react-slack` Operation Reference
 "Posts one Slack reaction (reactions.add) to a specific message -- <channel>:<ts> only, same target grammar as --read-slack (no magic-team/human-owner shortcut, since a reaction always targets one exact message, not a channel)."

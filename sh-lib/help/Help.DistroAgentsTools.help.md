@@ -69,17 +69,14 @@
 
 ##  Summary:
 
-		Automates the Keep-Alive Workspace Console Session recipe (see
-		magic-coordinator's routines/console-sessions.md): a FIFO plus a
-		backgrounded `exec 9>fifo; sleep TTL` holder process keep a
-		`DistroSourceConsole.sh`/`DistroDeployConsole.sh --non-interactive`
-		session's stdin open indefinitely, so multiple rounds of commands can
-		be piped into one console without re-paying the bootstrap cost each
-		time. Channel dirs/log paths are deterministic (workspace absolute
-		path + console name, hashed with `cksum`) rather than a `mktemp -d`
-		random suffix, so the same (workspace, console) pair always resolves
-		to the same path across restarts — safe to add once to an allowlist
-		(e.g. Claude Code's settings.json) and never invalidated by a new run.
+		The magic-* team's single mandated execution interface for every
+		stateful team action: posting/reading Slack, email, and Trello
+		comms; reading/writing board and inbox items; managing per-entity
+		credential/config scopes; running/reusing workspace console
+		sessions; and driving the process-flow state machinery (grooming,
+		heartbeat, board advancement) the team's routines depend on. Call
+		it directly for anything it already covers, rather than a raw
+		shell command or file edit.
 
 		**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -154,17 +151,9 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--agents-config-option <entity-id> <operation>
-			Reads/writes one settings file per named entity -- same per-entity
-			mechanism as myx.distro-.local's --remote-config-option
-			(<entity-id> is a required first argument, same way
-			<remote-id> is), kept in its own dedicated credential scope
-			rather than --remote-config-option's own. Same shared backend as
-			DistroLocalTools/DistroSourceTools's --system-config-option, with
-			added chmod 700 (dir) / 600 (file) hardening on creation since
-			this scope holds real credentials (--remote-config-option's own
-			remote.env files are unhardened; this scope's aren't). This
-			tool's own team-wide credentials (SLACK_BOT_TOKEN, TRELLO_KEY,
-			EMAIL_*, etc.) live under entity-id `magic-coordinator`.
+			Reads/writes one settings scope per named entity. <entity-id> is
+			a required first argument (this tool's own team-wide settings
+			live under entity-id `magic-coordinator`).
 			<operation> is one of: --select-all, --select <key>|--all,
 			--select-default <key> <default>, --upsert <key> <val>,
 			--upsert-if <key> <val> <ifval>, --delete <key>, --delete-if
@@ -197,97 +186,24 @@
 		--member-slack-send-message <team-member> <target> [--identity bot|user] [text...]
 		--member-slack-send-message <team-member> <target> [--identity bot|user] --from-stdin [--format text|blocks]
 		--member-slack-send-message <team-member> <target> [--identity bot|user] --from-file <path> [--format text|blocks]
-			Posts a message to Slack via chat.postMessage, attributed to
-			<team-member>. If that member has a `SLACK_USER_TOKEN` configured in
-			its own member config scope, the send goes out through that native
-			user account. Otherwise this falls back to the shared
-			magic-coordinator bot-token path, preserving the attributed-message
-			behavior described below. An optional `--identity bot|user` overrides
-			this automatic `SLACK_USER_TOKEN`-presence selection: `--identity bot`
-			always sends via the shared bot-token path (same "*<team-member>:*"
-			attribution as the ordinary token-absent fallback), skipping the
-			token lookup's identity decision entirely; `--identity user` always
-			sends via <team-member>'s own native-user token and errors
-			immediately, before any network call, if that token isn't
-			configured. Omitting `--identity` leaves the auto-detect behavior
-			above completely unchanged. The only Slack-post op -- there is no separate
-			anonymous/unattributed variant. <team-member> is a required first
-			argument, validated as an existing team member (bare name, no
-			path characters); on the bot-fallback path, the outgoing text is
-			prefixed with a "*<team-member>:*" attribution line ahead of the
-			message (also used as the --format blocks case's own static
-			text-fallback content). Native-user sends go out as the native user
-			account itself, with no synthetic prefix added by this tool. <target> is
-			`magic-team` or `human-owner` (channel id resolved from
-			SLACK_CHANNEL_MAGIC_TEAM/SLACK_CHANNEL_HUMAN_OWNER in
-			--agents-config-option), `event-track` or `event-alert`
-			(channel id resolved from
-			SLACK_CHANNEL_EVENT_TRACK/SLACK_CHANNEL_EVENT_ALERT in
-			--agents-config-option), or a literal `<channel>:<ts>` string
-			(posted as a threaded reply via thread_ts — the caller supplies
-			this directly; nothing is looked up by name). Plain trailing
-			arguments (or plain stdin) become the `text` field.
-			`--from-stdin` is the standardized name for "read content from
-			stdin instead of argv" (see the team-wide convention in
-			`magic-team/CONSOLE-SESSIONS.md`'s "Heredoc for stdin" section --
-			call this op with its absolute path leading and a heredoc, never a
-			separate command piping into it); `--message-from-stdin` is the
-			original name and still works identically, unchanged, for
-			anything already written against it. `--from-file <path>` reads
-			content from a file instead — lets a caller
-			write content with a plain `Write` tool call first (no Bash
-			permission prompt for the write itself) and still invoke
-			--member-slack-send-message as a single-line command, since a multi-line
-			heredoc body means the invoked command no longer matches a
-			single-line settings.json allowlist glob the same way. Giving
-			both `--from-stdin`/`--message-from-stdin` and `--from-file` together
-			is not a supported combination (whichever is parsed first wins
-			silently) — use exactly one.
-			--from-stdin/--from-file --format blocks treats the content as a raw
-			JSON array assigned directly to the `blocks` field (caller-supplied
-			Block Kit). That content is validated before it's
-			spliced into the payload: it must pass this command's own
-			--validate-json (real JSON-syntax check, via self-recursion), must
-			be a bare JSON array (starts with `[`, ends with `]`), and every
-			top-level array element must be a JSON object whose own `type` is
-			one of Slack's real top-level block types (`section`, `divider`,
-			`header`, `context`, `image`, `actions`, `input`, `video`,
-			`rich_text`, `file`) — otherwise `--member-slack-send-message` fails immediately
-			with a `⛔ ERROR: ... --format blocks stdin failed --validate-json`,
-			`... is valid JSON but not a bare array`, or `... has an
-			invalid/missing top-level 'type' at block index(es) ...` message
-			and never reaches curl. That last check exists because a
-			text-object type (`mrkdwn`/`plain_text`, only valid nested inside a
-			block's own `text` field) mistakenly used as a block's own `type`
-			would otherwise trigger Slack's
-			`invalid_blocks: unsupported type "mrkdwn"` rejection — it is a cheap,
-			non-recursive structural check, not a full Block Kit schema
-			validator; it does not look inside each block's own nested fields.
-			Beyond these three checks, content is not otherwise escaped (Block
-			Kit content is caller-owned structured JSON, not free text). `text`
-			is set to a static fallback string in the blocks case, not derived
-			from the blocks' own content. Any trailing argv token starting with
-			`--` that isn't a recognized option is rejected immediately with a
-			`⛔ ERROR: ... unrecognized option: ...` message rather than being
-			silently absorbed into the plain-text `text` field — an
-			unrecognized/mis-parsed flag-shaped token would otherwise silently
-			become the entire posted message text (e.g. a stray "--from-stdin"
-			posted as-is with `ok:true` and no visible failure); this guard
-			prevents that. Genuine literal text starting with `--` must
-			go through `--from-stdin`/`--from-file` instead. SLACK_BOT_TOKEN is
-			resolved on demand from --agents-config-option immediately before
-			the request and is never echoed; the constructed request
-			(endpoint, channel, payload) is printed to stderr before sending
-			with the token itself redacted.
+			Posts a message, attributed to <team-member>, to one of:
+			magic-team, human-owner, event-track, event-alert, or a literal
+			<channel>:<ts> (posted as a threaded reply). Content comes from
+			trailing text args, --from-stdin, or --from-file <path> —
+			exactly one. --identity bot|user optionally forces which account
+			posts, overriding the default automatic selection. --format
+			blocks sends a caller-supplied Block Kit JSON array instead of
+			plain text (with --from-stdin/--from-file only) — malformed JSON
+			or an unsupported block type is rejected before anything is
+			sent, with a specific error naming the problem.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--send-email-message <email@address>... -- <subject> -- <body...>
 		--send-email-message <email@address>... -- <subject> -- --from-stdin
 		--send-email-message <email@address>... -- <subject> -- --from-file <path>
-			Real, standalone SMTP send via curl (EMAIL_USER/EMAIL_APP_PASSWORD/
-			EMAIL_SMTP_HOST/EMAIL_SMTP_PORT from --agents-config-option),
-			not just an internal fallback -- --member-slack-send-message's exhausted-retry
+			Real, standalone SMTP send. Uses this tool's configured email
+			credentials, not just an internal fallback -- --member-slack-send-message's exhausted-retry
 			path calls this same op via self-recursion. Multiple recipients
 			accepted before the first `--`; subject is everything between the
 			two `--` separators; everything after the second `--` becomes the
@@ -313,16 +229,13 @@
 			below; conflating the two into one op that accepted an optional
 			target would be a real design bug). Target grammar mirrors --member-slack-send-message's:
 			`magic-team`/`human-owner`/`event-track`/`event-alert` reads that
-			watched target's conversations.history; `<channel>:<ts>` fetches
-			conversations.replies for that specific thread instead (same
+			watched target's channel history; `<channel>:<ts>` fetches that
+			specific thread's replies instead (same
 			addressing --member-slack-send-message already uses for threaded replies).
 			`--oldest <ts>` is passed through to the Slack API call as-is,
 			letting the caller pass its own last-check marker for an
-			incremental read. Channel ids are resolved the same way as
-			--member-slack-send-message's (SLACK_CHANNEL_MAGIC_TEAM/SLACK_CHANNEL_HUMAN_OWNER
-			via --agents-config-option). SLACK_BOT_TOKEN handling is identical
-			to --member-slack-send-message's (resolved on demand, never echoed, private
-			temp header file).
+			incremental read. Uses the same credential resolution as
+			--member-slack-send-message.
 
 			**No retry logic** -- applies to the whole --check-* family.
 			One attempt, fails clean if it fails.
@@ -341,23 +254,23 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
-			General coordinator comms-id resolver. Authenticates as one specific
-			team-member identity (member `SLACK_USER_TOKEN` when present,
-			otherwise shared `SLACK_BOT_TOKEN`), then reports:
+			General coordinator comms-id resolver. Authenticates as one
+			specific team-member identity (uses the same credential
+			resolution as --member-slack-send-message), then reports:
 			(1) auth identity (`AUTH_USER_ID`, `AUTH_USER_NAME`),
 			(2) requested user-name and channel-name matches with resolved IDs,
 			(3) configured alias reachability for `magic-team`, `human-owner`,
-			`event-track`, `event-alert` via `conversations.info`, and
+			`event-track`, `event-alert`, and
 			(4) best-known reachable human-owner target for this identity.
 
 			Human-owner target resolution order is explicit and fail-loud:
 			first the configured `human-owner` alias id, then (if not reachable)
-			a DM open attempt (`conversations.open`) using `--human-owner-hint`
-			(default `myx`) matched against `users.list`.
+			a DM open attempt using `--human-owner-hint`
+			(default `myx`) matched against the workspace's user list.
 
 			Use `--user-name`/`--channel-name` repeatedly to resolve concrete
-			names to ids in one pass. `--raw` includes full `users.list` and
-			`conversations.list` JSON payloads for diagnostics.
+			names to ids in one pass. `--raw` includes the full underlying
+			API payloads for diagnostics.
 
 			Exit code:
 			0 when a reachable human-owner target is confirmed,
@@ -366,7 +279,7 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--react-slack <channel>:<ts> <emoji-name>
-			Posts one Slack reaction (`reactions.add`) to a specific message --
+			Posts one Slack reaction to a specific message --
 			<channel>:<ts> only, same target grammar as --read-slack (no
 			magic-team/human-owner shortcut, since a reaction always targets one
 			exact message, not a channel). <emoji-name> has no colons (matches
@@ -374,9 +287,8 @@
 			`:white_check_mark:`). The per-message Slack-reaction-tracking
 			design (`routine-communication-sweep`,
 			`routine-board-actualisation`'s pending-reaction lookup) calls
-			this op to actually post. SLACK_BOT_TOKEN handling identical to
-			--member-slack-send-message/--read-slack (resolved on demand, never echoed,
-			private temp header file). Prints the raw API response and returns
+			this op to actually post. Uses the same credential resolution as
+			--member-slack-send-message. Prints the raw API response and returns
 			0 on `ok:true` -- an `already_reacted` error is treated as a
 			harmless no-op (also returns 0, with a `#` note, not an error),
 			since Slack itself returns that for a reaction that's already
@@ -426,25 +338,12 @@
 			sources (both Slack targets via --check-slack, plus --check-email
 			and --check-trello) in one combined pass, producing one specific
 			mixed output meant as the initial text source for comms
-			processing. For Slack, each watched target's own channel-history
-			pass also auto-follows any thread parent visible in that returned
-			history page whose own `reply_count` is non-zero and whose
-			`latest_reply` is newer than `--oldest`, by calling the same
-			`--check-slack <channel>:<ts>` op internally -- this widens the
-			check to freshly-active watched-channel threads that are not yet
-			tracked on the board. It also separately follows a thread whose
-			parent (still only within the two watched channels' own returned
-			history page) was posted by Vane, already has Vane among its
-			participants, or tags Vane in its own text -- this follow happens
-			even when that thread isn't otherwise "fresh" by `--oldest`.
-			Vane's own identity is resolved once per sweep through the team's
-			existing identity-resolution mechanism; if that resolution fails,
-			this widening is skipped for that pass and only the base
-			freshness heuristic applies -- not a hard failure. If you need to
-			read one specific arbitrary Slack target/thread, call
-			--check-slack directly instead -- --sweep-read-incoming-comms
-			will reject a positional target argument. `--oldest`/`--raw` are
-			passed through to each --check-slack call it makes internally.
+			processing. Also surfaces freshly-active related threads on the
+			watched Slack channels, even ones not individually tracked yet,
+			plus any thread involving Vane specifically. Takes no target —
+			for one specific Slack target/thread, call --check-slack
+			directly instead. No retry logic: one attempt per source, per
+			call.
 
 			**Still not a workspace-wide mention search.** Older untracked
 			thread parents that fall outside the watched channel-history page,
@@ -456,27 +355,18 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--self-test
-			Exercises the --agents-config-option permission-hardening chain
-			(chmod 700 dir / 600 file) under a deliberately permissive
-			`umask 022`, not whatever the caller's ambient umask happens to
-			be -- regression guard for a real bug where the chmod-600 fix
-			escaped hand testing because that testing happened to run under a
-			restrictive umask by coincidence. Runs a real --upsert of a
-			disposable probe key (`DAT_SELFTEST_PROBE`) against the live
-			settings file inside a subshell with umask forced to 022, checks
-			the resulting permissions via --verify-permissions, confirms the
-			value round-trips, then always deletes the probe key (pass or
-			fail) so no test residue is left in the real credentials file.
+			Self-check: confirms the credential-store permission-hardening
+			path holds even under a permissive shell umask. Takes no
+			arguments. Leaves no residue in the real credentials file
+			whether it passes or fails.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--verify-permissions
-			Walks $MMDAPP/.local/.agents/* and flags anything not chmod 700
-			(the directory) / 600 (each file) -- a standing defensive layer
-			against the same class of bug --self-test regression-tests.
-			Prints one `OK`/`BAD` line per path to stdout and returns
-			non-zero if anything is out of hardening, without modifying
-			anything.
+			Checks the credential store's file/directory permissions are
+			correctly hardened. Prints one `OK`/`BAD` line per path to
+			stdout, returns non-zero if anything is out of hardening.
+			Read-only, modifies nothing.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -486,9 +376,7 @@
 			its own. `--format blocks` self-recurses through this same op
 			before it splices anything into the request payload (see
 			--member-slack-send-message above), guarding against unvalidated stdin causing
-			Slack's `invalid_json`/`missing_charset` rejection. Uses
-			python3 (present on every supported OS here), not jq, matching
-			this tool family's existing jq-avoidance convention. Prints `#
+			Slack's `invalid_json`/`missing_charset` rejection. Prints `#
 			... --validate-json: valid JSON: <path|(stdin)>` and returns 0 on
 			success, or `⛔ ERROR: ... --validate-json: invalid JSON:
 			<path|(stdin)>` and returns 1 on failure -- a missing <path>
@@ -524,11 +412,9 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--librarian-list-team-files [<path>...]
-			find-based (not a hand-rolled directory walk) read-only path
-			listing of skill-folder files -- no per-file stat call, so this
-			stays fast even across the whole skill-root (measured: the
-			-dates variant below took ~3s over 678 files; this one is the
-			no-stat fast path, sub-second). Zero or more optional scope
+			Read-only path listing of skill-folder files. The faster of
+			the two listing ops — prefer this one when mtimes aren't
+			needed. Zero or more optional scope
 			arguments, each either a bare path relative to the skill-root
 			(`$HOME/.claude/skills/`) or an absolute path that must resolve
 			inside it (anything outside is rejected and skipped, not
@@ -541,13 +427,11 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--librarian-list-team-files-dates [<path>...]
-			Same as --librarian-list-team-files above (identical scope-
-			argument grammar and error handling), but with a per-file
-			modification date printed alongside each path -- its own separate
-			op since the per-file stat call this needs is real overhead
-			(~3s over the full 678-file
-			skill-root vs. sub-second for the plain listing), so a caller
-			who only needs paths isn't forced to pay for dates. Prints one
+			Same listing, plus each file's mtime. Slower than the plain
+			listing — use only when mtimes are actually needed (staleness
+			sweeps, mtime-before-editing checks). Same scope-argument
+			grammar and error handling as --librarian-list-team-files.
+			Prints one
 			line per matched file: mtime (`YYYY-MM-DD HH:MM:SS`) then two
 			spaces then the path relative to the skill-root (never
 			absolute), sorted newest-first.
@@ -1039,22 +923,9 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--purge-cleanup
-			Empties $MMDAPP/.local/.cleanup/ (the folder itself stays) --
-			exists because Claude Code's own permission engine has no
-			negative-glob syntax, so a blanket `Bash(rm *)` deny can never
-			be carved into "except .cleanup/*" at the settings.json layer
-			(deny always wins over allow regardless of specificity). This op
-			is the sanctioned way to
-			actually empty it: the real `rm` call happens inside this
-			already-allowlisted script invocation, never as a raw top-level
-			`rm` command, so the deny rule's literal prefix-match on `rm `
-			never sees it. **Takes no arguments** -- the target is a fixed,
-			code-determined path, never caller input: this op cleans exactly
-			one predefined folder, nothing else, so there's nothing to
-			parameterize. That fixed
-			path is also what makes the whole thing safe: no traversal/
-			injection surface exists because there's no path input to
-			validate in the first place.
+			Empties $MMDAPP/.local/.cleanup/ (the folder itself stays).
+			Takes no arguments -- always targets this one fixed location;
+			nothing to parameterize.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
