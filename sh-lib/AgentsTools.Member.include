@@ -853,7 +853,21 @@ case "$1" in
 		trap 'rm -f "$headerFile"' EXIT
 		printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
 
-		local response attempt=1 maxAttempts=5 backoff=2 sent="false"
+		local authUserId=""
+		if [ "$sendIdentity" = "user" ] ; then
+			local authResp
+			authResp="$( curl -sS https://slack.com/api/auth.test -H @"$headerFile" 2>&1 )"
+			authUserId="$( printf '%s' "$authResp" | sed -n 's/.*"user_id":"\([^"]*\)".*/\1/p' )"
+			if [ -z "$authUserId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: could not confirm auth.test user_id for $memberName SLACK_USER_TOKEN" >&2
+				echo "# Response: $authResp" >&2
+				rm -f "$headerFile"
+				trap - EXIT
+				set +e ; return 1
+			fi
+		fi
+
+		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false"
 		while [ "$attempt" -le "$maxAttempts" ] ; do
 			response="$( curl -sS -X POST "https://slack.com/api/chat.postMessage" \
 				-H @"$headerFile" \
@@ -862,6 +876,18 @@ case "$1" in
 			if printf '%s' "$response" | grep -q '"ok":true' ; then
 				sent="true"
 				break
+			fi
+			if [ "$sendIdentity" = "bot" ] && [ "$joinAttempted" = "false" ] && [ -z "$threadTs" ] && printf '%s' "$response" | grep -q '"error":"not_in_channel"' ; then
+				joinAttempted="true"
+				local joinResponse
+				joinResponse="$( curl -sS -X POST "https://slack.com/api/conversations.join" \
+					-H @"$headerFile" \
+					-H "Content-type: application/x-www-form-urlencoded" \
+					--data-urlencode "channel=$channel" 2>&1 )"
+				echo "# $MDSC_CMD --member-slack-send-message: auto-join attempt for bot token on channel=$channel -- $joinResponse" >&2
+				if printf '%s' "$joinResponse" | grep -q '"ok":true' ; then
+					continue
+				fi
 			fi
 			echo "# $MDSC_CMD --member-slack-send-message: attempt $attempt/$maxAttempts did not confirm ok:true, retrying in ${backoff}s -- $response" >&2
 			sleep "$backoff"
@@ -874,18 +900,10 @@ case "$1" in
 
 		if [ "$sent" = "true" ] ; then
 			if [ "$sendIdentity" = "user" ] ; then
-				local responseHasAppId="false" responseHasBotId="false" responseHasBotProfile="false"
-				if printf '%s' "$response" | grep -q '"app_id"' ; then
-					responseHasAppId="true"
-				fi
-				if printf '%s' "$response" | grep -q '"bot_id"' ; then
-					responseHasBotId="true"
-				fi
-				if printf '%s' "$response" | grep -q '"bot_profile"' ; then
-					responseHasBotProfile="true"
-				fi
-				if [ "$responseHasAppId" = "true" ] || [ "$responseHasBotId" = "true" ] || [ "$responseHasBotProfile" = "true" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: member SLACK_USER_TOKEN posted with app/bot attribution markers (app_id/bot_id/bot_profile) for $memberName; refusing false-success native-user send" >&2
+				local responseMessageUser
+				responseMessageUser="$( printf '%s' "$response" | sed -n 's/.*"message":{.*"user":"\([^"]*\)".*/\1/p' )"
+				if [ -z "$responseMessageUser" ] || [ "$responseMessageUser" != "$authUserId" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: member SLACK_USER_TOKEN send for $memberName did not confirm message.user=$authUserId" >&2
 					echo "# Response: $response" >&2
 					set +e ; return 1
 				fi
