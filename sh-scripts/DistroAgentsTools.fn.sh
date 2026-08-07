@@ -1161,11 +1161,13 @@ $1"
 			[ -z "$oldest" ] || recurseArgs+=( --oldest "$oldest" )
 			[ "$pretty" = "false" ] && recurseArgs+=( --raw )
 
-			## Resolve Vane's own Slack id once per sweep pass (cheap
-			## auth.test using the same shared SLACK_BOT_TOKEN every
-			## --check-slack call already uses -- magic-coordinator's own
-			## bot identity IS Vane's Slack presence, see
-			## --member-slack-send-message's bot-token fallback path). Feeds
+			## Resolve Vane's own Slack id once per sweep pass via the
+			## existing identity-resolution op (--magic-comms-slack-resolve-ids),
+			## never a fresh direct auth.test/$SLACK_BOT_TOKEN call here --
+			## credential env vars stay isolated behind that op's own token
+			## selection (native SLACK_USER_TOKEN if configured for the
+			## member, else the shared bot token), not reached around by new
+			## code even for a "cheap" one-off internal lookup. Feeds
 			## AgentSlackHistoryThreadTargets.awk's vaneId widening below:
 			## follow a thread Vane already posted/replied in, or was tagged
 			## in, even when it isn't otherwise "fresh" by --oldest. This is
@@ -1174,16 +1176,11 @@ $1"
 			## workspace-wide mention search (that needs a user token with
 			## search:read, not confirmed available today; deliberately not
 			## attempted here).
-			local vaneId="" vaneToken vaneAuthResp
-			vaneToken="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_BOT_TOKEN 2>/dev/null )"
-			if [ -n "$vaneToken" ] ; then
-				vaneAuthResp="$( curl -sS https://slack.com/api/auth.test -H "Authorization: Bearer $vaneToken" )"
-				if printf '%s' "$vaneAuthResp" | grep -q '"ok":true' ; then
-					vaneId="$( printf '%s' "$vaneAuthResp" | sed -n 's/.*"user_id":"\([^"]*\)".*/\1/p' )"
-				fi
-			fi
+			local vaneId="" vaneResolveOutput
+			vaneResolveOutput="$( DistroAgentsTools --magic-comms-slack-resolve-ids magic-coordinator )"
+			vaneId="$( printf '%s\n' "$vaneResolveOutput" | sed -n 's/^AUTH_USER_ID=//p' | head -1 )"
 			if [ -z "$vaneId" ] ; then
-				echo "# $MDSC_CMD --sweep-read-incoming-comms: could not resolve Vane's own Slack user id (auth.test) -- tag/thread-participation widening skipped this pass, base watched-channel/thread-freshness sweep unaffected" >&2
+				echo "# $MDSC_CMD --sweep-read-incoming-comms: could not resolve Vane's own Slack user id via --magic-comms-slack-resolve-ids -- tag/thread-participation widening skipped this pass, base watched-channel/thread-freshness sweep unaffected" >&2
 			fi
 
 			local name anyChecked=0 resolved channel
