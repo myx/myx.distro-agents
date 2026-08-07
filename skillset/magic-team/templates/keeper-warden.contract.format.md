@@ -53,7 +53,7 @@ Steps:
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine.
 
 - This keeper's own decision authority follows `magic-team.authority.keeper.contract.md` — cross-referenced, never restated here.
-- Console-session requirement: this role-family's own domain investigation work requires a `--start-console`/`--send-console` session whenever more than one shell command is needed in a row — expected by default for real domain work, not merely permitted. Generic `magic-*` team-members don't get this: they default to no console session at all.
+- Console-session requirement: doing an actual task with this role-family's own workspace/workspace tooling requires a `--start-console`/`--send-console` session, regardless of command count. Just answering a question or looking at files (not a task) may skip it.
 - [...]
 
 # Domain knowledge: <topic>
