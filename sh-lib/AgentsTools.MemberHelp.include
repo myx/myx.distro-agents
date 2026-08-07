@@ -62,11 +62,7 @@ case "$1" in
 					"--check-*"
 					"--send-email-message"
 					"--mark-email-seen"
-					"--magic-trello-*"
-					"--magic-board-*"
-					"--magic-sweep-*"
-					"--magic-heartbeat-*"
-					"--magic-advance-*"
+					"--magic-*"
 					"--write-board-item"
 					"--send-console"
 					"--stop-console"
@@ -79,6 +75,12 @@ case "$1" in
 				commonPrefixes=(
 					"--member-*"
 					"--lilbrarian-*"
+				)
+			;;
+			magic-devops)
+				commonPrefixes=(
+					"--member-*"
+					"--install-*"
 				)
 			;;
 			magic-*)
