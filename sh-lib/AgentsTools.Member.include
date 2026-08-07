@@ -604,10 +604,24 @@ case "$1" in
 			;;
 		esac
 		local memberDir="$HOME/.claude/skills/$memberName"
-		if [ ! -d "$memberDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: no such member skill directory: $memberDir" >&2
-			set +e ; return 1
-		fi
+		case "$memberName" in
+			routine-*)
+				## Routines don't have and aren't expected to have their own
+				## skill directory -- per direct human-owner decision, skip
+				## the existence check entirely for this name shape rather
+				## than requiring one to be created as a workaround. Falls
+				## straight through to the routine-authored bot-identity
+				## default added below, same "no error, just fall through to
+				## bot credentials" treatment the existing
+				## no-SLACK_USER_TOKEN-configured case already gets.
+			;;
+			*)
+				if [ ! -d "$memberDir" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: no such member skill directory: $memberDir" >&2
+					set +e ; return 1
+				fi
+			;;
+		esac
 
 		local target="$1"
 		shift || true
