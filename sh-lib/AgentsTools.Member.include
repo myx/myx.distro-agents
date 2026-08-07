@@ -594,7 +594,7 @@ case "$1" in
 		local memberName="$1"
 		shift || true
 		if [ -z "$memberName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: syntax is <team-member> <target> [text...] (magic-team|human-owner|event-track|event-alert|<channel>:<ts>) -- or --from-stdin / --from-file <path>" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: syntax is <team-member> <target> [--identity bot|user] [text...] (magic-team|human-owner|event-track|event-alert|<channel>:<ts>) -- or --from-stdin / --from-file <path>" >&2
 			set +e ; return 1
 		fi
 		case "$memberName" in
@@ -634,10 +634,28 @@ case "$1" in
 			;;
 		esac
 
-		local format="text" fromStdin="false"
+		local format="text" fromStdin="false" identityOverride=""
 		local textArgs stdinContent
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				--identity)
+					## Optional, additive override of the automatic
+					## SLACK_USER_TOKEN-presence identity selection below.
+					## Omitted entirely: no behavior change at all (see that
+					## selection's own comment). `bot`/`user` are the only
+					## two valid values -- anything else fails loud here,
+					## before any network call, same discipline as the
+					## unrecognized-option catch-all further down.
+					identityOverride="$2"
+					case "$identityOverride" in
+						bot|user) ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --identity must be 'bot' or 'user', got: $identityOverride" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
 				--message-from-stdin|--from-stdin)
 					## `--from-stdin` is the standardized, uniform name for "read
 					## content from stdin instead of argv" across every
@@ -802,15 +820,37 @@ case "$1" in
 		local sendIdentity="bot" memberUserToken=""
 		memberUserToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null || true )"
 
+		## `--identity` (optional, additive): if the caller passed it, it
+		## wins outright over the auto-detect below -- `user` insists on the
+		## native account and fails loud (before any network call) if this
+		## member has no SLACK_USER_TOKEN configured, rather than silently
+		## falling back to bot; `bot` forces the shared bot path regardless
+		## of whether a native token happens to be configured. If the caller
+		## didn't pass it, behavior is byte-for-byte unchanged from before
+		## this flag existed: bot unless a native token is configured, in
+		## which case user.
+		if [ -n "$identityOverride" ] ; then
+			case "$identityOverride" in
+				user)
+					if [ -z "$memberUserToken" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --identity user requested for $memberName but no SLACK_USER_TOKEN is configured for it" >&2
+						set +e ; return 1
+					fi
+					sendIdentity="user"
+				;;
+				bot)
+					sendIdentity="bot"
+				;;
+			esac
+		elif [ -n "$memberUserToken" ] ; then
+			sendIdentity="user"
+		fi
+
 		## Preserve the existing attributed bot-message behavior as the
 		## fallback path. Native-user sends go out as the user account itself,
 		## so no synthetic team-member prefix is added there.
-		if [ -z "$memberUserToken" ] ; then
-			if [ -n "$rawText" ] ; then
-				rawText="$( printf '*%s:*\n%s' "$memberName" "$rawText" )"
-			fi
-		else
-			sendIdentity="user"
+		if [ "$sendIdentity" = "bot" ] && [ -n "$rawText" ] ; then
+			rawText="$( printf '*%s:*\n%s' "$memberName" "$rawText" )"
 		fi
 
 		## Reuse myx.common's existing JSON-string escaper (agentMcpJsonEscape.awk,

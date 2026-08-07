@@ -1128,6 +1128,16 @@ $1"
 		## for exactly one caller: magic-coordinator's communication-sweep
 		## Check step. If you need to read one specific arbitrary Slack
 		## target/thread, call --check-slack directly instead.
+		##
+		## Thread-follow widening: beyond the plain "freshly active thread"
+		## heuristic, this also follows a thread whose parent message (still
+		## only within the two watched channels' own already-fetched history
+		## page) was posted by Vane, already has Vane among its repliers, or
+		## tags Vane in its own text -- see AgentSlackHistoryThreadTargets.awk's
+		## own header for the exact selection rule. Still NOT a workspace-wide
+		## mention search: a mention/participation outside these two watched
+		## channels, or in an old thread parent outside the fetched page,
+		## stays undiscoverable here.
 		--sweep-read-incoming-comms)
 			shift
 
@@ -1150,6 +1160,31 @@ $1"
 			local recurseArgs=()
 			[ -z "$oldest" ] || recurseArgs+=( --oldest "$oldest" )
 			[ "$pretty" = "false" ] && recurseArgs+=( --raw )
+
+			## Resolve Vane's own Slack id once per sweep pass (cheap
+			## auth.test using the same shared SLACK_BOT_TOKEN every
+			## --check-slack call already uses -- magic-coordinator's own
+			## bot identity IS Vane's Slack presence, see
+			## --member-slack-send-message's bot-token fallback path). Feeds
+			## AgentSlackHistoryThreadTargets.awk's vaneId widening below:
+			## follow a thread Vane already posted/replied in, or was tagged
+			## in, even when it isn't otherwise "fresh" by --oldest. This is
+			## still bounded to whatever conversations.history already
+			## returned for the two watched channels below -- NOT a
+			## workspace-wide mention search (that needs a user token with
+			## search:read, not confirmed available today; deliberately not
+			## attempted here).
+			local vaneId="" vaneToken vaneAuthResp
+			vaneToken="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_BOT_TOKEN 2>/dev/null )"
+			if [ -n "$vaneToken" ] ; then
+				vaneAuthResp="$( curl -sS https://slack.com/api/auth.test -H "Authorization: Bearer $vaneToken" )"
+				if printf '%s' "$vaneAuthResp" | grep -q '"ok":true' ; then
+					vaneId="$( printf '%s' "$vaneAuthResp" | sed -n 's/.*"user_id":"\([^"]*\)".*/\1/p' )"
+				fi
+			fi
+			if [ -z "$vaneId" ] ; then
+				echo "# $MDSC_CMD --sweep-read-incoming-comms: could not resolve Vane's own Slack user id (auth.test) -- tag/thread-participation widening skipped this pass, base watched-channel/thread-freshness sweep unaffected" >&2
+			fi
 
 			local name anyChecked=0 resolved channel
 			for name in magic-team human-owner ; do
@@ -1185,7 +1220,7 @@ $1"
 					printf '%s\n' "$historyWithHeader"
 				fi
 
-				threadTargets="$( printf '%s\n' "$historyJson" | LC_ALL=C awk -v channel="$channel" -v oldest="${oldest:-}" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackHistoryThreadTargets.awk" | sort -u )" || {
+				threadTargets="$( printf '%s\n' "$historyJson" | LC_ALL=C awk -v channel="$channel" -v oldest="${oldest:-}" -v vaneId="$vaneId" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackHistoryThreadTargets.awk" | sort -u )" || {
 					echo "# $MDSC_CMD --sweep-read-incoming-comms: thread-target discovery failed for '$name', see error above" >&2
 					threadTargets=""
 				}

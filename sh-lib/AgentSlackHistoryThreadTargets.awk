@@ -4,14 +4,26 @@
 # prints one <channel>:<parent-ts> target per parent message whose thread
 # activity is worth a follow-up conversations.replies read.
 #
-# Selection rule:
-# - reply_count > 0
-# - if -v oldest=<ts> is provided, latest_reply must be newer than oldest
+# Selection rule (a parent message with reply_count > 0 is emitted when
+# ANY of the following hold):
+# - "fresh": if -v oldest=<ts> is provided, latest_reply is newer than oldest
+#   (if oldest is empty, every thread-having parent counts as fresh)
+# - "vane hit": -v vaneId=<user-or-bot-id> is provided (Vane's own resolved
+#   Slack id) AND the parent message was posted by vaneId, OR vaneId appears
+#   in the parent's own reply_users array (Vane already replied in this
+#   thread), OR the parent's own text contains a literal "<@vaneId>" mention
+#   (Vane was tagged in this thread's parent). A vane-hit bypasses the
+#   freshness gate -- it exists to keep surfacing a thread Vane already
+#   participated in / was tagged in even when its latest reply happens to
+#   predate --oldest.
 #
 # This is intentionally a best-effort widening of the watched-channel sweep,
 # not a global mention search: it only sees parent messages present in the
 # current conversations.history page. Older untracked thread parents outside
-# that page remain undiscoverable without a separate search-capable token/mech.
+# that page remain undiscoverable without a separate search-capable token/mech
+# -- true workspace-wide "tagged anywhere" coverage needs a user token with
+# search:read (not currently confirmed available) and is out of this file's
+# reach regardless of the vaneId widening above.
 
 BEGIN {
 	msgCount = 0
@@ -116,6 +128,13 @@ function emitLeaf(path, raw, val,   idx, rest) {
 	if (rest == idx ".ts") { tsOf[idx] = val; return }
 	if (rest == idx ".reply_count") { replyCountOf[idx] = val; return }
 	if (rest == idx ".latest_reply") { latestReplyOf[idx] = val; return }
+	if (rest == idx ".user") { userOf[idx] = val; return }
+	if (rest == idx ".bot_id") { botIdOf[idx] = val; return }
+	if (rest == idx ".text") { textOf[idx] = val; return }
+	if (index(rest, idx ".reply_users.") == 1) {
+		replyUsersOf[idx] = (idx in replyUsersOf) ? replyUsersOf[idx] " " val : val
+		return
+	}
 }
 
 function parseValue(path,   c, startp, val, raw) {
@@ -198,7 +217,18 @@ END {
 		replyCount = ((i in replyCountOf) ? replyCountOf[i] + 0 : 0)
 		latestReply = ((i in latestReplyOf) ? latestReplyOf[i] + 0 : 0)
 		if (ts == "" || replyCount <= 0) continue
-		if (oldest != "" && latestReply <= (oldest + 0)) continue
+
+		fresh = (oldest == "" || latestReply > (oldest + 0))
+
+		vaneHit = 0
+		if (vaneId != "") {
+			if ((i in userOf) && userOf[i] == vaneId) vaneHit = 1
+			if ((i in botIdOf) && botIdOf[i] == vaneId) vaneHit = 1
+			if ((i in replyUsersOf) && index(" " replyUsersOf[i] " ", " " vaneId " ") > 0) vaneHit = 1
+			if ((i in textOf) && index(textOf[i], "<@" vaneId ">") > 0) vaneHit = 1
+		}
+
+		if (!fresh && !vaneHit) continue
 		print channel ":" ts
 	}
 }

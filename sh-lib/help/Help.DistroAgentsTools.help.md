@@ -5,9 +5,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
-📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]
-📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> --from-stdin [--format text|blocks]
-📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> --from-file <path> [--format text|blocks]
+📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--identity bot|user] [text...]
+📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> [--identity bot|user] --from-stdin [--format text|blocks]
+📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> [--identity bot|user] --from-file <path> [--format text|blocks]
 📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- <body...>
 📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-stdin
 📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-file <path>
@@ -194,15 +194,23 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-slack-send-message <team-member> <target> [text...]
-		--member-slack-send-message <team-member> <target> --from-stdin [--format text|blocks]
-		--member-slack-send-message <team-member> <target> --from-file <path> [--format text|blocks]
+		--member-slack-send-message <team-member> <target> [--identity bot|user] [text...]
+		--member-slack-send-message <team-member> <target> [--identity bot|user] --from-stdin [--format text|blocks]
+		--member-slack-send-message <team-member> <target> [--identity bot|user] --from-file <path> [--format text|blocks]
 			Posts a message to Slack via chat.postMessage, attributed to
 			<team-member>. If that member has a `SLACK_USER_TOKEN` configured in
 			its own member config scope, the send goes out through that native
 			user account. Otherwise this falls back to the shared
 			magic-coordinator bot-token path, preserving the attributed-message
-			behavior described below. The only Slack-post op -- there is no separate
+			behavior described below. An optional `--identity bot|user` overrides
+			this automatic `SLACK_USER_TOKEN`-presence selection: `--identity bot`
+			always sends via the shared bot-token path (same "*<team-member>:*"
+			attribution as the ordinary token-absent fallback), skipping the
+			token lookup's identity decision entirely; `--identity user` always
+			sends via <team-member>'s own native-user token and errors
+			immediately, before any network call, if that token isn't
+			configured. Omitting `--identity` leaves the auto-detect behavior
+			above completely unchanged. The only Slack-post op -- there is no separate
 			anonymous/unattributed variant. <team-member> is a required first
 			argument, validated as an existing team member (bare name, no
 			path characters); on the bot-fallback path, the outgoing text is
@@ -424,16 +432,29 @@
 			`latest_reply` is newer than `--oldest`, by calling the same
 			`--check-slack <channel>:<ts>` op internally -- this widens the
 			check to freshly-active watched-channel threads that are not yet
-			tracked on the board. If you need to read one specific arbitrary
-			Slack target/thread, call --check-slack directly instead --
-			--sweep-read-incoming-comms will reject a positional target
-			argument. `--oldest`/`--raw` are passed through to each
-			--check-slack call it makes internally.
+			tracked on the board. It also separately follows a thread whose
+			parent (still only within the two watched channels' own returned
+			history page) was posted by Vane (magic-coordinator's own Slack
+			identity, resolved once per sweep via a cheap `auth.test` call
+			using the same shared `SLACK_BOT_TOKEN`), already has Vane among
+			its `reply_users`, or tags Vane in its own text -- this follow
+			happens even when that thread isn't otherwise "fresh" by
+			`--oldest` (see `AgentSlackHistoryThreadTargets.awk`'s own header
+			for the exact selection rule). If Vane's id can't be resolved,
+			this widening is skipped for that pass and only the base
+			freshness heuristic applies -- not a hard failure. If you need to
+			read one specific arbitrary Slack target/thread, call
+			--check-slack directly instead -- --sweep-read-incoming-comms
+			will reject a positional target argument. `--oldest`/`--raw` are
+			passed through to each --check-slack call it makes internally.
 
 			**Still not a workspace-wide mention search.** Older untracked
 			thread parents that fall outside the watched channel-history page,
-			or arbitrary unsubscribed threads elsewhere, are not discoverable
-			here under the current bot-token design.
+			or arbitrary unsubscribed threads/channels elsewhere, are not
+			discoverable here -- true "Vane tagged anywhere in the workspace"
+			coverage needs a user token with `search:read` (not confirmed
+			available today) and is a separate, not-yet-built capability, not
+			something this op's current bot-token design can reach.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

@@ -91,8 +91,8 @@ case "$1" in
 		local usersJson channelsJson usersOk channelsOk
 		usersJson="$( curl -sS -G https://slack.com/api/users.list -H "Authorization: Bearer $token" --data-urlencode "limit=1000" )"
 		channelsJson="$( curl -sS -G https://slack.com/api/conversations.list -H "Authorization: Bearer $token" --data-urlencode "types=public_channel,private_channel,im,mpim" --data-urlencode "exclude_archived=true" --data-urlencode "limit=1000" )"
-		usersOk="$( printf '%s' "$usersJson" | sed -n 's/.*"ok":\(true\|false\).*/\1/p' )"
-		channelsOk="$( printf '%s' "$channelsJson" | sed -n 's/.*"ok":\(true\|false\).*/\1/p' )"
+		usersOk="$( printf '%s' "$usersJson" | sed -En 's/.*"ok":(true|false).*/\1/p' )"
+		channelsOk="$( printf '%s' "$channelsJson" | sed -En 's/.*"ok":(true|false).*/\1/p' )"
 		printf 'USERS_LIST_OK=%s\n' "${usersOk:--}"
 		printf 'CHANNELS_LIST_OK=%s\n' "${channelsOk:--}"
 
@@ -121,7 +121,7 @@ case "$1" in
 			fi
 			aliasChannel="$( printf '%s\n' "$aliasResolved" | sed -n 's/^CHANNEL=//p' )"
 			aliasInfo="$( curl -sS -G https://slack.com/api/conversations.info -H "Authorization: Bearer $token" --data-urlencode "channel=$aliasChannel" )"
-			aliasInfoOk="$( printf '%s' "$aliasInfo" | sed -n 's/.*"ok":\(true\|false\).*/\1/p' )"
+			aliasInfoOk="$( printf '%s' "$aliasInfo" | sed -En 's/.*"ok":(true|false).*/\1/p' )"
 			aliasInfoErr="$( printf '%s' "$aliasInfo" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' )"
 			aliasName="$( printf '%s' "$aliasInfo" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p' )"
 			if [ "$aliasInfoOk" = "true" ] ; then
@@ -152,7 +152,7 @@ case "$1" in
 			if [ -n "$hintUserId" ] ; then
 				local openResp openOk openErr openChannel
 				openResp="$( curl -sS -X POST https://slack.com/api/conversations.open -H "Authorization: Bearer $token" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$hintUserId" )"
-				openOk="$( printf '%s' "$openResp" | sed -n 's/.*"ok":\(true\|false\).*/\1/p' )"
+				openOk="$( printf '%s' "$openResp" | sed -En 's/.*"ok":(true|false).*/\1/p' )"
 				openErr="$( printf '%s' "$openResp" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' )"
 				openChannel="$( printf '%s' "$openResp" | sed -n 's/.*"id":"\([CDG][^"]*\)".*/\1/p' )"
 				if [ "$openOk" = "true" ] && [ -n "$openChannel" ] ; then
