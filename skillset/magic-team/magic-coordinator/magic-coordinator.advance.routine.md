@@ -142,8 +142,8 @@ No pass-wide blanket defer is allowed for `board-running` restart work. Apply th
 
 Apply these per-`board-running`-item task rules, by filename prefix. State-only half of the same prefixes: `check-process-board` (`magic-coordinator.armed.md`).
 
-- `approval-*` / `approve-*`: not resolved, `recheck-date` due → re-ask via `source-slack-channel`/`source-slack-ts` or the `--member-slack-send-message` operation to human-owner; extend `recheck-date`.
-- `interview-*` / `talk-*`: run exactly one round — `routine-interview`'s own step 1b (resume-review) + step 1c (re-assess) — per that routine's own explicit non-blocking design. Never attempt to run the interview to completion inline.
+- `approval-*` / `approve-*`: not resolved, `recheck-date` due → re-ask via `source-slack-channel`/`source-slack-ts` or the `--member-slack-send-message` operation to human-owner; extend `recheck-date`. Re-ask leads with the `NEEDS REPLY:` marker; report `waiting on human-owner` only while that marker's occurrence stays unanswered.
+- `interview-*` / `talk-*`: run exactly one round — `routine-interview`'s own step 1b (resume-review) + step 1c (re-assess) — per that routine's own explicit non-blocking design. Never attempt to run the interview to completion inline. Any re-ask leads with the `NEEDS REPLY:` marker; report `waiting on human-owner` only while that marker's occurrence stays unanswered.
 - `inquiry-*`: `recheck-date` due, no reply → re-ask via `source-slack-channel`/`source-slack-ts` or the `--member-slack-send-message` operation; extend `recheck-date`. Otherwise → no action this pass.
 - `task-*` / `project-*` / `epic-*`: apply the console-session/Agent-dispatch stale-check above.
 - `proposal-*`: `recheck-date` due → re-ask.

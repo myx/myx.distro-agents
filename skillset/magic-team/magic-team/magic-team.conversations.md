@@ -131,6 +131,17 @@ Maintainer quorum: `magic-coordinator` + `magic-librarian` + `magic-architect`.
    rephrase per rule 9a instead. If annotation and the verbatim content could be read as conflicting, the
    verbatim content wins — annotation is advisory only, never a substitute for the command.
 
+9c. **A "waiting on human-owner" claim requires a marker, not narrative inference.**
+    The literal marker `NEEDS REPLY:`, on its own line immediately before the question, is the only
+    recognized signal that a message solicits the human-owner's reply — never buried mid-message, never
+    implied by tone or closing prose alone. A claim that a thread is "waiting on human-owner" must cite a
+    still-unanswered occurrence of that marker (its `source-slack-channel`/`source-slack-ts`) — a status
+    field, a bolded question, or an unmarked unreplied message never qualifies on its own.
+    verbatim-intent: `"waiting on human-owner" is a checkable fact, not a narrative judgment call`.
+    verbatim-benchmark: `a message asked the human-owner something without a "NEEDS REPLY:" marker line —
+    the report never calls that thread "waiting on human-owner," not until a marked, still-unanswered
+    occurrence exists`.
+
 10. **Rule/instruction text is directive-first and tight.**
     Lead with command, keep rationale short, avoid narrative preambles in instruction text. Any generated
     message or formulation uses clear structure (labeled sections, bullet points) rather than blended prose,
