@@ -197,13 +197,18 @@
 		--member-slack-send-message <team-member> <target> --from-stdin [--format text|blocks]
 		--member-slack-send-message <team-member> <target> --from-file <path> [--format text|blocks]
 			Posts a message to Slack via chat.postMessage, attributed to
-			<team-member>. The only Slack-post op -- there is no separate
+			<team-member>. If that member has a `SLACK_USER_TOKEN` configured in
+			its own member config scope, the send goes out through that native
+			user account. Otherwise this falls back to the shared
+			magic-coordinator bot-token path, preserving the attributed-message
+			behavior described below. The only Slack-post op -- there is no separate
 			anonymous/unattributed variant. <team-member> is a required first
 			argument, validated as an existing team member (bare name, no
-			path characters); the
-			outgoing text is prefixed with a "*<team-member>:*" attribution
-			line ahead of the message (also used as the --format blocks case's
-			own static text-fallback content). <target> is
+			path characters); on the bot-fallback path, the outgoing text is
+			prefixed with a "*<team-member>:*" attribution line ahead of the
+			message (also used as the --format blocks case's own static
+			text-fallback content). Native-user sends go out as the native user
+			account itself, with no synthetic prefix added by this tool. <target> is
 			`magic-team` or `human-owner` (channel id resolved from
 			SLACK_CHANNEL_MAGIC_TEAM/SLACK_CHANNEL_HUMAN_OWNER in
 			--agents-config-option), `event-track` or `event-alert`
