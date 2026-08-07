@@ -75,17 +75,10 @@ case "$1" in
 					"--react-slack"
 				)
 			;;
-			human-owner)
-				## Investigated: human-owner.armed.md's own tooling section
-				## exists but is currently empty -- non-acting, "MUST NOT
-				## execute tooling directly -- escalate via the coordinator
-				## flow." `--owner-*` is obviously theirs regardless of that
-				## empty list: the whole namespace exists to manage the
-				## human-owner's own workspace registry.
+			magic-librarian)
 				commonPrefixes=(
-					"--help"
 					"--member-*"
-					"--owner-*"
+					"--lilbrarian-*"
 				)
 			;;
 			magic-*)
@@ -108,6 +101,19 @@ case "$1" in
 			oncall-*|expert-*)
 				commonPrefixes=(
 					"--member-*"
+				)
+			;;
+			human-owner)
+				## Investigated: human-owner.armed.md's own tooling section
+				## exists but is currently empty -- non-acting, "MUST NOT
+				## execute tooling directly -- escalate via the coordinator
+				## flow." `--owner-*` is obviously theirs regardless of that
+				## empty list: the whole namespace exists to manage the
+				## human-owner's own workspace registry.
+				commonPrefixes=(
+					"--help"
+					"--member-*"
+					"--owner-*"
 				)
 			;;
 			*)
