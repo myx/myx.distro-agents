@@ -160,6 +160,10 @@ Applies to any rule, instruction, definition, or description in a team skill fil
 - **Inheritance/override default**: when one file includes or references another file's rules, the includer may explicitly override, extend, or waive specific instructions from the referenced file — this is the default relationship, not an exception needing justification (e.g. a member's own `.basic.md` stating a personal habit that deviates from a general team default). A referenced file's rule is rigid only where that file explicitly states no override is allowed.
 - **Terminology vs. full description**: a term's own short, standalone definition — its meaning, independent of who uses it — lives in one dedicated terminology location. The full behavioral description of how a specific consumer actually uses that term lives natively in that consumer's own file, non-cross-referenced — each consumer independently complete, using consistent terms rather than inheriting shared prose.
 
+### Help/instruction-entry scope: call-contract only (rule)
+
+A help entry or Operation Reference for a tooling op states only when to call it and what arguments to provide — never its internal mechanism, storage format, algorithm choice, credential-variable names, or platform-specific API detail. A caller who needs the "why" or "how" asks; the entry answering "what to pass" is not that channel.
+
 ### Verbatim-intents / Verbatim-benchmarks sections (a rule about every team skill file, this one included)
 
 **IMPORTANT**: any skill MD file designed to contain instructions/rules carries a `## Verbatim-intents`/`Verbatim-goals` section and a `## Verbatim-benchmarks`/`Verbatim-tests` section — simple-text, table, and reference-only files do not. `Verbatim-intents` holds structural/purpose statements, kept verbatim, no rephrasing. `Verbatim-benchmarks` holds concrete scenario -> expected-outcome pairs, kept verbatim, no rephrasing. Both are a floor, not a ceiling. `magic-librarian` checks wording against them; `magic-tester` live-tests actual behavior against them.
