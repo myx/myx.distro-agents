@@ -174,6 +174,7 @@ Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
   - Flat, present-tense bullets.
   - Limits, restrictions, decision-making guidance.
   - No dedicated sub-headings.
+  - Example bullet this role-family's own file carries: a paragraph saying something like "Console-session requirement: doing an actual task with this role-family's own workspace/workspace tooling requires a `--start-console`/`--send-console` session, regardless of command count. Just answering a question or looking at files (not a task) may skip it."
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
 - `# Team-Member's (-specific) tooling`
@@ -186,9 +187,9 @@ Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
     - `### Conventions`
 - Landed instances of this shape exist under the owning `keeper-*`/`warden-*` members' own folders.
 
-### Partner (`partner-*`)
+### Partner / Client (`partner-*`/`client-*`)
 
-Copyable skeleton: `magic-team/templates/partner.contract.format.md`.
+Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
 
 - Frontmatter: `maintainers:` only.
 - `# Summary`
@@ -211,6 +212,7 @@ Copyable skeleton: `magic-team/templates/partner.contract.format.md`.
   - Flat, present-tense bullets.
   - Limits, restrictions, decision-making guidance.
   - No dedicated sub-headings.
+  - Example bullet this role-family's own file carries: a paragraph saying something like "Console-session authorization: `--start-console`/`--send-console` when its own instructions call for it — available, not a standing requirement."
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
 - `# Team-Member's (-specific) tooling`
@@ -221,7 +223,7 @@ Copyable skeleton: `magic-team/templates/partner.contract.format.md`.
   - `## Librarian Comments`
     - `### Reference`
     - `### Conventions`
-- Landed instances of this shape exist under the owning `partner-*` members' own folders.
+- Landed instances of this shape exist under the owning `partner-*`/`client-*` members' own folders.
 
 ### Oncall / Expert (`oncall-*`/`expert-*`)
 
