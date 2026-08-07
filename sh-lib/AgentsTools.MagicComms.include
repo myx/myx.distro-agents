@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MagicComms.include -- coordinator comms helper operations.
+## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced
+## for $1/$@/$MDSC_CMD and shared helpers (DistroAgentsToolsResolveTarget).
+##
+## Supported operations:
+##   --magic-comms-slack-resolve-ids
+##
+
+case "$1" in
+
+	--magic-comms-slack-resolve-ids)
+		shift
+		local memberName="$1"
+		shift || true
+		if [ -z "$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: syntax is <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]" >&2
+			set +e ; return 1
+		fi
+
+		local userNamesCsv="" channelNamesCsv="" raw="false" humanOwnerHint="myx"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--user-name)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: --user-name requires a value" >&2
+						set +e ; return 1
+					fi
+					if [ -z "$userNamesCsv" ] ; then userNamesCsv="$2" ; else userNamesCsv="$userNamesCsv,$2" ; fi
+					shift 2
+				;;
+				--channel-name)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: --channel-name requires a value" >&2
+						set +e ; return 1
+					fi
+					if [ -z "$channelNamesCsv" ] ; then channelNamesCsv="$2" ; else channelNamesCsv="$channelNamesCsv,$2" ; fi
+					shift 2
+				;;
+				--human-owner-hint)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: --human-owner-hint requires a value" >&2
+						set +e ; return 1
+					fi
+					humanOwnerHint="$2"
+					shift 2
+				;;
+				--raw)
+					raw="true"
+					shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local token tokenSource
+		token="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_USER_TOKEN )"
+		if [ -n "$token" ] ; then
+			tokenSource="member-user-token"
+		else
+			token="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_BOT_TOKEN )"
+			tokenSource="shared-bot-token"
+		fi
+		if [ -z "$token" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: no usable Slack token found (member SLACK_USER_TOKEN or shared SLACK_BOT_TOKEN)" >&2
+			set +e ; return 1
+		fi
+
+		echo "## op=magic-comms-slack-resolve-ids member=$memberName token_source=$tokenSource"
+
+		local authResp
+		authResp="$( curl -sS https://slack.com/api/auth.test -H "Authorization: Bearer $token" )"
+		printf 'AUTH_JSON=%s\n' "$authResp"
+		if ! printf '%s' "$authResp" | grep -q '"ok":true' ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: auth.test failed" >&2
+			set +e ; return 1
+		fi
+
+		local authUserId authUserName
+		authUserId="$( printf '%s' "$authResp" | sed -n 's/.*"user_id":"\([^"]*\)".*/\1/p' )"
+		authUserName="$( printf '%s' "$authResp" | sed -n 's/.*"user":"\([^"]*\)".*/\1/p' )"
+		printf 'AUTH_USER_ID=%s\n' "$authUserId"
+		printf 'AUTH_USER_NAME=%s\n' "$authUserName"
+
+		local usersJson channelsJson usersOk channelsOk
+		usersJson="$( curl -sS -G https://slack.com/api/users.list -H "Authorization: Bearer $token" --data-urlencode "limit=1000" )"
+		channelsJson="$( curl -sS -G https://slack.com/api/conversations.list -H "Authorization: Bearer $token" --data-urlencode "types=public_channel,private_channel,im,mpim" --data-urlencode "exclude_archived=true" --data-urlencode "limit=1000" )"
+		usersOk="$( printf '%s' "$usersJson" | sed -n 's/.*"ok":\(true\|false\).*/\1/p' )"
+		channelsOk="$( printf '%s' "$channelsJson" | sed -n 's/.*"ok":\(true\|false\).*/\1/p' )"
+		printf 'USERS_LIST_OK=%s\n' "${usersOk:--}"
+		printf 'CHANNELS_LIST_OK=%s\n' "${channelsOk:--}"
+
+		if [ "$raw" = "true" ] ; then
+			printf 'USERS_JSON=%s\n' "$usersJson"
+			printf 'CHANNELS_JSON=%s\n' "$channelsJson"
+		fi
+
+		if [ -n "$userNamesCsv" ] ; then
+			USERS_JSON="$usersJson" USER_NAMES_CSV="$userNamesCsv" \
+				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackResolveUserMatches.py"
+		fi
+
+		if [ -n "$channelNamesCsv" ] ; then
+			CHANNELS_JSON="$channelsJson" CHANNEL_NAMES_CSV="$channelNamesCsv" \
+				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackResolveChannelMatches.py"
+		fi
+
+		local alias aliasTarget aliasResolved aliasRc aliasChannel aliasInfo aliasInfoOk aliasInfoErr aliasName
+		for alias in magic-team human-owner event-track event-alert ; do
+			aliasTarget="$alias"
+			aliasResolved="$( DistroAgentsToolsResolveTarget "$aliasTarget" )" && aliasRc=0 || aliasRc=$?
+			if [ "$aliasRc" != "0" ] ; then
+				echo "ALIAS|$alias|configured=false|reachable=false|error=unresolved"
+				continue
+			fi
+			aliasChannel="$( printf '%s\n' "$aliasResolved" | sed -n 's/^CHANNEL=//p' )"
+			aliasInfo="$( curl -sS -G https://slack.com/api/conversations.info -H "Authorization: Bearer $token" --data-urlencode "channel=$aliasChannel" )"
+			aliasInfoOk="$( printf '%s' "$aliasInfo" | sed -n 's/.*"ok":\(true\|false\).*/\1/p' )"
+			aliasInfoErr="$( printf '%s' "$aliasInfo" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' )"
+			aliasName="$( printf '%s' "$aliasInfo" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p' )"
+			if [ "$aliasInfoOk" = "true" ] ; then
+				echo "ALIAS|$alias|configured=true|channel=$aliasChannel|reachable=true|name=${aliasName:--}|error=-"
+			else
+				echo "ALIAS|$alias|configured=true|channel=$aliasChannel|reachable=false|name=${aliasName:--}|error=${aliasInfoErr:--}"
+			fi
+		done
+
+		local humanAliasResolved humanAliasChannel humanAliasInfo humanAliasErr
+		humanAliasResolved="$( DistroAgentsToolsResolveTarget human-owner )" || humanAliasResolved=""
+		humanAliasChannel="$( printf '%s\n' "$humanAliasResolved" | sed -n 's/^CHANNEL=//p' )"
+		if [ -n "$humanAliasChannel" ] ; then
+			humanAliasInfo="$( curl -sS -G https://slack.com/api/conversations.info -H "Authorization: Bearer $token" --data-urlencode "channel=$humanAliasChannel" )"
+			if printf '%s' "$humanAliasInfo" | grep -q '"ok":true' ; then
+				echo "HUMAN_OWNER_TARGET|status=reachable|target=$humanAliasChannel|source=config-alias"
+				return 0
+			fi
+			humanAliasErr="$( printf '%s' "$humanAliasInfo" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' )"
+		else
+			humanAliasErr="unresolved"
+		fi
+
+		if [ "$usersOk" = "true" ] ; then
+			local hintUserId
+			hintUserId="$( USERS_JSON="$usersJson" HINT="$humanOwnerHint" \
+				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackResolveHintUserId.py" )"
+			if [ -n "$hintUserId" ] ; then
+				local openResp openOk openErr openChannel
+				openResp="$( curl -sS -X POST https://slack.com/api/conversations.open -H "Authorization: Bearer $token" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$hintUserId" )"
+				openOk="$( printf '%s' "$openResp" | sed -n 's/.*"ok":\(true\|false\).*/\1/p' )"
+				openErr="$( printf '%s' "$openResp" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' )"
+				openChannel="$( printf '%s' "$openResp" | sed -n 's/.*"id":"\([CDG][^"]*\)".*/\1/p' )"
+				if [ "$openOk" = "true" ] && [ -n "$openChannel" ] ; then
+					echo "HUMAN_OWNER_TARGET|status=reachable|target=$openChannel|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId"
+					return 0
+				fi
+				echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId|error=${openErr:--}|alias_error=${humanAliasErr:--}"
+				return 1
+			fi
+		fi
+
+		echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=none|hint=$humanOwnerHint|alias_error=${humanAliasErr:--}|note=unable_to_resolve_hint_user"
+		set +e ; return 1
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

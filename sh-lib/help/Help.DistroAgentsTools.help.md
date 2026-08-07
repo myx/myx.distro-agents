@@ -12,6 +12,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-stdin
 📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-file <path>
 📘 syntax: DistroAgentsTools.fn.sh --check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --check-email
 📘 syntax: DistroAgentsTools.fn.sh --mark-email-seen <uid>
 📘 syntax: DistroAgentsTools.fn.sh --check-trello
@@ -328,6 +329,31 @@
 			the default. `--raw` opts back into the full API response
 			(needed for fields the pretty formatter doesn't surface, e.g.
 			`reply_count`/`thread_ts` metadata).
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
+			General coordinator comms-id resolver. Authenticates as one specific
+			team-member identity (member `SLACK_USER_TOKEN` when present,
+			otherwise shared `SLACK_BOT_TOKEN`), then reports:
+			(1) auth identity (`AUTH_USER_ID`, `AUTH_USER_NAME`),
+			(2) requested user-name and channel-name matches with resolved IDs,
+			(3) configured alias reachability for `magic-team`, `human-owner`,
+			`event-track`, `event-alert` via `conversations.info`, and
+			(4) best-known reachable human-owner target for this identity.
+
+			Human-owner target resolution order is explicit and fail-loud:
+			first the configured `human-owner` alias id, then (if not reachable)
+			a DM open attempt (`conversations.open`) using `--human-owner-hint`
+			(default `myx`) matched against `users.list`.
+
+			Use `--user-name`/`--channel-name` repeatedly to resolve concrete
+			names to ids in one pass. `--raw` includes full `users.list` and
+			`conversations.list` JSON payloads for diagnostics.
+
+			Exit code:
+			0 when a reachable human-owner target is confirmed,
+			1 when unresolved/unreachable.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

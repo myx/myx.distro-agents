@@ -1040,6 +1040,13 @@ $1"
 			return 0
 		;;
 
+		## Coordinator comms-id resolver extracted to dedicated include
+		## (shared-tooling path, keeps dispatcher lean and keeps resolver's
+		## parsing helpers out of this main script).
+		--magic-comms-slack-resolve-ids)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
+		;;
+
 		## The `reactions.add` wrapper -- the per-message Slack-reaction-tracking
 		## design (`routine-communication-sweep`, `routine-board-actualisation`'s
 		## pending-reaction lookup) uses this as its sanctioned way to actually

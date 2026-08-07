@@ -12,6 +12,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>.
 echo "📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-stdin" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-file <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --react-slack <channel>:<ts> <emoji-name>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --check-email" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --mark-email-seen <uid>" >&2
