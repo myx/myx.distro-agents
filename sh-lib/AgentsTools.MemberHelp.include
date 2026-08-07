@@ -69,6 +69,7 @@ case "$1" in
 					"--list-consoles"
 					"--sweep-read-incoming-comms"
 					"--react-slack"
+					"--routine-*"
 				)
 			;;
 			magic-librarian)
