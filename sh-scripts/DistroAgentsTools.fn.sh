@@ -2019,6 +2019,11 @@ $1"
 			return $?
 		;;
 
+		--member-help)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberHelp.include"
+			return $?
+		;;
+
 		--help|--help-syntax|'')
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
 			return $?

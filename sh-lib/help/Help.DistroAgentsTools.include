@@ -65,6 +65,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-me
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-sleep-run" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --purge-cleanup" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh [--help]" >&2
 if [ "$1" = "--help" ]; then
 	myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md" >&2

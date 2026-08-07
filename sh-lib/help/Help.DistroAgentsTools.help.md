@@ -929,6 +929,12 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--member-help <team-member>
+			Read-only. Prints `<team-member>`'s own duty-related tooling
+			help.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--read-slack <channel>:<ts> [--thread]
 			Full detail for one specific message (default) or its whole
 			thread (--thread) -- all meta-info, reactions, formatting,
