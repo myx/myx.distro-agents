@@ -873,6 +873,23 @@ case "$1" in
 		trap - EXIT
 
 		if [ "$sent" = "true" ] ; then
+			if [ "$sendIdentity" = "user" ] ; then
+				local responseHasAppId="false" responseHasBotId="false" responseHasBotProfile="false"
+				if printf '%s' "$response" | grep -q '"app_id"' ; then
+					responseHasAppId="true"
+				fi
+				if printf '%s' "$response" | grep -q '"bot_id"' ; then
+					responseHasBotId="true"
+				fi
+				if printf '%s' "$response" | grep -q '"bot_profile"' ; then
+					responseHasBotProfile="true"
+				fi
+				if [ "$responseHasAppId" = "true" ] || [ "$responseHasBotId" = "true" ] || [ "$responseHasBotProfile" = "true" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: member SLACK_USER_TOKEN posted with app/bot attribution markers (app_id/bot_id/bot_profile) for $memberName; refusing false-success native-user send" >&2
+					echo "# Response: $response" >&2
+					set +e ; return 1
+				fi
+			fi
 			printf '%s\n' "$response"
 			return 0
 		fi
