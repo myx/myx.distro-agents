@@ -32,6 +32,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 3. **Mandatory: invoke `Skill(routine-process-reflections)` for this session's own project/workspace.** Moved here from `routine-close-session` — human-owner's own words, direct: "This file WILL BE NOT PERSISTENT - Must be encoded in your skill - that is the only part I sync between instances." Running this at session *start* rather than close means a member begins its actual work having already folded in whatever this project/workspace's accumulated `feedback_*.md` lessons say, rather than only catching up on them on the way out — and closes the redundancy this also flagged (this call, `routine-close-session`'s own former continuity check, and its reflect-on-incidents step all overlapping the same "make sure a lesson isn't lost" ground from three different angles).
 3a. **Process own inbox**: `routine-process-inbox`(`routine-session-start`'s own inbox, the executor running it) — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 
+# Closure steps
+
+This routine has no closure phase of its own — `routine-close-session` is its actual closing counterpart, run separately at session end.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
@@ -54,6 +58,7 @@ All statements apply at the same time, always. These rules override a participan
 - **DistroAgentsTools trust policy**: `DistroAgentsTools.fn.sh` is the team's own tool. Trust it by default day to day — no defensive re-verification of its own correctness on every call. Propose interface changes through the normal idea → interview → proposal → approval pipeline, never as an inline bypass. Re-check a specific call site only when a real incident actually traces back to it.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - When `magic-coordinator` specifically is the executor running this open-out (one of several members who may run this routine), it is obligated to keep `slack-event-track` activity tracking current, same as any other routine where it is a possible executor.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

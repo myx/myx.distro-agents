@@ -54,7 +54,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - mark read once handled, every platform (see Tooling for the per-platform mechanics).
    - Slack, additionally: apply the `slack-reaction-tracking` procedure's Reply-stage and terminal reactions.
    - `--format blocks` is a hard rule, no exceptions — never plain-text; every array element in a hand-built `blocks` payload needs its own block-level `"type"` wrapper.
-6. **update-context**: fold platform mechanical-state findings (`last_swept_ts` frontmatter field, `known_comms_gaps` body list) into the `sweep-state-note` via `--magic-sweep-state-upsert` — `--edit-patch-from-stdin` for a single-field update, full-content write only for a genuine whole-record rewrite — invoked through `lib/execShStdin` only. Fold identity/routing data into the `roster-note` via `--member-upsert-inbox-note`.
+# Closure steps
+
+1. **update-context**: fold platform mechanical-state findings (`last_swept_ts` frontmatter field, `known_comms_gaps` body list) into the `sweep-state-note` via `--magic-sweep-state-upsert` — `--edit-patch-from-stdin` for a single-field update, full-content write only for a genuine whole-record rewrite — invoked through `lib/execShStdin` only. Fold identity/routing data into the `roster-note` via `--member-upsert-inbox-note`.
    - Update the own-status Trello card: a standing checklist of what `magic-coordinator` is currently doing and what it needs from the human team, legible to someone who wasn't in the conversation — surface anything blocked on the human team here.
    - Keep `slack-magic-team` current as a standing narrative broadcast: post a milestone as it happens, in plain external-facing language; post a blocker the moment it's identified. No internal dispatch mechanics, agent IDs, or RICE scores. Post as threaded replies within the session's own root message, as small separate messages as things happen — not accumulated into end-of-session summaries. Does not replace direct in-conversation reporting to the user.
    - Post completion status to `slack-event-track`.
@@ -106,6 +108,7 @@ All statements apply at the same time, always. These rules override a participan
 - A message's intent is genuinely unclear: ask, don't guess and proceed — especially on Slack and in comments where tone/brevity make intent easy to misread. This is about being genuinely clear on content and intent before acting, not about adding friction to every message: an unambiguous, already-scoped ask still doesn't need a fresh round of confirmation each time.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as the sweep runs — sweep step-progress/status always targets `event-track` (debug-only); milestones, blockers, and escalations always target `magic-team`.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

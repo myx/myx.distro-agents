@@ -32,6 +32,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 - **Inline**, in the same process/session — when `member` is processing its **own** inbox/identity. This is the common case: a `routine-*` handling its own mail as itself, or any acting member processing its own inbox.
 - **Spawned**, as a separate background `Agent` — when `member` is representing an inbox/identity it doesn't itself own, on behalf of someone else. Same shape as `routine-external-inbox-handle-loop`'s non-acting-owner pattern (`magic-coordinator` spawned to act for the human-owner/external contacts, since they have no inbox folder of their own).
 
+# Closure steps
+
+This routine has no distinct closing phase of its own — it's invoked inline by other routines' own steps to process one inbox, not a standalone session with its own lifecycle.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
@@ -54,6 +58,7 @@ All statements apply at the same time, always. These rules override a participan
 - Unsure whether a cross-member touch is significant enough for an immediate reply to `slack-magic-team`: default to sending one.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - When `magic-coordinator` is the executor (own inbox, non-acting-owner content, or a board-formal-state write), it is obligated to keep `slack-event-track` activity tracking current — extends to the pass's broader progress, not just individual handoffs already covered by step 3.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

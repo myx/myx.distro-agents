@@ -56,7 +56,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - action: spawn it as its own independent co-working session — `SPAWN-REQUEST`, fire-and-forget
    - never: inline-drive it step by step across multiple `next-iteration`s
    - never: re-spawn a duplicate for the same workday, or wait for it to report back
-5. **advance-report**: Post `check-execute-board`'s own findings (redispatches performed, interview threads opened/continued) to `slack-event-track` via `--member-slack-send-message` (target `event-track`).
+
+# Closure steps
+
+1. **advance-report**: Post `check-execute-board`'s own findings (redispatches performed, interview threads opened/continued) to `slack-event-track` via `--member-slack-send-message` (target `event-track`).
 
 # Routine's local procedures
 
@@ -109,6 +112,10 @@ Continue an already-dispatched `board-running` item. Never a first-time start (s
   - failed nudge → treat as if `session-id` absent, continue below
 - liveness unknown and no nudge path available from this pass alone → treat as if `session-id` absent (do not convert this into a pass-level blanket defer)
 - `session-id` absent:
+  - `interview-*`/`talk-*` prefix with `source-slack-channel`/`source-slack-ts` set → apply this item's `interview-*`/`talk-*` per-type rule (below), this same pass — a bounded resume-review + re-assess round over the existing Slack thread — never fall through to the `restart-session:` branch below for this case, even when `restart-session:` is also present.
+  - `interview-*`/`talk-*` prefix with `source-slack-channel`/`source-slack-ts` absent → apply this item's `interview-*`/`talk-*` per-type rule (below), this same pass, posting to a fresh Slack thread via `--member-slack-send-message` (target `human-owner`) instead of a reply into an existing one — same bounded resume-review + re-assess round as above, never a separate pre-round message — never fall through to the `restart-session:` branch below for this case either, even when `restart-session:` is also present.
+    - Write the returned `channel`/`ts` back as `source-slack-channel`/`source-slack-ts` via `--magic-advance-to-running <team-member> <item-filename> --from-state:running --header:upsert:source-slack-channel:<value> --header:upsert:source-slack-ts:<value>` (same-state patch, existing content preserved), so the item is Slack-thread-backed from the next pass onward.
+    - Post succeeded but write-back failed this pass → `flagged-once` (report the orphaned `channel:ts` via `slack-event-track`), never re-post a second backfill thread next pass.
   - `restart-session: <team-member> [<team-member>...]` present → spawn a coworking session (`magic-coordinator` + the named member(s)) via `spawn-one-dispatch`, passing the corresponding routine, document name, context
     - set `recheck-date` to now + 7min (jittered ±2min) and `session-id` to the new session's identifier, via `--magic-advance-to-running <team-member> <item-filename> --from-state:running --header:upsert:recheck-date:<value> --header:upsert:session-id:<value>` (same-state patch, existing content preserved)
   - `restart-session:` absent, no per-type rule matches this item's prefix → post to `slack-event-track` via `--member-slack-send-message` (target `event-track`) — "active `board-running` document with no handler: `<filename>`" — flag for `routine-grooming`. Never execute anything inline for an unhandled prefix.
@@ -168,8 +175,9 @@ All statements apply at the same time, always. These rules override a participan
 - Never resolves an open design/judgment question surfaced by an investigation subtask — flags it for `routine-grooming`/`magic-architect`.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as things are found, not batch it artificially.
-- No separate close-out step. This routine is invoked inline, mid-iteration, from `routine-heartbeat`; that iteration's own session close closes the work.
+- No separate close-out step beyond `# Closure steps` below. This routine is invoked inline, mid-iteration, from `routine-heartbeat`; that iteration's own session close closes the work.
 - **advance-report** never repeats `check-process-board`'s own **board-report** — that step already covers this same pass's board-state findings.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

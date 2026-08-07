@@ -436,6 +436,23 @@ case "$1" in
 		return 0
 	;;
 
+	## Fixed 19-loop countdown-then-continue signal. No options.
+	--magic-heartbeat-sleep-run)
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-sleep-run: takes no arguments" >&2
+			set +e ; return 1
+		fi
+		local remaining=19
+		while [ "$remaining" -gt 0 ] ; do
+			echo "$remaining"
+			sleep 1
+			remaining=$(( remaining - 1 ))
+		done
+		printf 'All Done.\nPLEASE CONTINUE!\n'
+		return 0
+	;;
+
 	*)
 		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
 		set +e ; return 1

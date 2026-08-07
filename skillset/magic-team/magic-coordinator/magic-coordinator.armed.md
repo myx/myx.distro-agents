@@ -339,7 +339,7 @@ The board is the sole live backlog/status source (folder-state model — `backlo
 
 `TEAM-COMMS.md` (this directory) is a retired stub. Its per-platform sweep state (check markers, watched-conversation list, capability gaps) lives as structured fields in the `heartbeat-state-note`, read via the `--magic-heartbeat-state-read` operation and rewritten via `--magic-heartbeat-state-upsert`; open/closed thread tracking lives on the owning `board-item`s directly (`source-slack-channel`/`source-slack-ts`). `routine-communication-sweep` reads/writes those, same ownership (`magic-librarian`).
 
-Every routine opens with `routine-session-start` and closes with `routine-close-session`.
+Every one of the six coworking-like routines (per `routine-session-start`'s own taxonomy) opens with `routine-session-start` and closes with `routine-close-session`. Every routine, coworking-like or not, has its own `# Steps` and `# Closure steps` — the executor runs exactly what each section says, in order.
 
 ## Decision entry points (quick reference)
 
@@ -360,9 +360,10 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]`
+- `--member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--identity bot|user] [text...]`
 - `--react-slack <channel>:<ts> <emoji-name>`
 - `--check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]`
+- `--magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]`
 - `--sweep-read-incoming-comms [--oldest <ts>] [--raw]`
 - `--send-email-message <email@address>... -- <subject> -- <body...>`
 - `--check-email`
@@ -395,7 +396,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## `--member-slack-send-message` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> [text...]` (also `--from-stdin [--format text|blocks]` or `--from-file <path> [--format text|blocks]`) — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>`. The only Slack-post op — no separate anonymous/unattributed variant. `<target>` is `magic-team`/`human-owner` (resolved via `SLACK_CHANNEL_MAGIC_TEAM`/`SLACK_CHANNEL_HUMAN_OWNER`), `event-track`/`event-alert` (resolved similarly), or a literal `<channel>:<ts>` posted as a threaded reply. `--from-stdin` (or the original `--message-from-stdin`) reads content from stdin; `--from-file <path>` reads from a file — use exactly one, never both. `--format blocks` treats the content as a caller-supplied Block Kit JSON array, validated (`--validate-json`, must be a bare array, every element a recognized top-level block type) before sending. Any unrecognized `--`-shaped trailing token is rejected rather than silently absorbed into the text field.
+`DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> [--identity bot|user] [text...]` (also `--from-stdin [--format text|blocks]` or `--from-file <path> [--format text|blocks]`) — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>`. The only Slack-post op — no separate anonymous/unattributed variant. An optional `--identity bot|user` overrides the automatic native-user-vs-bot selection — `bot` forces the shared bot-token path unconditionally, `user` forces `<team-member>`'s own token and errors if none is configured. Omitted: unchanged auto-detect behavior. A `<team-member>` argument itself prefixed `routine-*` (a routine acting as sender, not a persona) skips the skill-directory existence check and defaults to bot identity automatically, no flag needed — `--identity bot|user` still overrides this default in either direction when passed explicitly. `<target>` is `magic-team`/`human-owner` (resolved via `SLACK_CHANNEL_MAGIC_TEAM`/`SLACK_CHANNEL_HUMAN_OWNER`), `event-track`/`event-alert` (resolved similarly), or a literal `<channel>:<ts>` posted as a threaded reply. `--from-stdin` (or the original `--message-from-stdin`) reads content from stdin; `--from-file <path>` reads from a file — use exactly one, never both. `--format blocks` treats the content as a caller-supplied Block Kit JSON array, validated (`--validate-json`, must be a bare array, every element a recognized top-level block type) before sending. Any unrecognized `--`-shaped trailing token is rejected rather than silently absorbed into the text field.
 
 ## `--react-slack` Operation Reference
 
@@ -404,6 +405,10 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 ## `--check-slack` Operation Reference
 
 `DistroAgentsTools.fn.sh --check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]` — reads Slack activity for ONE specific, caller-chosen target; target is required. Not the comms-sweep macro-op (see `--sweep-read-incoming-comms`). `--oldest <ts>` passes through as-is for an incremental read. Output is pretty-formatted by default; `--raw` opts into the full API response. No retry logic — one attempt, fails clean.
+
+## `--magic-comms-slack-resolve-ids` Operation Reference
+
+`DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]` — resolves real Slack IDs: authenticates as `<team-member>` (own `SLACK_USER_TOKEN` if configured, else the shared bot token) and reports its own auth identity, any requested `--user-name`/`--channel-name` matches, configured-alias (`magic-team`/`human-owner`/`event-track`/`event-alert`) reachability, and the best-known reachable human-owner DM target. Exit 0 once a reachable human-owner target is confirmed, 1 otherwise.
 
 ## `--sweep-read-incoming-comms` Operation Reference
 
@@ -536,4 +541,3 @@ Used to check this file's own definitions against its own goals when this file's
 - **The "no agent message is ever consent" rule is equally safety-critical but does not need verbatim quote-anchoring** — the human-owner's own call: a good, complete, clear standalone rule statement is what any edit must preserve, not a verbatim quote or incident narration. Don't let an edit soften it into something vaguer or thinner than the current wording; do not require it to match an exact quote either.
 - The maintainer list (frontmatter) is inherited from the retired `.access.md`'s own trio (`magic-coordinator`, `magic-librarian`, `magic-architect`) by established team convention — that file itself flagged this as a still-open authoring gap, never explicitly confirmed as a settled decision. Not re-litigated here; carried forward as-is, still open.
 - `harness.md`'s own `harness-session-rules` bullet is a narrower instance of this file's "What to hand off" dispatch rule (one-time co-working spawns for assess→propose work specifically) — it now points back up here for the `routine-session-start` requirement; its own remaining content-curation restatement is still a follow-up, not trimmed in this round.
-</content>

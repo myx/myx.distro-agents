@@ -109,13 +109,6 @@ Exact instructions. Execute in order, every step, literally as written.
   - Message send: scopes for `chat.postMessage`.
 - When any call returns `missing_scope`, record exact `needed` and `provided` fields verbatim.
 
-9. **Compact outcome report**
-- Produce one short matrix:
-  - Target -> join status -> send status -> identity status -> missing items.
-- Include explicit final line:
-  - `READY` only if all required targets are operational per step 5.
-  - otherwise `NOT READY` plus numbered missing actions.
-
 9a. **AskUserQuestion checkpoint (mandatory when `NOT READY`)**
 - Ask the human-owner for exactly the next missing action, one question at a time.
 - Preferred path: AskUserQuestion in-session (single focused question, explicit expected answer format).
@@ -149,6 +142,12 @@ Exact instructions. Execute in order, every step, literally as written.
   8. Approve rerun of full bootstrap verification sweep.
 - After each human-owner response, re-run only the directly affected step(s), then continue sequence.
 
+# Closure steps
+
+1. **Compact outcome report**
+   - Produce one short matrix: Target -> join status -> send status -> identity status -> missing items.
+   - Include explicit final line: `READY` only if all required targets are operational per step 5; otherwise `NOT READY` plus numbered missing actions.
+
 # Routine's local rules
 
 - Fail loud on ambiguity; never report "working" from transport success alone.
@@ -158,6 +157,7 @@ Exact instructions. Execute in order, every step, literally as written.
 - Never use a tight infinite busy-loop waiting for replies; use step 9b bounded waits and timeout escalation.
 - Keep reports compact and operational: facts first, no narrative padding.
 - Never link this routine file into SKILLSET automatically.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

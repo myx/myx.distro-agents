@@ -30,7 +30,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 3. **Re-check `blocked/` and `parked/` items specifically** for whether their condition has changed — per the board's own definitions, this doesn't have to happen at every grooming pass, but this session is a good light-touch moment for it.
 4. **Cross-file consistency**, not just in-file cleanup — a status claim in one file against the actual current content of another. Budget explicit attention for this, not just a same-file dedupe pass.
 5. **GC-adjacent, but not GC itself** — `board-processed` retention/GC is folded into `routine-heartbeat`'s post-sweep inbox-processing sub-step, not this session's job. This session can flag a `processed/` item that looks like it should already be gone, but doesn't do the deletion itself.
-6. **Close via `routine-close-session`'s shared steps** — this is a coworking-like session (see step 0a above), so its continuity step, `slack-magic-team`/Trello closing broadcast, and skill-update-discussion offer all apply; context compaction does not (a spawned sub-session has no persisting interactive context to compact — it simply exits once its report is sent, back to `routine-daily`). `routine-process-reflections` already ran at step 0a's opening, not here.
+
+# Closure steps
+
+1. **Close via `routine-close-session`'s shared steps** — this is a coworking-like session (see step 0a above), so its continuity step, `slack-magic-team`/Trello closing broadcast, and skill-update-discussion offer all apply; context compaction does not (a spawned sub-session has no persisting interactive context to compact — it simply exits once its report is sent, back to `routine-daily`). `routine-process-reflections` already ran at step 0a's opening, not here.
 
 # Routine's local rules
 
@@ -46,7 +49,8 @@ All statements apply at the same time, always. These rules override a participan
 - A `blocked/`/`parked/` item's condition looks like it may have changed, but isn't certain: a light-touch re-check is enough here — flag it for a real decision at the next `routine-grooming` pass, rather than resolving the transition unilaterally in this session.
 - Something surfaces that isn't board-specific: pass it to `magic-librarian` via the `post-inquiry` procedure, for its own regular daily audit, rather than fixing it inline here.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
-- `magic-coordinator` is part of this routine's joint executor set — while acting as executor here, it is obligated to keep `slack-event-track` activity tracking current as the session actually runs, not only via step 6's close-out.
+- `magic-coordinator` is part of this routine's joint executor set — while acting as executor here, it is obligated to keep `slack-event-track` activity tracking current as the session actually runs, not only via the closure step's close-out.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

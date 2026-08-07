@@ -39,6 +39,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 **No grandfathering — the gate applies unconditionally, including to backlogs already substantially processed under the old process elsewhere.** A feedback backlog that was mid-way through direct-edit incorporation when this gate was introduced does not get to finish under the old rules; the first time this routine touches it going forward (this project's own backlog, or any other project's), steps 2/2a/2b apply in full.
 
+# Closure steps
+
+This routine has no distinct closing phase of its own — it's typically invoked inline from `routine-session-start`/`routine-heartbeat`, not a standalone session with its own lifecycle.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
@@ -50,6 +54,7 @@ All statements apply at the same time, always. These rules override a participan
 - Unsure whether a lesson is truly already captured elsewhere, or only superficially similar: err toward checking the actual current source file content directly, rather than trusting a memory file's own self-description of what it says — a stale memory file might describe an incorporation that never actually happened, or happened differently than remembered.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - The Slack activity-tracking obligation (general executor guidance wherever `magic-coordinator` is an executor) does not apply here — this routine's sole executor is `magic-librarian`, not `magic-coordinator`.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

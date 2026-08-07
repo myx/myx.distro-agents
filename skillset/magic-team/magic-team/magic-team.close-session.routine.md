@@ -39,6 +39,14 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - look back at what the routine surfaced (challenges, friction, gaps between what a member was asked to do and what its `SKILL.md` equips it to do) and raise with the user, explicitly, whether any `magic-*`/`routine-*` `SKILL.md` is due for an update
    - an offer, not an automatic edit — name the specific skill and gap, let the user decide now or defer
    - ad-hoc/solo sessions skip this — route through that member's own inbox/reflection note (step 1) instead
+4. **Conclude the session's own `slack-magic-team` thread** — every session, both types, conditional on a live thread actually existing.
+   - react `:white_check_mark:` on that thread's root message (the same `<channel>:<session_thread_ts>` step 0 posted into) via the `--react-slack` operation — same "black tick on completion" pattern `routine-heartbeat`'s own closure already uses for its `slack-event-track` thread
+   - no live thread for this session (nothing posted at step 0, or thread capture failed) → skip, no error
+   - already reacted (`already_reacted`) → harmless no-op, not a failure
+
+# Closure steps
+
+This routine's own `# Steps` already is the closing procedure other routines delegate to — it has no separate closure phase of its own.
 
 # Routine's local rules
 
@@ -54,6 +62,7 @@ All statements apply at the same time, always. These rules override a participan
 - Genuinely nothing needs the external broadcast (step 0): still a valid single-line "nothing to report" post, never a skip.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - When `magic-coordinator` specifically is the executor running this close-out, it is obligated to keep `slack-event-track` activity tracking current.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 
@@ -64,6 +73,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--member-slack-send-message <team-member> <target> [text...]` (step 0: post to `slack-magic-team`)
 - `--member-upsert-inbox-note <member> <item-filename>` (step 0: queue Trello update; step 1: continuity memo)
 - `--member-upsert-inbox-reflection <member> <item-filename>` (step 1: `reflection-*` note)
+- `--react-slack <channel>:<ts> <emoji-name>` (step 4: conclude the session's own thread)
 
 ## `--member-slack-send-message` operation reference
 
@@ -76,6 +86,10 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## `--member-upsert-inbox-reflection` operation reference
 
 `DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--file <path>]`
+
+## `--react-slack` operation reference
+
+`DistroAgentsTools.fn.sh --react-slack <channel>:<ts> <emoji-name>` — posts one Slack reaction (`reactions.add`) to a specific message, `<channel>:<ts>` only. `<emoji-name>` has no colons. An `already_reacted` error is a harmless no-op, not a failure.
 
 # Maintainer Notes
 

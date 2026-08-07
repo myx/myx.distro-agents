@@ -103,11 +103,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - A milestone landing or a new blocker surfacing mid-session gets posted to `slack-magic-team` right then, not batched until the close-out.
    - If a working agent surfaces or receives a new, unrelated ask mid-session, it notes it (its own inbox, or a `references`-linked board note) for the next communication sweep / grooming triage rather than switching focus.
 8. **Communication sweep (write)**: run the write half of `routine-communication-sweep` — update the own-status card to reflect today's actual state, and reply/comment anywhere else warranted across whatever platforms are live.
-9. **Close out**: once agents finish (or are wrapped up at the timebox), compact what happened into a short summary for the user.
-   - `routine-advance` (run each `routine-heartbeat` iteration) is the standing mechanism that keeps the board itself tidy, not a daily-meeting side-step.
-   - Run `routine-close-session`'s shared closing steps in full — this is a coworking-like session, so its continuity step, `slack-magic-team`/status-card broadcast, and skill-update-discussion offer all apply; context compaction does not.
-   - `routine-process-reflections` already ran at step 0b's opening, not here.
-   - Meeting finished.
+
+# Closure steps
+
+1. **Close out**: once agents finish (or are wrapped up at the timebox), compact what happened into a short summary for the user. Run `routine-close-session`'s shared closing steps in full — this is a coworking-like session, so its continuity step, `slack-magic-team`/status-card broadcast, and skill-update-discussion offer all apply; context compaction does not. `routine-process-reflections` already ran at step 0b's opening, not here. Meeting finished.
 
 # Routine's local procedures
 
@@ -151,6 +150,7 @@ All statements apply at the same time, always. These rules override a participan
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal.
 - Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as the routine actually runs — proactive, as-it-happens posts, not only a summary batched into steps 8/9's close-out.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 
@@ -195,7 +195,7 @@ Used to check this files own definitions against its own goals when this file's 
 ### Reference
 
 - `routine-session-start` — shared opening steps this routine runs before its own step 1.
-- `routine-close-session` — shared closing steps this routine runs at step 9.
+- `routine-close-session` — shared closing steps this routine runs at the closure step.
 - `check-process-board` (`magic-coordinator.armed.md`) — dependency-ordering recompute, step 4a; called directly, not via `routine-advance`.
 - `routine-camunda-diagram-sync` — BPMN diagram staleness check, step 5a.
 - `routine-communication-sweep` — read half (step 2) and write half (step 8).

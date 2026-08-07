@@ -96,9 +96,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - Does **not** authorize deciding the flagged question itself — still `main`/the human-owner's call, unchanged. It only converts "flagged repeatedly, never asked plainly" into "asked once, clearly," consistent with the standing "batch human-hands-on items, don't drip them" posture, applied here to stale decision-flags rather than physical actions.
        - Once escalated: record `escalated: <timestamp>` alongside the flag in the `heartbeat-state-note`'s `active_project` field, and don't re-escalate the same flag on later `next-iteration`s unless the human-owner's response itself calls for a follow-up.
      - **Board advance, end of loop, every `next-iteration`**: one `routine-advance` pass. Every pass, no first-today/later-today gate.
-6. **Release the lock**, per the `single-instance-lock` procedure, using the `--magic-heartbeat-lock-release` operation.
-7. **Conclude the `slack-event-track` thread opened in step 3** via the `--react-slack` operation, reacting ✅ on that thread — a direct `lib/execShStdin` call, same as every other call this `next-iteration` makes.
-8. **Report status** to whatever session spawned this `next-iteration`, via `SendMessage`, then exit.
+
+# Closure steps
+
+1. **Release the lock**, per the `single-instance-lock` procedure, using the `--magic-heartbeat-lock-release` operation.
+2. **Conclude the `slack-event-track` thread opened in step 3** via the `--react-slack` operation, reacting ✅ on that thread — a direct `lib/execShStdin` call, same as every other call this `next-iteration` makes.
+3. **Report status** to whatever session spawned this `next-iteration`, via `SendMessage`, then exit.
    - `SendMessage(to:"main", ...)` always reaches the true root, never a mid-tree ancestor — if the actual spawner is `main-loop-mode`'s own iterator rather than root, report to `"main"` instead and let it relay down.
    - Repeating, if it happens at all, is entirely up to whatever spawned this `next-iteration` — never this routine itself.
 
@@ -230,11 +233,11 @@ All statements apply at the same time, always. These rules override a participan
     - Reliable-enough signal in practice: each `next-iteration` holds the lock for its own real execution time, normally longer than the gap between cycles, so status reads "held" far more often than "free" while a healthy iterator is alive.
   - While running, the iterator (`main-loop`) is an ordinary root, coexisting normally with any other root.
   - `main` stays interactive, relaying status and forwarding any new ask to `main-loop` via `SendMessage` rather than executing cycle steps itself.
-  - To stop, `main-loop` lets its current `next-iteration` sub-session finish (step 6 releases the lock as its own last step), sends a final status update to `main`, and ends without spawning another cycle.
+  - To stop, `main-loop` lets its current `next-iteration` sub-session finish (its own Closure steps release the lock as the first of those), sends a final status update to `main`, and ends without spawning another cycle.
   - Per-cycle lock reporting: each `next-iteration` messages `main-loop` (`SendMessage`) with the lock outcome for that run — acquired-and-completed, or acquire-failed-and-exited-early (step 1).
     - `main-loop` uses this to know whether real work happened this cycle; it never calls the lock ops itself.
   - Runtime cap: `main-loop` doesn't stop on its own — it keeps cycling until the user says stop or a soft safety cap of roughly 8 hours total runtime is reached.
-    - Approaching the cap: let the current `next-iteration` finish (it releases the lock itself), leave a clear note, then stop rather than hard-cutting mid-iteration.
+    - Approaching the cap: let the current `next-iteration` finish (its own Closure steps release the lock), leave a clear note, then stop rather than hard-cutting mid-iteration.
 - A permission prompt appears mid-`next-iteration`: a direct `lib/execShStdin` call should never trigger one — it's a sign a call bypassed the mandated tooling channel, or a real config/auth gap. Stop and fix it, don't click through and continue as if it were normal.
 - A day's real activity level doesn't match the assumed weekend/weekday branch: still follow the branch logic as written — the day-rhythm state machine is date-driven, not activity-driven, so low activity is not a signal to skip steps, only genuinely being a weekend is.
 - **DistroAgentsTools trust policy**: `DistroAgentsTools.fn.sh` is the team's own tool.
@@ -243,6 +246,7 @@ All statements apply at the same time, always. These rules override a participan
   - Re-check a specific call site only when a real incident actually traces back to it.
 - **Goal-directedness**: when a goal is set for this session, actively work to move the process toward that goal.
   - Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 
@@ -251,12 +255,12 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-slack-send-message <team-member> <target> [text...]` (step 3: open the `event-track` thread)
-- `--react-slack <channel>:<ts> <emoji-name>` (step 7: close the `event-track` thread with a checkmark)
+- `--react-slack <channel>:<ts> <emoji-name>` (Closure steps: close the `event-track` thread with a checkmark)
 - `--magic-heartbeat-config-check` (step 0: check magic-coordinator config upfront, before anything else runs)
 - `--magic-heartbeat-input-scan <team-member>` (step 5: load heartbeat board-scan input)
 - `--magic-heartbeat-lock-acquire <team-member> <owner-label>` (step 1: acquire the single-instance lock)
 - `--magic-heartbeat-lock-heartbeat <team-member>` (refresh the heartbeat during a long-running `next-iteration`)
-- `--magic-heartbeat-lock-release <team-member>` (step 6: release the lock)
+- `--magic-heartbeat-lock-release <team-member>` (Closure steps: release the lock)
 - `--magic-heartbeat-lock-status <team-member>` (check lock state before starting a new run)
 - `--magic-heartbeat-state-read <team-member>` (step 4: read the `heartbeat-state-note`)
 - `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (steps 2 and 5: rewrite the `heartbeat-state-note`)
@@ -269,7 +273,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--react-slack` operation reference
 
-`DistroAgentsTools.fn.sh --react-slack <channel>:<ts> <emoji-name>` — posts one Slack reaction (`reactions.add`) to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut, since a reaction always targets one exact message, not a channel. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). An `already_reacted` error is treated as a harmless no-op, not a failure. This routine's own step 7 usage: `event-track:<thread-ts> white_check_mark`.
+`DistroAgentsTools.fn.sh --react-slack <channel>:<ts> <emoji-name>` — posts one Slack reaction (`reactions.add`) to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut, since a reaction always targets one exact message, not a channel. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). An `already_reacted` error is treated as a harmless no-op, not a failure. This routine's own Closure-steps usage: `event-track:<thread-ts> white_check_mark`.
 
 ## `--magic-heartbeat-config-check` operation reference
 

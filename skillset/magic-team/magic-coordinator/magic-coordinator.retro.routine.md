@@ -28,7 +28,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 3. **Surface cross-member patterns**: after the individual reflections, note anything that showed up in more than one member's self-talk — this is where the coordinator's cross-team view adds something no single member's reflection could.
 4. **Assess what didn't work, and why**: methodology itself — where did a routine, a convention, or a way of working actually fail or fall short this period, and why. Turn real findings into concrete improvement proposals, not vague sentiment. This step also collects each participating member's own step-2 improvement proposal alongside the coordinator's cross-team methodology assessment — both feed the same step-5 discussion, not two separate tracks. An empty result here is fine. Includes retro's own recurring problems, same standard: a concrete proposal, not vague sentiment.
 5. **Discuss with the user**: a conversation, not a report — pause and let the user react, add their own read, or push back before concluding. This is also where step 4's improvement proposals get reviewed — the user and `magic-librarian` decide together which ones are worth adopting, not something retro finalizes unilaterally.
-6. **Close out**: run `routine-close-session`'s shared closing steps — the skill-update-discussion offer, etc. Retro stays reflection, not action: log step 5's approved improvement proposals into `board-running` as pending items for the *next daily meeting* to actually pick up and apply — members may reflect on a proposal here, but implementation waits for a daily.
+
+# Closure steps
+
+1. **Close out**: run `routine-close-session`'s shared closing steps — the skill-update-discussion offer, etc. Retro stays reflection, not action: log step 5's approved improvement proposals into `board-running` as pending items for the *next daily meeting* to actually pick up and apply — members may reflect on a proposal here, but implementation waits for a daily.
 
 # Routine's local rules
 
@@ -45,6 +48,7 @@ All statements apply at the same time, always. These rules override a participan
 - Unsure whether a finding belongs in retro at all, vs. grooming/daily: retro is for reflection and methodology, not backlog triage — if it's really about re-prioritizing existing work rather than how the work has been going, note it via the `--member-upsert-inbox-note` operation and defer to `routine-grooming`, instead of stretching retro's own scope to cover it.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as the routine actually runs — proactive, as-it-happens posts, not only a summary batched into close-out.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

@@ -29,6 +29,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 5. **Hand off promising ideas**: anything that got a genuinely promising light-assessment gets filed (an `idea-*`/`note-*` board item, or folded into an existing inquiry/task it relates to) for later real evaluation — via `routine-discuss` (if it needs a real decision) or the normal staged task-creation lifecycle (if it's heading toward being built) — not decided or built directly out of the brainstorm itself.
 6. **Filing this follows the same gate as dispatch**: propose the item (piece, type, goal) and wait for confirmation before writing it, unless the human-owner explicitly asked for that specific filing.
 
+# Closure steps
+
+This routine has no distinct closing phase of its own — it ends once step 6's filing gate is satisfied; not a coworking-like session per `routine-session-start`'s taxonomy, so no `routine-close-session` call applies.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
@@ -47,6 +51,7 @@ All statements apply at the same time, always. These rules override a participan
 - Goal-directedness: when a goal is set for this session, actively work toward it (genuinely covering the loosely-set topic, not drifting off it entirely); non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - When `magic-coordinator` is the executor/convener, it is obligated to keep `slack-event-track` activity tracking current as the brainstorm actually runs — not only via whatever gets filed at step 5.
 - Changes to this routine's own definition need quorum (`magic-coordinator`, `magic-librarian`, `magic-architect`) — no single maintainer may edit it alone.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

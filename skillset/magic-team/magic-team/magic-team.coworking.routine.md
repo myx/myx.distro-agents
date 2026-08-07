@@ -22,7 +22,7 @@ Doesn't do: solo dispatch-and-report-back, `routine-daily`'s per-member parallel
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0a. **Run `routine-session-start`'s shared opening steps** — `routine-coworking` is always coworking-like/structured-multi-member for `routine-session-start`'s own session-type branching purposes, so its coworking-only opening broadcast (announcing the session to `slack-magic-team`/Trello, symmetric to this routine's own closing report in step 5/6 below) applies here, along with its mandatory `routine-process-reflections` call and its folded-in `routine-prepare-session` currency check.
+0a. **Run `routine-session-start`'s shared opening steps** — `routine-coworking` is always coworking-like/structured-multi-member for `routine-session-start`'s own session-type branching purposes, so its coworking-only opening broadcast (announcing the session to `slack-magic-team`/Trello, symmetric to this routine's own closing report in the closure step below) applies here, along with its mandatory `routine-process-reflections` call and its folded-in `routine-prepare-session` currency check.
    - **Thread continuity**: reuses `session_thread_ts`, already captured from that opening broadcast per `routine-session-start`'s own thread-continuity rule — no separate capture here. Every further post this routine makes to `slack-magic-team` for the rest of this session (step 2's Inviting/confirmation lines, step 4b's progress narration, step 5's final report) targets `<channel>:<session_thread_ts>`, never the bare `magic-team` keyword.
 0b. **Confirm co-working transcript context is assigned** — this session must have one stable `session_transcript_name` value (transcript-* filename) from session start; do not proceed with transcript appends when this key is missing.
 1. **Frame the shared goal**: state plainly, up front, what the coworking session is actually trying to accomplish together — same discipline as `routine-discuss`'s framing step, since a coworking session without a clear shared goal risks becoming an unfocused free-for-all. (Step 0a's opening broadcast may run before or after this framing.) Once the goal names specific board-item(s), call the `--routine-coworking-session-input-scan` operation for those item(s) before the session works from them.
@@ -34,7 +34,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 4b. **Narrate real progress into the same thread as it happens, not only at the final report**: as the shared goal's scope changes, or a participant begins applying a piece of work, post a short line to that effect (illustrative shape: `updated session scope: ...`, `applying ...`). This makes `magic-coordinator`'s own general message-by-message relay obligation concrete for this routine. Additive to, not a replacement for: the existing `slack-event-track` activity-tracking obligation in this routine's own Local rules (different channel, technical purpose) and step 5's own end-of-session substantive report.
 4c. **Default to a short clarification question over a broad investigation when something is unclear mid-task**: same ask-first discipline as conversation mechanics rule 6 (single-hypothesis, closed-form) and the team's own gap-surfacing convention (ask what's wanted; investigate only facts, never intent). Escalate into a real investigation — file reads, cross-file search, dispatching a member to go look — only once one of two concrete thresholds is actually met: the same gap has gone through two clarification rounds without resolving (that same rule's own stall definition), or the gap is a fact nobody present already holds (what a file/system actually contains or does, never what's wanted). Investigating "to be sure" before either threshold is met is scope creep on this step, not a safer default.
 5. **Report out to `slack-magic-team` via the `--member-slack-send-message` operation, including transcripts**: unlike an ordinary dispatch's compact status trace, a coworking session's report includes enough of the actual working transcript/substance that the broader team can see not just the outcome but how it was reached — this is a deliberate transparency choice for genuinely collaborative work, distinct from `routine-close-session`'s more compact broadcast step. Same threaded target as steps 2/4b: `<channel>:<session_thread_ts>`, never a fresh bare `magic-team` post.
-6. **Close via `routine-close-session`**: same shared closing steps as any other coworking-like/structured activity — continuity (transcript check, reflect-on-incidents, inbox-task updates), external broadcast, and the skill-update offer — scoped to what this coworking session actually surfaced. **Context compaction does not apply here**: a dispatched coworking session has no persisting interactive context to compact the way a plain IDE-chat session does. `routine-process-reflections` also does not run here — it already ran at this session's own start, via step 0a above.
+
+# Closure steps
+
+1. **Close via `routine-close-session`**: same shared closing steps as any other coworking-like/structured activity — continuity (transcript check, reflect-on-incidents, inbox-task updates), external broadcast, and the skill-update offer — scoped to what this coworking session actually surfaced. **Context compaction does not apply here**: a dispatched coworking session has no persisting interactive context to compact the way a plain IDE-chat session does. `routine-process-reflections` also does not run here — it already ran at this session's own start, via step 0a above.
 
 # Routine's local rules
 
@@ -53,6 +56,7 @@ All statements apply at the same time, always. These rules override a participan
 - The transcript-inclusion report (step 5) would expose something genuinely sensitive or internal: use judgment to redact or summarize that specific part, while keeping the rest of the transparency intent intact.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current throughout the session, not only at the final report — additive to, not replacing, step 4b's separate `slack-magic-team` progress narration and step 5's end-of-session substantive report.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 
@@ -90,7 +94,7 @@ Used to check this files own definitions against its own goals when this file's 
 ### Reference
 
 - `routine-session-start` — opening steps this routine runs at its own step 0a.
-- `routine-close-session` — closing steps this routine runs at its own step 6.
+- `routine-close-session` — closing steps this routine runs at its own closure step.
 - `routine-discuss` — the goal-framing discipline step 1 borrows from.
 - `routine-process-inbox` — this routine's own inbox processing.
 - `routine-daily` — the parallel-fan-out shape this routine is explicitly distinct from.

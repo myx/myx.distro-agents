@@ -146,6 +146,23 @@ case "$1" in
 		return $?
 	;;
 
+	## Fixed 5-loop countdown-then-continue signal. No options.
+	--magic-advance-sleep-run)
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-sleep-run: takes no arguments" >&2
+			set +e ; return 1
+		fi
+		local remaining=5
+		while [ "$remaining" -gt 0 ] ; do
+			echo "$remaining"
+			sleep 1
+			remaining=$(( remaining - 1 ))
+		done
+		printf 'All Done.\nPLEASE CONTINUE!\n'
+		return 0
+	;;
+
 	*)
 		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
 		set +e ; return 1

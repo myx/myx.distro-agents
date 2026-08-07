@@ -31,6 +31,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 7. To judge whether a better candidate existed: generate several (around ten) alternative phrasings of the reviewed formulation, compare them directly against each other against the simple/hard-to-misinterpret bar, and check whether the one under review is actually the best of that set — not just acceptable on its own.
 8. A wording finding includes the actual best replacement found via step 7's method — never just a flag that something is unclear. This comparison must account for every intent and benchmark of the magic-team that applies, given the type of document and the document itself.
 
+# Closure steps
+
+This routine has no distinct closing phase of its own — it ends once step 8's finding output is produced; it's a review sub-procedure other routines call inline, not a standalone session.
+
 # Routine's local procedures
 
 Named procedure blocks. Steps above call them by name. Not separate routines - not visible outside this file.
@@ -48,6 +52,7 @@ All statements apply at the same time, always. These rules override a participan
 - When a change touches a team-member's own behavior or duties — its rules, instructions, or descriptions — this check assesses the update against that member's own `<name>.librarian.md`-held `Verbatim-intents`/`Verbatim-benchmarks` pair; otherwise this particular check doesn't execute. If assessment alone can't settle whether the change actually holds, `magic-librarian` formulates a concrete testing request and dispatches `magic-tester` to verify it for real. This check's own assessment exists to confirm improvements are present and no regressions exist compared to the prior version, or its absence.
 - **Blocking model (draft)**: a real, concrete finding blocks the reviewed change from landing until addressed — unless the invoker is `magic-coordinator` or the human-owner themselves, in which case the finding is advisory only (surfaced, not enforced): both already hold final say regardless of this operation's output. A cosmetic/minor finding never blocks, same split as `routine-prepare-session`'s existing decision rule.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

@@ -31,7 +31,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - A `SendMessage` relay attempt gets no response within a bounded window: surface this to the user directly ("the one-on-one session appears to have died — restart it?") rather than waiting indefinitely.
    - Open a dedicated `slack-magic-team` thread, every session, no exception by size. Floor, never skipped: post a `one-on-one session started` marker and a `one-on-one session ended` marker. Beyond the floor: live notes/resolutions and the member's own public reflection notes may also go into the thread as it progresses, gated by the same public-vs-DM content-sensitivity judgment call `routine-communication-sweep`'s Reply step uses — genuinely private phrasing goes to a DM instead.
    - The session ends up waiting on a reply: persist its context as a real task/board record and save it to auto-memory, so it resumes cleanly from any future session — never hold an ephemeral agent conversation open instead.
-4. **Return and close**: once the 1:1 concludes, the spawned instance folds anything material into the board (a real Item — task/change/reflection/etc.), runs `routine-close-session`'s shared closing steps (the skill-update-discussion offer, scoped to this member), and reports a final status back to the UI/chat instance via `SendMessage`. Real follow-on work surfaced at close-out gets dispatched normally, its own fresh spawn — never continued on this same spawned instance.
+
+# Closure steps
+
+1. **Return and close**: once the 1:1 concludes, the spawned instance folds anything material into the board (a real Item — task/change/reflection/etc.), runs `routine-close-session`'s shared closing steps (the skill-update-discussion offer, scoped to this member), and reports a final status back to the UI/chat instance via `SendMessage`. Real follow-on work surfaced at close-out gets dispatched normally, its own fresh spawn — never continued on this same spawned instance.
 
 # Routine's local rules
 
@@ -46,6 +49,7 @@ All statements apply at the same time, always. These rules override a participan
 - Unsure whether something the target member raises needs a full board Item or just a status-file note: default to a real Item if it's substantive enough that a future session would need to find it independently — a status-file line alone risks getting GC'd away with no independent trace.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as the routine actually runs — proactive, as-it-happens posts, not only a summary batched into close-out.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

@@ -62,6 +62,8 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-release <team-
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-sleep-run" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --purge-cleanup" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh [--help]" >&2
 if [ "$1" = "--help" ]; then

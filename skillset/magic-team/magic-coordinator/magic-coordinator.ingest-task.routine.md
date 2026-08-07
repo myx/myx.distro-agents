@@ -30,6 +30,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 3. **note-on-inline-execution**: if the requester explicitly says to execute inline, now, in this same conversation, that overrides the "UI instance never executes" default for this one request only.
 4. **relationship-to-grooming**: gather and file only (or, rarely, dispatch under live authorization) — never triage, RICE-score, or make backlog decisions; that's `routine-grooming`'s job, later, when it processes the inbox.
 
+# Closure steps
+
+This routine has no distinct closing phase of its own — it ends once step 2's output/write and step 4's scope note are satisfied; no thread/lock/resource is opened that needs a closing counterpart.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
@@ -45,6 +49,7 @@ All statements apply at the same time, always. These rules override a participan
 - **DistroAgentsTools trust policy**: `DistroAgentsTools.fn.sh` is the team's own tool. Trust it by default day to day — no defensive re-verification of its own correctness on every call. Propose interface changes through the normal idea → interview → proposal → approval pipeline, never as an inline bypass. Re-check a specific call site only when a real incident actually traces back to it.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` typically runs this routine; while acting as executor, it is obligated to keep `slack-event-track` activity tracking current as the routine actually runs — not only after the fact.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

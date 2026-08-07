@@ -31,6 +31,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **Escalate**: last resort. DM the human-owner directly to report the item (`magic-coordinator`'s own "sole mandated channel" rule — reports the outcome, doesn't skip that channel for external parties).
    - "Reasonable time" is a judgment call from the item's own urgency/history (references, prior reply timestamps) — not a fixed threshold.
 
+# Closure steps
+
+This routine has no distinct closing phase of its own — it ends once step 1's per-item action is applied; no thread/lock/resource is opened that needs a closing counterpart.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
@@ -46,6 +50,7 @@ All statements apply at the same time, always. These rules override a participan
 - A human-owner item sits unanswered but looks like something that will naturally get addressed when they're next in Slack: weigh against unnecessarily nagging — a routine "communicate a fresh update" can substitute for an urgent-feeling remind or escalate, when genuinely not time-critical.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current — an escalation in particular should be visible as it happens, not just discoverable later from the item's own log.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

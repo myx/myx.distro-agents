@@ -530,7 +530,7 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 - `--magic-heartbeat-state-read` / `--magic-heartbeat-state-upsert`
 
 ## `--member-slack-send-message` Operation Reference
-`📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]` — "Posts a message to Slack via chat.postMessage, attributed to <team-member> (a bare directory name that must already exist as a real team member)."
+`📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--identity bot|user] [text...]` — "Posts a message to Slack via chat.postMessage, attributed to <team-member> (a bare directory name that must already exist as a real team member). An optional `--identity bot|user` overrides the automatic native-user-vs-bot selection — `bot` forces the shared bot-token path unconditionally, `user` forces `<team-member>`'s own token and errors if none is configured. Omitted: unchanged auto-detect behavior. A `<team-member>` argument itself prefixed `routine-*` (a routine acting as sender, not a persona) skips the skill-directory existence check and defaults to bot identity automatically, no flag needed — `--identity bot|user` still overrides this default in either direction when passed explicitly."
 
 ## `--help` Operation Reference
 "Prints this syntax + summary and exits."

@@ -24,6 +24,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **Confirm the routine protocol with librarian**: ask `magic-librarian` for a quick read of the specific routine file about to run (whichever `<owning-member>.<short-name>.routine.md` file this session is about to follow) as part of its team self-sufficiency audit — does this doc still reflect the team's current shape, is it internally consistent with `SKILL.md`/`TEAM-INFO.md`, the board, and `magic-team/magic-team.shared.md` (`TEAM-STATUS.md` is a minimal stub, not a consistency-check target) and the other files it cross-references, and — the point that actually motivates this step — is everything the routine needs to run correctly written down in the file itself, not assumed from memory or a prior conversation a fresh instance wouldn't have. This is a fast read-only sanity check, not a full audit pass; if librarian flags a real gap or drift, surface it to the user before proceeding rather than running the routine off a doc already known to be wrong.
 1a. **Process own inbox**: `routine-process-inbox`(`routine-prepare-session`'s own inbox, the executor running it) — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 
+# Closure steps
+
+This routine has no distinct closing phase of its own — it's a sub-procedure other routines call inline (folded into `routine-session-start` step 2), not a standalone session with its own lifecycle.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
@@ -38,6 +42,7 @@ All statements apply at the same time, always. These rules override a participan
 - Not sure if a finding is "real gap" or "minor": default to surfacing it — a note that turns out fine only costs a quick "that's fine, proceed"; a real gap left unsaid costs the whole session running on bad information.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` can be the executor running this check, since several members may run this routine — when it is, the general `slack-event-track` activity-tracking obligation still applies for whatever session this check is part of. This step is usually too small for its own post, but a real gap it finds should feed into the calling routine's own tracking — don't let it get lost.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

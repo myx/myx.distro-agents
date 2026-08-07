@@ -197,7 +197,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 5. **Review with the user**
    - This is a conversation, not a report.
    - Present the reprioritized, re-scored backlog and let the user reorder, push back, or approve before it's considered final.
-6. **Close out**
+
+# Closure steps
+
+1. **Close out**
    - Run `routine-close-session`'s shared steps:
      - continuity/reflection
      - the `slack-magic-team`/Trello broadcast
@@ -269,6 +272,7 @@ All statements apply at the same time, always. These rules override a participan
 - `DistroAgentsTools.fn.sh` trust policy: trust it by default day to day, no defensive re-verification on every call; propose interface changes through the idea → interview → proposal → approval pipeline, never an inline bypass.
 - Check established conventions (documented and used) before any implementation step; only if genuinely nothing covers it, propose an alternative and ask before proceeding.
 - Escalation ladder for a missing tool option/syntax: (1) check documented conventions/`--help` first; (2) not there, consult `magic-librarian` rather than inventing a flag; (3) librarian can't resolve it either, propose a concrete change through the idea → interview → proposal → approval pipeline. Never skip a rung.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

@@ -30,6 +30,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 4. **Decide-vs-build checkpoint**: if the discussion is about to produce a real build/edit dispatch, pause once and confirm explicitly with the user — "this is now becoming build work, confirmed?" — before firing it, per `magic-coordinator`'s standing rule. A decision reached here is not automatically a mandate to also implement it.
 5. **Record the outcome**: the actual decision (and, if useful, the rejected alternatives and why) gets written down — typically a `change-*`/`note-*` board item, or folded into whatever inquiry/task prompted this discussion — not left only in this conversation's own transcript. **Filing this follows the same gate as dispatch**: propose the item (piece, type, goal) and wait for confirmation before writing it, unless the human-owner explicitly asked for that specific filing.
 
+# Closure steps
+
+This routine has no distinct closing phase of its own — it ends once step 5's outcome is recorded; not a coworking-like session per `routine-session-start`'s taxonomy, so no `routine-close-session` call applies.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
@@ -41,6 +45,7 @@ All statements apply at the same time, always. These rules override a participan
 - Unsure whether this is really a "discuss" vs. "interview" vs. "brainstorm" situation: ask what the actual goal is before starting, rather than defaulting to whichever routine happened to get invoked by name.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - When `magic-coordinator` is the executor/convener, it is obligated to keep `slack-event-track` activity tracking current as the discussion actually runs.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 
