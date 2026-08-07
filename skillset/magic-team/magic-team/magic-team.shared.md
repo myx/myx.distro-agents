@@ -252,6 +252,7 @@ Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
     - `### Engagement shape` — present even if N/A.
       - Not a standing team member: a costed, external AI-service resource, spawned into a billed pay-per-time session, brought in to boost/accelerate one specific, complicated task.
       - Domain of expertise: the specific type(s) of work this member is brought in for — not a workspace, a work-type.
+      - Remote execution account info: this member's own settings name whatever account/credential the billed remote service is actually reached through.
       - Spawn trigger, cost/billing tracking, and session lifecycle: not yet defined team-wide — state whatever this specific member's own instructions already settle, flag the rest as open.
 - `# Terminology: <topic>`
   - Pure glossary, `term` → definition.

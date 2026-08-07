@@ -3,7 +3,7 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>]
 ---
 # <name>.armed.md — example skeleton (`oncall-*`/`expert-*`)
 
-Copy this file's shape into a new `<name>.armed.md`, alongside a matching `<name>.basic.md` and `SKILL.md`. Fill every bracketed placeholder. Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Oncall / Expert. No live `oncall-*`/`expert-*` member exists yet — roster category reserved.
+Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Oncall / Expert. No live `oncall-*`/`expert-*` member exists yet — roster category reserved.
 
 # Summary
 

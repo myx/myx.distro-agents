@@ -3,7 +3,7 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>]
 ---
 # <name>.armed.md — example skeleton (`keeper-*`/`warden-*`)
 
-Copy this file's shape into a new `<name>.armed.md`, alongside a matching `<name>.basic.md` and `SKILL.md`. Fill every bracketed placeholder. Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Keeper / Warden.
+Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Keeper / Warden.
 
 # Summary
 

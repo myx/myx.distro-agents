@@ -5,7 +5,7 @@ invitees: [<only if this routine has genuine multi-member sessions>]
 ---
 # <owning-member>.<short-name>.routine.md — example skeleton
 
-Copy this file's shape into a new `<owning-member>.<short-name>.routine.md`. Fill every bracketed placeholder. Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Routine.
+Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Routine.
 
 # Summary
 
