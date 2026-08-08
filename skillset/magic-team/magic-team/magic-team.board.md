@@ -211,10 +211,9 @@ The board matters at three points:
 
 This board has exactly one writer, so there's no multi-writer race to solve here — that concern only applies to personal inboxes (many members writing into each other's), which is `routine-process-inbox`'s territory, not this file's.
 
-## Relationship to TEAM-STATUS.md/TEAM-COMMS.md
+## Sole live status source
 
-`TEAM-STATUS.md` is a minimal stub. No routine reads or writes it anymore — `board/` (via this file plus the individual `board-item` files) is the sole live source.
+`board/` — this file plus the individual `board-item` files — is the sole live status source.
 
-`TEAM-COMMS.md` is likewise a retired stub.
 - Its per-platform mechanical comms-sweep state lives as structured fields in the `heartbeat-state-note` (`last_swept_ts`/`watched_slack_conversations`/`known_comms_gaps`), read via the `--magic-heartbeat-state-read` operation and rewritten via `--magic-heartbeat-state-upsert`.
 - Open-thread status lives on the owning `board-item`s directly (`source-slack-channel`/`source-slack-ts`) — `routine-communication-sweep` reads/writes those, not this file.

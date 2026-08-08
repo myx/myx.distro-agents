@@ -59,7 +59,7 @@ Referenced from each member's `.basic.md`. Not a `routine-*` member.
       - Make sure to quote/cite the relevant points from conversation (at least with `> `, unless formatting tools allow do better) in verbatim.
    - Proceed with further instructions of whatever activity you were preparing the reply.
 
-4c. **Reflect assesment feedback**
+4d. **Reflect assesment feedback**
    As a result of assessent of conversation context and received/updated/re-assessed incoming message, before the decision to reply and/or act, do this in order of preference: 
    - If context has `tracking-document` (board-item) attached, execute these steps in order:
       - Assess `tracking-document` rules, goals, state (according to `board-item-type` document format).

@@ -89,10 +89,7 @@ Used to check this files own definitions against its own goals when this file's 
   - Resolves `interview-2026-07-24-magic-librarian-conventions-check-design.md`'s "Shape mismatch".
   - This file is correctly a full `routine-*`-style member, not a single self-contained file like `magic-librarian.slib-generation.operation.md`.
   - Not a draft.
-- No `(draft)` markers remain open in this file.
-  - Load-bearing provenance, not decoration — preserve each.
-  - Remove one only once the human-owner confirms that specific section directly: a real chat reply in their own voice, or a real accept/reject on the file.
-  - Remove only that section's own `(draft)` label, not the others.
+- `(draft)` markers are load-bearing provenance, not decoration. Remove one only once the human-owner confirms that specific section directly: a real chat reply in their own voice, or a real accept/reject on the file — and only that section's own label, not the others. None remain open in this file.
 - The multi-candidate comparison method (step 7) is this routine's real mechanism for judging "was this the best formulation."
   - Generate ~10 alternative phrasings, compare directly.
   - Preserve it precisely — don't compress it into "check if the wording is good."
