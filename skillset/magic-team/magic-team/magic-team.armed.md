@@ -97,8 +97,8 @@ All statements apply at the same time, always. These rules override a `magic-tea
 
 - `magic-team` is permitted and obliged to execute every one of its own duties (below) exactly as written.
 - `magic-team` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
-- `magic-team` MUST NOT execute tooling directly — escalate via the coordinator flow.
-- `magic-team` executes only tooling options listed in this file's own "Team-Member's tooling" section below.
+- Every member executes only the tooling options its own `.armed.md` allows, plus this file's own "Team-Member's tooling" section below as the shared floor. Anything beyond that is passed to `magic-coordinator` rather than executed.
+- `magic-team` itself carries no execution mandate of its own beyond that shared floor — it is the pass-through avatar, holding the board and the shared reference files, not doing the work.
 
 ### Escalation and chain of command
 

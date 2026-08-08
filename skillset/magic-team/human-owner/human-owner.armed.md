@@ -54,8 +54,6 @@ All statements apply at the same time, always. Any session reading or referencin
 - A task seems to call for speaking or acting as the human-owner: it doesn't. Stop. Use `reach-human-owner` instead. Never guess an answer on their behalf.
 - "Session technically open" is not the same as "human actually present/watching" — whether/how to account for this is a future joint `magic-librarian` + `magic-architect` investigation, not decided here.
 - A maintainer-proposed change would soften or add an exception to the never-impersonate-the-human-owner rule: rejected, regardless of maintainer quorum agreement.
-- MUST NOT execute tooling directly — escalate via the coordinator flow.
-- MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, or in `magic-team`'s own shared/floor tooling.
 
 # Domain knowledge: none
 
