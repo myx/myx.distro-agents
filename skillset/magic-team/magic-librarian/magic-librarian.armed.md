@@ -36,7 +36,7 @@ No member-specific glossary terms for this member.
 
 # Team-Member's (-specific) local procedures
 
-Named procedure blocks. Steps below call them by name. Not separate routines — not visible outside this file. (Distinct from this skill's two real routines, `routine-conventions-check` and `routine-librarian-morning-review` — described in their own `magic-librarian.conventions-check.routine.md` / `magic-librarian.morning-review.routine.md` files, out of scope here.)
+Named procedure blocks. Steps below call them by name. Not separate routines — not visible outside this file. (Distinct from this skill's two real routines, `routine-conventions-check` and `routine-librarian-morning-review` — files named in `# Domain knowledge`'s `## Routines (index)`.)
 
 ## `mode-check` — read-only documentation audit
 
@@ -105,11 +105,18 @@ All statements apply at the same time, always. These rules override a magic-team
 - Unsure whether something belongs in `basic`/`armed`/`access`/`reference`: default to the narrower, more-identity-only bucket (`basic`) only for genuinely universal, always-true identity facts. Everything else that is real professional knowledge goes in `armed`, per the naming-scheme rework's own settled floor/ceiling distinction.
 - Who may change this file's own definition (`magic-coordinator`, `magic-librarian`, `magic-architect`) is a default extended from the same three-perspective group used elsewhere on the team for routine-definition changes — not a source-confirmed decision. Flagged as a real, still-open authoring gap; do not treat it as already settled.
 
-# Content standards (team-wide, authored and stewarded by `magic-librarian`)
+# Domain knowledge: skill-file content standards, Verbatim-intents/Verbatim-benchmarks convention
+
+## Routines (index)
+
+- `routine-conventions-check` — `magic-librarian.conventions-check.routine.md`.
+- `routine-librarian-morning-review` — `magic-librarian.morning-review.routine.md`.
+
+## Content standards (team-wide, authored and stewarded by `magic-librarian`)
 
 Standing methodology for every `magic-*` skill-folder `.md` file, not just this skill's own docs-auditing targets — checked via `routine-conventions-check`.
 
-## Unit boundaries
+### Unit boundaries
 
 Treat each of the following as an independent documentation unit, evaluated separately:
 
@@ -120,13 +127,13 @@ A single invocation may span multiple units (e.g. a monorepo). Don't blend their
 
 This unit model applies to ordinary README/CLAUDE.md/AGENTS.md work. The two standing scope exceptions (team status files, team self-sufficiency audit) aren't repo units and sit outside it.
 
-## Content philosophy
+### Content philosophy
 
 - **README.md** is for humans: what the project is, why it exists, how to install/run/use it.
 - **CLAUDE.md / AGENTS.md** are for AI agents: build/test/lint commands, architecture notes that aren't obvious from reading the code, non-obvious conventions, gotchas, pointers to where things live. Do not restate the README's content — link to it instead if context is needed.
 - Match the tone and structure the repo already uses for its docs. Don't impose a template from another project. If a unit has no docs at all yet, keep it minimal — sections earn their place by being non-obvious, not by filling out a checklist.
 
-## Skill-folder content hygiene: rewrite as current state, not a history of edits
+### Skill-folder content hygiene: rewrite as current state, not a history of edits
 
 **Scope: every non-log magic-team skill file** — any file that holds knowledge, instructions, descriptions, routines, or rules. Concretely: `SKILL.md` and every typed sibling (`.basic.md`/`.armed.md`/`.routine.md`/`.shared.md`), plus shared team docs (`magic-team.board.md`, `magic-team.shared.md`, and similar). As opposed to log files (see the exemption below): read the file, and if it carries dated/historical content ("Added 2026-07-XX," "CORRECTED — date," "Confirmed live, date:" incident narration, "this used to say X, now says Y" edit-history framing), don't leave that narration in place.
 
@@ -145,13 +152,13 @@ This unit model applies to ordinary README/CLAUDE.md/AGENTS.md work. The two sta
 - **Whose knowledge/judgment a rule actually describes, stated unambiguously.** A behavioral rule belongs in the file of the entity whose judgment it actually is (e.g. `magic-coordinator`'s own decision to invoke another routine reactively belongs in `magic-coordinator`'s own file, not bolted onto that routine's own definition as a special-case trigger) — write it there the first time, don't let it default to whichever file happens to be open when the rule is first captured.
 - Both risks come from capturing a rule quickly, mid-correction, without checking which of the two applies. Give wording precision a second look for anything captured live/reactively, not just for accreted-history language (the hygiene standard above).
 
-## Two writing modes for skill-folder `.md` files
+### Two writing modes for skill-folder `.md` files
 
 **Instructions mode** (rules, routines, definitions): compact and straight — short sentences, plain words, minimal nesting. Prefer bullet/list structure over paragraph-form prose wherever the content is enumerable — a list of cases, steps, or options reads as a list, not a sentence chain.
 
 **Narrative mode** (logs, transcripts, dated records): narration is fine. Still compact, not watery — except direct quotes, which stay verbatim.
 
-## Keeper/partner references stay generic in shared files
+### Keeper/partner references stay generic in shared files
 
 A shared/cross-cutting skillset file — anything other than a `keeper-*`/`partner-*` member's own definition file about itself — never hardcodes a specific `keeper-*`/`partner-*` member's name in a real, substantive rule. Genericize to the wildcard form instead: "the owning `keeper-*`", "any matching `partner-*`".
 
@@ -159,7 +166,7 @@ An illustrative example (marked "e.g." or otherwise clearly hypothetical) names 
 
 Reason: the `keeper-*`/`partner-*`/`oncall-*`/`expert-*`/`warden-*` roster is deliberately open-ended — new members can be added at any time — so a hardcoded name bakes in a wrong assumption.
 
-# Verbatim-intents and Verbatim-benchmarks convention (authoritative definition)
+## Verbatim-intents and Verbatim-benchmarks convention (authoritative definition)
 
 This is the source-of-truth definition every other member's own `Verbatim-goals (intents)`/`Verbatim-tests (benchmarks)` pair is authored and checked against — `magic-librarian` is the author/steward of this convention for the whole team.
 
@@ -252,7 +259,7 @@ Used to check this file's own definitions against its own goals when this file's
 - `magic-librarian.basic.md` — identity.
 - This file's own "Team-Member's (-specific) local rules" section — who may run/change this skill, decision-making (there is no separate `magic-librarian.access.md`; per `magic-team.shared.md`'s folder-shape spec, an acting member's access facts live inside its own `.armed.md`).
 - `reference/mcp.md` — MCP (Model Context Protocol) / JSON-RPC 2.0 reference module. Fully populated — the former standalone `magic-mcp` skill, retired and folded in here.
-- `magic-librarian.conventions-check.routine.md` / `magic-librarian.morning-review.routine.md` — this skill's two named routines. Out of scope for this restructuring; referenced here, not edited.
+- `routine-conventions-check` / `routine-librarian-morning-review` — this skill's two named routines; files named in `# Domain knowledge`'s `## Routines (index)`.
 - `magic-developer` — per-language `reference/` modules, same shape as this skill's own protocol/format modules.
 - `magic-team/magic-team.shared.md` — the `routine-*` virtual-member model and the typed-suffix file-format conventions.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — this skill's tooling baseline: calling convention, sole-sanctioned Slack-posting mechanism, Keep-Alive Workspace Console Session mechanics.

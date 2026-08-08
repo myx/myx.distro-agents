@@ -9,7 +9,7 @@ invitees: human-owner
 
 Routine-bootstrap-magic-vane is the one-time (and re-runable) coordinator bootstrap for Magic Vane's real operating identity: confirm identity, configure credentials, verify delivery semantics, confirm Slack profile shape, and fail loud with a human-owner handoff when any step cannot be completed autonomously.
 
-# Goals
+## Goals
 
 - Ensure Magic Vane operates under the intended identity (`magic-coordinator` / `Magic Vane` / `dispatchr`) rather than accidental myx/app-only impersonation.
 - Ensure message delivery checks reflect real usable behavior (native-user expectations and attribution reality) instead of `ok:true` false confidence.
@@ -17,7 +17,7 @@ Routine-bootstrap-magic-vane is the one-time (and re-runable) coordinator bootst
 - Ensure Slack profile basics are correct and visibly aligned with the role.
 - Produce a compact, explicit missing-items report when blocked.
 
-# Scope
+## Scope
 
 Does:
 - Bootstrap and validate `SLACK_USER_TOKEN` for `magic-coordinator`.
@@ -31,16 +31,15 @@ Doesn't do:
 - Auto-link this file from SKILLSET indexes.
 - Rework broad team policy outside coordinator bootstrap scope.
 
-# Preconditions
+# Steps
 
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+
+0. **Check preconditions** — any one missing is a fail-loud stop, escalated via step 10's human-owner script.
 - Workspace root available with `source/myx/myx.distro-agents`.
 - `DistroAgentsTools.fn.sh` available and executable.
 - Coordinator member key exists: `magic-coordinator`.
 - Human-owner reachable for escalations when required.
-
-# Steps
-
-Exact instructions. Execute in order, every step, literally as written.
 
 1. **Load identity and targets**
 - Read member token and configured targets:
@@ -184,17 +183,29 @@ Exact instructions. Execute in order, every step, literally as written.
 
 # Maintainer Notes
 
-Used only when maintaining this routine file.
+Used to check this file's own definitions against its own goals when this file is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
 
-## Compact conventions
+## Verbatim-goals (intents)
+
+- "Ensure Magic Vane operates under the intended identity (`magic-coordinator` / `Magic Vane` / `dispatchr`) rather than accidental myx/app-only impersonation."
+- "Ensure message delivery checks reflect real usable behavior (native-user expectations and attribution reality) instead of `ok:true` false confidence."
+
+## Verbatim-tests (benchmarks)
+
+- A probe send returns `ok:true` but `message.user` does not match step 2's authenticated `user_id`: reported `NOT READY` with a numbered missing action, never counted as working.
+- A `human-owner` send fails with `channel_not_found`: the alias stays unresolved and produces a concrete human-owner ask, never a guessed substitute target.
+
+## Librarian Comments
+
+### Reference
+
+- `magic-coordinator.armed.md`'s "Routines (index)" section.
+- `magic-coordinator.harness.md` — the bootstrap state an instance starts in before mode selection.
+- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — `--member-slack-send-message`, the sole sanctioned Slack-posting mechanism.
+
+### Conventions
 
 - Keep step order stable; add new checks as append-only unless a reorder is required by dependency.
 - Preserve the split between transport success, identity success, and policy success.
 - Keep escalation text actionable and one-question-at-a-time.
-
-## Session-grounded baseline captured here
-
-- `channels:write` was required to auto-join public targets.
-- `human-owner` alias target can fail with `channel_not_found` for Magic Vane unless explicitly mapped.
-- Slack may return `ok:true` with app/bot attribution markers while `message.user` still matches Magic Vane.
-- Bootstrap reporting must separate "delivered" from "accepted by native-identity policy".
+- Baseline facts the checks are calibrated against: `channels:write` is required to auto-join public targets; the `human-owner` alias can fail `channel_not_found` unless explicitly mapped; Slack may return `ok:true` with app/bot attribution while `message.user` still matches Magic Vane; reporting separates "delivered" from "accepted by native-identity policy".
