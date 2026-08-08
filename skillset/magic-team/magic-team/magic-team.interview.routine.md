@@ -114,6 +114,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **Closing reflection**: at the end, reflect on how the interview session itself went (process/quality, not just content) and check memory notes. Also check whether this interview surfaced a real behavior/pattern not yet backed by a written rule — a finding for this reflection too, not just wording polish.
 2. **Hand off, don't build — except steps 1b/3a/3b's own inline cycles**: once the other party's vision is genuinely captured, the interview's own job is done for anything bigger than what 3a/3b already cover inline — that goes through the normal task-creation lifecycle.
 
+# Routine's local procedures
+
+Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
+
+None currently defined.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.

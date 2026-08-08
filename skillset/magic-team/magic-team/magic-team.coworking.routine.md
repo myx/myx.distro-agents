@@ -39,6 +39,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **Close via `routine-close-session`**: same shared closing steps as any other coworking-like/structured activity — continuity (transcript check, reflect-on-incidents, inbox-task updates), external broadcast, and the skill-update offer — scoped to what this coworking session actually surfaced. **Context compaction does not apply here**: a dispatched coworking session has no persisting interactive context to compact the way a plain IDE-chat session does. `routine-process-reflections` also does not run here — it already ran at this session's own start, via step 0a above.
 
+# Routine's local procedures
+
+Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
+
+None currently defined.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.

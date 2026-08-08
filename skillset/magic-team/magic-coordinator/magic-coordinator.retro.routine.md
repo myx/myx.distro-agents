@@ -33,6 +33,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **Close out**: run `routine-close-session`'s shared closing steps — the skill-update-discussion offer, etc. Retro stays reflection, not action: log step 5's approved improvement proposals into `board-running` as pending items for the *next daily meeting* to actually pick up and apply — members may reflect on a proposal here, but implementation waits for a daily.
 
+# Routine's local procedures
+
+Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
+
+None currently defined.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.

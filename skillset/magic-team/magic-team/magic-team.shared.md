@@ -49,6 +49,8 @@ Every acting member (`magic-*`/`keeper-*`/`partner-*`) skill folder under `~/.cl
 
 Every `.armed.md`/`.routine.md` file follows one of the contracts below, by its own kind. Each is complete and self-contained — read the one that matches, never a diff against another.
 
+**Every section a contract names is present, in contract order, even when empty.** Each carries its own mandatory lead-in paragraph; where there is no content, an explicit "none" line follows it (`# Terminology: none` and `# Domain knowledge: none` express the same rule in the heading). Omitting a section is never conformant — an absent heading is indistinguishable from an unfinished file.
+
 ### Routine (`<owning-member>.<short-name>.routine.md`)
 
 Copyable skeleton: `magic-team/templates/routine.contract.format.md`.

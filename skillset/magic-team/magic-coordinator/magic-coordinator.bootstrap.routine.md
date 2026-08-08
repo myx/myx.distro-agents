@@ -28,8 +28,9 @@ Does:
 
 Doesn't do:
 - Change unrelated skill files.
-- Auto-link this file from SKILLSET indexes.
 - Rework broad team policy outside coordinator bootstrap scope.
+
+This routine stands a team up in a new place — a full custom-team setup for a new board, or a minimal one. It is setup machinery, not part of the working skillset, so it is deliberately absent from the skillset's routine indexes.
 
 # Steps
 
@@ -147,6 +148,16 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Produce one short matrix: Target -> join status -> send status -> identity status -> missing items.
    - Include explicit final line: `READY` only if all required targets are operational per step 5; otherwise `NOT READY` plus numbered missing actions.
 
+# Closure steps
+
+1. **Validate the resulting setup** — re-check every configured target and credential, and report what works and what is missing. A missing item is reported as a numbered concrete action, never as a warning without an ask.
+
+# Routine's local procedures
+
+Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
+
+None currently defined.
+
 # Routine's local rules
 
 - Fail loud on ambiguity; never report "working" from transport success alone.
@@ -155,7 +166,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 - Every `NOT READY` state must pass through step 9a: one concrete AskUserQuestion before continuing.
 - Never use a tight infinite busy-loop waiting for replies; use step 9b bounded waits and timeout escalation.
 - Keep reports compact and operational: facts first, no narrative padding.
-- Never link this routine file into SKILLSET automatically.
+- Never link this routine file into the skillset's routine indexes — it is setup machinery, not working-skillset content.
 - `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling

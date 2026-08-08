@@ -48,6 +48,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 This routine's own `# Steps` already is the closing procedure other routines delegate to — it has no separate closure phase of its own.
 
+# Routine's local procedures
+
+Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
+
+None currently defined.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.

@@ -36,6 +36,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 This routine has no distinct closing phase of its own — it's invoked inline by other routines' own steps to process one inbox, not a standalone session with its own lifecycle.
 
+# Routine's local procedures
+
+Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
+
+None currently defined.
+
 # Routine's local rules
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
