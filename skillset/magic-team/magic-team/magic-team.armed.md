@@ -1,5 +1,5 @@
 ---
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-team — armed (professional-ready) content
 
@@ -35,6 +35,7 @@ When a term below appears quoted, especially `` `like-this` ``, it carries the s
 - `(draft)` — a label marking content not yet confirmed by the human-owner through a verified channel; removed once directly confirmed, never left on once-approved content.
 - `date-time` — local date-time, numeric UTC offset: `YYYY-MM-DD HH:MM ±HHMM` (e.g. `2026-08-02 19:59 +0300`) — never a named timezone abbreviation (e.g. never `EEST`), unless a specific field's own definition explicitly asks for another format (e.g. `approved-by`'s own ISO-UTC-with-`Z`-suffix component).
 - `armed-mode` / `armed` team-member — a team member has read its own `<team-member>.armed.md` content, beyond bare `<team-member>.basic.md` identity, and is ready for real work-duty.
+- `owner-guaranteed` — a rule that does not change without the human-owner's own approval.
 - `quorum-all-agree` — every member of the named group agrees. The default when a rule says only "quorum".
 - `quorum-majority` — more than half of the named group agrees.
 - `quorum-no-disapproval` — nobody in the named group objects; silence counts as `not yet spoken`.

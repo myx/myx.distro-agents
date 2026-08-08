@@ -1,5 +1,5 @@
 ---
-maintainers: magic-librarian, magic-coordinator
+maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 This is **not a team member an agent invokes and becomes** — it is an identity/role record. The human-owner is a real, actual person — the user, myx — not an AI persona. No `magic-*`/`keeper-*`/`partner-*` skill's behavior model applies here, and this file contains no behavior to adopt.
 

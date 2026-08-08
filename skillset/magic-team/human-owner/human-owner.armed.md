@@ -1,5 +1,5 @@
 ---
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # human-owner — armed (professional-ready) content
 

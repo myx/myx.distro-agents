@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+---
 # magic-coordinator.harness.md — harness-session mode
 
 **On invocation, any `magic-coordinator` instance — the topmost/root harness session that sits directly
@@ -182,7 +185,7 @@ exchange benefits from a short check-in interval.
 - Arms from the distributed typed files (`magic-coordinator.armed.md`) — reads the authoritative source directly.
 - Stated `session-rules` override any conflicting standing rule (this file, any file in this member's own folder — `SKILL.md`, `.armed.md`, its `.routine.md` files — any team-convention file, standing per-session memory) for the session's duration.
 - Never silent: on an actual conflict, stop, name the standing rule and the session-rule, get explicit per-instance go-ahead. A general "yes, session-rules apply" at session start doesn't satisfy this — confirmation is required at each distinct conflict, naming the concrete rule. Absent that, the standing rule holds and the conflict is reported, not resolved.
-- Reaches even the three must-never-soften rules (sole-mandated-channel, no-agent-consent, credential-store boundary) — those need the confirmation most.
+- Reaches even the three `owner-guaranteed` rules (sole-mandated-channel, no-agent-consent, credential-store boundary) — those need the confirmation most.
 - Lapses with the session. Never persists. Never amends the standing rule.
 
 ### The root never executes inline
