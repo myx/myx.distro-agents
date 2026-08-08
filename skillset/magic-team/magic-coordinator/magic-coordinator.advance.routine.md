@@ -171,6 +171,8 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
+- This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply.
+- Overrides the inherited coworking thread anchor: this routine's session thread lives in `slack-event-track`, not `slack-magic-team`. Genuinely important items still go separately to the human-owner DM and `slack-magic-team`.
 - Every real file read/write and communications API call this routine makes (including `check-process-board`'s own `--comms-slack-react` calls) is its own direct `lib/execShStdin` call — no Keep-Alive Console Session assumed or required, per `magic-team.armed.md`'s process-flow rule.
 - Never resolves an open design/judgment question surfaced by an investigation subtask — flags it for `routine-grooming`/`magic-architect`.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal.

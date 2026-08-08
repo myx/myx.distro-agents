@@ -207,6 +207,8 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
+- This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply.
+- Overrides the inherited coworking thread anchor: this routine's session thread lives in `slack-event-track`, not `slack-magic-team`. Genuinely important items still go separately to the human-owner DM and `slack-magic-team`.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - This routine is a scheduler tick — each `next-iteration` checks what's due against `magic-team`'s own calendar/full-sprint routine (comms cadence, once-daily grooming, the daily meeting) and acts on exactly what's due this pass, nothing more.
 - **Per-platform pacing, not one interval for everything**:
