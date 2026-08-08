@@ -49,7 +49,7 @@ Every acting member (`magic-*`/`keeper-*`/`partner-*`) skill folder under `~/.cl
 
 Every `.armed.md`/`.routine.md` file follows one of the contracts below, by its own kind. Each is complete and self-contained — read the one that matches, never a diff against another.
 
-**Every section a contract names is present, in contract order, even when empty.** Each carries its own mandatory lead-in paragraph; where there is no content, an explicit "none" line follows it (`# Terminology: none` and `# Domain knowledge: none` express the same rule in the heading). Omitting a section is never conformant — an absent heading is indistinguishable from an unfinished file.
+**Every section a contract names is present, in contract order, even when empty.** Each carries its own mandatory lead-in paragraph; where there is no content, an explicit "none" line follows it (`# Terminology: none` and `# Domain knowledge: none` express the same rule in the heading). An absent heading is indistinguishable from an unfinished file. Fix an existing gap when that file is next touched, not as a standing sweep.
 
 ### Routine (`<owning-member>.<short-name>.routine.md`)
 
@@ -346,7 +346,7 @@ Maintainer agreement is `quorum-all-agree` unless that definition states otherwi
 
 A rule is `owner-guaranteed` when it protects the human-owner's own position against the team — their identity, their consent and sole channel, or their credentials boundary.
 
-- A skillset file stating one carries `human-owner` in its `maintainers:`.
+- A skillset file that *defines* one carries `human-owner` in its `maintainers:`. A file merely restating or pointing at it does not.
 
 ### Invitees (routines only)
 
