@@ -97,8 +97,8 @@ All statements apply at the same time, always. These rules override a `magic-tea
 
 - `magic-team` is permitted and obliged to execute every one of its own duties (below) exactly as written.
 - `magic-team` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
-- Every member executes only the tooling options its own `.armed.md` allows, plus this file's own "Team-Member's tooling" section below as the shared floor. Anything beyond that is passed to `magic-coordinator` rather than executed.
-- `magic-team` itself carries no execution mandate of its own beyond that shared floor — it is the pass-through avatar, holding the board and the shared reference files, not doing the work.
+- `magic-team` MUST NOT execute a tooling command directly — every tooling call runs through the `myx.common` MCP (`mcp__myx_common__lib_execShStdin`), never a raw shell invocation or any other execution path.
+- `magic-team` executes only tooling options listed in this file's own "Team-Member's tooling" section below; anything beyond them passes to `magic-coordinator` rather than being executed here.
 
 ### Escalation and chain of command
 
@@ -607,7 +607,7 @@ Used to check this file's own definitions against its own goals when this file's
 
 - Communications between participating member instances of co-working sessions are deemed over `internal-channel`.
 - "magic-team MUST execute only options allowed by this file's own tooling section."
-- "magic-team MUST NOT execute tooling directly; escalate via coordinator flow."
+- "magic-team MUST NOT execute a tooling command directly; every tooling call runs through the myx.common MCP."
 - "Pass through to `magic-coordinator` anything not specifically covered by this file. This skill exists to hold two things — the board and a set of shared reference files — not to make decisions."
 - "For escalations, any work-session summons armed `magic-coordinator` — never a fresh instance through the same suspect channel; the summoned instance already holds its own independent verification channel."
 - "A new rule (or instruction) about team dynamics or process flow (how the team operates, not ordinary content) is written as a short, abstract rule, present tense — never a dense narrative paragraph — and passes through `magic-librarian`'s `routine-conventions-check` operation, then gets validated by either `magic-coordinator` or the current human-owner session directly, if available."
