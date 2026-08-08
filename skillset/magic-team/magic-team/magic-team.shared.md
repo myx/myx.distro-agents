@@ -342,6 +342,12 @@ Maintainer agreement is `quorum-all-agree` unless that definition states otherwi
 
 **Maintainers act as a group quorum for change/update — not any single maintainer unilaterally editing the folder's own definition.** `quorum-all-agree` among the maintainer group is required before the definition actually changes — same spirit as the team's existing three-person triage-authority-group pattern (`magic-team.board.md`'s triage process), generalized here to skill-folder-definition changes specifically. This doesn't block *executing* the activity (executors do that freely, per their own role) — it only gates changing what the activity *is*.
 
+### Owner-guaranteed rules
+
+A rule is `owner-guaranteed` when it protects the human-owner's own position against the team — their identity, their consent and sole channel, or their credentials boundary.
+
+- A skillset file stating one carries `human-owner` in its `maintainers:`.
+
 ### Invitees (routines only)
 
 **A third role, distinct from executors/maintainers** — who a session under this routine pulls in alongside its executor.
