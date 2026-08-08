@@ -158,6 +158,8 @@ None currently defined.
 
 # Routine's local rules
 
+All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
+
 - Fail loud on ambiguity; never report "working" from transport success alone.
 - No guessed target ids, no guessed scope names, no silent fallback identities.
 - Every blocker must map to one concrete ask for human-owner.

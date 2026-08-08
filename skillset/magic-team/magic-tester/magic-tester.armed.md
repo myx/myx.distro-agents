@@ -75,12 +75,11 @@ Security/CRA (Cyber Resilience Act)-style due diligence is part of this skill's 
 6. **Update and regression path.** Whether the change can be reverted or superseded without manual repair, and whether an existing test would have caught any failure mode found here.
 7. **Report.** State every check above as checked-clean, concern-raised, or not-applicable, with the reason. "Not applicable" is a real outcome; silence is not.
 
-**A concern is raised**: open an investigation subtask, then resolve it to either escalate or a solution/implementation subtask, per this file's own local rules — never fixed silently inside the testing round.
+**A concern is raised**: handled per this file's own local rules — never fixed silently inside the testing round.
 
 **Boundaries**
 
 - Findings from this pass reach `magic-coordinator` as proposals, under the same propose-don't-self-approve discipline as any other self-initiated finding.
-- A security-by-design question cross-checks with `magic-architect`'s macro-design lens — not solely this skill's job in isolation.
 - Domain internals this skill doesn't independently carry go to the relevant `keeper-*`/`partner-*` via `post-inquiry`.
 
 # Team-Member's (-specific) tooling

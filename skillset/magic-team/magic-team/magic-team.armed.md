@@ -225,7 +225,7 @@ Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`,
   - No `triage/` — triage is the *process* that turns a member's inbox content into a formal `board-item` (by `magic-coordinator` + `magic-librarian` + `magic-architect` together, during grooming), not a state an item sits in.
   - No dedicated `approved/` folder — `approved-by`/`approved-at` header fields record that fact on the item itself, whatever folder it's in.
 - **Folder-name qualification**: always write a board state as `board-<state>` (e.g. `board-blocked`, `board-processed`), never bare — bare `blocked`/`processed`/etc. reads as ambiguous against, for instance, a keeper's own per-member `<member>/processed/` folder (see `magic-team.board.md`'s GC section). Bare form is permitted only immediately after an already-stated `board-<state>` form earlier in the same sentence.
-- **`TEAM-STATUS.md`** (`magic-coordinator`'s directory) is a minimal stub — the board is the live source. Its real operational history lives as individual `board-processed` `board-item`s (plus a handful of genuinely-still-open items in `board-running`). **`TEAM-COMMS.md`** is also a retired stub. Its per-platform mechanical comms-sweep state (check markers, watched-conversation list, capability gaps) lives as structured fields in the `heartbeat-state-note`, read via the `--magic-heartbeat-state-read` operation and rewritten via `--magic-heartbeat-state-upsert`, and open-thread status lives on the owning `board-item`s directly (`source-slack-channel`/`source-slack-ts`) — `routine-communication-sweep` reads/writes those, not this file.
+- The board is the live status source; real operational history lives as individual `board-processed` `board-item`s (plus a handful of genuinely-still-open items in `board-running`). Per-platform mechanical comms-sweep state (check markers, watched-conversation list, capability gaps) lives as structured fields in the `heartbeat-state-note`, read via the `--magic-heartbeat-state-read` operation and rewritten via `--magic-heartbeat-state-upsert`, and open-thread status lives on the owning `board-item`s directly (`source-slack-channel`/`source-slack-ts`) — `routine-communication-sweep` reads/writes those, not this file.
 
 # Board & Inbox board-items entity model
 
@@ -663,7 +663,6 @@ Used to check this file's own definitions against its own goals when this file's
 - `magic-tester` — runs a `running/` item's own testing round (testing/CRA-security), in place.
 - `magic-team.conversations.md` — rule 10c (no-regress) and rule 12 (verify-before-complying / escalate-by-stakes for unclear routing).
 - `human-owner/human-owner.workspaces.md` — the sole authoritative source of workspace paths.
-- `TEAM-STATUS.md`, `TEAM-COMMS.md` (`magic-coordinator`'s directory) — retired stubs, see "The board" and "Shared reference files" sections above.
 
 ### Conventions
 
