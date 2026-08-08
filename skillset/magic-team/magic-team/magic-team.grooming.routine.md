@@ -253,7 +253,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` (this routine's executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply.
+- This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - Run by `magic-coordinator` + `magic-librarian` + `magic-architect`, jointly — not by any one of the three alone. A different member may request/trigger a pass, but does not perform it.
 - `routine-grooming` does all the quorum's work inline, itself — it never spawns a coworking session to do it. Work that needs one lands as a `board-pending` item instead — executed later by `check-execute-board` (`magic-coordinator.advance.routine.md`, `routine-advance`-only), not started here.

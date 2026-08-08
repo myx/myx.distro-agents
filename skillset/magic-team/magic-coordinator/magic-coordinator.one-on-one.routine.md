@@ -48,7 +48,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply.
+- This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - No "just connect them, no spawn" exception, ever — not even when it looks like a trivial quick question. Every one-on-one spawns a dedicated instance; the UI/chat instance relays, it never hands the user off to the member directly in-conversation.
 - The target member has no real open items or history (a genuinely cold start): proceed anyway — step 2's context-prep is "pull whatever exists," not a precondition that blocks the session if little exists yet.

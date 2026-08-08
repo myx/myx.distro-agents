@@ -122,7 +122,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply.
+- This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - **Executor vs. participant role, defined explicitly** (resolving this routine's own version of the "always (sub-)spawned" standing rule): `routine-daily` has one **executor** (`magic-coordinator`) and, at its work-session fan-out step (7), several **participants** — every member that step actually dispatches. This is `routine-daily`'s own version of the same executor/participant distinction `routine-coworking` already draws explicitly ("other members are participants, not executors"), just shaped around this routine's own "fan-out" collaboration mode (each participant works its *own* separate assignment) rather than several people on one shared task.
   - **The executor's (`magic-coordinator`'s) scope**:

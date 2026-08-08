@@ -620,6 +620,9 @@ Named directly in this file's own "The board" section above: reads/rewrites the 
 - Do not use options that are not listed in your own member/routine tooling file.
 - If a needed option is missing, update that member/routine instruction files first, then refresh its tooling file.
 - Correcting a stale or wrong claim: sweep for **what it means**, not what it said. The same claim recurs in different words, so a grep for the original phrasing reports a clean tree that isn't. Not done until the restatements are found too.
+- Before a uniform replacement across many sites: ask what the old text carried that the new text won't. Identity often lives in the exact words being replaced — replace them uniformly and distinct things become indistinguishable, then get read as duplicates and deleted.
+- Name a thing or you cannot reason about it — position is not a handle. Anything nameless can only be pointed at by where it sits, and that moves on the next edit. If something resists naming, that is evidence it shouldn't exist, not a naming problem.
+- Remove a clause, then re-read what depended on it — the surrounding lines, not just the changed one. Deletions strand child bullets, orphan a pronoun whose antecedent is gone, and weld two rules into one when a parenthetical goes.
 
 # Maintainer Notes
 
