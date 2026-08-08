@@ -2,6 +2,7 @@
 name: human-owner
 status: reference-only
 invocation_mode: never
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 description: >-
   Reference-only identity record for the magic-* team's human owner (myx). Use it only as context when other skill files mention the human owner. Never invoke it as an acting skill, and never post, reply, or act under that identity.
 ---
