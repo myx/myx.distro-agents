@@ -83,7 +83,7 @@ Tier 2 is defined in this file's own Local rules: no restore available, real bla
 - Credential, token, or SSH-key rotation or revocation; ACL or firewall-rule removal.
 - Mass remote-state deletion: log, artifact, backup, or registry-tag purges.
 
-Tier 1, for contrast — undoable work whose restore is already available: a tracked-file edit, a commit, a board-item move, a redeploy of a previously-built artifact, a re-runnable sync (`DistroImageSync.fn.sh --all-tasks --execute-source-prepare-pull`, `DistroLocalTools.fn.sh --upgrade-installed-tools`), a single-host service restart that returns on its own.
+Tier 1, for contrast — undoable work whose restore is already available: a tracked-file edit, a board-item move, a redeploy of a previously-built artifact, a re-runnable sync (`DistroImageSync.fn.sh --all-tasks --execute-source-prepare-pull`, `DistroLocalTools.fn.sh --upgrade-installed-tools`), a single-host service restart that returns on its own.
 
 # Team-Member's (-specific) tooling
 
