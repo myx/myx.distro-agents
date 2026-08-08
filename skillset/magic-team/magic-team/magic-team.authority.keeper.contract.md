@@ -33,10 +33,10 @@ hold with each other — responsibilities, duties, and constraints as understood
 just this one decision-authority rule in isolation. Two depths of
 record exist for that contract, both legitimately authoritative for their own purpose:
 
-- **Full operational detail** lives in each keeper's own `.armed.md`/`.access.md` (what to do, how — the
+- **Full operational detail** lives in each keeper's own `.armed.md` (what to do, how — the
   concrete step-by-step) and, for this specific rule, here.
 - **A short organizational gist** — what a member is responsible for, its limits/boundaries — lives in
   each member's own `.armed.md` `Scope` section. `magic-librarian` checks that gist still agrees with
-  what's written here and in each keeper's own `.armed.md`/`.access.md` as part of its regular work (the
+  what's written here and in each keeper's own `.armed.md` as part of its regular work (the
   team self-sufficiency audit), not as a one-time reconciliation.
 

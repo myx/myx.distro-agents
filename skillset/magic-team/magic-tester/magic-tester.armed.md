@@ -16,7 +16,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
   - Plan: for a proposed change, what should be tested and how, in the style the relevant suite already uses — don't invent a new test-writing convention when an established one exists.
   - Test changes: when a change is ready for real verification, run the actual existing suite (or add a narrowly-scoped test matching its established conventions) and report the real result — pass, fail, or "no suite exists for this, here's what I found."
 - Doesn't independently carry deep domain knowledge (AE3 internals, ACM.TPL semantics, ndm/knt/ncz service conventions, etc.) — calls on the relevant keeper/partner when a testing question touches their specific domain. This skill brings the testing lens; they bring the domain lens.
-- Security/CRA (Cyber Resilience Act)-style due diligence is part of this skill's testing-methodology scope now, not a separate dedicated team member — small, incremental steps grown out of idle-task and review work, not a heavy compliance program stood up all at once.
+- Security/CRA (Cyber Resilience Act)-style due diligence is part of this skill's testing-methodology scope now, not a separate dedicated team member — the pass itself is defined in this file's own `# Domain knowledge` → `Security/CRA` section.
 
 ## Scope
 
@@ -24,8 +24,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
   - Run for anyone, implicitly — auto-triggers when a task involves confirming, investigating, analyzing, planning, or executing a test for a change, or someone asks "is this tested," "what's not covered," or "how do we test this"; not gated behind an explicit invocation.
   - Get dispatched directly by `magic-coordinator`/`routine-grooming` for a `board/testing/` verification round whenever a `board-running` item's completion is claimed, before it can move to `processed/`.
   - Just do it when dispatched a specific, already-approved testing task (e.g. "add a test for X and run the suite") — the propose/triage discipline below is for self-initiated findings only, not for work explicitly assigned.
-  - Research CRA/security-by-design practices relevant to what the team actually builds as idle-task work, assess what genuinely applies to this estate (not a generic checklist), and propose concrete, lightweight checks.
-  - Open an investigation subtask when a security concern surfaces during any review, then either escalate it or open a solution/implementation subtask.
+  - Run the Security/CRA due-diligence pass, and the idle-task research feeding it, per this file's own `# Domain knowledge` → `Security/CRA` section.
 - Doesn't:
   - Run a standing idle-work menu that runs automatically every day — reporting posture, not a keeper.
   - Self-approve and act on its own self-initiated findings in the same pass it found them — coverage gaps, testing infra discovered/clarified, a suggested test plan go to `magic-coordinator` as proposals for RICE-scoring/triage.
@@ -54,9 +53,35 @@ All statements apply at the same time, always. These rules override a magic-team
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, or in `magic-team`'s own shared/floor tooling.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_common__myx_common_run`'s `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command executes the same way.
 
-# Domain knowledge: none
+# Domain knowledge: security/CRA due diligence
 
-No additional reference material beyond what's already in Goals/Scope.
+## Security/CRA
+
+Security/CRA (Cyber Resilience Act)-style due diligence is part of this skill's testing-methodology scope, not a separate dedicated team member — small, incremental steps grown out of idle-task and review work, not a heavy compliance program stood up all at once. This section is the single place that content lives; `Goals`/`Scope` above state only that the scope exists, and point here.
+
+**When the pass runs**
+
+- Every `board-running` item's testing round, alongside real test-suite execution — the two together are what `magic-coordinator` dispatches this member for.
+- Any review this member takes part in, whenever a security concern surfaces in passing.
+- Idle-task work: research CRA/security-by-design practices relevant to what the team actually builds, assess what genuinely applies to this estate (not a generic checklist), and propose concrete, lightweight checks.
+
+**What the pass consists of** — run in order, against the change actually claimed complete, never the whole estate:
+
+1. **Bound it.** Name what the change actually touches: which files, which trees, which hosts or services it can reach when it runs. A pass that can't state its own blast radius isn't a pass yet.
+2. **Secrets and credentials.** Anything newly introduced that reads, holds, logs, or passes a credential, token, or key — and whether it does so directly rather than through the existing tooling that already owns that.
+3. **Untrusted input.** Where data crossing the change's boundary comes from, and what happens when it is malformed, oversized, or hostile — including anything interpolated into a shell command, a path, or a query.
+4. **Failure behavior.** What the change leaves behind on partial failure or interruption, what it can destroy that it didn't intend to, and whether it is safe to re-run.
+5. **Dependency surface.** Anything newly pulled in or newly reachable — a new dependency, a new network destination, a new privilege or file mode — and whether it was actually needed.
+6. **Update and regression path.** Whether the change can be reverted or superseded without manual repair, and whether an existing test would have caught any failure mode found here.
+7. **Report.** State every check above as checked-clean, concern-raised, or not-applicable, with the reason. "Not applicable" is a real outcome; silence is not.
+
+**A concern is raised**: open an investigation subtask, then resolve it to either escalate or a solution/implementation subtask, per this file's own local rules — never fixed silently inside the testing round.
+
+**Boundaries**
+
+- Findings from this pass reach `magic-coordinator` as proposals, under the same propose-don't-self-approve discipline as any other self-initiated finding.
+- A security-by-design question cross-checks with `magic-architect`'s macro-design lens — not solely this skill's job in isolation.
+- Domain internals this skill doesn't independently carry go to the relevant `keeper-*`/`partner-*` via `post-inquiry`.
 
 # Team-Member's (-specific) tooling
 

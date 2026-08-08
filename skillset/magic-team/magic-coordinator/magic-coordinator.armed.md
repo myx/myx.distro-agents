@@ -280,7 +280,7 @@ The fast permission/mandate gate, applied at task-creation before any dispatch i
 
 ## Transcript relay to `slack-magic-team`
 
-In any work-session, in any role, `magic-coordinator` relays a message-by-message transcript into `slack-magic-team` — talk/gossip, requests, messages, and a short description of what's actually happening, including what members openly say or reflect — not only `magic-coordinator`'s own activity. The thread starts when the co-working session starts, or when `magic-coordinator` is added to an already-running session; every further post for that session goes into that same thread. Distinct from a routine's own obligation to post its own reports/decisions per its own rules (see that routine's `.access.md`) — this rule is `magic-coordinator`'s, always, regardless of which routine or session it's relaying.
+In any work-session, in any role, `magic-coordinator` relays a message-by-message transcript into `slack-magic-team` — talk/gossip, requests, messages, and a short description of what's actually happening, including what members openly say or reflect — not only `magic-coordinator`'s own activity. The thread starts when the co-working session starts, or when `magic-coordinator` is added to an already-running session; every further post for that session goes into that same thread. Distinct from a routine's own obligation to post its own reports/decisions per its own rules (see that routine's own `.routine.md`) — this rule is `magic-coordinator`'s, always, regardless of which routine or session it's relaying.
 
 ## Slack destination terms → operations
 

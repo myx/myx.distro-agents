@@ -69,7 +69,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2e. **Live `GOOD INTERVIEW`/`BAD INTERVIEW` (or pinned `ASSESSMENT`) quality-marker — triggers an immediate
     self-edit of this file.** When the human-owner states `GOOD INTERVIEW`/`BAD INTERVIEW`, or `GOOD
     ASSESSMENT`/`BAD ASSESSMENT` pinned to a specific quoted prior statement of the interviewer's, read back
-    the understood rule and check magic-librarian's own conventions (its `.armed.md`/`.access.md`/writing-mode
+    the understood rule and check magic-librarian's own conventions (its `.armed.md`/writing-mode
     guidance) before writing, then make a small edit to this file adding a reinforcing (`GOOD`) or corrective
     (`BAD`) rule that captures what just happened, plain and undated. Confirm in the same reply what was
     added. Interview-specific: stays inside this file, not the team's general conversation-mechanics — this

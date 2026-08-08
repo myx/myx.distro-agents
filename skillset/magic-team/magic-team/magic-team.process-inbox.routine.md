@@ -48,7 +48,7 @@ All statements apply at the same time, always. These rules override a participan
 - Non-acting owners (human-owner, external contacts) have no inbox folder of their own — their content lives inside `magic-coordinator`'s inbox, processed for them via `routine-external-inbox-handle-loop`.
 - Only `magic-coordinator` may post `assignment-*` items into another member's inbox — any member may post `inquiry-*` to anyone's inbox (the general default), but a real work dispatch is coordinator-exclusive.
 - Only `magic-coordinator` may update board-tracking metadata (already-triaged, already-referenced) on an item sitting in another member's inbox — even when writing there for another allowed reason.
-- A `routine-*` virtual member's own `.access.md` may declare further constraints on its own inbox — narrowing these defaults, never overriding them.
+- A `routine-*` virtual member's own `.routine.md` (frontmatter plus `# Routine's local rules`) may declare further constraints on its own inbox — narrowing these defaults, never overriding them.
 - First spawn of the day (or a genuinely fresh session): reads its own inbox — including saved `reflection-*` self-notes — as part of loading context, before anything else. Member-initiated, not coordinator-triggered.
 - Invoked from: `routine-heartbeat`'s inbox-processing sub-step (immediately after comms-sweep, `magic-coordinator` processes its own inbox every cycle), standalone on a member's own initiative, and the morning self-review.
 - `routine-heartbeat`'s own inbox-processing sub-step also does a light staleness check across acting members' inboxes (age-based, not exhaustive re-reading) — stale content folds into that member's next dispatch, or gets a direct nudge if time-sensitive.
