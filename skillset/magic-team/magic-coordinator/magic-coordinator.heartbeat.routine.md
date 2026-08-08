@@ -58,8 +58,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **Comms** (every `next-iteration`, any day): one full `routine-communication-sweep` iteration, all six of its steps.
        - Includes the mandatory `conversations.replies` check on every open thread — a `conversations.history`-only check misses replies already sitting in open threads.
      - **Inbox processing, immediately after Comms**:
-       - Run `routine-process-inbox` for `magic-coordinator`'s own inbox — this loop is that routine's regular caller, not its only invocation path (see `routine-process-inbox` for standalone/ad hoc invocation and the morning self-review).
-       - Same pass, also: `magic-coordinator` runs `routine-process-inbox` on its own inbox — `routine-heartbeat`'s own required Steps call, inline execution, own identity.
+       - Run `routine-process-inbox magic-coordinator` — inline execution, own identity. This loop is that routine's regular caller, not its only invocation path (see `routine-process-inbox` for standalone/ad hoc invocation and the morning self-review).
        - Items owned by a non-acting owner (human-owner, external contacts): run `routine-external-inbox-handle-loop` — their content lives inside `magic-coordinator`'s own inbox too, since they have no skill folder of their own.
        - Items owned by an acting member: leave for the next `routine-daily`/`routine-grooming` pass to fold into that member's properly-registered assignment, unless there's a specific reason to invoke `routine-process-inbox` standalone for that member right now.
          - **Automatic nudge**: content that looks stale (age-based, same light check this sub-step already does across acting members' inboxes) gets a `warning-*` board-item in `board-blocked` instead of silently waiting — `recheck-date` set to today, `condition: <member> hasn't processed inbox item <item-filename> yet`, referencing the stale item. Already one open for this item: refresh `recheck-date` only, don't duplicate.
@@ -336,7 +335,7 @@ Used to check this files own definitions against its own goals when this file's 
 
 - `routine-communication-sweep` — the Comms sub-step, every iteration.
 - `routine-advance` — the Board-advance sub-step, every iteration, end of loop.
-- `routine-process-inbox` — inbox-processing sub-step. One inbox (`magic-coordinator`'s own), called twice in the same pass: once as the regular per-cycle sweep, once as `routine-heartbeat`'s own required Steps call.
+- `routine-process-inbox` — inbox-processing sub-step: one call per pass on `magic-coordinator`'s own inbox, this loop being that routine's regular caller.
 - `routine-external-inbox-handle-loop` — non-acting-owner inbox variant, folded into the same sub-step.
 - `routine-grooming` — first-today-only sub-step (autonomous-invocation mode).
 - `routine-daily` — later-today sub-step.

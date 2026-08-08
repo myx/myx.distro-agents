@@ -22,7 +22,7 @@ Doesn't do: deep audit — not a replacement for `magic-librarian`'s own full da
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
 1. **Confirm the routine protocol with librarian**: ask `magic-librarian` for a quick read of the specific routine file about to run (whichever `<owning-member>.<short-name>.routine.md` file this session is about to follow) as part of its team self-sufficiency audit — does this doc still reflect the team's current shape, is it internally consistent with its owning member's own `.armed.md`, the board, and `magic-team/magic-team.shared.md` and the other files it cross-references, and — the point that actually motivates this step — is everything the routine needs to run correctly written down in the file itself, not assumed from memory or a prior conversation a fresh instance wouldn't have. This is a fast read-only sanity check, not a full audit pass; if librarian flags a real gap or drift, surface it to the user before proceeding rather than running the routine off a doc already known to be wrong.
-1a. **Process own inbox**: run `routine-process-inbox` on own inbox — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
+1a. **Process own inbox**: run `routine-process-inbox <executor>` — inline execution (own identity). The arrival load: fresh notes, plus any instruction or warning another member left there for whoever runs next. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 
 # Closure steps
 

@@ -22,7 +22,7 @@ Doesn't do: anything `routine-process-inbox` already covers for acting members. 
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **process-own-inbox**: run `routine-process-inbox` on own inbox.
+0. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — `magic-coordinator`'s own mail only; the non-acting-owner content sitting in that same inbox is **work-the-loop**'s job, not this step's.
 1. **work-the-loop**: pick one of five actions per item, by its own real history — not a fixed rotation.
    - **Retry**: the prior attempt may not have landed — try again through the same channel.
    - **Communicate**: send a fresh status/update even without a specific blocker, to keep the item visibly alive.

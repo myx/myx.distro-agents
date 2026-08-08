@@ -69,7 +69,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
          - whichever comes first
        - don't write a `note-2026-08-05-human-decision-batch.md` item and assume some other routine will later notice and pick it up (no routine's Steps currently do that)
        - the note is still filed in `board-processed` afterward, as the record of what was asked and when — not as the trigger mechanism itself
-     - **Process own inbox** (every grooming pass, not cadence-gated like the roster recheck): run `routine-process-inbox` on own inbox — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
+     - **Process own inbox** (every grooming pass, not cadence-gated like the roster recheck): run `routine-process-inbox magic-coordinator` (the confirmed default executor for this joint-executor routine) — inline execution (own identity). Fresh inbox items not yet on the board, gathered here so step 2 triages them alongside the open backlog. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 2. **Per-item triage, one at a time**
    - For each open item, narrate its owning member deciding what happens to it. Same narrated-pass style as `routine-daily`'s roll call — this is not a full agent spawn per item. The outcome is one of:
      - **Keep** — as-is

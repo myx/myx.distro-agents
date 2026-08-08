@@ -23,7 +23,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 0. **Shared opening steps (`routine-session-start`)**: declare this a coworking-like/structured-multi-member session. Run `routine-prepare-session`'s currency check. Invoke `routine-process-reflections` for this project/workspace. Process own inbox. Post an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
 1. **Pick the member**: if the user names one, use that. If not, ask — don't guess who they meant.
-1a. **Process own inbox**: run `routine-process-inbox` on own inbox.
+1a. **Process own inbox**: run `routine-process-inbox magic-coordinator` — narrowed to the member picked in step 1: anything addressed to or about them (an `inquiry-*`, a status report, a pending ask) that step 2's context prep should carry into the conversation.
 2. **Prep context**: pull any relevant board items owned by or referencing this member (including `board-processed` `note-member-status-*` for pre-2026-07-22 history), and any relevant project memory so the handoff isn't a cold start.
 3. **Spawn**: spawn a dedicated `magic-coordinator` instance from the UI/chat instance — its own background `Agent`, first action `Skill(magic-coordinator)`, own Console Session — to prepare and coordinate with the target member, invoking that member's own `Skill` inside the spawned process, never a coordinator paraphrase.
    - The target member does not separately process its own inbox here — the Prep context step already covers it.

@@ -31,7 +31,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - never a live edit to a team-knowledge file at session close itself — still goes through `routine-process-reflections`'s own propose→discuss/approve→edit gate
    - reflect on this session's actual incidents (0, 1, or several — not a fixed ritual): real corrections, real conflicts with the human-owner's actual stated words, real gaps found live. Check against: floor-not-ceiling (durable minimum going forward, not a one-off patch), statement-updates-state (frame a conflict with a prior assumption as "the model was wrong," not competing information logged side by side)
    - update any inbox task this session touched, resolved, or deferred
-   - process own inbox: run `routine-process-inbox` on own inbox — inline execution
+   - process own inbox: run `routine-process-inbox <executor>` — inline execution. Closes out this step's own writes: the `note-*`/`reflection-*` just filed above, plus any inbox item this session touched, resolved, or deferred.
 2. **Compact session context** — ad-hoc/solo/IDE-chat sessions only.
    - make sure nothing important is left only in this transcript (step 1 above should already have caught anything substantive) — what makes a session safe to `/clear`
    - coworking-like sessions skip this entirely — a dispatched background `Agent` has no persisting interactive context to compact

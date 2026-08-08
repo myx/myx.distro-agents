@@ -26,7 +26,7 @@ Doesn't do: Google (Drive/Sheets) — extended procedure, only when the task is 
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **process-own-inbox**: run `routine-process-inbox` on `magic-coordinator`'s own inbox — this routine's own executor.
+0. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — items a previous sweep routed there and left unacted, read before this pass adds more.
 1. **check**: read the `sweep-state-note` via `--magic-sweep-state-read`. Call `--magic-sweep-input-scan`, then `--sweep-read-incoming-comms --oldest <last_swept_ts>`. Call `--comms-slack-check` for both watched targets and every open thread (see Scope).
    - default: batch every platform's credential read + API call into one script/command block, piped through `lib/execShStdin`.
    - exception: a check call errors or returns something ambiguous → go deliberate.

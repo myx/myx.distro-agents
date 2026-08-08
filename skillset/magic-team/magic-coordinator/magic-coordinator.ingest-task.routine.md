@@ -21,7 +21,7 @@ Doesn't do: guess at unstated intent, rush an ambiguous ask straight to a task f
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **process-own-inbox**: run `routine-process-inbox` on own inbox.
+0. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — ideas and asks already queued there awaiting ingest, so this session settles them alongside the one it was invoked for rather than writing a duplicate task-description.
 1. **gather-and-agree**: interactively gather and agree with the requester, one topic at a time, until the content is actually settled — don't rush to a task write while real ambiguity remains. Same pacing discipline `routine-interview` uses for its own gathering step: small, minimal-assumption-gap questions, iterative; once something is genuinely clear and agreed, move on rather than re-confirming it in smaller pieces.
 2. **output**, once settled:
    - (a) Default: write a task-description into the relevant inbox via `--member-upsert-inbox-note` — an individual member's own inbox or `magic-coordinator`'s own, depending on content, never the board. Creates the record only — does not start work; execution starts later when whatever owns that inbox picks the item up (see **note-on-inline-execution** for the one live exception).
