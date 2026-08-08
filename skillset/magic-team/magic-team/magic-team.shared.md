@@ -281,6 +281,27 @@ Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
     - `### Conventions`
 - No live `oncall-*`/`expert-*` member exists yet — roster category reserved, this contract applies once one is created.
 
+### Human-owner (`human-owner`)
+
+Copyable skeleton: `magic-team/templates/human-owner.contract.format.md`.
+
+- Frontmatter: `maintainers:` only.
+- `# Summary`
+  - One short sentence, names the record.
+  - `## Goals`
+  - `## Scope`
+    - Reference-only identity record: never loaded to generate speech or action, no auto-trigger, no dispatch path, and none should exist.
+    - `### Authority` — present always.
+      - Resolves conflicts, ambiguities, and escalations the team cannot settle itself; that decision is final.
+      - Approves anything outside a member's own mandate. No agent consent substitutes for it.
+- `# Terminology: <topic>` — or `: none`.
+- `# Team-Member's (-specific) local rules`
+  - Carries no execution bullet — this record runs no tooling.
+- `# Domain knowledge: <topic>` — or `: none`.
+- `# Team-Member's (-specific) tooling` — `none`; this record executes nothing.
+- `# Maintainer Notes` — same shape as every other contract.
+- One member only. Not a family; no second `human-owner`-shaped member exists or is expected.
+
 ## `.access.md` content lives in `.armed.md`
 
 `.access.md` does not exist as a separate file for an acting member. The who-may-run-this / who-may-change-this / how-it's-invoked / limits / decision-making facts live inside `<name>.armed.md`:
