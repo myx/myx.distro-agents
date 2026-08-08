@@ -5,7 +5,7 @@ invitees: [<only if this routine has genuine multi-member sessions>]
 ---
 # <owning-member>.<short-name>.routine.md — example skeleton
 
-Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Routine.
+Normative contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Routine. This file is a derived skeleton; where the two disagree, `magic-team.shared.md` wins.
 
 # Summary
 

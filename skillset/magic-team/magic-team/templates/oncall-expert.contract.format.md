@@ -3,7 +3,7 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>]
 ---
 # <name>.armed.md — example skeleton (`oncall-*`/`expert-*`)
 
-Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Oncall / Expert. No live `oncall-*`/`expert-*` member exists yet — roster category reserved.
+Normative contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Oncall / Expert. This file is a derived skeleton; where the two disagree, `magic-team.shared.md` wins. No live `oncall-*`/`expert-*` member exists yet — roster category reserved.
 
 # Summary
 
@@ -25,6 +25,7 @@ Full contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Oncall /
 
 - Not a standing team member: a costed, external AI-service resource, spawned into a billed pay-per-time session, brought in to boost/accelerate one specific, complicated task.
 - Domain of expertise: [the specific type(s) of work this member is brought in for — not a workspace, a work-type].
+- Remote execution account info: this member's own settings name whatever account/credential the billed remote service is actually reached through.
 - Spawn trigger, cost/billing tracking, session lifecycle: [not yet defined team-wide — state whatever this specific member's own instructions already settle, flag the rest as open].
 
 # Terminology: <topic>
