@@ -122,7 +122,7 @@ Callable by any routine: `routine-advance`, `routine-daily`, `routine-grooming`,
 Steps:
 1. **board-read-state**: Read the in-scope board state. Reuse this pass's own board read if already loaded. Otherwise call the calling routine's own scan operation.
 2. **board-state-vs-content**: Check state-vs-content consistency. `board-running` item's content already narrates a move its folder doesn't reflect (e.g. body says "**Moved to `board-blocked`**", still in `board-running`): write the new state via `--write-board-item`, remove the old file, note the correction when reporting.
-3. **board-mechanical-moves**: Apply mechanical moves. Each move posts one short structured line as it happens, per `magic-team.armed.md`'s announce rule; step 10 closes the pass.
+3. **board-mechanical-moves**: Apply mechanical moves. Each move posts one short structured line as it happens, per `magic-team.armed.md`'s announce rule; the pass's closing summary goes to the session's own thread, separately from step 10's `event-track` trace.
    - `board-backlog` item carries `approved-by`/`approved-at` → move to `board-pending` via `--magic-board-to-pending`.
    - `board-backlog` item flagged for human-owner approval, no `approval-*`/`board-blocked` move yet → create `approval-*` in `board-running` via `--write-board-item` (fresh item, or confirm existing), record `blocks`/`blocked-by`, move original to `board-blocked` via `--magic-board-to-blocked`.
    - `board-pending` item's content already records an actual dispatch → move to `board-running` via `--magic-advance-to-running`.

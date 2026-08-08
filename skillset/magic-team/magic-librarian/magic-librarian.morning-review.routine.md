@@ -1,6 +1,6 @@
 ---
 executors: magic-coordinator, magic-librarian
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # routine-librarian-morning-review — the actual procedure
 

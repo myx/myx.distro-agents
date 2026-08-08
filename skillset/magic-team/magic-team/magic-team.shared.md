@@ -1,5 +1,5 @@
 ---
-maintainers: magic-librarian, magic-coordinator
+maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 <!-- MAINTAINED BY magic-librarian — do not edit directly.
      This is the durable, cross-cutting model doc for how the team's skill folders and routines work —

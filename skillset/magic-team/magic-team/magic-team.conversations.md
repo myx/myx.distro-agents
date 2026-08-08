@@ -1,5 +1,5 @@
 ---
-maintainers: magic-librarian, magic-coordinator, magic-architect
+maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
 ---
 # Conversation mechanics
 

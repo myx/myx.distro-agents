@@ -1,6 +1,6 @@
 ---
 executors: magic-coordinator
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: magic-team
 ---
 # routine-daily — the actual procedure
