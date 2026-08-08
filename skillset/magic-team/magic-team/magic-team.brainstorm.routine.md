@@ -25,9 +25,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **set-topic-loosely**: state the area being brainstormed, but keep it open — a brainstorm with an overly narrow framing risks just being a discussion in disguise. **Any example given when the topic is set is a floor, not a ceiling** — a starting minimum to extend from, never a closed boundary on what counts, unless an explicit ceiling was stated (a hard number, an explicit "no more than X").
 2. **generate-without-filtering**: throw out ideas, including ones that sound impractical or unlikely — the point is coverage and provocation, not immediate quality control. Explicitly welcome "crazy" ideas; don't let the first reasonable-sounding idea anchor and shut down further generation.
 3. **assess-lightly**: after ideas are out, everyone gives each a quick, light read (promising / interesting-but-needs-work / probably not, and why) — not a full feasibility analysis. This is "assess a bit," deliberately not the deep investigation a real proposal would get.
-4. **allow-no-winner**: a brainstorm session can end with several live candidate ideas and no chosen winner — that's a normal, valid outcome, not an incomplete session. If something does clearly stand out, that's a bonus, not the goal.
-5. **hand-off-promising-ideas**: anything that got a genuinely promising light-assessment gets filed (an `idea-*`/`note-*` board item, or folded into an existing inquiry/task it relates to) for later real evaluation — via `routine-discuss` (if it needs a real decision) or the normal staged task-creation lifecycle (if it's heading toward being built) — not decided or built directly out of the brainstorm itself.
-6. **gate-filing-on-confirmation**: filing follows the same gate as dispatch — propose the item (piece, type, goal) and wait for confirmation before writing it, unless the human-owner explicitly asked for that specific filing.
+4. **hand-off-promising-ideas**: anything that got a genuinely promising light-assessment gets filed (an `idea-*`/`note-*` board item, or folded into an existing inquiry/task it relates to) for later real evaluation — via `routine-discuss` (if it needs a real decision) or the normal staged task-creation lifecycle (if it's heading toward being built) — not decided or built directly out of the brainstorm itself.
+5. **gate-filing-on-confirmation**: filing follows the same gate as dispatch — propose the item (piece, type, goal) and wait for confirmation before writing it, unless the human-owner explicitly asked for that specific filing.
 
 # Closure steps
 
@@ -47,6 +46,7 @@ All statements apply at the same time, always. These rules override a participan
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - Manual only — anyone asks to "brainstorm" a topic. No autonomous or scheduled trigger.
+- A brainstorm session can end with several live candidate ideas and no chosen winner — that's a normal, valid outcome, not an incomplete session. If something does clearly stand out, that's a bonus, not the goal.
 - Never treated as a decision by itself. A promising idea still needs `routine-discuss` (or the staged task-creation lifecycle) before it becomes real work — no matter how good it sounded in the moment.
 - Not a substitute for `routine-interview` when the actual goal is precisely capturing one party's already-formed vision — brainstorming is generative, not a collection exercise.
 - Light assessment only (step 3) — resist turning a brainstorm into a deep feasibility review mid-session.

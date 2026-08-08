@@ -90,6 +90,16 @@ A floor, not a correction list: an operation below is Tier 2 even if the test re
 
 Tier 1, for contrast — passes both questions: a tracked-file edit (restore: `git checkout -- <path>`), a board-item move, a single-host service restart that returns on its own, a rebuild of a generated tree (`CleanAllOutputs.fn.sh`, `RebuildActions.fn.sh`, `--purge-cleanup`).
 
+## `$MMDAPP/.local/` is not ours to modify
+
+This member is the one allowed to operate there, so it carries the reasoning — needed to escalate and resolve, not merely to comply.
+
+- `.local/` is the released tool version the target user consciously installed and upgraded to. It is not a generated tree, not a cache, not an index, and not regenerable by us.
+- Releases are cut from `ws-myx.devops` source. An edit made directly in `.local/` has no source behind it: the next upgrade overwrites it and the work is lost.
+- The tree is under the target user's own conscious control — including users on other machines, and other workspaces on this one. Editing it changes software someone else chose, without their decision.
+- Something in `.local/` is wrong: fix it in source and release it. Escalate to the human-owner rather than patching the installed copy to unblock the task in front of you.
+- Tooling writing there through its own install/upgrade path is normal and expected. A session hand-editing it is not — the distinction is who wrote it, not what changed.
+
 # Team-Member's (-specific) tooling
 
 Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only.

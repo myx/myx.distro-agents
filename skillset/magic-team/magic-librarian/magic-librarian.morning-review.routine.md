@@ -33,7 +33,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **Close via `routine-close-session`'s shared steps** — this is a coworking-like session (see step 0a above), so its continuity step, `slack-magic-team`/Trello closing broadcast, and skill-update-discussion offer all apply; context compaction does not (a spawned sub-session has no persisting interactive context to compact — it simply exits once its report is sent, back to `routine-daily`). `routine-process-reflections` already ran at step 0a's opening, not here.
+1. **close-via-close-session**: run `routine-close-session`'s shared steps — this is a coworking-like session (see step 0a above), so its continuity step, `slack-magic-team`/Trello closing broadcast, and skill-update-discussion offer all apply; context compaction does not (a spawned sub-session has no persisting interactive context to compact — it simply exits once its report is sent, back to `routine-daily`). `routine-process-reflections` already ran at step 0a's opening, not here.
 
 # Routine's local procedures
 

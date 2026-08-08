@@ -191,7 +191,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Apply the coordinator's own important-vs-eager distinction across the triaged, re-scored set — informed by the RICE numbers but not decided by them alone.
    - Surface blockers/dependencies between items explicitly rather than leaving a flat list, since a high score doesn't jump a queue if something else blocks it. This is where the coordinator's cross-team view earns its keep.
    - `blocks:`/`blocked-by:` are already recorded on the board-item files themselves — read them directly as part of this pass, don't recompute here.
-   - **Prefer the nearest-to-approval item, not just the biggest-value one** — same discipline `routine-interview`'s own step 2b applies to open questions, generalized here to backlog items:
+   - **Prefer the nearest-to-approval item, not just the biggest-value one** — same discipline `routine-interview`'s own nearest-to-approval rule (its Local rules) applies to open questions, generalized here to backlog items:
      - when several items are otherwise close in priority, favor whichever has the smallest remaining scope/assumption gap and the highest likelihood of a clean approval, regardless of its own size
      - a large-but-ready item can still outrank a smaller-but-still-fuzzy one, and vice versa; readiness is its own axis, not just RICE's Cost/Time/Dependencies
 5. **review-with-the-user**
@@ -200,7 +200,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **Close out**
+1. **close-out**
    - Run `routine-close-session`'s shared steps:
      - continuity/reflection
      - the `slack-magic-team`/Trello broadcast

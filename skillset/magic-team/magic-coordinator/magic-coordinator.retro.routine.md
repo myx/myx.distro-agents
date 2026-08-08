@@ -31,7 +31,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **Close out**: run `routine-close-session`'s shared closing steps — the skill-update-discussion offer, etc. Retro stays reflection, not action: log step 5's approved improvement proposals into `board-running` as pending items for the *next daily meeting* to actually pick up and apply — members may reflect on a proposal here, but implementation waits for a daily.
+1. **close-out**: run `routine-close-session`'s shared closing steps — the skill-update-discussion offer, etc. Retro stays reflection, not action: log step 5's approved improvement proposals into `board-running` as pending items for the *next daily meeting* to actually pick up and apply — members may reflect on a proposal here, but implementation waits for a daily.
 
 # Routine's local procedures
 

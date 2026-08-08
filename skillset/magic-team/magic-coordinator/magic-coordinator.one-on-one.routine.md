@@ -34,7 +34,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **Return and close**: once the 1:1 concludes, the spawned instance folds anything material into the board (a real Item — task/change/reflection/etc.), runs `routine-close-session`'s shared closing steps (the skill-update-discussion offer, scoped to this member), and reports a final status back to the UI/chat instance via `SendMessage`. Real follow-on work surfaced at close-out gets dispatched normally, its own fresh spawn — never continued on this same spawned instance.
+1. **return-and-close**: once the 1:1 concludes, the spawned instance folds anything material into the board (a real Item — task/change/reflection/etc.), runs `routine-close-session`'s shared closing steps (the skill-update-discussion offer, scoped to this member), and reports a final status back to the UI/chat instance via `SendMessage`. Real follow-on work surfaced at close-out gets dispatched normally, its own fresh spawn — never continued on this same spawned instance.
 
 # Routine's local procedures
 

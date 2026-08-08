@@ -146,7 +146,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **Compact outcome report**
+1. **report-compact-outcome**
    - Produce one short matrix: Target -> join status -> send status -> identity status -> missing items.
    - Include explicit final line: `READY` only if all required targets are operational per step 5; otherwise `NOT READY` plus numbered missing actions.
 

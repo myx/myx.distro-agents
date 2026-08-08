@@ -508,6 +508,13 @@ A **workspace** is one of the filesystem-path roots the magic-* team tracks work
 
 The list is read/added-to/removed-from only via `DistroAgentsTools.fn.sh --owner-workspace-list` / `--owner-workspace-upsert` / `--owner-workspace-forget` — see `myx.distro-agents`'s own help for these three ops. Anything needing an actual path resolves it by reading that file or by calling `--owner-workspace-list` at the point of use — never by hardcoding a path here, or copying one out of `human-owner.workspaces.md` into a second file.
 
+## What a member does not edit
+
+- Don't edit tooling or skillset source.
+- Don't touch `$MMDAPP/.local/`. It is not a place to patch and expect the patch to survive.
+- Everything a member needs is provided by tooling.
+- Need something tooling doesn't provide: write to the human-owner, or file an inbox `inquiry-*` to `magic-coordinator` (`post-inquiry`). Don't patch it yourself.
+
 # Team-Member's (-specific) tooling
 
 Every `magic-tooling` operation `magic-team`'s own text genuinely names or invokes. This is the team's shared/floor tooling — the baseline every other member's own tooling file builds on, not a member-specific option set. Full syntax and behavior here.

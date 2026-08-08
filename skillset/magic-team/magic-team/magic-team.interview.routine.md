@@ -62,32 +62,6 @@ Exact instructions. Execute in order, every step, literally as written — not l
     topic (per that same procedure's own presentation-gist rule).
 
 2. **collect-dont-converge**: ask small, iterative, minimal-assumption questions, confirmed one at a time — never bundle several decisions into one proposal. The goal is capturing the other party's perspective as precisely as possible, not steering it toward a particular answer. **Unless something is already clear and agreed upon — go further.** This pacing discipline is a floor against guessing ahead of real understanding, not a mandate to keep the interview crawling once a point is genuinely settled. **In an interactive UI chat session, default to small, structured UI questions** — one topic each, the `AskUserQuestion`-style mechanism — over plain-text paragraphs if harness method is not available. This session worked better once that became the default. **Switch from asking to proposing only once a piece is verified settled** — a plain one-line restatement the human-owner didn't correct — never because enough turns have passed or the shape merely seems obvious. **A piece not yet verified settled stays in full live context, not summarized**; only a settled-and-dispatched point gets compacted, per step 3's own compaction shape below.
-2a. **rephrase-and-confirm**: rephrase and confirm before acting, every time — this is what actually closes assumption gaps (human-owner-stated directly, 2026-07-23, after a real misread: a correction that only meant "the value `idle` is wrong" got acted on as "remove the field entirely"). Before doing anything on the back of what the other party just said — fixing something, changing a value, dispatching work — state back, in one line, what you understood them to mean, and only proceed once that's confirmed (or immediately act if the confirmation is itself trivially obvious and low-stakes — this is a floor against silently guessing on anything that isn't). This applies generally, not just inside a formally-named `routine-interview` session — any live back-and-forth with the human-owner or another party benefits from the same discipline whenever a real, actionable correction just came in.
-2b. **work-nearest-to-approval**: work the nearest job to approval next, not the smallest job. When several open pieces are live at once, prioritize whichever currently has the smallest remaining assumption gap and the highest chance of approval — regardless of that piece's actual size or scope. A large-but-nearly-settled piece outranks a small-but-still-foggy one.
-2c. **gate-pre-dispatch-state-block**: before any dispatch/spawn execution, run a strict pre-dispatch confirmation gate with verbatim fidelity — post a `STATE` block first with these exact fields: `session goal`, `session transcript`, `session members`, `session scope`, `session constraints`, `expected outputs`, `board usage` (explicitly `NO` unless directly authorized). Then post a `DISPATCH PAYLOAD` block containing the exact payload text to be executed, verbatim (no paraphrase, no normalization, no omitted clauses). Execute nothing until the human-owner explicitly responds `APPROVE`; if response is `NO`, do not dispatch and do not execute. For risky/irreversible/detail-sensitive actions, require an explicit member-side confirmation line (`member confirms dangerous/detail action`) in the pre-dispatch readback before requesting approval.
-2d. **gate-filing-on-confirmation**: filing follows the same gate as dispatch — don't file a board item unilaterally mid-interview — propose it (what piece, what type, what goal) and wait for confirmation, unless the human-owner explicitly asked for that specific filing.
-2e. **capture-quality-markers**: live `GOOD INTERVIEW`/`BAD INTERVIEW` (or pinned `ASSESSMENT`) quality-marker — triggers an immediate
-    self-edit of this file.** When the human-owner states `GOOD INTERVIEW`/`BAD INTERVIEW`, or `GOOD
-    ASSESSMENT`/`BAD ASSESSMENT` pinned to a specific quoted prior statement of the interviewer's, read back
-    the understood rule and check magic-librarian's own conventions (its `.armed.md`/writing-mode
-    guidance) before writing, then make a small edit to this file adding a reinforcing (`GOOD`) or corrective
-    (`BAD`) rule that captures what just happened, plain and undated. Confirm in the same reply what was
-    added. Interview-specific: stays inside this file, not the team's general conversation-mechanics — this
-    routine's own instructions already take precedence over that file's general conventions within interview
-    scope.
-2f. **steer-scope-on-keywords**: live scope-steering trigger keywords — add a topic to this interview's own plan mid-round. Each
-    keyword below runs the same readback-and-confirm step as 2a before the addition counts as settled, and
-    before the interview proceeds to its next iteration:
-    - `detour:` — places the topic at the TOP of this interview's own plan (highest priority, handled next).
-    - `later:` — places the topic at the END of this interview's own plan (lowest priority).
-    - `next:` — inserts the topic as the CURRENTLY RUNNING item (immediate focus, ahead of whatever was
-      already in progress).
-    - `fork:` — same readback-and-confirm step, but the topic does not join this interview's own scope: file
-      it as its own new `interview-*` board Item instead, then add the topic to that new Item's own
-      scope/goals at the top of its plan once confirmed.
-2g. **inherit-topic-queue-mechanics**: inherits the team's own topic/queue/question mechanics. Both presentation modes
-    (next-question and topics-to-choose) are available; use whichever fits the round.
-
 3. **dispatch-settled-points**: dispatch settled points as you go, don't just note them. The moment a piece genuinely settles mid-interview — not the whole topic, just that piece — it goes straight to wherever it actually belongs (a board task/change/note item, `magic-coordinator`'s inbox, a direct doc/code edit if it's that concrete) *right then*, not held until the interview as a whole wraps up. **Then compact the interview's own tracking context**: drop or condense what's now settled-and-dispatched, keep the record focused on what's still genuinely open.
 
    **Compaction shape, precisely**: once a piece is reassessed, approved, and dispatched, fold it into **one present-tense block** — a plain, current-state statement of what was settled. Not a transcript of the back-and-forth (no "first I asked X, then Y, then corrected to Z") — just the resulting rule/fact/decision, stated directly. Keep every distinct settled point; strip only the question-and-answer framing. Reorganise and reorder for better readability. Good rule doesn't need examples and references.
@@ -111,8 +85,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **Closing reflection**: at the end, reflect on how the interview session itself went (process/quality, not just content) and check memory notes. Also check whether this interview surfaced a real behavior/pattern not yet backed by a written rule — a finding for this reflection too, not just wording polish.
-2. **Hand off, don't build — except steps 1b/3a/3b's own inline cycles**: once the other party's vision is genuinely captured, the interview's own job is done for anything bigger than what 3a/3b already cover inline — that goes through the normal task-creation lifecycle.
+1. **closing-reflection**: at the end, reflect on how the interview session itself went (process/quality, not just content) and check memory notes. Also check whether this interview surfaced a real behavior/pattern not yet backed by a written rule — a finding for this reflection too, not just wording polish.
+2. **hand-off-dont-build**: except steps 1b/3a/3b's own inline cycles — once the other party's vision is genuinely captured, the interview's own job is done for anything bigger than what 3a/3b already cover inline — that goes through the normal task-creation lifecycle.
 
 # Routine's local procedures
 
@@ -127,6 +101,17 @@ All statements apply at the same time, always. These rules override a participan
 - `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
+- **Rephrase and confirm before acting, every time — this is what actually closes assumption gaps** (human-owner-stated directly, 2026-07-23, after a real misread: a correction that only meant "the value `idle` is wrong" got acted on as "remove the field entirely"). Before doing anything on the back of what the other party just said — fixing something, changing a value, dispatching work — state back, in one line, what you understood them to mean, and only proceed once that's confirmed (or immediately act if the confirmation is itself trivially obvious and low-stakes — this is a floor against silently guessing on anything that isn't). This applies generally, not just inside a formally-named `routine-interview` session — any live back-and-forth with the human-owner or another party benefits from the same discipline whenever a real, actionable correction just came in.
+- **Work the nearest job to approval next, not the smallest job.** When several open pieces are live at once, prioritize whichever currently has the smallest remaining assumption gap and the highest chance of approval — regardless of that piece's actual size or scope. A large-but-nearly-settled piece outranks a small-but-still-foggy one.
+- **Before any dispatch/spawn execution, run a strict pre-dispatch confirmation gate with verbatim fidelity**: post a `STATE` block first with these exact fields: `session goal`, `session transcript`, `session members`, `session scope`, `session constraints`, `expected outputs`, `board usage` (explicitly `NO` unless directly authorized). Then post a `DISPATCH PAYLOAD` block containing the exact payload text to be executed, verbatim (no paraphrase, no normalization, no omitted clauses). Execute nothing until the human-owner explicitly responds `APPROVE`; if response is `NO`, do not dispatch and do not execute. For risky/irreversible/detail-sensitive actions, require an explicit member-side confirmation line (`member confirms dangerous/detail action`) in the pre-dispatch readback before requesting approval.
+- **Filing follows the same gate as dispatch**: don't file a board item unilaterally mid-interview — propose it (what piece, what type, what goal) and wait for confirmation, unless the human-owner explicitly asked for that specific filing.
+- **Live `GOOD INTERVIEW`/`BAD INTERVIEW` (or pinned `ASSESSMENT`) quality-marker — triggers an immediate self-edit of this file.** When the human-owner states `GOOD INTERVIEW`/`BAD INTERVIEW`, or `GOOD ASSESSMENT`/`BAD ASSESSMENT` pinned to a specific quoted prior statement of the interviewer's, read back the understood rule and check magic-librarian's own conventions (its `.armed.md`/writing-mode guidance) before writing, then make a small edit to this file adding a reinforcing (`GOOD`) or corrective (`BAD`) rule that captures what just happened, plain and undated. Confirm in the same reply what was added. Interview-specific: stays inside this file, not the team's general conversation-mechanics — this routine's own instructions already take precedence over that file's general conventions within interview scope.
+- **Live scope-steering trigger keywords — add a topic to this interview's own plan mid-round.** Each keyword below runs the same readback-and-confirm step as the rephrase-and-confirm rule above before the addition counts as settled, and before the interview proceeds to its next iteration:
+  - `detour:` — places the topic at the TOP of this interview's own plan (highest priority, handled next).
+  - `later:` — places the topic at the END of this interview's own plan (lowest priority).
+  - `next:` — inserts the topic as the CURRENTLY RUNNING item (immediate focus, ahead of whatever was already in progress).
+  - `fork:` — same readback-and-confirm step, but the topic does not join this interview's own scope: file it as its own new `interview-*` board Item instead, then add the topic to that new Item's own scope/goals at the top of its plan once confirmed.
+- **Inherits the team's own topic/queue/question mechanics.** Both presentation modes (next-question and topics-to-choose) are available; use whichever fits the round.
 - A member with a genuine domain-specific interview need routes that request through `magic-coordinator`, rather than running this routine independently — unless, and until, a real case justifies widening this.
 - One documented mechanism failing once is a stop-and-ask signal, not a puzzle to solve alone.
 - A small, stable understanding is reached mid-interview: apply and record it inline immediately.
@@ -179,7 +164,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `magic-team/magic-team.board.md` — the general item lifecycle, `inquiry-*` item shape, `board-backlog`'s drop-point shape.
 - `magic-team/magic-team.conversations.md` — rules 5a/10b this routine's steps borrow, and the general conversation-mechanics baseline this routine's Local rules point to.
 - `magic-team/magic-team.negotiations.md` — the `check-restart` procedure and topic/queue/question mechanics steps 1d/2g inherit.
-- `magic-team/magic-team.basic.md` — the propose-and-wait-for-confirmation filing gate step 2d reuses.
+- `magic-team/magic-team.basic.md` — the propose-and-wait-for-confirmation filing gate this routine's own filing rule (Local rules) reuses.
 
 ### Conventions
 

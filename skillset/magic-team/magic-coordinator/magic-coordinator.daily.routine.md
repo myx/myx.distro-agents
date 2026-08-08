@@ -13,7 +13,7 @@ Routine-daily is the team's standing daily checkpoint: surface every member's st
 
 - Give the team a standing, predictable daily checkpoint.
 - Every permanent member's real state (backlog, blocks, ideas) gets surfaced and reconciled against the board at least once a day — nothing genuinely open silently rots between grooming passes.
-- The day's work gets assigned in dependency-aware order via `routine-advance`, not picked off an unordered list.
+- The day's work gets assigned in dependency-aware order via `check-process-board`'s own dependency recompute, not picked off an unordered list.
 - A supervised work session actually happens — bounded and checked-in-on, not fire-and-forget — so problems surface the same day instead of at the next grooming.
 - The human team gets a visible, honest trace of what happened, not a silent internal cycle.
 - This is the team's primary rhythm-setting mechanism — what makes "the team is actually working, not just has a backlog" true on any given day.
@@ -106,7 +106,11 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **Close out**: once agents finish (or are wrapped up at the timebox), compact what happened into a short summary for the user. Run `routine-close-session`'s shared closing steps in full — this is a coworking-like session, so its continuity step, `slack-magic-team`/status-card broadcast, and skill-update-discussion offer all apply; context compaction does not. `routine-process-reflections` already ran at step 0b's opening, not here. Meeting finished.
+1. **run-advance-dispatch**: run `routine-advance`, in full, before anything else here — it is the routine that actually dispatches and respawns; the main sequence deliberately doesn't.
+   - goal: everything is decided by now. While the main steps are still running, what gets dispatched — in what form, in what order — is still open to reassessment. Dispatching only once the board is updated means work goes out without corrections chasing it, and without hitting blockers a later step would have resolved.
+   - rule: this does not re-dispatch step 7's (**fan-out-work-sessions**) own work sessions — `check-execute-board`'s standing "`routine-daily`'s standing work-sessions take continuous task feed as each finishes" exception already excludes them.
+   - rule: `routine-advance`'s **advance-run-process-board** repeats the `check-process-board` pass step 4a already ran. That is a deliberate second reconciliation over a board the main sequence has since changed, not an accident — `check-process-board` executes only already-decided moves, so re-running it is safe.
+2. **close-out**: once agents finish (or are wrapped up at the timebox), compact what happened into a short summary for the user. Run `routine-close-session`'s shared closing steps in full — this is a coworking-like session, so its continuity step, `slack-magic-team`/status-card broadcast, and skill-update-discussion offer all apply; context compaction does not. `routine-process-reflections` already ran at step 0b's opening, not here. Meeting finished.
 
 # Routine's local procedures
 
@@ -197,6 +201,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-session-start` — shared opening steps this routine runs before its own step 1.
 - `routine-close-session` — shared closing steps this routine runs at the closure step.
 - `check-process-board` (`magic-coordinator.armed.md`) — dependency-ordering recompute, step 4a; called directly, not via `routine-advance`.
+- `routine-advance` — run in full at the first closure step (**run-advance-dispatch**), as this routine's own dispatch/respawn pass; never called from the main sequence.
 - `routine-camunda-diagram-sync` — BPMN diagram staleness check, step 5a.
 - `routine-communication-sweep` — read half (step 2) and write half (step 8).
 - `routine-process-inbox` — the sorting pass over own inbox, step 1c; see its own "Execution mode is decided by identity match" section for why this explicit call is required.

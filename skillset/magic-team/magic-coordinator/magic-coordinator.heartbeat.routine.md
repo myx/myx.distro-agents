@@ -98,9 +98,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **Release the lock**, per the `single-instance-lock` procedure, using the `--magic-heartbeat-lock-release` operation.
-2. **Conclude the `slack-event-track` thread opened in step 3** via the `--comms-slack-react` operation, reacting ✅ on that thread — a direct `lib/execShStdin` call, same as every other call this `next-iteration` makes.
-3. **Report status** to whatever session spawned this `next-iteration`, via `SendMessage`, then exit.
+1. **release-lock**: per the `single-instance-lock` procedure, using the `--magic-heartbeat-lock-release` operation.
+2. **conclude-event-track-thread**: conclude the `slack-event-track` thread opened in step 3 (**open-event-track-thread**) via the `--comms-slack-react` operation, reacting ✅ on that thread — a direct `lib/execShStdin` call, same as every other call this `next-iteration` makes.
+3. **report-status-to-spawner**: report status to whatever session spawned this `next-iteration`, via `SendMessage`, then exit.
    - `SendMessage(to:"main", ...)` always reaches the true root, never a mid-tree ancestor — if the actual spawner is `main-loop-mode`'s own iterator rather than root, report to `"main"` instead and let it relay down.
    - Repeating, if it happens at all, is entirely up to whatever spawned this `next-iteration` — never this routine itself.
 
