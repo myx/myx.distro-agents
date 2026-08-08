@@ -114,7 +114,7 @@ Named procedure blocks. Steps above call them by name. Not separate routines - n
 - Persistent record: the `heartbeat-state-note` — read via the `--magic-heartbeat-state-read` operation, written via `--magic-heartbeat-state-upsert`.
 - Owned/written by whichever session actually executes this routine's own `next-iteration` (in practice, `magic-coordinator`).
 - Minimum fields: `last_iteration_date`, `last_iteration_timestamp`, `today_stage` (`not_started` → `grooming_done` → `daily_done` → steady-state cycling), `last_test_email_sent` (see step 5's Test email report sub-step), `human_owner_broadcast_thread_ts` / `human_owner_broadcast_thread_date` (the captured `channel:ts` of today's first human-owner-facing status broadcast, e.g. `routine-advance`'s `check-execute-board` DM — treated as stale/cleared whenever `human_owner_broadcast_thread_date` != today's real date, same "recompute per real date" convention as the weekend/first-today checks above; consumed by `magic-coordinator.advance.routine.md`'s own `check-execute-board` procedure to thread same-day human-owner DMs together instead of posting each as a fresh top-level message), and a light pointer to whichever active project a dispatched work-session belongs to — just enough to satisfy the "all dispatched work sits within a project" constraint; the project schema itself stays out of scope here.
-- Created lazily on first real run, same as `TEAM-STATUS.md`.
+- Created lazily on first real run.
 
 - **First-iteration-today test**: compare `last_iteration_date` to today's real date.
   - Mismatch or file absent → this is the first `next-iteration` today: run `routine-grooming` after `magic-librarian` preps context, then move into `routine-daily`'s flow.
