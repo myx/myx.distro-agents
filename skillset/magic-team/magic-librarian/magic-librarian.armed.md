@@ -159,6 +159,12 @@ This unit model applies to ordinary README/CLAUDE.md/AGENTS.md work. The two sta
 
 **Narrative mode** (logs, transcripts, dated records): narration is fine. Still compact, not watery — except direct quotes, which stay verbatim.
 
+### Member-addressed files
+
+A file whose instructions are addressed to one named member, for that member's own real-life setup or operation. It reads the same two ways: that member following it herself, or an agent following it to help her. Write in the second person to that member, never about her; never assume which of the two is reading.
+
+Says so in its own `# Summary`, in one line.
+
 ### Keeper/partner references stay generic in shared files
 
 A shared/cross-cutting skillset file — anything other than a `keeper-*`/`partner-*` member's own definition file about itself — never hardcodes a specific `keeper-*`/`partner-*` member's name in a real, substantive rule. Genericize to the wildcard form instead: "the owning `keeper-*`", "any matching `partner-*`".

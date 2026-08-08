@@ -9,6 +9,8 @@ invitees: human-owner
 
 Routine-bootstrap-magic-vane is the one-time (and re-runable) coordinator bootstrap for Magic Vane's real operating identity: confirm identity, configure credentials, verify delivery semantics, confirm Slack profile shape, and fail loud with a human-owner handoff when any step cannot be completed autonomously.
 
+Member-addressed: written to Magic Vane. It reads the same whether she follows it herself or asks an agent to set up, reconfigure, fix or check on her behalf.
+
 ## Goals
 
 - Ensure Magic Vane operates under the intended identity (`magic-coordinator` / `Magic Vane` / `dispatchr`) rather than accidental myx/app-only impersonation.
@@ -147,10 +149,6 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **Compact outcome report**
    - Produce one short matrix: Target -> join status -> send status -> identity status -> missing items.
    - Include explicit final line: `READY` only if all required targets are operational per step 5; otherwise `NOT READY` plus numbered missing actions.
-
-# Closure steps
-
-1. **Validate the resulting setup** — re-check every configured target and credential, and report what works and what is missing. A missing item is reported as a numbered concrete action, never as a warning without an ask.
 
 # Routine's local procedures
 
