@@ -75,7 +75,7 @@ When a term below appears quoted, especially `` `like-this` ``, it carries the s
 - `slack-event-alert` — the `#cloud-alert` Slack channel. Use `magic-tooling`, or relay through `magic-coordinator` if present.
 - `slack-human-owner` — the human-owner's own Slack DM contact. Relay through `magic-coordinator`.
 - `next-iteration` — one full iteration of a long-running process: the complete set of that iteration's own steps, treated as one big atomic step from the outer process's point of view — a safe point to restart or resume from, never partway through one.
-- `magic-tooling` — the set of tools, conventions, and rules for executing any shell command (harness, Bash, Python, `mv`, any process) — includes routing through `mcp__myx_common__myx_common_run`'s `lib/execShStdin` and the `DistroAgentsTools.fn.sh` operation set. Full mechanics: this file's own "Team-Member's tooling" section.
+- `magic-tooling` — the set of tools, conventions, and rules for executing any shell command (harness, Bash, Python, `mv`, any process) — includes routing through `mcp__myx_common__lib_execShStdin` and the `DistroAgentsTools.fn.sh` operation set. Full mechanics: this file's own "Team-Member's tooling" section.
 - `harness-session` — the bootstrap state any `magic-coordinator` instance, root or spawned, starts in before an operating mode is selected. Full mechanics: `magic-coordinator.harness.md`.
 - `harness-session-rules` — standing behavioral rules in `harness-session` mode participants; binding on harness-session instances by construction, no lookup needed otherwise.
 
@@ -587,13 +587,13 @@ Named directly in this file's own "Workspace" section above: the only sanctioned
 Named directly in this file's own "The board" section above: reads/rewrites the `heartbeat-state-note`'s structured fields (per-platform comms-sweep check markers, watched-conversation list, capability gaps) that replaced the retired `TEAM-COMMS.md` stub. No verbatim `--help` text exists in the merged source material — same documentation gap as above, carried forward honestly rather than invented.
 
 ## Execution mechanisms
-- **Every shell command, no exceptions, goes through `mcp__myx_common__myx_common_run`'s `lib/execShStdin` — never Bash, Python, or any other direct-execution tool.** Applies to every member and routine, not just `DistroAgentsTools.fn.sh` calls.
+- **Every shell command, no exceptions, goes through `mcp__myx_common__lib_execShStdin` — never Bash, Python, or any other direct-execution tool.** Applies to every member and routine, not just `DistroAgentsTools.fn.sh` calls.
 - Every invocation of `DistroAgentsTools.fn.sh` — every op, no exceptions — uses this same channel.
 - **Global default: do not use console sessions unless explicitly instructed.** A Keep-Alive Console Session (`--console-start`/`--console-send`/`--console-stop`) is for batching several commands into one session only. A single, simple call — one `DistroAgentsTools.fn.sh` op, or any other one-off trivial command — never needs a console session first; call it directly via `lib/execShStdin`.
 - **Keeper exception: `keeper-*`/`partner-*` members may use console sessions only when their own instructions explicitly require it.** A member's own `.armed.md` explicitly listing `--console-start`/`--console-send` for its own domain counts as that instruction — e.g. `keeper-*`/`partner-*` batching multiple domain-investigation commands.
 - **Workspace boundary: in coworking, work on an explicitly different workspace must run in a console session for that target workspace.** Opens (or reuses) a console session scoped to that workspace (`--console-start --override-workspace <path>`, see the Workspace section above) — except the spawned-background-sub-agent single-call override the next bullet already documents, which stays a direct call by design.
 - **Process-flow default: process-flow steps run as direct tooling calls unless explicitly instructed otherwise.** `routine-heartbeat`/`routine-advance`/`routine-daily` (and any other process-flow step) execute every operation as a direct `lib/execShStdin` call — no console session opens or is assumed, unless the keeper exception or workspace boundary above applies.
-- `DistroAgentsTools.fn.sh` resolves its own workspace root from `$0`. In a spawned background sub-agent session, pass `env={"MMDAPP": "<workspace-root>"}` on the `myx_common_run` `lib/execShStdin` call — confirmed working.
+- `DistroAgentsTools.fn.sh` resolves its own workspace root from `$0`. In a spawned background sub-agent session, pass `env={"MMDAPP": "<workspace-root>"}` on the `mcp__myx_common__lib_execShStdin` call — confirmed working.
 
 ## Rule
 - Do not use options that are not listed in your own member/routine tooling file.
@@ -622,7 +622,7 @@ Used to check this file's own definitions against its own goals when this file's
 - "This is the durable, cross-cutting model doc for how the team's skill folders work — both routine-\* virtual members and every acting member: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule."
 - "This file is the member-specific option set for magic-team."
 - "magic-team.armed.md MUST instruct using this file."
-- Any process-flow/mechanics action (Slack post, board write, inbox filing) routes through the real DistroAgentsTools.fn.sh op via mcp__myx_common__myx_common_run's lib/execShStdin — never a raw Bash call, never a Write/Edit shortcut standing in for the op. This includes reflection-* filing specifically — --member-upsert-inbox-reflection, never a raw Write of the file. Direct editing of a file's own content (an armed.md's prose, a tooling.md's option list) is not process-flow/mechanics and stays a plain Read/Edit action.
+- Any process-flow/mechanics action (Slack post, board write, inbox filing) routes through the real DistroAgentsTools.fn.sh op via mcp__myx_common__lib_execShStdin — never a raw Bash call, never a Write/Edit shortcut standing in for the op. This includes reflection-* filing specifically — --member-upsert-inbox-reflection, never a raw Write of the file. Direct editing of a file's own content (an armed.md's prose, a tooling.md's option list) is not process-flow/mechanics and stays a plain Read/Edit action.
 
 ## Verbatim-tests (benchmarks)
 

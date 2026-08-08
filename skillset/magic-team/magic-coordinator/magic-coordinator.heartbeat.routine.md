@@ -44,7 +44,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **On success**: continue.
    - **An anomaly here (an undocumented lock state, an unexpected owner/meta) is assess→investigate work**: governed by `magic-coordinator.harness.md`'s `harness-session-rules`, not restated here.
 2. **Direct tooling calls, no console session** — this `next-iteration`'s own execution model, per `magic-team.armed.md`'s process-flow rule: no Keep-Alive Console Session opens, none is assumed.
-   - Every command from here on (`DistroAgentsTools.fn.sh` or any other shell check) goes through `mcp__myx_common__myx_common_run`'s `lib/execShStdin` — never Bash, Python, or any other tool that runs a process directly.
+   - Every command from here on (`DistroAgentsTools.fn.sh` or any other shell check) goes through `mcp__myx_common__lib_execShStdin` — never Bash, Python, or any other tool that runs a process directly.
    - Every `heartbeat-state-note` update goes through `--magic-heartbeat-state-upsert` via `lib/execShStdin` — never the Edit/Write tools, never a raw shell redirect, never a raw Bash call.
    - That record is rewritten every `next-iteration`; a permission prompt on it halts this whole unattended loop until a human clicks it.
 3. **Start a Slack thread in `slack-event-track`** — `--member-slack-send-message` operation, literal target argument `event-track` (no `slack-` prefix), a short opening line for this `next-iteration`.
@@ -128,7 +128,7 @@ Named procedure blocks. Steps above call them by name. Not separate routines - n
 ## `single-instance-lock` procedure
 
 - This routine's own concern — it protects itself, since only a real filesystem lock works across separate OS processes anyway.
-- Implemented as a `--magic-heartbeat-lock-*` option group in `DistroAgentsTools.fn.sh` (`myx.distro-agents/sh-scripts/`, body in `sh-lib/AgentsTools.MagicHeartbeat.include`) — don't hand-roll the mkdir/heartbeat logic inline, call these ops via `mcp__myx_common__myx_common_run`'s `lib/execShStdin`, the same way as every other `DistroAgentsTools.fn.sh` call, never raw Bash.
+- Implemented as a `--magic-heartbeat-lock-*` option group in `DistroAgentsTools.fn.sh` (`myx.distro-agents/sh-scripts/`, body in `sh-lib/AgentsTools.MagicHeartbeat.include`) — don't hand-roll the mkdir/heartbeat logic inline, call these ops via `mcp__myx_common__lib_execShStdin`, the same way as every other `DistroAgentsTools.fn.sh` call, never raw Bash.
 - The lock directory's parent is pre-created by the tool so the `mkdir` on the final lock-directory path component stays a single atomic call — storage location itself is resolved and owned by the tool internally (the same board-location config the sibling `--magic-heartbeat-state-*`/`--magic-sweep-state-*` ops use), never a path this doc states or a caller supplies.
 
 - The `--magic-heartbeat-lock-acquire` operation attempts the `mkdir`. Prints `ACQUIRED` and returns 0 on success. On failure it checks the existing lock's heartbeat age: stale (>15 min) reclaims it (`RECLAIMED_STALE:...`, returns 0, treating it as a crashed prior owner); fresh prints `ACTIVE:owner=...:since=...:heartbeat_age=...` and returns 1.
