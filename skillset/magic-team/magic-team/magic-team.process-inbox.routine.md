@@ -26,9 +26,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
 3. **Cross-member handoff → immediate reply**: a reply/route/handoff touching another member (including routing to `magic-coordinator`) sends an immediate reply to `slack-magic-team` via the `--member-slack-send-message` operation — compact, who + what it relates to. `magic-coordinator` sends it even when it isn't the one who performed the underlying write. Self-writes to one's own inbox don't need one.
 4. **GC, when `magic-coordinator` runs this for its own inbox as part of `routine-heartbeat`**: run `routine-heartbeat`'s own GC sub-step — full mechanics live there, not restated here.
 
-**Not automatic just because a spawn happened**: a spawned session processes the executing member's own inbox only when its `.routine.md` Steps sequence contains an explicit `routine-process-inbox`(that member's own inbox, that member) call — a real step each routine's own file is responsible for including, same as any acting member's duties include reading its mail. A routine whose own Steps never contain this explicit call gives no guarantee its executor's inbox is ever read, no matter how routine its invocation looks.
+**Not automatic just because a spawn happened**: a spawned session processes the executing member's own inbox only when its `.routine.md` Steps sequence contains an explicit `routine-process-inbox <that member>` call — a real step each routine's own file is responsible for including, same as any acting member's duties include reading its mail. A routine whose own Steps never contain this explicit call gives no guarantee its executor's inbox is ever read, no matter how routine its invocation looks.
 
-**Execution mode is decided by identity match, not by which routine is calling**: this routine is invoked as `routine-process-inbox`(inbox, member) — an explicit call naming which inbox to process and which member is doing the processing.
+**Execution mode is decided by identity match, not by which routine is calling**: this routine is invoked as `routine-process-inbox <team-member>` — one mandatory argument. It always works on that member's inbox; there is no second parameter.
 - **Inline**, in the same process/session — when `member` is processing its **own** inbox/identity. This is the common case: any acting member processing its own inbox.
 - **Spawned**, as a separate background `Agent` — when `member` is representing an inbox/identity it doesn't itself own, on behalf of someone else. Same shape as `routine-external-inbox-handle-loop`'s non-acting-owner pattern (`magic-coordinator` spawned to act for the human-owner/external contacts, since they have no inbox folder of their own).
 
@@ -97,11 +97,11 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-heartbeat` — the regular caller for `magic-coordinator`'s own inbox, every cycle.
 - `routine-communication-sweep`, `routine-ingest-task` — other writers into a member's inbox.
 - `routine-retro` — where a retained reflection gets discussed, one of reflection-promotion's own outcomes.
-- Every other `.routine.md` — each must contain its own explicit `routine-process-inbox(...)` call in its Steps for the executing member's inbox to actually get processed; this routine does not guarantee that on its own.
+- Every other `.routine.md` — each must contain its own explicit `routine-process-inbox <team-member>` call in its Steps for the executing member's inbox to actually get processed; this routine does not guarantee that on its own.
 - The board — the formal-state target, `magic-coordinator`-exclusive to write.
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.
 
 ### Conventions
 
-- The callable-with-parameters model is this routine's single most load-bearing property — preserve `routine-process-inbox(inbox, member)`'s exact shape, the "not automatic just because a spawn occurred" correction, and the inline-vs-spawned execution split by identity match precisely. Don't let a future synthesis pass reintroduce a false-automatic framing where every spawn is assumed to process the executing member's inbox without an explicit Steps-section call.
+- The mandatory-`<team-member>` call shape is this routine's single most load-bearing property — preserve `routine-process-inbox <team-member>` exactly (always a member, always that member's inbox, no other parameters), the "not automatic just because a spawn occurred" correction, and the inline-vs-spawned execution split by identity match precisely. Don't let a future synthesis pass reintroduce a false-automatic framing where every spawn is assumed to process the executing member's inbox without an explicit Steps-section call.
 - The two-authorities split (own-inbox actions vs. board-formal-state writes, `magic-coordinator`-exclusive for the latter) is equally load-bearing — preserve exactly, don't blur the two into one permission tier.
