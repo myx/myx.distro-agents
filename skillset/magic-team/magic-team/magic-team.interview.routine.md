@@ -14,7 +14,7 @@ Give the team a real, dedicated place to precisely understand another party's vi
 
 ## Scope
 
-Does: collection, minimal-assumption questioning, one topic per thread. Manual-trigger only — the human-owner or a member asks for an interview with a specific party about a specific topic; no autonomous or scheduled trigger. One concrete, recurring trigger: `magic-coordinator/SKILL.md`'s tooling-escalation ladder — an unresolved, non-simple tooling gap escalates here rather than staying stuck or getting built inline.
+Does: collection, minimal-assumption questioning, one topic per thread. Manual-trigger only — the human-owner or a member asks for an interview with a specific party about a specific topic; no autonomous or scheduled trigger. One concrete, recurring trigger: `magic-coordinator/magic-coordinator.armed.md`'s `missing-tool-option-escalation` local procedure — an unresolved, non-simple tooling gap escalates here rather than staying stuck or getting built inline.
 Doesn't do: reach agreement (`routine-discuss`'s job).
 
 # Steps
@@ -168,7 +168,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-brainstorm` — idea generation, no agreement expected.
 - `routine-coworking` — the multi-member dispatch shape step 3b spawns for a bigger-than-minimal mechanism.
 - `routine-process-inbox` — this routine's own inbox processing.
-- `magic-coordinator/SKILL.md` — the tooling-escalation ladder that's one concrete trigger for this routine.
+- `magic-coordinator/magic-coordinator.armed.md`'s `missing-tool-option-escalation` local procedure — the tooling-escalation ladder that's one concrete trigger for this routine.
 - `magic-coordinator/magic-coordinator.armed.md` — the `coordination-session`/`goal-gap-toward-empty` description step 1b's third entry point refers to.
 - `magic-team/magic-team.board.md` — the general item lifecycle, `inquiry-*` item shape, `board-backlog`'s drop-point shape.
 - `magic-team/magic-team.conversations.md` — rules 5a/10b this routine's steps borrow, and the general conversation-mechanics baseline this routine's Local rules point to.

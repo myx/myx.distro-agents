@@ -360,7 +360,6 @@ Used to check this files own definitions against its own goals when this file's 
 - `magic-coordinator/RICE-SCORING.md` — the four normalized dimensions (Profit/Cost/Time/Dependencies) used in step 3.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, calling convention, sole-sanctioned Slack-posting mechanism.
 - `magic-team/magic-team.armed.md` — `board-item` entity model, `source-slack-channel`/`source-slack-ts` frontmatter convention, field list (`supersedes`/`superseded-by`).
-- `magic-team/SKILL.md` — Item entity model, `source-slack-channel`/`source-slack-ts` frontmatter convention.
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.
 
 ### Conventions

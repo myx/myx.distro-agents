@@ -27,7 +27,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - targets `<channel>:<session_thread_ts>` captured at this session's own opening post — never a fresh bare `magic-team` post, per `routine-session-start`'s own thread-continuity rule
    - coworking-like sessions only: queue a `note-*` to `magic-coordinator`'s inbox via the `--member-upsert-inbox-note` operation, describing the Trello card update needed — never write to Trello directly, `routine-advance` is the sole executor of actual Trello writes
 1. **Continuity** — every session, both types.
-   - check: does anything genuinely important from this session exist only in this transcript, no durable file backing it? If so, write it now via the `--member-upsert-inbox-note` operation (plain memo) or `--member-upsert-inbox-reflection` operation (`reflection-*` note) — or a drafted proposal if the durable form is a `SKILL.md`/routine-file change
+   - check: does anything genuinely important from this session exist only in this transcript, no durable file backing it? If so, write it now via the `--member-upsert-inbox-note` operation (plain memo) or `--member-upsert-inbox-reflection` operation (`reflection-*` note) — or a drafted proposal if the durable form is an `.armed.md`/routine-file change
    - never a live edit to a team-knowledge file at session close itself — still goes through `routine-process-reflections`'s own propose→discuss/approve→edit gate
    - reflect on this session's actual incidents (0, 1, or several — not a fixed ritual): real corrections, real conflicts with the human-owner's actual stated words, real gaps found live. Check against: floor-not-ceiling (durable minimum going forward, not a one-off patch), statement-updates-state (frame a conflict with a prior assumption as "the model was wrong," not competing information logged side by side)
    - update any inbox task this session touched, resolved, or deferred
@@ -36,7 +36,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - make sure nothing important is left only in this transcript (step 1 above should already have caught anything substantive) — what makes a session safe to `/clear`
    - coworking-like sessions skip this entirely — a dispatched background `Agent` has no persisting interactive context to compact
 3. **Offer a skill-update discussion** — coworking-like sessions only.
-   - look back at what the routine surfaced (challenges, friction, gaps between what a member was asked to do and what its `SKILL.md` equips it to do) and raise with the user, explicitly, whether any `magic-*`/`routine-*` `SKILL.md` is due for an update
+   - look back at what the routine surfaced (challenges, friction, gaps between what a member was asked to do and what its own `.armed.md` equips it to do) and raise with the user, explicitly, whether any `magic-*` member's `.armed.md` or any `routine-*` file is due for an update
    - an offer, not an automatic edit — name the specific skill and gap, let the user decide now or defer
    - ad-hoc/solo sessions skip this — route through that member's own inbox/reflection note (step 1) instead
 4. **Conclude the session's own `slack-magic-team` thread** — every session, both types, conditional on a live thread actually existing.

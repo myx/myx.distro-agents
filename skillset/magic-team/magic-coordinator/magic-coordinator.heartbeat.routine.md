@@ -345,7 +345,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `magic-team/magic-team.armed.md`'s "Execution mechanisms" section — the process-flow direct-tooling-call rule this routine's own step 2 follows; its "Team-Member's (-specific) tooling" section for calling convention and the permission-prompt diagnostic.
 - `magic-team/magic-team.armed.md` — delegated-authority rule the weekend-detection branch relies on.
 - `magic-coordinator/TEAM-ORGANIZATION-VISION.md` — the main-loop-elevation facets and architect-resolution addendum.
-- `magic-librarian/SKILL.md` — "Own inbox: collect and batch, don't fix ad hoc" standard, applied by the first-today-only sub-step.
+- `magic-librarian/magic-librarian.armed.md`'s `own-inbox-batch-processing` procedure — "Own inbox: collect and batch, don't fix ad hoc" standard, applied by the first-today-only sub-step.
 - `magic-team/magic-team.board.md` — `archived/`/`retained/` diversion entries, per-member `processed/` file shape, used by the GC sub-step.
 - Trigger mechanics live in `magic-coordinator.armed.md`'s `main-loop-mode` mechanics instead, not here.
 

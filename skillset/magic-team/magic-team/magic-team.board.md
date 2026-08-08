@@ -9,7 +9,7 @@ The team's current-work index — a shared, cross-workspace, cross-day status so
 - `magic-coordinator` reads/modifies this continuously, on its own authority — its own active work tool (think: a PM's own Jira board).
 - `magic-librarian` joins once per workday, jointly, under `magic-coordinator`'s lead — not an independent pass. See `routine-librarian-morning-review` for what that session actually does.
 
-**`magic-coordinator`'s write authority is exclusive over the board — full stop.** Same structural shape as the "sole mandated channel to the human-owner" rule (`SKILL.md`). Covers:
+**`magic-coordinator`'s write authority is exclusive over the board — full stop.** Same structural shape as the "sole mandated channel to the human-owner" rule (`magic-coordinator/magic-coordinator.armed.md`'s Local rules). Covers:
 - Creating a `board-item`.
 - Moving one between states: `board-running`, `board-blocked`, `board-parked`, `board-processed`, `board-archived`, `board-retained`.
 - Scoring one (RICE).
@@ -42,7 +42,7 @@ This file itself stays thin: a rollup pointing into `board/`'s folders, not wher
 - **`board-running`**
   - Where an item lands the instant it's actually dispatched (see `board-pending` above for what precedes this), and where it stays through active work, claimed-completion, and its own testing round — there is no separate queued/testing folder, all of that happens in place.
   - An inbox item never sits *in* `board-running` directly — triage creates a formal board-item in `board-backlog`, which then moves through `board-pending` on its way here.
-  - Once a `board-running` item's implementation is claimed complete (live during a work session, or grooming's advancement review), `magic-coordinator` dispatches `magic-tester` to run its testing round against the claimed-complete work — real test-suite execution per its own methodology, plus its security/CRA-style due-diligence pass (both part of `magic-tester`'s own `SKILL.md`).
+  - Once a `board-running` item's implementation is claimed complete (live during a work session, or grooming's advancement review), `magic-coordinator` dispatches `magic-tester` to run its testing round against the claimed-complete work — real test-suite execution per its own methodology, plus its security/CRA-style due-diligence pass (both part of `magic-tester`'s own `magic-tester.armed.md` Goals/Scope).
   - Two outcomes, item stays in `board-running` throughout:
     - **Clean** — no concerns raised.
       - If the item's type/scope genuinely calls for human-owner sign-off before it can be considered final (per `routine-grooming`'s staged task-creation lifecycle — "any doubts, approval with human-owner"), it moves to `board-blocked`, filed under `board-blocked`'s existing "human-owner decision" reason (not a new reason category) — this is the state that "may become final" once the human-owner actually approves it, after which it moves to `board-processed`.
@@ -202,7 +202,7 @@ Two routines drive the board, each a distinct, non-overlapping part:
 
 `magic-coordinator` — exclusively, per the write-authority note at the top of this file.
 
-Not something every individual member independently maintains or is expected to check: a member with a properly-registered task (dispatched the normal way — background `Agent` invoking its own `Skill`, with a clearly assigned item, per `SKILL.md`'s Dispatch section) doesn't need separate "go check the board" behavior; the dispatch itself already carries what it needs to do.
+Not something every individual member independently maintains or is expected to check: a member with a properly-registered task (dispatched the normal way — background `Agent` invoking its own `Skill`, with a clearly assigned item, per `magic-coordinator/magic-coordinator.armed.md`'s `spawn-one-dispatch` local procedure) doesn't need separate "go check the board" behavior; the dispatch itself already carries what it needs to do.
 
 The board matters at three points:
 - **Grooming** — the authority group's periodic deep read/write pass (triage, advancement, re-scoring).

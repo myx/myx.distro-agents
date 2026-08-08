@@ -15,7 +15,7 @@ Routine-librarian-morning-review is the once-per-workday joint `magic-coordinato
 ## Scope
 
 Does: catch board *state-model* drift and cross-file consistency gaps — not ordinary content staleness. Spawned as a full sub-session from `routine-daily`'s own step 0, first-today only — a background `Agent` dispatch (`Skill(magic-librarian)` first, default goal = this routine's own Goals), waited on to completion, running its own `routine-session-start`/`routine-close-session` per the session-type framework.
-Doesn't do: the deep team self-sufficiency audit `magic-librarian`'s own `SKILL.md` already runs as a normal daily task across every `magic-*` skill directory's formal docs — that's broader (currency/consistency/self-sufficiency/clarity across the whole team, unconditional, every day) and doesn't specifically center on the board.
+Doesn't do: the deep team self-sufficiency audit `magic-librarian`'s own `magic-librarian.armed.md` (`team-self-sufficiency-audit` procedure) already runs as a normal daily task across every `magic-*` skill directory's formal docs — that's broader (currency/consistency/self-sufficiency/clarity across the whole team, unconditional, every day) and doesn't specifically center on the board.
 
 # Steps
 

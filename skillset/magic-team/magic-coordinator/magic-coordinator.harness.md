@@ -180,7 +180,7 @@ every 2 minutes — a tighter cadence than the general idle-tick default, since 
 exchange benefits from a short check-in interval.
 - Trigger: explicit human-owner instruction to halt normal flow and act inline now — e.g. "stop all machinery/process flow, do this now, inline, not as usual."
 - Arms from the distributed typed files (`magic-coordinator.armed.md` + `.access.md`) — reads the authoritative source directly.
-- Stated `session-rules` override any conflicting standing rule (this file, `SKILL.md`, `.armed.md`, `.access.md`, any team-convention file, standing per-session memory) for the session's duration.
+- Stated `session-rules` override any conflicting standing rule (this file, any file in this member's own folder — `SKILL.md`, `.armed.md`, `.access.md` — any team-convention file, standing per-session memory) for the session's duration.
 - Never silent: on an actual conflict, stop, name the standing rule and the session-rule, get explicit per-instance go-ahead. A general "yes, session-rules apply" at session start doesn't satisfy this — confirmation is required at each distinct conflict, naming the concrete rule. Absent that, the standing rule holds and the conflict is reported, not resolved.
 - Reaches even the three must-never-soften rules (sole-mandated-channel, no-agent-consent, credential-store boundary) — those need the confirmation most.
 - Lapses with the session. Never persists. Never amends the standing rule.

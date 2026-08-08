@@ -606,8 +606,8 @@ gap CSP's `script-src` alone doesn't cover (a compromised or careless
 `innerHTML`/`insertAdjacentHTML` call with attacker-controlled content
 is a same-origin, same-nonce, fully "CSP-legal" write). It's a
 particularly good fit for this vision's stack specifically because the
-native-standards-first, no-framework stance (SKILL.md's default
-stance) means there's no framework-level auto-escaping quietly doing
+native-standards-first, no-framework stance (`magic-frontender.armed.md`'s
+default stance) means there's no framework-level auto-escaping quietly doing
 this job already — a Web-Components-and-vanilla-JS codebase that
 touches `innerHTML` by hand is exactly the shape of codebase Trusted
 Types was designed to backstop. Flagging as a strong candidate for a
@@ -691,7 +691,7 @@ facets rather than guessing generically:**
   of this content as an immutable build artifact, not something this
   facet needs to add machinery for.
 - **Web Component render paths (this vision's default stack per
-  SKILL.md):** the real, load-bearing sink. Vanilla Web Components
+  `magic-frontender.armed.md`):** the real, load-bearing sink. Vanilla Web Components
   re-rendering on data change is the idiomatic no-framework pattern for
   "update the DOM to match new state," and the common hand-rolled way to
   do it is a template-literal string assigned to `shadowRoot.innerHTML`

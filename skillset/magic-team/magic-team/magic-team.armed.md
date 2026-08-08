@@ -489,7 +489,6 @@ Distinct from the board (coordinator-owned, continuous) — these are static-ish
 
 - This file's own "Team-Member's tooling" section below — the Keep-Alive Workspace Console Session batching technique (mandatory for any real execution per this file's own Engineering & operating discipline) plus the workspace/tooling quick-reference. This is a pure tooling technique, not a routine (nobody spawns a session specifically to "do console-sessions"; every routine/member applies it while doing its own thing) — same property as `_duties.md`/`magic-team.authority.keeper.contract.md`.
 - `magic-team.shared.md` (out of scope for this merge, stays separate) — the routine-\*-as-virtual-member model: folder shape, the typed-suffix naming-scheme formats, the executors-vs-maintainers quorum rule. Per-routine-specific content (executor/maintainer notes, special-care details) lives natively in each routine's own typed files, not here.
-- `TEAM-INFO.md` (roster reference) **stays under `magic-coordinator`'s directory for now** — too many existing files cross-reference its current path to relocate safely in this pass.
 
 # Non-acting owners
 
@@ -660,7 +659,7 @@ Used to check this file's own definitions against its own goals when this file's
 - `magic-tester` — runs a `running/` item's own testing round (testing/CRA-security), in place.
 - `magic-team.conversations.md` — rule 10c (no-regress) and rule 12 (verify-before-complying / escalate-by-stakes for unclear routing).
 - `human-owner/human-owner.workspaces.md` — the sole authoritative source of workspace paths.
-- `TEAM-INFO.md`, `TEAM-STATUS.md`, `TEAM-COMMS.md` (`magic-coordinator`'s directory) — roster reference and retired stubs, see "The board" and "Shared reference files" sections above.
+- `TEAM-STATUS.md`, `TEAM-COMMS.md` (`magic-coordinator`'s directory) — retired stubs, see "The board" and "Shared reference files" sections above.
 
 ### Conventions
 
