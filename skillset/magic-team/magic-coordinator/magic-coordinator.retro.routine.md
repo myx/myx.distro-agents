@@ -45,6 +45,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
+- This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - No cron or automation without explicit human-owner confirmation.
 - Step 5's discussion genuinely pauses for the human-owner's live reaction when run interactively — only the (not-yet-built) autonomous path would defer this. **If autonomous invocation is added later**: step 5 (Discuss with the user) would follow the same pattern already used for `routine-daily`/`routine-grooming` — don't block waiting for a live response, record findings as provisional in a `board-running` `note-*` item (filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`) and flag for confirmation the next time a human is present.

@@ -193,6 +193,12 @@ No skill file, this one included, ever states a workspace's real path directly �
 
 # Routines
 
+**`routine-coworking` is the extensible template most team routines extend**, not a category some of them belong to. A routine extending it says so in its own Local rules and inherits its instructions.
+
+**Two distinct ways routines and procedures get used** — different things, not two names for one:
+- **Called inline**: run that routine's steps, or call that member's procedure, inside the session already running.
+- **Dispatched as a session**: spawning `routine-daily` or `routine-advance` from `routine-heartbeat` spawns a coworking session *carrying that routine as its task* — not an abstract routine call. Where the task warrants it, a simplified ad-hoc session instead: coworking-alike, following the coworking instructions wherever they apply.
+
 Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`, out of scope for this merge):
 - `routine-brainstorm` — description in `magic-team.brainstorm.routine.md`.
 - `routine-close-session` — description in `magic-team.close-session.routine.md`.

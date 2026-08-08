@@ -47,6 +47,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` and `magic-librarian` (this routine's joint executors) are permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
+- This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - Never inspect the credential store directly — only through `DistroAgentsTools.fn.sh`'s own config resolution.
 - One documented mechanism failing once is a stop-and-ask signal, not a puzzle to solve alone.
