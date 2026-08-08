@@ -18,7 +18,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 - Does:
   - Audit/update README.md/CLAUDE.md/AGENTS.md, scoped per documentation unit: the nearest ancestor directory containing `.git`, or any subdirectory with both `project.inf` and its own README.md. A single invocation may span multiple units (e.g. a monorepo) — don't blend their conventions; each unit's docs are judged against that unit's own code and existing doc style.
   - Two invocation shapes: manual docs-auditing (`/magic-librarian check` or `/magic-librarian update [target]`) — do not auto-trigger on ordinary code changes; and a standing reference-knowledge role other `magic-*` skills consult directly (no invocation ceremony needed).
-  - `routine-conventions-check` is outside the no-auto-trigger line above: it triggers automatically per `magic-team.armed.md`'s standing rule, and any armed member already in session runs it inline — spawning `magic-librarian` purely to run it is never required.
+  - `routine-conventions-check` is outside the no-auto-trigger line above: it runs on every skillset-file change per `magic-team.armed.md`'s standing rule, and on generated documents as strictly as the owning routine's own rules require. Any armed member already in session runs it inline — spawning `magic-librarian` purely to run it is never required.
   - Open executor model: any member, or the human-owner directly, may invoke either role.
   - Two standing scope exceptions beyond README/CLAUDE.md/AGENTS.md, both running daily, unconditionally:
     - **Team shared-state files** — cross-workspace, cross-day files that exist because `TodoWrite` alone resets every session: the `heartbeat-state-note` — main-loop's day-rhythm control state plus per-platform comms-sweep mechanical state, read via `--magic-heartbeat-state-read` and rewritten via `--magic-heartbeat-state-upsert`. It is user-wide, not scoped to any single repo's documentation units — treat it as its own thing, not a CLAUDE.md. Maintaining it is in scope whenever the relevant routine calls for it.
@@ -161,7 +161,7 @@ This unit model applies to ordinary README/CLAUDE.md/AGENTS.md work. The two sta
 
 ### Member-addressed files
 
-A file whose instructions are addressed to one named member, for that member's own real-life setup or operation. It reads the same two ways: that member following it herself, or an agent following it to help her. Write in the second person to that member, never about her; never assume which of the two is reading.
+A file whose instructions are addressed to one named member, for that member's own real-life setup or operation. It reads the same two ways: that member following it herself, or an agent following it to help her. Write in the third person about that member, so both readings work; never assume which of the two is reading.
 
 Says so in its own `# Summary`, in one line.
 
