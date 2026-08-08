@@ -16,13 +16,13 @@ Give non-acting owners (the human-owner, external contacts) the same real, worki
 ## Scope
 
 Does: outstanding-ask/reminder/status tracking for non-acting owners. Invoked from `routine-heartbeat`'s own post-sweep inbox-processing step (its regular caller), or standalone any time there's reason to check on a specific non-acting owner sooner than the next regular cycle. `magic-coordinator` only — non-acting owners' content lives inside its own inbox by construction, so it is structurally the only one positioned to run this; there is no "the owner processes it themselves" path here, the way `routine-process-inbox` has for acting members.
-Doesn't do: anything `routine-process-inbox` already covers for acting members. This routine's own inbox (**process-own-inbox**) is distinct from the non-acting-owner content it works in **work-the-loop**: that content lives inside `magic-coordinator`'s own inbox by construction (see Goals); **process-own-inbox** is the routine's own mailbox as a virtual member, same as any other `routine-*`.
+Doesn't do: anything `routine-process-inbox` already covers for acting members. Both its steps read `magic-coordinator`'s own inbox, but handle different content there: **process-own-inbox** handles `magic-coordinator`'s own mail; **work-the-loop** handles the non-acting-owner content that lives in that same inbox by construction (see Goals).
 
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **process-own-inbox**: run `routine-process-inbox` on `routine-external-inbox-handle-loop`'s own inbox, `magic-coordinator` as executor.
+0. **process-own-inbox**: run `routine-process-inbox` on own inbox.
 1. **work-the-loop**: pick one of five actions per item, by its own real history — not a fixed rotation.
    - **Retry**: the prior attempt may not have landed — try again through the same channel.
    - **Communicate**: send a fresh status/update even without a specific blocker, to keep the item visibly alive.

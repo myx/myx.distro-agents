@@ -21,9 +21,9 @@ Doesn't do: the deep team self-sufficiency audit `magic-librarian`'s own `magic-
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0a. **Run `routine-session-start`'s shared opening steps**: declares itself coworking-like/structured-multi-member (`magic-coordinator` + `magic-librarian` jointly), runs `routine-prepare-session`'s currency check, invokes `routine-process-reflections` for this session's own project/workspace, processes `routine-session-start`'s own inbox, and posts an opening broadcast to `slack-magic-team`/Trello.
+0a. **Run `routine-session-start`'s shared opening steps**: declares itself coworking-like/structured-multi-member (`magic-coordinator` + `magic-librarian` jointly), runs `routine-prepare-session`'s currency check, invokes `routine-process-reflections` for this session's own project/workspace, processes own inbox, and posts an opening broadcast to `slack-magic-team`/Trello.
 1. **Read the board's current shape** — `board-running`/`board-blocked`/`board-parked`/`board-processed`/`board-archived`/`board-retained`, plus the `heartbeat-state-note`, read via the `--magic-heartbeat-state-read` operation, for comms-platform state not yet reflected there.
-1a. **Process own inbox**: `routine-process-inbox`(`routine-librarian-morning-review`'s own inbox, `magic-coordinator` as the executor — confirmed default for this joint-executor routine) — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
+1a. **Process own inbox**: run `routine-process-inbox` on own inbox — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 2. **Check for state-shape drift**, not just content drift — e.g. `blocked/` and `parked/` being silently collapsed into `running/`/`archived/`, losing the distinction between "stalled on something external" and "deliberately deferred by choice." Not just "is this file's *content* current" but "does the *model itself* still match what it's supposed to represent."
 
    **Content-hygiene pass, folded into this same step**: any skill-folder file that defines a routine, machinery, team dynamic, or process flow — `SKILL.md` and its typed siblings, shared team docs — touched during this session gets checked for accreted dated/historical narration ("Added on DATE," "CORRECTED —," incident-quote framing standing in for a plain rule). Where found: analyze and load the actual current context, verify nothing actually-active is lost, then rewrite as firm, present-tense current content — not a history of edits. Log files (a keeper's own `processed/` entries, board Items, inbox items, the `heartbeat-state-note`) are exempt — their whole point is being a dated record. Full statement of this standard: `magic-librarian`'s own "Skill-folder content hygiene" content.
@@ -98,7 +98,7 @@ Used to check this files own definitions against its own goals when this file's 
 
 - `routine-daily` — the caller that spawns this routine at its own step 0.
 - `routine-session-start` / `routine-close-session` — shared opening/closing steps.
-- `routine-process-inbox` — this routine's own inbox processing.
+- `routine-process-inbox` — own-inbox processing.
 - `magic-team/magic-team.board.md` — the board's own state model this routine checks for drift.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, calling convention, sole-sanctioned Slack-posting mechanism.
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.

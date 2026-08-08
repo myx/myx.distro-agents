@@ -197,7 +197,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-heartbeat` — calls this every iteration as its "Comms" step.
 - `routine-grooming` — deep classification/triage, Google Drive/Sheets, board-coverage diffing.
 - `routine-advance` — its own pending-reaction-lookup step reacts on deferred-terminal messages later.
-- `routine-process-inbox` — this routine's own inbox processing.
+- `routine-process-inbox` — own-inbox processing.
 - `routine-one-on-one` — small-group proposal destination for member-specific findings.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, mandatory batching.
 - `magic-team/magic-team.armed.md`'s "Board & Inbox board-items entity model" section — `board-item` entity model, `source-slack-channel`/`source-slack-ts` frontmatter convention.

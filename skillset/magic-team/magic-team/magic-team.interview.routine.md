@@ -21,7 +21,7 @@ Doesn't do: reach agreement (`routine-discuss`'s job).
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **Process own inbox**: `routine-process-inbox`(`routine-interview`'s own inbox, the executor running it) — inline execution (own identity). Genuinely load-bearing here, not boilerplate: `routine-interview` is manual-trigger-only with no daily/autonomous invocation anywhere else, so this explicit call is the *only* thing that ever guarantees its own inbox gets read.
+0. **Process own inbox**: run `routine-process-inbox` on own inbox — inline execution (own identity). Genuinely load-bearing here, not boilerplate: `routine-interview` is manual-trigger-only with no daily/autonomous invocation anywhere else, so this explicit call is what guarantees own inbox is read before an interview starts.
 1. **Establish the channel, and create the tracking board Item in this same step, not later**: Slack thread (via the `--member-slack-send-message` operation) is the primary channel for an interview session; email (via the `--send-email-message` operation) is the failover for slow-moving or unusually complex matters where a thread's back-and-forth pace doesn't fit. **One topic, one thread — fork, don't absorb**: if an unrelated topic surfaces mid-interview, don't let it bleed into the current thread. Fork it into its own new Slack thread and keep the original thread strictly on its own subject. **The `inquiry-*` board Item (see step 5) gets created right here, at channel-open time — not deferred to "eventually" or to whenever step 5 gets reached.** This step is never deferrable. **When the interview is being opened or resumed by a genuinely live-interactive session**, set `owner-session: interactive` and `owner-session-since: <now>` on the tracking Item's frontmatter at this same moment — refreshed as a heartbeat each time step 1b's resume-review runs under that same live session, so a long-running real conversation never drifts into looking stale mid-way through.
 1a. **When more than one interview's tracking Item is open at once, name the specific one when resuming
    it.** A bare "continue"/"next round" with no name is ambiguous and must be treated as a genuine
@@ -173,7 +173,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-discuss` — convergence/decision-oriented, distinct from this routine's collection-only purpose.
 - `routine-brainstorm` — idea generation, no agreement expected.
 - `routine-coworking` — the multi-member dispatch shape step 3b spawns for a bigger-than-minimal mechanism.
-- `routine-process-inbox` — this routine's own inbox processing.
+- `routine-process-inbox` — own-inbox processing.
 - `magic-coordinator/magic-coordinator.armed.md`'s `missing-tool-option-escalation` local procedure — the tooling-escalation ladder that's one concrete trigger for this routine.
 - `magic-coordinator/magic-coordinator.armed.md` — the `coordination-session`/`goal-gap-toward-empty` description step 1b's third entry point refers to.
 - `magic-team/magic-team.board.md` — the general item lifecycle, `inquiry-*` item shape, `board-backlog`'s drop-point shape.

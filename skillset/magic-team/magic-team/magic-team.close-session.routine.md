@@ -31,7 +31,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - never a live edit to a team-knowledge file at session close itself — still goes through `routine-process-reflections`'s own propose→discuss/approve→edit gate
    - reflect on this session's actual incidents (0, 1, or several — not a fixed ritual): real corrections, real conflicts with the human-owner's actual stated words, real gaps found live. Check against: floor-not-ceiling (durable minimum going forward, not a one-off patch), statement-updates-state (frame a conflict with a prior assumption as "the model was wrong," not competing information logged side by side)
    - update any inbox task this session touched, resolved, or deferred
-   - process this routine's own inbox: `routine-process-inbox`(`routine-close-session`'s own inbox, the executor running it) — inline execution
+   - process own inbox: run `routine-process-inbox` on own inbox — inline execution
 2. **Compact session context** — ad-hoc/solo/IDE-chat sessions only.
    - make sure nothing important is left only in this transcript (step 1 above should already have caught anything substantive) — what makes a session safe to `/clear`
    - coworking-like sessions skip this entirely — a dispatched background `Agent` has no persisting interactive context to compact
@@ -116,7 +116,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-session-start` — defines the session-type classification (coworking-like vs. ad-hoc) this routine's own gating keys off; the symmetric opening counterpart.
 - `routine-process-reflections` — no longer called from here; moved to `routine-session-start`.
 - `routine-communication-sweep` — broadcast mechanics for step 0.
-- `routine-process-inbox` — this routine's own inbox processing (step 2).
+- `routine-process-inbox` — own-inbox processing (step 2).
 - `routine-daily`, `routine-retro`, `routine-grooming`, `routine-one-on-one`, `routine-coworking`, `routine-librarian-morning-review` — the six coworking-like routines that call this at their own close.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — calling convention, sole-sanctioned Slack-posting mechanism.
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.

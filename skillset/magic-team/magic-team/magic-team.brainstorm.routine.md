@@ -21,7 +21,7 @@ Doesn't do: reach a decision (`routine-discuss`'s job), capture one party's sett
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0a. **Process own inbox**: `routine-process-inbox`(`routine-brainstorm`'s own inbox, the executor running it) — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
+0a. **Process own inbox**: run `routine-process-inbox` on own inbox — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 1. **Set the topic loosely**: state the area being brainstormed, but keep it open — a brainstorm with an overly narrow framing risks just being a discussion in disguise. **Any example given when the topic is set is a floor, not a ceiling** — a starting minimum to extend from, never a closed boundary on what counts, unless an explicit ceiling was stated (a hard number, an explicit "no more than X").
 2. **Generate without filtering**: throw out ideas, including ones that sound impractical or unlikely — the point is coverage and provocation, not immediate quality control. Explicitly welcome "crazy" ideas; don't let the first reasonable-sounding idea anchor and shut down further generation.
 3. **Light assessment, not deep vetting**: after ideas are out, everyone gives each a quick, light read (promising / interesting-but-needs-work / probably not, and why) — not a full feasibility analysis. This is "assess a bit," deliberately not the deep investigation a real proposal would get.
@@ -89,7 +89,7 @@ Used to check this files own definitions against its own goals when this file's 
 
 - `routine-discuss` — convergence/decision-oriented follow-on for a promising idea.
 - `routine-interview` — precise collection, distinct purpose from this routine's generative one.
-- `routine-process-inbox` — this routine's own inbox processing.
+- `routine-process-inbox` — own-inbox processing.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, calling convention, sole-sanctioned Slack-posting mechanism.
 - `magic-team/magic-team.basic.md` — the propose-and-wait-for-confirmation filing gate step 6 reuses.
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.

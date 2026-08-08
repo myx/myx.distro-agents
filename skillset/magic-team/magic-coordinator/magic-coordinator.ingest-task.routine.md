@@ -21,7 +21,7 @@ Doesn't do: guess at unstated intent, rush an ambiguous ask straight to a task f
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **process-own-inbox**: run `routine-process-inbox` on `routine-ingest-task`'s own inbox, `magic-coordinator` as executor.
+0. **process-own-inbox**: run `routine-process-inbox` on own inbox.
 1. **gather-and-agree**: interactively gather and agree with the requester, one topic at a time, until the content is actually settled — don't rush to a task write while real ambiguity remains. Same pacing discipline `routine-interview` uses for its own gathering step: small, minimal-assumption-gap questions, iterative; once something is genuinely clear and agreed, move on rather than re-confirming it in smaller pieces.
 2. **output**, once settled:
    - (a) Default: write a task-description into the relevant inbox via `--member-upsert-inbox-note` — an individual member's own inbox or `magic-coordinator`'s own, depending on content, never the board. Creates the record only — does not start work; execution starts later when whatever owns that inbox picks the item up (see **note-on-inline-execution** for the one live exception).
@@ -90,7 +90,7 @@ Used to check this files own definitions against its own goals when this file's 
 
 ### Reference
 
-- `routine-process-inbox` — this routine's own inbox processing (step 0).
+- `routine-process-inbox` — own-inbox processing (step 0).
 - `routine-interview` — step 1's pacing discipline (small, minimal-assumption-gap questions) is the same as `routine-interview`'s own step 2.
 - `routine-grooming` — the destination that later triages/RICE-scores whatever this routine files into an inbox.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — calling convention, `DistroAgentsTools.fn.sh` trust policy.

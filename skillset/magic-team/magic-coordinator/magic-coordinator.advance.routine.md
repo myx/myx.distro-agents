@@ -47,7 +47,7 @@ The board isn't trustworthy between daily/grooming cycles — sessions die mid-w
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **advance-process-inbox**: Run `routine-process-inbox` on `routine-advance`'s own inbox, `magic-coordinator` as executor.
+0. **advance-process-inbox**: Run `routine-process-inbox` on own inbox.
 1. **advance-read-board-state**: Call the `--magic-advance-input-scan` operation.
 2. **advance-run-process-board**: Run the `check-process-board` procedure (`magic-coordinator.armed.md`) against this pass's own read.
 3. **advance-run-execute-board**: Run the `check-execute-board` procedure (below) against this pass's own read.
@@ -226,7 +226,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-communication-sweep` — the Comms step this routine runs right after; also the source of `note-2026-08-05-pending-slack-reaction.md` records `check-pending-comms-actions` consumes.
 - `routine-grooming` — deeper, once-daily, three-actor pass this routine's own findings feed into when they need real judgment; also reads `check-process-board`'s own recorded dependency ordering for its own cross-member reprioritization.
 - `routine-librarian-morning-review` — the distinct, structural-drift-focused board session, not duplicated by this routine's own reconciliation pass.
-- `routine-process-inbox` — this routine's own inbox processing (**advance-process-inbox**).
+- `routine-process-inbox` — own-inbox processing (**advance-process-inbox**).
 - `magic-coordinator/magic-coordinator.armed.md` — `check-process-board`'s own home, called from **advance-run-process-board**; `spawn-one-dispatch`, called from `check-execute-board`.
 - `magic-team/magic-team.board.md` — the board's own state model, write-authority rule, `processed/`/`archived/` outcome-ambiguity note, `# Process-Flow, the board dynamics` section.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, `--console-list`, calling convention, `--comms-slack-react`/`--console-send` mechanics.

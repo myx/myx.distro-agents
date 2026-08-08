@@ -75,7 +75,8 @@ This file itself stays thin: a rollup pointing into `board/`'s folders, not wher
 All four are equally valid; none is the "real" or "canonical" one. **Not the same as `board-parked`**: `board-blocked` keeps getting worked *at* even while it can't move; `board-parked` is the team consciously choosing to stop that active effort and just wait instead (see below).
 
 - **`board-parked`**
-  - **The defining property is pure passivity** — no periodic action is expected or taken, unlike `board-blocked`; it just sits until its trigger condition arrives on its own.
+  - **Blocked on a subtask, parked on a condition.** That is the distinction between the two states.
+  - **The defining property is pure passivity** — no periodic action is expected or taken, unlike `board-blocked`; it just sits until its trigger condition arrives on its own. A recheck asks only whether that condition has arrived; "not yet" leaves it parked.
   - Deliberately deferred by the team's/human-owner's own choice, waiting on a future internal condition or trigger (other work clearing, a project completing, priorities shifting) — not cancelled, not stalled on an external party.
   - Re-visited periodically (typically at grooming) to check whether the trigger condition has arrived — that check is itself passive (has it happened yet?), not an active push; if the team decides it never will, that's when it moves to `board-archived`, not before.
   - **Not the same as `board-blocked`**: parked items aren't waiting on anyone else, the team is simply choosing not to work them yet.

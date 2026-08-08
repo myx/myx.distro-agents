@@ -151,8 +151,10 @@ Steps:
 7. **board-reassess-parked-blocked**: Reassess `board-parked`/`board-blocked` items whose `recheck-date` has arrived. Requires `recheck-date` + `condition` on the item.
    - Trigger: `recheck-date` arrived, or (`board-blocked` only) a listed blocker completed this pass.
    - Evaluate from this pass's already-loaded data only.
+   - Item carries `handoff-action:`: no state-only action here — `check-execute-board` owns this item's own retry and its `recheck-date`. Skip it.
    - Any external check needed, however trivial: spin off an inquiry job, reference it on the item, extend `recheck-date`.
-   - Resolves from already-loaded context alone: move `board-parked`→`board-backlog` via `--magic-board-to-backlog`, or `board-blocked`→`board-backlog` (`--magic-board-to-backlog`)/`board-pending` (`--magic-board-to-pending`)/`board-running` (`--magic-advance-to-running`), note why.
+   - `condition` not met yet: leave the item in its current state, renew `recheck-date`, note why. The ordinary `board-parked` outcome — a parked item's recheck asks only whether its trigger has arrived, and "not yet" is never a demotion.
+   - `condition` met, resolves from already-loaded context alone: move `board-parked`→`board-backlog` via `--magic-board-to-backlog`, or `board-blocked`→`board-backlog` (`--magic-board-to-backlog`)/`board-pending` (`--magic-board-to-pending`)/`board-running` (`--magic-advance-to-running`), note why.
 8. **board-scan-backlog-readiness**: Scan `board-backlog` for readiness. Flag dependency-clear, ready-looking items. Do not decide "go." Do not dispatch.
 9. **board-run-pending-comms-actions**: Run the `check-pending-comms-actions` procedure.
 10. **board-report**: Report. Post a compact `slack-event-track` trace via `--member-slack-send-message` (target `event-track`). Cover: mechanical moves, reopens, Slack pending-reactions resolved/still-pending, Trello updates posted/still-pending, what's flagged for next grooming/daily. Post every run, even "nothing to actualise."

@@ -55,12 +55,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Declares this as a coworking-like/structured-multi-member session.
    - Runs `routine-prepare-session`'s currency check.
    - Invokes `routine-process-reflections` for this project/workspace.
-   - Processes `routine-session-start`'s own inbox.
+   - Processes own inbox.
    - Posts an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
 1. **Librarian opens, in parallel with step 2**: dispatch `magic-librarian` to confirm the `roster-note` and `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section are current (roster/domain and workspace/tooling facts, read as trusted day-to-day, not re-derived here).
    - Refresh the `roster-note` via the `--member-upsert-inbox-note` operation if it drifted.
    - Per-member backlog itself lives on the board (coordinator-exclusive write authority).
-1c. **Process own inbox, in parallel with steps 1-2**: `routine-process-inbox` (`routine-daily`'s own inbox, the executor running it) — inline execution (own identity).
+1c. **Process own inbox, in parallel with steps 1-2**: run `routine-process-inbox` on own inbox — inline execution (own identity).
    - Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 2. **Communication sweep (read), in parallel with step 1**: run the read half of `routine-communication-sweep` — not Trello-specific, covers every live platform under `the credential store`.
    - Fold anything relevant into the roll call narration in step 3.
@@ -199,7 +199,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `check-process-board` (`magic-coordinator.armed.md`) — dependency-ordering recompute, step 4a; called directly, not via `routine-advance`.
 - `routine-camunda-diagram-sync` — BPMN diagram staleness check, step 5a.
 - `routine-communication-sweep` — read half (step 2) and write half (step 8).
-- `routine-process-inbox` — this routine's own inbox processing, step 1c; see its own "Execution mode is decided by identity match" section for why this explicit call is required.
+- `routine-process-inbox` — own-inbox processing, step 1c; see its own "Execution mode is decided by identity match" section for why this explicit call is required.
 - `magic-team/magic-team.armed.md`'s "Execution mechanisms" section — the process-flow direct-tooling-call rule this routine follows; its "Team-Member's (-specific) tooling" section for calling convention and the sole-sanctioned Slack-posting mechanism.
 - `magic-team/magic-team.board.md` — the board's own state-model definition (`board-running`→`board-blocked` trigger, `board-running` entry verification) steps 7 relies on.
 - `magic-coordinator/magic-coordinator.armed.md`'s "Team-Member's (-specific) local rules" section — the executor's own standing operating rules this routine runs under, including the "How to hand off"/"What to hand off" dispatch rules step 7's fan-out follows.

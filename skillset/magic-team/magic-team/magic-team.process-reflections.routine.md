@@ -21,7 +21,7 @@ Doesn't do: let them accumulate indefinitely unreviewed.
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **Process own inbox**: `routine-process-inbox`(`routine-process-reflections`' own inbox, the executor running it — typically `magic-librarian`) — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
+0. **Process own inbox**: run `routine-process-inbox` on own inbox — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 1. **Read the accumulated `feedback_*`-style memory files** for the project/workspace this session is operating in — these are Claude's own learned-lesson files, distinct from board Items and distinct from any member's personal inbox content.
 2. **For each one, assess**: does this lesson already live somewhere durable (a section of the skillset md-files, a routine file, an existing standing rule), does it need to be newly incorporated, or does it describe something still genuinely unresolved?
    - **Already incorporated**: the memory file is redundant with real team knowledge — a candidate for retirement (see step 4).

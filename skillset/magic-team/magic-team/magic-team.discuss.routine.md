@@ -21,7 +21,7 @@ Doesn't do: collection-only (`routine-interview`'s job), idea-generation-only (`
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0a. **Process own inbox**: `routine-process-inbox`(`routine-discuss`'s own inbox, the executor running it) — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
+0a. **Process own inbox**: run `routine-process-inbox` on own inbox — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 1. **Frame the actual decision to converge on**: state plainly, up front, what needs deciding by the end of this session — a discuss session with no clear decision target risks drifting into either an interview (pure collection) or a brainstorm (pure idea generation) without anyone noticing the shift. **One topic, one thread — fork, don't absorb**: same threading discipline as `routine-interview`'s step 1 — if an unrelated topic surfaces mid-discussion, fork it into its own new Slack thread immediately rather than letting the current thread drift off its framed decision.
 2. **Surface the real options and tradeoffs**: lay out the genuine alternatives (not a strawman single "right answer" dressed up as a discussion) — bring in `magic-architect` if the decision is structural/design-shaped, `magic-librarian` if it's a docs/convention question, or the relevant keeper/partner if it's domain-specific. Same pacing discipline as `routine-interview`'s step 2: small, minimal-assumption-gap questions/statements-to-approve, iterative — but once something is genuinely clear and agreed, go further rather than re-confirming it in smaller pieces. Inherits the team's own topic/queue/question mechanics for managing the framed decision's own sub-points.
 2a. **Inherits the team's own `check-restart` procedure** (runs on any resume). The restated
@@ -83,7 +83,7 @@ Used to check this files own definitions against its own goals when this file's 
 
 - `routine-interview` — collection-only, distinct purpose; threading discipline this routine borrows.
 - `routine-brainstorm` — idea generation, distinct purpose.
-- `routine-process-inbox` — this routine's own inbox processing.
+- `routine-process-inbox` — own-inbox processing.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — calling convention.
 - `magic-team/magic-team.negotiations.md` — topic/queue/question mechanics this routine's step 2 uses for a framed decision's own sub-points, and the `check-restart` procedure step 2a inherits.
 - `magic-team/magic-team.conversations.md` — conversation-mechanics baseline (always in force).

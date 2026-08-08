@@ -69,7 +69,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
          - whichever comes first
        - don't write a `note-2026-08-05-human-decision-batch.md` item and assume some other routine will later notice and pick it up (no routine's Steps currently do that)
        - the note is still filed in `board-processed` afterward, as the record of what was asked and when — not as the trigger mechanism itself
-     - **Process own inbox** (every grooming pass, not cadence-gated like the roster recheck): run `routine-process-inbox` on `routine-grooming`'s own inbox, `magic-coordinator` as executor (confirmed default for this joint-executor routine) — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
+     - **Process own inbox** (every grooming pass, not cadence-gated like the roster recheck): run `routine-process-inbox` on own inbox — inline execution (own identity). Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 2. **Per-item triage, one at a time**
    - For each open item, narrate its owning member deciding what happens to it. Same narrated-pass style as `routine-daily`'s roll call — this is not a full agent spawn per item. The outcome is one of:
      - **Keep** — as-is
@@ -352,7 +352,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-daily` — reports what's outstanding; grooming asks whether the backlog is still the right shape.
 - `routine-session-start` — shared opening steps (coworking-like session-type branch applies here).
 - `routine-close-session` — shared close-out steps (coworking-like session-type branch applies here).
-- `routine-process-inbox` — this routine's own inbox processing (step 1), and the personal-inbox model fresh items are triaged against.
+- `routine-process-inbox` — own-inbox processing (step 1), and the personal-inbox model fresh items are triaged against.
 - `magic-coordinator`'s `check-pending-comms-actions` procedure — the resolver of the Slack-reaction closeout. Not this routine's job.
 - `routine-heartbeat` — can trigger this routine as its first-iteration-of-the-day branch (step 5's user review becomes non-blocking/provisional in that mode).
 - `routine-communication-sweep` — feeds this routine's backlog (inbox items); this routine runs the heavier Google Drive/Sheets and Trello-coverage checks that sweep deliberately excludes.
