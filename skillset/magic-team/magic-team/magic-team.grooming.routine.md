@@ -356,7 +356,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-heartbeat` — can trigger this routine as its first-iteration-of-the-day branch (step 5's user review becomes non-blocking/provisional in that mode).
 - `routine-communication-sweep` — feeds this routine's backlog (inbox items); this routine runs the heavier Google Drive/Sheets and Trello-coverage checks that sweep deliberately excludes.
 - `magic-team/magic-team.board.md` — full board-state model (`running/`/`blocked/`/`parked/`/`processed/`/`archived/`/`cleanup/`), the `processed/`/`archived/` Slack-reaction cross-cutting entry, `board-backlog` entry, "at least three paths" note, qualifying-reference definition.
-- `magic-coordinator/magic-coordinator.armed.md`'s "Dispatch & delegation" section — the fast permission/mandate gate rules (destructive-action mandate boundaries, the human-owner sole-channel rule, cross-domain task boundaries) checked at task-creation.
+- `magic-coordinator/magic-coordinator.armed.md`'s "Dispatch & delegation" section (a subsection of its `# Domain knowledge`) — the fast permission/mandate gate rules (destructive-action mandate boundaries, the human-owner sole-channel rule, cross-domain task boundaries) checked at task-creation.
 - `magic-coordinator/RICE-SCORING.md` — the four normalized dimensions (Profit/Cost/Time/Dependencies) used in step 3.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, calling convention, sole-sanctioned Slack-posting mechanism.
 - `magic-team/magic-team.armed.md` — `board-item` entity model, `source-slack-channel`/`source-slack-ts` frontmatter convention, field list (`supersedes`/`superseded-by`).
