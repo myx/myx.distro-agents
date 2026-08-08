@@ -97,7 +97,7 @@ Files an `inquiry-*` item — an open question or handoff needing investigation/
 
 # Team-Member's (-specific) local rules
 
-All statements apply at the same time, always. These rules override a `magic-team`'s own general `.armed.md` rules while working in this routine.
+All statements apply at the same time, always. These rules override a `magic-team`'s own general `.armed.md` rules whenever this member is acting.
 
 - `magic-team` is permitted and obliged to execute every one of its own duties (below) exactly as written.
 - `magic-team` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
@@ -229,6 +229,8 @@ Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`,
 # Board & Inbox board-items entity model
 
 Every file under `board/` is a **`board-item`**. `board-item` subtypes are distinguished by filename prefix.
+
+**What an inbox is**: a member's own personal area and persistent inter-session store, carrying inter-member exchange — `inquiry` documents are the one member-to-member communication type. Written via tooling (`--member-upsert-inbox-*`), read via tooling. Check the tooling actually worked rather than assuming it did.
 
 **MANDATORY FILENAME SHAPE, no exceptions, repeatedly violated in practice — read this before creating any `board-item` (`task-*`/`proposal-*`/`change-*`/etc., filed under `board/`) or personal-inbox file (`note-*`/`inquiry-*`/`reflection-*`, filed in a member's own inbox — the only three legitimate personal-inbox types):** `<type>-<date>-<matter>.md` — the type prefix comes first, immediately followed by the date, with no other words in between. This exact shape governs personal-inbox files the same as `board-item`s — it is not board-only, despite this section's own heading being about the `board-item` model specifically.
 
@@ -611,6 +613,7 @@ Named directly in this file's own "The board" section above: reads/rewrites the 
 ## Rule
 - Do not use options that are not listed in your own member/routine tooling file.
 - If a needed option is missing, update that member/routine instruction files first, then refresh its tooling file.
+- Correcting a stale or wrong claim: sweep for **what it means**, not what it said. The same claim recurs in different words, so a grep for the original phrasing reports a clean tree that isn't. Not done until the restatements are found too.
 
 # Maintainer Notes
 

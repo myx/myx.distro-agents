@@ -181,7 +181,7 @@ Steps:
 
 # Team-Member's (-specific) local rules
 
-All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this routine.
+All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
 
 - `magic-coordinator` is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-coordinator` follows this file's own rules over `magic-team.armed.md`'s general rules while active. `magic-team.armed.md`'s "Escalation and chain of command," board/Item model, and process-formulation rules still apply here as the general baseline where this file is silent — but on any point where this file states its own specific rule, that rule governs, not `magic-team.armed.md`'s general one.

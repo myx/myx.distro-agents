@@ -131,7 +131,7 @@ Copyable skeleton: `magic-team/templates/team-member.contract.format.md`.
   - Not separate routines.
   - Not visible outside this file.
 - `# Team-Member's (-specific) local rules`
-  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine."
+  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - "`DistroAgentsTools.fn.sh` always executes via the `myx.common` MCP tool `mcp__myx_common__lib_execShStdin` (command `lib/execShStdin`) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
@@ -179,7 +179,7 @@ Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
   - text: "Named procedure blocks. Steps below call them by name. Not separate routines — not visible outside this file."
   - nested list of procedures, typically including a `daily-idle-task` procedure: pick one candidate at random from this member's own `idle-tasks/*.idle.md` list, run only that candidate's own instructions, log the outcome as a new dated file under `processed/`.
 - `# Team-Member's (-specific) local rules`
-  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine."
+  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - "`DistroAgentsTools.fn.sh` always executes via the `myx.common` MCP tool `mcp__myx_common__lib_execShStdin` (command `lib/execShStdin`) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
@@ -225,7 +225,7 @@ Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
   - Not separate routines.
   - Not visible outside this file.
 - `# Team-Member's (-specific) local rules`
-  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine."
+  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - "`DistroAgentsTools.fn.sh` always executes via the `myx.common` MCP tool `mcp__myx_common__lib_execShStdin` (command `lib/execShStdin`) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
@@ -270,7 +270,7 @@ Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
   - Not separate routines.
   - Not visible outside this file.
 - `# Team-Member's (-specific) local rules`
-  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine."
+  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - this member's own further limits, restrictions, decision-making guidance.

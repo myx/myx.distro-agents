@@ -85,13 +85,14 @@ Steps:
 3. Check **internal consistency** — cross-references between files actually hold:
    - **Pointer-resolution check**: for every "see `FILE` for `X`" cross-reference found in scope, confirm `X` is actually present in `FILE` — not just that `FILE` exists.
    - **Terminology-drift check**: for every term defined once in a file's own terminology glossary, confirm later prose in that file (and its direct cross-references) doesn't drift to an undeclared synonym.
+   - **Carve-out check**: a member rule conflicting with the baseline is the override convention working as designed, not a finding. Read that member file's own Local-rules lead-in before reporting a conflict.
 4. Check **self-sufficiency, the real target** — if only `~/.claude/skills/*` were copied to a fresh, clean instance with no memory, could the team still pick up and do correct teamwork from these files alone?
 5. Check **clarity/compactness** — rephrase where a doc has gotten bloated, using `mode-update`'s "preserve wording, edit surgically" step; don't wholesale-rewrite.
 6. Shape: find gap candidates → investigate a bit → log a todo/triage entry as a `board-backlog` board-item (or this skill's own inbox) for approval, or fix directly if small and clear — confirming with `magic-architect`/`magic-coordinator` when in doubt, or resolving it solo when it's squarely a docs judgment call.
 
 # Team-Member's (-specific) local rules
 
-All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this routine.
+All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
 
 - `magic-librarian` is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-librarian` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
