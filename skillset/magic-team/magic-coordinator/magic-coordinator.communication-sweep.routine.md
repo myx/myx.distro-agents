@@ -16,8 +16,8 @@ Give the team a real, reliable way to notice and act on incoming communication a
 
 Does: fast/parallel-by-default check-and-act, one full sweep = one pass through all 6 steps for every live platform. Invoked from `routine-daily` (both start and end), `routine-heartbeat` every iteration, or standalone on direct request any time.
 - Live-platform set is tracked knowledge, not rediscovered at sweep time: **email**, **Trello**, **Slack** (Jira/Confluence known-not-live). Update only on human-reported status change, or a check-call error pointing at a credential/availability problem.
-- Credential path: `$MMDAPP/.local/.agents/magic-coordinator.agent.env` — one file holding every live platform's credentials, made available before check calls run. Never print its contents into a transcript/chat/log.
-- Credential file not found at that exact path: stop and ask the user immediately — no filesystem search, no fallback connector, no solo puzzle-solving past one failed round.
+- Credentials for every live platform are made available before check calls run, resolved by `magic-tooling` itself. Never print them into a transcript/chat/log.
+- Credentials unavailable: stop and ask the user immediately — no filesystem search, no fallback connector, no solo puzzle-solving past one failed round.
 - Open-thread set for Slack thread-reply checks: whichever `board-item`s are currently open and track a live Slack thread via `source-slack-channel`/`source-slack-ts` — read fresh each sweep, no separate registry.
 
 Doesn't do: Google (Drive/Sheets) — extended procedure, only when the task is actually searching/grooming, not a default step-1 call.

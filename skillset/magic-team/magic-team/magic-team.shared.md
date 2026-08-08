@@ -348,7 +348,7 @@ Maintainer agreement is `quorum-all-agree` unless that definition states otherwi
 
 A rule is `owner-guaranteed` when it protects the human-owner's own position against the team — their identity, their consent and sole channel, or their credentials boundary.
 
-- A skillset file that *defines* one carries `human-owner` in its `maintainers:`. A file merely restating or pointing at it does not.
+- A skillset file stating one carries `human-owner` in its `maintainers:`.
 
 ### Invitees (routines only)
 
