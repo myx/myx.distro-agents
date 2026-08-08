@@ -43,7 +43,7 @@ Steps:
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine.
 
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
-- `DistroAgentsTools.fn.sh` always executes via `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way.
+- `DistroAgentsTools.fn.sh` always executes via the `myx.common` MCP tool `mcp__myx_common__lib_execShStdin` (command `lib/execShStdin`) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way.
 - [Flat, present-tense rule bullet: limit, restriction, or decision-making guidance.]
 
 # Domain knowledge: <topic>

@@ -129,7 +129,7 @@ Copyable skeleton: `magic-team/templates/team-member.contract.format.md`.
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - "`DistroAgentsTools.fn.sh` always executes via `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way."
+    - "`DistroAgentsTools.fn.sh` always executes via the `myx.common` MCP tool `mcp__myx_common__lib_execShStdin` (command `lib/execShStdin`) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
     - this member's own limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
@@ -175,7 +175,7 @@ Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - "`DistroAgentsTools.fn.sh` always executes via `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way."
+    - "`DistroAgentsTools.fn.sh` always executes via the `myx.common` MCP tool `mcp__myx_common__lib_execShStdin` (command `lib/execShStdin`) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
     - "Console-session requirement: doing an actual task with this role-family's own workspace/workspace tooling requires a `--console-start`/`--console-send` session, regardless of command count. Just answering a question or looking at files (not a task) may skip it."
     - Decision authority: this keeper relays between `magic-coordinator` and the task, never deciding design/approach independently unless explicitly granted — cross-references `magic-team.authority.keeper.contract.md`, never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
@@ -221,7 +221,7 @@ Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - "`DistroAgentsTools.fn.sh` always executes via `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way."
+    - "`DistroAgentsTools.fn.sh` always executes via the `myx.common` MCP tool `mcp__myx_common__lib_execShStdin` (command `lib/execShStdin`) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
     - "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement."
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
