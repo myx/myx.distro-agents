@@ -202,7 +202,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-process-inbox` — this routine's own inbox processing, step 1c; see its own "Execution mode is decided by identity match" section for why this explicit call is required.
 - `magic-team/magic-team.armed.md`'s "Execution mechanisms" section — the process-flow direct-tooling-call rule this routine follows; its "Team-Member's (-specific) tooling" section for calling convention and the sole-sanctioned Slack-posting mechanism.
 - `magic-team/magic-team.board.md` — the board's own state-model definition (`board-running`→`board-blocked` trigger, `board-running` entry verification) steps 7 relies on.
-- `magic-coordinator/magic-coordinator.armed.md`'s "Operating discipline" section.
+- `magic-coordinator/magic-coordinator.armed.md`'s "Team-Member's (-specific) local rules" section — the executor's own standing operating rules this routine runs under, including the "How to hand off"/"What to hand off" dispatch rules step 7's fan-out follows.
 
 ### Conventions
 
