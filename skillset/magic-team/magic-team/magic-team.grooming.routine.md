@@ -269,6 +269,7 @@ All statements apply at the same time, always. These rules override a participan
 - Autonomous invocation (`routine-heartbeat`'s first-iteration-of-the-day branch): step 5's user review does not block — findings are recorded provisional, flagged for confirmation next time a human is present.
 - Goal-directedness: when a goal is set for this session, actively work toward it; non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` is obligated to keep `slack-event-track` activity tracking current as things are found, not batch it artificially, while acting as executor here.
+- Each board move posts one short structured line as it happens, per `magic-team.armed.md`'s announce rule, plus one short structured report closing the pass.
 - `DistroAgentsTools.fn.sh` trust policy: trust it by default day to day, no defensive re-verification on every call; propose interface changes through the idea → interview → proposal → approval pipeline, never an inline bypass.
 - Check established conventions (documented and used) before any implementation step; only if genuinely nothing covers it, propose an alternative and ask before proceeding.
 - Escalation ladder for a missing tool option/syntax: (1) check documented conventions/`--help` first; (2) not there, consult `magic-librarian` rather than inventing a flag; (3) librarian can't resolve it either, propose a concrete change through the idea → interview → proposal → approval pipeline. Never skip a rung.
