@@ -104,8 +104,8 @@ Exact instructions. Execute in order, every step, literally as written.
 - Record currently required scopes by operation family:
   - Auth: token validity (`auth.test`).
   - Channel joins (public): `channels:write`.
-  - Channel history/replies reads: conversation read scopes used by `--check-slack`.
-  - Reactions: scopes for `reactions.add` used by `--react-slack`.
+  - Channel history/replies reads: conversation read scopes used by `--comms-slack-check`.
+  - Reactions: scopes for `reactions.add` used by `--comms-slack-react`.
   - Message send: scopes for `chat.postMessage`.
 - When any call returns `missing_scope`, record exact `needed` and `provided` fields verbatim.
 
@@ -166,8 +166,8 @@ Exact instructions. Execute in order, every step, literally as written.
 - `--member-config-option <member> --select <KEY>`
 - `--agents-config-option <member> --select <KEY>`
 - `--member-slack-send-message <member> <target> [text...]`
-- `--check-slack <target> [--oldest <ts>] [--raw]`
-- `--react-slack <channel>:<ts> <emoji-name>`
+- `--comms-slack-check <target> [--oldest <ts>] [--raw]`
+- `--comms-slack-react <channel>:<ts> <emoji-name>`
 
 ## AskUserQuestion operation
 

@@ -1,7 +1,7 @@
 echo "📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --check-email" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --check-trello" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --comms-email-check" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --comms-slack-check <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --comms-trello-check" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]" >&2
@@ -35,7 +35,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-memb
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> [text...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> --from-stdin" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> --from-file <path>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --mark-email-seen <uid>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --comms-email-mark-seen <uid>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> <operation>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>" >&2
@@ -55,10 +55,10 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --purge-cleanup" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --react-slack <channel>:<ts> <emoji-name>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --read-email <uid>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --read-slack <channel>:<ts> [--thread]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --read-trello <notification-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --comms-slack-react <channel>:<ts> <emoji-name>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --comms-email-read <uid>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --comms-slack-read <channel>:<ts> [--thread]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --comms-trello-read <notification-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <item-name>..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --self-test" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-send <channel> [-- <command...>]" >&2
@@ -68,7 +68,6 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>.
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-start [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-stop <channel>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --sweep-read-incoming-comms [--oldest <ts>] [--raw]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --validate-json [<path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --verify-permissions" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --write-board-item <state> <item-filename>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh [--help]" >&2

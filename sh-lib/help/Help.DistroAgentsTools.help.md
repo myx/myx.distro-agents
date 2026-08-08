@@ -11,21 +11,20 @@
 📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- <body...>
 📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-stdin
 📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-file <path>
-📘 syntax: DistroAgentsTools.fn.sh --check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]
+📘 syntax: DistroAgentsTools.fn.sh --comms-slack-check <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
-📘 syntax: DistroAgentsTools.fn.sh --check-email
-📘 syntax: DistroAgentsTools.fn.sh --mark-email-seen <uid>
-📘 syntax: DistroAgentsTools.fn.sh --check-trello
+📘 syntax: DistroAgentsTools.fn.sh --comms-email-check
+📘 syntax: DistroAgentsTools.fn.sh --comms-email-mark-seen <uid>
+📘 syntax: DistroAgentsTools.fn.sh --comms-trello-check
 📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> [text...]
 📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> --from-stdin
 📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> --from-file <path>
 📘 syntax: DistroAgentsTools.fn.sh --sweep-read-incoming-comms [--oldest <ts>] [--raw]
-📘 syntax: DistroAgentsTools.fn.sh --read-slack <channel>:<ts> [--thread]
-📘 syntax: DistroAgentsTools.fn.sh --read-email <uid>
-📘 syntax: DistroAgentsTools.fn.sh --read-trello <notification-id>
+📘 syntax: DistroAgentsTools.fn.sh --comms-slack-read <channel>:<ts> [--thread]
+📘 syntax: DistroAgentsTools.fn.sh --comms-email-read <uid>
+📘 syntax: DistroAgentsTools.fn.sh --comms-trello-read <notification-id>
 📘 syntax: DistroAgentsTools.fn.sh --self-test
 📘 syntax: DistroAgentsTools.fn.sh --verify-permissions
-📘 syntax: DistroAgentsTools.fn.sh --validate-json [<path>]
 📘 syntax: DistroAgentsTools.fn.sh --list-md <path>...
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
@@ -222,7 +221,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]
+		--comms-slack-check <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]
 			Reads Slack activity for ONE specific, caller-chosen target --
 			target is required, this is a general-purpose single-target
 			reader, not the comms-sweep macro-op (see --sweep-read-incoming-comms
@@ -278,9 +277,9 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--react-slack <channel>:<ts> <emoji-name>
+		--comms-slack-react <channel>:<ts> <emoji-name>
 			Posts one Slack reaction to a specific message --
-			<channel>:<ts> only, same target grammar as --read-slack (no
+			<channel>:<ts> only, same target grammar as --comms-slack-read (no
 			magic-team/human-owner shortcut, since a reaction always targets one
 			exact message, not a channel). <emoji-name> has no colons (matches
 			Slack's own `name` field, e.g. `white_check_mark`, not
@@ -297,22 +296,22 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--check-email
+		--comms-email-check
 			IMAP STATUS INBOX (UNSEEN) check only -- unread count, not a full
 			fetch. Same EMAIL_* config as --send-email-message.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--mark-email-seen <uid>
+		--comms-email-mark-seen <uid>
 			Marks one specific email (by IMAP UID, same identifier
-			--read-email takes) as \Seen via IMAP UID STORE -- otherwise every
+			--comms-email-read takes) as \Seen via IMAP UID STORE -- otherwise every
 			comms-sweep pass keeps re-seeing the same UIDs as unseen.
-			Same EMAIL_* config as --check-email/
+			Same EMAIL_* config as --comms-email-check/
 			--send-email-message.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--check-trello
+		--comms-trello-check
 			Unread Trello notifications only (`read_filter=unread`), not a
 			full board read. Uses configured Trello credentials.
 
@@ -335,13 +334,13 @@
 			This is the dedicated macro-operation for exactly one caller,
 			magic-coordinator's communication-sweep.md Check step: it always
 			reads the exact same predefined, pre-configured set of watched
-			sources (both Slack targets via --check-slack, plus --check-email
-			and --check-trello) in one combined pass, producing one specific
+			sources (both Slack targets via --comms-slack-check, plus --comms-email-check
+			and --comms-trello-check) in one combined pass, producing one specific
 			mixed output meant as the initial text source for comms
 			processing. Also surfaces freshly-active related threads on the
 			watched Slack channels, even ones not individually tracked yet,
 			plus any thread involving Vane specifically. Takes no target —
-			for one specific Slack target/thread, call --check-slack
+			for one specific Slack target/thread, call --comms-slack-check
 			directly instead. No retry logic: one attempt per source, per
 			call.
 
@@ -367,33 +366,6 @@
 			correctly hardened. Prints one `OK`/`BAD` line per path to
 			stdout, returns non-zero if anything is out of hardening.
 			Read-only, modifies nothing.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
-		--validate-json [<path>]
-			Checks that a JSON file (<path>) or stdin (no argument) is
-			syntactically valid JSON -- nothing more, no schema/shape check of
-			its own. `--format blocks` self-recurses through this same op
-			before it splices anything into the request payload (see
-			--member-slack-send-message above), guarding against unvalidated stdin causing
-			Slack's `invalid_json`/`missing_charset` rejection. Prints `#
-			... --validate-json: valid JSON: <path|(stdin)>` and returns 0 on
-			success, or `⛔ ERROR: ... --validate-json: invalid JSON:
-			<path|(stdin)>` and returns 1 on failure -- a missing <path>
-			argument is stdin, not an error; a <path> that doesn't exist is a
-			separate, explicit "file not found" error, not silently treated
-			as stdin.
-
-			**Not a required pre-step for other ops.** Every op that actually
-			consumes JSON content as part of its own normal operation (today:
-			`--member-slack-send-message --format blocks`) already self-recurses through
-			this same check internally and fails loud with a clear message at
-			the point of use -- callers never need to run `--validate-json`
-			first as a manual gate before calling the real op. This op's own
-			standalone purpose is ad hoc testing/debugging: checking a JSON
-			blob you or someone else produced (a file on disk, a payload
-			pasted into a heredoc), independent of any specific op, when you
-			just want to know "is this syntactically valid JSON" on its own.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -935,30 +907,30 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--read-slack <channel>:<ts> [--thread]
+		--comms-slack-read <channel>:<ts> [--thread]
 			Full detail for one specific message (default) or its whole
 			thread (--thread) -- all meta-info, reactions, formatting,
 			files/attachments, exactly as Slack's own API returns them.
-			Complement to --check-slack: that one is a lightweight,
+			Complement to --comms-slack-check: that one is a lightweight,
 			pretty-formatted scan; this one is the deep read for actually
 			processing one specific item. Always returns full raw JSON,
 			never pretty-formatted -- "full" is the entire point.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--read-email <uid>
+		--comms-email-read <uid>
 			Full RFC822 message (headers + body + MIME multipart,
 			attachments included as their raw MIME parts) for one specific
 			email by IMAP UID. Uses curl's `;UID=<uid>` URL addressing (no
 			`;SECTION=` means the whole message) -- contrast with
-			--check-email's STATUS-only unread count.
+			--comms-email-check's STATUS-only unread count.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--read-trello <notification-id>
+		--comms-trello-read <notification-id>
 			Full detail for one specific Trello notification (the unit
-			--check-trello's unread list returns), including its related
-			card/board summary. Contrast with --check-trello's unread-list
+			--comms-trello-check's unread list returns), including its related
+			card/board summary. Contrast with --comms-trello-check's unread-list
 			scan.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
@@ -1031,7 +1003,7 @@
 		`DistroAgentsTools.fn.sh --member-slack-send-message keeper-myx magic-team --from-file /path/to/message.txt`
 
 		# Mark an email UID as read after processing it
-		`DistroAgentsTools.fn.sh --mark-email-seen 48`
+		`DistroAgentsTools.fn.sh --comms-email-mark-seen 48`
 
 		# Write/update a board Item -- magic-coordinator-only op, see --write-board-item above
 		```
@@ -1100,9 +1072,9 @@
 		# Sweep all watched targets, incrementally since a prior check marker
 		`DistroAgentsTools.fn.sh --sweep-read-incoming-comms --oldest 1700000000.000000`
 
-		# Read one specific target/thread instead -- use --check-slack, not --sweep-read-incoming-comms
-		`DistroAgentsTools.fn.sh --check-slack magic-team --oldest 1700000000.000000`
-		`DistroAgentsTools.fn.sh --check-slack C0123ABCD:1700000000.000100`
+		# Read one specific target/thread instead -- use --comms-slack-check, not --sweep-read-incoming-comms
+		`DistroAgentsTools.fn.sh --comms-slack-check magic-team --oldest 1700000000.000000`
+		`DistroAgentsTools.fn.sh --comms-slack-check C0123ABCD:1700000000.000100`
 
 		# Regression-test permission hardening under a deliberately permissive umask
 		`DistroAgentsTools.fn.sh --self-test`
@@ -1113,11 +1085,11 @@
 		# Ad hoc: check a JSON file someone produced, independent of any op --
 		# NOT a required pre-step before --member-slack-send-message --format blocks (that op
 		# already validates its own stdin internally, see --member-slack-send-message above)
-		`DistroAgentsTools.fn.sh --validate-json /path/to/payload.json`
+		`DistroAgentsTools.fn.sh --intern-validate-json /path/to/payload.json`
 
 		# Ad hoc: check JSON from stdin the same way -- heredoc, not a piping command in front
 		```
-		DistroAgentsTools.fn.sh --validate-json <<'EOF'
+		DistroAgentsTools.fn.sh --intern-validate-json <<'EOF'
 		[{"type":"section","text":{"type":"mrkdwn","text":"*ok*"}}]
 		EOF
 		```

@@ -1,16 +1,13 @@
 ---
-maintainers: magic-librarian, magic-coordinator
+maintainers: magic-librarian, magic-coordinator, magic-architect
 ---
 # Conversation mechanics
 
-Cross-routine mechanics for live exchanges (Slack threads, coworking sessions, interviews, IDE chat).
-This file governs form and control points, not strategy. Goal-reaching strategy stays in
+Cross-routine mechanics for live exchanges (Slack threads, email threads, coworking sessions, interviews, IDE chat, team interactions, etc.).
+This file governs form, methodology and control points, not strategy. Goal-reaching strategy stays in
 `routine-interview` / `routine-discuss` / `routine-brainstorm` / related routine files.
 
 Referenced from each member's `.basic.md`. Not a `routine-*` member.
-
-Owner: `magic-librarian`.
-Maintainer quorum: `magic-coordinator` + `magic-librarian` + `magic-architect`.
 
 ## Fast use model
 
@@ -25,7 +22,9 @@ Maintainer quorum: `magic-coordinator` + `magic-librarian` + `magic-architect`.
 0. **`DETOUR:`/`OFFTOPIC:` marker.** Content prefixed this way is off-band relative to whatever structured routine/interview/tracking record is currently active — it is never written into that record or its transcript. Doesn't replace fork-to-a-new-thread (rule elsewhere): it's a middle option for a single shared-chat context where forking to a separate thread isn't practical. Still subject to rule 4 — a WTF-class reaction here still gets a reflection filed, even though it never enters the active routine's own record.
 
 1. **One message, one speech-act.**
-   If one reaction would leave part of the message unaddressed, split it.
+   In session conversations and instant messaging, let's try to split separate decomposable topics, intentions and interactions into separate messages, with extra bonus of being able to forward/reference/react(-to) distinct messages in distincet conversations. The criteria is, check all:
+   - If one reaction would leave part of the message unaddressed, split it. 
+   - If your message fits more than one clause of "Address your messages clearly" of this section, split it.
 
 2. **React at each stage — required, not optional.**
    The moment a message is read, react with a `seen`-class emoji (e.g. 👀); when work on it genuinely starts, add a `started`-class reaction; when it's resolved, add a `done`/`noted`-class reaction. Additive stage semantics (seen → started → done/noted) — a later stage's reaction doesn't remove an earlier one. React AND reply — a reaction never replaces an owed reply, and a reply never exempts you from reacting.
@@ -34,13 +33,53 @@ Maintainer quorum: `magic-coordinator` + `magic-librarian` + `magic-architect`.
    Treat reactions on your messages as signals (confirm, confusion, correction, silence). If they expose a
    recurring/process issue, file a `reflection-*` via `routine-process-reflections` mechanisms.
 
-4. **`WTF?!`-class reactions must create reflection evidence.**
+4. **`WTF?!`-class reactions (including replies) must create reflection evidence.**
    If a human-owner/participant gives a strong confusion/frustration/surprise signal (`WTF?!` or equivalent),
    record a concise reflection via `--member-upsert-inbox-reflection`.
 
 4a. **`GOOD`/`BAD CONVERSATION`/`COMMUNICATION` quality-marker must create reflection evidence, wider context.**
-    If a participant states `GOOD CONVERSATION`/`BAD CONVERSATION` or `GOOD INTERVIEW`/`BAD INTERVIEW` or `GOOD COMMUNICATION`/`BAD COMMUNICATION`, record a reflection via `--member-upsert-inbox-reflection`, same as rule 4, spanning
-    several prior iterations, not just the triggering line.
+   If a participant states `GOOD CONVERSATION`/`BAD CONVERSATION` or `GOOD INTERVIEW`/`BAD INTERVIEW` or `GOOD COMMUNICATION`/`BAD COMMUNICATION`, record a reflection via `--member-upsert-inbox-reflection`, same as rule 4, spanning several prior iterations, not just the triggering line.
+
+4b. **Whatch quoted content for hints and pointers.**
+   If a conversation participant quotes/cites something, check:
+   - if it may be just a normal reference to some knowledge, as a fact, OR
+   - Check if it is a part of this conversation's message, especially the lines starting with `> `. 
+      - In this case the following part of the message is only related to this point of discussion, and 
+	  - In no way invalidates, discards, approves, comfirms on any other point in this discussion.
+
+4c. **Address your messages clearly**
+   When preparing the reply, assess this:
+   - If your message is your general thought, command, readback, confirmation, status update, whatever, or addressed to no-one in particular:
+      - Make it clearly stated in the first line before text block. If possible, make it distinguishable from text, like a comment, a hint or somethig.
+   - If your message is a question-(alike) (does imply: reaction is expected):
+      - Make sure to explicitly tag/cc all addressee participants.
+   - If your message addressed not all the participants of the conversation:
+      - Make sure to explicitly tag/cc all addressee participants.
+   - If your message is referencing some part of conversation:
+      - Make sure to quote/cite the relevant points from conversation (at least with `> `, unless formatting tools allow do better) in verbatim.
+   - Proceed with further instructions of whatever activity you were preparing the reply.
+
+4c. **Reflect assesment feedback**
+   As a result of assessent of conversation context and received/updated/re-assessed incoming message, before the decision to reply and/or act, do this in order of preference: 
+   - If context has `tracking-document` (board-item) attached, execute these steps in order:
+      - Assess `tracking-document` rules, goals, state (according to `board-item-type` document format).
+	  - If your duties include executing some steps and/or updating this document, do it.
+	  - continue further this list...
+   - If conversation context has a `session-topic`:
+      - If when incoming information is noticable but contradicts the topit, scope or format of current conversation:
+	     - start new thread for new topic, consider not replying in this conversation, just say/note that you started another thread regarding this .
+	  - continue further this list...
+   - When anything in your view of discussion context updated, do assess 
+      - Does it need confirmation? 
+	     - Readback to someone, whose confirmation it probably needs:
+		    - As a question. In this thread or appropriate communications channel. According to escalation rules, other rules and common sence.
+			- Wait for reaction or answer, one of:
+			   - Proceed to the (sub-)tasks, not blocked by decision, or
+			   - State in a separate message to the conversation thread that you won't proceed unless resolved.
+            - Consider reactions and/or replies accordingly, when they arrive on later conversation iterations.
+      - Is it a non-zero significant correction?
+	     - Readback to one who said it or about steps taken in consideration to what he said, unless he is in the same thread where "Does it need confirmation?" step was discussed (so it is visible to that participant).
+   - Proceed with further instructions of whatever activity you were assessing your reaction feedback.
 
 ### Clarification and correction handling
 

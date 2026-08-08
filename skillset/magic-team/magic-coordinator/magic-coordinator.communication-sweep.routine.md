@@ -27,10 +27,10 @@ Doesn't do: Google (Drive/Sheets) — extended procedure, only when the task is 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
 0. **process-own-inbox**: run `routine-process-inbox` on `magic-coordinator`'s own inbox — this routine's own executor.
-1. **check**: read the `sweep-state-note` via `--magic-sweep-state-read`. Call `--magic-sweep-input-scan`, then `--sweep-read-incoming-comms --oldest <last_swept_ts>`. Call `--check-slack` for both watched targets and every open thread (see Scope).
+1. **check**: read the `sweep-state-note` via `--magic-sweep-state-read`. Call `--magic-sweep-input-scan`, then `--sweep-read-incoming-comms --oldest <last_swept_ts>`. Call `--comms-slack-check` for both watched targets and every open thread (see Scope).
    - default: batch every platform's credential read + API call into one script/command block, piped through `lib/execShStdin`.
    - exception: a check call errors or returns something ambiguous → go deliberate.
-   - a newly-joined/missing Slack conversation surfaced by `--check-slack`'s discovery diff is an **analyze** candidate, not acted on here.
+   - a newly-joined/missing Slack conversation surfaced by `--comms-slack-check`'s discovery diff is an **analyze** candidate, not acted on here.
    - a thread the coordinator's own identity participated in — started, was replied to, or was tagged in — is followed regardless of freshness; this widening degrades gracefully to the plain freshness check alone when the coordinator's identity can't be resolved this pass.
 2. **read**: pull the actual content of what's new.
 3. **analyze**: cross-reference **check**/**read** against current state (`TodoWrite`, the board) and identify: anything unblocked and ready to dispatch, anything a keeper-*/partner-* idle pass would pick up, new-knowledge candidates for `magic-librarian`, what needs a reply and what it should say. Empty result is normal, not a failure.
@@ -92,7 +92,7 @@ Slack-only — email/Trello have no reaction primitive. Real, load-bearing async
 
 **Out of scope**: a one-time backfill of `:eyes:` reactions onto already-handled-but-unreacted historical messages — this mechanism only applies to messages read from here forward.
 
-**Mechanics**: the `--react-slack` operation, same bot-identity discipline as every other Slack action here. Already-present reaction is a harmless no-op.
+**Mechanics**: the `--comms-slack-react` operation, same bot-identity discipline as every other Slack action here. Already-present reaction is a harmless no-op.
 
 # Routine's local rules
 
@@ -118,14 +118,14 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 - `--magic-sweep-input-scan <team-member>` (step 1: load sweep board-scan context)
 - `--sweep-read-incoming-comms [--oldest <ts>] [--raw]` (step 1: Check, primary macro-op)
-- `--check-email` (step 1: Check, Email)
-- `--check-trello` (step 1: Check, Trello)
-- `--check-slack <target> [--oldest <ts>] [--raw]` (step 1: Check, Slack — both watched targets, plus mandatory thread-reply checks)
+- `--comms-email-check` (step 1: Check, Email)
+- `--comms-trello-check` (step 1: Check, Trello)
+- `--comms-slack-check <target> [--oldest <ts>] [--raw]` (step 1: Check, Slack — both watched targets, plus mandatory thread-reply checks)
 - `--member-slack-send-message <team-member> <target> [text...]` (step 5: Reply)
 - `--member-upsert-inbox-note <member> <item-filename>` (step 4: normalize a new incoming item into an inbox record)
 - `--send-email-message <email@address>... -- <subject> -- <body...>` (step 5: Reply, email)
-- `--mark-email-seen <uid>` (step 5: mark-read, email)
-- `--react-slack <channel>:<ts> <emoji-name>` (`slack-reaction-tracking` procedure, throughout)
+- `--comms-email-mark-seen <uid>` (step 5: mark-read, email)
+- `--comms-slack-react <channel>:<ts> <emoji-name>` (`slack-reaction-tracking` procedure, throughout)
 - `--magic-sweep-state-read <team-member>` (step 1: read the `sweep-state-note`)
 - `--magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]` (step 6: rewrite the `sweep-state-note`)
 
@@ -137,17 +137,17 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 `DistroAgentsTools.fn.sh --sweep-read-incoming-comms [--oldest <ts>] [--raw]` — not a general-purpose reader, takes no target at all. The dedicated macro-operation for this routine's own **check** step: reads the exact predefined watched-source set across every live platform in one combined pass. Within that pass, a watched conversation also gets followed ahead of its next natural check when either of two things is true: it has genuinely new activity since the last sweep, or the coordinator's own identity was involved in it — started it, was replied to in it, or was tagged in it — regardless of how fresh it looks. The identity-based widening resolves the coordinator's own identity once per sweep; if that resolution isn't available this pass, the widening is skipped and only the freshness-based check applies — a graceful degrade, not a failure. This is still not a platform-wide search: a conversation outside the already-watched sources, or an identity mention that falls outside them, stays undiscoverable here — true "tagged anywhere" coverage is a separate, not-yet-built capability. A single arbitrary target/thread outside the watched set uses this routine's own per-target check step instead (see Steps, step 1).
 
-## `--check-email` operation reference
+## `--comms-email-check` operation reference
 
-`DistroAgentsTools.fn.sh --check-email` — IMAP STATUS INBOX (UNSEEN) check only, unread count, not a full fetch.
+`DistroAgentsTools.fn.sh --comms-email-check` — IMAP STATUS INBOX (UNSEEN) check only, unread count, not a full fetch.
 
-## `--check-trello` operation reference
+## `--comms-trello-check` operation reference
 
-`DistroAgentsTools.fn.sh --check-trello` — unread Trello notifications only (`read_filter=unread`), not a full board read.
+`DistroAgentsTools.fn.sh --comms-trello-check` — unread Trello notifications only (`read_filter=unread`), not a full board read.
 
-## `--check-slack` operation reference
+## `--comms-slack-check` operation reference
 
-`DistroAgentsTools.fn.sh --check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]` — reads Slack activity for one specific, caller-chosen target. `magic-team`/`human-owner`/`event-track`/`event-alert` reads that watched target's `conversations.history`; `<channel>:<ts>` fetches `conversations.replies` for that specific thread. `--oldest <ts>` passes through as the incremental marker. No retry logic — one attempt, fails clean. Output is pretty-formatted by default; `--raw` opts into the full API response (needed for fields like `reply_count`/`thread_ts`).
+`DistroAgentsTools.fn.sh --comms-slack-check <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]` — reads Slack activity for one specific, caller-chosen target. `magic-team`/`human-owner`/`event-track`/`event-alert` reads that watched target's `conversations.history`; `<channel>:<ts>` fetches `conversations.replies` for that specific thread. `--oldest <ts>` passes through as the incremental marker. No retry logic — one attempt, fails clean. Output is pretty-formatted by default; `--raw` opts into the full API response (needed for fields like `reply_count`/`thread_ts`).
 
 ## `--member-slack-send-message` operation reference
 
@@ -161,13 +161,13 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 `DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- <body...>` (or `-- --from-stdin` / `-- --file <path>` in place of the trailing body) — real standalone SMTP send via curl. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; everything after the second becomes the body. Exactly one body source required — giving more than one of trailing-body-argv/`--from-stdin`/`--file` together is an error.
 
-## `--mark-email-seen` operation reference
+## `--comms-email-mark-seen` operation reference
 
-`DistroAgentsTools.fn.sh --mark-email-seen <uid>` — marks one email (by IMAP UID) as `\Seen` via IMAP UID STORE — otherwise every sweep re-sees the same UIDs as unseen.
+`DistroAgentsTools.fn.sh --comms-email-mark-seen <uid>` — marks one email (by IMAP UID) as `\Seen` via IMAP UID STORE — otherwise every sweep re-sees the same UIDs as unseen.
 
-## `--react-slack` operation reference
+## `--comms-slack-react` operation reference
 
-`DistroAgentsTools.fn.sh --react-slack <channel>:<ts> <emoji-name>` — posts one Slack reaction (`reactions.add`) to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). An `already_reacted` error is treated as a harmless no-op, not a failure.
+`DistroAgentsTools.fn.sh --comms-slack-react <channel>:<ts> <emoji-name>` — posts one Slack reaction (`reactions.add`) to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). An `already_reacted` error is treated as a harmless no-op, not a failure.
 
 ## `--magic-heartbeat-state-read` operation reference
 

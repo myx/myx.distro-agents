@@ -170,7 +170,7 @@ Callable directly, or from `check-process-board`'s own deferred-lookup step.
 Steps:
 1. **pending-read-slack**: Read every `note-<date>-pending-slack-reaction.md` item in `magic-coordinator`'s inbox.
 2. **pending-resolve-slack**: Resolve each item's `references`-linked board-item against loaded board state.
-   - Resolved (`board-processed`/`board-archived`): read its resolution text. React `:white_check_mark:` (positive) or an assessed negative emoji, via `--react-slack`. Clear the record.
+   - Resolved (`board-processed`/`board-archived`): read its resolution text. React `:white_check_mark:` (positive) or an assessed negative emoji, via `--comms-slack-react`. Clear the record.
    - Still open: leave the record, re-check next pass.
 3. **pending-read-trello**: Read every `note-<date>-pending-trello-update.md` item (target card + gist).
 4. **pending-post-trello**: Post the gist via `--magic-trello-post-comment` (direct Trello API call, no console-session mechanism).
@@ -279,7 +279,7 @@ In any work-session, in any role, `magic-coordinator` relays a message-by-messag
 
 ## Slack destination terms → operations
 
-`slack-magic-team`/`slack-event-track`/`slack-event-alert`/`slack-human-owner` (`magic-team.armed.md`'s terminology) all post via the same underlying op, `DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target>` — check its own `.help.md` for the exact target-argument syntax per destination rather than guessing it here. `--react-slack` is the op for reacting to an existing message/thread, same four destinations apply.
+`slack-magic-team`/`slack-event-track`/`slack-event-alert`/`slack-human-owner` (`magic-team.armed.md`'s terminology) all post via the same underlying op, `DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target>` — check its own `.help.md` for the exact target-argument syntax per destination rather than guessing it here. `--comms-slack-react` is the op for reacting to an existing message/thread, same four destinations apply.
 
 ## Inquiry-prefix-lines
 
@@ -361,14 +361,14 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--identity bot|user] [text...]`
-- `--react-slack <channel>:<ts> <emoji-name>`
-- `--check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]`
+- `--comms-slack-react <channel>:<ts> <emoji-name>`
+- `--comms-slack-check <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]`
 - `--magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]`
 - `--sweep-read-incoming-comms [--oldest <ts>] [--raw]`
 - `--send-email-message <email@address>... -- <subject> -- <body...>`
-- `--check-email`
-- `--mark-email-seen <uid>`
-- `--check-trello`
+- `--comms-email-check`
+- `--comms-email-mark-seen <uid>`
+- `--comms-trello-check`
 - `--magic-trello-post-comment <team-member> <card-id> [text...]`
 - `--console-send <channel> [-- <command...>]`
 - `--console-stop <channel>`
@@ -398,13 +398,13 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 `DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> [--identity bot|user] [text...]` (also `--from-stdin [--format text|blocks]` or `--from-file <path> [--format text|blocks]`) — posts a message, attributed to `<team-member>`. The only Slack-post op — no separate anonymous/unattributed variant. An optional `--identity bot|user` overrides the automatic native-user-vs-bot selection — `bot` forces the shared bot-token path unconditionally, `user` forces `<team-member>`'s own token and errors if none is configured. Omitted: unchanged auto-detect behavior. A `<team-member>` argument itself prefixed `routine-*` (a routine acting as sender, not a persona) skips the skill-directory existence check and defaults to bot identity automatically, no flag needed — `--identity bot|user` still overrides this default in either direction when passed explicitly. `<target>` is `magic-team`/`human-owner`, `event-track`/`event-alert`, or a literal `<channel>:<ts>` posted as a threaded reply. `--from-stdin` (or the original `--message-from-stdin`) reads content from stdin; `--from-file <path>` reads from a file — use exactly one, never both. `--format blocks` treats the content as a caller-supplied Block Kit JSON array — malformed JSON or an unsupported block type is rejected before sending. Any unrecognized `--`-shaped trailing token is rejected rather than silently absorbed into the text field.
 
-## `--react-slack` Operation Reference
+## `--comms-slack-react` Operation Reference
 
-`DistroAgentsTools.fn.sh --react-slack <channel>:<ts> <emoji-name>` — posts one Slack reaction to a specific message, `<channel>:<ts>` only (no `magic-team`/`human-owner` shortcut — a reaction always targets one exact message). `<emoji-name>` has no colons. An `already_reacted` error is a harmless no-op (returns 0), not a failure.
+`DistroAgentsTools.fn.sh --comms-slack-react <channel>:<ts> <emoji-name>` — posts one Slack reaction to a specific message, `<channel>:<ts>` only (no `magic-team`/`human-owner` shortcut — a reaction always targets one exact message). `<emoji-name>` has no colons. An `already_reacted` error is a harmless no-op (returns 0), not a failure.
 
-## `--check-slack` Operation Reference
+## `--comms-slack-check` Operation Reference
 
-`DistroAgentsTools.fn.sh --check-slack <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]` — reads Slack activity for ONE specific, caller-chosen target; target is required. Not the comms-sweep macro-op (see `--sweep-read-incoming-comms`). `--oldest <ts>` passes through as-is for an incremental read. Output is pretty-formatted by default; `--raw` opts into the full API response. No retry logic — one attempt, fails clean.
+`DistroAgentsTools.fn.sh --comms-slack-check <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]` — reads Slack activity for ONE specific, caller-chosen target; target is required. Not the comms-sweep macro-op (see `--sweep-read-incoming-comms`). `--oldest <ts>` passes through as-is for an incremental read. Output is pretty-formatted by default; `--raw` opts into the full API response. No retry logic — one attempt, fails clean.
 
 ## `--magic-comms-slack-resolve-ids` Operation Reference
 
@@ -412,23 +412,23 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## `--sweep-read-incoming-comms` Operation Reference
 
-`DistroAgentsTools.fn.sh --sweep-read-incoming-comms [--oldest <ts>] [--raw]` — not a general-purpose Slack reader, takes no target at all. The dedicated macro-operation for `routine-communication-sweep`'s Check step: reads the exact same predefined set of watched sources (both Slack targets via `--check-slack`, plus `--check-email` and `--check-trello`) in one combined pass. For one specific arbitrary target/thread, call `--check-slack` directly instead.
+`DistroAgentsTools.fn.sh --sweep-read-incoming-comms [--oldest <ts>] [--raw]` — not a general-purpose Slack reader, takes no target at all. The dedicated macro-operation for `routine-communication-sweep`'s Check step: reads the exact same predefined set of watched sources (both Slack targets via `--comms-slack-check`, plus `--comms-email-check` and `--comms-trello-check`) in one combined pass. For one specific arbitrary target/thread, call `--comms-slack-check` directly instead.
 
 ## `--send-email-message` Operation Reference
 
 `DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- <body...>` (also `-- --from-stdin` or `-- --from-file <path>`) — real, standalone SMTP send via curl, not just an internal fallback (`--member-slack-send-message`'s exhausted-retry path calls this same op via self-recursion). Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; body is everything after. Exactly one body source required.
 
-## `--check-email` Operation Reference
+## `--comms-email-check` Operation Reference
 
-`DistroAgentsTools.fn.sh --check-email` — IMAP STATUS INBOX (UNSEEN) check only, unread count, not a full fetch.
+`DistroAgentsTools.fn.sh --comms-email-check` — IMAP STATUS INBOX (UNSEEN) check only, unread count, not a full fetch.
 
-## `--mark-email-seen` Operation Reference
+## `--comms-email-mark-seen` Operation Reference
 
-`DistroAgentsTools.fn.sh --mark-email-seen <uid>` — marks one specific email (by IMAP UID) as `\Seen` via IMAP UID STORE, otherwise every comms-sweep pass keeps re-seeing the same UIDs as unseen.
+`DistroAgentsTools.fn.sh --comms-email-mark-seen <uid>` — marks one specific email (by IMAP UID) as `\Seen` via IMAP UID STORE, otherwise every comms-sweep pass keeps re-seeing the same UIDs as unseen.
 
-## `--check-trello` Operation Reference
+## `--comms-trello-check` Operation Reference
 
-`DistroAgentsTools.fn.sh --check-trello` — unread Trello notifications only (`read_filter=unread`), not a full board read.
+`DistroAgentsTools.fn.sh --comms-trello-check` — unread Trello notifications only (`read_filter=unread`), not a full board read.
 
 ## `--console-send` Operation Reference
 

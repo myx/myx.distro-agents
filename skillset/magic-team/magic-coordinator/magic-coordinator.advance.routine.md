@@ -171,7 +171,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- Every real file read/write and communications API call this routine makes (including `check-process-board`'s own `--react-slack` calls) is its own direct `lib/execShStdin` call — no Keep-Alive Console Session assumed or required, per `magic-team.armed.md`'s process-flow rule.
+- Every real file read/write and communications API call this routine makes (including `check-process-board`'s own `--comms-slack-react` calls) is its own direct `lib/execShStdin` call — no Keep-Alive Console Session assumed or required, per `magic-team.armed.md`'s process-flow rule.
 - Never resolves an open design/judgment question surfaced by an investigation subtask — flags it for `routine-grooming`/`magic-architect`.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as things are found, not batch it artificially.
@@ -229,7 +229,7 @@ Used to check this files own definitions against its own goals when this file's 
 - `routine-process-inbox` — this routine's own inbox processing (**advance-process-inbox**).
 - `magic-coordinator/magic-coordinator.armed.md` — `check-process-board`'s own home, called from **advance-run-process-board**; `spawn-one-dispatch`, called from `check-execute-board`.
 - `magic-team/magic-team.board.md` — the board's own state model, write-authority rule, `processed/`/`archived/` outcome-ambiguity note, `# Process-Flow, the board dynamics` section.
-- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, `--console-list`, calling convention, `--react-slack`/`--console-send` mechanics.
+- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, `--console-list`, calling convention, `--comms-slack-react`/`--console-send` mechanics.
 - `magic-coordinator/RICE-SCORING.md` — the four normalized dimensions `check-process-board`'s own dependency-recompute step records alongside, never silently reconciled with.
 
 ### Conventions

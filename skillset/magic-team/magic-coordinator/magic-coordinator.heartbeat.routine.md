@@ -100,7 +100,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 # Closure steps
 
 1. **Release the lock**, per the `single-instance-lock` procedure, using the `--magic-heartbeat-lock-release` operation.
-2. **Conclude the `slack-event-track` thread opened in step 3** via the `--react-slack` operation, reacting ✅ on that thread — a direct `lib/execShStdin` call, same as every other call this `next-iteration` makes.
+2. **Conclude the `slack-event-track` thread opened in step 3** via the `--comms-slack-react` operation, reacting ✅ on that thread — a direct `lib/execShStdin` call, same as every other call this `next-iteration` makes.
 3. **Report status** to whatever session spawned this `next-iteration`, via `SendMessage`, then exit.
    - `SendMessage(to:"main", ...)` always reaches the true root, never a mid-tree ancestor — if the actual spawner is `main-loop-mode`'s own iterator rather than root, report to `"main"` instead and let it relay down.
    - Repeating, if it happens at all, is entirely up to whatever spawned this `next-iteration` — never this routine itself.
@@ -255,7 +255,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-slack-send-message <team-member> <target> [text...]` (step 3: open the `event-track` thread)
-- `--react-slack <channel>:<ts> <emoji-name>` (Closure steps: close the `event-track` thread with a checkmark)
+- `--comms-slack-react <channel>:<ts> <emoji-name>` (Closure steps: close the `event-track` thread with a checkmark)
 - `--magic-heartbeat-config-check` (step 0: check magic-coordinator config upfront, before anything else runs)
 - `--magic-heartbeat-input-scan <team-member>` (step 5: load heartbeat board-scan input)
 - `--magic-heartbeat-lock-acquire <team-member> <owner-label>` (step 1: acquire the single-instance lock)
@@ -271,9 +271,9 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 `DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
-## `--react-slack` operation reference
+## `--comms-slack-react` operation reference
 
-`DistroAgentsTools.fn.sh --react-slack <channel>:<ts> <emoji-name>` — posts one Slack reaction (`reactions.add`) to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut, since a reaction always targets one exact message, not a channel. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). An `already_reacted` error is treated as a harmless no-op, not a failure. This routine's own Closure-steps usage: `event-track:<thread-ts> white_check_mark`.
+`DistroAgentsTools.fn.sh --comms-slack-react <channel>:<ts> <emoji-name>` — posts one Slack reaction (`reactions.add`) to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut, since a reaction always targets one exact message, not a channel. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). An `already_reacted` error is treated as a harmless no-op, not a failure. This routine's own Closure-steps usage: `event-track:<thread-ts> white_check_mark`.
 
 ## `--magic-heartbeat-config-check` operation reference
 

@@ -1,5 +1,5 @@
 ---
-maintainers: magic-librarian, magic-coordinator
+maintainers: magic-librarian, magic-coordinator, magic-architect
 ---
 # Negotiation mechanics
 

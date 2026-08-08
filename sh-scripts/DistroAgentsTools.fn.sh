@@ -742,19 +742,19 @@ $1"
 		## IMAP STATUS check (unseen count) plus a UID SEARCH UNSEEN (which
 		## UIDs those are) -- not a full fetch, matches what the comms-sweep
 		## routine's Check step needs. STATUS alone gives a count with no way
-		## to discover which UID(s) to hand to --read-email. UID SEARCH
+		## to discover which UID(s) to hand to --comms-email-read. UID SEARCH
 		## returns a clean single-line response through curl --request
 		## (unlike UID FETCH's literal-string body, which does not come
-		## through this way -- that's why --read-email uses curl's
+		## through this way -- that's why --comms-email-read uses curl's
 		## URL-based ;UID= addressing instead, not --request).
-		--check-email)
+		--comms-email-check)
 			shift
 			local imapHost imapUser imapPass
 			imapHost="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_IMAP_HOST )"
 			imapUser="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_USER )"
 			imapPass="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_APP_PASSWORD )"
 			if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --check-email: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-email-check: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in .local/.agents" >&2
 				set +e ; return 1
 			fi
 			curl -s --url "imaps://${imapHost}/INBOX" --user "${imapUser}:${imapPass}" \
@@ -764,16 +764,16 @@ $1"
 			return $?
 		;;
 
-		## Same rationale as --check-email above -- Trello's own read side of
+		## Same rationale as --comms-email-check above -- Trello's own read side of
 		## the same precoded-tooling gap. Unread notifications only (matches
 		## the comms-sweep routine's Check step), not a full board read.
-		--check-trello)
+		--comms-trello-check)
 			shift
 			local trelloKey trelloToken
 			trelloKey="$( DistroAgentsTools --agents-config-option magic-coordinator --select TRELLO_KEY )"
 			trelloToken="$( DistroAgentsTools --agents-config-option magic-coordinator --select TRELLO_TOKEN )"
 			if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --check-trello: TRELLO_KEY/TRELLO_TOKEN not fully set in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-trello-check: TRELLO_KEY/TRELLO_TOKEN not fully set in .local/.agents" >&2
 				set +e ; return 1
 			fi
 			curl -s "https://api.trello.com/1/members/me/notifications?read_filter=unread&key=${trelloKey}&token=${trelloToken}"
@@ -789,12 +789,12 @@ $1"
 		## detail, not scanning for what's new. Always returns the full raw
 		## API response (never pretty-formatted) -- "full" is the entire
 		## point of this op, there is no lossy default here.
-		--read-slack)
+		--comms-slack-read)
 			shift
 			local target="$1"
 			shift || true
 			if [ -z "$target" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --read-slack: target required (magic-team|human-owner|event-track|event-alert|<channel>:<ts>)" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-slack-read: target required (magic-team|human-owner|event-track|event-alert|<channel>:<ts>)" >&2
 				set +e ; return 1
 			fi
 
@@ -805,7 +805,7 @@ $1"
 						wantThread="true" ; shift
 					;;
 					*)
-						echo "⛔ ERROR: $MDSC_CMD --read-slack: invalid option: $1" >&2
+						echo "⛔ ERROR: $MDSC_CMD --comms-slack-read: invalid option: $1" >&2
 						set +e ; return 1
 					;;
 				esac
@@ -819,19 +819,19 @@ $1"
 					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --read-slack: could not resolve target '$target' -- pass <channel>:<ts> for a specific message" >&2
+					echo "⛔ ERROR: $MDSC_CMD --comms-slack-read: could not resolve target '$target' -- pass <channel>:<ts> for a specific message" >&2
 					set +e ; return 1
 				;;
 			esac
 			if [ -z "$threadTs" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --read-slack: a specific <ts> is required (magic-team/human-owner alone identify a channel, not one message) -- use <channel>:<ts>" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-slack-read: a specific <ts> is required (magic-team/human-owner alone identify a channel, not one message) -- use <channel>:<ts>" >&2
 				set +e ; return 1
 			fi
 
 			local token
 			token="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_BOT_TOKEN )"
 			if [ -z "$token" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --read-slack: SLACK_BOT_TOKEN not set in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-slack-read: SLACK_BOT_TOKEN not set in .local/.agents" >&2
 				set +e ; return 1
 			fi
 
@@ -845,14 +845,14 @@ $1"
 				## Full thread -- every reply, full detail (reactions/files/
 				## blocks all come through untouched since this is raw, not
 				## piped through the pretty formatter).
-				echo "# $MDSC_CMD --read-slack: GET conversations.replies channel=$channel ts=$threadTs (full thread)" >&2
+				echo "# $MDSC_CMD --comms-slack-read: GET conversations.replies channel=$channel ts=$threadTs (full thread)" >&2
 				curl -sS -G "https://slack.com/api/conversations.replies" -H "@$headerFile" \
 					--data-urlencode "channel=$channel" --data-urlencode "ts=$threadTs"
 			else
 				## Exactly one message -- latest=oldest=ts with inclusive+limit=1
 				## pins conversations.history to that single message, not a
 				## history window.
-				echo "# $MDSC_CMD --read-slack: GET conversations.history channel=$channel ts=$threadTs (single message)" >&2
+				echo "# $MDSC_CMD --comms-slack-read: GET conversations.history channel=$channel ts=$threadTs (single message)" >&2
 				curl -sS -G "https://slack.com/api/conversations.history" -H "@$headerFile" \
 					--data-urlencode "channel=$channel" --data-urlencode "latest=$threadTs" \
 					--data-urlencode "oldest=$threadTs" --data-urlencode "inclusive=true" \
@@ -867,18 +867,18 @@ $1"
 
 		## Full IMAP fetch (complete RFC822 message: headers + body + MIME
 		## multipart, attachments included as their raw MIME parts) for one
-		## specific message by UID -- contrast with --check-email's
+		## specific message by UID -- contrast with --comms-email-check's
 		## STATUS-only unread count. Uses curl's URL-based
 		## ;UID=<uid> addressing (no ;SECTION= means the whole message, per
 		## curl's own IMAP URL support) -- `--request "UID FETCH..."` does
 		## not return literal-string FETCH bodies through stdout at all, so
 		## this uses curl's URL-based addressing instead.
-		--read-email)
+		--comms-email-read)
 			shift
 			local uid="$1"
 			shift || true
 			if [ -z "$uid" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --read-email: UID required" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-email-read: UID required" >&2
 				set +e ; return 1
 			fi
 
@@ -887,25 +887,25 @@ $1"
 			imapUser="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_USER )"
 			imapPass="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_APP_PASSWORD )"
 			if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --read-email: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-email-read: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in .local/.agents" >&2
 				set +e ; return 1
 			fi
 
-			echo "# $MDSC_CMD --read-email: fetching full message UID=$uid" >&2
+			echo "# $MDSC_CMD --comms-email-read: fetching full message UID=$uid" >&2
 			curl -sS --url "imaps://${imapHost}/INBOX;UID=${uid}" --user "${imapUser}:${imapPass}"
 			return $?
 		;;
 
 		## Full detail for one specific Trello notification by id -- the
 		## comms-sweep's own unit of "a message" for Trello (per
-		## --check-trello's own read_filter=unread notifications list).
-		## Contrast with --check-trello's unread-list-only scan.
-		--read-trello)
+		## --comms-trello-check's own read_filter=unread notifications list).
+		## Contrast with --comms-trello-check's unread-list-only scan.
+		--comms-trello-read)
 			shift
 			local notificationId="$1"
 			shift || true
 			if [ -z "$notificationId" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --read-trello: notification id required" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-trello-read: notification id required" >&2
 				set +e ; return 1
 			fi
 
@@ -913,11 +913,11 @@ $1"
 			trelloKey="$( DistroAgentsTools --agents-config-option magic-coordinator --select TRELLO_KEY )"
 			trelloToken="$( DistroAgentsTools --agents-config-option magic-coordinator --select TRELLO_TOKEN )"
 			if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --read-trello: TRELLO_KEY/TRELLO_TOKEN not fully set in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-trello-read: TRELLO_KEY/TRELLO_TOKEN not fully set in .local/.agents" >&2
 				set +e ; return 1
 			fi
 
-			echo "# $MDSC_CMD --read-trello: fetching full notification id=$notificationId" >&2
+			echo "# $MDSC_CMD --comms-trello-read: fetching full notification id=$notificationId" >&2
 			curl -sS "https://api.trello.com/1/notifications/${notificationId}?fields=all&member=true&memberCreator=true&card=true&card_fields=all&board=true&board_fields=all&key=${trelloKey}&token=${trelloToken}"
 			return $?
 		;;
@@ -933,13 +933,13 @@ $1"
 		## (magic-team|human-owner|event-track|event-alert|<channel>:<ts>) so a
 		## bare channel name means "history" and a <channel>:<ts> pair means
 		## "replies in that thread" -- no new addressing scheme invented.
-		--check-slack)
+		--comms-slack-check)
 			shift
 			local target="$1"
 			shift || true
 
 			if [ -z "$target" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --check-slack: target required (magic-team|human-owner|event-track|event-alert|<channel>:<ts>)" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-slack-check: target required (magic-team|human-owner|event-track|event-alert|<channel>:<ts>)" >&2
 				set +e ; return 1
 			fi
 
@@ -957,7 +957,7 @@ $1"
 						pretty="false" ; shift
 					;;
 					*)
-						echo "⛔ ERROR: $MDSC_CMD --check-slack: invalid option: $1" >&2
+						echo "⛔ ERROR: $MDSC_CMD --comms-slack-check: invalid option: $1" >&2
 						set +e ; return 1
 					;;
 				esac
@@ -971,11 +971,11 @@ $1"
 					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
 				;;
 				2)
-					echo "⛔ ERROR: $MDSC_CMD --check-slack: unrecognized target: $target" >&2
+					echo "⛔ ERROR: $MDSC_CMD --comms-slack-check: unrecognized target: $target" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --check-slack: could not resolve a channel for target '$target' -- check SLACK_CHANNEL_MAGIC_TEAM/SLACK_CHANNEL_HUMAN_OWNER in .local/.agents" >&2
+					echo "⛔ ERROR: $MDSC_CMD --comms-slack-check: could not resolve a channel for target '$target' -- check SLACK_CHANNEL_MAGIC_TEAM/SLACK_CHANNEL_HUMAN_OWNER in .local/.agents" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -989,12 +989,12 @@ $1"
 				endpoint="https://slack.com/api/conversations.history"
 			fi
 
-			echo "# $MDSC_CMD --check-slack: GET $endpoint channel=$channel${threadTs:+ ts=$threadTs}${oldest:+ oldest=$oldest}" >&2
+			echo "# $MDSC_CMD --comms-slack-check: GET $endpoint channel=$channel${threadTs:+ ts=$threadTs}${oldest:+ oldest=$oldest}" >&2
 
 			local token
 			token="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_BOT_TOKEN )"
 			if [ -z "$token" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --check-slack: SLACK_BOT_TOKEN not set (see --agents-config-option magic-coordinator --upsert)" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-slack-check: SLACK_BOT_TOKEN not set (see --agents-config-option magic-coordinator --upsert)" >&2
 				set +e ; return 1
 			fi
 
@@ -1051,10 +1051,10 @@ $1"
 		## design (`routine-communication-sweep`, `routine-board-actualisation`'s
 		## pending-reaction lookup) uses this as its sanctioned way to actually
 		## post a reaction. Same target grammar as
-		## --read-slack/--check-slack (<channel>:<ts>, via
+		## --comms-slack-read/--comms-slack-check (<channel>:<ts>, via
 		## DistroAgentsToolsResolveTarget) plus a required emoji name (no
 		## colons, matches Slack's own reactions.add `name` field exactly).
-		--react-slack)
+		--comms-slack-react)
 			shift
 			local target="$1"
 			shift || true
@@ -1062,7 +1062,7 @@ $1"
 			shift || true
 
 			if [ -z "$target" ] || [ -z "$emoji" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --react-slack: syntax is <channel>:<ts> <emoji-name>" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-slack-react: syntax is <channel>:<ts> <emoji-name>" >&2
 				set +e ; return 1
 			fi
 
@@ -1074,19 +1074,19 @@ $1"
 					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --react-slack: could not resolve target '$target' -- pass <channel>:<ts>" >&2
+					echo "⛔ ERROR: $MDSC_CMD --comms-slack-react: could not resolve target '$target' -- pass <channel>:<ts>" >&2
 					set +e ; return 1
 				;;
 			esac
 			if [ -z "$threadTs" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --react-slack: a specific <ts> is required -- use <channel>:<ts>" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-slack-react: a specific <ts> is required -- use <channel>:<ts>" >&2
 				set +e ; return 1
 			fi
 
 			local token
 			token="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_BOT_TOKEN )"
 			if [ -z "$token" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --react-slack: SLACK_BOT_TOKEN not set in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-slack-react: SLACK_BOT_TOKEN not set in .local/.agents" >&2
 				set +e ; return 1
 			fi
 
@@ -1096,7 +1096,7 @@ $1"
 			trap 'rm -f "$headerFile"' EXIT
 			printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
 
-			echo "# $MDSC_CMD --react-slack: POST reactions.add channel=$channel timestamp=$threadTs name=$emoji" >&2
+			echo "# $MDSC_CMD --comms-slack-react: POST reactions.add channel=$channel timestamp=$threadTs name=$emoji" >&2
 			local response
 			response="$( curl -sS -X POST "https://slack.com/api/reactions.add" -H @"$headerFile" \
 				--data-urlencode "channel=$channel" --data-urlencode "timestamp=$threadTs" \
@@ -1112,22 +1112,22 @@ $1"
 			## already_reacted is a harmless no-op per Slack's own API and per
 			## this feature's own design doc, not a real failure to retry.
 			if printf '%s' "$response" | grep -q '"error":"already_reacted"' ; then
-				echo "# $MDSC_CMD --react-slack: already reacted (no-op, not an error)" >&2
+				echo "# $MDSC_CMD --comms-slack-react: already reacted (no-op, not an error)" >&2
 				return 0
 			fi
-			echo "⛔ $MDSC_CMD --react-slack: FAILED -- $response" >&2
+			echo "⛔ $MDSC_CMD --comms-slack-react: FAILED -- $response" >&2
 			set +e ; return 1
 		;;
 
 		## NOT a general-purpose "check any Slack target" op -- that's
-		## --check-slack, above. This op takes no target at all --
+		## --comms-slack-check, above. This op takes no target at all --
 		## it always reads the exact same predefined, pre-configured set of
 		## watched sources (both Slack targets, email, Trello) in one
 		## optimized combined pass, producing one specific mixed output
 		## meant as the initial text source for comms processing. It exists
 		## for exactly one caller: magic-coordinator's communication-sweep
 		## Check step. If you need to read one specific arbitrary Slack
-		## target/thread, call --check-slack directly instead.
+		## target/thread, call --comms-slack-check directly instead.
 		##
 		## Thread-follow widening: beyond the plain "freshly active thread"
 		## heuristic, this also follows a thread whose parent message (still
@@ -1151,7 +1151,7 @@ $1"
 						pretty="false" ; shift
 					;;
 					*)
-						echo "⛔ ERROR: $MDSC_CMD --sweep-read-incoming-comms: invalid option: $1 (this op takes no target -- did you mean --check-slack?)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --sweep-read-incoming-comms: invalid option: $1 (this op takes no target -- did you mean --comms-slack-check?)" >&2
 						set +e ; return 1
 					;;
 				esac
@@ -1202,14 +1202,14 @@ $1"
 				## Watched-channel pass stays the floor, but we now inspect that raw
 				## history page for parent messages whose thread activity is newer
 				## than --oldest and immediately follow them with the same
-				## --check-slack <channel>:<ts> path. This widens coverage to
+				## --comms-slack-check <channel>:<ts> path. This widens coverage to
 				## freshly-active watched-channel threads that are not yet tracked on
 				## the board, while keeping the same one-op namespace and output
 				## style. It is still NOT a global mention search: old untracked
 				## thread parents outside the returned history page remain invisible.
 				local historyWithHeader historyHeader historyJson threadTargets threadTarget
-				historyWithHeader="$( DistroAgentsTools --check-slack "$channel:" --raw "${recurseArgs[@]}" )" || {
-					echo "# $MDSC_CMD --sweep-read-incoming-comms: --check-slack failed for '$name', see error above" >&2
+				historyWithHeader="$( DistroAgentsTools --comms-slack-check "$channel:" --raw "${recurseArgs[@]}" )" || {
+					echo "# $MDSC_CMD --sweep-read-incoming-comms: --comms-slack-check failed for '$name', see error above" >&2
 					continue
 				}
 
@@ -1232,8 +1232,8 @@ $1"
 
 				while IFS= read -r threadTarget ; do
 					[ -z "$threadTarget" ] && continue
-					if ! DistroAgentsTools --check-slack "$threadTarget" "${recurseArgs[@]}" ; then
-						echo "# $MDSC_CMD --sweep-read-incoming-comms: --check-slack failed for thread '$threadTarget', see error above" >&2
+					if ! DistroAgentsTools --comms-slack-check "$threadTarget" "${recurseArgs[@]}" ; then
+						echo "# $MDSC_CMD --sweep-read-incoming-comms: --comms-slack-check failed for thread '$threadTarget', see error above" >&2
 					fi
 				done <<- EOF
 				$threadTargets
@@ -1241,15 +1241,15 @@ $1"
 			done
 
 			echo "## target=email"
-			if ! DistroAgentsTools --check-email ; then
-				echo "# $MDSC_CMD --sweep-read-incoming-comms: --check-email failed, see error above" >&2
+			if ! DistroAgentsTools --comms-email-check ; then
+				echo "# $MDSC_CMD --sweep-read-incoming-comms: --comms-email-check failed, see error above" >&2
 			else
 				anyChecked=1
 			fi
 
 			echo "## target=trello"
-			if ! DistroAgentsTools --check-trello ; then
-				echo "# $MDSC_CMD --sweep-read-incoming-comms: --check-trello failed, see error above" >&2
+			if ! DistroAgentsTools --comms-trello-check ; then
+				echo "# $MDSC_CMD --sweep-read-incoming-comms: --comms-trello-check failed, see error above" >&2
 			else
 				anyChecked=1
 			fi
@@ -1381,7 +1381,7 @@ $1"
 			return 0
 		;;
 
-		--validate-json)
+		--intern-validate-json)
 			## Validates a JSON file (path arg) or stdin (no arg) is
 			## syntactically valid, before it's ever handed to curl/an API call.
 			## Uses python3 (present on every supported OS here) rather than jq,
@@ -1390,22 +1390,22 @@ $1"
 			local jsonPath="$1"
 			if [ -n "$jsonPath" ] ; then
 				if [ ! -f "$jsonPath" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --validate-json: file not found: $jsonPath" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-validate-json: file not found: $jsonPath" >&2
 					set +e ; return 1
 				fi
 				if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$jsonPath" >/dev/null 2>&1 ; then
-					echo "# $MDSC_CMD --validate-json: valid JSON: $jsonPath" >&2
+					echo "# $MDSC_CMD --intern-validate-json: valid JSON: $jsonPath" >&2
 					return 0
 				else
-					echo "⛔ ERROR: $MDSC_CMD --validate-json: invalid JSON: $jsonPath" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-validate-json: invalid JSON: $jsonPath" >&2
 					set +e ; return 1
 				fi
 			else
 				if python3 -c "import json,sys; json.load(sys.stdin)" >/dev/null 2>&1 ; then
-					echo "# $MDSC_CMD --validate-json: valid JSON (stdin)" >&2
+					echo "# $MDSC_CMD --intern-validate-json: valid JSON (stdin)" >&2
 					return 0
 				else
-					echo "⛔ ERROR: $MDSC_CMD --validate-json: invalid JSON (stdin)" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-validate-json: invalid JSON (stdin)" >&2
 					set +e ; return 1
 				fi
 			fi
@@ -1992,15 +1992,15 @@ $1"
 		## Marks a message read after it's been processed -- otherwise every
 		## comms-sweep pass keeps re-seeing the same UIDs as unseen. IMAP UID
 		## STORE with the \Seen flag, same curl --request pattern
-		## --check-email already uses for STATUS/SEARCH (not the URL-based ;UID=
-		## addressing --read-email uses, since this is a STORE command, not a
+		## --comms-email-check already uses for STATUS/SEARCH (not the URL-based ;UID=
+		## addressing --comms-email-read uses, since this is a STORE command, not a
 		## fetch).
-		--mark-email-seen)
+		--comms-email-mark-seen)
 			shift
 			local uid="$1"
 			shift || true
 			if [ -z "$uid" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --mark-email-seen: UID required" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-email-mark-seen: UID required" >&2
 				set +e ; return 1
 			fi
 
@@ -2009,11 +2009,11 @@ $1"
 			imapUser="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_USER )"
 			imapPass="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_APP_PASSWORD )"
 			if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --mark-email-seen: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-email-mark-seen: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in .local/.agents" >&2
 				set +e ; return 1
 			fi
 
-			echo "# $MDSC_CMD --mark-email-seen: marking UID=$uid as \\Seen" >&2
+			echo "# $MDSC_CMD --comms-email-mark-seen: marking UID=$uid as \\Seen" >&2
 			curl -sS --url "imaps://${imapHost}/INBOX" --user "${imapUser}:${imapPass}" \
 				--request "UID STORE ${uid} +FLAGS (\Seen)"
 			return $?
@@ -2040,7 +2040,7 @@ case "$0" in
 	*/sh-scripts/DistroAgentsTools.fn.sh)
 
 		if [ -z "$1" ] || [ "$1" = "--help" ] || [ "$1" = "--help-syntax" ] ; then
-			DistroAgentsTools "${1:-"--help"}"
+			DistroAgentsTools "$@"
 			exit 1
 		fi
 

@@ -15,7 +15,7 @@
 # distinct reaction) and "[thread: N replies, latest by USER at TS]". A
 # channel-wide sweep still can't discover thread replies it has no ts for --
 # these annotations only flag that a known message has activity worth an
-# explicit `--read-slack <channel>:<ts> --thread` follow-up.
+# explicit `--comms-slack-read <channel>:<ts> --thread` follow-up.
 #
 # Lives here (myx.distro-agents/sh-lib, not myx.common) because it's
 # 100% Slack/DistroAgentsTools-specific with no general devops-CLI use --

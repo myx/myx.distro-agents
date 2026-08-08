@@ -40,7 +40,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - an offer, not an automatic edit — name the specific skill and gap, let the user decide now or defer
    - ad-hoc/solo sessions skip this — route through that member's own inbox/reflection note (step 1) instead
 4. **Conclude the session's own `slack-magic-team` thread** — every session, both types, conditional on a live thread actually existing.
-   - react `:white_check_mark:` on that thread's root message (the same `<channel>:<session_thread_ts>` step 0 posted into) via the `--react-slack` operation — same "black tick on completion" pattern `routine-heartbeat`'s own closure already uses for its `slack-event-track` thread
+   - react `:white_check_mark:` on that thread's root message (the same `<channel>:<session_thread_ts>` step 0 posted into) via the `--comms-slack-react` operation — same "black tick on completion" pattern `routine-heartbeat`'s own closure already uses for its `slack-event-track` thread
    - no live thread for this session (nothing posted at step 0, or thread capture failed) → skip, no error
    - already reacted (`already_reacted`) → harmless no-op, not a failure
 
@@ -73,7 +73,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--member-slack-send-message <team-member> <target> [text...]` (step 0: post to `slack-magic-team`)
 - `--member-upsert-inbox-note <member> <item-filename>` (step 0: queue Trello update; step 1: continuity memo)
 - `--member-upsert-inbox-reflection <member> <item-filename>` (step 1: `reflection-*` note)
-- `--react-slack <channel>:<ts> <emoji-name>` (step 4: conclude the session's own thread)
+- `--comms-slack-react <channel>:<ts> <emoji-name>` (step 4: conclude the session's own thread)
 
 ## `--member-slack-send-message` operation reference
 
@@ -87,9 +87,9 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 `DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--file <path>]`
 
-## `--react-slack` operation reference
+## `--comms-slack-react` operation reference
 
-`DistroAgentsTools.fn.sh --react-slack <channel>:<ts> <emoji-name>` — posts one Slack reaction (`reactions.add`) to a specific message, `<channel>:<ts>` only. `<emoji-name>` has no colons. An `already_reacted` error is a harmless no-op, not a failure.
+`DistroAgentsTools.fn.sh --comms-slack-react <channel>:<ts> <emoji-name>` — posts one Slack reaction (`reactions.add`) to a specific message, `<channel>:<ts>` only. `<emoji-name>` has no colons. An `already_reacted` error is a harmless no-op, not a failure.
 
 # Maintainer Notes
 

@@ -525,7 +525,7 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 - `--console-stop`
 - `--console-list`
 - `--purge-cleanup`
-- `--react-slack`
+- `--comms-slack-react`
 - `--member-upsert-inbox-note`
 - `--member-upsert-member-inquiry`
 - `--member-upsert-inbox-reflection`
@@ -557,8 +557,8 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 ## `--purge-cleanup` Operation Reference
 "Empties $MMDAPP/.local/.cleanup/ (the folder itself stays). Takes no arguments -- always targets this one fixed location; nothing to parameterize."
 
-## `--react-slack` Operation Reference
-"Posts one Slack reaction to a specific message -- <channel>:<ts> only, same target grammar as --read-slack (no magic-team/human-owner shortcut, since a reaction always targets one exact message, not a channel)."
+## `--comms-slack-react` Operation Reference
+"Posts one Slack reaction to a specific message -- <channel>:<ts> only, same target grammar as --comms-slack-read (no magic-team/human-owner shortcut, since a reaction always targets one exact message, not a channel)."
 
 ## `--member-upsert-inbox-note` Operation Reference
 "Writes (creates or overwrites) a note into any member's own personal inbox — unlike the board, inbox write access is not exclusive to one member; any member may post into any other member's inbox (the standard cross-member handoff mechanism, see routine-process-inbox)."

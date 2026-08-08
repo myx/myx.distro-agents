@@ -674,7 +674,7 @@ case "$1" in
 					## `--from-stdin` is the standardized, uniform name for "read
 					## content from stdin instead of argv" across every
 					## DistroAgentsTools op that accepts free-text content (see
-					## also --send-email-message's body, --validate-json's
+					## also --send-email-message's body, --intern-validate-json's
 					## bare-stdin mode). `--message-from-stdin` stays recognized
 					## too, unchanged, since it's already documented/used across
 					## several skill files -- this is an additive alias, not a
@@ -767,17 +767,17 @@ case "$1" in
 			## literal `"blocks"::[...]` or similar in the payload -- Slack's
 			## chat.postMessage would bounce that as invalid_json on all 5
 			## retries, with nothing in the error pointing at the actual
-			## cause. Reuses this same file's own --validate-json op via
+			## cause. Reuses this same file's own --intern-validate-json op via
 			## self-recursion (same convention as --send-email-message's
 			## fallback call below) for full JSON-syntax validation,
 			## rather than hand-rolling a second, weaker JSON check here.
-			## --validate-json accepts any syntactically
+			## --intern-validate-json accepts any syntactically
 			## valid top-level JSON value though (object, string, number,
 			## ...), so a cheap bare `[` ... `]` shape check is layered on
 			## top of it to enforce the array-specifically requirement
 			## Slack's `blocks` field actually has.
-			if ! printf '%s' "$blocksJson" | DistroAgentsTools --validate-json ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --format $format content failed --validate-json (see above)" >&2
+			if ! printf '%s' "$blocksJson" | DistroAgentsTools --intern-validate-json ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --format $format content failed --intern-validate-json (see above)" >&2
 				set +e ; return 1
 			fi
 			local blocksTrimmed
@@ -798,7 +798,7 @@ case "$1" in
 			## (`mrkdwn`, only valid inside a block's own `text` field)
 			## directly as a top-level block's own `type`, which Slack's
 			## Block Kit does not accept as a block type. Neither the
-			## --validate-json check above (syntax only) nor the bare-array
+			## --intern-validate-json check above (syntax only) nor the bare-array
 			## check above (shape only) catches this -- both are satisfied by
 			## a syntactically-valid array of objects regardless of what each
 			## object's own "type" value actually is. This is a cheap,
