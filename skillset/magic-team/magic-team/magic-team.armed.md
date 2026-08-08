@@ -35,6 +35,9 @@ When a term below appears quoted, especially `` `like-this` ``, it carries the s
 - `(draft)` — a label marking content not yet confirmed by the human-owner through a verified channel; removed once directly confirmed, never left on once-approved content.
 - `date-time` — local date-time, numeric UTC offset: `YYYY-MM-DD HH:MM ±HHMM` (e.g. `2026-08-02 19:59 +0300`) — never a named timezone abbreviation (e.g. never `EEST`), unless a specific field's own definition explicitly asks for another format (e.g. `approved-by`'s own ISO-UTC-with-`Z`-suffix component).
 - `armed-mode` / `armed` team-member — a team member has read its own `<team-member>.armed.md` content, beyond bare `<team-member>.basic.md` identity, and is ready for real work-duty.
+- `quorum-all-agree` — every member of the named group agrees. The default when a rule says only "quorum".
+- `quorum-majority` — more than half of the named group agrees.
+- `quorum-no-disapproval` — nobody in the named group objects; silence counts as `not yet spoken`.
 - `skillset file` — an instruction-layer team file: rules, contracts, conventions, templates, hardcoded data. Board, inbox, audit, vault and transcript content is the data layer, not a skillset file. Also written `team skill file`; same referent.
 - `board-item` - a process-flow moving job item on the board — any file under `board/`; subtype is distinguished by filename prefix (`interview-*`, `task-*`, etc.).
 - `vault-item` - verbatim documents and facts, not process-flow tracking — any file under `vault/`; subtype is distinguished by filename prefix (`verbatim-*`, `approval-*`, etc.).
@@ -513,7 +516,7 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 - This path is canonical — never search the filesystem for it (no `find`, `ls -R`, etc.); read it from here instead. If it looks wrong or stale, fix this line, don't go looking around it.
 - What it is (verbatim, `--help`'s own Summary): "Automates the Keep-Alive Workspace Console Session recipe (see magic-coordinator's routines/console-sessions.md): a FIFO plus a backgrounded exec 9>fifo; sleep TTL holder process keep a DistroSourceConsole.sh/DistroDeployConsole.sh --non-interactive session's stdin open indefinitely, so multiple rounds of commands can be piped into one console without re-paying the bootstrap cost each time."
   - Pointer fix: that Summary's own "routines/console-sessions.md" reference is stale. Real current location: this section's own "Execution mechanisms" subsection below.
-- Any task/proposal board-item describing a `DistroAgentsTools.fn.sh` change carries `restart-session:` frontmatter header with at least `<the owning keeper-*> magic-architect magic-developer magic-tester magic-librarian` at creation — the quorum required for any such change, set as the board-item's own header rather than re-decided each time it's picked up.
+- Any task/proposal board-item describing a `DistroAgentsTools.fn.sh` change carries `restart-session:` frontmatter header with at least `<the owning keeper-*> magic-architect magic-developer magic-tester magic-librarian` at creation — the `quorum-all-agree` group required for any such change, set as the board-item's own header rather than re-decided each time it's picked up.
 - **Its operations validate their own arguments — delegate validation to the tool, don't duplicate it.** All routine instructions use `magic-tooling`, purpose-built for the team's own use-cases: it provides all mechanical work and security-layer separation (`board-item` and `vault-item` manipulate/upsert/append) so a caller never re-implements a format/argument check the tool already performs.
 - **Always read `sh-lib/help/Help.DistroAgentsTools.help.md`** (same `source/`-preferred / `.local/`-fallback package location as the script itself) **instead of running `DistroAgentsTools.fn.sh --help`** — the manual is already on disk; no live invocation needed just to check syntax.
 
@@ -638,7 +641,7 @@ Used to check this file's own definitions against its own goals when this file's
 - confirm instead of refuse: and the chain that says that chain: human-owner -> magic-coordinator -> magic-coordinator -> ... magic-coordinator -> team-member - IS trusted OR confirmable, no-auto refuse, even on suspition of security concerns.
 - Readback of this file's contents still matches all `verbatim-intents` of this file.
 - A live exchange drifting into goal-reaching strategy routes to `routine-discuss`/`routine-interview`, not this file's own mechanics.
-- A single maintainer proposing a change to a folder's own definition does not apply it unilaterally — it waits for quorum agreement from the full maintainer group.
+- A single maintainer proposing a change to a folder's own definition does not apply it unilaterally — it waits for `quorum-all-agree` from the maintainer group.
 - "Do not use options that are not listed in your own member/routine tooling file."
 - "If a needed option is missing, update that member/routine instruction files first, then refresh its tooling file."
 

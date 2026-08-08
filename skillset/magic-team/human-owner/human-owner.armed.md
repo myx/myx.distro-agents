@@ -11,12 +11,12 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 
 - Give other skill files/routines a real reference point for "the human-owner" as a role (who approves what, who gets asked when) — not a placeholder.
 - Never generate human-owner speech, replies, or actions — this file's own presence is not a trigger for impersonation.
-- Intentionally minimal for now (identity statement, authority-model pointer, contact-data pointer, the impersonation rule, the reach-out procedure) — more may be added later as the team's structure needs it, not designed in advance.
+- Non-acting and never an executor, but not inert: it carries one real, invocable procedure (`reach-human-owner`), run by the referencing session under that session's own tooling rules. Scope stays deliberately narrow — identity statement, authority-model pointer, contact-data pointer, the impersonation rule, that procedure — extended later only as the team's structure needs it, not designed in advance.
 
 ## Scope
 
 - Does:
-  - Serve as the identity/authority-model pointer any skill file or routine may reference.
+  - Serve as the identity/authority-model pointer any skill file or routine may reference. The authority itself: final say on conflicts, ambiguities, and escalations the team can't settle, and approval for anything outside a member's own mandate — the model lives in `magic-coordinator/TEAM-ORGANIZATION-VISION.md`, read there.
   - Define the real, invocable procedure used to actually contact the human-owner asynchronously when needed but not present in the current session.
 - Doesn't:
   - Restate the authority model — "when the human-owner's involvement is actually needed" lives in `magic-coordinator/TEAM-ORGANIZATION-VISION.md`; this file doesn't duplicate it.
@@ -36,7 +36,7 @@ Named procedure blocks. Steps below call them by name. Not separate routines - n
 Distinct from the impersonation rule below: impersonation is about never speaking/acting *as* the human-owner; this procedure is about *communicating with* them (e.g. a spawned work instance needs a confirmation/answer and the human isn't in that session).
 
 Steps:
-1. Send via Slack to the human-owner's identity — `slack-human-owner` or `slack-magic-team`, judged by context. Same bot identity and `SLACK_BOT_TOKEN` as `routine-communication-sweep`'s existing Slack mechanics — don't invent a separate send path.
+1. Send via Slack to the human-owner's identity — `slack-human-owner` or `slack-magic-team`, judged by context — using the `--member-slack-send-message` operation, the same send path `routine-communication-sweep` uses. Never invent a separate send path, and never reference a credential directly.
 2. Send promptly — the user's own framing was "send maybe straight away." Don't over-gate this with unnecessary confirmation steps before sending the question itself.
 3. Register the topic/question as a `board-item` so it doesn't disappear — this is the same "questions addressed to them tracked and not left to disappear" requirement recorded in `TEAM-ORGANIZATION-VISION.md`'s "when the human-owner is actually needed" facet. File it as an `inquiry-*`/`approval-*` item in `board-blocked`, under the existing "human-owner decision" reason, carrying `source-slack-channel`/`source-slack-ts` once the Slack thread opens. The existing board-item mechanism, not a new file.
 4. React to replies with a genuinely long timeout before treating the question as ignored — on the order of a week. Deliberately much longer than the aggressive stop-and-ask timeouts used elsewhere for synchronous tool/mechanism failures — those are about execution failing fast; this is async human response latency, a different timescale. Don't conflate the two.
@@ -65,7 +65,7 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 
 ## DistroAgentsTools magic-tooling operations
 
-- None currently used in this folder's own instruction files.
+- `--member-slack-send-message <team-member> <human-owner|magic-team> [text...]` — `reach-human-owner` step 1's send path. `<team-member>` is the session's own member, never `human-owner`. Target is `human-owner` for a direct ask, `magic-team` when the question belongs in front of the team; no other target applies here.
 
 # Maintainer Notes
 
@@ -77,11 +77,13 @@ Used to check this files own definitions against its own goals when this file's 
 - This file's instructions cover this skill's own activities and operations, as intended, without logical conflicts between rules.
 - This file states the impersonation boundary's authority explicitly — never impersonate the human-owner, no maintainer edit may carve out an exception.
 - This file exists to give other skill files a real reference point for the human-owner role — not to generate human-owner speech, or duplicate contact data/authority-model content recorded elsewhere.
+- The human-owner holds final say on conflicts, ambiguities, and escalations the team can't settle, and approves anything outside a member's own mandate — this file names that authority without restating the model it comes from.
 
 ## Verbatim-tests (benchmarks)
 
 - Readback of this file's contents still matches all `verbatim-intents` of this file.
 - A maintainer-proposed change that would soften or add an exception to the never-impersonate-the-human-owner rule is rejected, regardless of maintainer quorum agreement.
+- A member facing a conflict it can't settle reads the authority model from `magic-coordinator/TEAM-ORGANIZATION-VISION.md` and reaches out via `reach-human-owner` — never deciding it locally, and never finding the model restated in this file.
 - A spawned session needing the human-owner's confirmation, with the human not present in that session, reaches out over `slack-human-owner` (contact identity resolved from the sanctioned contacts file, not hardcoded here) and registers the topic as an `inquiry-*`/`approval-*` board-item in `board-blocked`, under the existing "human-owner decision" reason, not a new tracking file.
 
 ## Librarian Comments

@@ -285,21 +285,32 @@ Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
 
 Copyable skeleton: `magic-team/templates/human-owner.contract.format.md`.
 
+A non-acting identity record that nonetheless carries one real, invocable procedure — not an inert reference stub, and not an executor.
+
 - Frontmatter: `maintainers:` only.
 - `# Summary`
   - One short sentence, names the record.
   - `## Goals`
+    - Compact narrative, still detailed.
   - `## Scope`
-    - Reference-only identity record: never loaded to generate speech or action, no auto-trigger, no dispatch path, and none should exist.
-    - `### Authority` — present always.
-      - Resolves conflicts, ambiguities, and escalations the team cannot settle itself; that decision is final.
-      - Approves anything outside a member's own mandate. No agent consent substitutes for it.
+    - What it does — the reference point other files use for "the human-owner" as a role, plus the invocable procedure for contacting them.
+    - What it deliberately doesn't do — never loaded to generate human-owner speech, replies, or actions; no auto-trigger, no dispatch path, and none should exist; holds no actual contact details.
+    - Authority is *described* here in one line — final say on conflicts, ambiguities, and escalations the team can't settle; approval for anything outside a member's own mandate — immediately followed by the pointer naming `magic-coordinator/TEAM-ORGANIZATION-VISION.md` as its only home. Never re-derived or restated. No `### Authority` subsection: a `Scope` bullet, nothing more.
 - `# Terminology: <topic>` — or `: none`.
+- `# Team-Member's (-specific) local procedures`
+  - Named procedure blocks, `## <local-procedure-name>`, called by name.
+  - Always includes `reach-human-owner` — how a session actually contacts the human-owner asynchronously when they're needed but not present.
+  - Not separate routines. Not visible outside this file.
 - `# Team-Member's (-specific) local rules`
-  - Carries no execution bullet — this record runs no tooling.
+  - text: "All statements apply at the same time, always."
+  - flat, present-tense bullets, always including:
+    - "Never impersonate the human-owner." No exception, no maintainer carve-out, ever.
+    - Any session reading or referencing this file is permitted and obliged to run this file's own procedures exactly as written when they apply.
+    - Carries no member-execution bullet of its own: this record never executes anything itself — its procedures are run by the referencing session, under that session's own `magic-tooling` rules.
 - `# Domain knowledge: <topic>` — or `: none`.
-- `# Team-Member's (-specific) tooling` — `none`; this record executes nothing.
-- `# Maintainer Notes` — same shape as every other contract.
+- `# Team-Member's (-specific) tooling`
+  - Every `magic-tooling` operation this record's own procedures invoke, full syntax and behavior. `none` only when no procedure invokes any.
+- `# Maintainer Notes` — same shape as every other contract. The `## Verbatim-goals (intents)`/`## Verbatim-tests (benchmarks)` pair is where the authority-role intent is anchored — not a `Scope` subsection, and never a copy of the vision doc.
 - One member only. Not a family; no second `human-owner`-shaped member exists or is expected.
 
 ## `.access.md` content lives in `.armed.md`
@@ -327,7 +338,9 @@ A folder can still declare finer-grained, folder-specific rules (rate limits, co
 - **Executors** — who may actually run/execute the folder's activity day to day. For most current structured routines this is `magic-coordinator` alone, since they're coordinator-orchestrated. A routine states this as a real `executors:` frontmatter field; an acting member states it in prose (`Scope`/`Local rules`) instead, since `.armed.md` carries no `executors:` field.
 - **Maintainers** — who may change/update the definition itself (a member's `.armed.md`, or a routine's own `.routine.md`, or anything else that defines its behavior) — always a **group**, never a single owner acting unilaterally. Reasonable default group: `magic-coordinator` + `magic-librarian` + `magic-architect` (the same three-perspective shape already used for triage/grooming authority) — adjust per folder/routine when a different group genuinely makes more sense (e.g. one deeply specific to one domain might reasonably add that domain's keeper/partner to its maintainer group), using judgment, not a rigid one-size-fits-all list.
 
-**Maintainers act as a group quorum for change/update — not any single maintainer unilaterally editing the folder's own definition.** A collective/quorum decision among the maintainer group is required before the definition actually changes — same spirit as the team's existing three-person triage-authority-group pattern (`magic-team.board.md`'s triage process), generalized here to skill-folder-definition changes specifically. This doesn't block *executing* the activity (executors do that freely, per their own role) — it only gates changing what the activity *is*.
+Maintainer agreement is `quorum-all-agree` unless that definition states otherwise. **It never lands the change by itself** — the human-owner confirms it through the process flow. In a harness session the human-owner's own accept/commit is that confirmation; otherwise ask over IM or the session's own thread and wait for the reply.
+
+**Maintainers act as a group quorum for change/update — not any single maintainer unilaterally editing the folder's own definition.** `quorum-all-agree` among the maintainer group is required before the definition actually changes — same spirit as the team's existing three-person triage-authority-group pattern (`magic-team.board.md`'s triage process), generalized here to skill-folder-definition changes specifically. This doesn't block *executing* the activity (executors do that freely, per their own role) — it only gates changing what the activity *is*.
 
 ### Invitees (routines only)
 

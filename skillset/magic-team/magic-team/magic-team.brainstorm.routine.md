@@ -56,7 +56,7 @@ All statements apply at the same time, always. These rules override a participan
 - Unsure whether a promising idea needs `routine-discuss` or can go straight into the task-creation lifecycle: default to `routine-discuss` first if there's genuine ambiguity or tradeoffs; skip straight to task-creation only if the idea is already clear-cut enough that a discussion would just rubber-stamp it.
 - Goal-directedness: when a goal is set for this session, actively work toward it (genuinely covering the loosely-set topic, not drifting off it entirely); non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - When `magic-coordinator` is the executor/convener, it is obligated to keep `slack-event-track` activity tracking current as the brainstorm actually runs — not only via whatever gets filed at step 5.
-- Changes to this routine's own definition need quorum (`magic-coordinator`, `magic-librarian`, `magic-architect`) — no single maintainer may edit it alone.
+- Changes to this routine's own definition need `quorum-all-agree` (`magic-coordinator`, `magic-librarian`, `magic-architect`) — no single maintainer may edit it alone.
 - `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling

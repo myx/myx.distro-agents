@@ -94,7 +94,7 @@ Never decides *whether* to spawn — the caller already made that call (an expli
 4. **dispatch-process-item**: May or may not include dispatch board-item processing:
    - dispatch documentation, approval, and a spawn/inline launch via `spawn-one-dispatch`, or
    - just a job, tracked on the board, no dispatch document.
-5. **dispatch-approval**: A dispatch may be approved by quorum, or by `magic-coordinator` alone, per whatever standing instructions/rules govern the task in question.
+5. **dispatch-approval**: A dispatch may be approved by `quorum-all-agree`, or by `magic-coordinator` alone, per whatever standing instructions/rules govern the task in question.
 
 Not every active board-item is a formal dispatch, and not every spawn/dispatch is a board-item:
 - `magic-coordinator` may start a job and place its board-item directly in `board-running`.

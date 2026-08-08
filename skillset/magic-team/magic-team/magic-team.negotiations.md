@@ -12,7 +12,7 @@ Referenced from: `routine-interview`, `routine-discuss`, `magic-coordinator.harn
 interview-like mode, and any future routine handling multiple open topics.
 
 Owner: `magic-librarian`.
-Maintainer quorum: `magic-coordinator` + `magic-librarian` + `magic-architect`.
+Maintainers (`quorum-all-agree`): `magic-coordinator` + `magic-librarian` + `magic-architect`.
 
 ## Topics and questions
 
