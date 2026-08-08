@@ -1,5 +1,5 @@
 ---
-maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>]
+maintainers: [<group, e.g. magic-coordinator, magic-librarian, magic-architect; plus human-owner if the file states an owner-guaranteed rule>]
 ---
 # <name>.armed.md — example skeleton (`human-owner`)
 
