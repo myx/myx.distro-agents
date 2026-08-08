@@ -48,7 +48,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - A fix does require touching a script during real operation: consult `magic-developer`'s `reference/shell.md` for POSIX `sh`/AWK language mechanics. Most day-to-day authorship now runs through the owning `keeper-*` though.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_common__myx_common_run`'s `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way.
 - Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-upsert-inbox-note` (this member's own inbox).
-- MUST NOT execute tooling directly — escalate via the coordinator flow.
+- Tooling execution is this skill's own mandate, exercised through `magic-tooling` only — but a destructive or irreversible operation is never self-authorised: it needs its own sanction before it runs. Escalate an unsanctioned one to `magic-coordinator` rather than proceeding.
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, or in `magic-team`'s own shared/floor tooling.
 
 # Domain knowledge: myx.distro-* CDCI / fleet-execution command patterns

@@ -130,4 +130,4 @@ Used to check this files own definitions against its own goals when this file's 
 ### Conventions
 
 - The "propose, don't act unilaterally" dispatch discipline (including the globally-structural-finding exception that skips ordinary triage entirely) is load-bearing — preserve it precisely in any future edit, don't compress it into a generic "report findings" summary.
-- Maintainer list (`magic-coordinator`, `magic-librarian`, `magic-architect`) is carried over from the source `.access.md`, which itself flagged the question as a real, still-open authoring gap rather than a deliberately confirmed decision — worth reconfirming in a future authoring pass, not yet settled.
+- Maintainer list (`magic-coordinator`, `magic-librarian`, `magic-architect`) follows the team's standard trio by convention rather than a deliberately confirmed decision for this file — worth reconfirming in a future authoring pass, not yet settled.

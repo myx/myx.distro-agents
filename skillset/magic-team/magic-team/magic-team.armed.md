@@ -581,7 +581,7 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 "Read-only: one member's own current work-session input -- personal, not routine-dictated (every armed member runs this against its own name as it becomes armed, regardless of which routine triggered the arming). Fixed --owner <member> and --all-types."
 
 ## `--owner-workspace-list` / `--owner-workspace-upsert` / `--owner-workspace-forget` Operation Reference
-Named directly in this file's own "Workspace" section above: the only sanctioned way to read/add/remove entries in `human-owner.workspaces.md`'s tracked path list. No verbatim `--help` text exists in the merged source material (`magic-team.armed.md`/`magic-team.tooling.md`) — a genuine gap in the source documentation itself, carried forward honestly rather than invented. See `myx.distro-agents`'s own help for the real syntax.
+Named directly in this file's own "Workspace" section above: the only sanctioned way to read/add/remove entries in `human-owner.workspaces.md`'s tracked path list. No verbatim `--help` text is available for it here — see `myx.distro-agents`'s own help for the real syntax.
 
 ## `--magic-heartbeat-state-read` / `--magic-heartbeat-state-upsert` Operation Reference
 Named directly in this file's own "The board" section above: reads/rewrites the `heartbeat-state-note`'s structured fields (per-platform comms-sweep check markers, watched-conversation list, capability gaps) that replaced the retired `TEAM-COMMS.md` stub. No verbatim `--help` text exists in the merged source material — same documentation gap as above, carried forward honestly rather than invented.
@@ -606,9 +606,7 @@ Used to check this file's own definitions against its own goals when this file's
 ## Verbatim-goals (intents)
 
 - Communications between participating member instances of co-working sessions are deemed over `internal-channel`.
-- "magic-team MUST read and use magic-team.tooling.md."
-- "magic-team MUST use magic-team/magic-team.tooling.md as baseline."
-- "magic-team MUST execute only options allowed by those two files."
+- "magic-team MUST execute only options allowed by this file's own tooling section."
 - "magic-team MUST NOT execute tooling directly; escalate via coordinator flow."
 - "Pass through to `magic-coordinator` anything not specifically covered by this file. This skill exists to hold two things — the board and a set of shared reference files — not to make decisions."
 - "For escalations, any work-session summons armed `magic-coordinator` — never a fresh instance through the same suspect channel; the summoned instance already holds its own independent verification channel."
@@ -623,7 +621,6 @@ Used to check this file's own definitions against its own goals when this file's
 - "This file governs form and control points, not strategy."
 - "This is the durable, cross-cutting model doc for how the team's skill folders work — both routine-\* virtual members and every acting member: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule."
 - "This file is the member-specific option set for magic-team."
-- "Baseline include: magic-team/magic-team.tooling.md."
 - "magic-team.armed.md MUST instruct using this file."
 - Any process-flow/mechanics action (Slack post, board write, inbox filing) routes through the real DistroAgentsTools.fn.sh op via mcp__myx_common__myx_common_run's lib/execShStdin — never a raw Bash call, never a Write/Edit shortcut standing in for the op. This includes reflection-* filing specifically — --member-upsert-inbox-reflection, never a raw Write of the file. Direct editing of a file's own content (an armed.md's prose, a tooling.md's option list) is not process-flow/mechanics and stays a plain Read/Edit action.
 
@@ -664,5 +661,5 @@ Used to check this file's own definitions against its own goals when this file's
 ### Conventions
 
 - **Board-item file contents themselves (`board/*`) are not indexed here** — live, per-item state, not baseline knowledge about how the board works.
-- This file's role includes holding `magic-team`'s own `Verbatim-goals`/`Verbatim-tests` pair (originally the former `magic-team.librarian.md`'s sole role, now merged here as this file's "Maintainer Notes" section). Any future edit to this file must preserve every distinct rule stated in it — never merge two or more distinct rules into one vaguer summary bullet, and never rephrase a `Verbatim-goals`/`Verbatim-tests` entry away from its original wording.
+- This file holds `magic-team`'s own `Verbatim-goals`/`Verbatim-tests` pair, in its "Maintainer Notes" section. Any future edit to this file must preserve every distinct rule stated in it — never merge two or more distinct rules into one vaguer summary bullet, and never rephrase a `Verbatim-goals`/`Verbatim-tests` entry away from its original wording.
 - The terminology glossary ("Team terminology") and the board-item entity model ("Board & Inbox board-items entity model") are dense, technical, verbatim-preserved reference material — every term, field, and per-type subsection stays exact, never summarized or compressed, the same standard any `keeper-*`'s own "Domain knowledge" section holds itself to.
