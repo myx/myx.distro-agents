@@ -10,7 +10,7 @@ Routine-conventions-check is a review pass checking a proposed change — a sour
 
 ## Goals
 
-A review pass: check something — a proposed source-code diff, a skill/routine `.md` file's internal consistency, or even a chat message, if that's the actual thing being reviewed — against this team's own established conventions, before it lands. Scope is judged from context, not hard-coded to one category: read whatever is actually being proposed, identify the closest existing analog already in the codebase/skill-set, and check the proposal against it directly, never from memory/assumption — this mirrors the "read the actual file, don't guess" discipline of `routine-session-start`'s step 2, **check-file-currency**.
+A review pass: check something — a proposed source-code diff, a skill/routine `.md` file's internal consistency, or even a chat message, if that's the actual thing being reviewed — against this team's own established conventions, before it lands. Scope is judged from context, not hard-coded to one category: read whatever is actually being proposed, identify the closest existing analog already in the codebase/skill-set, and check the proposal against it directly, never from memory/assumption — read the actual file, don't guess.
 
 ## Scope
 
@@ -49,8 +49,9 @@ All statements apply at the same time, always. These rules override a participan
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
 - **Trigger**: any armed-mode team member may invoke this on its own proposed work before landing it (e.g. `magic-developer` checking a shell-source diff, `magic-librarian` checking its own doc edit). `magic-coordinator` and the human-owner may invoke it against anything, in any state, not gated to armed-mode.
 - Mandatory, not just available: any change to a rule/instruction file's own text (per `magic-team`'s own Rule/instruction/definition/description conventions) runs this check before landing — not left to the invoker's own discretion.
+- **A change is the only trigger — never a run.** Checking fires on a proposal before it lands, or on a landed change; an instruction already in force has been checked and is not re-checked because something is about to execute. "Verify the instructions before running them" is work with no trigger behind it — don't add such a step to any routine.
 - When a change touches a team-member's own behavior or duties — its rules, instructions, or descriptions — this check assesses the update against the `Verbatim-goals (intents)`/`Verbatim-tests (benchmarks)` pair held in that file's own `# Maintainer Notes` section; otherwise this particular check doesn't execute. If assessment alone can't settle whether the change actually holds, `magic-librarian` formulates a concrete testing request and dispatches `magic-tester` to verify it for real. This check's own assessment exists to confirm improvements are present and no regressions exist compared to the prior version, or its absence.
-- **Blocking model**: a real, concrete finding blocks the reviewed change from landing until addressed — unless the invoker is `magic-coordinator` or the human-owner themselves, in which case the finding is advisory only (surfaced, not enforced): both already hold final say regardless of this operation's output. A cosmetic/minor finding never blocks, same split as the cosmetic-vs-blocking decision rule in `routine-session-start`'s own Local rules.
+- **Blocking model**: a real, concrete finding blocks the reviewed change from landing until addressed — unless the invoker is `magic-coordinator` or the human-owner themselves, in which case the finding is advisory only (surfaced, not enforced): both already hold final say regardless of this operation's output. A cosmetic/minor finding never blocks — let the normal daily self-sufficiency audit pick it up later. Unsure whether a finding is a real gap or minor: default to surfacing it.
 - Every call works on a context and on specific document types. Two calls that read alike are not the same operation — check what each actually touches before treating them as duplicates.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal.
 - `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
@@ -79,7 +80,7 @@ Used to check this files own definitions against its own goals when this file's 
 
 ### Reference
 
-- `routine-session-start` — its step 2 (**check-file-currency**) carries the "read the actual file, don't guess" discipline this routine's own analog-comparison step mirrors, and its Local rules carry the cosmetic-vs-blocking split this routine's own blocking model reuses.
+- `routine-session-start` — the opening counterpart a session runs; it does no instruction-currency checking of its own, since checking is triggered by a change, not by a run.
 - `magic-librarian/magic-librarian.armed.md` — "Two writing modes" standard for skill-folder `.md` files, checked in step 2; also the sole location for a member's own `Verbatim-intents`/`Verbatim-benchmarks` pair this check assesses updates against.
 - `magic-team/magic-team.armed.md` — the Rule/instruction/definition/description conventions section that makes this check mandatory (not discretionary) for any rule/instruction-file text change.
 

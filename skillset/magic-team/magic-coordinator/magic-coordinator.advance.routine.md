@@ -173,6 +173,8 @@ All statements apply at the same time, always. These rules override a participan
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
 - This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
 - Overrides the inherited coworking thread anchor: this routine's session thread lives in `slack-event-track`, not `slack-magic-team`. Genuinely important items still go separately to the human-owner DM and `slack-magic-team`.
+- Does not run **fold-in-learned-lessons** — that step works a small, recent, unresolved reflection set, and this routine's every-iteration cadence would grind the whole accumulated pile each pass.
+- Not wired into `routine-session-start`/`routine-close-session` as separate calls — this routine runs unattended every main-loop iteration and its trace is debug-level. **advance-report** is that inherited closing obligation, discharged into `slack-event-track`.
 - Every real file read/write and communications API call this routine makes (including `check-process-board`'s own `--comms-slack-react` calls) is its own direct `lib/execShStdin` call — no Keep-Alive Console Session assumed or required, per `magic-team.armed.md`'s process-flow rule.
 - Never resolves an open design/judgment question surfaced by an investigation subtask — flags it for `routine-grooming`/`magic-architect`.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal.

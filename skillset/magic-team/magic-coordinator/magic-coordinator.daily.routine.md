@@ -53,7 +53,6 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Skip only if this exact session has already loaded it earlier in the same continuous run.
 0b. **run-shared-opening-steps** (`routine-session-start`):
    - Declares this as a coworking-like/structured-multi-member session.
-   - Runs its own step 2 currency check (**check-file-currency**).
    - Invokes `routine-process-reflections` for this project/workspace.
    - Processes own inbox.
    - Posts an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).

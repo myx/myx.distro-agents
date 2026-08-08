@@ -209,6 +209,8 @@ All statements apply at the same time, always. These rules override a participan
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
 - This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
 - Overrides the inherited coworking thread anchor: this routine's session thread lives in `slack-event-track`, not `slack-magic-team`. Genuinely important items still go separately to the human-owner DM and `slack-magic-team`.
+- Does not run **fold-in-learned-lessons** — that step works a small, recent, unresolved reflection set, and this loop's per-nudge cadence would grind the whole accumulated pile every iteration.
+- Not wired into `routine-session-start`/`routine-close-session` as separate calls — this loop iterates far more often than the structured routines those are meant for, and its per-nudge traffic is debug-level. **open-event-track-thread** and **conclude-event-track-thread** are that inherited opening/closing obligation, discharged into a `slack-event-track` thread per `next-iteration`.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - This routine is a scheduler tick — each `next-iteration` checks what's due against `magic-team`'s own calendar/full-sprint routine (comms cadence, once-daily grooming, the daily meeting) and acts on exactly what's due this pass, nothing more.
 - **Per-platform pacing, not one interval for everything**:
