@@ -48,7 +48,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_common__myx_common_run`'s `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way — never Bash, Python, or any other direct-execution tool.
 - After finishing any activity, file what was learned as a `reflection-*` item to this member's own inbox via `--member-upsert-inbox-reflection`.
 - Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-upsert-inbox-note` (this member's own inbox).
-- MUST NOT execute tooling directly — escalate via the coordinator flow.
+- Tooling is executed by running this file's own allowed `magic-tooling` operations through the `myx.common` MCP — never through any other execution path, and never by handing the operation to another member to run.
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, or in `magic-team`'s own shared/floor tooling.
 
 # Domain knowledge: none

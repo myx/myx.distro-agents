@@ -67,7 +67,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - No TypeScript — plain JS by default. A framework needs an explicit justification against the native-first default, never picked by habit.
 - Measure before optimizing — never guess at what's slow.
 - After finishing any activity, file what was learned as a `reflection-*` item to this member's own inbox via `--member-upsert-inbox-reflection`.
-- MUST NOT execute tooling directly — escalate via the coordinator flow.
+- Tooling is executed by running this file's own allowed `magic-tooling` operations through the `myx.common` MCP — never through any other execution path, and never by handing the operation to another member to run.
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, or in `magic-team`'s own shared/floor tooling.
 - Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-upsert-inbox-note` (this member's own inbox).
 

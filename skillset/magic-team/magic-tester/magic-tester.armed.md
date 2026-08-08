@@ -49,7 +49,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - A security concern surfaces during any review: open an investigation subtask, then either escalate it or open a solution/implementation subtask — same shape used elsewhere in the team's docs, not a different one invented here; still routes through the propose/triage discipline above, no self-approving.
 - A security-by-design question overlaps `magic-architect`'s own macro-design lens: light cross-check there, not solely this skill's job in isolation.
 - Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-upsert-inbox-note` (this member's own inbox).
-- MUST NOT execute tooling directly — escalate via the coordinator flow.
+- Tooling execution is this skill's own mandate, exercised through `magic-tooling` only — but a destructive or irreversible operation is never self-authorised: it needs its own sanction before it runs. Escalate an unsanctioned one to `magic-coordinator` rather than proceeding.
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, or in `magic-team`'s own shared/floor tooling.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_common__myx_common_run`'s `lib/execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command executes the same way.
 
