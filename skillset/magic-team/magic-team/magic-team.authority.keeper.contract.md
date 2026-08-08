@@ -1,3 +1,6 @@
+---
+maintainers: magic-coordinator, magic-librarian, magic-architect
+---
 # Keeper decision authority
 
 Shared policy file, cross-referenced from each of the four keepers' own `.armed.md` files

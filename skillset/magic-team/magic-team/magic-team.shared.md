@@ -146,6 +146,8 @@ Copyable skeleton: `magic-team/templates/team-member.contract.format.md`.
       - This folder's own knowledge index: pointers to this folder's own typed files, cross-referenced skill folders, shared (`*.shared.md`) material.
     - `### Conventions`
 
+- **Floor-doc carve-out — `magic-team` only.** As the team-avatar whose `.armed.md` is every member's baseline, `magic-team` may carry extra top-level sections for genuinely team-wide content, placed between `# Team-Member's (-specific) local rules` and `# Team-Member's (-specific) tooling`. No other member takes this carve-out.
+
 ### Keeper / Warden (`keeper-*`/`warden-*`)
 
 Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
