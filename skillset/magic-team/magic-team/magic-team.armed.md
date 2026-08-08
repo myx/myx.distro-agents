@@ -592,7 +592,7 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 Named directly in this file's own "Workspace" section above: the only sanctioned way to read/add/remove entries in `human-owner.workspaces.md`'s tracked path list. No verbatim `--help` text is available for it here — see `myx.distro-agents`'s own help for the real syntax.
 
 ## `--magic-heartbeat-state-read` / `--magic-heartbeat-state-upsert` Operation Reference
-Named directly in this file's own "The board" section above: reads/rewrites the `heartbeat-state-note`'s structured fields (per-platform comms-sweep check markers, watched-conversation list, capability gaps) . No verbatim `--help` text exists in the merged source material — same documentation gap as above, carried forward honestly rather than invented.
+Named directly in this file's own "The board" section above: reads/rewrites the `heartbeat-state-note`'s structured fields (per-platform comms-sweep check markers, watched-conversation list, capability gaps). No verbatim `--help` text exists in the merged source material — same documentation gap as above, carried forward honestly rather than invented.
 
 ## Execution mechanisms
 - **Every shell command, no exceptions, goes through `mcp__myx_common__lib_execShStdin` — never Bash, Python, or any other direct-execution tool.** Applies to every member and routine, not just `DistroAgentsTools.fn.sh` calls.
