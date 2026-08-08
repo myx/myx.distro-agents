@@ -81,7 +81,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Every member — acting members and `routine-*` virtual members alike — always has one more idle-task candidate available beyond whatever `idle-tasks/*.idle.md` files it happens to have.
      - That candidate: a short, iterative "research the web a bit on a topic of this member's own duties, detect good proposals to assess at the next `routine-grooming`" pass.
 4a. **run-check-process-board**: run the `check-process-board` procedure (`magic-coordinator.armed.md`) directly. Never `routine-advance`.
-5. **librarian-updates-context**: today's new task details already live on the board directly (via step 4a's `routine-advance` pass and step 7's dispatched agents' own board moves) — no separate write-back step exists.
+5. **librarian-updates-context**: today's new task details already live on the board directly (via step 4a's **run-check-process-board** pass and step 7's dispatched agents' own board moves) — no separate write-back step exists.
 5a. **sync-camunda-diagrams**: run `routine-camunda-diagram-sync` — mtime check on the `temp-magic-team` BPMN diagrams against team definition files, redeploy handoff to that routine's own owning `partner-*` if stale.
    - Skip silently if nothing changed — don't dispatch an agent just to find that out, the mtime comparison is cheap enough to do inline.
 6. **questions-then-conclude**: let the user (or a member, narrated) ask anything before closing the standup portion.

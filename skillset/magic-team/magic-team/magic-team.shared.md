@@ -69,8 +69,8 @@ Copyable skeleton: `magic-team/templates/routine.contract.format.md`.
 - `# Steps`
   - Exact instructions, execute in order, literally as written.
   - A step that can't execute as written: escalate, or fail loud.
-  - Exact steps as nested lists; step rules nested as sub-lists.
-  - Every step carries a name, in the established shape: `<N>. **name-of-meaning**: …` — names what the step does, never where it sits. Unique within the file.
+  - Exact steps as nested lists; nested lines follow the nested-item grammar below (`goal:`/`rule:`/`step:`).
+  - Every root-level step carries a name, in the established shape: `<N>. **name-of-meaning**: …` — names what the step does, never where it sits. Unique within the file.
   - A step is referred to by its name, not its number alone — inside the file and from any other file. A step with no name can only be pointed at by position, and position is the first thing an edit changes.
   - Applied as each routine file is next touched, not as a sweep.
 - `# Closure steps`
@@ -317,6 +317,35 @@ A non-acting identity record that nonetheless carries one real, invocable proced
   - Every `magic-tooling` operation this record's own procedures invoke, full syntax and behavior. `none` only when no procedure invokes any.
 - `# Maintainer Notes` — same shape as every other contract. The `## Verbatim-goals (intents)`/`## Verbatim-tests (benchmarks)` pair is where the authority-role intent is anchored — not a `Scope` subsection, and never a copy of the vision doc.
 - One member only. Not a family; no second `human-owner`-shaped member exists or is expected.
+
+## Nested-item grammar
+
+How a nested list under an instruction declares what each of its lines *is*. Applies to any nested instruction list in a skillset file — a routine's `# Steps`/`# Closure steps`, and the `Steps:` lists inside any member's or routine's own local-procedures blocks — not only `.routine.md`.
+
+Three item kinds:
+
+- `goal:` — intent, not an instruction. What this branch is trying to achieve. Goes first; may be several; never executed.
+- `rule:` — a rule in force **only inside this branch**, only once it is entered. Order-independent.
+- `step:` — an ordered instruction, executed in the order written.
+
+Order within one nested list: goals, then rules, then steps.
+
+**Prefixes are dropped when every line in that list is the same kind** — declare the kind once, on the parent line's own trailing clause, instead: `, goals:` / `, rules:` / `, steps:`. A list mixing kinds prefixes every line.
+
+```
+1. **name-of-meaning**: some step, condition, then:
+   - goal: what this branch is for
+   - rule: some branch-local rule text
+   - step: sub-step 1
+   - step: sub-step 2
+2. **other-name**: some step, condition, steps:
+   - sub-step 1
+   - sub-step 2
+```
+
+Same grammar at any depth. Top-level steps are not prefixed — they keep `<N>. **name-of-meaning**: …`. Nested steps are not named.
+
+**A nested `rule:` is not a Local rule.** `# Routine's local rules` are in force for the whole routine, always, all at once. A `rule:` is in force only within its own branch. Moving one up into Local rules widens what it governs — a change of meaning, never a tidy-up. Moving a Local rule down into a branch narrows it, the same error mirrored.
 
 ## `.access.md` content lives in `.armed.md`
 

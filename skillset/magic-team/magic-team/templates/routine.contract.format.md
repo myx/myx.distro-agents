@@ -27,12 +27,16 @@ Normative contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Rou
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
 1. **[step-one-name]**: [Step one. Every step carries a name in this shape — what it does, never where it sits; unique within the file.]
-   - [Step-one sub-step 1, if any.]
-      - [Step-one sub-step 1 sub-rule 1, if any.]
-      - [Step-one sub-step 1 sub-rule 2, if any.]
-   - [Step-one sub-step 2, if any.]
+   - goal: [What this branch is for. Optional, may be several, goes first, never executed.]
+   - rule: [A rule in force only inside this branch, only once it is entered. Order-independent, grouped before the steps.]
+   - step: [Step-one sub-step 1, ordered.]
+      - rule: [Same grammar at any depth.]
+      - step: [Deeper sub-step, ordered.]
+   - step: [Step-one sub-step 2, ordered.]
    ...
-2. **[step-two-name]**: [Step two.]
+2. **[step-two-name]**: [Step two, whose nested lines are all the same kind — so the kind is declared once here instead of prefixing each line,] steps:
+   - [Sub-step 1, ordered.]
+   - [Sub-step 2, ordered.]
 
 # Closure steps
 
