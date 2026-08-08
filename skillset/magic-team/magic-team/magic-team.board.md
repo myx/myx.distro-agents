@@ -130,7 +130,7 @@ The default shape for *any* item — the real flow may have many more beats once
 
 - A `board-item` gets recorded (e.g. an `inquiry-*` one).
 - It's routed/delivered into whichever inbox matches it, per item-type/routine/member routing rules (see `routine-process-inbox`).
-- The team-member holding that inbox, combined with that inbox owner's own rules (the owner could be a routine-\* virtual member), determines it should process this item now.
+- The team-member holding that inbox, combined with that member's own rules, determines it should process this item now.
 - Processing it (a) moves/updates its state — likely to `board-blocked` — and (b) decomposes it into sub-tasks, each posted to its own correct inbox per the same routing rules.
 - Later, in some other loop/spawn, someone processes their own inbox and picks up a sub-task — sometimes deliberately held until a contextually-right moment (e.g. a `reflection-*` item held until right before retro or a one-on-one).
 - Once every sub-task referencing the blocked parent is done, the parent is reprocessed: it can change state, get updated, or block again on newly-arisen sub-tasks — recursively, until it actually resolves.
