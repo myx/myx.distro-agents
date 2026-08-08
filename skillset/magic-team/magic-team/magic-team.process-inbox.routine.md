@@ -21,10 +21,10 @@ Doesn't do: write the board's formal state (`magic-coordinator`-exclusive).
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-1. **Read and classify** — a status/block report, a request/question, a routine handoff, a reflection, something else. Not an exhaustive list — classify by what it actually says.
-2. **Act, at a lightweight depth** — reply, route to another member or to `magic-coordinator`, or resolve inline if it's genuinely simple/obvious and within this member's own duties. Needs a formal board change and this isn't `magic-coordinator` running the pass: route to `magic-coordinator` rather than attempting the write.
-3. **Cross-member handoff → immediate reply**: a reply/route/handoff touching another member (including routing to `magic-coordinator`) sends an immediate reply to `slack-magic-team` via the `--member-slack-send-message` operation — compact, who + what it relates to. `magic-coordinator` sends it even when it isn't the one who performed the underlying write. Self-writes to one's own inbox don't need one.
-4. **GC, when `magic-coordinator` runs this for its own inbox as part of `routine-heartbeat`**: run `routine-heartbeat`'s own GC sub-step — full mechanics live there, not restated here.
+1. **read-and-classify**: a status/block report, a request/question, a routine handoff, a reflection, something else. Not an exhaustive list — classify by what it actually says.
+2. **act-lightweight**: reply, route to another member or to `magic-coordinator`, or resolve inline if it's genuinely simple/obvious and within this member's own duties. Needs a formal board change and this isn't `magic-coordinator` running the pass: route to `magic-coordinator` rather than attempting the write.
+3. **reply-on-cross-member-handoff**: a reply/route/handoff touching another member (including routing to `magic-coordinator`) sends an immediate reply to `slack-magic-team` via the `--member-slack-send-message` operation — compact, who + what it relates to. `magic-coordinator` sends it even when it isn't the one who performed the underlying write. Self-writes to one's own inbox don't need one.
+4. **run-gc-in-heartbeat**: when `magic-coordinator` runs this for its own inbox as part of `routine-heartbeat`, run `routine-heartbeat`'s own GC sub-step — full mechanics live there, not restated here.
 
 **Not automatic just because a spawn happened**: a spawned session processes the executing member's own inbox only when its `.routine.md` Steps sequence contains an explicit `routine-process-inbox <that member>` call — a real step each routine's own file is responsible for including, same as any acting member's duties include reading its mail. A routine whose own Steps never contain this explicit call gives no guarantee its executor's inbox is ever read, no matter how routine its invocation looks.
 

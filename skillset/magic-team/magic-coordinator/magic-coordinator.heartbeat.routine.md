@@ -34,23 +34,23 @@ Routine-heartbeat is the team's continuous, self-driven operating rhythm — com
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud. Each step below runs once per `next-iteration`, in sequence — one bounded pass, not a continuous loop of its own.
 
-0. **Check required config** — `--magic-heartbeat-config-check` operation.
+0. **check-required-config**: `--magic-heartbeat-config-check` operation.
    - Message whatever session spawned this `next-iteration` (`SendMessage`) with the outcome — each missing key's line already carries its own exact fix command.
    - **On failure**: `sleep 15`, then exit — no further steps run this cycle, nothing else touched.
    - **On success**: continue.
-1. **Acquire the lock** — `single-instance-lock` procedure, `--magic-heartbeat-lock-acquire` operation.
+1. **acquire-lock**: `single-instance-lock` procedure, `--magic-heartbeat-lock-acquire` operation.
    - Message whatever session spawned this `next-iteration` (`SendMessage`) with the outcome.
    - **On failure**: `sleep 15`, then exit — no further steps run this cycle, nothing else touched.
    - **On success**: continue.
    - **An anomaly here (an undocumented lock state, an unexpected owner/meta) is assess→investigate work**: governed by `magic-coordinator.harness.md`'s `harness-session-rules`, not restated here.
-2. **Direct tooling calls, no console session** — this `next-iteration`'s own execution model, per `magic-team.armed.md`'s process-flow rule: no Keep-Alive Console Session opens, none is assumed.
+2. **use-direct-tooling-calls**: no console session — this `next-iteration`'s own execution model, per `magic-team.armed.md`'s process-flow rule: no Keep-Alive Console Session opens, none is assumed.
    - Every command from here on (`DistroAgentsTools.fn.sh` or any other shell check) goes through `mcp__myx_common__lib_execShStdin` — never Bash, Python, or any other tool that runs a process directly.
    - Every `heartbeat-state-note` update goes through `--magic-heartbeat-state-upsert` via `lib/execShStdin` — never the Edit/Write tools, never a raw shell redirect, never a raw Bash call.
    - That record is rewritten every `next-iteration`; a permission prompt on it halts this whole unattended loop until a human clicks it.
-3. **Start a Slack thread in `slack-event-track`** — `--member-slack-send-message` operation, literal target argument `event-track` (no `slack-` prefix), a short opening line for this `next-iteration`.
+3. **open-event-track-thread**: start a Slack thread in `slack-event-track` — `--member-slack-send-message` operation, literal target argument `event-track` (no `slack-` prefix), a short opening line for this `next-iteration`.
    - Not `slack-magic-team` — that's the human-facing channel; this thread is this routine's own execution log for this run.
-4. **Read the `heartbeat-state-note`**, branch per the `day-rhythm-state` procedure — weekend / first-today / later-today.
-5. Run one bounded step for that branch — not everything at once; each sub-step's own calls are direct per step 2, no shared session to carry between them.
+4. **read-state-and-branch**: read the `heartbeat-state-note`, branch per the `day-rhythm-state` procedure — weekend / first-today / later-today.
+5. **run-one-bounded-substep**: run one bounded step for that branch — not everything at once; each sub-step's own calls are direct per step 2 (**use-direct-tooling-calls**), no shared session to carry between them.
    - After each sub-step: post a short progress report into the thread opened in step 3.
    - Between each sub-step: check for incoming console messages and messages from sub-spawned and parent sessions — same think/spawn/relay pattern `magic-coordinator.armed.md`'s shared loop-body rule uses for the outer cycle, applied here to this `next-iteration`'s own internal sub-steps.
    - Sub-steps, in order:

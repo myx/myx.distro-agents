@@ -40,7 +40,7 @@ Routine-daily is the team's standing daily checkpoint: surface every member's st
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **First-today only: spawn `routine-librarian-morning-review` as a full sub-session, and wait for it to complete.**
+0. **spawn-morning-review**: first-today only — spawn `routine-librarian-morning-review` as a full sub-session, and wait for it to complete.
    - Why: `magic-librarian` starts its workday earlier than `routine-daily` and does its own bookkeeping (inbox processing, board-state review) during that session; waiting ensures the standup/work-session below starts only after that bookkeeping pass is done, so probable inquiries and other incomings are already caught in a complete state.
    - Dispatch: a background `Agent` whose first action is `Skill(magic-librarian)`, default goal "run this workday's joint board-review session" (`routine-librarian-morning-review`'s own Goals — state-shape drift and cross-file consistency, not ordinary content staleness).
    - **Wait for it to actually finish before continuing to step 0a** — a real spawn-and-wait, not fire-and-forget; use `ScheduleWakeup` for the check-in, not polling.
@@ -48,45 +48,45 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - That spawned sub-session is a full-featured coworking-like session per the session-type framework: it runs its own `routine-session-start` and, at the end, its own `routine-close-session`.
    - Skip silently on a same-day re-run of `routine-daily` — once per workday, same first-today gating as step 4a's grooming counterpart.
    - **Bounded wait, not indefinite**: sub-session hasn't reported back within roughly 30 minutes → flag it once (a `slack-magic-team` note plus a line in this session's own close-out report) and continue into step 0a anyway — this meeting proceeds without morning-review's benefit rather than blocking the whole standup indefinitely.
-0a. **(Re-)load this routine's own active-duty context now, in full** — reading the distributed typed files directly.
+0a. **reload-active-duty-context**: (re-)load this routine's own active-duty context now, in full — reading the distributed typed files directly.
    - Deliberately *after* step 0's spawn-and-wait, so this session picks up anything the morning-review session may have changed in this member's own instruction files or inbox state.
    - Skip only if this exact session has already loaded it earlier in the same continuous run.
-0b. **Shared opening steps (`routine-session-start`)**:
+0b. **run-shared-opening-steps** (`routine-session-start`):
    - Declares this as a coworking-like/structured-multi-member session.
-   - Runs `routine-prepare-session`'s currency check.
+   - Runs its own step 2 currency check (**check-file-currency**).
    - Invokes `routine-process-reflections` for this project/workspace.
    - Processes own inbox.
    - Posts an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
-1. **Librarian opens, in parallel with step 2**: dispatch `magic-librarian` to confirm the `roster-note` and `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section are current (roster/domain and workspace/tooling facts, read as trusted day-to-day, not re-derived here).
+1. **librarian-confirms-roster**, in parallel with step 2 (**sweep-comms-read**): dispatch `magic-librarian` to confirm the `roster-note` and `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section are current (roster/domain and workspace/tooling facts, read as trusted day-to-day, not re-derived here).
    - Refresh the `roster-note` via the `--member-upsert-inbox-note` operation if it drifted.
    - Per-member backlog itself lives on the board (coordinator-exclusive write authority).
-1c. **Process own inbox, in parallel with steps 1-2**: run `routine-process-inbox magic-coordinator` — inline execution (own identity). The sorting pass, not step 0b's arrival load: a full read across everyone's `inquiry-*`/`reflection-*`/status reports and reactions accumulated since the last daily, so step 3's roll call speaks to what actually came in.
+1c. **process-own-inbox**, in parallel with steps 1-2: run `routine-process-inbox magic-coordinator` — inline execution (own identity). The sorting pass, not step 0b's (**run-shared-opening-steps**) arrival load: a full read across everyone's `inquiry-*`/`reflection-*`/status reports and reactions accumulated since the last daily, so step 3's roll call speaks to what actually came in.
    - Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
-2. **Communication sweep (read), in parallel with step 1**: run the read half of `routine-communication-sweep` — not Trello-specific, covers every live platform under `the credential store`.
+2. **sweep-comms-read**, in parallel with step 1 (**librarian-confirms-roster**): run the read half of `routine-communication-sweep` — not Trello-specific, covers every live platform under `the credential store`.
    - Fold anything relevant into the roll call narration in step 3.
    - Don't act on it unilaterally.
-2c. **Check active human-owner interviews, ping for reply**: for every open `routine-interview` thread `magic-coordinator` is itself the live counterpart in, that's awaiting a human-owner reply past a staleness window, send one of two message patterns, never both, via the `--member-slack-send-message` operation:
+2c. **ping-stale-interviews**: check active human-owner interviews, ping for reply — for every open `routine-interview` thread `magic-coordinator` is itself the live counterpart in, that's awaiting a human-owner reply past a staleness window, send one of two message patterns, never both, via the `--member-slack-send-message` operation:
    - **Plain nudge**: nothing relevant has changed since the thread stalled — a short, low-effort ping (e.g. "Ping! 👋") just to surface that a reply is still awaited. No rephrasing.
    - **Context-aware re-engagement**: something *has* changed since the last question was asked — greet first ("Good day! I'd love to continue our interview."), then, as its own separate message, send the re-phrased or next small question reflecting the new context.
    - Ground "what's changed" in this session's own roll call (step 3) and comms sweep (step 2) findings, not a fresh investigation.
    - Runs once per `routine-daily` invocation — does not replace `routine-advance`'s own, more frequent step, which opens/continues a thread only for a *newly*-stuck, zero-activity `board-running` item.
    - **New interview-shaped backlog item, no thread yet**: open one, short opening message. No investigation — that stays `routine-grooming`'s job.
-3. **Roll call, random order**: pick a random order over the permanent members (every skill except `magic-coordinator` itself).
+3. **roll-call**: random order — pick a random order over the permanent members (every skill except `magic-coordinator` itself).
    - For each member, call the `--member-work-session-input-scan` operation, then narrate that member's status/blocks/ideas/leftovers for today from it plus whatever's visible in `TodoWrite`/project memory.
    - All invitees (including `partner-*`s) still get a turn — most days that's "nothing to report," but they can flag a recommendation if another member's item touches infra/CDCI/service code.
    - A narrated pass, not a full agent spawn per member — that comes later.
    - Anything a member's status raises that needs real discussion doesn't get resolved inline here — flag it for step 6 (Questions) or the backlog instead.
-4. **Coordinator updates todos**: reflect what the roll call surfaced in the current session's `TodoWrite` (today's working list) for the members about to get a work session.
+4. **update-todos**: reflect what the roll call surfaced in the current session's `TodoWrite` (today's working list) for the members about to get a work session.
    - Member with nothing assigned but an idle-task menu of more than one file: randomly pick one `idle-tasks/*.idle.md` file now and put *that specific file* in the todo — don't leave "run the idle menu" as a vague item.
    - Every member — acting members and `routine-*` virtual members alike — always has one more idle-task candidate available beyond whatever `idle-tasks/*.idle.md` files it happens to have.
      - That candidate: a short, iterative "research the web a bit on a topic of this member's own duties, detect good proposals to assess at the next `routine-grooming`" pass.
-4a. Run the `check-process-board` procedure (`magic-coordinator.armed.md`) directly. Never `routine-advance`.
-5. **Librarian updates context**: today's new task details already live on the board directly (via step 4a's `routine-advance` pass and step 7's dispatched agents' own board moves) — no separate write-back step exists.
-5a. **Camunda diagram sync check**: run `routine-camunda-diagram-sync` — mtime check on the `temp-magic-team` BPMN diagrams against team definition files, redeploy handoff to that routine's own owning `partner-*` if stale.
+4a. **run-check-process-board**: run the `check-process-board` procedure (`magic-coordinator.armed.md`) directly. Never `routine-advance`.
+5. **librarian-updates-context**: today's new task details already live on the board directly (via step 4a's `routine-advance` pass and step 7's dispatched agents' own board moves) — no separate write-back step exists.
+5a. **sync-camunda-diagrams**: run `routine-camunda-diagram-sync` — mtime check on the `temp-magic-team` BPMN diagrams against team definition files, redeploy handoff to that routine's own owning `partner-*` if stale.
    - Skip silently if nothing changed — don't dispatch an agent just to find that out, the mtime comparison is cheap enough to do inline.
-6. **Questions, then conclude**: let the user (or a member, narrated) ask anything before closing the standup portion.
+6. **questions-then-conclude**: let the user (or a member, narrated) ask anything before closing the standup portion.
    - **Autonomous invocation**: doesn't block waiting for a live response — post any open questions to `slack-magic-team` via the `--member-slack-send-message` operation (and, if it needs to persist as real backlog rather than just a conversational trace, a `board-running` `note-*` item) for later human review, then continue to step 7.
-7. **Work session, fan-out**: for every permanent member that has something to do today — **except `partner-*`** (present-but-non-reporting members don't get a work session either) — spawn one background `Agent` per member.
+7. **fan-out-work-sessions**: for every permanent member that has something to do today — **except `partner-*`** (present-but-non-reporting members don't get a work session either) — spawn one background `Agent` per member.
    - This is where this routine's own **participants** (see this file's own Local rules for the executor-vs-participant definition) actually get sub-spawned, one at a time as their own real background `Agent`, not merely referenced/notified.
    - **Autonomous invocation**: route each spawn through `main` via the `SPAWN-REQUEST` protocol instead, same as step 0; wait for `main`'s relayed result before treating the work-session as started.
    - Each agent's first action must be invoking that member's own Skill (via the `Skill` tool), so it actually operates under that skill's full content, not a paraphrase.
@@ -102,7 +102,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - While these run, stay in the main conversation talking with the user about live progress — that's supervision, not silence.
    - A milestone landing or a new blocker surfacing mid-session gets posted to `slack-magic-team` right then, not batched until the close-out.
    - If a working agent surfaces or receives a new, unrelated ask mid-session, it notes it (its own inbox, or a `references`-linked board note) for the next communication sweep / grooming triage rather than switching focus.
-8. **Communication sweep (write)**: run the write half of `routine-communication-sweep` — update the own-status card to reflect today's actual state, and reply/comment anywhere else warranted across whatever platforms are live.
+8. **sweep-comms-write**: run the write half of `routine-communication-sweep` — update the own-status card to reflect today's actual state, and reply/comment anywhere else warranted across whatever platforms are live.
 
 # Closure steps
 
@@ -110,7 +110,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Routine's local procedures
 
-None — every procedure this routine invokes belongs to another routine, referenced here by name only (`routine-session-start`, `routine-communication-sweep`, `routine-advance`, `routine-camunda-diagram-sync`, `routine-close-session`, `routine-librarian-morning-review`, `routine-process-inbox`, `routine-interview`, `routine-process-reflections`, `routine-prepare-session`) — see Librarian Comments → Reference.
+None — every procedure this routine invokes belongs to another routine, referenced here by name only (`routine-session-start`, `routine-communication-sweep`, `routine-advance`, `routine-camunda-diagram-sync`, `routine-close-session`, `routine-librarian-morning-review`, `routine-process-inbox`, `routine-interview`, `routine-process-reflections`) — see Librarian Comments → Reference.
 
 # Routine's local rules
 

@@ -38,13 +38,13 @@ This routine stands a team up in a new place — a full custom-team setup for a 
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **Check preconditions** — any one missing is a fail-loud stop, escalated via step 10's human-owner script.
+0. **check-preconditions**: any one missing is a fail-loud stop, escalated via step 10's (**escalate-to-human-owner**) script.
 - Workspace root available with `source/myx/myx.distro-agents`.
 - `DistroAgentsTools.fn.sh` available and executable.
 - Coordinator member key exists: `magic-coordinator`.
 - Human-owner reachable for escalations when required.
 
-1. **Load identity and targets**
+1. **load-identity-and-targets**
 - Read member token and configured targets:
   - `--member-config-option magic-coordinator --select SLACK_USER_TOKEN`
   - `--agents-config-option magic-coordinator --select SLACK_CHANNEL_MAGIC_TEAM`
@@ -53,7 +53,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
   - `--agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_ALERT`
 - Missing any required value: stop and escalate using the human-owner script in step 10.
 
-2. **Auth identity check**
+2. **check-auth-identity**
 - Call `auth.test` using `SLACK_USER_TOKEN`.
 - Expected minimum:
   - `ok:true`
@@ -61,7 +61,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
   - stable `user_id` present
 - If auth fails or identity mismatch: stop and escalate (step 10).
 
-3. **Membership and join check (public channels)**
+3. **check-membership-and-join**: public channels
 - For `magic-team`, `event-track`, `event-alert`:
   - Call `conversations.join` with current user token.
   - Accept `ok:true` as joined/already-joined success.
@@ -69,7 +69,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
   - Record missing scope exactly as returned (for example `channels:write`).
   - Escalate with one clear add-scope request (step 10).
 
-4. **Send-path reality check**
+4. **check-send-path**
 - Send probe message to each target (`magic-team`, `event-track`, `event-alert`, `human-owner`) with timestamp marker.
 - Capture full API response payload for each attempt.
 - Distinguish outcomes:
@@ -77,7 +77,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
   - attribution shape (`message.user`, `app_id`, `bot_id`, `bot_profile`)
   - target accessibility errors (`channel_not_found`, `not_in_channel`, etc.)
 
-5. **Native identity policy gate**
+5. **gate-native-identity-policy**
 - Treat send as valid operational success only when all are true:
   - `ok:true`
   - `message.user` equals authenticated `user_id` from step 2
@@ -85,13 +85,13 @@ Exact instructions. Execute in order, every step, literally as written — not l
 - Presence of `app_id`/`bot_id`/`bot_profile` is a policy warning, not a standalone transport failure.
 - If local code currently hard-fails on marker presence alone, record as tooling-rule mismatch and queue fix.
 
-6. **Alias target validity check (`human-owner`)**
+6. **check-alias-target-validity**: `human-owner`
 - If `human-owner` send fails with `channel_not_found`:
   - mark alias mapping unresolved for current identity.
   - require human-owner to provide a reachable DM/channel id for Magic Vane.
 - Do not silently swap to a guessed target.
 
-7. **Slack profile setup check (now and every bootstrap re-run)**
+7. **check-slack-profile-setup**: now and every bootstrap re-run
 - Validate these profile fields for Magic Vane:
   - Picture/avatar: current intended image is present and correct.
   - Display name: `Magic Vane`.
@@ -102,7 +102,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 - If API scope allows (`users.profile:read`), fetch and verify via API.
 - If API read is unavailable or ambiguous, request visual confirmation from human-owner (step 10).
 
-8. **Minimum scope matrix capture**
+8. **capture-scope-matrix**
 - Record currently required scopes by operation family:
   - Auth: token validity (`auth.test`).
   - Channel joins (public): `channels:write`.
@@ -111,14 +111,14 @@ Exact instructions. Execute in order, every step, literally as written — not l
   - Message send: scopes for `chat.postMessage`.
 - When any call returns `missing_scope`, record exact `needed` and `provided` fields verbatim.
 
-9a. **AskUserQuestion checkpoint (mandatory when `NOT READY`)**
+9a. **checkpoint-ask-user**: mandatory when `NOT READY`
 - Ask the human-owner for exactly the next missing action, one question at a time.
 - Preferred path: AskUserQuestion in-session (single focused question, explicit expected answer format).
 - Failover path: if AskUserQuestion is unavailable, unanswered, or the session is unattended, send the same question to Slack IM target (`human-owner`) via `--member-slack-send-message`.
 - Slack IM failover failure (`channel_not_found` or equivalent): immediately fall back to posting the question in `magic-team` plus a short `event-alert` blocker note.
 - After each answer, apply only the directly affected fix and re-run only the impacted bootstrap step(s).
 
-9b. **Wait-for-reply semantics (required after step 9a)**
+9b. **wait-for-reply**: required after step 9a (**checkpoint-ask-user**)
 - Do not continue as if answered; explicitly wait for a reply.
 - In interactive harness mode, AskUserQuestion is blocking: wait for the returned answer payload, then proceed.
 - In unattended/async mode, use a bounded wait loop, not a tight busy-loop:
@@ -128,7 +128,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
   - timeout condition: no answer after max attempts -> escalate in `magic-team` and `event-alert`, keep `NOT READY`.
 - For Slack failover, each retry must post at most one short follow-up nudge; do not spam multiple channels in the same attempt.
 
-10. **Human-owner escalation script (step-by-step, mandatory when blocked)**
+10. **escalate-to-human-owner**: step-by-step script, mandatory when blocked
 - Use this exact ask sequence, one step per message:
   1. Confirm I should continue bootstrap for `magic-coordinator` under `Magic Vane` identity.
   2. Confirm/update `SLACK_USER_TOKEN` for Magic Vane.

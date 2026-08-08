@@ -69,7 +69,6 @@ When a term below appears quoted, especially `` `like-this` ``, it carries the s
 - `routine-interview` — precise, collection-only capture of another party's vision, routine name.
 - `routine-librarian-morning-review` — once-per-workday joint board-state-drift review, routine name.
 - `routine-one-on-one` — arranged direct human-owner/single-member session, routine name.
-- `routine-prepare-session` — lightweight librarian currency-check, routine name.
 - `routine-process-inbox` — general per-owner inbox processing, routine name.
 - `routine-process-reflections` — learned-lesson memory-file consolidation, routine name.
 - `routine-retro` — reflective team self-talk/methodology assessment, routine name.
@@ -201,7 +200,6 @@ Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`,
 - `routine-discuss` — description in `magic-team.discuss.routine.md`.
 - `routine-grooming` — description in `magic-team.grooming.routine.md`.
 - `routine-interview` — description in `magic-team.interview.routine.md`.
-- `routine-prepare-session` — description in `magic-team.prepare-session.routine.md`.
 - `routine-process-inbox` — description in `magic-team.process-inbox.routine.md`.
 - `routine-process-reflections` — description in `magic-team.process-reflections.routine.md`.
 - `routine-session-start` — description in `magic-team.session-start.routine.md`.

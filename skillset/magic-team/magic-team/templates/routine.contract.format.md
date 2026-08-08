@@ -26,15 +26,19 @@ Normative contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Rou
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-1. [Step one.]
-   - [Step-one sub-rule, if any.]
-2. [Step two.]
+1. **[step-one-name]**: [Step one. Every step carries a name in this shape — what it does, never where it sits; unique within the file.]
+   - [Step-one sub-step 1, if any.]
+      - [Step-one sub-step 1 sub-rule 1, if any.]
+      - [Step-one sub-step 1 sub-rule 2, if any.]
+   - [Step-one sub-step 2, if any.]
+   ...
+2. **[step-two-name]**: [Step two.]
 
 # Closure steps
 
 [If `# Steps` already ends with an identifiable closing tail, relocate it here verbatim. If not, state that plainly plus a pointer to whatever actually closes this routine.]
 
-1. [Closure step one — runs only after `# Steps` and everything it extended/dispatched/spawned have finished.]
+1. **[closure-step-one-name]**: [Closure step one — runs only after `# Steps` and everything it extended/dispatched/spawned have finished.]
 
 # Routine's local procedures
 

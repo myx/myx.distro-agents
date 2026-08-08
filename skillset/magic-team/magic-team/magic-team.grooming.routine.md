@@ -35,7 +35,7 @@ Doesn't do: daily status reporting (`routine-daily`'s job).
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-1. **Gather the backlog**
+1. **gather-the-backlog**
    - Read all of `the board`:
      - every permanent member's open, deferred, or "not yet done" items
      - across `running/`, `blocked/`, and `parked/`
@@ -70,7 +70,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - don't write a `note-2026-08-05-human-decision-batch.md` item and assume some other routine will later notice and pick it up (no routine's Steps currently do that)
        - the note is still filed in `board-processed` afterward, as the record of what was asked and when — not as the trigger mechanism itself
      - **Process own inbox** (every grooming pass, not cadence-gated like the roster recheck): run `routine-process-inbox magic-coordinator` (the confirmed default executor for this joint-executor routine) — inline execution (own identity). Fresh inbox items not yet on the board, gathered here so step 2 triages them alongside the open backlog. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
-2. **Per-item triage, one at a time**
+2. **triage-per-item**
    - For each open item, narrate its owning member deciding what happens to it. Same narrated-pass style as `routine-daily`'s roll call — this is not a full agent spawn per item. The outcome is one of:
      - **Keep** — as-is
      - **Defer**
@@ -177,7 +177,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - the fast-gate rules (`magic-coordinator`'s own "Dispatch & delegation" standard) are a narrow, fast gate on whether a proposed task should even be allowed to exist (a permission/mandate check, can auto-reject), run early, typically right at intake
      - the staged lifecycle above is about whether a task that *does* pass that gate is actually well-formed and ready to commit to (a quality/readiness check, always needs real judgment, never auto-anything) — it's what a promoted item goes through on its way from `board-backlog` to `board-pending`, per the Advancement review above, not a substitute for it
 
-3. **Full-backlog RICE re-score**
+3. **rescore-backlog-rice**
    - Do this every grooming — not just for newly-triaged items.
    - Before reprioritizing, re-score **every** open task and project across the board's states:
      - **`board-backlog`** — freshly-triaged, not yet assessed
@@ -187,14 +187,14 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **`board-parked`** — deliberately deferred or waiting on external state change/check
    - The four normalized dimensions (Profit/Cost/Time/Dependencies) are relative to the whole current backlog, so an item that didn't change can still need a new number purely because something around it did.
    - Do this as one pass over the whole set, not folded item-by-item into step 2's triage — triage decides an item's *state*, this decides its *numbers*, and both use the same current-backlog snapshot to stay consistent with each other.
-4. **Cross-member reprioritization**
+4. **reprioritize-across-members**
    - Apply the coordinator's own important-vs-eager distinction across the triaged, re-scored set — informed by the RICE numbers but not decided by them alone.
    - Surface blockers/dependencies between items explicitly rather than leaving a flat list, since a high score doesn't jump a queue if something else blocks it. This is where the coordinator's cross-team view earns its keep.
    - `blocks:`/`blocked-by:` are already recorded on the board-item files themselves — read them directly as part of this pass, don't recompute here.
    - **Prefer the nearest-to-approval item, not just the biggest-value one** — same discipline `routine-interview`'s own step 2b applies to open questions, generalized here to backlog items:
      - when several items are otherwise close in priority, favor whichever has the smallest remaining scope/assumption gap and the highest likelihood of a clean approval, regardless of its own size
      - a large-but-ready item can still outrank a smaller-but-still-fuzzy one, and vice versa; readiness is its own axis, not just RICE's Cost/Time/Dependencies
-5. **Review with the user**
+5. **review-with-the-user**
    - This is a conversation, not a report.
    - Present the reprioritized, re-scored backlog and let the user reorder, push back, or approve before it's considered final.
 

@@ -70,6 +70,9 @@ Copyable skeleton: `magic-team/templates/routine.contract.format.md`.
   - Exact instructions, execute in order, literally as written.
   - A step that can't execute as written: escalate, or fail loud.
   - Exact steps as nested lists; step rules nested as sub-lists.
+  - Every step carries a name, in the established shape: `<N>. **name-of-meaning**: …` — names what the step does, never where it sits. Unique within the file.
+  - A step is referred to by its name, not its number alone — inside the file and from any other file. A step with no name can only be pointed at by position, and position is the first thing an edit changes.
+  - Applied as each routine file is next touched, not as a sweep.
 - `# Closure steps`
   - Same shape/discipline as `# Steps`.
   - Runs only after `# Steps`, and everything it extended/dispatched/spawned, have finished.
