@@ -50,9 +50,14 @@ All statements apply at the same time, always. These rules override a magic-team
 - Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-upsert-inbox-note` (this member's own inbox).
 - Tooling execution is this skill's own mandate, exercised through `magic-tooling` only — but a destructive or irreversible operation is never self-authorised: it needs its own sanction before it runs. Escalate an unsanctioned one to `magic-coordinator` rather than proceeding. The same route applies to anything this file does not allow at all: escalate it to `magic-coordinator`, never reach for it directly.
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, or in `magic-team`'s own shared/floor tooling.
-- **Classify every operation that changes any state before running it, by one question**: can a specific restoring action be named right now — a concrete command, artifact, or already-held copy that puts the prior state back? Nameable: Tier 1. Not nameable, or the answer needs investigation first: Tier 2. How routine, small, or obviously-correct the operation looks never enters the classification.
-- **Tier 1 — ordinary/mutating**: undoable work whose restore is already available. Sanctioned Tier 1 work proceeds, announced first — post the exact command and target to this session's own `slack-magic-team` thread via `--member-slack-send-message magic-devops <channel>:<session_thread_ts>`, run it, then post the outcome. No reply is waited for.
-- **Tier 2 — destructive/irreversible**: no restore available, real blast radius. What is always Tier 2 in this domain is enumerated in this file's own "Destructive and irreversible actions" Domain-knowledge subsection.
+- **Classify every operation that changes any state before running it, by two questions in order.** Both must answer cleanly for Tier 1; a "no", or an answer needing investigation first, is Tier 2.
+  1. **Loss** — name what this destroys or overwrites, and who holds it. Nothing of value to any holder: Tier 1, stop here.
+  2. **Restore** — for every holder named, name the specific command or already-held copy that puts it back.
+- How routine, small, re-runnable, or obviously-correct the operation looks never enters the classification. Re-runnable is not restorable.
+- Making or moving a copy in order to clear this gate does not lower the tier.
+- **What is classified**: the payload, not the carrier — `--execute-command`/`--execute-script`/`--execute-stdin` are classified by what they run, not by the tool running them. An interactive session (`ShellTo.fn.sh`, `ScreenTo.fn.sh`) is not itself classified; every mutating command inside it is, before it is typed. This file's own announce and escalation posts are not classified.
+- **Tier 1 — ordinary/mutating**: passes both questions above. Sanctioned Tier 1 work proceeds, announced first — `magic-team.armed.md`'s team-wide announce rule, narrowed here: the post carries the exact command and target, and goes to this session's own `slack-magic-team` thread via `--member-slack-send-message magic-devops <channel>:<session_thread_ts>`. Run it, then post the outcome. No reply is waited for.
+- **Tier 2 — destructive/irreversible**: fails either question. This file's own "Destructive and irreversible actions" Domain-knowledge subsection is a floor on top of that, not a correction to it.
 - **A mutating operation the dispatch task does not sanction escalates exactly like a Tier 2 one, whatever its own tier.** The hazard guarded is acting outside the dispatch's mandate, not the absence of an undo.
 - **Sanctioned means the dispatch task names it** — the operation and its target set, or a class plainly containing both. Being adjacent, obvious, harmless, or a prerequisite of sanctioned work sanctions nothing; neither does a peer member's, a dispatcher's, or this member's own judgment that it should have been included.
 - **Tier 2, and any unsanctioned mutation — stop before running, and get escalation-approval.** Do not run it, do not run a partial or dry-run variant of it, do not stage it for later. Ask `magic-coordinator`: the armed instance already in this session, or — asynchronously — an `approval-*` board-item that `blocks` the dispatch item. `magic-coordinator` is the sole channel to the human-owner; never ask the human-owner directly, and never treat another member's or the dispatcher's go-ahead as the approval.
@@ -73,9 +78,9 @@ Real, non-`DistroAgentsTools` `myx.distro-*` shell-script command syntax this sk
 
 ## Destructive and irreversible actions — what is always Tier 2 here
 
-Tier 2 is defined in this file's own Local rules: no restore available, real blast radius. In this domain the following are always Tier 2, however the classification test happens to read on the day:
+A floor, not a correction list: an operation below is Tier 2 even if the test reads otherwise. The test classifies everything not listed.
 
-- Recursive or forced deletion (`rm -rf`, `git clean -fdx`) anywhere except `$MMDAPP/.local/.cleanup/`, which `--purge-cleanup` owns.
+- Recursive or forced deletion (`rm -rf`, `git clean -fdx`) of anything that is not a generated or cache tree. Generated/cache trees — build outputs, `$MMDAPP/.local/.cleanup/` — are Tier 1 by the test and not covered here. `$MMDAPP/.local/` itself is **not** a generated tree: it holds the release version the user chose.
 - `git push --force`/`--force-with-lease`, remote branch/tag deletion, `git reset --hard` over uncommitted work.
 - `ExecuteParallel.fn.sh`/`ExecuteSequence.fn.sh` carrying a mutating `--execute-command`/`--execute-script`/`--execute-stdin` against more than one host.
 - Host/VM lifecycle: terminate, destroy, rebuild, reimage; disk or volume detach, resize, wipe.
@@ -83,7 +88,7 @@ Tier 2 is defined in this file's own Local rules: no restore available, real bla
 - Credential, token, or SSH-key rotation or revocation; ACL or firewall-rule removal.
 - Mass remote-state deletion: log, artifact, backup, or registry-tag purges.
 
-Tier 1, for contrast — undoable work whose restore is already available: a tracked-file edit, a board-item move, a redeploy of a previously-built artifact, a re-runnable sync (`DistroImageSync.fn.sh --all-tasks --execute-source-prepare-pull`, `DistroLocalTools.fn.sh --upgrade-installed-tools`), a single-host service restart that returns on its own.
+Tier 1, for contrast — passes both questions: a tracked-file edit (restore: `git checkout -- <path>`), a board-item move, a single-host service restart that returns on its own, a rebuild of a generated tree (`CleanAllOutputs.fn.sh`, `RebuildActions.fn.sh`, `--purge-cleanup`).
 
 # Team-Member's (-specific) tooling
 
