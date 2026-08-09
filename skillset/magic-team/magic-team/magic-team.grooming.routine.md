@@ -155,9 +155,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **Escalate** — push for resolution now (chase the human-owner's answer, investigate an alternative, whatever moves it). Stays `blocked/` while the escalation is in flight.
      - **Stays blocked, with a real attempt made this pass** — `blocked/` demands periodic active pursuit, so "stays blocked" is only legitimate when something was actually tried this review — never a silent no-op re-confirmation. If there's genuinely nothing left to try right now, that's a signal to consider the next outcome instead. This also covers a partial unblock: if only some of the item's `blocked-by` entries have cleared and others haven't, the item stays blocked until every entry clears.
      - **Becomes `parked/`** — the group decides continued active chasing isn't worth it right now; deliberately stop pushing and just wait instead. The moment an item stops getting active attempts made *at* it, it's no longer honestly `blocked/`, it's `parked/`.
-     - **Unblocks** — the blocker is cleared, whether because the condition was actually satisfied or because the blocker itself got dropped/archived/superseded; moves to `board-backlog`/`board-pending`/`board-running` as appropriate:
+     - **Unblocks** — the blocker is cleared, whether because the condition was actually satisfied or because the blocker itself got dropped/archived/superseded; moves to `board-pending`:
        - a resolved `approval-*` negotiation's approved outcome sets `approved-by`/`approved-at` and lands the item in `board-pending`, per the board's own `board-backlog` entry
-       - `Becomes board-parked` uses `--magic-grooming-to-parked`; `Unblocks` uses `--magic-grooming-to-backlog`/`--magic-grooming-to-pending` — each a single call that moves the item and patches its headers together
+       - `Becomes board-parked` uses `--magic-grooming-to-parked`; `Unblocks` uses `--magic-grooming-to-pending` — each a single call that moves the item and patches its headers together
      - a `blocked/` item waiting on **another task/project's own completion** has a known, trackable trigger — the "active pursuit" for this kind can be as light as confirming the dependency hasn't quietly finished already, but it's still a real check each pass, not a rubber stamp
    - **`board-parked` re-check, same cadence**:
      - moves back to an active state once its trigger condition arrives — and if the group concludes the trigger is never coming, that's when a parked item actually moves to `board-archived`, not before
@@ -215,7 +215,7 @@ Named procedure blocks. Steps above call them by name. Not separate routines - n
 
 ## `check-backlog-promote` procedure
 
-Single source for whether/how a `board-backlog` item advances — into `board-pending` or `board-blocked`. Grooming never promotes straight into `board-running`: `routine-advance`'s own `check-execute-board` procedure takes it from `board-pending` onward, under its own board mutex.
+Single source for whether/how a `board-backlog` item advances — into `board-pending` or `board-blocked`. Once there, `routine-advance`'s own `check-execute-board` procedure takes over.
 
 Go through every `board-backlog` item, same per-item pass as triage (Step 2), not a separate sweep.
 
@@ -226,7 +226,7 @@ Each item is a tracking document. Where a rule below opens or resumes work on on
 - `interview-*` / `talk-*` / `task-*` / `proposal-*`, zero activity since posting (`task-*`/`proposal-*` only when explicitly awaiting interview, not yet ingested — read content first, ordinary grooming material can look interview-shaped from its title alone):
   - Interactive-ownership check first: read `owner-session` frontmatter (set by `magic-team.interview.routine.md` step 1). If `owner-session: interactive` is present and `owner-session-since` is fresh (within ~1 hour), skip — a live session already owns it.
   - Otherwise, open or continue the interview thread via the already-sanctioned `routine-interview`/`routine-communication-sweep` Slack mechanism (not a new authority grant — a communication sweep already does this routinely).
-  - Once the thread is genuinely active, move the item to `board-pending` via `--magic-grooming-to-pending` — `routine-advance` takes it from there to `board-running` under its own board mutex.
+  - Once the thread is genuinely active, move the item to `board-pending` via `--magic-grooming-to-pending`.
 - Any other type:
   - Dependencies clear (`blocked-by`/`dependency-note` empty or already resolved) and priority confirmed (present authority group's own consensus this pass, not gated on Step 3's later RICE re-score):
     - Nobody dissents → `--magic-grooming-to-pending` operation, `approved-by`/`approved-at` set, moves the item to `board-pending`.

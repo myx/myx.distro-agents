@@ -457,7 +457,16 @@ case "$1" in
 					[ -f "$inqFile" ] || continue
 					inqBase="${inqFile##*/}"
 					if [ -n "$owner" ] ; then
-						ownerVal="$( LC_ALL=C sed -n 's/^owner: //p;q' "$inqFile" )"
+						## Frontmatter-scoped extraction, deliberately NOT the
+						## `sed -n 's/^owner: //p;q'` idiom the board-item loop
+						## above uses: that `q` quits after line 1, which is
+						## always the opening `---`, so it yields empty for
+						## every board item and silently matches nothing. That
+						## defect is pre-existing and left untouched here (it
+						## belongs to an already-approved path and changing it
+						## changes that path's output) -- but it is not copied
+						## into new code. Reported separately.
+						ownerVal="$( LC_ALL=C awk '/^---$/{ c++; if (c == 2) exit; next } c == 1 && /^owner: /{ sub(/^owner: /, ""); print; exit }' "$inqFile" )"
 						[ "$ownerVal" = "$owner" ] || continue
 					fi
 					printf '## open-inquiry %s/%s\n' "$inqState" "$inqBase"
