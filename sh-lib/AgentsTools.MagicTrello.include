@@ -95,7 +95,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MagicTrello.include's own default (*) branch, the operation group sourced by the --magic-trello-* dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

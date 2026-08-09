@@ -23,12 +23,26 @@ case "$1" in
 
 	--intern-op-board-trash)
 		shift
+		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
+		## own copy of this block for the full reasoning. Pre-scanned before any
+		## validation so every message here can name the invoking operation.
+		## This op takes positionals rather than an option loop, so the
+		## consumption is the explicit --context branch further down, after
+		## --untrash.
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
 		local boardState="$1"
 		shift || true
 		local itemName="$1"
 		shift || true
 		if [ -z "$boardState" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: syntax is <board-state> <item-name> [--untrash]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): syntax is <board-state> <item-name> [--untrash]" >&2
 			set +e ; return 1
 		fi
 		local doUntrash="false"
@@ -36,27 +50,37 @@ case "$1" in
 			doUntrash="true"
 			shift
 		fi
+		## Consumes the --context pair the pre-scan above already read. Placed
+		## after --untrash so callers append it last, same order the pre-scan
+		## and the trailing arity guard below both expect.
+		if [ "$1" = "--context" ] ; then
+			if [ -z "${2:-}" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): --context: value required" >&2
+				set +e ; return 1
+			fi
+			shift 2
+		fi
 		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: invalid option: $1" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): invalid option: $1" >&2
 			set +e ; return 1
 		fi
 		case "$boardState" in
 			backlog|pending|running|blocked|parked|processed|archived|retained)
 			;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: invalid board-state: $boardState" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): invalid board-state: $boardState" >&2
 				set +e ; return 1
 			;;
 		esac
 		case "$itemName" in
 			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: item filename must be a bare filename: $itemName" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): item filename must be a bare filename: $itemName" >&2
 				set +e ; return 1
 			;;
 		esac
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: MDAT_DATA_ROOT is not set" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		if [ "$doUntrash" = "true" ] ; then
@@ -64,11 +88,11 @@ case "$1" in
 			local targetDir="$MDAT_DATA_ROOT/board/$boardState"
 			local targetPath="$targetDir/$itemName"
 			if [ ! -f "$sourcePath" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: --untrash: item not found in trash/: $sourcePath" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): --untrash: item not found in trash/: $sourcePath" >&2
 				set +e ; return 1
 			fi
 			if [ ! -d "$targetDir" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: --untrash: no such board state directory: $targetDir" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): --untrash: no such board state directory: $targetDir" >&2
 				set +e ; return 1
 			fi
 			mv "$sourcePath" "$targetPath"
@@ -78,7 +102,7 @@ case "$1" in
 			local sourcePath="$sourceDir/$itemName"
 			local targetPath="$MDAT_DATA_ROOT/trash/$itemName"
 			if [ ! -f "$sourcePath" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash: item not found: $sourcePath" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): item not found: $sourcePath" >&2
 				set +e ; return 1
 			fi
 			mv "$sourcePath" "$targetPath"
@@ -88,7 +112,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpBoardTrash.include's own default (*) branch, the operation group sourced by the --intern-op-board-trash dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

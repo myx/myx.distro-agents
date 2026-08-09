@@ -74,7 +74,8 @@ case "$1" in
 		fi
 		DistroAgentsTools --intern-op-board-scan \
 			--state backlog --state pending --state running --state blocked --state parked \
-			--all-types
+			--all-types \
+			--context --magic-heartbeat-input-scan
 		return $?
 	;;
 
@@ -98,7 +99,7 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
-		DistroAgentsTools --intern-op-agent-spawn-proxy "$callingMember" "$@"
+		DistroAgentsTools --intern-op-agent-spawn-proxy "$callingMember" "$@" --context --magic-heartbeat-spawn-proxy
 		return $?
 	;;
 
@@ -123,7 +124,8 @@ case "$1" in
 			--optional "EMAIL_USER:<email-address>" \
 			--optional "EMAIL_APP_PASSWORD:<app-password>" \
 			--optional "TRELLO_KEY:<key>" \
-			--optional "TRELLO_TOKEN:<token>"
+			--optional "TRELLO_TOKEN:<token>" \
+			--context --magic-heartbeat-config-check
 		return $?
 	;;
 
@@ -145,7 +147,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-board-item-trash: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-board-trash "$boardState" "$itemName"
+		DistroAgentsTools --intern-op-board-trash "$boardState" "$itemName" --context --magic-heartbeat-board-item-trash
 		return $?
 	;;
 
@@ -454,7 +456,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MagicHeartbeat.include's own default (*) branch, the operation group sourced by the --magic-heartbeat-* dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

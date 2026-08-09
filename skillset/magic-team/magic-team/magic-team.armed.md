@@ -643,7 +643,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - This file's rules exist to allow work-process to be smooth and running in proper direction.
 - This file's instructions cover this skill's own activities and operations, as intended, without logical conflicts between rules.
 - "This file governs form and control points, not strategy."
-- "This is the durable, cross-cutting model doc for how the team's skill folders work — both routine-\* virtual members and every acting member: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule."
+- "This is the durable, cross-cutting model doc for how the team's skill folders and routines work — every acting member's own skill folder (magic-\*/keeper-\*/partner-\*), plus every routine-\* virtual member hosted inside one of them: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule."
 - "This file is the member-specific option set for magic-team."
 - "magic-team.armed.md MUST instruct using this file."
 - Any process-flow/mechanics action (Slack post, board write, inbox filing) routes through the real DistroAgentsTools.fn.sh op via mcp__myx_common__lib_execShStdin — never a raw Bash call, never a Write/Edit shortcut standing in for the op. This includes reflection-* filing specifically — --member-upsert-inbox-reflection, never a raw Write of the file. Direct editing of a file's own content (an armed.md's prose, a tooling.md's option list) is not process-flow/mechanics and stays a plain Read/Edit action.

@@ -82,6 +82,7 @@ case "$1" in
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
+			--context --magic-grooming-to-backlog \
 			"${passthrough[@]}"
 		return $?
 	;;
@@ -138,6 +139,7 @@ case "$1" in
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
+			--context --magic-grooming-to-pending \
 			"${passthrough[@]}"
 		return $?
 	;;
@@ -194,6 +196,7 @@ case "$1" in
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
+			--context --magic-grooming-to-processed \
 			"${passthrough[@]}"
 		return $?
 	;;
@@ -270,6 +273,85 @@ case "$1" in
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
+			--context --magic-grooming-to-parked \
+			"${passthrough[@]}"
+		return $?
+	;;
+
+	## Same shape as --magic-grooming-to-backlog, target state fixed to
+	## blocked. Deliberately its own full copy, not a shared helper -- see
+	## this file's own header note. routine-grooming's own stalled-on-
+	## something-external outcome, distinct from parked/ (which is the team
+	## deliberately choosing to stop pushing). Retires the two-call
+	## --write-board-item recipe that routine-grooming prescribed for this
+	## move at four separate sites -- the same non-atomic half-write pattern
+	## every other --*-to-* op in this family was built to replace.
+	##
+	## Deliberately its own grooming-family op rather than a caller of the
+	## already-existing --magic-board-to-blocked: routine-grooming calls its
+	## own family throughout, so every grooming-driven move carries grooming's
+	## own policy stamps by construction rather than by the caller
+	## remembering to pass them. Consistency of family over reuse of an
+	## existing op -- the human-owner's own call.
+	##
+	## Carries this file's full grooming policy (mandatory --owner, auto
+	## groomed-at/groomed-from/track) exactly as its four siblings do. That
+	## stamping is precisely what distinguishes this op from
+	## --magic-board-to-blocked, which stamps nothing: same target state,
+	## different owning routine, different recorded provenance.
+	## recheck-date/condition, the fields a blocked item needs, stay
+	## caller-supplied via --header:* -- they are triage judgments this op
+	## cannot compute.
+	--magic-grooming-to-blocked)
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## see --magic-grooming-to-backlog's own comment above.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local fromStateArg="" owner=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) fromStateArg="$1" ; shift ;;
+				--owner)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: --owner: value required" >&2
+						set +e ; return 1
+					fi
+					owner="$2" ; shift 2
+				;;
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$fromStateArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$owner" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: --owner <value> is required" >&2
+			set +e ; return 1
+		fi
+		local fromStateVal="${fromStateArg#--from-state:}"
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		DistroAgentsTools --intern-op-board-upsert-move-edit blocked "$itemName" \
+			"$fromStateArg" \
+			--header:upsert:owner:"$owner" \
+			--header:upsert:groomed-at:"$groomedAt" \
+			--header:upsert:groomed-from:"$fromStateVal" \
+			--header:upsert:track:true \
+			--context --magic-grooming-to-blocked \
 			"${passthrough[@]}"
 		return $?
 	;;
@@ -305,12 +387,13 @@ case "$1" in
 		fi
 		DistroAgentsTools --intern-op-board-scan \
 			--state backlog --state pending --state running --state blocked --state parked \
-			--all-types
+			--all-types \
+			--context --magic-grooming-input-scan
 		return $?
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MagicGrooming.include's own default (*) branch, the operation group sourced by the --magic-grooming-* dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

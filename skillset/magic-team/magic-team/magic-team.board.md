@@ -15,6 +15,10 @@ The team's current-work index — a shared, cross-workspace, cross-day status so
 - Scoring one (RICE).
 - This file itself.
 
+**A routine is not a second authority.** `routine-grooming` and `routine-advance` declaring `--magic-*-to-*` ops is `magic-coordinator` acting under that routine's overridden rules — the routine scopes what the executor does, it never grants board-write authority of its own. Nothing gains that authority by being run under a routine, and no member gains it by being dispatched into one.
+
+**Every other member contributes through the session document, not the board.** `magic-coordinator` creates it, typically before spawning. Members edit it where their own routine instructions dictate — that is how work reaches tracked state without a second writer touching the board. The document is the same tracking document that carries the item's `participants` record. Which document types allow which edits, and by whom, is to be settled — not yet defined.
+
 **The board does not include inboxes.** Each member's personal inbox lives separately — not nested here. See `routine-process-inbox` for the full model (location, write-access, non-acting-owner handling, Slack visibility, the main-loop nudge, the morning self-review pattern).
 
 This file itself stays thin: a rollup pointing into `board/`'s folders, not where substance lives. Substance lives in the individual `board-item` files.

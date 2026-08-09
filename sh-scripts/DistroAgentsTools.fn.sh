@@ -114,7 +114,7 @@ MDAT_DEFAULT_TTL="3600"
 DistroAgentsToolsResolveChannelDir(){
 	local ref="$1"
 	if [ -z "$ref" ] ; then
-		echo "⛔ ERROR: DistroAgentsTools: channel id or path required" >&2
+		echo "⛔ ERROR: DistroAgentsTools: channel id or path required -- raised by the shared helper DistroAgentsToolsResolveChannelDir, which every channel-taking operation calls" >&2
 		return 1
 	fi
 	case "$ref" in
@@ -126,7 +126,7 @@ DistroAgentsToolsResolveChannelDir(){
 	if [ -d "$candidate" ] ; then echo "$candidate" ; return 0 ; fi
 	candidate="${TMPDIR:-/tmp}/${MDAT_CHANNEL_PREFIX}.$ref"
 	if [ -d "$candidate" ] ; then echo "$candidate" ; return 0 ; fi
-	echo "⛔ ERROR: DistroAgentsTools: channel not found: $ref" >&2
+	echo "⛔ ERROR: DistroAgentsTools: channel not found: $ref -- raised by the shared helper DistroAgentsToolsResolveChannelDir after trying the reference as an absolute path, as \${TMPDIR:-/tmp}/$ref, and as \${TMPDIR:-/tmp}/${MDAT_CHANNEL_PREFIX}.$ref" >&2
 	return 1
 }
 
@@ -144,7 +144,7 @@ DistroAgentsToolsResolveWorkspaceSlug(){
 DistroAgentsToolsResolveWorkspace(){
 	local workspace="${1:-$MMDAPP}"
 	if [ ! -d "$workspace" ] ; then
-		echo "⛔ ERROR: DistroAgentsTools: workspace not found: $workspace" >&2
+		echo "⛔ ERROR: DistroAgentsTools: workspace not found: $workspace -- raised by the shared helper DistroAgentsToolsResolveWorkspace, which resolves --override-workspace (or \$MMDAPP when none is given) for every console operation" >&2
 		return 1
 	fi
 	( cd "$workspace" && pwd )
@@ -154,7 +154,7 @@ DistroAgentsToolsResolveConsoleShortName(){
 	case "$1" in
 		DistroSourceConsole.sh) echo "source" ;;
 		DistroDeployConsole.sh) echo "deploy" ;;
-		*) echo "⛔ ERROR: DistroAgentsTools: unrecognized console: $1" >&2 ; return 1 ;;
+		*) echo "⛔ ERROR: DistroAgentsTools: unrecognized console: $1 -- rejected by the default (*) branch of the shared helper DistroAgentsToolsResolveConsoleShortName, which accepts only DistroSourceConsole.sh or DistroDeployConsole.sh" >&2 ; return 1 ;;
 	esac
 }
 
@@ -2019,18 +2019,13 @@ $1"
 			return $?
 		;;
 
-		--member-help)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberHelp.include"
-			return $?
-		;;
-
 		--help|--help-syntax|'')
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
 			return $?
 		;;
 
 		*)
-			echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+			echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by DistroAgentsTools.fn.sh's own top-level dispatcher default (*) branch: no route matched this operation name, so no operation include was sourced at all" >&2
 			set +e ; return 1
 		;;
 	esac

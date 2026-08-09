@@ -127,7 +127,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **Reassign** — `owner` field changes, folder doesn't
      - **Split** — child Item(s) created, referencing the parent; the parent itself moves to `board-blocked`, `blocked-by` the new child item(s) — an internal dependency, the same shape the board already recognizes ("waiting on another task/project's own completion"). If a split-off child is itself investigation/design-shaped (needs several members' judgment together, not a mechanical single-executor step), set `restart-session: <team-member> [<team-member>...]` on it at this same creation — the authority group's own call, same narrated judgment as the rest of this step.
      - **Drop** — moves to `board-archived` directly (no future intent) or is removed from the board (if it never had real substance — judgment call)
-     - mechanically: every verb above that changes an item's folder is `--write-board-item` operation called twice — write the full content into the new state, then remove the old file, since the op has no move/rename primitive of its own; a verb that only changes a field (owner, etc.) with no folder change is a single call; Split's child-item creation is also a single call (a fresh file)
+     - mechanically: **Defer** is a single `--magic-grooming-to-parked` call and **Split**'s parent move is a single `--magic-grooming-to-blocked` call; **Drop** to `board-archived` has no stub, so it stays `--write-board-item` called twice — write the full content into the new state, then remove the old file, since that op has no move/rename primitive of its own. A verb that only changes a field (owner, etc.) with no folder change is a single call; Split's child-item creation is also a single call (a fresh file)
    - **Advancement review**: as part of this same per-item pass:
      - run the `check-backlog-promote` procedure (below) against `board-backlog`
      - run the `check-reassess` procedure (below) against `board-pending`, `board-parked`, `board-blocked`, and `board-running` items — a separate call, own pass
@@ -136,7 +136,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **`board-running` items that have stalled**: move to `board-blocked` rather than leaving it sitting there looking active
        - not the only trigger — see the board's own "at least three paths" note for the other two: live discovery during `routine-daily`; a member's own async block-report via `magic-coordinator`'s inbox, handled by `routine-process-inbox`
      - not every item needs this every pass — same "one at a time, narrated" treatment as inbox triage, skip what's genuinely unchanged
-     - mechanically: the stalled-running→blocked move is the usual two-call `--write-board-item` operation (write the new state, remove the old file)
+     - mechanically: the stalled-running→blocked move is a single `--magic-grooming-to-blocked` call
    - **`board-running` in-place testing re-check** (see the board's own entry for the full state definition): same cadence as the `board-blocked`/`board-parked` re-checks below — every board-item mid its own testing round gets at least a glance each pass, landing on one of:
      - **clean, no approval needed** — moves straight to `board-processed`
      - **clean, needs human-owner sign-off** — moves to `board-blocked`, filed under its "human-owner decision" reason
@@ -144,7 +144,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - **escalate** — parent stays `board-running`, or moves to `board-blocked` if the escalation is itself now an external stall
        - **solve** — a solution/implementation subtask is created, parent stays `board-running` until it lands, then another round runs
      - same discipline as `board-blocked`'s own re-check: a board-item mid-testing should show a real attempt or a real subtask each pass, not a silent no-op
-     - the move to `board-processed` is a single `--magic-grooming-to-processed` call; the move to `board-blocked` has no grooming stub and stays the two-call `--write-board-item` move; a new investigation/solution subtask is a single `--write-board-item` operation call (fresh file, `references` pointing at the parent)
+     - the move to `board-processed` is a single `--magic-grooming-to-processed` call; the move to `board-blocked` is a single `--magic-grooming-to-blocked` call; a new investigation/solution subtask is a single `--write-board-item` operation call (fresh file, `references` pointing at the parent)
    - **Slack-reaction closeout**:
      - this step does not react to Slack messages on promotion/move
      - the reaction mechanism: execute `magic-coordinator`'s `check-pending-comms-actions` procedure
@@ -231,9 +231,9 @@ Each item is a tracking document. Where a rule below opens or resumes work on on
   - Dependencies clear (`blocked-by`/`dependency-note` empty or already resolved) and priority confirmed (present authority group's own consensus this pass, not gated on Step 3's later RICE re-score):
     - Nobody dissents → `--magic-grooming-to-pending` operation, `approved-by`/`approved-at` set, moves the item to `board-pending`.
   - Dependency still open, confirmed this pass:
-    - Moves to `board-blocked`, with a note. No `approval-*` — not a human decision.
+    - `--magic-grooming-to-blocked` operation, with a note. No `approval-*` — not a human decision.
   - Real doubt remains (priority, or whether a dependency still blocks):
-    - Creates `approval-*` in `board-running`, moves the original to `board-blocked`.
+    - Creates `approval-*` in `board-running`, moves the original to `board-blocked` via `--magic-grooming-to-blocked`.
   - Not yet assessed:
     - Stays in `board-backlog`.
 
@@ -292,6 +292,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-grooming-to-pending` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-pending`)
 - `--magic-grooming-to-processed` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-processed`)
 - `--magic-grooming-to-parked` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-parked`)
+- `--magic-grooming-to-blocked` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-blocked`)
 - `--member-slack-send-message <team-member> <target> [text...]`
 - `--member-work-session-input-scan <team-member>`
 - `--member-upsert-inbox-note <member> <item-filename>`
@@ -312,7 +313,7 @@ Prints this syntax + summary and exits.
 
 `DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]` — moves a board item to `board-backlog` and/or patches its frontmatter, one call, no full-content rewrite required. `--from-state:<state>` and `--owner` are both required; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied.
 
-Preference order for a board-item state move: `--magic-grooming-to-*` is the preferred operation for any grooming-driven state move that also needs a frontmatter/header change (the normal case — a resolution note, `approved-by`/`approved-at`, `groomed-at`, etc.) since it does the content patch and the move in one call. `--write-board-item` operation is the fallback for a move that has no dedicated `--magic-grooming-to-*` target (running→blocked, archived, retained) — still two calls (write new state, remove old), per its own behavior above. `board-parked` is no longer one of those: it has `--magic-grooming-to-parked`. Neither is ever replaced by a raw `Edit`/`Write`/`Bash mv` on a board-item file.
+Preference order for a board-item state move: `--magic-grooming-to-*` is the preferred operation for any grooming-driven state move that also needs a frontmatter/header change (the normal case — a resolution note, `approved-by`/`approved-at`, `groomed-at`, etc.) since it does the content patch and the move in one call. `--write-board-item` operation is the fallback for a move that has no dedicated `--magic-grooming-to-*` target (archived, retained) — still two calls (write new state, remove old), per its own behavior above. `board-parked` and `board-blocked` are not among those: they have `--magic-grooming-to-parked` and `--magic-grooming-to-blocked`. Neither is ever replaced by a raw `Edit`/`Write`/`Bash mv` on a board-item file.
 
 ## `--magic-grooming-to-pending` operation reference
 
@@ -325,6 +326,10 @@ Same shape as `--magic-grooming-to-backlog` operation, target fixed to `board-pr
 ## `--magic-grooming-to-parked` operation reference
 
 Same shape as `--magic-grooming-to-backlog` operation, target fixed to `board-parked` — the Defer/Becomes-parked case.
+
+## `--magic-grooming-to-blocked` operation reference
+
+`DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-blocked` in one call, and/or patches its frontmatter. `--owner` is mandatory. Auto-stamps `groomed-at`, `groomed-from` and `track:true` — full grooming policy, same as its `--magic-grooming-to-*` siblings and unlike the `--magic-advance-*`/`--magic-board-*` families, which stamp nothing.
 
 ## `--member-slack-send-message` operation reference
 

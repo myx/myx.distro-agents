@@ -21,6 +21,18 @@ case "$1" in
 
 	--intern-op-agent-spawn-proxy)
 		shift
+		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
+		## own copy of this block for the full reasoning. Pre-scanned before any
+		## validation so every message here can name the invoking operation;
+		## the option loop below consumes it again as an ordinary option.
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
 		local callerName="$1"
 		shift || true
 		local contextFromFile="false" waitMode="false" spawnContext=""
@@ -31,7 +43,7 @@ case "$1" in
 			case "$1" in
 				--from-file)
 					if [ -z "$2" ] || [ ! -f "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: --from-file: file not found: $2" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): --from-file: file not found: $2" >&2
 						set +e ; return 1
 					fi
 					fromFilePath="$2"
@@ -41,7 +53,7 @@ case "$1" in
 				;;
 				--from-board)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: --from-board requires <board-item-name>" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): --from-board requires <board-item-name>" >&2
 						set +e ; return 1
 					fi
 					fromBoardName="$2"
@@ -54,7 +66,7 @@ case "$1" in
 							boardStates+=( "$2" )
 						;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: invalid --board-state: $2" >&2
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): invalid --board-state: $2" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -62,7 +74,7 @@ case "$1" in
 				;;
 				--from-vault)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: --from-vault requires <vault-item-name>" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): --from-vault requires <vault-item-name>" >&2
 						set +e ; return 1
 					fi
 					fromVaultName="$2"
@@ -71,7 +83,7 @@ case "$1" in
 				;;
 				--from-audit)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: --from-audit requires <audit-item-name>" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): --from-audit requires <audit-item-name>" >&2
 						set +e ; return 1
 					fi
 					fromAuditName="$2"
@@ -82,14 +94,21 @@ case "$1" in
 					waitMode="true"
 					shift
 				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$callerName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]" >&2
 			set +e ; return 1
 		fi
 		local sourceCount=0
@@ -98,15 +117,15 @@ case "$1" in
 		[ -n "$fromVaultName" ] && sourceCount=$(( sourceCount + 1 ))
 		[ -n "$fromAuditName" ] && sourceCount=$(( sourceCount + 1 ))
 		if [ "$sourceCount" -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: use only one source selector: --from-board | --from-vault | --from-audit (or stdin default)" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): use only one source selector: --from-board | --from-vault | --from-audit (or stdin default)" >&2
 			set +e ; return 1
 		fi
 		if [ ${#boardStates[@]} -gt 0 ] && [ -z "$fromBoardName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: --board-state is only valid with --from-board" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): --board-state is only valid with --from-board" >&2
 			set +e ; return 1
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: MDAT_DATA_ROOT is not set" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 
@@ -117,14 +136,18 @@ case "$1" in
 			board)
 				case "$fromBoardName" in
 					*/*|.|..)
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: board item name must be a bare filename: $fromBoardName" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): board item name must be a bare filename: $fromBoardName" >&2
 						set +e ; return 1
 					;;
 				esac
 				if [ ${#boardStates[@]} -eq 0 ] ; then
 					boardStates=( backlog pending running blocked parked processed archived retained )
 				fi
-				local readArgs=( --intern-op-data-read "$fromBoardName" ) boardState
+				## Propagates this op's own $opContext rather than naming itself:
+				## the point of --context is the operation the caller actually
+				## invoked, and that survives the extra intern-op hop only if it
+				## is passed along.
+				local readArgs=( --intern-op-data-read "$fromBoardName" --context "$opContext" ) boardState
 				for boardState in "${boardStates[@]}" ; do
 					readArgs+=( --lookup-folder "$MDAT_DATA_ROOT/board/$boardState" )
 				done
@@ -133,20 +156,21 @@ case "$1" in
 			vault)
 				case "$fromVaultName" in
 					*/*|.|..)
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: vault item name must be a bare filename: $fromVaultName" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): vault item name must be a bare filename: $fromVaultName" >&2
 						set +e ; return 1
 					;;
 				esac
-				spawnContext="$( DistroAgentsTools --intern-op-data-read "$fromVaultName" --lookup-folder "$MDAT_DATA_ROOT/vault" )" || { set +e ; return 1 ; }
+				spawnContext="$( DistroAgentsTools --intern-op-data-read "$fromVaultName" --lookup-folder "$MDAT_DATA_ROOT/vault" --context "$opContext" )" || { set +e ; return 1 ; }
 			;;
 			audit)
 				case "$fromAuditName" in
 					*/*|.|..)
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: audit item name must be a bare filename: $fromAuditName" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): audit item name must be a bare filename: $fromAuditName" >&2
 						set +e ; return 1
 					;;
 				esac
-				local auditReadArgs=( --intern-op-data-read "$fromAuditName" )
+				## Propagates $opContext for the same reason as the board branch above.
+				local auditReadArgs=( --intern-op-data-read "$fromAuditName" --context "$opContext" )
 				case "$fromAuditName" in
 					transcript-[0-9][0-9][0-9][0-9]-[0-9][0-9]-*)
 						local yearMonth
@@ -161,23 +185,23 @@ case "$1" in
 				spawnContext="$( cat )"
 			;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: internal source mode error: $sourceMode" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): internal source mode error: $sourceMode" >&2
 				set +e ; return 1
 			;;
 		esac
 
 		if [ -z "$spawnContext" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: empty spawn context" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): empty spawn context" >&2
 			set +e ; return 1
 		fi
 		if [ ! -x "$MMDAPP/DistroAgentsConsole.sh" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: DistroAgentsConsole.sh is not executable at $MMDAPP" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): DistroAgentsConsole.sh is not executable at $MMDAPP" >&2
 			set +e ; return 1
 		fi
 
 		local runtimeDir="$MDAT_DATA_ROOT/.runtime/spawn-proxy"
 		mkdir -p "$runtimeDir" || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy: can't create runtime directory: $runtimeDir" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): can't create runtime directory: $runtimeDir" >&2
 			set +e ; return 1
 		}
 		local timestamp receiptId receiptFile contextFile outputFile
@@ -236,7 +260,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpAgentSpawnProxy.include's own default (*) branch, the operation group sourced by the --intern-op-agent-spawn-proxy dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

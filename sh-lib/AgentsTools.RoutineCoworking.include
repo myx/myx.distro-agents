@@ -90,7 +90,8 @@ case "$1" in
 
 		local phaseAOutput
 		phaseAOutput="$( DistroAgentsTools --intern-op-board-scan "${phaseAArgs[@]}" \
-			--header references --header blocks --header blocked-by --all-types )" || return 1
+			--header references --header blocks --header blocked-by --all-types \
+			--context --routine-coworking-session-input-scan )" || return 1
 
 		local relatedFile
 		relatedFile="$( mktemp "${TMPDIR:-/tmp}/mdat-routine-coworking-related.XXXXXX" )" || { set +e ; return 1 ; }
@@ -116,12 +117,12 @@ case "$1" in
 		for s in "${allStates[@]}" ; do phaseBArgs+=( --state "$s" ) ; done
 		for n in "${unionNames[@]}" ; do phaseBArgs+=( --item "$n" ) ; done
 
-		DistroAgentsTools --intern-op-board-scan "${phaseBArgs[@]}" --all-types
+		DistroAgentsTools --intern-op-board-scan "${phaseBArgs[@]}" --all-types --context --routine-coworking-session-input-scan
 		return $?
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.RoutineCoworking.include's own default (*) branch, the operation group sourced by the --routine-coworking-* dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

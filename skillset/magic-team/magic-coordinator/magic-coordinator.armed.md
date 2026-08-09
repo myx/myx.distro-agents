@@ -385,6 +385,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 - `--magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:...]...`
+- `--magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
@@ -449,6 +450,10 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 ## `--console-list` Operation Reference
 
 `DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]` — lists channels belonging to one workspace (default: this tool's own) with their console/holder liveness. Never lists another workspace's channels unless explicitly overridden.
+
+## `--magic-board-to-pending` / `--magic-board-to-blocked` / `--magic-board-to-backlog` / `--magic-board-to-parked` Operation Reference
+
+`DistroAgentsTools.fn.sh --magic-board-to-<target> <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into that target state in one call, and/or patches its frontmatter. These are `check-process-board`'s own **board-mechanical-moves** ops. `--magic-board-to-parked` auto-stamps nothing: `board-parked` has no always-set field, and the `recheck-date`/`condition` pair a parked item needs is set explicitly by whoever parks it.
 
 ## `--write-board-item` Operation Reference
 

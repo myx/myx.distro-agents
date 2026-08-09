@@ -46,7 +46,7 @@ case "$1" in
 	## --member-upsert-inbox-reflection ops below.
 	--member-upsert-inbox-note)
 		shift
-		DistroAgentsTools --intern-op-member-inbox-upsert "$@" || return 1
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-upsert-inbox-note || return 1
 		return 0
 	;;
 
@@ -69,7 +69,7 @@ case "$1" in
 				;;
 			esac
 		done
-		DistroAgentsTools --intern-op-member-inbox-upsert "$@" || return 1
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-upsert-member-inquiry || return 1
 		return 0
 	;;
 
@@ -88,7 +88,7 @@ case "$1" in
 	## --member-upsert-inbox-note -- does not call that sibling op directly.
 	--member-upsert-inbox-reflection)
 		shift
-		DistroAgentsTools --intern-op-member-inbox-upsert "$@" || return 1
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-upsert-inbox-reflection || return 1
 		return 0
 	;;
 
@@ -374,7 +374,7 @@ case "$1" in
 			;;
 		esac
 		lookupFolders+=( "$auditRoot" )
-		local readArgs=( --intern-op-data-read "$documentName" )
+		local readArgs=( --intern-op-data-read "$documentName" --context --member-read-audit-item )
 		local folder
 		for folder in "${lookupFolders[@]}" ; do
 			readArgs+=( --lookup-folder "$folder" )
@@ -471,7 +471,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local readArgs=( --intern-op-data-read "$itemName" )
+		local readArgs=( --intern-op-data-read "$itemName" --context --member-read-board-item )
 		local boardState
 		for boardState in "${boardStates[@]}" ; do
 			readArgs+=( --lookup-folder "$MDAT_DATA_ROOT/board/$boardState" )
@@ -535,7 +535,8 @@ case "$1" in
 
 		DistroAgentsTools --intern-op-board-scan \
 			--state backlog --state pending --state running --state blocked --state parked \
-			--all-types --owner "$memberName" || return 1
+			--all-types --owner "$memberName" \
+			--context --member-work-session-input-scan || return 1
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
 			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: MDAT_DATA_ROOT is not set" >&2
@@ -1055,8 +1056,22 @@ case "$1" in
 		return $?
 	;;
 
+	## Lives here, not in the outer dispatcher, because --member-help matches
+	## the dispatcher's own --member-* wildcard arm -- and that arm is earlier
+	## in dispatch order, so it wins. An exact --member-help route further down
+	## the outer case could never fire: bash takes the first matching arm, and
+	## every string --member-help matches, --member-* matches too. The arm has
+	## to exist where the glob actually lands, which is this file. Same lazy
+	## $MDLT_ORIGIN-based source as the dispatcher used, and no shift before it
+	## -- AgentsTools.MemberHelp.include does its own $1 match and its own
+	## shift, unchanged by the move.
+	--member-help)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberHelp.include"
+		return $?
+	;;
+
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.Member.include's own default (*) branch, the operation group sourced by the --member-* dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

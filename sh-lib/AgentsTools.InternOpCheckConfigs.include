@@ -13,10 +13,22 @@ case "$1" in
 
 	--intern-op-check-configs)
 		shift
+		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
+		## own copy of this block for the full reasoning. Pre-scanned before any
+		## validation so every message here can name the invoking operation;
+		## the option loop below consumes it again as an ordinary option.
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs: syntax is <team-member> [--required <KEY>:<hint>]... [--optional <KEY>:<hint>]..." >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): syntax is <team-member> [--required <KEY>:<hint>]... [--optional <KEY>:<hint>]..." >&2
 			set +e ; return 1
 		fi
 		local requiredMissing=0
@@ -25,14 +37,21 @@ case "$1" in
 			case "$1" in
 				--required) checkMode="required" ;;
 				--optional) checkMode="optional" ;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 			checkSpec="$2"
 			if [ -z "$checkSpec" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs: $1 needs a <KEY>:<hint> argument" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): $1 needs a <KEY>:<hint> argument" >&2
 				set +e ; return 1
 			fi
 			shift 2
@@ -45,7 +64,7 @@ case "$1" in
 			else
 				echo "$checkKey: FAIL"
 				if [ "$checkMode" = "required" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs: $checkKey is not configured -- set it first: DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey $checkHint" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): $checkKey is not configured -- set it first: DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey $checkHint" >&2
 					requiredMissing=1
 				else
 					echo "  fix: DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey $checkHint"
@@ -59,7 +78,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpCheckConfigs.include's own default (*) branch, the operation group sourced by the --intern-op-check-configs dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

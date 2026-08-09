@@ -63,7 +63,8 @@ case "$1" in
 			--state backlog --state pending --state running --state blocked \
 			--header source-slack-channel --header source-slack-ts \
 			--header source_slack_channel --header source_slack_ts \
-			--all-types )" || return 1
+			--all-types \
+			--context --magic-sweep-input-scan )" || return 1
 
 		local survivorsFile
 		survivorsFile="$( mktemp "${TMPDIR:-/tmp}/mdat-magic-sweep-survivors.XXXXXX" )" || { set +e ; return 1 ; }
@@ -84,7 +85,7 @@ case "$1" in
 		rm -f "$survivorsFile"
 		trap - EXIT
 
-		DistroAgentsTools --intern-op-board-scan "${phaseBArgs[@]}" --all-types
+		DistroAgentsTools --intern-op-board-scan "${phaseBArgs[@]}" --all-types --context --magic-sweep-input-scan
 		return $?
 	;;
 
@@ -208,7 +209,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MagicSweep.include's own default (*) branch, the operation group sourced by the --magic-sweep-* dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

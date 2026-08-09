@@ -4,8 +4,14 @@
 ##
 ## AgentsTools.MemberHelp.include -- --member-help <team-member>'s own
 ## operation group for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily
-## from the `--member-help)` arm via the standard $MDLT_ORIGIN-based path.
+## from the `--member-help)` arm inside AgentsTools.Member.include, via the
+## standard $MDLT_ORIGIN-based path.
 ## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
+##
+## That arm lives in Member.include rather than in the outer dispatcher
+## because --member-help matches the dispatcher's own earlier --member-*
+## wildcard arm, which wins -- an exact --member-help route in the outer case
+## could never be reached. See that arm's own comment for the full reasoning.
 ##
 ## Two-section output:
 ## - `# Duty instructions` -- the raw operation-name list this specific
@@ -271,7 +277,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MemberHelp.include's own default (*) branch, the operation group sourced by the --member-help arm inside AgentsTools.Member.include, which the --member-* dispatcher route reaches; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

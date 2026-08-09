@@ -15,15 +15,27 @@ case "$1" in
 
 	--intern-op-data-read)
 		shift
+		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
+		## own copy of this block for the full reasoning. Pre-scanned before any
+		## validation so every message here can name the invoking operation;
+		## the option loop below consumes it again as an ordinary option.
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
 		local documentName="$1"
 		shift || true
 		if [ -z "$documentName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: syntax is <document-name> --lookup-folder <absolute-folder> [--lookup-folder <absolute-folder>]... [--start-line <N> --end-line <N>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): syntax is <document-name> --lookup-folder <absolute-folder> [--lookup-folder <absolute-folder>]... [--start-line <N> --end-line <N>]" >&2
 			set +e ; return 1
 		fi
 		case "$documentName" in
 			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: document name must be a bare filename, not a path: $documentName" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): document name must be a bare filename, not a path: $documentName" >&2
 				set +e ; return 1
 			;;
 		esac
@@ -34,7 +46,7 @@ case "$1" in
 			case "$1" in
 				--lookup-folder)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: --lookup-folder: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): --lookup-folder: value required" >&2
 						set +e ; return 1
 					fi
 					case "$2" in
@@ -42,7 +54,7 @@ case "$1" in
 							lookupFolders+=( "$2" )
 						;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: --lookup-folder must be absolute: $2" >&2
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): --lookup-folder must be absolute: $2" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -56,15 +68,22 @@ case "$1" in
 					endLine="$2"
 					shift 2
 				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 
 		if [ ${#lookupFolders[@]} -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: at least one --lookup-folder is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): at least one --lookup-folder is required" >&2
 			set +e ; return 1
 		fi
 
@@ -78,25 +97,25 @@ case "$1" in
 			fi
 		done
 		if [ -z "$sourcePath" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: document not found in lookup folders: $documentName" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): document not found in lookup folders: $documentName" >&2
 			set +e ; return 1
 		fi
 
 		if [ -n "$startLine" ] || [ -n "$endLine" ] ; then
 			if [ -z "$startLine" ] || [ -z "$endLine" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: --start-line and --end-line must be provided together" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): --start-line and --end-line must be provided together" >&2
 				set +e ; return 1
 			fi
 			if ! printf '%s' "$startLine" | grep -Eq '^[0-9]+$' || [ "$startLine" -lt 1 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: invalid --start-line: $startLine" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): invalid --start-line: $startLine" >&2
 				set +e ; return 1
 			fi
 			if ! printf '%s' "$endLine" | grep -Eq '^[0-9]+$' || [ "$endLine" -lt 1 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: invalid --end-line: $endLine" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): invalid --end-line: $endLine" >&2
 				set +e ; return 1
 			fi
 			if [ "$endLine" -lt "$startLine" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read: --end-line must be >= --start-line" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): --end-line must be >= --start-line" >&2
 				set +e ; return 1
 			fi
 			sed -n "${startLine},${endLine}p" "$sourcePath"
@@ -107,7 +126,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpDataRead.include's own default (*) branch, the operation group sourced by the --intern-op-data-read dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

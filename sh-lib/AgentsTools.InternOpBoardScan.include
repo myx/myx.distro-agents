@@ -76,20 +76,32 @@ case "$1" in
 	##   [--owner <value>] [--item <name>]...
 	--intern-op-board-scan)
 		shift
+		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
+		## own copy of this block for the full reasoning. Pre-scanned before any
+		## validation so every message here can name the invoking operation;
+		## the option loop below consumes it again as an ordinary option.
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
 		local states=() headers=() typePrefixes=() items=()
 		local allTypes="false" owner=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--state)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan: --state: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --state: value required" >&2
 						set +e ; return 1
 					fi
 					case "$2" in
 						backlog|pending|running|blocked|parked|processed|archived|retained)
 						;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan: --state: invalid state: $2" >&2
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --state: invalid state: $2" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -98,7 +110,7 @@ case "$1" in
 				;;
 				--header)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan: --header: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --header: value required" >&2
 						set +e ; return 1
 					fi
 					headers+=( "$2" )
@@ -107,7 +119,7 @@ case "$1" in
 				--type-prefix:*)
 					local prefixVal="${1#--type-prefix:}"
 					if [ -z "$prefixVal" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan: --type-prefix: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --type-prefix: value required" >&2
 						set +e ; return 1
 					fi
 					typePrefixes+=( "$prefixVal" )
@@ -119,7 +131,7 @@ case "$1" in
 				;;
 				--owner)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --owner: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2"
@@ -127,25 +139,32 @@ case "$1" in
 				;;
 				--item)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan: --item: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --item: value required" >&2
 						set +e ; return 1
 					fi
 					items+=( "$2" )
 					shift 2
 				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 
 		if [ "$allTypes" = "true" ] && [ ${#typePrefixes[@]} -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan: --all-types and --type-prefix: are mutually exclusive" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --all-types and --type-prefix: are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 		if [ "$allTypes" = "false" ] && [ ${#typePrefixes[@]} -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan: exactly one of --all-types or --type-prefix:<value>... is required -- no implicit type default" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): exactly one of --all-types or --type-prefix:<value>... is required -- no implicit type default" >&2
 			set +e ; return 1
 		fi
 
@@ -154,7 +173,7 @@ case "$1" in
 		fi
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan: MDAT_DATA_ROOT is not set" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		local boardRoot="$MDAT_DATA_ROOT/board"
@@ -245,7 +264,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpBoardScan.include's own default (*) branch, the operation group sourced by the --intern-op-board-scan dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

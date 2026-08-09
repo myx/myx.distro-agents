@@ -250,7 +250,7 @@ case "$1" in
 		return 0
 	;;
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.Make.include's own default (*) branch; this include is sourced by the DistroLocalTools caller chain, not by any DistroAgentsTools.fn.sh dispatcher route, and no operation of that name is defined in it" >&2
 		set +e ; return 1
 	;;
 esac

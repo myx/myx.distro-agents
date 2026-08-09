@@ -66,6 +66,7 @@ case "$1" in
 		fi
 		DistroAgentsTools --intern-op-board-upsert-move-edit pending "$itemName" \
 			"$fromStateArg" \
+			--context --magic-board-to-pending \
 			"${passthrough[@]}"
 		return $?
 	;;
@@ -106,6 +107,7 @@ case "$1" in
 		fi
 		DistroAgentsTools --intern-op-board-upsert-move-edit blocked "$itemName" \
 			"$fromStateArg" \
+			--context --magic-board-to-blocked \
 			"${passthrough[@]}"
 		return $?
 	;;
@@ -149,6 +151,7 @@ case "$1" in
 		fi
 		DistroAgentsTools --intern-op-board-upsert-move-edit backlog "$itemName" \
 			"$fromStateArg" \
+			--context --magic-board-to-backlog \
 			"${passthrough[@]}"
 		return $?
 	;;
@@ -206,12 +209,13 @@ case "$1" in
 		fi
 		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
 			"$fromStateArg" \
+			--context --magic-board-to-parked \
 			"${passthrough[@]}"
 		return $?
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MagicBoard.include's own default (*) branch, the operation group sourced by the --magic-board-* dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

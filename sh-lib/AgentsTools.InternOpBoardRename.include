@@ -37,12 +37,26 @@ case "$1" in
 	## not decided by this comment.
 	--intern-op-board-rename)
 		shift
+		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
+		## own copy of this block for the full reasoning. Pre-scanned before any
+		## validation so every message here can name the invoking operation.
+		## This op takes positionals rather than an option loop, so the
+		## consumption is the explicit --context branch further down, after
+		## --do-not-track.
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
 		local oldName="$1"
 		shift || true
 		local newName="$1"
 		shift || true
 		if [ -z "$oldName" ] || [ -z "$newName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename: syntax is <old-name> <new-name> [--do-not-track]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename (internal operation, invoked via $opContext): syntax is <old-name> <new-name> [--do-not-track]" >&2
 			set +e ; return 1
 		fi
 		local doNotTrack="false"
@@ -50,13 +64,23 @@ case "$1" in
 			doNotTrack="true"
 			shift
 		fi
+		## Consumes the --context pair the pre-scan above already read. Placed
+		## after --do-not-track so callers append it last, same order the
+		## pre-scan and the trailing arity guard below both expect.
+		if [ "$1" = "--context" ] ; then
+			if [ -z "${2:-}" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename (internal operation, invoked via $opContext): --context: value required" >&2
+				set +e ; return 1
+			fi
+			shift 2
+		fi
 		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename: invalid option: $1" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename (internal operation, invoked via $opContext): invalid option: $1" >&2
 			set +e ; return 1
 		fi
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename: MDAT_DATA_ROOT is not set" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		local boardRoot="$MDAT_DATA_ROOT/board"
@@ -88,8 +112,8 @@ case "$1" in
 			oldFile="$boardRoot/$state/$oldName"
 			if [ -f "$oldFile" ] ; then
 				mv "$oldFile" "$boardRoot/$state/$newName"
-				if ! DistroAgentsTools --intern-op-board-upsert-move-edit "$state" "$newName" --from-state:"$state" --header:upsert:supersedes:"$oldName (renamed)" ; then
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename: renamed $oldFile -> $newName but failed to stamp supersedes" >&2
+				if ! DistroAgentsTools --intern-op-board-upsert-move-edit "$state" "$newName" --from-state:"$state" --header:upsert:supersedes:"$oldName (renamed)" --context --intern-op-board-rename ; then
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename (internal operation, invoked via $opContext): renamed $oldFile -> $newName but failed to stamp supersedes" >&2
 					set +e ; return 1
 				fi
 				renamed="true"
@@ -102,8 +126,8 @@ case "$1" in
 type: note
 superseded-by: '"$newName"' (renamed)
 ---
-Renamed to `'"$newName"'`.' | DistroAgentsTools --intern-op-board-upsert-move-edit processed "$oldName" --create --upsert-from-stdin >/dev/null ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename: failed to leave husk at board/processed/$oldName" >&2
+Renamed to `'"$newName"'`.' | DistroAgentsTools --intern-op-board-upsert-move-edit processed "$oldName" --create --upsert-from-stdin --context --intern-op-board-rename >/dev/null ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename (internal operation, invoked via $opContext): failed to leave husk at board/processed/$oldName" >&2
 				set +e ; return 1
 			fi
 		fi
@@ -113,7 +137,7 @@ Renamed to `'"$newName"'`.' | DistroAgentsTools --intern-op-board-upsert-move-ed
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpBoardRename.include's own default (*) branch, the operation group sourced by the --intern-op-board-rename dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac
