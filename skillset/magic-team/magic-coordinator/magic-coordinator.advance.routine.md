@@ -149,6 +149,8 @@ No pass-wide blanket defer is allowed for `board-running` restart work. Apply th
 
 Apply these per-`board-running`-item task rules, by filename prefix. State-only half of the same prefixes: `check-process-board` (`magic-coordinator.armed.md`).
 
+Each item here is a tracking document. Where a rule below spawns or restarts work on one, it spawns the group that item's `participants` record names, and hands each member the goal, the task, the document itself, and that prefix's own rule below. A prefix may also have a routine assigned — run it in the situations that prefix calls for. A `(placeholder) not yet defined` entry is a real deferral: complete it when that type is settled, never improvise a rule per item.
+
 - `approval-*` / `approve-*`: not resolved, `recheck-date` due → re-ask via `source-slack-channel`/`source-slack-ts` or the `--member-slack-send-message` operation to human-owner; extend `recheck-date`. Re-ask leads with the `NEEDS REPLY:` marker; report `waiting on human-owner` only while that marker's occurrence stays unanswered.
 - `interview-*` / `talk-*`: run exactly one round — `routine-interview`'s own step 1b (resume-review) + step 1c (re-assess) — per that routine's own explicit non-blocking design. Never attempt to run the interview to completion inline. Any re-ask leads with the `NEEDS REPLY:` marker; report `waiting on human-owner` only while that marker's occurrence stays unanswered.
 - `inquiry-*`: `recheck-date` due, no reply → re-ask via `source-slack-channel`/`source-slack-ts` or the `--member-slack-send-message` operation; extend `recheck-date`. Otherwise → no action this pass.

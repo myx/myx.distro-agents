@@ -232,6 +232,8 @@ Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`,
 
 Every file under `board/` is a **`board-item`**. `board-item` subtypes are distinguished by filename prefix.
 
+**Every `board-item` is a tracking document of something.** `interview-*`, `dispatch-*`, `session-*`, `project-*` are examples, not a list to check against — any subtype qualifies. Two things follow: an item records who worked on it, and it records the state they left it in. A restart spawns that group, at that state.
+
 **What an inbox is**: a member's own personal area and persistent inter-session store, carrying inter-member exchange — `inquiry` documents are the one member-to-member communication type. Written via tooling (`--member-upsert-inbox-*`), read via tooling. Check the tooling actually worked rather than assuming it did.
 
 **MANDATORY FILENAME SHAPE, no exceptions, repeatedly violated in practice — read this before creating any `board-item` (`task-*`/`proposal-*`/`change-*`/etc., filed under `board/`) or personal-inbox file (`note-*`/`inquiry-*`/`reflection-*`, filed in a member's own inbox — the only three legitimate personal-inbox types):** `<type>-<date>-<matter>.md` — the type prefix comes first, immediately followed by the date, with no other words in between. This exact shape governs personal-inbox files the same as `board-item`s — it is not board-only, despite this section's own heading being about the `board-item` model specifically.
@@ -272,8 +274,9 @@ List of frontmatter headers with descriptions. Any date value in frontmatter is 
 - `condition`: the actual trigger/check to look for on a `blocked`/`parked` item — pairs with `recheck-date` (`recheck-date` says *when* to look, `condition` says *what* to look for).
 - `resolved-at`: date a `board-processed` item was actually resolved, distinct from `date` (creation). Optional — most `board-processed` items don't carry it yet.
 - `started-at`: date a `board-running` item actually started running, distinct from `date` (creation). Auto-stamped by `--magic-advance-to-running`; optional otherwise.
-- `restart-session`: `<team-member> [<team-member>...]` — a board-item to spawn a coworking session with these members instead of running inline. Who was actually in the session is recorded in the session's own tracking document (`interview-*`, `dispatch-*`) as it runs, the way a Slack thread's participants are whoever posted in it — a restart reads that record to invite everyone back and restore their contexts, rather than replaying this field's names alone.
+- `restart-session`: `<team-member> [<team-member>...]` — a board-item to spawn a coworking session with these members instead of running inline. Who actually worked on it is the item's own `participants` record — a restart reads that and spawns exactly that group, at the state the item records, rather than replaying this field's names alone. Each member spawned gets the goal, the task, the tracking document itself, and that document type's own instructions.
 - `session-id`: active coworking session identifier, for running items. Omit once none is.
+- `participants`: who worked on this item — recorded as they join, the way a Slack thread's participants are whoever posted in it, not declared up front. Any `board-item` may carry it. Frontmatter holds it in most cases, and in initial cases; some document types additionally record participants in the document's own content — those per-type content shapes are to be added, not yet defined.
 
 Global predicates/definitions:
 - `type` is the only universally required header.

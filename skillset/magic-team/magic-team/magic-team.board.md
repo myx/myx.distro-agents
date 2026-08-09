@@ -216,5 +216,7 @@ This board has exactly one writer, so there's no multi-writer race to solve here
 
 `board/` — this file plus the individual `board-item` files — is the sole live status source.
 
+Two kinds of state deliberately live outside it, and are not exceptions to that rule so much as different things entirely — neither is board status:
+
 - Per-platform mechanical comms-sweep state lives as structured fields in the `heartbeat-state-note` (`last_swept_ts`/`watched_slack_conversations`/`known_comms_gaps`), read via the `--magic-heartbeat-state-read` operation and rewritten via `--magic-heartbeat-state-upsert`.
 - Open-thread status lives on the owning `board-item`s directly (`source-slack-channel`/`source-slack-ts`) — `routine-communication-sweep` reads/writes those, not this file.
