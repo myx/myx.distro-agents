@@ -502,6 +502,10 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 `DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]` — writes (creates or overwrites) `routine-heartbeat`'s own day-rhythm state record, plus `routine-communication-sweep`'s per-platform mechanical sweep state. Content via stdin by default, or `--from-file <path>`. Always a whole-record overwrite, never an append; empty content is refused rather than written.
 `DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>` — read-only: prints the whole record written by `--magic-heartbeat-state-upsert`, verbatim. Prints `NO_STATE` and returns 0 when nothing is stored yet — a normal first-run outcome, not an error.
 
+## `--magic-heartbeat-sleep-run` Operation Reference
+
+`DistroAgentsTools.fn.sh --magic-heartbeat-sleep-run` — read-only, no arguments: a fixed-duration pacing operation in `routine-heartbeat`'s operation group. Called in `main-loop-mode`'s **pace-between-iterations** step, before that step's own `sleep`.
+
 ## `--magic-heartbeat-board-item-trash` Operation Reference
 
 `DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` — relocates one terminal board-item out of the board entirely, for `routine-heartbeat`'s own GC step. `<board-state>` is the item's current real board state; `<item-name>` is a bare filename. Thin wrapper, always trashes, never restores.

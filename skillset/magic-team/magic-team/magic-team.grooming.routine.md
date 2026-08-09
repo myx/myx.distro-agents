@@ -95,7 +95,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - where Promoted/Denied items land:
        - promoted or denied items land in `board-processed` with the resolution text attached, via `--magic-grooming-create-processed`; a promoted item lands in `board-backlog` by default, via `--magic-grooming-create-backlog`
        - when this authority group's combined context during grooming already warrants treating it as approved, `approved-by`/`approved-at` gets set directly at creation via `--magic-grooming-create-pending` with `--header:upsert:approved-by:<value>` and `--header:upsert:approved-at:<value>`, and the item lands in `board-pending` in that same action (the same mechanical `board-backlog`→`board-pending` trigger `check-process-board` also acts on, done here in the same breath since grooming already has the context)
-       - when it instead genuinely needs human-owner-level approval, the authority group makes two calls: `--magic-grooming-create-running` for the `approval-*` item that runs the negotiation, and `--magic-grooming-create-blocked` for the promoted item (see the board's own `board-backlog` entry for the full mechanic)
+       - when it instead genuinely needs human-owner-level approval, the authority group makes two calls: `--magic-grooming-create-pending` for the `approval-*` item that runs the negotiation, which `routine-advance` then promotes, and `--magic-grooming-create-blocked` for the promoted item (see the board's own `board-backlog` entry for the full mechanic)
        - each of these is the item's first write, not a move of an existing file: a `--magic-grooming-create-<state>` call, which takes a body-input mode and rejects `--from-state:`
        - `owner`, `groomed-at` and `track:true` are stamped; `groomed-from` is not
    - **Attach `source-slack-channel`/`source-slack-ts` at promotion time, when the item genuinely traces to one originating Slack message**:
@@ -105,7 +105,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **Duplicate-check, before settling on one of the outcomes above**:
      - for each inbox item, do a quick, cheap look — is this a duplicate of (or cleanly mergeable with) something already sitting in:
        - the same member's inbox
-       - `board-running` (the default intake state new items land in)
+       - `board-backlog` and `board-pending` (the intake states new items land in)
+       - `board-running` (already picked up and executing)
        - optionally `board-processed` (in case this is just restating something already resolved)
      - if the match is in `board-processed` — including a Denied precedent — whether to reopen or merge into it is a case-by-case judgment call, not a fixed rule
      - this is meant to be an obvious-case check, not an investigation
@@ -152,7 +153,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - a new investigation or solution subtask is a fresh file with `references` pointing at the parent. Its landing state is decided by readiness alone — not by which of the two outcomes above created it, and not by the subtask's own item type:
        - ready to be run as it stands → `board-pending`, via `--magic-grooming-create-pending`, and `routine-advance` picks it up from there
        - still needs re-investigation or re-assessment before anyone can run it → `board-backlog`, via `--magic-grooming-create-backlog`
-       - a subtask is never created straight into `board-running`: readiness means ready for `routine-advance` to start it, not already started
+       - nothing this routine creates or moves lands in `board-running` — the rule holds for every item grooming writes, not only subtasks: readiness means ready for `routine-advance` to start it, not already started
    - **Slack-reaction closeout**:
      - this step does not react to Slack messages on promotion/move
      - the reaction mechanism: execute `magic-coordinator`'s `check-pending-comms-actions` procedure
@@ -241,7 +242,7 @@ Each item is a tracking document. Where a rule below opens or resumes work on on
   - Dependency still open, confirmed this pass:
     - `--magic-grooming-to-blocked` operation, with a note. No `approval-*` — not a human decision.
   - Real doubt remains (priority, or whether a dependency still blocks):
-    - Creates `approval-*` in `board-running` via `--magic-grooming-create-running`, then moves the original to `board-blocked` via `--magic-grooming-to-blocked`.
+    - Creates `approval-*` in `board-pending` via `--magic-grooming-create-pending`, which `routine-advance` then promotes, then moves the original to `board-blocked` via `--magic-grooming-to-blocked`.
   - Not yet assessed:
     - Stays in `board-backlog`.
 
