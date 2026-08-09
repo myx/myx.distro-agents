@@ -269,6 +269,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (steps 2 and 5: rewrite the `heartbeat-state-note`)
 - `--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` (GC step: relocate a terminal board-item to `trash/`)
 - `--magic-heartbeat-spawn-proxy <team-member> [--from-file <path>|--wait]` (spawn relay used by unattended heartbeat/advance execution paths)
+- `--magic-heartbeat-sleep-run` (called in `main-loop-mode`'s **pace-between-iterations** step, before that step's own `sleep` — see `magic-coordinator.armed.md`)
 
 ## `--member-slack-send-message` operation reference
 
@@ -277,6 +278,10 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## `--comms-slack-react` operation reference
 
 `DistroAgentsTools.fn.sh --comms-slack-react <channel>:<ts> <emoji-name>` — posts one Slack reaction (`reactions.add`) to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut, since a reaction always targets one exact message, not a channel. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). An `already_reacted` error is treated as a harmless no-op, not a failure. This routine's own Closure-steps usage: `event-track:<thread-ts> white_check_mark`.
+
+## `--magic-heartbeat-sleep-run` operation reference
+
+`DistroAgentsTools.fn.sh --magic-heartbeat-sleep-run` — read-only, no arguments: a fixed-duration pacing operation in `routine-heartbeat`'s operation group.
 
 ## `--magic-heartbeat-config-check` operation reference
 

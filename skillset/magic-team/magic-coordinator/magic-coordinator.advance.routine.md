@@ -120,6 +120,8 @@ Continue an already-dispatched `board-running` item. Never a first-time start (s
     - set `recheck-date` to now + 7min (jittered ±2min) and `session-id` to the new session's identifier, via `--magic-advance-to-running <team-member> <item-filename> --from-state:running --header:upsert:recheck-date:<value> --header:upsert:session-id:<value>` (same-state patch, existing content preserved)
   - `restart-session:` absent, no per-type rule matches this item's prefix → post to `slack-event-track` via `--member-slack-send-message` (target `event-track`) — "active `board-running` document with no handler: `<filename>`" — flag for `routine-grooming`. Never execute anything inline for an unhandled prefix.
 
+- before continuing to check-restart the next `board-running` item: execute the `--magic-advance-sleep-run` operation
+
 No pass-wide blanket defer is allowed for `board-running` restart work. Apply this mechanism item-by-item within the existing per-pass concurrency caps.
 
 **Per-pass completion requirement**:
@@ -194,8 +196,13 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-advance-input-scan <team-member>` (step 1: read the in-scope board state; also `check-process-board`'s own dependency-recompute step, on the same already-loaded read)
 - `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board`'s own never-started-`board-pending`-items step: basic-task start)
 - `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board` fallback when spawn is required but cannot execute in this pass)
+- `--magic-advance-sleep-run` (`check-restart`: executed before continuing to the next `board-running` item)
 - `--magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <audit-item-name>] [--from-audit <vault-item-name>] [--wait]` (`check-execute-board` autonomous spawn relay with execution receipt)
 - `--member-slack-send-message <team-member> <target> [text...]` (step 5: post the `event-track` report trace; also `check-execute-board`'s own per-type re-ask rules)
+
+## `--magic-advance-sleep-run` operation reference
+
+`DistroAgentsTools.fn.sh --magic-advance-sleep-run` — read-only, no arguments: a fixed-duration pacing operation in `routine-advance`'s operation group.
 
 ## `--magic-advance-input-scan` operation reference
 

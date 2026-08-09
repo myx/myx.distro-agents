@@ -13,14 +13,17 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-input-scan <team-memb
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>" >&2
@@ -44,11 +47,11 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> 
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-read-board-item <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> --from-stdin [--format text|blocks]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> --from-file <path> [--format text|blocks]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--identity bot|user] [text...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> [--identity bot|user] --from-stdin [--format text|blocks]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> [--identity bot|user] --from-file <path> [--format text|blocks]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>" >&2
