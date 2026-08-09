@@ -49,6 +49,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
@@ -702,6 +705,62 @@
 			check-process-board rather than routine-grooming. recheck-date and
 			condition are caller-supplied via --header:*. Own dedicated case
 			arm.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Same shape as --magic-grooming-to-backlog, target fixed to
+			board/running/ -- routine-grooming's own check-backlog-promote
+			dispatch, "once the thread is genuinely active, move the item to
+			board-running", which that step previously did as a two-call
+			--write-board-item move. Distinct from --magic-advance-to-running,
+			which targets the same state: that one is routine-advance's own
+			dispatch and auto-stamps started-at, while this one is
+			routine-grooming's and stamps owner/groomed-at/groomed-from/track
+			instead. Same target state, different owning routine, different
+			recorded provenance. Anything this op does not own -- started-at
+			included -- is caller-supplied via --header:*. Own dedicated case
+			arm.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Same shape as --magic-grooming-to-backlog, target fixed to
+			board/archived/ -- routine-grooming's own Drop outcome (dropped
+			with no future intent), plus the two archived exits from its
+			re-check steps: a board-parked item whose trigger the group
+			concludes is never coming, and a board-blocked item the group
+			decides is not worth even waiting on. Replaces the two-call
+			--write-board-item recipe that routine-grooming previously
+			prescribed for this move. board-archived being terminal is not a
+			reason to withhold the grooming stamps --
+			--magic-grooming-to-processed already stamps the same set onto a
+			terminal state, and who archived an item, and out of which state,
+			is exactly what a later reader of an archived item needs. The
+			archived item's own reason text stays caller-supplied via
+			--header:* or the body-input modes. Own dedicated case arm.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Same shape as --magic-grooming-to-backlog, target fixed to
+			board/retained/ -- but for a SAME-STATE PATCH, not a move.
+			routine-grooming does not move items into board-retained, and this
+			op is not evidence that it does: putting an item into
+			board-retained is routine-heartbeat's own GC diversion. This op
+			serves one case from routine-grooming's board-retained
+			recheck-and-exit step -- "still referenced, stays, recheck-date
+			renewed" -- which was previously a --write-board-item call in the
+			same state. Called with --from-state:retained, so source and
+			target match and nothing relocates: the intern-op
+			reads-and-preserves the existing body whenever --from-state equals
+			the target state, the same same-state mechanism
+			--magic-advance-to-running uses with --from-state:running. The
+			renewed recheck-date is caller-supplied via --header:*. Grooming's
+			owner/groomed-at/groomed-from/track stamps apply as with every
+			sibling; on a same-state call groomed-from records retained, which
+			says the item was groomed while sitting in retained, not that it
+			arrived from elsewhere. Own dedicated case arm.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

@@ -356,6 +356,236 @@ case "$1" in
 		return $?
 	;;
 
+	## Same shape as --magic-grooming-to-backlog, target state fixed to
+	## running. Deliberately its own full copy, not a shared helper -- see
+	## this file's own header note. routine-grooming's own check-backlog-promote
+	## dispatch: "once the thread is genuinely active, move the item to
+	## board-running", which that step still described as a two-call
+	## --write-board-item move (write the new state, remove the old file) --
+	## the non-atomic half-write every op in this family exists to retire.
+	##
+	## Distinct from --magic-advance-to-running, which targets the same state:
+	## that one is routine-advance's/check-execute-board's own dispatch and
+	## owns the started-at auto-stamp; this one is routine-grooming's, and
+	## carries grooming's own provenance stamps instead. Same target state,
+	## different owning routine, different recorded provenance -- the same
+	## split already established between --magic-grooming-to-blocked and
+	## --magic-board-to-blocked. routine-grooming calls its own family
+	## throughout, so a grooming-driven move carries grooming's stamps by
+	## construction rather than by the caller remembering to pass them.
+	##
+	## Carries this file's full grooming policy (mandatory --owner, auto
+	## groomed-at/groomed-from/track) exactly as its siblings do. Anything
+	## this op does not own -- started-at included -- stays caller-supplied
+	## via --header:*.
+	--magic-grooming-to-running)
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## see --magic-grooming-to-backlog's own comment above.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local fromStateArg="" owner=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) fromStateArg="$1" ; shift ;;
+				--owner)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: --owner: value required" >&2
+						set +e ; return 1
+					fi
+					owner="$2" ; shift 2
+				;;
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$fromStateArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$owner" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: --owner <value> is required" >&2
+			set +e ; return 1
+		fi
+		local fromStateVal="${fromStateArg#--from-state:}"
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
+			"$fromStateArg" \
+			--header:upsert:owner:"$owner" \
+			--header:upsert:groomed-at:"$groomedAt" \
+			--header:upsert:groomed-from:"$fromStateVal" \
+			--header:upsert:track:true \
+			--context --magic-grooming-to-running \
+			"${passthrough[@]}"
+		return $?
+	;;
+
+	## Same shape as --magic-grooming-to-backlog, target state fixed to
+	## archived. Deliberately its own full copy, not a shared helper -- see
+	## this file's own header note. routine-grooming's own Drop outcome
+	## (dropped with no future intent), plus the two archived exits from its
+	## re-check steps: a parked item whose trigger the group concludes is
+	## never coming, and a blocked item the group decides is not worth even
+	## waiting on. That routine named this move as having no stub and staying
+	## the two-call --write-board-item recipe -- this op is what retires it.
+	##
+	## board-archived is terminal, which is not a reason to withhold the
+	## grooming stamps: --magic-grooming-to-processed already stamps the same
+	## set onto a terminal state, and the provenance of who archived an item
+	## and out of which state is exactly what a later reader of an archived
+	## item needs. archive:/the archived item's own reason text stay
+	## caller-supplied via --header:*/the body-input modes -- judgments this
+	## op cannot compute.
+	--magic-grooming-to-archived)
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## see --magic-grooming-to-backlog's own comment above.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local fromStateArg="" owner=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) fromStateArg="$1" ; shift ;;
+				--owner)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: --owner: value required" >&2
+						set +e ; return 1
+					fi
+					owner="$2" ; shift 2
+				;;
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$fromStateArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$owner" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: --owner <value> is required" >&2
+			set +e ; return 1
+		fi
+		local fromStateVal="${fromStateArg#--from-state:}"
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		DistroAgentsTools --intern-op-board-upsert-move-edit archived "$itemName" \
+			"$fromStateArg" \
+			--header:upsert:owner:"$owner" \
+			--header:upsert:groomed-at:"$groomedAt" \
+			--header:upsert:groomed-from:"$fromStateVal" \
+			--header:upsert:track:true \
+			--context --magic-grooming-to-archived \
+			"${passthrough[@]}"
+		return $?
+	;;
+
+	## Same shape as --magic-grooming-to-backlog, target state fixed to
+	## retained. Deliberately its own full copy, not a shared helper -- see
+	## this file's own header note.
+	##
+	## READ THIS BEFORE INFERRING ANYTHING FROM THIS OP'S EXISTENCE:
+	## routine-grooming does NOT move items into board-retained, and this op
+	## is not evidence that it does. Moving an item into board-retained is
+	## routine-heartbeat's own GC diversion (magic-team.board.md's GC
+	## sub-step: a board-processed item still referenced by another live
+	## board-item diverts to board-retained instead of being removed).
+	## Grooming's only involvement with board-retained is its
+	## recheck-and-exit step, and this op serves exactly one case from it.
+	##
+	## That case is a SAME-STATE PATCH, not a move: routine-grooming's
+	## board-retained recheck-and-exit, "still referenced -> stays,
+	## recheck-date renewed", which that step described as a --write-board-item
+	## single call in the same state. Called as --from-state:retained, so
+	## source and target match --
+	## --intern-op-board-upsert-move-edit reads-and-preserves the existing body
+	## whenever --from-state equals the target state, so nothing relocates and
+	## the item's content survives untouched. Same same-state mechanism
+	## --magic-advance-to-running already uses with --from-state:running.
+	## The renewed recheck-date itself is caller-supplied via --header:* -- it
+	## is a scheduling judgment this op cannot compute.
+	##
+	## Carries this file's full grooming policy (mandatory --owner, auto
+	## groomed-at/groomed-from/track) exactly as its siblings do. On a
+	## same-state call groomed-from records retained, which is correct and
+	## intended: it says this item was groomed while sitting in retained, not
+	## that it arrived from somewhere else.
+	--magic-grooming-to-retained)
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## see --magic-grooming-to-backlog's own comment above.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local fromStateArg="" owner=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) fromStateArg="$1" ; shift ;;
+				--owner)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: --owner: value required" >&2
+						set +e ; return 1
+					fi
+					owner="$2" ; shift 2
+				;;
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$fromStateArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$owner" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: --owner <value> is required" >&2
+			set +e ; return 1
+		fi
+		local fromStateVal="${fromStateArg#--from-state:}"
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		DistroAgentsTools --intern-op-board-upsert-move-edit retained "$itemName" \
+			"$fromStateArg" \
+			--header:upsert:owner:"$owner" \
+			--header:upsert:groomed-at:"$groomedAt" \
+			--header:upsert:groomed-from:"$fromStateVal" \
+			--header:upsert:track:true \
+			--context --magic-grooming-to-retained \
+			"${passthrough[@]}"
+		return $?
+	;;
+
 	## Takes no arguments -- read-only discovery, shaped as a real
 	## structured text document meant to be one of routine-grooming's own
 	## actual inputs (not a diagnostic dump). Thin wrapper over
