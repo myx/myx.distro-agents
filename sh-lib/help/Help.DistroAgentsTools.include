@@ -32,7 +32,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-heartbeat <tea
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-release <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-sleep-run" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <audit-item-name>] [--from-audit <vault-item-name>] [--wait]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member>" >&2

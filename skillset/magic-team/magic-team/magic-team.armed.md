@@ -496,6 +496,24 @@ Type-specific headers:
 
 `reflection-*` items are special: instead of just closing out, their resolution *produces* an update elsewhere (a skill file, one of the shared files below, actual code).
 
+# Vault-items, audit-items, referencing and enveloping
+
+How the three item kinds relate. Extends their Terminology definitions above; does not restate them.
+
+**The dividing line is job vs not-job.** A `board-item` is a process-flow job. A `vault-item` or an `audit-item` is not — even when it carries the text of a task. Carrying task text never makes a document a job; being on the board does. When a job is needed, someone creates it on the board.
+
+**Referencing is the general mechanism.** Every `*-item` is there to be referenced. When a `dispatch-*` is created, every relevant `board-item` and `vault-item` is referenced from it.
+
+**Enveloping is item-into-item, across all three kinds** — a `{board|audit|vault}-item` attached into another `{board|audit|vault}-item`.
+
+- Worked case: a `warning-*` arriving from outside, not yet assessed and not yet persisted, is attached **into** an `inquiry-*`.
+- The reason is specific and load-bearing: an `inquiry-*` is the only document where an attachment both persists **and** can be passed to another team-member asynchronously. A `note-*` or `reflection-*` persists it just as well, but those only ever go in the member's own inbox.
+- Saving it as a `vault-item` comes later, if needed — that is what makes it referenceable from other documents.
+
+**Nothing is enforced, and no prefix is constrained.** Some documents, or some *states* of documents — the terminal state of an important job, for example — can logically be saved to the vault. That is **not implemented**. Nothing must be saved, and there is nothing to enforce yet. The one firm statement about a prefix: `warning-*` is definitely not a job in itself.
+
+**Known-misfiled, not being corrected now.** 14 existing `warning-*`/`change-*` items currently sit on the board — 2 in `board-backlog`, 6 in `board-blocked`, 6 in `board-processed`. Their present location is not a model to copy from. No backfill is being done, and none of them is being moved.
+
 # Shared reference files (librarian-owned, on-demand)
 
 Distinct from the board (coordinator-owned, continuous) — these are static-ish, librarian-produced-and-maintained, runnable on request as their own pass, not tied to the board's cadence:

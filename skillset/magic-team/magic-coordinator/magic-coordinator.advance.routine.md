@@ -197,7 +197,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board`'s own never-started-`board-pending`-items step: basic-task start)
 - `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board` fallback when spawn is required but cannot execute in this pass)
 - `--magic-advance-sleep-run` (`check-restart`: executed before continuing to the next `board-running` item)
-- `--magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <audit-item-name>] [--from-audit <vault-item-name>] [--wait]` (`check-execute-board` autonomous spawn relay with execution receipt)
+- `--magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]` (`check-execute-board` autonomous spawn relay with execution receipt)
 - `--member-slack-send-message <team-member> <target> [text...]` (step 5: post the `event-track` report trace; also `check-execute-board`'s own per-type re-ask rules)
 
 ## `--magic-advance-sleep-run` operation reference
