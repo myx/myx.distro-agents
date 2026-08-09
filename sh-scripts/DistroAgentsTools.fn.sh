@@ -1697,9 +1697,21 @@ $1"
 		## <team-member> <item-filename> --from-inbox:<member>
 		##
 		## Discards one already-processed inbox item: <member>'s own inbox
-		## processed/ area -> trash/. REVERSIBLE: trash/ relocates, it does not
-		## delete -- but see --librarian-inbox-to-retained below, whose
-		## direction is not.
+		## processed/ area -> trash/.
+		##
+		## NOT UNDOABLE BY TOOLING. Two different things are true here and the
+		## earlier wording ("REVERSIBLE") collapsed them: the FILE survives,
+		## because trash/ relocates rather than deletes, so it can be restored
+		## by hand. The OPERATION has no inverse -- --intern-op-board-trash
+		## refuses --untrash for an inbox-sourced item outright, since it
+		## restores into board/<state> and an item taken out of
+		## inboxes/<member>/processed/ has no board state to return to.
+		##
+		## Stated this way deliberately: a reader deciding how carefully to
+		## check a batch before running it would take "REVERSIBLE" as the
+		## tooling's word that a mistake is recoverable by tooling, which it
+		## is not. Per-item trash provenance would change this, and is
+		## deliberately not added with this arm.
 		--librarian-inbox-item-trash)
 			shift
 			## <team-member> captured for future logging/validation, unused
@@ -1750,9 +1762,17 @@ $1"
 		## ONE-WAY DOOR, and that is the load-bearing fact about this op:
 		## --intern-op-board-upsert-move-edit's --from-inbox: source has no
 		## --to-inbox: counterpart. A board->board move reverses by swapping the
-		## two states; an inbox->board move has no inverse at all. The trash
-		## sibling above is recoverable via --untrash; this one is not. Nothing
-		## here is "undo-able later" -- treat every call as final.
+		## two states; an inbox->board move has no inverse at all. Nothing here
+		## is "undo-able later" -- treat every call as final.
+		##
+		## NOT a contrast with the trash sibling above: that one has no tooling
+		## inverse either (--untrash is refused for an inbox-sourced item). An
+		## earlier draft of this block said the sibling "is recoverable via
+		## --untrash" -- it never was. What actually differs is where the
+		## ORIGINAL FILE ends up: the sibling leaves it in trash/, intact and
+		## restorable by hand; this op leaves it in trash/ too, but has already
+		## written a copy into board/retained/, so undoing it by hand means
+		## reversing two placements, not one.
 		##
 		## No auto-stamp, matching every --magic-board-to-* sibling: retained
 		## has no established always-set field, and any provenance the caller

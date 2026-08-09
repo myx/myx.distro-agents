@@ -313,6 +313,30 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --from-state:, --from-inbox:, and --create are mutually exclusive" >&2
 			set +e ; return 1
 		fi
+
+		## Pre-flight trash-collision refusal, for the --from-inbox: source only.
+		## Hoisted here deliberately: the later check further down runs AFTER the
+		## new board item has already been written, so a collision detected there
+		## aborts with the item DUPLICATED -- written into <to-state> and still
+		## sitting in the inbox. Refusing before any write means the failure
+		## leaves the tree exactly as it was found.
+		##
+		## The predicate depends on nothing the write produces -- both
+		## $fromInbox and $itemName are settled by the exclusivity check above --
+		## so this costs no restructuring of the option loop.
+		##
+		## The later check is deliberately KEPT rather than replaced. Two checks
+		## around one write is the correct shape, not redundancy: this one makes
+		## the common case clean, and the late one still catches a file that
+		## appeared in trash/ during the write. Neither subsumes the other.
+		##
+		## No sourcePath/targetPath equality term is needed here the way the
+		## late check needs one: for the inbox source, sourcePath is under
+		## inboxes/ and targetPath under board/, so they can never be equal.
+		if [ -n "$fromInbox" ] && [ -e "$MDAT_DATA_ROOT/trash/$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (nothing written; source left in place)" >&2
+			set +e ; return 1
+		fi
 		## Three-way check via a counter, not a pairwise scriptLang/bodyMode
 		## comparison -- a pairwise check only catches one of the six
 		## possible orderings across three flags, an asymmetric gap that

@@ -443,11 +443,18 @@
 			same name is already in `trash/` (`trash/` is flat, so two
 			inboxes can hold the same basename).
 
-			Recoverable: `trash/` relocates, it does not delete. Restoring an
-			inbox-sourced item is a manual step — the internal `--untrash`
-			direction is deliberately refused for these, because an item that
-			never came from a board state has no board state to be put back
-			into.
+			**NOT UNDOABLE BY TOOLING.** Two separate facts, and neither
+			implies the other. The *file* survives: `trash/` relocates rather
+			than deletes, so the item can be put back by hand. The
+			*operation* has no inverse: the internal `--untrash` direction is
+			refused outright for an inbox-sourced item, because it restores
+			into `board/<state>` and an item taken out of
+			`inboxes/<member>/processed/` has no board state to return to.
+
+			Calibrate a batch accordingly. "The file still exists" is not
+			"a mistake can be undone by running something" — undoing means
+			moving files back by hand, one at a time. Per-item trash
+			provenance would change this and is deliberately not built yet.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

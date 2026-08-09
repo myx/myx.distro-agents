@@ -24,6 +24,15 @@
 ## left BYTE-IDENTICAL to what it was before the inbox source existed, which
 ## is the whole reason for discriminating here rather than restructuring it.
 ##
+## "both directions via one op", above, describes the BOARD source only. The
+## inbox source is one-directional: --untrash is refused for it outright (see
+## the arm below), because it restores into board/<state> and an item taken
+## out of inboxes/<member>/processed/ has no board state to return to. Note
+## the syntax lines above accordingly: [--untrash] appears on the board form
+## and on no other. An inbox-sourced item still SURVIVES in trash/ and can be
+## put back by hand -- that is a fact about the file, not a capability of this
+## op, and the two must not be read as the same thing.
+##
 ## No --help entry: internal plumbing, called by
 ## --magic-heartbeat-board-item-trash and --librarian-inbox-item-trash.
 ##
