@@ -148,7 +148,11 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - **escalate** — parent stays `board-running`, or moves to `board-blocked` if the escalation is itself now an external stall
        - **solve** — a solution/implementation subtask is created, parent stays `board-running` until it lands, then another round runs
      - same discipline as `board-blocked`'s own re-check: a board-item mid-testing should show a real attempt or a real subtask each pass, not a silent no-op
-     - the move to `board-processed` is a single `--magic-grooming-to-processed` call; the move to `board-blocked` is a single `--magic-grooming-to-blocked` call; a new investigation/solution subtask is a fresh file, `references` pointing at the parent
+     - the move to `board-processed` is a single `--magic-grooming-to-processed` call; the move to `board-blocked` is a single `--magic-grooming-to-blocked` call
+     - a new investigation or solution subtask is a fresh file with `references` pointing at the parent. Its landing state is decided by readiness alone — not by which of the two outcomes above created it, and not by the subtask's own item type:
+       - ready to be run as it stands → `board-pending`, via `--magic-grooming-create-pending`, and `routine-advance` picks it up from there
+       - still needs re-investigation or re-assessment before anyone can run it → `board-backlog`, via `--magic-grooming-create-backlog`
+       - a subtask is never created straight into `board-running`: readiness means ready for `routine-advance` to start it, not already started
    - **Slack-reaction closeout**:
      - this step does not react to Slack messages on promotion/move
      - the reaction mechanism: execute `magic-coordinator`'s `check-pending-comms-actions` procedure
@@ -237,7 +241,7 @@ Each item is a tracking document. Where a rule below opens or resumes work on on
   - Dependency still open, confirmed this pass:
     - `--magic-grooming-to-blocked` operation, with a note. No `approval-*` — not a human decision.
   - Real doubt remains (priority, or whether a dependency still blocks):
-    - Creates `approval-*` in `board-running`, moves the original to `board-blocked` via `--magic-grooming-to-blocked`.
+    - Creates `approval-*` in `board-running` via `--magic-grooming-create-running`, then moves the original to `board-blocked` via `--magic-grooming-to-blocked`.
   - Not yet assessed:
     - Stays in `board-backlog`.
 

@@ -386,6 +386,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 - `--magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-create-running <team-member> <item-filename> (body-input mode) [--header:...]...`
+- `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
@@ -400,6 +401,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 - `--magic-heartbeat-lock-status <team-member>`
 - `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]`
 - `--magic-heartbeat-state-read <team-member>`
+- `--magic-heartbeat-sleep-run`
 - `--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>`
 - `--magic-heartbeat-spawn-proxy <team-member> [--from-file <path>|--wait]`
 
@@ -457,7 +459,11 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## `--magic-board-to-pending` / `--magic-board-to-blocked` / `--magic-board-to-backlog` / `--magic-board-to-parked` Operation Reference
 
-`DistroAgentsTools.fn.sh --magic-board-to-<target> <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into that target state in one call, and/or patches its frontmatter. These are `check-process-board`'s own **board-mechanical-moves** ops. `--magic-board-to-parked` auto-stamps nothing: `board-parked` has no always-set field, and the `recheck-date`/`condition` pair a parked item needs is set explicitly by whoever parks it.
+`DistroAgentsTools.fn.sh --magic-board-to-<target> <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into that target state in one call, and/or patches its frontmatter. These are `check-process-board`'s own **board-mechanical-moves** ops. The whole `--magic-board-*` family stamps nothing — no `owner`, no `groomed-*`, no `track`: those are the grooming family's, and stamping them here would assert a grooming pass that never happened. Every field rides `--header:*` on the call, including the `recheck-date`/`condition` pair a parked item needs.
+
+## `--magic-advance-to-running` Operation Reference
+
+`DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-running` in one call, auto-stamping `started-at` (date-time). `--from-state:<state>` is required. `--header:*`/`--upsert-from-stdin`/`--edit-script-from-stdin`/`--edit-patch-from-stdin` pass straight through for whatever else the move also needs.
 
 ## `--member-upsert-inbox-note` Operation Reference
 

@@ -151,11 +151,32 @@ case "$1" in
 				/^## DistroAgentsTools magic-tooling operations/ { inBlock=1; next; }
 				inBlock && /^## / { inBlock=0; }
 				inBlock && /^- `--/ {
+					## Every backtick-quoted op on the bullet, not just the
+					## first. The previous form cut the line at its first
+					## closing backtick, so a bullet naming two or more ops
+					## yielded only the leading one -- against the real
+					## magic-team.armed.md that silently dropped three
+					## (--owner-workspace-upsert, --owner-workspace-forget,
+					## --magic-heartbeat-state-upsert) from the set a member is
+					## told it may use, while members are instructed to execute
+					## nothing outside that set. Under-reporting here does not
+					## fail loudly; it quietly narrows the mandate a member
+					## believes it has.
+					##
+					## NOTE for future editors: this comment sits INSIDE a
+					## single-quoted AWK program. An apostrophe here closes
+					## that quote and breaks the file -- keep this block
+					## apostrophe-free.
 					line=$0;
-					sub(/^- `/, "", line);
-					sub(/`.*$/, "", line);
-					sub(/ .*$/, "", line);
-					print line;
+					while (match(line, /`--[^`]*`/)) {
+						tok = substr(line, RSTART + 1, RLENGTH - 2);
+						## Trim any argument spec carried inside the backticks
+						## (e.g. `--member-help <team-member>`) -- the op name
+						## is the first whitespace-delimited word.
+						sub(/[ \t].*$/, "", tok);
+						if (tok != "") { print tok; };
+						line = substr(line, RSTART + RLENGTH);
+					}
 				}
 			' "$1"
 		}

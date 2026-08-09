@@ -22,7 +22,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> --from-file <path>
 📘 syntax: DistroAgentsTools.fn.sh --sweep-read-incoming-comms [--oldest <ts>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --comms-slack-read <channel>:<ts> [--thread]
-📘 syntax: DistroAgentsTools.fn.sh --comms-email-read <uid>
+📘 syntax: DistroAgentsTools.fn.sh --comms-email-read <uid> [--seen]
 📘 syntax: DistroAgentsTools.fn.sh --comms-trello-read <notification-id>
 📘 syntax: DistroAgentsTools.fn.sh --self-test
 📘 syntax: DistroAgentsTools.fn.sh --verify-permissions
@@ -1027,10 +1027,12 @@
 			Moves a board item into board/parked/, in one call, and/or
 			patches its frontmatter -- check-process-board's own move into
 			board/parked/, the board-mechanical-moves counterpart of the
-			three ops above. No auto-stamp: board-parked has no established
-			always-set field, and the recheck-date/condition pair a parked
-			item carries is a caller judgment, passed as --header:* like any
-			other field this op does not own. --from-state:<state> is
+			three ops above. No auto-stamp -- and that is family-wide, not a
+			property of board-parked: no --magic-board-* op stamps anything,
+			because check-process-board records no provenance of its own the
+			way routine-grooming does. The recheck-date/condition pair a
+			parked item carries is a caller judgment, passed as --header:*
+			like any other field this op does not own. --from-state:<state> is
 			required. --header:* applies upsert/append/remove field
 			operations on top of the resolved body, in the order given.
 			--upsert-from-stdin takes stdin verbatim as the new body;
@@ -1133,12 +1135,27 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--comms-email-read <uid>
+		--comms-email-read <uid> [--seen]
 			Full RFC822 message (headers + body + MIME multipart,
 			attachments included as their raw MIME parts) for one specific
-			email by IMAP UID. Uses curl's `;UID=<uid>` URL addressing (no
-			`;SECTION=` means the whole message) -- contrast with
-			--comms-email-check's STATUS-only unread count.
+			email by IMAP UID -- contrast with --comms-email-check's
+			STATUS-only unread count.
+
+			**Reading does not mark the message read.** The fetch uses
+			BODY.PEEK[], so \Seen is left exactly as it was found. Reading is
+			not a decision about the message; marking it read is, and that
+			decision is made separately -- either by --comms-email-mark-seen,
+			or inline with --seen below.
+
+			--seen marks the message \Seen after a successful read, for the
+			case where a caller reads and immediately concludes. It runs only
+			once the read has succeeded -- a failed read leaves the message
+			untouched -- and it delegates to --comms-email-mark-seen rather
+			than doing its own STORE, so there is one mechanism for the
+			mutation and this op owns only the choice to invoke it. That
+			ordering is also what keeps a later "mark seen everything matching
+			<pattern>" selector reachable: it is the same decision applied to
+			a set, calling the same mark step.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

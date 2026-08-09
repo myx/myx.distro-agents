@@ -331,11 +331,16 @@ Not a contract — the shape of a **generated** document, produced by tooling an
   - `## Incoming IM Updates` (cap 128), `## Incoming Email Updates` (cap 128), `## Incoming Trello Updates` (cap 64).
 - `## Active Inbox Inquiry Items`, `## Current Inbox Reflections`, `## Current Inbox Notes` — cap 32 each, sorted by file modification time, newest first.
 - `## Board Items` — inserted into this structure keeping the existing `--*-input-scan` per-item shape (`## <state>/<item-filename>` then its frontmatter). Never restructured, and **never capped**: the board is the work list, and silently dropping part of it is the failure this document exists to prevent.
-- Every section carries either its items or exactly one `**NOTE:**` line, never both and never neither.
+- Every section carries its items or exactly one `**NOTE:**` line, and never neither. The single permitted combination is items plus a `**NOTE:** partial — …` line.
 - Three distinct `**NOTE:**` forms, never interchangeable: *no new X* (looked, found nothing), *not requested* (never looked), *no scan was made — <reason>* (asked, could not look). That distinction is the document's own reason to exist: an empty result and an unperformed scan must never read alike.
+- **Form 1 always carries a denominator and its filter** — `no new X — scanned <N> items, <M> matched <filter>`. It is the only form asserting a fact about the world rather than about the process, so it is the only one that can be wrong while looking right. Without the denominator, a broken filter and an empty tree render identically: the `--owner` extraction defect (0 of 256 items) would have read as a truthful "no board items".
+- A section with plural sources carries `sources-scanned: <N> of <M>`, and when `N < M` also a `**NOTE:** partial — <source> not scanned, <reason>` beside its items — a populated section must still be able to report that something underneath it failed.
+- The aggregate `no new incoming communications` fires only when every requested comms sub-section is **empty and successfully scanned**; an unscannable sub-section is unknown, not empty, and blocks it.
+- Each comms sub-section states its own `instrument:` — the services differ (Slack takes a cut-off and has no unread flag; email and Trello have unread and take no cut-off), so a single global cut-off line cannot describe what was actually used.
 - Every item block states its type name and id on its heading line.
 - Shell-readable, human-readable and agent-readable at once: stable headings, one item per block, `key: value` lines, blank line between blocks.
-- Recorded gaps live in the skeleton file, stated rather than solved — `assignee` not existing in the entity model, four inbox document types carrying no section, no board-section cap, and the uneven per-service cut-off support that makes lagging pointers the sanctioned mechanism.
+- The inbox sections carry `note-*`/`inquiry-*`/`reflection-*` only — **by design, not omission**. Other types are technically allowed in an inbox and are not misfiled; they are simply not carried, because no step stores them there or takes them from there. The sections cover what steps store. `routine-process-inbox` is the one consumer that does not enumerate, its job being whatever actually landed.
+- Recorded gaps live in the skeleton file, stated rather than solved — `assignee` not existing in the entity model, and the uneven per-service cut-off support that makes lagging pointers the sanctioned mechanism.
 
 ## Nested-item grammar
 

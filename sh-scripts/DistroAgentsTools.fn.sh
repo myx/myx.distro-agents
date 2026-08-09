@@ -873,6 +873,28 @@ $1"
 		## curl's own IMAP URL support) -- `--request "UID FETCH..."` does
 		## not return literal-string FETCH bodies through stdout at all, so
 		## this uses curl's URL-based addressing instead.
+		## Reading is NOT a decision about the message. By default this op
+		## leaves \Seen untouched: it fetches with BODY.PEEK[], which is the
+		## IMAP-level way to say "give me the body without marking it read".
+		## Marking seen is a separate, explicit choice the caller makes once it
+		## knows what the message actually is -- which is why
+		## --comms-email-mark-seen exists as its own op. Before this, the fetch
+		## marked seen as a protocol side effect, so the two ops contradicted
+		## each other and one of them was redundant.
+		##
+		## --seen is that choice expressed inline, for the common case where a
+		## caller reads and immediately concludes. It runs AFTER a successful
+		## read and delegates to --comms-email-mark-seen rather than issuing
+		## its own STORE -- one mechanism for the mutation, already proven,
+		## with this op owning only the decision to invoke it.
+		##
+		## Deliberately a decision applied after the read, not a fetch mode:
+		## that is what keeps the extensible shape reachable. A later
+		## "mark seen everything matching <subject pattern>" selector is the
+		## same decision applied to a set, and can call the same mark step
+		## without this op changing. A --seen implemented as a fetch flag
+		## (BODY[] instead of BODY.PEEK[]) would have foreclosed that, by
+		## welding the decision to the retrieval.
 		--comms-email-read)
 			shift
 			local uid="$1"
@@ -881,6 +903,18 @@ $1"
 				echo "⛔ ERROR: $MDSC_CMD --comms-email-read: UID required" >&2
 				set +e ; return 1
 			fi
+			local markSeen="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--seen)
+						markSeen="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --comms-email-read: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
 
 			local imapHost imapUser imapPass
 			imapHost="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_IMAP_HOST )"
@@ -891,9 +925,31 @@ $1"
 				set +e ; return 1
 			fi
 
-			echo "# $MDSC_CMD --comms-email-read: fetching full message UID=$uid" >&2
-			curl -sS --url "imaps://${imapHost}/INBOX;UID=${uid}" --user "${imapUser}:${imapPass}"
-			return $?
+			echo "# $MDSC_CMD --comms-email-read: fetching full message UID=$uid (BODY.PEEK -- \\Seen not set by this read)" >&2
+			## BODY.PEEK[] via --request against the mailbox URL, NOT curl's
+			## own ;UID= URL addressing: that addressing issues a plain
+			## FETCH BODY[], which sets \Seen as an unavoidable protocol side
+			## effect and has no peek variant. The trade-off is real and is
+			## recorded in this arm's own older comment above -- --request
+			## FETCH has its own literal-string return behavior -- so if a
+			## future change reverts to URL addressing for that reason, it
+			## reintroduces the side effect and must say so out loud.
+			curl -sS --url "imaps://${imapHost}/INBOX" --user "${imapUser}:${imapPass}" \
+				--request "UID FETCH ${uid} BODY.PEEK[]"
+			local readRc=$?
+			if [ "$readRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --comms-email-read: fetch failed for UID=$uid (rc=$readRc) -- \\Seen not touched" >&2
+				set +e ; return "$readRc"
+			fi
+			## Mutation strictly after a successful read, never before: a
+			## failed read must leave the message exactly as it was found.
+			if [ "$markSeen" = "true" ] ; then
+				DistroAgentsTools --comms-email-mark-seen "$uid" || {
+					echo "⛔ ERROR: $MDSC_CMD --comms-email-read: message was read, but --seen failed to mark UID=$uid -- the read output above is still valid" >&2
+					set +e ; return 1
+				}
+			fi
+			return 0
 		;;
 
 		## Full detail for one specific Trello notification by id -- the

@@ -227,8 +227,13 @@ case "$1" in
 	## has no source state, and silently accepting it would let a caller
 	## believe a move was recorded when none was.
 	##
-	## No auto-stamp, matching every sibling in this file -- check-process-board
-	## records no provenance of its own, unlike the grooming family. blocks/
+	## No auto-stamp, matching every sibling in this file. THE EMPTY STAMP SET
+	## IS DELIBERATE, not an omission to be helpfully filled in later: the
+	## grooming family's owner/groomed-at/groomed-from/track are
+	## GROOMING-provenance fields, recording that routine-grooming touched an
+	## item and out of which state. This op is check-process-board's, not
+	## routine-grooming's, so it has no such provenance to record -- stamping
+	## groomed-* here would assert a grooming pass that never happened. blocks/
 	## blocked-by, which this step must set in the same single write, ride the
 	## ordinary --header:* passthrough.
 	##

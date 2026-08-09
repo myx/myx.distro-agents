@@ -206,6 +206,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board` fallback when spawn is required but cannot execute in this pass)
 - `--magic-advance-sleep-run` (`check-restart`: executed before continuing to the next `board-running` item)
 - `--magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]` (`check-execute-board` autonomous spawn relay with execution receipt)
+- `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (per-type checks' closing human-owner DM: **Thread continuity** write-back of `human_owner_broadcast_thread_ts`/`human_owner_broadcast_thread_date`)
 - `--member-slack-send-message <team-member> <target> [text...]` (step 5: post the `event-track` report trace; also `check-execute-board`'s own per-type re-ask rules)
 
 ## `--magic-advance-sleep-run` operation reference
@@ -223,6 +224,10 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## `--magic-advance-to-running` operation reference
 
 `DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board/running/` in one call, auto-stamping `started-at` (date-time). `--from-state:<state>` is required. `--header:*`/`--upsert-from-stdin`/`--edit-script-from-stdin`/`--edit-patch-from-stdin` pass straight through for whatever else the move also needs.
+
+## `--magic-heartbeat-state-upsert` operation reference
+
+`DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]` — writes (creates or overwrites) `routine-heartbeat`'s own day-rhythm state record, plus `routine-communication-sweep`'s per-platform mechanical sweep state. Content via stdin by default, or `--from-file <path>`. Always a whole-record overwrite, never an append; empty content is refused rather than written — so a write-back of individual fields supplies the whole record, not just the changed pair.
 
 ## `--member-slack-send-message` operation reference
 

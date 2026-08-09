@@ -74,13 +74,34 @@ comms-cut-off: <--comms-since-* kind and value, or "none — per-service unread 
 
 # Rules
 
-- rule: Every section carries exactly one of: its items, or a single `**NOTE:**` line. Never both,
-  never neither.
+- rule: Every section carries its items, or a single `**NOTE:**` line, and never neither. The one
+  permitted combination is items **plus** a `**NOTE:** partial — …` line (below); nothing else
+  carries both.
 - rule: The three `**NOTE:**` forms are distinct and not interchangeable — *no new X* (looked,
-  found nothing), *not requested* (never looked), *no scan was made* (asked, could not look).
-  Collapsing them loses the one distinction this document exists to preserve.
+  found nothing), *not requested* (never looked), *no scan was made — reason* (asked, could not
+  look). Collapsing them loses the one distinction this document exists to preserve.
+- rule: **Form 1 never appears without a denominator and the filter that produced it**:
+  `**NOTE:** no new X — scanned <N> items, <M> matched <filter>`. Of the three forms it is the
+  only one asserting a fact about the *world* rather than about the process, so it is the only one
+  that can be wrong while looking right. A zero over a zero denominator and a zero over 256 are
+  different facts, and only the second is evidence about the tree. Without this, a broken filter
+  and an empty tree render identically — which is exactly how the `--owner` extraction defect
+  (0 of 256 items, every board scope silently empty) would have read as a truthful "no board
+  items".
+- rule: A section whose sources are plural carries `sources-scanned: <N> of <M>`. When `N < M` it
+  also carries `**NOTE:** partial — <source> not scanned, <reason>` alongside its items. A section
+  that has items must still be able to report that something underneath it failed; otherwise a
+  populated section reads as complete no matter how many sources errored.
 - rule: `# New Incoming Communications` carries its own `**NOTE:** no new incoming communications`
-  only when every requested comms sub-section is empty.
+  only when every requested comms sub-section is **empty and successfully scanned**. A sub-section
+  that could not be scanned is unknown, not empty, and blocks the aggregate note outright — the
+  parent must never assert emptiness over a scope nobody successfully read.
+- rule: Each comms sub-section states its own instrument, because the services differ:
+  `instrument: cut-off <kind> <value>` or `instrument: unread-semantics (<service mechanism>)`.
+  The global `comms-cut-off:` in `## Contents & Abstract` records what was *requested*; it cannot
+  describe what was actually used, since Slack takes a cut-off and offers no unread flag while
+  email and Trello offer unread and take no cut-off. Stated once at the top, form 1 would be
+  ambiguous across exactly the services it reports on.
 - rule: Every item block states its **type name and id** on its heading line.
 - rule: Caps, applied after sorting: **128** IM, **128** email, **64** Trello, **32** each inbox
   section. A truncated section says so on its own line.
@@ -100,8 +121,11 @@ Stated, deliberately not solved here. Each needs its own decision before it can 
   "current assignee" — one field, not two; 0 of 256 board items carry `assignee:`. Board-related
   scopes match on `owner` alone, and the unnamed further fields in the spec's "`assignee`,
   `owner`, …" remain unnamed.
-- gap: Four inbox document types have no section in this format — `task-`, `proposal-`, `change-`,
-  `interview-`. They exist in real inboxes and are simply not carried.
+- rule (design, not a gap): The inbox sections carry `note-*`, `inquiry-*` and `reflection-*` only.
+  Other document types — `task-`, `proposal-`, `change-`, `interview-` — are **technically allowed
+  in an inbox** and are not misfiled; they are simply not carried here, because no step stores them
+  there or takes them from there. The sections cover what steps store. `routine-process-inbox` is
+  the one consumer that does not enumerate types, since its job is whatever actually landed.
 - gap: Per-service cut-off support is uneven at the source: Slack accepts a cut-off but offers no
   unread semantics; email and Trello offer unread semantics but accept no cut-off. Where a service
   cannot take the cut-off directly, a lagging pointer is the sanctioned mechanism.
