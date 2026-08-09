@@ -544,6 +544,8 @@ The list is read/added-to/removed-from only via `DistroAgentsTools.fn.sh --owner
 
 Every `magic-tooling` operation `magic-team`'s own text genuinely names or invokes. This is the team's shared/floor tooling — the baseline every other member's own tooling file builds on, not a member-specific option set. Full syntax and behavior here.
 
+**Rule**: when creating a name for a: document, file, board-item, audit-item, vault-item, etc... and other names: when/if you add a date, always use `YYYYMMDD'T'HHmm'Z'` format. If seconds are required, use `YYYYMMDD'T'HHmmSS'Z'` extended variant.
+
 ## `DistroAgentsTools.fn.sh`
 - Path: `<workspace-root>/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh` (if the `source/` tree variant of the same workspace has this file - prefer `source/`).
 - This path is canonical — never search the filesystem for it (no `find`, `ls -R`, etc.); read it from here instead. If it looks wrong or stale, fix this line, don't go looking around it.
