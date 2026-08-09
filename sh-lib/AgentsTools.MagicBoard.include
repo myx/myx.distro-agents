@@ -214,6 +214,72 @@ case "$1" in
 		return $?
 	;;
 
+	## check-process-board's own FIRST WRITE of a board-item, as against the
+	## --magic-board-to-<state> family above which moves items that already
+	## exist. One arm, because that procedure has exactly one creating step:
+	## magic-coordinator.armed.md's board-mechanical-moves, "board-backlog item
+	## flagged for human-owner approval, no approval-*/board-blocked move yet
+	## -> create approval-* in board-running (fresh item), record blocks/
+	## blocked-by, move original to board-blocked". The move half of that step
+	## is already --magic-board-to-blocked; this is the create half.
+	##
+	## --from-state: is rejected outright rather than ignored: a created item
+	## has no source state, and silently accepting it would let a caller
+	## believe a move was recorded when none was.
+	##
+	## No auto-stamp, matching every sibling in this file -- check-process-board
+	## records no provenance of its own, unlike the grooming family. blocks/
+	## blocked-by, which this step must set in the same single write, ride the
+	## ordinary --header:* passthrough.
+	##
+	## A body-input mode is required: a created board-item has no existing body
+	## to carry forward, and an approval-* item with an empty body would state
+	## nothing for the negotiation it exists to run.
+	--magic-board-create-running)
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## tooling operation discipline convention, same as every sibling op in
+		## this file.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-create-running: syntax is <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			set +e ; return 1
+		fi
+		local bodyMode=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-board-create-running: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-board-to-* to move an item that already exists." >&2
+					set +e ; return 1
+				;;
+				--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					bodyMode="$1"
+					passthrough+=( "$1" ) ; shift
+				;;
+				--header:*)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-board-create-running: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$bodyMode" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-create-running: one body-input mode is required on create (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) -- a created board-item has no existing body to carry forward" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
+			--create \
+			--context --magic-board-create-running \
+			"${passthrough[@]}"
+		return $?
+	;;
+
 	*)
 		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MagicBoard.include's own default (*) branch, the operation group sourced by the --magic-board-* dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1

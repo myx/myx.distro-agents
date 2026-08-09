@@ -20,7 +20,7 @@ case "$1" in
 
 	## <item-name>... -- read-only discovery, same document shape as
 	## --magic-grooming-input-scan (thin wrapper over
-	## --intern-op-board-scan). Verified directly against
+	## --intern-op-session-context-scan). Verified directly against
 	## routine-coworking.routine.md: no existing step loaded board-state at
 	## all before this op existed -- step 1 ("Frame the shared goal") now
 	## cites this op explicitly once the goal names specific board-item(s)
@@ -89,7 +89,7 @@ case "$1" in
 		for n in "${names[@]}" ; do phaseAArgs+=( --item "$n" ) ; done
 
 		local phaseAOutput
-		phaseAOutput="$( DistroAgentsTools --intern-op-board-scan "${phaseAArgs[@]}" \
+		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "${phaseAArgs[@]}" \
 			--header references --header blocks --header blocked-by --all-types \
 			--context --routine-coworking-session-input-scan )" || return 1
 
@@ -117,7 +117,7 @@ case "$1" in
 		for s in "${allStates[@]}" ; do phaseBArgs+=( --state "$s" ) ; done
 		for n in "${unionNames[@]}" ; do phaseBArgs+=( --item "$n" ) ; done
 
-		DistroAgentsTools --intern-op-board-scan "${phaseBArgs[@]}" --all-types --context --routine-coworking-session-input-scan
+		DistroAgentsTools --intern-op-session-context-scan "${phaseBArgs[@]}" --all-types --context --routine-coworking-session-input-scan
 		return $?
 	;;
 

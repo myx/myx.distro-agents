@@ -87,20 +87,21 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - `interview-*` → `routine-interview`
      - a type not listed here has no `resume-review` defined; ordinary triage applies directly, nothing skipped or missing
    - **Personal-inbox items specifically** (inboxes are not board folders): "triage" for an inbox item means the authority group decides whether it becomes a formal board-item. Outcome for each is one of:
-     - **Promoted** — the authority group creates a new board-item (task/project/change/note/etc.), landing in `board-backlog` by default. Written via `--write-board-item` operation — a fresh file, one call.
+     - **Promoted** — the authority group creates a new board-item (task/project/change/note/etc.), landing in `board-backlog` by default — a single `--magic-grooming-create-backlog` call.
      - **Denied** — rejected, with a resolution reply (see `magic-coordinator`'s own "Dispatch & delegation" standard for the fast-gate rules and the auto-reject vs. escalate split; auto-rejects don't need this step's full narration, just a cited rule)
      - **Ignored** — the inbox item itself is just deleted/left alone, nothing to do on the board side
      - **Not yet ready** — still needs back-and-forth in the member's own inbox before it's board-worthy; stays there, not promoted yet. Any processing checkpoint working that inbox can make this same call, not just grooming.
      - **Merged** — see duplicate-check below
      - where Promoted/Denied items land:
-       - promoted or denied items land in `board-processed` with the resolution text attached; a promoted item lands in `board-backlog` by default
-       - when this authority group's combined context during grooming already warrants treating it as approved, `approved-by`/`approved-at` gets set directly at creation and the item moves straight to `board-pending` in that same action (the same mechanical `board-backlog`→`board-pending` trigger `check-process-board` also acts on, done here in the same breath since grooming already has the context)
-       - when it instead genuinely needs human-owner-level approval, the authority group creates an `approval-*` board-item in `board-running` to run that negotiation and moves the promoted item straight to `board-blocked` instead (see the board's own `board-backlog` entry for the full mechanic)
-       - each of these — landing in `board-processed`/`board-backlog`/`board-pending`/`board-blocked`, and creating the `approval-*` item in `board-running` — is a single `--write-board-item` operation call: the item's first write, not a move of an existing file
+       - promoted or denied items land in `board-processed` with the resolution text attached, via `--magic-grooming-create-processed`; a promoted item lands in `board-backlog` by default, via `--magic-grooming-create-backlog`
+       - when this authority group's combined context during grooming already warrants treating it as approved, `approved-by`/`approved-at` gets set directly at creation via `--magic-grooming-create-pending` with `--header:upsert:approved-by:<value>` and `--header:upsert:approved-at:<value>`, and the item lands in `board-pending` in that same action (the same mechanical `board-backlog`→`board-pending` trigger `check-process-board` also acts on, done here in the same breath since grooming already has the context)
+       - when it instead genuinely needs human-owner-level approval, the authority group makes two calls: `--magic-grooming-create-running` for the `approval-*` item that runs the negotiation, and `--magic-grooming-create-blocked` for the promoted item (see the board's own `board-backlog` entry for the full mechanic)
+       - each of these is the item's first write, not a move of an existing file: a `--magic-grooming-create-<state>` call, which takes a body-input mode and rejects `--from-state:`
+       - `owner`, `groomed-at` and `track:true` are stamped; `groomed-from` is not
    - **Attach `source-slack-channel`/`source-slack-ts` at promotion time, when the item genuinely traces to one originating Slack message**:
      - when promoting an inbox item (or any item created directly during this pass) that started life as a specific Slack DM/channel message — not a migration artifact, not an indirect mention — record that message's channel id and ts in the new Item's frontmatter right then, at creation/promotion, not as a deferred cleanup
      - this is what makes the board's own Slack-reaction-on-resolution mechanism (and `magic-coordinator`'s `check-pending-comms-actions` procedure) actually able to find the right message later — a promoted item with no `source-slack-channel`/`source-slack-ts` is invisible to that mechanism even when a real originating message exists
-     - part of that same `--write-board-item` operation creation call above — not a separate write
+     - `--header:upsert:source-slack-channel:<value>` and `--header:upsert:source-slack-ts:<value>` on that same create call — not a separate write
    - **Duplicate-check, before settling on one of the outcomes above**:
      - for each inbox item, do a quick, cheap look — is this a duplicate of (or cleanly mergeable with) something already sitting in:
        - the same member's inbox
@@ -117,9 +118,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - **if the new information is itself already settled/final**, apply it directly into the original item's own current content — same "current state, not a history of edits" standard used for skill/definition files
        - **if the item is still actively in processing** (not yet resolved, real work still ahead of it), a dated addition or comment on the original is the right shape instead — board/task items *in flight* are legitimately allowed dated incremental notes as things develop; that's different from a finished skill/routine-definition file, which should never carry that kind of changelog language once settled. Don't over-apply the "no dates" hygiene standard to an item that's still genuinely being worked.
      - mechanically:
-       - the surviving item's `supersedes` update, and any settled-info/dated-addition update: a single `--write-board-item` call, same state
+       - the surviving item's `supersedes` update, and any settled-info/dated-addition update: a single `--magic-grooming-to-<its current state>` call with `--from-state:` set to that same state
        - the merged item's `superseded-by` + `board-processed` landing: a single `--magic-grooming-to-processed` call
-       - an item never filed on the board, landing in `board-processed` for the first time: a single `--write-board-item` call — a fresh create, not a move
+       - an item never filed on the board, landing in `board-processed` for the first time: a fresh create, not a move
    - **Cross-member handoff → immediate reply**:
      - whenever this step's outcome creates or updates a cross-member item (one member's item now owned by/assigned to another, not a self-write), that's the trigger point for `routine-process-inbox`'s own step 3 — send the compact who+`references` reply to `slack-magic-team` as part of closing out that item's triage, not as a separate deferred step
      - since `magic-coordinator` is the board's sole writer, this covers both halves: the ask itself and this step's resulting decision
@@ -147,7 +148,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - **escalate** — parent stays `board-running`, or moves to `board-blocked` if the escalation is itself now an external stall
        - **solve** — a solution/implementation subtask is created, parent stays `board-running` until it lands, then another round runs
      - same discipline as `board-blocked`'s own re-check: a board-item mid-testing should show a real attempt or a real subtask each pass, not a silent no-op
-     - the move to `board-processed` is a single `--magic-grooming-to-processed` call; the move to `board-blocked` is a single `--magic-grooming-to-blocked` call; a new investigation/solution subtask is a single `--write-board-item` operation call (fresh file, `references` pointing at the parent)
+     - the move to `board-processed` is a single `--magic-grooming-to-processed` call; the move to `board-blocked` is a single `--magic-grooming-to-blocked` call; a new investigation/solution subtask is a fresh file, `references` pointing at the parent
    - **Slack-reaction closeout**:
      - this step does not react to Slack messages on promotion/move
      - the reaction mechanism: execute `magic-coordinator`'s `check-pending-comms-actions` procedure
@@ -165,10 +166,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **`board-parked` re-check, same cadence**:
      - moves back to an active state once its trigger condition arrives — and if the group concludes the trigger is never coming, that's when a parked item actually moves to `board-archived`, not before
      - a `blocked/` item can also move straight to `board-archived` (not via `parked/`) if the group decides even waiting isn't worth it
-     - a parked item moving back to an active state uses `--magic-grooming-to-backlog`/`--magic-grooming-to-pending`; a move straight to `board-archived` is a single `--magic-grooming-to-archived` call
+     - a parked item moving back to an active state uses `--magic-grooming-to-pending`; a move straight to `board-archived` is a single `--magic-grooming-to-archived` call
    - **`board-retained` `recheck-and-exit`**, `recheck-date`-scheduled:
      - for each item whose `recheck-date` is due or unset, re-check against the board's own qualifying-reference definition
-     - still referenced → stays, `recheck-date` renewed (`--write-board-item` operation, single call, same state)
+     - still referenced → stays, `recheck-date` renewed via `--magic-grooming-to-retained --from-state:retained`
      - no longer referenced → normal `board-processed` GC flow
    - **Task-creation lifecycle**: the staged pipeline a real proposal/task moves through before it's genuinely ready, not just the cut-off-rules check above:
      - investigation
@@ -289,7 +290,6 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## DistroAgentsTools magic-tooling operations
 
 - `--help`
-- `--write-board-item <state> <item-filename>`
 - `--magic-grooming-input-scan <team-member>`
 - `--magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--magic-grooming-to-pending` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-pending`)
@@ -298,6 +298,12 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-grooming-to-blocked` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-blocked`)
 - `--magic-grooming-to-running` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-running`)
 - `--magic-grooming-to-archived` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-archived`)
+- `--magic-grooming-to-retained` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-retained`)
+- `--magic-grooming-create-backlog` (creates a new board-item in `board-backlog`)
+- `--magic-grooming-create-pending` (creates a new board-item in `board-pending`)
+- `--magic-grooming-create-running` (creates a new board-item in `board-running`)
+- `--magic-grooming-create-blocked` (creates a new board-item in `board-blocked`)
+- `--magic-grooming-create-processed` (creates a new board-item in `board-processed`)
 - `--member-slack-send-message <team-member> <target> [text...]`
 - `--member-work-session-input-scan <team-member>`
 - `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
@@ -305,10 +311,6 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## `--help` operation reference
 
 Prints this syntax + summary and exits.
-
-## `--write-board-item` operation reference
-
-`DistroAgentsTools.fn.sh --write-board-item <state> <item-filename>` — magic-coordinator-only op by design. `<state>` must be one of the board's real state names (backlog/pending/running/blocked/parked/processed/archived/retained); `<item-filename>` must be a bare filename (no `/`, not `.`/`..`). Content via stdin only. Moving an item between states is two calls (write into the new state, then remove the old file separately) — this op has no built-in move/rename primitive.
 
 ## `--magic-grooming-input-scan` operation reference
 
@@ -318,7 +320,7 @@ Prints this syntax + summary and exits.
 
 `DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item to `board-backlog` and/or patches its frontmatter, one call, no full-content rewrite required. `--from-state:<state>` and `--owner` are both required; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied.
 
-Every grooming-driven state move uses its own `--magic-grooming-to-*` operation: it does the content patch and the move in one call. `--write-board-item` is for fresh-item creates and same-state field updates. Neither is ever replaced by a raw `Edit`/`Write`/`Bash mv` on a board-item file.
+Every grooming-driven state move uses its own `--magic-grooming-to-*` operation: it does the content patch and the move in one call. It is never replaced by a raw `Edit`/`Write`/`Bash mv` on a board-item file.
 
 ## `--magic-grooming-to-pending` operation reference
 
@@ -335,6 +337,14 @@ Same shape as `--magic-grooming-to-backlog` operation, target fixed to `board-pa
 ## `--magic-grooming-to-running` operation reference
 
 `DistroAgentsTools.fn.sh --magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-running` in one call, and/or patches its frontmatter. `--owner` is mandatory; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied.
+
+## `--magic-grooming-create-*` operation reference
+
+`DistroAgentsTools.fn.sh --magic-grooming-create-<state> <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` — writes a new board-item into `board-<state>`. A body-input mode is required. `--from-state:` is rejected: a created item has no source state, and a move uses `--magic-grooming-to-<state>` instead. `owner`, `groomed-at` and `track:true` are stamped; `groomed-from` is not. Everything else the creating step sets — `approved-by`/`approved-at`, `blocks`/`blocked-by`, `references`, `source-slack-channel`/`source-slack-ts` — rides `--header:*` on the same call.
+
+## `--magic-grooming-to-retained` operation reference
+
+`DistroAgentsTools.fn.sh --magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-retained` in one call, and/or patches its frontmatter. `--owner` is mandatory; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied. Called with `--from-state:retained` it is a same-state field update, which is how `recheck-and-exit` renews a `recheck-date`.
 
 ## `--magic-grooming-to-archived` operation reference
 

@@ -2,7 +2,7 @@
 ##
 ## AgentBoardItemFrontmatterPrint.awk -- prints every `key: value` frontmatter
 ## line of one file (given as the sole ARGV argument), verbatim, in order.
-## Shared by AgentsTools.InternOpBoardScan.include's own all-headers case and
+## Shared by AgentsTools.InternOpSessionContextScan.include's own all-headers case and
 ## AgentsTools.Member.include's --member-work-session-input-scan (identical
 ## need, applied to a member's own inbox/ files instead of board/<state>/
 ## files) -- one shared script rather than duplicating the same logic in both

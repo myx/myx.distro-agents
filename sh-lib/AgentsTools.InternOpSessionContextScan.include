@@ -2,7 +2,7 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.InternOpBoardScan.include -- the --intern-op-board-scan op for
+## AgentsTools.InternOpSessionContextScan.include -- the --intern-op-session-context-scan op for
 ## DistroAgentsTools.fn.sh's dispatcher. Sourced lazily from that exact op's
 ## own dispatcher arm (not a wildcard -- this file holds one op only) via the
 ## standard $MDLT_ORIGIN-based path. Not standalone: relies on being
@@ -40,7 +40,7 @@
 ##
 ## Same "dedicated wrappers are fixed, not flexible" convention every other
 ## wrapper over this primitive follows: a caller wanting a different scan shape
-## calls --intern-op-board-scan directly rather than adding override flags to,
+## calls --intern-op-session-context-scan directly rather than adding override flags to,
 ## or merging, the fixed wrappers. Each of the three wrappers' own case-arm
 ## comments points back at this note.
 ##
@@ -101,47 +101,52 @@
 ## one shared default for all" is enforced by convention at the call sites,
 ## not by this primitive refusing to have any default of its own.
 ##
-## SESSION-INPUT SURFACE (--since-date-time/--since-utime, --list-open-inquiries)
+## SESSION-CONTEXT SURFACE -- PARTIALLY BUILT, READ THIS BEFORE USING IT
 ##
-## Growing this primitive toward "one operation that returns everything a
-## session needs to start". Strictly additive: a caller that passes none of
-## these options gets exactly the document it got before, byte for byte --
-## verified by diffing every existing wrapper's output across the change.
+## Target: one operation returning everything a session needs to start, emitted
+## in the `# Session Sweep Report` shape defined by
+## magic-team/templates/session-context.document.format.md and
+## magic-team.shared.md's "Session-context document" entry.
 ##
-## - --since-date-time <YYYY-MM-DD...> | --since-utime <epoch-seconds>:
-##   at most one, mutually exclusive, not repeatable. The comms cut-off.
-##   NEITHER IS CONVERTED HERE. The value is validated for shape and then
-##   recorded and reported verbatim, in the spelling the caller used. Turning
-##   an ISO date-time into epoch seconds needs date(1), whose flags differ
-##   between Darwin/FreeBSD (-j -f) and Linux (-d) -- cross-platform
-##   correctness is a hard requirement in this tree, so the conversion belongs
-##   wherever a comms reader actually needs one, not in a scan primitive that
-##   never uses the number itself.
+## BUILT SO FAR: the option surface and its validation only --
+##   --comms-since-date-time <YYYY-MM-DD...> | --comms-since-utime <epoch-seconds>
+##   --comms-do-all | --comms-do-slack | --comms-do-email | --comms-do-trello
+##   --do-inbox-inquiry-active | --do-inbox-inquiry-all
+##   --do-inbox-reflections | --do-inbox-notes
+##   --do-board-related-active | --do-board-related-all
+## plus a `## comms-scan` block that reports which services were REQUESTED and
+## states outright that none were read.
 ##
-## - Absent cut-off means NO comms are scanned at all -- not "scan whatever is
-##   unread". Any read-not-seen / new-notifications semantics a channel offers
-##   are deliberately not used, whatever the communication type, protocol or
-##   service.
+## NOT BUILT YET: the comms reads themselves, the inbox sections, the
+## board-related sections, and the report's own section structure/caps. Every
+## flag above is accepted and reported but otherwise inert. `performed:` is
+## false on every path, deliberately -- an unfinished scan must never be
+## indistinguishable from an empty one, which is the whole point of the
+## document being built.
 ##
-## - The `## comms-scan` block states this outright, in both directions, so a
-##   caller can always tell "nothing new" from "nothing was looked at". That
-##   distinction is the whole point of the block: an empty comms result and an
-##   unperformed comms scan are indistinguishable without it.
+## Per-service reality, measured, which the unbuilt half has to solve:
+##   - Slack: accepts a cut-off (--oldest), offers NO unread semantics.
+##   - email: offers UNSEEN, accepts no cut-off (no IMAP SINCE wired).
+##   - Trello: offers read_filter=unread, accepts no cut-off.
+## So the spec's "fall back to unread where the service offers it" resolves
+## differently per service, and a cut-off cannot reach email/Trello today.
+## Lagging pointers are the sanctioned mechanism where a service cannot take
+## the cut-off directly; none is implemented yet.
 ##
-## - The block is emitted only when a caller engaged this surface at all
-##   (passed --since-* or --list-open-inquiries). A pure board-scan caller's
-##   document is unchanged -- adding an unconditional preamble would rewrite
-##   the input document of all six existing wrappers for no benefit to any of
-##   them.
+## NEITHER CUT-OFF SPELLING IS CONVERTED HERE. Validated for shape, recorded
+## and reported verbatim in the caller's own spelling. ISO->epoch needs date(1),
+## whose flags differ between Darwin/FreeBSD (-j -f) and Linux (-d);
+## cross-platform correctness is a hard requirement in this tree, so the
+## conversion belongs wherever a comms reader actually needs the number.
 ##
-## - This op performs no external comms read of its own yet. A declared
-##   cut-off is reported as declared, never as scanned; `performed:` stays
-##   false in both branches until a comms reader is actually wired in.
+## Strictly additive so far: a caller passing none of these options gets exactly
+## the document it got before this surface existed, byte for byte -- verified by
+## diffing every existing wrapper's output across the change.
 ##
-## - --list-open-inquiries appends an `## open-inquiries` section. "Open" is
-##   defined structurally by board state, and the field list is fixed -- see
-##   that section's own comment for both, and for why the free-form `status:`
-##   field is deliberately not used as the open/closed test.
+## This op is internal: no --help entry, not user-visible, and no skillset file
+## calls it directly. Every option a site needs is passed by that site's own
+## stub.
+##
 ##
 
 case "$1" in
@@ -149,7 +154,7 @@ case "$1" in
 	## [--state <state>]... [--header <name>]...
 	##   (--type-prefix:<value> [--type-prefix:<value>]... | --all-types)
 	##   [--owner <value>] [--item <name>]...
-	--intern-op-board-scan)
+	--intern-op-session-context-scan)
 		shift
 		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
 		## own copy of this block for the full reasoning. Pre-scanned before any
@@ -165,23 +170,27 @@ case "$1" in
 		done
 		local states=() headers=() typePrefixes=() items=()
 		local allTypes="false" owner=""
-		## Session-input composition surface (see this file's own header note).
-		## commsCutoffKind stays empty when neither --since-* was given, which
-		## is what makes "no comms were scanned" a stated fact rather than an
-		## empty result indistinguishable from a healthy one.
-		local commsCutoffKind="" commsCutoffValue="" listOpenInquiries="false"
+		## Session-context surface (see this file's own header note). Every
+		## scope is opt-in and defaults to "not requested", which is a distinct
+		## reported state from "requested and empty" -- that distinction is the
+		## whole point of the generated document.
+		local commsCutoffKind="" commsCutoffValue=""
+		local commsDoAll="false" commsDoSlack="false" commsDoEmail="false" commsDoTrello="false"
+		local doInboxInquiryActive="false" doInboxInquiryAll="false"
+		local doInboxReflections="false" doInboxNotes="false"
+		local doBoardRelatedActive="false" doBoardRelatedAll="false"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--state)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --state: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --state: value required" >&2
 						set +e ; return 1
 					fi
 					case "$2" in
 						backlog|pending|running|blocked|parked|processed|archived|retained)
 						;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --state: invalid state: $2" >&2
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --state: invalid state: $2" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -190,7 +199,7 @@ case "$1" in
 				;;
 				--header)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --header: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --header: value required" >&2
 						set +e ; return 1
 					fi
 					headers+=( "$2" )
@@ -199,7 +208,7 @@ case "$1" in
 				--type-prefix:*)
 					local prefixVal="${1#--type-prefix:}"
 					if [ -z "$prefixVal" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --type-prefix: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --type-prefix: value required" >&2
 						set +e ; return 1
 					fi
 					typePrefixes+=( "$prefixVal" )
@@ -211,7 +220,7 @@ case "$1" in
 				;;
 				--owner)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --owner: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2"
@@ -219,34 +228,44 @@ case "$1" in
 				;;
 				--item)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --item: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --item: value required" >&2
 						set +e ; return 1
 					fi
 					items+=( "$2" )
 					shift 2
 				;;
-				--since-date-time|--since-utime)
+				--comms-do-all)    commsDoAll="true" ; shift ;;
+				--comms-do-slack)  commsDoSlack="true" ; shift ;;
+				--comms-do-email)  commsDoEmail="true" ; shift ;;
+				--comms-do-trello) commsDoTrello="true" ; shift ;;
+				--do-inbox-inquiry-active) doInboxInquiryActive="true" ; shift ;;
+				--do-inbox-inquiry-all)    doInboxInquiryAll="true" ; shift ;;
+				--do-inbox-reflections)    doInboxReflections="true" ; shift ;;
+				--do-inbox-notes)          doInboxNotes="true" ; shift ;;
+				--do-board-related-active) doBoardRelatedActive="true" ; shift ;;
+				--do-board-related-all)    doBoardRelatedAll="true" ; shift ;;
+				--comms-since-date-time|--comms-since-utime)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): $1: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): $1: value required" >&2
 						set +e ; return 1
 					fi
 					if [ -n "$commsCutoffKind" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --since-date-time and --since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-since-date-time and --comms-since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
 						set +e ; return 1
 					fi
 					case "$1" in
-						--since-utime)
+						--comms-since-utime)
 							## Epoch seconds: digits only. Rejected here rather
 							## than passed through, so a malformed cut-off can
 							## never silently become "scan everything".
 							case "$2" in
 								''|*[!0-9]*)
-									echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --since-utime: must be epoch seconds, digits only: $2" >&2
+									echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-since-utime: must be epoch seconds, digits only: $2" >&2
 									set +e ; return 1
 								;;
 							esac
 						;;
-						--since-date-time)
+						--comms-since-date-time)
 							## Leading YYYY-MM-DD is all that is checked here:
 							## enough to catch a transposed/garbage value, while
 							## staying free of any date(1) parsing, whose flags
@@ -255,7 +274,7 @@ case "$1" in
 							case "$2" in
 								[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]*) ;;
 								*)
-									echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --since-date-time: must start with YYYY-MM-DD: $2" >&2
+									echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-since-date-time: must start with YYYY-MM-DD: $2" >&2
 									set +e ; return 1
 								;;
 							esac
@@ -265,30 +284,40 @@ case "$1" in
 					commsCutoffValue="$2"
 					shift 2
 				;;
-				--list-open-inquiries)
-					listOpenInquiries="true"
-					shift
-				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --context: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --context: value required" >&2
 						set +e ; return 1
 					fi
 					shift 2
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 
 		if [ "$allTypes" = "true" ] && [ ${#typePrefixes[@]} -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): --all-types and --type-prefix: are mutually exclusive" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --all-types and --type-prefix: are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 		if [ "$allTypes" = "false" ] && [ ${#typePrefixes[@]} -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): exactly one of --all-types or --type-prefix:<value>... is required -- no implicit type default" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): exactly one of --all-types or --type-prefix:<value>... is required -- no implicit type default" >&2
+			set +e ; return 1
+		fi
+
+		## A cut-off with nothing to apply it to is a caller mistake, not a
+		## no-op: it reads like comms were requested when none were.
+		if [ -n "$commsCutoffKind" ] && [ "$commsDoAll" != "true" ] && [ "$commsDoSlack" != "true" ] \
+			&& [ "$commsDoEmail" != "true" ] && [ "$commsDoTrello" != "true" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): $commsCutoffKind given with no --comms-do-* selector -- a cut-off applies to a requested comms scan, and requesting none is never implied to mean all" >&2
+			set +e ; return 1
+		fi
+		## --comms-do-all is the whole set, not a shorthand to combine with
+		## part of it -- same fixed-wrapper discipline as --all-types.
+		if [ "$commsDoAll" = "true" ] && { [ "$commsDoSlack" = "true" ] || [ "$commsDoEmail" = "true" ] || [ "$commsDoTrello" = "true" ] ; } ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-do-all and the individual --comms-do-slack/--comms-do-email/--comms-do-trello selectors are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 
@@ -297,7 +326,7 @@ case "$1" in
 		fi
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-scan (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		local boardRoot="$MDAT_DATA_ROOT/board"
@@ -310,33 +339,43 @@ case "$1" in
 			done
 		fi
 
-		## Comms-scan declaration. Emitted only when the caller engaged the
-		## session-input surface at all (--since-* or --list-open-inquiries) --
-		## a caller that asked for nothing but a board scan gets exactly the
-		## document it got before this surface existed, byte for byte.
+		## Comms-scan declaration -- emitted only when a caller engaged the
+		## session-context surface at all, so a pure board-scan caller's
+		## document stays byte-identical to what it was before this surface
+		## existed. Printed BEFORE any board item.
 		##
-		## Printed BEFORE any board item, and printed in both directions:
-		## a stated "not-performed" is the whole point, so that an empty comms
-		## result can never be mistaken for a healthy one that found nothing.
 		## Its `## comms-scan` header carries no `/`, so a consumer matching
 		## this document's item headers (`^## <state>/<item>`) never picks it
 		## up, while the key: value + blank-line body keeps the same shape
 		## every other block here uses.
-		if [ -n "$commsCutoffKind" ] || [ "$listOpenInquiries" = "true" ] ; then
+		##
+		## INCOMPLETE, deliberately and visibly: the revised spec's per-option
+		## reporting, the actual comms reads, the inbox sections and the
+		## board-related sections are NOT built yet -- see this file's own
+		## header note. Until they are, this block reports per-service what was
+		## requested and states plainly that nothing was read, so the document
+		## can never overstate what happened. `performed:` is false on every
+		## path here, without exception.
+		if [ -n "$commsCutoffKind" ] || [ "$commsDoAll" = "true" ] || [ "$commsDoSlack" = "true" ] \
+			|| [ "$commsDoEmail" = "true" ] || [ "$commsDoTrello" = "true" ] \
+			|| [ "$doInboxInquiryActive" = "true" ] || [ "$doInboxInquiryAll" = "true" ] \
+			|| [ "$doInboxReflections" = "true" ] || [ "$doInboxNotes" = "true" ] \
+			|| [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; then
 			printf '## comms-scan\n'
+			printf 'performed: false\n'
+			printf 'implementation-status: incomplete -- comms reads, inbox sections and board-related sections are not built yet\n'
 			if [ -z "$commsCutoffKind" ] ; then
-				printf 'performed: false\n'
-				printf 'reason: no --since-date-time/--since-utime cut-off was given\n'
-				printf 'scanned-sources: none\n'
-				printf 'not-used-semantics: read-not-seen, new-notifications\n'
-				printf 'note: NO EXTERNAL COMMS SCAN WAS MADE by this operation, for any communication type, protocol or service. An empty comms result here means nothing was looked at, not that nothing was found.\n'
+				printf 'cut-off: none\n'
+				printf 'fallback-intended: per-service read-not-seen / new-notifications where the service offers them\n'
 			else
-				printf 'performed: false\n'
 				printf 'cut-off-kind: %s\n' "$commsCutoffKind"
 				printf 'cut-off-value: %s\n' "$commsCutoffValue"
-				printf 'scanned-sources: none\n'
-				printf 'note: a cut-off was accepted and is recorded above, but this operation performs no external comms read of its own -- it reports board data only. Do not read a declared cut-off as evidence that comms were scanned.\n'
 			fi
+			printf 'requested-slack: %s\n'  "$( [ "$commsDoAll" = "true" ] || [ "$commsDoSlack" = "true" ]  && echo yes || echo no )"
+			printf 'requested-email: %s\n'  "$( [ "$commsDoAll" = "true" ] || [ "$commsDoEmail" = "true" ]  && echo yes || echo no )"
+			printf 'requested-trello: %s\n' "$( [ "$commsDoAll" = "true" ] || [ "$commsDoTrello" = "true" ] && echo yes || echo no )"
+			printf 'scanned-sources: none\n'
+			printf 'note: NO EXTERNAL COMMS SCAN WAS MADE by this operation, for any requested service. An empty comms result here means nothing was looked at, not that nothing was found. Do not read a declared cut-off or a requested-* yes as evidence that anything was read.\n'
 			printf '\n'
 		fi
 
@@ -415,101 +454,11 @@ case "$1" in
 			done
 		done
 
-		## Open own inquiry-* items, as their own labelled section.
-		##
-		## "Open/non-closed" is defined structurally, by board state: an
-		## inquiry-* item is open while it sits in a non-terminal state
-		## (backlog/pending/running/blocked/parked) and closed once it reaches
-		## a terminal one (processed/archived/retained). That is the board's
-		## own active/terminal split, already the five-state list every
-		## --*-input-scan wrapper uses -- not a new concept invented here.
-		## Deliberately NOT keyed on the `status:` frontmatter field: that
-		## field is free-form prose on real items ("backlog -- not yet assessed
-		## by magic-devops, no external blocker"), so it cannot carry a
-		## machine-checkable open/closed answer, and pretending otherwise would
-		## reintroduce exactly the silent-wrong-read failure this section's
-		## own declaration above exists to prevent.
-		##
-		## Fixed field list, not caller-selectable: the fields that decide
-		## whether an open inquiry needs action -- who must answer it, who
-		## asked, when, its own free-text status note, what it references, and
-		## the recheck-date/condition pair a blocked or parked one carries.
-		## Verified present on real inquiry items rather than assumed.
-		## Independent of --header, which stays the board-item section's own
-		## selector.
-		##
-		## Honours --owner when given ("own" items), and ignores --state/
-		## --type-prefix:/--all-types entirely: this section's states and type
-		## are what define it, so letting the board section's filters narrow it
-		## would make "open inquiries" mean something different per caller.
-		if [ "$listOpenInquiries" = "true" ] ; then
-			printf '## open-inquiries\n'
-			printf 'open-states: backlog pending running blocked parked\n'
-			printf 'closed-states-excluded: processed archived retained\n'
-			printf 'owner-filter: %s\n' "${owner:-<none>}"
-			printf '\n'
-			## Same \034 field separator the --header path above joins with.
-			local inqFS=$'\034'
-			local inqHeaders="type${inqFS}from${inqFS}date${inqFS}owner${inqFS}status${inqFS}references${inqFS}recheck-date${inqFS}condition"
-			local inqState inqFile inqBase
-			for inqState in backlog pending running blocked parked ; do
-				for inqFile in "$boardRoot/$inqState"/inquiry-*.md ; do
-					[ -f "$inqFile" ] || continue
-					inqBase="${inqFile##*/}"
-					if [ -n "$owner" ] ; then
-						## Frontmatter-scoped extraction, deliberately NOT the
-						## `sed -n 's/^owner: //p;q'` idiom the board-item loop
-						## above uses: that `q` quits after line 1, which is
-						## always the opening `---`, so it yields empty for
-						## every board item and silently matches nothing. That
-						## defect is pre-existing and left untouched here (it
-						## belongs to an already-approved path and changing it
-						## changes that path's output) -- but it is not copied
-						## into new code. Reported separately.
-						ownerVal="$( LC_ALL=C awk '/^---$/{ c++; if (c == 2) exit; next } c == 1 && /^owner: /{ sub(/^owner: /, ""); print; exit }' "$inqFile" )"
-						[ "$ownerVal" = "$owner" ] || continue
-					fi
-					printf '## open-inquiry %s/%s\n' "$inqState" "$inqBase"
-					LC_ALL=C awk -v headers="$inqHeaders" '
-						BEGIN {
-							n = split(headers, order, "\034")
-							for (i = 1; i <= n; i++) {
-								vals[order[i]] = ""
-							}
-						}
-						NR == 1 {
-							if ($0 == "---") {
-								in_fm = 1
-								next
-							}
-						}
-						in_fm {
-							if ($0 == "---") {
-								exit
-							}
-							pos = index($0, ": ")
-							if (pos > 0) {
-								key = substr($0, 1, pos - 1)
-								if ((key in vals) && vals[key] == "") {
-									vals[key] = substr($0, pos + 2)
-								}
-							}
-						}
-						END {
-							for (i = 1; i <= n; i++) {
-								printf "%s: %s\n", order[i], vals[order[i]]
-							}
-						}
-					' "$inqFile"
-					printf '\n'
-				done
-			done
-		fi
 		return 0
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpBoardScan.include's own default (*) branch, the operation group sourced by the --intern-op-board-scan dispatcher route; no operation of that name is defined in this include" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpSessionContextScan.include's own default (*) branch, the operation group sourced by the --intern-op-session-context-scan dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

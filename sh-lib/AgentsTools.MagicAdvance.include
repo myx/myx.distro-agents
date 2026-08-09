@@ -45,7 +45,7 @@
 ## Fixed, hardcoded state-list/header-list -- no caller-facing --state/
 ## --header override flags, and specifically none added for the second
 ## consumer's narrower view: dedicated wrappers are fixed, not flexible; a
-## caller wanting a different scan shape calls --intern-op-board-scan
+## caller wanting a different scan shape calls --intern-op-session-context-scan
 ## directly instead. Contrast --routine-coworking-session-input-scan's own
 ## positional <item-name> list, which is that op's real defining input rather
 ## than an override of an already-fixed default. Always --all-types -- neither
@@ -59,14 +59,14 @@ case "$1" in
 
 	## Takes no arguments -- read-only discovery, same document shape as
 	## --magic-grooming-input-scan (thin wrapper over
-	## --intern-op-board-scan). See this file's own header comment for the
+	## --intern-op-session-context-scan). See this file's own header comment for the
 	## state-list's derivation and for the second consuming routine.
 	##
 	## This op's arguments are byte-identical to --magic-grooming-input-scan's
 	## and --magic-heartbeat-input-scan's, so all three return identical output.
 	## Deliberate, ruled so by the human-owner -- these ops exist per consuming
 	## routine, not per scan scope. DO NOT collapse or deduplicate them. Full
-	## reasoning: the CANONICAL NOTE in AgentsTools.InternOpBoardScan.include's
+	## reasoning: the CANONICAL NOTE in AgentsTools.InternOpSessionContextScan.include's
 	## own header.
 	--magic-advance-input-scan)
 		shift
@@ -84,7 +84,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-board-scan \
+		DistroAgentsTools --intern-op-session-context-scan \
 			--state backlog --state pending --state running --state blocked --state parked \
 			--all-types \
 			--context --magic-advance-input-scan

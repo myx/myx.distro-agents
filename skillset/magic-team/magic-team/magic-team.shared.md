@@ -318,6 +318,25 @@ A non-acting identity record that nonetheless carries one real, invocable proced
 - `# Maintainer Notes` — same shape as every other contract. The `## Verbatim-goals (intents)`/`## Verbatim-tests (benchmarks)` pair is where the authority-role intent is anchored — not a `Scope` subsection, and never a copy of the vision doc.
 - One member only. Not a family; no second `human-owner`-shaped member exists or is expected.
 
+### Session-context document (`# Session Sweep Report`)
+
+Copyable skeleton: `magic-team/templates/session-context.document.format.md`.
+
+Not a contract — the shape of a **generated** document, produced by tooling and read by a session at its start. Nothing writes it by hand, and no session calls the producing operation directly: each routine/member invokes its own stub, and each stub requests exactly the scopes its own invocation place needs.
+
+- `# Session Sweep Report`
+  - `## Contents & Abstract` — `generated-for`, `generated-at`, the scopes actually requested, and the comms cut-off in force (or that none was set).
+- `# New Incoming Communications`
+  - Carries `**NOTE:** no new incoming communications` only when every requested comms sub-section is empty.
+  - `## Incoming IM Updates` (cap 128), `## Incoming Email Updates` (cap 128), `## Incoming Trello Updates` (cap 64).
+- `## Active Inbox Inquiry Items`, `## Current Inbox Reflections`, `## Current Inbox Notes` — cap 32 each, sorted by file modification time, newest first.
+- `## Board Items` — inserted into this structure keeping the existing `--*-input-scan` per-item shape (`## <state>/<item-filename>` then its frontmatter). Never restructured, and **never capped**: the board is the work list, and silently dropping part of it is the failure this document exists to prevent.
+- Every section carries either its items or exactly one `**NOTE:**` line, never both and never neither.
+- Three distinct `**NOTE:**` forms, never interchangeable: *no new X* (looked, found nothing), *not requested* (never looked), *no scan was made — <reason>* (asked, could not look). That distinction is the document's own reason to exist: an empty result and an unperformed scan must never read alike.
+- Every item block states its type name and id on its heading line.
+- Shell-readable, human-readable and agent-readable at once: stable headings, one item per block, `key: value` lines, blank line between blocks.
+- Recorded gaps live in the skeleton file, stated rather than solved — `assignee` not existing in the entity model, four inbox document types carrying no section, no board-section cap, and the uneven per-service cut-off support that makes lagging pointers the sanctioned mechanism.
+
 ## Nested-item grammar
 
 How a nested list under an instruction declares what each of its lines *is*. Applies to any nested instruction list in a skillset file — a routine's `# Steps`/`# Closure steps`, and the `Steps:` lists inside any member's or routine's own local-procedures blocks — not only `.routine.md`.

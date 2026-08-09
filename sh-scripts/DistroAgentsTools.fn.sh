@@ -1877,9 +1877,9 @@ $1"
 
 		## Internal plumbing, no --help entry -- the shared generic
 		## primitive underlying every --*-input-scan wrapper below. See
-		## AgentsTools.InternOpBoardScan.include's own header.
-		--intern-op-board-scan)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpBoardScan.include"
+		## AgentsTools.InternOpSessionContextScan.include's own header.
+		--intern-op-session-context-scan)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSessionContextScan.include"
 			return $?
 		;;
 

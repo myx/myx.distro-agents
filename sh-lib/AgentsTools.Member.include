@@ -486,7 +486,7 @@ case "$1" in
 
 	## <member> -- read-only discovery, same document shape as
 	## --magic-grooming-input-scan (thin wrapper over
-	## --intern-op-board-scan; see that file for the actual scan/filter/
+	## --intern-op-session-context-scan; see that file for the actual scan/filter/
 	## format mechanics). Personal, not routine-dictated -- see
 	## magic-team.armed.md's Engineering & operating discipline section:
 	## every member runs this against its own name as it becomes armed,
@@ -494,7 +494,7 @@ case "$1" in
 	## op's real defining input (not an override of some other fixed
 	## default) and stays; no --state/--header flags alongside it --
 	## dedicated wrappers are fixed, not flexible, a caller wanting a
-	## different scan shape calls --intern-op-board-scan directly instead.
+	## different scan shape calls --intern-op-session-context-scan directly instead.
 	## Fixed filters: --owner <member> (this op's whole point -- "what's
 	## currently assigned to me") and --all-types (no board-item-type
 	## restriction; a member's own work spans every type). Always
@@ -533,7 +533,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		DistroAgentsTools --intern-op-board-scan \
+		DistroAgentsTools --intern-op-session-context-scan \
 			--state backlog --state pending --state running --state blocked --state parked \
 			--all-types --owner "$memberName" \
 			--context --member-work-session-input-scan || return 1

@@ -1,6 +1,6 @@
 #!/usr/bin/awk -f
 ##
-## AgentMagicSweepSlackThreadNames.awk -- reads an --intern-op-board-scan
+## AgentMagicSweepSlackThreadNames.awk -- reads an --intern-op-session-context-scan
 ## document (## <state>/<item> blocks, blank-line-separated, each carrying at
 ## least `source-slack-channel:`/`source-slack-ts:` lines -- the caller must
 ## have requested both headers. Legacy underscore aliases are accepted too.

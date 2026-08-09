@@ -586,13 +586,372 @@ case "$1" in
 		return $?
 	;;
 
+	## --magic-grooming-create-<state>: routine-grooming's own FIRST WRITE of a
+	## board-item, as against the --magic-grooming-to-<state> family above,
+	## which moves an item that already exists. Separate ops because they are
+	## separate steps, not because the intern-op needs it: a create has no
+	## source state, so --from-state: is meaningless here and every one of
+	## these arms rejects it outright rather than quietly ignoring it.
+	##
+	## Five arms because routine-grooming has five creating landings, derived
+	## from the routine itself:
+	##   backlog   -- Promoted, the default landing for an inbox item the
+	##                authority group promotes ("a fresh file, one write")
+	##   processed -- a promoted-or-denied item landing with its resolution
+	##                text attached
+	##   pending   -- the same promotion when the group's own context already
+	##                warrants approved-by/approved-at at creation
+	##   blocked   -- the same promotion when it instead needs human-owner
+	##                approval, so the promoted item lands blocked
+	##   running   -- the approval-* item that negotiation runs in
+	## check-process-board's own approval-* creation is NOT one of these: it is
+	## that procedure's step, so it gets its own --magic-board-create-running
+	## in AgentsTools.MagicBoard.include.
+	##
+	## groomed-from is deliberately NOT stamped by any create arm. It records
+	## the state an item moved FROM, and a created item moved from nowhere;
+	## a sentinel value there would be a false record of a transition that
+	## never happened, which is exactly the class of silent-wrong-value defect
+	## this family exists to avoid. owner/groomed-at/track are stamped as
+	## everywhere else in this file.
+	##
+	## A body-input mode is REQUIRED on create, unlike on a move. A move
+	## carries the existing body forward when none is given; a create has no
+	## existing body, so omitting one would file an empty board-item. Each arm
+	## enforces that itself.
+	##
+	## source-slack-channel/source-slack-ts, blocks/blocked-by, approved-by/
+	## approved-at and references all ride the ordinary --header:* passthrough
+	## at creation time -- the routine requires them set in the same single
+	## write, and this shape is what makes that one call rather than two.
+	## Target fixed to backlog -- the Promoted default landing. Its own full
+	## copy, not shared with its four create siblings: same standing rule as
+	## the --magic-grooming-to-* family, each op owning its own validation so
+	## it can grow state-specific checks without disturbing the others.
+	--magic-grooming-create-backlog)
+		local createOp="$1"
+		local createState="backlog"
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## see --magic-grooming-to-backlog's own comment above.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			set +e ; return 1
+		fi
+		local owner="" bodyMode=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*)
+					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
+					set +e ; return 1
+				;;
+				--owner)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner: value required" >&2
+						set +e ; return 1
+					fi
+					owner="$2" ; shift 2
+				;;
+				--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					bodyMode="$1"
+					passthrough+=( "$1" ) ; shift
+				;;
+				--header:*)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $createOp: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$owner" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner <value> is required" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$bodyMode" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: one body-input mode is required on create (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) -- a created board-item has no existing body to carry forward, and filing an empty one is never intended" >&2
+			set +e ; return 1
+		fi
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
+			--create \
+			--header:upsert:owner:"$owner" \
+			--header:upsert:groomed-at:"$groomedAt" \
+			--header:upsert:track:true \
+			--context "$createOp" \
+			"${passthrough[@]}"
+		return $?
+	;;
+
+	## Target fixed to processed -- a promoted-or-denied item landing with its
+	## resolution text attached at the same single write. Its own full copy, same standing rule as every
+	## sibling in this file: each op owns its own validation.
+	--magic-grooming-create-processed)
+		local createOp="$1"
+		local createState="processed"
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## see --magic-grooming-to-backlog's own comment above.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			set +e ; return 1
+		fi
+		local owner="" bodyMode=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*)
+					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
+					set +e ; return 1
+				;;
+				--owner)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner: value required" >&2
+						set +e ; return 1
+					fi
+					owner="$2" ; shift 2
+				;;
+				--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					bodyMode="$1"
+					passthrough+=( "$1" ) ; shift
+				;;
+				--header:*)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $createOp: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$owner" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner <value> is required" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$bodyMode" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: one body-input mode is required on create (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) -- a created board-item has no existing body to carry forward, and filing an empty one is never intended" >&2
+			set +e ; return 1
+		fi
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
+			--create \
+			--header:upsert:owner:"$owner" \
+			--header:upsert:groomed-at:"$groomedAt" \
+			--header:upsert:track:true \
+			--context "$createOp" \
+			"${passthrough[@]}"
+		return $?
+	;;
+
+	## Target fixed to pending -- promotion where the authority group's own
+	## context already warrants approved-by/approved-at at creation. Its own full copy, same standing rule as every
+	## sibling in this file: each op owns its own validation.
+	--magic-grooming-create-pending)
+		local createOp="$1"
+		local createState="pending"
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## see --magic-grooming-to-backlog's own comment above.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			set +e ; return 1
+		fi
+		local owner="" bodyMode=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*)
+					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
+					set +e ; return 1
+				;;
+				--owner)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner: value required" >&2
+						set +e ; return 1
+					fi
+					owner="$2" ; shift 2
+				;;
+				--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					bodyMode="$1"
+					passthrough+=( "$1" ) ; shift
+				;;
+				--header:*)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $createOp: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$owner" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner <value> is required" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$bodyMode" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: one body-input mode is required on create (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) -- a created board-item has no existing body to carry forward, and filing an empty one is never intended" >&2
+			set +e ; return 1
+		fi
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
+			--create \
+			--header:upsert:owner:"$owner" \
+			--header:upsert:groomed-at:"$groomedAt" \
+			--header:upsert:track:true \
+			--context "$createOp" \
+			"${passthrough[@]}"
+		return $?
+	;;
+
+	## Target fixed to blocked -- promotion that needs human-owner approval,
+	## so the promoted item lands blocked while approval runs. Its own full copy, same standing rule as every
+	## sibling in this file: each op owns its own validation.
+	--magic-grooming-create-blocked)
+		local createOp="$1"
+		local createState="blocked"
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## see --magic-grooming-to-backlog's own comment above.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			set +e ; return 1
+		fi
+		local owner="" bodyMode=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*)
+					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
+					set +e ; return 1
+				;;
+				--owner)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner: value required" >&2
+						set +e ; return 1
+					fi
+					owner="$2" ; shift 2
+				;;
+				--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					bodyMode="$1"
+					passthrough+=( "$1" ) ; shift
+				;;
+				--header:*)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $createOp: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$owner" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner <value> is required" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$bodyMode" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: one body-input mode is required on create (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) -- a created board-item has no existing body to carry forward, and filing an empty one is never intended" >&2
+			set +e ; return 1
+		fi
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
+			--create \
+			--header:upsert:owner:"$owner" \
+			--header:upsert:groomed-at:"$groomedAt" \
+			--header:upsert:track:true \
+			--context "$createOp" \
+			"${passthrough[@]}"
+		return $?
+	;;
+
+	## Target fixed to running -- the approval-* item that the human-owner
+	## approval negotiation itself runs in. Its own full copy, same standing rule as every
+	## sibling in this file: each op owns its own validation.
+	--magic-grooming-create-running)
+		local createOp="$1"
+		local createState="running"
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## see --magic-grooming-to-backlog's own comment above.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			set +e ; return 1
+		fi
+		local owner="" bodyMode=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*)
+					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
+					set +e ; return 1
+				;;
+				--owner)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner: value required" >&2
+						set +e ; return 1
+					fi
+					owner="$2" ; shift 2
+				;;
+				--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					bodyMode="$1"
+					passthrough+=( "$1" ) ; shift
+				;;
+				--header:*)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $createOp: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$owner" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner <value> is required" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$bodyMode" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $createOp: one body-input mode is required on create (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) -- a created board-item has no existing body to carry forward, and filing an empty one is never intended" >&2
+			set +e ; return 1
+		fi
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
+			--create \
+			--header:upsert:owner:"$owner" \
+			--header:upsert:groomed-at:"$groomedAt" \
+			--header:upsert:track:true \
+			--context "$createOp" \
+			"${passthrough[@]}"
+		return $?
+	;;
+
 	## Takes no arguments -- read-only discovery, shaped as a real
 	## structured text document meant to be one of routine-grooming's own
 	## actual inputs (not a diagnostic dump). Thin wrapper over
-	## --intern-op-board-scan with a fixed, hardcoded state-list/header-list
+	## --intern-op-session-context-scan with a fixed, hardcoded state-list/header-list
 	## -- no caller-facing --state/--header override flags: dedicated
 	## wrappers are fixed, not flexible; a caller wanting a different scan
-	## shape calls --intern-op-board-scan directly instead. Always
+	## shape calls --intern-op-session-context-scan directly instead. Always
 	## backlog/pending (not yet dispatched) plus running/blocked/parked
 	## (routine-grooming.routine.md's own step 1 "Gather the backlog"
 	## wording) -- processed/archived/retained are settled/
@@ -609,7 +968,7 @@ case "$1" in
 	## and --magic-heartbeat-input-scan's, so all three return identical output.
 	## Deliberate, ruled so by the human-owner -- these ops exist per consuming
 	## routine, not per scan scope. DO NOT collapse or deduplicate them. Full
-	## reasoning: the CANONICAL NOTE in AgentsTools.InternOpBoardScan.include's
+	## reasoning: the CANONICAL NOTE in AgentsTools.InternOpSessionContextScan.include's
 	## own header.
 	--magic-grooming-input-scan)
 		shift
@@ -622,7 +981,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: syntax is <team-member>, no other arguments" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-board-scan \
+		DistroAgentsTools --intern-op-session-context-scan \
 			--state backlog --state pending --state running --state blocked --state parked \
 			--all-types \
 			--context --magic-grooming-input-scan

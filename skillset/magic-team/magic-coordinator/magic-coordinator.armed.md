@@ -124,7 +124,7 @@ Steps:
 2. **board-state-vs-content**: Check state-vs-content consistency. `board-running` item's content already narrates a move its folder doesn't reflect (e.g. body says "**Moved to `board-blocked`**", still in `board-running`): move it to match via `--magic-board-to-blocked`, note the correction when reporting.
 3. **board-mechanical-moves**: Apply mechanical moves. Each move posts one short structured line as it happens, per `magic-team.armed.md`'s announce rule; the pass's closing summary goes to the session's own thread, separately from step 10's `event-track` trace.
    - `board-backlog` item carries `approved-by`/`approved-at` → move to `board-pending` via `--magic-board-to-pending`.
-   - `board-backlog` item flagged for human-owner approval, no `approval-*`/`board-blocked` move yet → create `approval-*` in `board-running` via `--write-board-item` (fresh item, or confirm existing), record `blocks`/`blocked-by`, move original to `board-blocked` via `--magic-board-to-blocked`.
+   - `board-backlog` item flagged for human-owner approval, no `approval-*`/`board-blocked` move yet → create `approval-*` in `board-running` via `--magic-board-create-running`, recording `blocks`/`blocked-by` with `--header:upsert:*` on that same call, then move the original to `board-blocked` via `--magic-board-to-blocked`.
    - `board-pending` item's content already records an actual dispatch → move to `board-running` via `--magic-advance-to-running`.
    - Never move `board-backlog` straight to `board-running`, skipping `board-pending`.
 4. **board-recompute-dependencies**: Recompute board dependency ordering.
@@ -381,11 +381,11 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 - `--console-send <channel> [-- <command...>]`
 - `--console-stop <channel>`
 - `--console-list [--override-workspace <path>]`
-- `--write-board-item <state> <item-filename>`
 - `--magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...`
+- `--magic-board-create-running <team-member> <item-filename> (body-input mode) [--header:...]...`
 - `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
@@ -451,13 +451,13 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 `DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]` — lists channels belonging to one workspace (default: this tool's own) with their console/holder liveness. Never lists another workspace's channels unless explicitly overridden.
 
+## `--magic-board-create-running` Operation Reference
+
+`DistroAgentsTools.fn.sh --magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` — writes a new board-item into `board-running`. A body-input mode is required. `--from-state:` is rejected. It takes no `--owner` and stamps nothing, matching its `--magic-board-to-*` move siblings; `blocks`/`blocked-by` and any other fields ride `--header:*` on the same call.
+
 ## `--magic-board-to-pending` / `--magic-board-to-blocked` / `--magic-board-to-backlog` / `--magic-board-to-parked` Operation Reference
 
 `DistroAgentsTools.fn.sh --magic-board-to-<target> <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into that target state in one call, and/or patches its frontmatter. These are `check-process-board`'s own **board-mechanical-moves** ops. `--magic-board-to-parked` auto-stamps nothing: `board-parked` has no always-set field, and the `recheck-date`/`condition` pair a parked item needs is set explicitly by whoever parks it.
-
-## `--write-board-item` Operation Reference
-
-`DistroAgentsTools.fn.sh --write-board-item <state> <item-filename>` — magic-coordinator-only op by design: `magic-team/magic-team.board.md` states plainly that write authority over the board (creating/moving/scoring an Item) is exclusive to `magic-coordinator`; this is the tool-mediated mechanism it uses to do that, not a general-purpose board-writing op for any member. `<state>` must be one of the board's real state names (backlog/pending/running/blocked/parked/processed/archived/retained); `<item-filename>` must be a bare filename. Content via stdin only. Moving an Item between states is two calls (write into the new state, then remove the old file separately) — no built-in move/rename primitive.
 
 ## `--member-upsert-inbox-note` Operation Reference
 

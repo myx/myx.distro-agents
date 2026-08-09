@@ -15,7 +15,7 @@ case "$1" in
 
 	## Takes no arguments -- read-only discovery, same document shape as
 	## --magic-grooming-input-scan (thin wrapper over
-	## --intern-op-board-scan). Verified directly against
+	## --intern-op-session-context-scan). Verified directly against
 	## routine-communication-sweep.routine.md's own "Enumeration mechanism
 	## for every open thread" text: always scans backlog/pending/running/
 	## blocked -- deliberately NOT parked, unlike --magic-grooming-input-
@@ -24,7 +24,7 @@ case "$1" in
 	## and parked items are not part of the live comms-thread
 	## tracking set either). Fixed, hardcoded state-list -- no caller-facing
 	## --state override flag: dedicated wrappers are fixed, not flexible; a
-	## caller wanting a different scan shape calls --intern-op-board-scan
+	## caller wanting a different scan shape calls --intern-op-session-context-scan
 	## directly instead. Always --all-types (no board-item-type restriction
 	## stated anywhere in that text) and always every frontmatter field on
 	## the final display -- the phase-1/phase-2 split below needs full
@@ -59,7 +59,7 @@ case "$1" in
 		fi
 
 		local phaseAOutput
-		phaseAOutput="$( DistroAgentsTools --intern-op-board-scan \
+		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan \
 			--state backlog --state pending --state running --state blocked \
 			--header source-slack-channel --header source-slack-ts \
 			--header source_slack_channel --header source_slack_ts \
@@ -85,7 +85,7 @@ case "$1" in
 		rm -f "$survivorsFile"
 		trap - EXIT
 
-		DistroAgentsTools --intern-op-board-scan "${phaseBArgs[@]}" --all-types --context --magic-sweep-input-scan
+		DistroAgentsTools --intern-op-session-context-scan "${phaseBArgs[@]}" --all-types --context --magic-sweep-input-scan
 		return $?
 	;;
 

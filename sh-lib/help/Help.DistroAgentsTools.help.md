@@ -52,6 +52,11 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-backlog <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-processed <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-pending <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-blocked <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-running <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
@@ -67,6 +72,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-heartbeat <team-member>
@@ -764,6 +770,76 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--magic-grooming-create-backlog <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+			Creates a board-item directly in board/backlog/ -- routine-grooming's
+			own first write of that item, not a move. The Promoted default landing for an inbox item the authority group promotes.
+			--from-state: is rejected here: a created item has no source
+			state. owner/groomed-at/track are stamped as elsewhere in this
+			family; groomed-from deliberately is NOT -- it records the state
+			an item moved from, and a created item moved from nowhere. One
+			body-input mode is required: there is no existing body to carry
+			forward. source-slack-channel/source-slack-ts, approved-by/
+			approved-at, blocks/blocked-by and references ride --header:* in
+			this same single write. Own dedicated case arm.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-grooming-create-processed <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+			Creates a board-item directly in board/processed/ -- routine-grooming's
+			own first write of that item, not a move. A promoted-or-denied item landing with its resolution text attached.
+			--from-state: is rejected here: a created item has no source
+			state. owner/groomed-at/track are stamped as elsewhere in this
+			family; groomed-from deliberately is NOT -- it records the state
+			an item moved from, and a created item moved from nowhere. One
+			body-input mode is required: there is no existing body to carry
+			forward. source-slack-channel/source-slack-ts, approved-by/
+			approved-at, blocks/blocked-by and references ride --header:* in
+			this same single write. Own dedicated case arm.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-grooming-create-pending <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+			Creates a board-item directly in board/pending/ -- routine-grooming's
+			own first write of that item, not a move. Promotion where the group's own context already warrants approval at creation.
+			--from-state: is rejected here: a created item has no source
+			state. owner/groomed-at/track are stamped as elsewhere in this
+			family; groomed-from deliberately is NOT -- it records the state
+			an item moved from, and a created item moved from nowhere. One
+			body-input mode is required: there is no existing body to carry
+			forward. source-slack-channel/source-slack-ts, approved-by/
+			approved-at, blocks/blocked-by and references ride --header:* in
+			this same single write. Own dedicated case arm.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-grooming-create-blocked <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+			Creates a board-item directly in board/blocked/ -- routine-grooming's
+			own first write of that item, not a move. Promotion that needs human-owner approval, so the item lands blocked.
+			--from-state: is rejected here: a created item has no source
+			state. owner/groomed-at/track are stamped as elsewhere in this
+			family; groomed-from deliberately is NOT -- it records the state
+			an item moved from, and a created item moved from nowhere. One
+			body-input mode is required: there is no existing body to carry
+			forward. source-slack-channel/source-slack-ts, approved-by/
+			approved-at, blocks/blocked-by and references ride --header:* in
+			this same single write. Own dedicated case arm.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-grooming-create-running <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+			Creates a board-item directly in board/running/ -- routine-grooming's
+			own first write of that item, not a move. The approval-* item the human-owner approval negotiation runs in.
+			--from-state: is rejected here: a created item has no source
+			state. owner/groomed-at/track are stamped as elsewhere in this
+			family; groomed-from deliberately is NOT -- it records the state
+			an item moved from, and a created item moved from nowhere. One
+			body-input mode is required: there is no existing body to carry
+			forward. source-slack-channel/source-slack-ts, approved-by/
+			approved-at, blocks/blocked-by and references ride --header:* in
+			this same single write. Own dedicated case arm.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--magic-grooming-input-scan <team-member>
 			Read-only: lists board items as <state>/<item-filename>, one per
 			line, with every frontmatter field. Always scans backlog/
@@ -963,6 +1039,19 @@
 			exact-literal-substring patches. The three body-input modes are
 			mutually exclusive; none given means the body carries over
 			unchanged except for any --header:* ops.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+			Creates a board-item directly in board/running/ --
+			check-process-board's own and only creating step: the approval-*
+			item raised when a board-backlog item is flagged for human-owner
+			approval. The move half of that same step is
+			--magic-board-to-blocked. --from-state: is rejected: a created
+			item has no source state. No auto-stamp, matching every sibling
+			in this family. blocks/blocked-by ride --header:* in this same
+			single write. One body-input mode is required. Own dedicated
+			case arm.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

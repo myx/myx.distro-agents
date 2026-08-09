@@ -158,10 +158,18 @@ Each item here is a tracking document. Where a rule below spawns or restarts wor
 - `inquiry-*`: `recheck-date` due, no reply → re-ask via `source-slack-channel`/`source-slack-ts` or the `--member-slack-send-message` operation; extend `recheck-date`. Otherwise → no action this pass.
 - `task-*` / `project-*` / `epic-*`: apply the console-session/Agent-dispatch stale-check above.
 - `proposal-*`: `recheck-date` due → re-ask.
-- `dispatch-*`: `session-id` set → nudge per the general mechanism above; append the report-back as a new dated log entry, rewrite via `--write-board-item running <item-filename>`.
+- `dispatch-*`: `session-id` set → nudge per the general mechanism above; append the report-back as a new dated log entry via `--magic-advance-to-running --from-state:running` — the item stays in `board-running`.
+  - rule: every participant is written into the `dispatch-*` document at creation, before it is approved
+  - rule: approval adds or removes names on that list
 - `change-*`: (placeholder) not yet defined.
 - `warning-*`: (placeholder) not yet defined.
+- `session-*`: the spawn includes every member the item's `participants` record names.
 - `note-*` / `reflection-*` / `transcript-*`: not expected in `board-running` → flag for `routine-grooming`.
+- **base restart**: a named participant cannot be spawned, steps:
+  - move the item to `board-parked` via `--magic-advance-to-parked`
+  - set `condition` naming the participant that could not be spawned, via `--header:upsert:condition:<value>`
+  - set `recheck-date`, via `--header:upsert:recheck-date:<value>`
+  - report it in **advance-report**
 
 After all per-type checks: send one Slack DM to human-owner naming every item that stayed `board-running` with `recheck-date` untouched this pass (across this procedure's own pass and `check-process-board`'s already-run pass), plus any autonomous-invocation restart-session spawns from this same pass (above) — at most once per `routine-advance` run, not per item.
 
@@ -207,6 +215,10 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## `--magic-advance-input-scan` operation reference
 
 `DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — read-only scan giving all board job-state information relevant to this routine, every board-item type, every frontmatter field. `<team-member>` is the only argument; the scanned state list is fixed, with no caller-facing override.
+
+## `--magic-advance-to-parked` operation reference
+
+`DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-parked` in one call, and/or patches its frontmatter. It stamps nothing: the calling step supplies `condition`/`handoff-action`/`recheck-date`/`execution-receipt` itself via `--header:*`.
 
 ## `--magic-advance-to-running` operation reference
 
