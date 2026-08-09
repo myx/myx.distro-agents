@@ -17,6 +17,39 @@
 ## default) lives in each calling wrapper, never here -- this file only knows
 ## the generic scan/filter/format mechanics.
 ##
+## CANONICAL NOTE -- identical wrappers are deliberate; do not collapse them.
+## --magic-advance-input-scan, --magic-grooming-input-scan and
+## --magic-heartbeat-input-scan pass byte-identical arguments to this primitive
+## (the same five active states backlog/pending/running/blocked/parked, plus
+## --all-types) and therefore produce byte-identical output on any successful
+## run. That is the designed state, ruled so by the human-owner, not an
+## oversight and not triplication to be refactored away.
+##
+## The reason is that these ops exist PER CONSUMER, not per scan scope. Each
+## one is its own routine's own named input: routine-advance's,
+## routine-grooming's, routine-heartbeat's. The op name is the stable interface
+## a routine calls and that its own skillset file declares; the argument list
+## behind it is an implementation detail that each routine is free to change
+## on its own, for its own reasons, without negotiating with the other two.
+## Collapsing them into one shared op -- or "deduplicating" two of them into
+## calls to the third -- would couple three independent routines to a single
+## argument list and make any later divergence a breaking change for consumers
+## that never asked for it. Identical arguments today are a coincidence of
+## three routines currently needing the same view, not evidence of one op
+## wearing three names.
+##
+## Same "dedicated wrappers are fixed, not flexible" convention every other
+## wrapper over this primitive follows: a caller wanting a different scan shape
+## calls --intern-op-board-scan directly rather than adding override flags to,
+## or merging, the fixed wrappers. Each of the three wrappers' own case-arm
+## comments points back at this note.
+##
+## Note for anyone reconciling this against the board: the addendum on
+## board/running/interview-2026-07-21-distroagentstools-board-scan-command.md
+## asserting per-routine scan SCOPING is not accurate to this code -- the
+## scopes are identical. Flagged, not edited here: board items are
+## magic-coordinator's own to write.
+##
 ## Output shape: one `## <state>/<item-filename>` line per matching item,
 ## then that item's frontmatter (either every field, or just the named
 ## --header values, in the order given), then a blank line -- grep/awk-

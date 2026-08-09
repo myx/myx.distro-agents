@@ -794,7 +794,7 @@ $1"
 			local target="$1"
 			shift || true
 			if [ -z "$target" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --comms-slack-read: target required (magic-team|human-owner|event-track|event-alert|<channel>:<ts>)" >&2
+				echo "⛔ ERROR: $MDSC_CMD --comms-slack-read: target required -- <channel>:<ts> only. Unlike --comms-slack-check, this op does not accept the magic-team/human-owner/event-track/event-alert channel shortcuts: each of those names a channel, and this op retrieves one specific message, which needs its own <ts>. That constraint is enforced further down by this same arm's own '<ts> is required' check." >&2
 				set +e ; return 1
 			fi
 

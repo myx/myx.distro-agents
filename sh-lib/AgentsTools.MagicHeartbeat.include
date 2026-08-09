@@ -57,6 +57,13 @@ case "$1" in
 	## --intern-op-board-scan). See this file's own header comment for the
 	## state-list/header-list's actual status (interim, not a verified
 	## routine-text requirement the way sibling ops' defaults are).
+	##
+	## This op's arguments are byte-identical to --magic-advance-input-scan's
+	## and --magic-grooming-input-scan's, so all three return identical output.
+	## Deliberate, ruled so by the human-owner -- these ops exist per consuming
+	## routine, not per scan scope. DO NOT collapse or deduplicate them. Full
+	## reasoning: the CANONICAL NOTE in AgentsTools.InternOpBoardScan.include's
+	## own header.
 	--magic-heartbeat-input-scan)
 		shift
 		## <team-member> captured for future logging/validation, unused today --

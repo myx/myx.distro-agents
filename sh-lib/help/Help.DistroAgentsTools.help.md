@@ -12,6 +12,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-stdin
 📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-file <path>
 📘 syntax: DistroAgentsTools.fn.sh --comms-slack-check <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]
+📘 syntax: DistroAgentsTools.fn.sh --comms-slack-react <channel>:<ts> <emoji-name>
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --comms-email-check
 📘 syntax: DistroAgentsTools.fn.sh --comms-email-mark-seen <uid>
