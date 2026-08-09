@@ -67,16 +67,16 @@ Every `magic-tooling` operation this team-member's own procedures/rules actually
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-upsert-inbox-note <magic-developer> <item-filename> [--from-file <path>]`
-- `--member-upsert-inbox-reflection <magic-developer> <item-filename> [--from-file <path>]`
+- `--member-upsert-inbox-note <magic-developer> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-upsert-inbox-reflection <magic-developer> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 
 ## `--member-upsert-inbox-note` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
+`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
 
 ## `--member-upsert-inbox-reflection` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>]` — same mechanics as `--member-upsert-inbox-note`, used specifically for `reflection-*` items (frontmatter + "# Reflection: ..." + "## What happened"/"## Why this is worth keeping"). `<item-filename>` conventionally contains `reflection-` in its slug.
+`DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — same mechanics as `--member-upsert-inbox-note`, used specifically for `reflection-*` items (frontmatter + "# Reflection: ..." + "## What happened"/"## Why this is worth keeping"). `<item-filename>` conventionally contains `reflection-` in its slug.
 
 # Maintainer Notes
 

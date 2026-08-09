@@ -63,12 +63,12 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-upsert-inbox-note <member> <item-filename>` (step 2a: write the settled task-description)
+- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (step 2a: write the settled task-description)
 - `--member-slack-send-message <team-member> <target> [text...]` (Slack activity-tracking obligation)
 
 ## `--member-upsert-inbox-note` operation reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
+`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
 
 ## `--member-slack-send-message` operation reference
 

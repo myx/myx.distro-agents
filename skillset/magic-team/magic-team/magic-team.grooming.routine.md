@@ -288,14 +288,14 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--help`
 - `--write-board-item <state> <item-filename>`
 - `--magic-grooming-input-scan <team-member>`
-- `--magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]`
+- `--magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--magic-grooming-to-pending` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-pending`)
 - `--magic-grooming-to-processed` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-processed`)
 - `--magic-grooming-to-parked` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-parked`)
 - `--magic-grooming-to-blocked` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-blocked`)
 - `--member-slack-send-message <team-member> <target> [text...]`
 - `--member-work-session-input-scan <team-member>`
-- `--member-upsert-inbox-note <member> <item-filename>`
+- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 
 ## `--help` operation reference
 
@@ -311,7 +311,7 @@ Prints this syntax + summary and exits.
 
 ## `--magic-grooming-to-backlog` operation reference
 
-`DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>]` — moves a board item to `board-backlog` and/or patches its frontmatter, one call, no full-content rewrite required. `--from-state:<state>` and `--owner` are both required; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied.
+`DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item to `board-backlog` and/or patches its frontmatter, one call, no full-content rewrite required. `--from-state:<state>` and `--owner` are both required; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied.
 
 Preference order for a board-item state move: `--magic-grooming-to-*` is the preferred operation for any grooming-driven state move that also needs a frontmatter/header change (the normal case — a resolution note, `approved-by`/`approved-at`, `groomed-at`, etc.) since it does the content patch and the move in one call. `--write-board-item` operation is the fallback for a move that has no dedicated `--magic-grooming-to-*` target (archived, retained) — still two calls (write new state, remove old), per its own behavior above. `board-parked` and `board-blocked` are not among those: they have `--magic-grooming-to-parked` and `--magic-grooming-to-blocked`. Neither is ever replaced by a raw `Edit`/`Write`/`Bash mv` on a board-item file.
 
@@ -341,7 +341,7 @@ Read-only: one member's own current work-session input — personal, not routine
 
 ## `--member-upsert-inbox-note` operation reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename>` — writes (creates or overwrites) a note into any member's own personal inbox; content via stdin. `<member>` must already exist as a real skill directory, `<item-filename>` must be a bare filename.
+`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into any member's own personal inbox; content via stdin. `<member>` must already exist as a real skill directory, `<item-filename>` must be a bare filename.
 
 # Maintainer Notes
 

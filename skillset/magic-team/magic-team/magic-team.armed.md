@@ -586,7 +586,7 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 "Passes an inquiry along to a specific named member's own inbox — same argument shape and file-writing mechanics as --member-upsert-inbox-note (in fact self-recurses directly into it), kept as its own distinctly-named op because the two represent semantically distinct fallback cases ("note it for later" vs. "pass it to another member," per this file's own Rule/instruction/definition/description conventions) even though they currently resolve to the identical mechanism."
 
 ## `--member-upsert-inbox-reflection` Operation Reference
-`📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--file <path>]`
+`📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 
 ## `--member-append-session-transcript` Operation Reference
 "Appends exactly one canonical transcript-entry block: <speaker-name> (<timestamp>): followed by quoted message lines. Does not rewrite prior content. Missing target transcript is an error unless --create is passed."

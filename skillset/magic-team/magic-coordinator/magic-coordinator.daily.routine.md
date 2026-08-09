@@ -165,7 +165,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 - `--member-slack-send-message <team-member> <target> [text...]` (step 2c: interview-thread nudge/re-engagement messages; autonomous-invocation step 6: post open questions to `magic-team`; Slack activity-tracking obligation)
 - `--member-work-session-input-scan <team-member>` (step 3: roll call, per-member status read)
-- `--member-upsert-inbox-note <member> <item-filename>` (step 1: refresh the `roster-note` if it drifted)
+- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (step 1: refresh the `roster-note` if it drifted)
 
 ## `--member-slack-send-message` operation reference
 
@@ -177,7 +177,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--member-upsert-inbox-note` operation reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename>` — writes (creates or overwrites) a note into any member's own personal inbox; content via stdin. The `roster-note` is one continuously-updated note under a fixed filename.
+`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into any member's own personal inbox; content via stdin. The `roster-note` is one continuously-updated note under a fixed filename.
 
 # Maintainer Notes
 

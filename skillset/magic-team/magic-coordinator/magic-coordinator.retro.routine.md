@@ -64,7 +64,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-slack-send-message <team-member> <target> [text...]` (Slack activity-tracking obligation)
-- `--member-upsert-inbox-note <member> <item-filename>` (scope-boundary rule: defer a backlog-triage finding to `routine-grooming`)
+- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (scope-boundary rule: defer a backlog-triage finding to `routine-grooming`)
 
 ## `--member-slack-send-message` operation reference
 
@@ -72,7 +72,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--member-upsert-inbox-note` operation reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
+`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
 
 # Maintainer Notes
 

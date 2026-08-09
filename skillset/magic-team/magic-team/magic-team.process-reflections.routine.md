@@ -68,7 +68,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-upsert-inbox-note <member> <item-filename>` (step 2: draft a not-yet-approved skillset md-files/routine-file change proposal)
+- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (step 2: draft a not-yet-approved skillset md-files/routine-file change proposal)
 
 ## `--member-upsert-inbox-note` operation reference
 

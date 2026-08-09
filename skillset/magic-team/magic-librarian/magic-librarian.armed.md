@@ -203,7 +203,7 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 - `--list-md <path>...`
 - `--librarian-list-team-files [<path>...]`
 - `--librarian-list-team-files-dates [<path>...]`
-- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>]`
+- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]`
 - `--magic-heartbeat-state-read <team-member>`
 - `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]`
@@ -228,7 +228,7 @@ Note: `--librarian-list-team-files`/`-dates` (below) are this skill's dedicated 
 
 ## `--member-upsert-inbox-note` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>]` — writes (creates or overwrites) a note into any member's own personal inbox, including `magic-librarian`'s own — the standard cross-member handoff mechanism, and the landing point for `own-inbox-batch-processing`'s own doc-fix notes. `<member>` must already exist as a real skill directory; `<item-filename>` must be a bare filename. Content via stdin by default, or via `--from-file <path>`.
+`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into any member's own personal inbox, including `magic-librarian`'s own — the standard cross-member handoff mechanism, and the landing point for `own-inbox-batch-processing`'s own doc-fix notes. `<member>` must already exist as a real skill directory; `<item-filename>` must be a bare filename. Content via stdin by default, or via `--from-file <path>`.
 
 ## `--member-append-session-transcript` Operation Reference
 

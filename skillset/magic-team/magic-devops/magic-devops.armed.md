@@ -106,12 +106,12 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-upsert-inbox-note <magic-devops> <item-filename> [--from-file <path>]`
+- `--member-upsert-inbox-note <magic-devops> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-slack-send-message <magic-devops> <target> [--identity bot|user] [text...]`
 
 ## `--member-upsert-inbox-note` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
+`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
 
 ## `--member-slack-send-message` Operation Reference
 

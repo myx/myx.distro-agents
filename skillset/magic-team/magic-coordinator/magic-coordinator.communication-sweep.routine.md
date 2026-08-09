@@ -122,7 +122,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--comms-trello-check` (step 1: Check, Trello)
 - `--comms-slack-check <target> [--oldest <ts>] [--raw]` (step 1: Check, Slack — both watched targets, plus mandatory thread-reply checks)
 - `--member-slack-send-message <team-member> <target> [text...]` (step 5: Reply)
-- `--member-upsert-inbox-note <member> <item-filename>` (step 4: normalize a new incoming item into an inbox record)
+- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (step 4: normalize a new incoming item into an inbox record)
 - `--send-email-message <email@address>... -- <subject> -- <body...>` (step 5: Reply, email)
 - `--comms-email-mark-seen <uid>` (step 5: mark-read, email)
 - `--comms-slack-react <channel>:<ts> <emoji-name>` (`slack-reaction-tracking` procedure, throughout)
@@ -155,7 +155,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--member-upsert-inbox-note` operation reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
+`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
 
 ## `--send-email-message` operation reference
 
