@@ -41,6 +41,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
@@ -51,10 +52,11 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-heartbeat <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-release <team-member>
@@ -664,6 +666,19 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Same shape as --magic-grooming-to-backlog, target fixed to
+			board/parked/ -- routine-grooming's own Defer outcome, a
+			deliberate deferral by the team's own choice (distinct from
+			board/blocked/, which is a stall on something external).
+			owner/groomed-at/groomed-from/track are stamped exactly as the
+			other grooming ops stamp them. recheck-date and condition, the
+			fields a parked item actually needs, are caller-supplied via
+			--header:* -- they are triage judgments this op cannot compute.
+			Own dedicated case arm.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--magic-grooming-input-scan <team-member>
 			Read-only: lists board items as <state>/<item-filename>, one per
 			line, with every frontmatter field. Always scans backlog/
@@ -784,6 +799,27 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Moves a board item into board/parked/, in one call, and/or
+			patches its frontmatter -- routine-advance's own
+			check-execute-board fallback, for a pass where a required spawn
+			could not be executed. No auto-stamp, unlike
+			--magic-advance-to-running's started-at: the calling step supplies
+			condition/handoff-action/recheck-date/execution-receipt itself via
+			--header:*, and recheck-date in particular is a caller-computed
+			offset -- an item left without one deliberately falls to
+			routine-grooming's slower cadence, so this op never invents it.
+			--from-state:<state> is required. --header:* applies
+			upsert/append/remove field operations on top of the resolved body,
+			in the order given. --upsert-from-stdin takes stdin verbatim as
+			the new body; --edit-script-from-stdin runs a given py/awk script
+			against the existing body; --edit-patch-from-stdin applies a JSON
+			array of exact-literal-substring patches. The three body-input
+			modes are mutually exclusive; none given means the body carries
+			over unchanged except for any --header:* ops.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item into board/pending/, in one call, and/or
 			patches its frontmatter. No auto-stamp. --from-state:<state> is
@@ -826,9 +862,14 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item into board/parked/, in one call, and/or
-			patches its frontmatter. No auto-stamp. --from-state:<state> is
+			patches its frontmatter -- check-process-board's own move into
+			board/parked/, the board-mechanical-moves counterpart of the
+			three ops above. No auto-stamp: board-parked has no established
+			always-set field, and the recheck-date/condition pair a parked
+			item carries is a caller judgment, passed as --header:* like any
+			other field this op does not own. --from-state:<state> is
 			required. --header:* applies upsert/append/remove field
 			operations on top of the resolved body, in the order given.
 			--upsert-from-stdin takes stdin verbatim as the new body;

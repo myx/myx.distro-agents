@@ -153,17 +153,37 @@ case "$1" in
 		return $?
 	;;
 
-	## Same shape as --magic-board-to-pending/-to-blocked/-to-backlog,
-	## target fixed to parked. Used by autonomous heartbeat/advance fallback
-	## when spawn is required but cannot be executed in this pass.
-	--magic-advance-to-parked)
+	## Same shape as --magic-board-to-pending/-to-blocked/-to-backlog, target
+	## fixed to parked -- check-process-board's own board-mechanical-moves and
+	## board-state-vs-content moves into board-parked, which until now had no
+	## dedicated op and fell back to --write-board-item's own unsafe two-call
+	## recipe (write new, remove old separately).
+	##
+	## One of three separate --*-to-parked stubs, deliberately: routine-advance
+	## calls --magic-advance-to-parked, routine-grooming calls
+	## --magic-grooming-to-parked, and check-process-board calls this one.
+	## Each lives in its own routine's namespace/.include, each carries its own
+	## independent validation even where identical today, and all three share
+	## the one --intern-op-board-upsert-move-edit implementation -- the same
+	## "own dedicated case arm per calling routine" convention already applied
+	## to --magic-grooming-to-* and --magic-advance-to-running.
+	##
+	## No auto-stamp, matching this file's own sibling ops: board-parked has no
+	## established always-set field, and the recheck-date/condition pair a
+	## parked item carries is a caller judgment (which trigger, which date),
+	## never derivable here -- callers pass it as --header:* like any other
+	## field this op does not own.
+	--magic-board-to-parked)
 		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## tooling operation discipline convention, same as every sibling op in
+		## this file.
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-parked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg=""
@@ -175,13 +195,13 @@ case "$1" in
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --magic-board-to-parked: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$fromStateArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: --from-state:<state> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-parked: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
 		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \

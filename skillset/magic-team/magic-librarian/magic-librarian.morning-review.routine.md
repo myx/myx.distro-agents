@@ -14,14 +14,14 @@ Routine-librarian-morning-review is the once-per-workday joint `magic-coordinato
 
 ## Scope
 
-Does: catch board *state-model* drift and cross-file consistency gaps — not ordinary content staleness. Spawned as a full sub-session from `routine-daily`'s own step 0, first-today only — a background `Agent` dispatch (`Skill(magic-librarian)` first, default goal = this routine's own Goals), waited on to completion, running its own `routine-session-start`/`routine-close-session` per the session-type framework.
+Does: catch board *state-model* drift and cross-file consistency gaps — not ordinary content staleness. Spawned as a full sub-session from `routine-daily`'s own step 0, first-today only — a background `Agent` dispatch (`Skill(magic-librarian)` first, default goal = this routine's own Goals), waited on to completion, executing `routine-coworking`'s Steps/Closure Steps per the session-type framework.
 Doesn't do: the deep team self-sufficiency audit `magic-librarian`'s own `magic-librarian.armed.md` (`team-self-sufficiency-audit` procedure) already runs as a normal daily task across every `magic-*` skill directory's formal docs — that's broader (currency/consistency/self-sufficiency/clarity across the whole team, unconditional, every day) and doesn't specifically center on the board.
 
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0a. **run-shared-opening-steps**: `routine-session-start` — declares itself coworking-like/structured-multi-member (`magic-coordinator` + `magic-librarian` jointly), invokes `routine-process-reflections` for this session's own project/workspace, processes own inbox, and posts an opening broadcast to `slack-magic-team`/Trello.
+0a. **session-start**: execute `routine-coworking`'s Steps — declares itself coworking-like/structured-multi-member (`magic-coordinator` + `magic-librarian` jointly), invokes `routine-process-reflections` for this session's own project/workspace, processes own inbox, and posts an opening broadcast to `slack-magic-team`/Trello.
 1. **read-board-shape**: `board-running`/`board-blocked`/`board-parked`/`board-processed`/`board-archived`/`board-retained`, plus the `heartbeat-state-note`, read via the `--magic-heartbeat-state-read` operation, for comms-platform state not yet reflected there.
 1a. **process-own-inbox**: run `routine-process-inbox magic-coordinator` (the confirmed default executor for this joint-executor routine) — inline execution (own identity). Board-state notes filed there since the last pass — the claims step 2 (**check-state-shape-drift**) checks the board's own state model against. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 2. **check-state-shape-drift**: not just content drift — e.g. `blocked/` and `parked/` being silently collapsed into `running/`/`archived/`, losing the distinction between "stalled on something external" and "deliberately deferred by choice." Not just "is this file's *content* current" but "does the *model itself* still match what it's supposed to represent."
@@ -33,7 +33,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **close-via-close-session**: run `routine-close-session`'s shared steps — this is a coworking-like session (see step 0a above), so its continuity step, `slack-magic-team`/Trello closing broadcast, and skill-update-discussion offer all apply; context compaction does not (a spawned sub-session has no persisting interactive context to compact — it simply exits once its report is sent, back to `routine-daily`). `routine-process-reflections` already ran at step 0a's opening, not here.
+1. **close-session**: execute `routine-coworking`'s Closure Steps — this is a coworking-like session (see step 0a above), so its continuity step, `slack-magic-team`/Trello closing broadcast, and skill-update-discussion offer all apply; context compaction does not (a spawned sub-session has no persisting interactive context to compact — it simply exits once its report is sent, back to `routine-daily`). `routine-process-reflections` already ran at step 0a's opening, not here.
 
 # Routine's local procedures
 
@@ -83,7 +83,7 @@ Passes an inquiry along to a specific named member's own inbox — same argument
 
 # Maintainer Notes
 
-Used to check this files own definitions against its own goals when this file's update is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 ## Verbatim-goals (intents)
 
@@ -98,7 +98,7 @@ Used to check this files own definitions against its own goals when this file's 
 ### Reference
 
 - `routine-daily` — the caller that spawns this routine at its own step 0.
-- `routine-session-start` / `routine-close-session` — shared opening/closing steps.
+- `routine-coworking` — the template this routine extends; its Steps/Closure Steps are the opening and closing this routine executes.
 - `routine-process-inbox` — own-inbox processing.
 - `magic-team/magic-team.board.md` — the board's own state model this routine checks for drift.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, calling convention, sole-sanctioned Slack-posting mechanism.

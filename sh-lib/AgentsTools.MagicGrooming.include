@@ -198,6 +198,82 @@ case "$1" in
 		return $?
 	;;
 
+	## Same shape as --magic-grooming-to-backlog, target state fixed to
+	## parked. Deliberately its own full copy, not a shared helper -- see
+	## this file's own header note. routine-grooming's own Defer outcome
+	## (deliberate deferral by the team's own choice, distinct from blocked/'s
+	## external stall), which until now had no dedicated op and fell back to
+	## --write-board-item's own two-call move recipe.
+	##
+	## One of three separate --*-to-parked stubs, deliberately: this one is
+	## routine-grooming's, --magic-advance-to-parked is routine-advance's, and
+	## --magic-board-to-parked is check-process-board's. Each lives in its own
+	## routine's namespace/.include, each carries its own independent
+	## validation even where identical today, and all three share the one
+	## --intern-op-board-upsert-move-edit implementation.
+	##
+	## Carries this file's full grooming policy (mandatory --owner, auto
+	## groomed-at/groomed-from/track) exactly as its three siblings do --
+	## parked being a deferred state is not a reason to withhold it: the
+	## -to-processed sibling stamps the same set onto a terminal state, and
+	## track is a grooming provenance marker, not a scheduler input, so it
+	## creates none of the periodic action board-parked's own "pure passivity"
+	## definition forbids. recheck-date/condition, the fields a parked item
+	## actually needs, stay caller-supplied via --header:* -- they are triage
+	## judgments this op cannot compute.
+	--magic-grooming-to-parked)
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## see --magic-grooming-to-backlog's own comment above.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local fromStateArg="" owner=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) fromStateArg="$1" ; shift ;;
+				--owner)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: --owner: value required" >&2
+						set +e ; return 1
+					fi
+					owner="$2" ; shift 2
+				;;
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$fromStateArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$owner" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: --owner <value> is required" >&2
+			set +e ; return 1
+		fi
+		local fromStateVal="${fromStateArg#--from-state:}"
+		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
+			"$fromStateArg" \
+			--header:upsert:owner:"$owner" \
+			--header:upsert:groomed-at:"$groomedAt" \
+			--header:upsert:groomed-from:"$fromStateVal" \
+			--header:upsert:track:true \
+			"${passthrough[@]}"
+		return $?
+	;;
+
 	## Takes no arguments -- read-only discovery, shaped as a real
 	## structured text document meant to be one of routine-grooming's own
 	## actual inputs (not a diagnostic dump). Thin wrapper over

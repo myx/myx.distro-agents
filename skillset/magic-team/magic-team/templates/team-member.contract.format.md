@@ -64,7 +64,7 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 
 # Maintainer Notes
 
-Used to check this file's own definitions against its own goals when this file's update is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 ## Verbatim-goals (intents)
 

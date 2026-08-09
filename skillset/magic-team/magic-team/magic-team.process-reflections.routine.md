@@ -41,7 +41,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-This routine has no distinct closing phase of its own — it's typically invoked inline from `routine-session-start`/`routine-heartbeat`, not a standalone session with its own lifecycle.
+Invoked inline: nothing. Run as its own session: execute `routine-coworking`'s Closure Steps.
 
 # Routine's local procedures
 
@@ -76,7 +76,7 @@ Writes (creates or overwrites) a note into any member's own personal inbox — i
 
 # Maintainer Notes
 
-Used to check this files own definitions against its own goals when this file's update is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 ## Verbatim-goals (intents)
 

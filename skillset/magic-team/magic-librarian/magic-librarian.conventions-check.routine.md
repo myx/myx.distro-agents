@@ -33,7 +33,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-This routine has no distinct closing phase of its own — it ends once step 8's finding output is produced; it's a review sub-procedure other routines call inline, not a standalone session. Run as its own session (with `routine-session-start` attached), the session — not this routine — is closed by `routine-close-session`, which closes the thread `routine-session-start` opened.
+Invoked inline: nothing. Run as its own session: execute `routine-coworking`'s Closure Steps.
 
 # Routine's local procedures
 
@@ -64,7 +64,7 @@ None — this routine uses no `DistroAgentsTools` operations directly; it reads/
 
 # Maintainer Notes
 
-Used to check this files own definitions against its own goals when this file's update is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 ## Verbatim-goals (intents)
 
@@ -80,7 +80,7 @@ Used to check this files own definitions against its own goals when this file's 
 
 ### Reference
 
-- `routine-session-start` — the opening counterpart a session runs; it does no instruction-currency checking of its own, since checking is triggered by a change, not by a run.
+- `routine-coworking` — its Steps are the opening a session executes; they does no instruction-currency checking of its own, since checking is triggered by a change, not by a run.
 - `magic-librarian/magic-librarian.armed.md` — "Two writing modes" standard for skill-folder `.md` files, checked in step 2; also the sole location for a member's own `Verbatim-intents`/`Verbatim-benchmarks` pair this check assesses updates against.
 - `magic-team/magic-team.armed.md` — the Rule/instruction/definition/description conventions section that makes this check mandatory (not discretionary) for any rule/instruction-file text change.
 

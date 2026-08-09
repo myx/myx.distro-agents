@@ -56,7 +56,6 @@ When a term below appears quoted, especially `` `like-this` ``, it carries the s
 - `routine-advance` — periodic board-vs-reality reconciliation, every main-loop iteration, routine name.
 - `routine-brainstorm` — lower-stakes idea-generation, no agreement expected, routine name.
 - `routine-camunda-diagram-sync` — BPMN-diagram-vs-team-definition drift check, routine name.
-- `routine-close-session` — general session-closing, routine name.
 - `routine-communication-sweep` — check/read/reply/update-context pass across live comms platforms, routine name.
 - `routine-conventions-check` — `magic-librarian`'s own instructional-file conventions check, routine name.
 - `routine-coworking` — genuine multi-member shared-task collaboration, routine name.
@@ -72,7 +71,6 @@ When a term below appears quoted, especially `` `like-this` ``, it carries the s
 - `routine-process-inbox` — general per-owner inbox processing, routine name.
 - `routine-process-reflections` — learned-lesson memory-file consolidation, routine name.
 - `routine-retro` — reflective team self-talk/methodology assessment, routine name.
-- `routine-session-start` — general session-opening, symmetric counterpart to `routine-close-session`, routine name.
 - `main-loop-mode` — the persistent iterating loop-statement: spawns a fresh `routine-heartbeat` sub-session, waits for it to exit, sleeps, repeats. Does not own the single-instance lock — that sub-session does, since anything spawning it needs the same protection. Full mechanics: `magic-coordinator.armed.md`'s "Operating modes."
 - `slack-magic-team` — the `#magic-team` Slack channel. Use `magic-tooling`, or relay through `magic-coordinator` if present.
 - `slack-event-track` — the `#bot-messages` Slack channel. Use `magic-tooling`, or relay through `magic-coordinator` if present.
@@ -201,14 +199,12 @@ No skill file, this one included, ever states a workspace's real path directly �
 
 Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`, out of scope for this merge):
 - `routine-brainstorm` — description in `magic-team.brainstorm.routine.md`.
-- `routine-close-session` — description in `magic-team.close-session.routine.md`.
 - `routine-coworking` — description in `magic-team.coworking.routine.md`.
 - `routine-discuss` — description in `magic-team.discuss.routine.md`.
 - `routine-grooming` — description in `magic-team.grooming.routine.md`.
 - `routine-interview` — description in `magic-team.interview.routine.md`.
 - `routine-process-inbox` — description in `magic-team.process-inbox.routine.md`.
 - `routine-process-reflections` — description in `magic-team.process-reflections.routine.md`.
-- `routine-session-start` — description in `magic-team.session-start.routine.md`.
 
 # The board
 
@@ -276,7 +272,7 @@ List of frontmatter headers with descriptions. Any date value in frontmatter is 
 - `condition`: the actual trigger/check to look for on a `blocked`/`parked` item — pairs with `recheck-date` (`recheck-date` says *when* to look, `condition` says *what* to look for).
 - `resolved-at`: date a `board-processed` item was actually resolved, distinct from `date` (creation). Optional — most `board-processed` items don't carry it yet.
 - `started-at`: date a `board-running` item actually started running, distinct from `date` (creation). Auto-stamped by `--magic-advance-to-running`; optional otherwise.
-- `restart-session`: `<team-member> [<team-member>...]` — a board-item to spawn a coworking session with these members instead of running inline.
+- `restart-session`: `<team-member> [<team-member>...]` — a board-item to spawn a coworking session with these members instead of running inline. Who was actually in the session is recorded in the session's own tracking document (`interview-*`, `dispatch-*`) as it runs, the way a Slack thread's participants are whoever posted in it — a restart reads that record to invite everyone back and restore their contexts, rather than replaying this field's names alone.
 - `session-id`: active coworking session identifier, for running items. Omit once none is.
 
 Global predicates/definitions:
@@ -626,7 +622,7 @@ Named directly in this file's own "The board" section above: reads/rewrites the 
 
 # Maintainer Notes
 
-Used to check this file's own definitions against its own goals when this file's update is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 ## Verbatim-goals (intents)
 
@@ -637,10 +633,10 @@ Used to check this file's own definitions against its own goals when this file's
 - "For escalations, any work-session summons armed `magic-coordinator` — never a fresh instance through the same suspect channel; the summoned instance already holds its own independent verification channel."
 - "A new rule (or instruction) about team dynamics or process flow (how the team operates, not ordinary content) is written as a short, abstract rule, present tense — never a dense narrative paragraph — and passes through `magic-librarian`'s `routine-conventions-check` operation, then gets validated by either `magic-coordinator` or the current human-owner session directly, if available."
 - "Clarity test for any instructional text: would a young reader, or a non-native English speaker, understand it on first read? If not, cut words until they would — no filler, no water."
-- "`magic-team.board.md` (this folder) — the team's current-work index, replacing `TEAM-STATUS.md`'s role for anything created going forward. Thin and reference-heavy by design: the board itself is a rollup, the substance lives in the individual Item files under `board/`."
-- "Every file under `board/` is an **Item**. Item subtypes are distinguished by filename prefix."
+- "`magic-team.board.md` (this folder) — the team's current-work index. Thin and reference-heavy by design: the board itself is a rollup, the substance lives in the individual `board-item` files under `board/`."
+- "Every file under `board/` is a **`board-item`**. `board-item` subtypes are distinguished by filename prefix."
 - "This list is \"at least,\" not exhaustive — new subtypes are expected over time. When one appears, the routines that create it and the routines that read it must be explicitly updated to mention it (no silent/dynamic discovery)."
-- "An Item's `owner` can be an acting team member (a spawned, working, self-reporting `magic-*`/`keeper-*`/`partner-*` skill) or a **non-acting owner** — anything that isn't one of those, mechanically: the human-owner, or an external contact (e.g. a partner support team)."
+- "A `board-item`'s `owner` can be an acting team member (a spawned, working, self-reporting `magic-*`/`keeper-*`/`partner-*` skill) or a **non-acting owner** — anything that isn't one of those, mechanically: the human-owner, or an external contact (e.g. a partner support team)."
 - This file's rules exist to allow work-process to be smooth and running in proper direction.
 - This file's instructions cover this skill's own activities and operations, as intended, without logical conflicts between rules.
 - "This file governs form and control points, not strategy."

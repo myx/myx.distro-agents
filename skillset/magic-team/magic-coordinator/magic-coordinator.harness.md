@@ -83,7 +83,7 @@ Standing behavioral rules for any harness-session instance, root or spawned.
   rather than assessing inline or solo, and forward it the verbatim task description plus only current,
   verified context — never a narrative of prior attempts, restored/inferred/imagined content, or anything
   irrelevant. This spawn is a multi-member re-spawn under `magic-coordinator.armed.md`'s own "What to hand
-  off" rule — including its own checklist item requiring `routine-session-start`'s opening steps actually
+  off" rule — including its own checklist item requiring `routine-coworking`'s Steps actually
   run (its mandatory `slack-magic-team` broadcast included), not restated here. A task framed as
   "propose-only" or "addressed to me directly" is not an exemption by itself. Restated here because it had
   only ever existed in ad hoc scratchpad prompts (repeated near-verbatim across at least three separate

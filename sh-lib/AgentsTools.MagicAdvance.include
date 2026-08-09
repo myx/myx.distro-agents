@@ -146,6 +146,69 @@ case "$1" in
 		return $?
 	;;
 
+	## <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...
+	##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+	## Target state fixed to parked. routine-advance's own check-execute-board
+	## fallback: the autonomous (unattended) spawn branch that must keep or move
+	## an item to board-parked in the same pass when a required spawn could not
+	## be executed -- magic-coordinator.advance.routine.md's own step, which
+	## until now named an operation the dispatcher could not reach at all.
+	##
+	## One of three separate --*-to-parked stubs, deliberately: this one is
+	## routine-advance's, --magic-grooming-to-parked is routine-grooming's, and
+	## --magic-board-to-parked is check-process-board's. Each lives in its own
+	## routine's namespace/.include, each carries its own independent validation
+	## even where identical today, and all three share the one
+	## --intern-op-board-upsert-move-edit implementation -- the same "own
+	## dedicated case arm per calling routine" convention this file's own
+	## --magic-advance-to-running already follows.
+	##
+	## No auto-stamp at all, unlike --magic-advance-to-running's started-at.
+	## started-at is auto-stampable precisely because it is unambiguously "now",
+	## tool-knowable, and already in magic-team.armed.md's own global header
+	## list. Nothing on a parked item has those properties: the calling step
+	## supplies condition/handoff-action/recheck-date/execution-receipt itself,
+	## and recheck-date specifically is a caller-computed offset. Fabricating a
+	## recheck-date here would be a behavior change, not a convenience -- an
+	## item the caller deliberately left without one falls to routine-grooming's
+	## own slower cadence, and a tool-invented value would silently pull it into
+	## the fast recheck loop instead.
+	--magic-advance-to-parked)
+		shift
+		## <team-member> captured for future logging/validation, unused today --
+		## see --magic-advance-to-running's own comment above.
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local fromStateArg=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) fromStateArg="$1" ; shift ;;
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$fromStateArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
+			"$fromStateArg" \
+			"${passthrough[@]}"
+		return $?
+	;;
+
 	## Fixed 5-loop countdown-then-continue signal. No options.
 	--magic-advance-sleep-run)
 		shift

@@ -178,9 +178,11 @@ Reason: the `keeper-*`/`partner-*`/`oncall-*`/`expert-*`/`warden-*` roster is de
 
 This is the source-of-truth definition every other member's own `Verbatim-goals (intents)`/`Verbatim-tests (benchmarks)` pair is authored and checked against — `magic-librarian` is the author/steward of this convention for the whole team.
 
-The pair lives as two `##` subsections of each file's own `# Maintainer Notes` root section — `## Verbatim-goals (intents)` and `## Verbatim-tests (benchmarks)` — in the file itself, never in a separate file. Every skill MD file designed to hold instructions or rules carries the pair, not only a member's `.armed.md`: a `.routine.md` carries its own, and so does this file. Simple-text, table, and reference-only files do not. See `magic-team.armed.md`'s "Verbatim-intents / Verbatim-benchmarks sections" rule and its `verbatim-intent`/`verbatim-benchmark` terminology entries, and `magic-team.shared.md`'s folder-shape entry. Both sections open with the same banner: "Used to check this team-member's own definitions against its own goals when they're updated, assessed, or tested — not applied during normal work."
+The pair lives as two `##` subsections of each file's own `# Maintainer Notes` root section — `## Verbatim-goals (intents)` and `## Verbatim-tests (benchmarks)` — in the file itself, never in a separate file. Every skill MD file designed to hold instructions or rules carries the pair, not only a member's `.armed.md`: a `.routine.md` carries its own, and so does this file. Simple-text, table, and reference-only files do not. See `magic-team.armed.md`'s "Verbatim-intents / Verbatim-benchmarks sections" rule and its `verbatim-intent`/`verbatim-benchmark` terminology entries, and `magic-team.shared.md`'s folder-shape entry. Both sections open with the same banner, one wording team-wide: "Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!"
 
-The pair is authored and read for this file-level conventions check — it is not part of the file's own instructions, and is never applied during normal work.
+The pair is authored and read for this conventions check — it is not part of the file's own instructions, and is never applied during normal work.
+
+**The check is skillset-wide, not file-local.** A `Verbatim-test` asks whether the skillset as a whole still establishes what the entry asserts — the supporting rule or step may live in any file, most often the team baseline rather than the file carrying the test. Reading a test as a claim about its own file's body produces false gaps: an entry testing something established elsewhere gets reported as unsupported. Resolve each entry against the whole skillset before calling it stranded.
 
 - **`Verbatim-intent`**: this member's own single, laser-focused core goal/direction — not a restated operational rule already in one of its own typed files, and not a shared/cross-cutting mechanism (tooling, sessions, trust) that another member actually owns, even one this member restates for emphasis. Pull it from the member's own stated purpose (a Goals section, an opening description, a top-of-file banner comment) where one exists, kept verbatim — don't invent a narrower technical detail instead.
 - **`Verbatim-benchmark`**: a concrete edge-case test of that same core goal — never a rephrased copy of the intent, a domain-trivia fact about what the member's subject matter covers, or a test of a mechanism owned elsewhere.
@@ -189,7 +191,7 @@ Check both against these definitions during any conventions-check pass, or when 
 
 Note on heading names: the bare headings `## Verbatim-intents` / `## Verbatim-benchmarks` and the standardized `## Verbatim-goals (intents)` / `## Verbatim-tests (benchmarks)` name the same two sections. The standardized form is what every file's own `# Maintainer Notes` carries.
 
-Flagged, not silently resolved: two banner wordings are in circulation — "...definitions, rules or instructions against its own goals..." and the shorter "...definitions against its own goals...", which is what's quoted above. The discrepancy is worth a maintainer's attention rather than treating either as automatically authoritative.
+The banner is one wording team-wide, quoted above — the earlier variants ("...definitions, rules or instructions against its own goals...", and the file-local phrasings) are retired, not alternatives to choose between.
 
 # Team-Member's (-specific) tooling
 
@@ -242,7 +244,7 @@ Note: `--librarian-list-team-files`/`-dates` (below) are this skill's dedicated 
 
 # Maintainer Notes
 
-Used to check this file's own definitions against its own goals when this file's update is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 ## Verbatim-goals (intents)
 

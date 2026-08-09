@@ -81,7 +81,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
          - **Active processes** — one line per active/blocked item naming it and its state (in-work/blocked/etc.), not just a number.
          - Shape: an iteration/timestamp header line, then the Board statistics section, then the Active processes section.
        - Full HTML/multipart layout redesign stays deferred (the text-vs-HTML question is still open) — this is a content/structure floor, not the eventual full design.
-       - Sent via the same sanctioned bot-credential mechanism `routine-close-session`'s broadcast step already uses — never a session's own personal mail connector.
+       - Sent via the same sanctioned bot-credential mechanism `routine-coworking`'s Closure Steps' broadcast step already uses — never a session's own personal mail connector.
        - Cadence check: track `last_test_email_sent` in the `heartbeat-state-note` and check "has an hour passed" the same mechanical way the day-rhythm check works — not fired every single `next-iteration` regardless of the fast-tier's 30s-2min cadence.
      - **First-today only**: a small `routine-grooming` pass plus librarian context prep, plus a batched `magic-librarian` own-inbox processing pass — collect all pending doc-fix notes, apply together in one multi-update run (`magic-librarian`'s own "Own inbox: collect and batch, don't fix ad hoc" standard).
      - **Later-today**: `routine-daily`'s flow, watching for planned work-sessions.
@@ -210,7 +210,7 @@ All statements apply at the same time, always. These rules override a participan
 - This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
 - Overrides the inherited coworking thread anchor: this routine's session thread lives in `slack-event-track`, not `slack-magic-team`. Genuinely important items still go separately to the human-owner DM and `slack-magic-team`.
 - Does not run **fold-in-learned-lessons** — that step works a small, recent, unresolved reflection set, and this loop's per-nudge cadence would grind the whole accumulated pile every iteration.
-- Not wired into `routine-session-start`/`routine-close-session` as separate calls — this loop iterates far more often than the structured routines those are meant for, and its per-nudge traffic is debug-level. **open-event-track-thread** and **conclude-event-track-thread** are that inherited opening/closing obligation, discharged into a `slack-event-track` thread per `next-iteration`.
+- Not wired into `routine-coworking`'s Steps/Closure Steps as separate calls — this loop iterates far more often than the structured routines those are meant for, and its per-nudge traffic is debug-level. **open-event-track-thread** and **conclude-event-track-thread** are that inherited opening/closing obligation, discharged into a `slack-event-track` thread per `next-iteration`.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - This routine is a scheduler tick — each `next-iteration` checks what's due against `magic-team`'s own calendar/full-sprint routine (comms cadence, once-daily grooming, the daily meeting) and acts on exactly what's due this pass, nothing more.
 - **Per-platform pacing, not one interval for everything**:
@@ -320,7 +320,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 # Maintainer Notes
 
-Used to check this files own definitions against its own goals when this file's update is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 ## Verbatim-goals (intents)
 

@@ -45,13 +45,13 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Dispatch: a background `Agent` whose first action is `Skill(magic-librarian)`, default goal "run this workday's joint board-review session" (`routine-librarian-morning-review`'s own Goals — state-shape drift and cross-file consistency, not ordinary content staleness).
    - **Wait for it to actually finish before continuing to step 0a** — a real spawn-and-wait, not fire-and-forget; use `ScheduleWakeup` for the check-in, not polling.
    - **Autonomous invocation**: request this spawn from `main` via the `SPAWN-REQUEST` protocol instead of calling `Agent` directly — the goal, the wait, and the skip-on-same-day-rerun are unchanged.
-   - That spawned sub-session is a full-featured coworking-like session per the session-type framework: it runs its own `routine-session-start` and, at the end, its own `routine-close-session`.
+   - That spawned sub-session is a full-featured coworking-like session per the session-type framework: it executes `routine-coworking`'s Steps and, at the end, its Closure Steps.
    - Skip silently on a same-day re-run of `routine-daily` — once per workday, same first-today gating as step 4a's grooming counterpart.
    - **Bounded wait, not indefinite**: sub-session hasn't reported back within roughly 30 minutes → flag it once (a `slack-magic-team` note plus a line in this session's own close-out report) and continue into step 0a anyway — this meeting proceeds without morning-review's benefit rather than blocking the whole standup indefinitely.
 0a. **reload-active-duty-context**: (re-)load this routine's own active-duty context now, in full — reading the distributed typed files directly.
    - Deliberately *after* step 0's spawn-and-wait, so this session picks up anything the morning-review session may have changed in this member's own instruction files or inbox state.
    - Skip only if this exact session has already loaded it earlier in the same continuous run.
-0b. **run-shared-opening-steps** (`routine-session-start`):
+0b. **session-start**: execute `routine-coworking`'s Steps:
    - Declares this as a coworking-like/structured-multi-member session.
    - Invokes `routine-process-reflections` for this project/workspace.
    - Processes own inbox.
@@ -59,7 +59,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **librarian-confirms-roster**, in parallel with step 2 (**sweep-comms-read**): dispatch `magic-librarian` to confirm the `roster-note` and `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section are current (roster/domain and workspace/tooling facts, read as trusted day-to-day, not re-derived here).
    - Refresh the `roster-note` via the `--member-upsert-inbox-note` operation if it drifted.
    - Per-member backlog itself lives on the board (coordinator-exclusive write authority).
-1c. **process-own-inbox**, in parallel with steps 1-2: run `routine-process-inbox magic-coordinator` — inline execution (own identity). The sorting pass, not step 0b's (**run-shared-opening-steps**) arrival load: a full read across everyone's `inquiry-*`/`reflection-*`/status reports and reactions accumulated since the last daily, so step 3's roll call speaks to what actually came in.
+1c. **sort-incoming**, in parallel with steps 1-2: run `routine-process-inbox magic-coordinator` — inline execution (own identity). A genuine second pass, not a repeat of **collect-reflections-output**: that one picks up what **fold-in-learned-lessons** just filed, this one is the sorting read across everyone's `inquiry-*`/`reflection-*`/status reports and reactions accumulated since the last daily, so **roll-call** speaks to what actually came in.
    - Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 2. **sweep-comms-read**, in parallel with step 1 (**librarian-confirms-roster**): run the read half of `routine-communication-sweep` — not Trello-specific, covers every live platform under `the credential store`.
    - Fold anything relevant into the roll call narration in step 3.
@@ -74,6 +74,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - For each member, call the `--member-work-session-input-scan` operation, then narrate that member's status/blocks/ideas/leftovers for today from it plus whatever's visible in `TodoWrite`/project memory.
    - All invitees (including `partner-*`s) still get a turn — most days that's "nothing to report," but they can flag a recommendation if another member's item touches infra/CDCI/service code.
    - A narrated pass, not a full agent spawn per member — that comes later.
+   - **Compact that member's reflections, same round, limited scope**: recap the `reflection-*` items accumulated in its own inbox since the last daily, and where several say the same thing, replace them with one or two current ones — retire what is resolved, promote what has formed into an `inquiry-*`/proposal. Not a retro-scale proposal pass; this is what keeps **fold-in-learned-lessons**' input a small, recent, unresolved set.
    - Anything a member's status raises that needs real discussion doesn't get resolved inline here — flag it for step 6 (Questions) or the backlog instead.
 4. **update-todos**: reflect what the roll call surfaced in the current session's `TodoWrite` (today's working list) for the members about to get a work session.
    - Member with nothing assigned but an idle-task menu of more than one file: randomly pick one `idle-tasks/*.idle.md` file now and put *that specific file* in the todo — don't leave "run the idle menu" as a vague item.
@@ -109,11 +110,11 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - goal: everything is decided by now. While the main steps are still running, what gets dispatched — in what form, in what order — is still open to reassessment. Dispatching only once the board is updated means work goes out without corrections chasing it, and without hitting blockers a later step would have resolved.
    - rule: this does not re-dispatch step 7's (**fan-out-work-sessions**) own work sessions — `check-execute-board`'s standing "`routine-daily`'s standing work-sessions take continuous task feed as each finishes" exception already excludes them.
    - rule: `routine-advance`'s **advance-run-process-board** repeats the `check-process-board` pass step 4a already ran. That is a deliberate second reconciliation over a board the main sequence has since changed, not an accident — `check-process-board` executes only already-decided moves, so re-running it is safe.
-2. **close-out**: once agents finish (or are wrapped up at the timebox), compact what happened into a short summary for the user. Run `routine-close-session`'s shared closing steps in full — this is a coworking-like session, so its continuity step, `slack-magic-team`/status-card broadcast, and skill-update-discussion offer all apply; context compaction does not. `routine-process-reflections` already ran at step 0b's opening, not here. Meeting finished.
+2. **close-out**: once agents finish (or are wrapped up at the timebox), compact what happened into a short summary for the user. Execute `routine-coworking`'s Closure Steps in full — this is a coworking-like session, so its continuity step, `slack-magic-team`/status-card broadcast, and skill-update-discussion offer all apply; context compaction does not. `routine-process-reflections` already ran at **fold-in-learned-lessons**, not here. Meeting finished.
 
 # Routine's local procedures
 
-None — every procedure this routine invokes belongs to another routine, referenced here by name only (`routine-session-start`, `routine-communication-sweep`, `routine-advance`, `routine-camunda-diagram-sync`, `routine-close-session`, `routine-librarian-morning-review`, `routine-process-inbox`, `routine-interview`, `routine-process-reflections`) — see Librarian Comments → Reference.
+None — every procedure this routine invokes belongs to another routine, referenced here by name only (`routine-coworking`, `routine-communication-sweep`, `routine-advance`, `routine-camunda-diagram-sync`, `routine-librarian-morning-review`, `routine-process-inbox`, `routine-interview`, `routine-process-reflections`) — see Librarian Comments → Reference.
 
 # Routine's local rules
 
@@ -136,7 +137,7 @@ All statements apply at the same time, always. These rules override a participan
     - Reports status when checked in on.
     - Routes anything non-goal-directed it notices back to the executor's own triage, rather than acting on it solo.
     - Genuinely sub-spawned — a real background `Agent`, `Skill(<member>)` first, not merely "notified/referenced" — for the duration of its own assigned work, then reports back and exits.
-    - Same "creates its own context, does its work, exits cleanly" shape as `routine-librarian-morning-review`'s own sub-session, just without that routine's own full `routine-session-start`/`routine-close-session` lifecycle layered on top — a single-member work-session slot is an ad-hoc/solo dispatch per `routine-session-start`'s own session-type definition, not one of the six coworking-like routines itself, deliberate, not an oversight.
+    - Same "creates its own context, does its work, exits cleanly" shape as `routine-librarian-morning-review`'s own sub-session, just without that routine's own full Steps/Closure Steps lifecycle layered on top — a single-member work-session slot is an ad-hoc/solo dispatch per `routine-coworking`'s own session-type definition, not one of the structured coworking-like routines itself, deliberate, not an oversight.
 - No cron: this routine is never automated onto its own schedule — confirm explicitly with the human-owner before ever proposing that.
 - the board is the cross-workspace, cross-day source of truth for per-member backlog — `TodoWrite` alone can't serve this role since it resets every session.
 - `magic-coordinator` holds exclusive write authority over the board.
@@ -180,7 +181,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 # Maintainer Notes
 
-Used to check this files own definitions against its own goals when this file's update is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 ## Verbatim-goals (intents)
 
@@ -198,8 +199,8 @@ Used to check this files own definitions against its own goals when this file's 
 
 ### Reference
 
-- `routine-session-start` — shared opening steps this routine runs before its own step 1.
-- `routine-close-session` — shared closing steps this routine runs at the closure step.
+- `routine-coworking` — the template this routine extends; its Steps are the opening this routine executes.
+- `routine-coworking` — its Closure Steps are the closing this routine executes.
 - `check-process-board` (`magic-coordinator.armed.md`) — dependency-ordering recompute, step 4a; called directly, not via `routine-advance`.
 - `routine-advance` — run in full at the first closure step (**run-advance-dispatch**), as this routine's own dispatch/respawn pass; never called from the main sequence.
 - `routine-camunda-diagram-sync` — BPMN diagram staleness check, step 5a.

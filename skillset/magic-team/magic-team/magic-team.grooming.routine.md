@@ -35,6 +35,7 @@ Doesn't do: daily status reporting (`routine-daily`'s job).
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
+0. **session-start**: execute `routine-coworking`'s Steps — grooming is coworking-like, so its coworking-gated parts apply.
 1. **gather-the-backlog**
    - Read all of `the board`:
      - every permanent member's open, deferred, or "not yet done" items
@@ -200,13 +201,13 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **close-out**
-   - Run `routine-close-session`'s shared steps:
+1. **close-session**
+   - Execute `routine-coworking`'s Closure Steps:
      - continuity/reflection
      - the `slack-magic-team`/Trello broadcast
      - the skill-update-discussion offer
    - All apply here — grooming is coworking-like.
-   - No status-file GC step exists in `routine-close-session` anymore; this routine's own triage pass (step 2) is where drop/split decisions actually happen.
+   - No status-file GC step exists in `routine-coworking`'s Closure Steps; this routine's own triage pass (step 2) is where drop/split decisions actually happen.
 
 # Routine's local procedures
 
@@ -332,7 +333,7 @@ Read-only: one member's own current work-session input — personal, not routine
 
 # Maintainer Notes
 
-Used to check this files own definitions against its own goals when this file's update is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 ## Verbatim-goals (intents)
 
@@ -351,8 +352,8 @@ Used to check this files own definitions against its own goals when this file's 
 ### Reference
 
 - `routine-daily` — reports what's outstanding; grooming asks whether the backlog is still the right shape.
-- `routine-session-start` — shared opening steps (coworking-like session-type branch applies here).
-- `routine-close-session` — shared close-out steps (coworking-like session-type branch applies here).
+- `routine-coworking` — the template this routine extends; its Steps are the opening this routine executes.
+- `routine-coworking` — its Closure Steps are the closing this routine executes.
 - `routine-process-inbox` — own-inbox processing (step 1), and the personal-inbox model fresh items are triaged against.
 - `magic-coordinator`'s `check-pending-comms-actions` procedure — the resolver of the Slack-reaction closeout. Not this routine's job.
 - `routine-heartbeat` — can trigger this routine as its first-iteration-of-the-day branch (step 5's user review becomes non-blocking/provisional in that mode).

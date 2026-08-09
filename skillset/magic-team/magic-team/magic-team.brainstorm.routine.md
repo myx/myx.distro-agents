@@ -30,7 +30,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-This routine has no distinct closing phase of its own — it ends once step 6's filing gate is satisfied; not a coworking-like session per `routine-session-start`'s taxonomy, so no `routine-close-session` call applies.
+Execute `routine-coworking`'s Closure Steps.
 
 # Routine's local procedures
 
@@ -73,7 +73,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 # Maintainer Notes
 
-Used to check this files own definitions against its own goals when this file's update is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 ## Verbatim-goals (intents)
 

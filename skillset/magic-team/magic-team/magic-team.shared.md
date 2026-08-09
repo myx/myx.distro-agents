@@ -343,7 +343,30 @@ Order within one nested list: goals, then rules, then steps.
    - sub-step 2
 ```
 
-Same grammar at any depth. Top-level steps are not prefixed — they keep `<N>. **name-of-meaning**: …`. Nested steps are not named.
+Same grammar at any depth. Top-level steps are not prefixed — they keep `<N>. **name-of-meaning**: …`.
+
+Nested steps are normally not named. **Name them when the parent is a named group of meaning whose children need to be addressable one at a time** — in discussion, and in the executor's own orchestration of them (`routine-coworking`'s **session-start**/**close-session** groups are the worked example). Then the parent declares the kind once with `, steps:` and each child carries its own `**name**:`. Note what this is *not*: another file referencing that work names the whole section (`routine-coworking`'s Steps / Closure Steps), never a child. The names are handles for working inside the file, not cross-file entry points.
+
+### Actor phrases
+
+**Every step is the executor's.** A step naming other members is a script for the executor: it orchestrates and commands the work, and announces it in the session transcript so the orchestration is visible. There is no second actor running steps of its own.
+
+An actor phrase says *whom the executor commands*, in plain language. Two forms:
+
+- **Inline**, for a single short step — the phrase, a colon, the instruction:
+  `- all participants: state today's blockers in the thread`
+- **Prefix line**, when the same actor governs several steps — the phrase, a colon, the steps nested under it:
+```
+   - all participants do that:
+        - execute that and this like that
+        - step 2
+```
+
+The prefix line is itself a `step:` — the executor's instruction to orchestrate what is nested under it — so no kind prefix is needed on it or on its children. An actor phrase is not a fourth kind: it modifies a step, it does not replace `goal:`/`rule:`/`step:`.
+
+A step with no actor phrase is the executor's own work, done directly.
+
+**Joining mid-session is not covered by this notation.** An actor phrase never means "a member who arrives later runs the steps it missed." What a fresh joiner must do is stated as a routine rule, in the routine's own `# Routine's local rules`.
 
 **A nested `rule:` is not a Local rule.** `# Routine's local rules` are in force for the whole routine, always, all at once. A `rule:` is in force only within its own branch. Moving one up into Local rules widens what it governs — a change of meaning, never a tidy-up. Moving a Local rule down into a branch narrows it, the same error mirrored.
 
@@ -371,6 +394,8 @@ A folder can still declare finer-grained, folder-specific rules (rate limits, co
 **Two distinct roles, not one "who may run it" field:**
 - **Executors** — who may actually run/execute the folder's activity day to day. For most current structured routines this is `magic-coordinator` alone, since they're coordinator-orchestrated. A routine states this as a real `executors:` frontmatter field; an acting member states it in prose (`Scope`/`Local rules`) instead, since `.armed.md` carries no `executors:` field.
 - **Maintainers** — who may change/update the definition itself (a member's `.armed.md`, or a routine's own `.routine.md`, or anything else that defines its behavior) — always a **group**, never a single owner acting unilaterally. Reasonable default group: `magic-coordinator` + `magic-librarian` + `magic-architect` (the same three-perspective shape already used for triage/grooming authority) — adjust per folder/routine when a different group genuinely makes more sense (e.g. one deeply specific to one domain might reasonably add that domain's keeper/partner to its maintainer group), using judgment, not a rigid one-size-fits-all list.
+
+**A quorum change is run as a coworking session, not as a poll.** Spawn `routine-coworking` with the quorum group as its participants and the involved specialists as invitees — never dispatch one member to collect approvals from the others one at a time. The agreement is reached in the session, in one visible thread.
 
 Maintainer agreement is `quorum-all-agree` unless that definition states otherwise. **It never lands the change by itself** — the human-owner confirms it through the process flow. In a harness session the human-owner's own accept/commit is that confirmation; otherwise ask over IM or the session's own thread and wait for the reply.
 

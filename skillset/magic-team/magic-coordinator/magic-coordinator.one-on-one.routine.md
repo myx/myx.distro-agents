@@ -21,7 +21,7 @@ Doesn't do: execute the activity inline in the UI/chat instance itself.
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **run-shared-opening-steps**: `routine-session-start` — declare this a coworking-like/structured-multi-member session. Invoke `routine-process-reflections` for this project/workspace. Process own inbox. Post an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
+0. **session-start**: execute `routine-coworking`'s Steps — declare this a coworking-like/structured-multi-member session. Invoke `routine-process-reflections` for this project/workspace. Process own inbox. Post an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
 1. **pick-the-member**: if the user names one, use that. If not, ask — don't guess who they meant.
 1a. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — narrowed to the member picked in step 1 (**pick-the-member**): anything addressed to or about them (an `inquiry-*`, a status report, a pending ask) that step 2's context prep should carry into the conversation.
 2. **prep-member-context**: pull any relevant board items owned by or referencing this member (including `board-processed` `note-member-status-*` for pre-2026-07-22 history), and any relevant project memory so the handoff isn't a cold start.
@@ -34,7 +34,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **return-and-close**: once the 1:1 concludes, the spawned instance folds anything material into the board (a real Item — task/change/reflection/etc.), runs `routine-close-session`'s shared closing steps (the skill-update-discussion offer, scoped to this member), and reports a final status back to the UI/chat instance via `SendMessage`. Real follow-on work surfaced at close-out gets dispatched normally, its own fresh spawn — never continued on this same spawned instance.
+1. **return-and-close**: once the 1:1 concludes, the spawned instance folds anything material into the board (a real Item — task/change/reflection/etc.), executes `routine-coworking`'s Closure Steps (the skill-update-discussion offer, scoped to this member), and reports a final status back to the UI/chat instance via `SendMessage`. Real follow-on work surfaced at close-out gets dispatched normally, its own fresh spawn — never continued on this same spawned instance.
 
 # Routine's local procedures
 
@@ -72,7 +72,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 # Maintainer Notes
 
-Used to check this files own definitions against its own goals when this file's update is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 ## Verbatim-goals (intents)
 
@@ -86,10 +86,10 @@ Used to check this files own definitions against its own goals when this file's 
 
 ### Reference
 
-- `routine-session-start` — shared opening steps (coworking-like session-type branch applies here).
-- `routine-close-session` — shared close-out steps.
+- `routine-coworking` — the template this routine extends; its Steps are the opening this routine executes.
+- `routine-coworking` — its Closure Steps are the closing this routine executes.
 - `routine-process-inbox` — own-inbox processing.
-- `routine-session-start` — the shared opening steps this routine's own step 0 runs.
+- `routine-coworking` — the template this routine extends; its Steps are the opening this routine executes.
 - `routine-communication-sweep` — the DM-vs-public sensitivity judgment call this routine reuses for its `slack-magic-team` thread.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics.
 - `magic-team/magic-team.board.md` — "Who actually reads/writes the board" section, the obvious-vs-non-obvious Item test.

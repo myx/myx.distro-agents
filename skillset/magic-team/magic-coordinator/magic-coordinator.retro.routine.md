@@ -21,7 +21,7 @@ Doesn't do: report what's outstanding (`routine-daily`'s job).
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **run-shared-opening-steps**: `routine-session-start` — declares this as a coworking-like/structured-multi-member session, invokes `routine-process-reflections` for this project/workspace, processes own inbox, and posts an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
+0. **session-start**: execute `routine-coworking`'s Steps — declares this as a coworking-like/structured-multi-member session, invokes `routine-process-reflections` for this project/workspace, processes own inbox, and posts an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
 1. **gather-recent-history**: read `board-processed` `reflection-*` items and any other recent board Items, and recall the last several daily meetings' worth of entries (results, recurring blockers, anything flagged more than once) — raw material for reflection, not something to re-narrate verbatim. The `roster-note` gets its real re-check at grooming cadence, not here.
 1a. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — inline execution (own identity). The `reflection-*` notes retained in the inbox rather than promoted to the board (`routine-process-inbox`'s own reflection-promotion rule): step 1's (**gather-recent-history**) `board-processed` sweep does not see them, and retro is where they are due for discussion. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 2. **self-analyse-per-member**: for each permanent member with enough recent history to reflect on, narrate that member doing a real self-analysis before speaking, grounded in four things — its own `.basic.md`/`.armed.md` behavioral descriptions (including whether they still match what it's actually being asked to do lately), relevant past incidents (its own log/inbox reflections, board history), the team's standing rules that apply to it, and its own stated goals — then narrate its first-person self-talk from that grounding: what's felt slow, what's been satisfying to close out, what keeps recurring. From this analysis each member formulates a real improvement proposal of its own — carried into step 4 (which collects it alongside the coordinator's cross-team assessment) and step 5 (same discussion/review as any other retro finding), not a separate deliverable. Introspective and analytical, not status-reporting — skip members with nothing meaningful to reflect on (same escape valve covers a thin self-analysis, not just a thin self-talk).
@@ -31,7 +31,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **close-out**: run `routine-close-session`'s shared closing steps — the skill-update-discussion offer, etc. Retro stays reflection, not action: log step 5's approved improvement proposals into `board-running` as pending items for the *next daily meeting* to actually pick up and apply — members may reflect on a proposal here, but implementation waits for a daily.
+1. **close-session**: execute `routine-coworking`'s Closure Steps — the skill-update-discussion offer, etc. Retro stays reflection, not action: log step 5's approved improvement proposals into `board-running` as pending items for the *next daily meeting* to actually pick up and apply — members may reflect on a proposal here, but implementation waits for a daily.
 
 # Routine's local procedures
 
@@ -76,7 +76,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 # Maintainer Notes
 
-Used to check this files own definitions against its own goals when this file's update is being updated, assessed, or tested. **IMPORTANT**: not applied during normal work!
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
 ## Verbatim-goals (intents)
 
@@ -91,10 +91,10 @@ Used to check this files own definitions against its own goals when this file's 
 ### Reference
 
 - `routine-daily` — the roll-call routine retro is explicitly distinct from, and the destination for retro's own approved improvement proposals.
-- `routine-session-start` — shared opening steps (coworking-like session-type branch applies here).
-- `routine-close-session` — shared close-out steps.
+- `routine-coworking` — the template this routine extends; its Steps are the opening this routine executes.
+- `routine-coworking` — its Closure Steps are the closing this routine executes.
 - `routine-process-inbox` — own-inbox processing.
-- `routine-session-start` — the shared opening steps this routine's own step 0 runs.
+- `routine-coworking` — the template this routine extends; its Steps are the opening this routine executes.
 - `routine-heartbeat` — carries this routine's "Autonomous invocation" addendum for consistency, not currently invoking it.
 - `routine-grooming` — the backlog-triage destination for findings that turn out to be about re-prioritization rather than methodology.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics.
