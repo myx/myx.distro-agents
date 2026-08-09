@@ -30,9 +30,21 @@
 
 case "$1" in
 
-	## <to-state> <item-filename> (--from-state:<state>|--create)
+	## <to-state> <item-filename> (--from-state:<state>|--from-inbox:<member>|--create)
 	##   [--header:<upsert|append|remove>:name[:value]]...
 	##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+	##
+	## Source selection: exactly one of the three. --from-state:<state> reads
+	## board/<state>/<item-filename>; --from-inbox:<member> reads
+	## inboxes/<member>/processed/<item-filename>; --create starts fresh.
+	## --from-inbox: is colon-style to match its --from-state: sibling, NOT a
+	## spaced `--from-inbox <member>` pair: a spaced pair silently swallows a
+	## neighbouring option, so `--from-inbox --create` would set the member name
+	## to the literal string "--create" and fail far from the real mistake.
+	##
+	## ONE-WAY DOOR on the inbox source: there is no --to-inbox: counterpart.
+	## A board->board move reverses by swapping the two states; an inbox->board
+	## move has no inverse. Callers must treat it as final.
 	##
 	## Body resolution (in order): --edit-script-from-stdin runs the given
 	## py/awk script (read from this op's own stdin) against the existing
@@ -109,7 +121,7 @@ case "$1" in
 			set +e ; return 1
 		}
 		local boardRoot="$MDAT_DATA_ROOT/board"
-		local fromState="" isCreate="false" sourcePath="" bodyMode="" scriptLang="" bodyModeCount=0
+		local fromState="" fromInbox="" isCreate="false" sourcePath="" bodyMode="" scriptLang="" bodyModeCount=0 sourceModeCount=0
 		local headerOpsFile
 		headerOpsFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-headers.XXXXXX" )" || { set +e ; return 1 ; }
 		trap 'rm -f "$headerOpsFile"' EXIT
@@ -131,10 +143,70 @@ case "$1" in
 						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): item not found: $sourcePath" >&2
 						set +e ; return 1
 					fi
+					sourceModeCount=$(( sourceModeCount + 1 ))
+					shift
+				;;
+				--from-inbox:*)
+					fromInbox="${1#--from-inbox:}"
+					AgentsToolsAssertBareName "$fromInbox" "--from-inbox: member name" "$MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+					case "$itemName" in
+						*.md) ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --from-inbox: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+							set +e ; return 1
+						;;
+					esac
+					##
+					## DELIBERATELY ABSENT: no inbox type-prefix whitelist. The
+					## types an inbox is *written* with are note-/inquiry-/
+					## reflection-, but the items this source exists to relocate
+					## are task-/proposal-/change-/interview-. A prefix
+					## whitelist would reject exactly the files the operation
+					## was built to move. Do not add one.
+					##
+					## `processed/` below is a FIXED LITERAL this op appends --
+					## deliberately not caller-supplied. Measured: the whole
+					## domain of that path segment is one value (6 of the 13
+					## inboxes carry a `processed` subdirectory, nothing else,
+					## no deeper nesting). The literal can be widened into a
+					## parameter later; a parameter could never be narrowed
+					## back. Not an oversight.
+					##
+					## `cd` + `pwd -P` rather than `realpath` (not POSIX) or
+					## `readlink -f` (absent on macOS before Monterey).
+					##
+					local inboxBase="" inboxDirResolved=""
+					inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
+					if [ -z "$inboxBase" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
+						set +e ; return 1
+					fi
+					inboxDirResolved="$( cd "$MDAT_DATA_ROOT/inboxes/$fromInbox/processed" 2>/dev/null && pwd -P )" || inboxDirResolved=""
+					if [ -z "$inboxDirResolved" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): no such inbox processed directory: $MDAT_DATA_ROOT/inboxes/$fromInbox/processed" >&2
+						set +e ; return 1
+					fi
+					## Containment tested WITH the separator -- "$inboxBase"/* ,
+					## never a bare "$inboxBase"* prefix: /data/inboxes-evil/x
+					## passes the bare prefix test and correctly fails this one.
+					case "$inboxDirResolved" in
+						"$inboxBase"/*) ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): resolved inbox directory escapes the inbox root ($inboxBase): $inboxDirResolved" >&2
+							set +e ; return 1
+						;;
+					esac
+					sourcePath="$inboxDirResolved/$itemName"
+					if [ ! -f "$sourcePath" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): item not found: $sourcePath" >&2
+						set +e ; return 1
+					fi
+					sourceModeCount=$(( sourceModeCount + 1 ))
 					shift
 				;;
 				--create)
 					isCreate="true"
+					sourceModeCount=$(( sourceModeCount + 1 ))
 					shift
 				;;
 				--header:*)
@@ -228,12 +300,17 @@ case "$1" in
 			esac
 		done
 
-		if [ -z "$fromState" ] && [ "$isCreate" = "false" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): exactly one of --from-state:<state> or --create is required" >&2
+		## Source-group exclusivity via a counter, the same idiom bodyModeCount
+		## below already uses -- not a pairwise comparison. With three members
+		## (--from-state:, --from-inbox:, --create) a pairwise check catches
+		## only one of the possible orderings, an asymmetric gap that widens
+		## with every source added.
+		if [ "$sourceModeCount" -eq 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): exactly one of --from-state:<state>, --from-inbox:<member>, or --create is required" >&2
 			set +e ; return 1
 		fi
-		if [ -n "$fromState" ] && [ "$isCreate" = "true" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --from-state and --create are mutually exclusive" >&2
+		if [ "$sourceModeCount" -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --from-state:, --from-inbox:, and --create are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 		## Three-way check via a counter, not a pairwise scriptLang/bodyMode
@@ -304,7 +381,19 @@ case "$1" in
 		mv "$tmpFile" "$targetPath"
 
 		if [ "$isCreate" = "false" ] && [ "$sourcePath" != "$targetPath" ] ; then
-			mv "$sourcePath" "$MDAT_DATA_ROOT/trash/$itemName"
+			##
+			## HAZARD: trash/ is FLAT and `mv` has no -n, so a basename
+			## collision overwrites silently, exit 0, no diagnostic. Asserted
+			## for the inbox source only -- the board-sourced path predates this
+			## arm and is deliberately left behaving exactly as it did. `--`
+			## before the operands is independent of that: validation guards bad
+			## input, `--` guards a later edit that bypasses validation.
+			##
+			if [ -n "$fromInbox" ] && [ -e "$MDAT_DATA_ROOT/trash/$itemName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (new item already written to $targetPath; source left in place: $sourcePath)" >&2
+				set +e ; return 1
+			fi
+			mv -- "$sourcePath" "$MDAT_DATA_ROOT/trash/$itemName"
 			echo "# $MDSC_CMD --intern-op-board-upsert-move-edit: wrote $targetPath, previous $sourcePath moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
 		else
 			echo "# $MDSC_CMD --intern-op-board-upsert-move-edit: wrote $targetPath" >&2

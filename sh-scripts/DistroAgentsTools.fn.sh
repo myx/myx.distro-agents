@@ -198,6 +198,47 @@ DistroAgentsToolsResolveTarget(){
 	return 0
 }
 
+## Shared bare-name assertion: <value> must be a single path segment made only
+## of characters this family already uses for member names and item filenames.
+## Called from the --from-inbox: arms and the --librarian-inbox-* stubs only.
+##
+## SIXTEEN inline `case "$x" in */*|.|..)` copies of this check already exist
+## across sh-lib/. They are DELIBERATELY NOT retrofitted here -- retrofitting
+## them is its own separate, independently reviewable item, not a side effect
+## of adding an inbox source.
+##
+## NEVER a [a-z] bracket range in the case pattern below. Measured on this box:
+## under en_US.UTF-8, `case "A" in [a-z])` MATCHES; under LC_ALL=C it does not.
+## Bracket ranges are collation-dependent, so a range-based whitelist is not a
+## whitelist at all. Every accepted character is enumerated explicitly.
+AgentsToolsAssertBareName(){
+	local nameValue="$1"
+	local nameLabel="$2"
+	local nameContext="$3"
+	case "$nameValue" in
+		''|.|..|-*|*/*)
+			echo "⛔ ERROR: $nameContext: $nameLabel must be a bare name -- one path segment of letters, digits, '.', '_' or '-', not '.'/'..', no leading '-', no '/': $nameValue" >&2
+			return 1
+		;;
+	esac
+	local nameRest="$nameValue" nameChar
+	while [ -n "$nameRest" ] ; do
+		nameChar="${nameRest%"${nameRest#?}"}"
+		nameRest="${nameRest#?}"
+		case "$nameChar" in
+			a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+			A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+			0|1|2|3|4|5|6|7|8|9) ;;
+			-|_|.) ;;
+			*)
+				echo "⛔ ERROR: $nameContext: $nameLabel contains a character outside the allowed set (letters, digits, '.', '_', '-'): $nameValue" >&2
+				return 1
+			;;
+		esac
+	done
+	return 0
+}
+
 ##
 ## The one real dispatcher -- every operation lives in its own case branch,
 ## inline or via self-recursion into DistroAgentsTools itself, never a
@@ -1639,6 +1680,131 @@ $1"
 				set +e ; return 1
 			fi
 			return 0
+		;;
+
+		##
+		## magic-librarian's own inbox-clearing pair. The --librarian-*
+		## namespace is EXACT-MATCH in this dispatcher, not a `--librarian-*)`
+		## glob route, so each of these needs its own arm here -- adding a third
+		## one later means a third arm, not a pattern widening.
+		##
+		## One stub per routine step, each carrying its own validation even
+		## where the two overlap, both over the one shared --intern-op-*
+		## implementation -- the same convention --magic-board-to-* and
+		## --magic-grooming-to-* already follow.
+		##
+
+		## <team-member> <item-filename> --from-inbox:<member>
+		##
+		## Discards one already-processed inbox item: <member>'s own inbox
+		## processed/ area -> trash/. REVERSIBLE: trash/ relocates, it does not
+		## delete -- but see --librarian-inbox-to-retained below, whose
+		## direction is not.
+		--librarian-inbox-item-trash)
+			shift
+			## <team-member> captured for future logging/validation, unused
+			## today -- tooling operation discipline convention, same as every
+			## --magic-board-* sibling.
+			local callingMember="$1"
+			shift || true
+			local itemName="$1"
+			shift || true
+			if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-item-trash: syntax is <team-member> <item-filename> --from-inbox:<member>" >&2
+				set +e ; return 1
+			fi
+			local fromInboxArg=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--from-inbox:*) fromInboxArg="$1" ; shift ;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-item-trash: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ -z "$fromInboxArg" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-item-trash: --from-inbox:<member> is required" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "${fromInboxArg#--from-inbox:}" "--from-inbox: member name" "$MDSC_CMD --librarian-inbox-item-trash" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --librarian-inbox-item-trash" || { set +e ; return 1 ; }
+			case "$itemName" in
+				*.md) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-item-trash: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+					set +e ; return 1
+				;;
+			esac
+			DistroAgentsTools --intern-op-board-trash "$fromInboxArg" "$itemName" \
+				--context --librarian-inbox-item-trash
+			return $?
+		;;
+
+		## <team-member> <item-filename> --from-inbox:<member>
+		##   [--header:<upsert|append|remove>:name[:value]]...
+		##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		##
+		## Promotes one already-processed inbox item into board/retained.
+		##
+		## ONE-WAY DOOR, and that is the load-bearing fact about this op:
+		## --intern-op-board-upsert-move-edit's --from-inbox: source has no
+		## --to-inbox: counterpart. A board->board move reverses by swapping the
+		## two states; an inbox->board move has no inverse at all. The trash
+		## sibling above is recoverable via --untrash; this one is not. Nothing
+		## here is "undo-able later" -- treat every call as final.
+		##
+		## No auto-stamp, matching every --magic-board-to-* sibling: retained
+		## has no established always-set field, and any provenance the caller
+		## wants recorded rides the ordinary --header:* passthrough.
+		--librarian-inbox-to-retained)
+			shift
+			## <team-member> captured for future logging/validation, unused
+			## today -- same convention as the sibling above.
+			local callingMember="$1"
+			shift || true
+			local itemName="$1"
+			shift || true
+			if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-retained: syntax is <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+				set +e ; return 1
+			fi
+			local fromInboxArg=""
+			local passthrough=()
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--from-inbox:*) fromInboxArg="$1" ; shift ;;
+					--from-state:*)
+						echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-retained: --from-state: is not valid here -- this op moves an item out of a member inbox, never between board states. Use --magic-board-to-*/--magic-grooming-to-* for a board-to-board move." >&2
+						set +e ; return 1
+					;;
+					--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+						passthrough+=( "$1" ) ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-retained: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ -z "$fromInboxArg" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-retained: --from-inbox:<member> is required" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "${fromInboxArg#--from-inbox:}" "--from-inbox: member name" "$MDSC_CMD --librarian-inbox-to-retained" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --librarian-inbox-to-retained" || { set +e ; return 1 ; }
+			case "$itemName" in
+				*.md) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-retained: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+					set +e ; return 1
+				;;
+			esac
+			DistroAgentsTools --intern-op-board-upsert-move-edit retained "$itemName" \
+				"$fromInboxArg" \
+				--context --librarian-inbox-to-retained \
+				"${passthrough[@]}"
+			return $?
 		;;
 
 		## **magic-coordinator-only by design** -- BOARD.md states plainly

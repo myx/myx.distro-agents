@@ -15,8 +15,17 @@
 ## states. <board-state> in the --untrash direction names the RESTORE
 ## target, not a state trash/ itself belongs to.
 ##
+## TWO SOURCES, discriminated on the FIRST TOKEN:
+##   --intern-op-board-trash <board-state> <item-name> [--untrash] [--context <op>]
+##   --intern-op-board-trash --from-inbox:<member> <item-name> [--context <op>]
+## The first positional is read once: if it matches --from-inbox:* the inbox
+## source is taken, otherwise it is a board state. Board states never begin
+## with '--', so the discriminant is unambiguous -- and the board arm below is
+## left BYTE-IDENTICAL to what it was before the inbox source existed, which
+## is the whole reason for discriminating here rather than restructuring it.
+##
 ## No --help entry: internal plumbing, called by
-## --magic-heartbeat-board-item-trash.
+## --magic-heartbeat-board-item-trash and --librarian-inbox-item-trash.
 ##
 
 case "$1" in
@@ -37,6 +46,125 @@ case "$1" in
 			fi
 			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
 		done
+
+		##
+		## FIRST-TOKEN DISCRIMINANT -- inbox source. Everything below this
+		## `fi` is the original board-sourced arm, untouched.
+		##
+		if [ "${1#--from-inbox:}" != "$1" ] ; then
+			local inboxMember="${1#--from-inbox:}"
+			shift
+			local inboxItemName="$1"
+			shift || true
+			if [ -z "$inboxMember" ] || [ -z "$inboxItemName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): syntax is --from-inbox:<member> <item-name> [--context <caller-op>]" >&2
+				set +e ; return 1
+			fi
+			##
+			## HAZARD: --untrash is REFUSED for an inbox-sourced item, and this
+			## refusal is a decision, not a missing feature. --untrash restores
+			## into board/<state>; an inbox-sourced item never came from a board
+			## state, so there is no correct place to put it back. Accepting it
+			## would deposit the item into some board state folder, exit 0, and
+			## read as success -- a wrong-place restore that reports success is
+			## strictly worse than a refusal. Recording per-item provenance
+			## (where each trashed item actually came from) is the better
+			## long-term answer; it is deliberately NOT being rushed in
+			## alongside this arm, so until it exists the honest behaviour is to
+			## refuse.
+			##
+			if [ "$1" = "--untrash" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): --untrash is not supported for an inbox-sourced item -- it restores into board/<state>, and an item trashed out of inboxes/$inboxMember/processed/ has no board state to return to. Restore it by hand, or wait for per-item trash provenance (deliberately not added with this arm)." >&2
+				set +e ; return 1
+			fi
+			if [ "$1" = "--context" ] ; then
+				if [ -z "${2:-}" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): --context: value required" >&2
+					set +e ; return 1
+				fi
+				shift 2
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): invalid option: $1" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$inboxMember" "--from-inbox: member name" "$MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$inboxItemName" "<item-name>" "$MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+			case "$inboxItemName" in
+				*.md) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): <item-name> must end in .md -- every inbox item is a markdown document: $inboxItemName" >&2
+					set +e ; return 1
+				;;
+			esac
+			##
+			## DELIBERATELY ABSENT: no inbox type-prefix whitelist. The types an
+			## inbox is *written* with are note-/inquiry-/reflection-, but the
+			## items this op exists to relocate are task-/proposal-/change-/
+			## interview-. A prefix whitelist would reject exactly the files the
+			## operation was built to move. Do not add one.
+			##
+			[ -n "${MDAT_DATA_ROOT:-}" ] || {
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+				set +e ; return 1
+			}
+			##
+			## Source resolution. `processed/` is a FIXED LITERAL this op
+			## appends -- deliberately not caller-supplied. Measured: the whole
+			## domain of that path segment is one value (6 of the 13 inboxes
+			## carry a `processed` subdirectory, nothing else, no deeper
+			## nesting). The literal can be widened into a parameter later; a
+			## parameter could never be narrowed back. Not an oversight.
+			##
+			## `cd` + `pwd -P` rather than `realpath` (not POSIX) or
+			## `readlink -f` (absent on macOS before Monterey).
+			##
+			local inboxBase="" inboxDirResolved=""
+			inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
+			if [ -z "$inboxBase" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
+				set +e ; return 1
+			fi
+			inboxDirResolved="$( cd "$MDAT_DATA_ROOT/inboxes/$inboxMember/processed" 2>/dev/null && pwd -P )" || inboxDirResolved=""
+			if [ -z "$inboxDirResolved" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): no such inbox processed directory: $MDAT_DATA_ROOT/inboxes/$inboxMember/processed" >&2
+				set +e ; return 1
+			fi
+			## Containment tested WITH the separator -- "$inboxBase"/* , never a
+			## bare "$inboxBase"* prefix: /data/inboxes-evil/x passes the bare
+			## prefix test and correctly fails this one.
+			case "$inboxDirResolved" in
+				"$inboxBase"/*) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): resolved inbox directory escapes the inbox root ($inboxBase): $inboxDirResolved" >&2
+					set +e ; return 1
+				;;
+			esac
+			local inboxSourcePath="$inboxDirResolved/$inboxItemName"
+			local inboxTargetPath="$MDAT_DATA_ROOT/trash/$inboxItemName"
+			if [ ! -f "$inboxSourcePath" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): item not found: $inboxSourcePath" >&2
+				set +e ; return 1
+			fi
+			##
+			## HAZARD: trash/ is FLAT and `mv` has no -n, so a basename
+			## collision between two different inboxes overwrites silently, exit
+			## 0, no diagnostic. Zero collisions were measured in one particular
+			## batch -- that is a fact about that data, not a property of this
+			## design. Assert, then move.
+			##
+			if [ -e "$inboxTargetPath" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): trash target already exists, refusing to overwrite: $inboxTargetPath (source left in place: $inboxSourcePath)" >&2
+				set +e ; return 1
+			fi
+			## `--` before the operands is independent of the leading-'-'
+			## rejection above: validation guards bad input, `--` guards a later
+			## edit that bypasses validation.
+			mv -- "$inboxSourcePath" "$inboxTargetPath"
+			echo "# $MDSC_CMD --intern-op-board-trash: moved $inboxSourcePath to $inboxTargetPath" >&2
+			return 0
+		fi
+
 		local boardState="$1"
 		shift || true
 		local itemName="$1"

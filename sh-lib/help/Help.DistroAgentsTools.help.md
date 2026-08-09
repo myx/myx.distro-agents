@@ -29,6 +29,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --list-md <path>...
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
+📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
+📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --write-board-item <state> <item-filename>
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
@@ -428,6 +430,42 @@
 			line per matched file: mtime (`YYYY-MM-DD HH:MM:SS`) then two
 			spaces then the path relative to the skill-root (never
 			absolute), sorted newest-first.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
+			Discards one already-processed inbox item: moves
+			`inboxes/<member>/processed/<item-filename>` to `trash/`.
+			`--from-inbox:` is colon-style, never a spaced pair — a spaced
+			pair would silently swallow a neighbouring option. `<member>`
+			must be a bare name; `<item-filename>` must be a bare filename
+			ending in `.md`. Refuses rather than overwrites if a file of the
+			same name is already in `trash/` (`trash/` is flat, so two
+			inboxes can hold the same basename).
+
+			Recoverable: `trash/` relocates, it does not delete. Restoring an
+			inbox-sourced item is a manual step — the internal `--untrash`
+			direction is deliberately refused for these, because an item that
+			never came from a board state has no board state to be put back
+			into.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Promotes one already-processed inbox item into `board/retained`:
+			reads `inboxes/<member>/processed/<item-filename>`, writes
+			`board/retained/<item-filename>`, and relocates the original to
+			`trash/`. Same `--from-inbox:`/bare-name/`.md` rules as
+			`--librarian-inbox-item-trash`. `--header:*` and the three
+			body-input modes behave exactly as they do on the
+			`--magic-board-to-*` family; `--from-state:` is rejected outright.
+			No field is auto-stamped — anything the move should record is
+			passed as `--header:*`.
+
+			**ONE-WAY**: there is no inverse. A board-to-board move reverses by
+			swapping the two states; this direction has no `--to-inbox:`
+			counterpart, so a call cannot be undone by tooling. Treat every
+			call as final.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
