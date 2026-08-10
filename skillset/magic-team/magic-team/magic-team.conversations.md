@@ -81,6 +81,12 @@ Referenced from each member's `.basic.md`. Not a `routine-*` member.
 	     - Readback to one who said it or about steps taken in consideration to what he said, unless he is in the same thread where "Does it need confirmation?" step was discussed (so it is visible to that participant).
    - Proceed with further instructions of whatever activity you were assessing your reaction feedback.
 
+4e. **Foreign Language Handling**
+   Respect participant language: 
+   - reply and address in participant's language but do all book-keeping and reasoning in English. 
+   - When adding to transcripts - put original wording verbatim and also add translation to English on how you interpreted what was said in foreign language.
+   - When you translate verbatims for approval/confirmation to a participant - include a block with original English text too.
+
 ### Clarification and correction handling
 
 5. **Rephrase-and-confirm before acting on correction.**
