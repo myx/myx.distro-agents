@@ -207,9 +207,6 @@ case "$1" in
 				done
 				if command -v "$DAGC_CLI" >/dev/null 2>&1 ; then
 					:
-				elif [ "$1" == "--non-interactive" ] ; then
-					echo "⛔ ERROR: DistroAgentsConsole: no supported non-interactive CLI found in PATH (tried: $DAGC_NONINTERACTIVE_CLIS) -- --non-interactive has no bash session to fall back to." >&2
-					exit 1
 				else
 					exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
 				fi
