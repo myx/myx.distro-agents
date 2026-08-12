@@ -86,6 +86,7 @@ Steps:
    - **Pointer-resolution check**: for every "see `FILE` for `X`" cross-reference found in scope, confirm `X` is actually present in `FILE` — not just that `FILE` exists.
    - **Terminology-drift check**: for every term defined once in a file's own terminology glossary, confirm later prose in that file (and its direct cross-references) doesn't drift to an undeclared synonym.
    - **Carve-out check**: a member rule conflicting with the baseline is the override convention working as designed, not a finding. Read that member file's own Local-rules lead-in before reporting a conflict.
+   - **Grant-surface check**: an operation a member uses is granted on any one of three surfaces — `magic-team`'s own shared/floor tooling list, that member's own `.armed.md` tooling list, and the `# Routine-specific tooling` section of a routine that member takes part in (the three its own tooling rule names). A missing-grant finding is only real once all three have been read; a partial sweep reports grants that exist as missing.
 4. Check **self-sufficiency, the real target** — if only `~/.claude/skills/*` were copied to a fresh, clean instance with no memory, could the team still pick up and do correct teamwork from these files alone?
 5. Check **clarity/compactness** — rephrase where a doc has gotten bloated, using `mode-update`'s "preserve wording, edit surgically" step; don't wholesale-rewrite.
 6. Shape: find gap candidates → investigate a bit → log a todo/triage entry as a `board-backlog` board-item (or this skill's own inbox) for approval, or fix directly if small and clear — confirming with `magic-architect`/`magic-coordinator` when in doubt, or resolving it solo when it's squarely a docs judgment call.
@@ -174,6 +175,14 @@ An illustrative example (marked "e.g." or otherwise clearly hypothetical) names 
 
 Reason: the `keeper-*`/`warden-*`/`partner-*`/`client-*`/`oncall-*`/`expert-*` roster is deliberately open-ended — new members can be added at any time — so a hardcoded name bakes in a wrong assumption.
 
+### A role-family enumeration widens only where the capability does
+
+Role-family prefixes are enumerated in many rules, and the families are not interchangeable. Pair-completing `keeper-*`/`partner-*` into the full `keeper-*`/`warden-*`/`partner-*`/`client-*` form is right for a statement about membership or file shape, and wrong for one granting a capability — the families differ in what they actually have (a `client-*` member is a representative, normally with no workspace or console of its own).
+
+Read what the sentence grants before widening its list, and check that the added family really holds that capability. Where it doesn't, the narrower list is the correct list, not an omission to tidy up.
+
+Human-owner: "DIFFERENT MEMBERS DIFFERENT INSTRUCTIONS"
+
 ## Verbatim-intents and Verbatim-benchmarks convention (authoritative definition)
 
 This is the source-of-truth definition every other member's own `Verbatim-goals (intents)`/`Verbatim-tests (benchmarks)` pair is authored and checked against — `magic-librarian` is the author/steward of this convention for the whole team.
@@ -181,6 +190,8 @@ This is the source-of-truth definition every other member's own `Verbatim-goals 
 The pair lives as two `##` subsections of each file's own `# Maintainer Notes` root section — `## Verbatim-goals (intents)` and `## Verbatim-tests (benchmarks)` — in the file itself, never in a separate file. Every skill MD file designed to hold instructions or rules carries the pair, not only a member's `.armed.md`: a `.routine.md` carries its own, and so does this file. Simple-text, table, and reference-only files do not. See `magic-team.armed.md`'s "Verbatim-intents / Verbatim-benchmarks sections" rule and its `verbatim-intent`/`verbatim-benchmark` terminology entries, and `magic-team.shared.md`'s folder-shape entry. Both sections open with the same banner, one wording team-wide: "Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!"
 
 The pair is authored and read for this conventions check — it is not part of the file's own instructions, and is never applied during normal work.
+
+**A `Verbatim-test` frequently echoes a rule sentence word-for-word, and both copies are edited in the same pass.** Before changing any rule sentence, grep the skillset for a distinctive substring of it and update every place it is quoted. A test still quoting the old wording tests nothing, and the break is silent — no check fires on it.
 
 **The check is skillset-wide, not file-local.** A `Verbatim-test` asks whether the skillset as a whole still establishes what the entry asserts — the supporting rule or step may live in any file, most often the team baseline rather than the file carrying the test. Reading a test as a claim about its own file's body produces false gaps: an entry testing something established elsewhere gets reported as unsupported. Resolve each entry against the whole skillset before calling it stranded.
 

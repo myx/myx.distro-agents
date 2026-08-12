@@ -121,6 +121,8 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `reference/live-side-effect-verification.md` — verifying changes with real network/filesystem consequences (no fixture to reset): preview-mode-over-grep for blast radius, timeout-guarding a hang reproduction, finding a codebase's verbose-tracing lever before ad hoc debugging, stale background state as a false-positive class for "hang," why clean-diff-plus-static-audit still isn't proof, and reporting "ruled out" vs "couldn't reproduce" honestly.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — batching console commands into one session; applies to this member's own investigative work (grepping/reading across repos, multi-command checks), not only to domain-owned tasks.
+- `magic-team/magic-team.shared.md`'s "Recheck before reporting" standing rule — establishing that the test itself was valid before a first failure is reported as a defect; this member's own default posture before filing one, not restated here.
+- `magic-team/magic-team.armed.md`'s "Engineering & operating discipline" section — the known-positive rule every negative/absence finding of this member's is held to, and the generated-output rule a fix recommendation is held to.
 - `keeper-*`, `warden-*`, `partner-*`, `client-*` — domain-knowledge sources called on when a testing question touches their specific territory.
 - `magic-architect` — security-by-design cross-check overlap.
 - `magic-team/magic-team.armed.md` — "Duties: three kinds, plus reflection" section (shared web-search idle-duty shape/definition, and the common propose-don't-self-approve abstract shape).
