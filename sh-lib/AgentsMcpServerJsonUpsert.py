@@ -18,6 +18,8 @@
 #   as the entry's own "args" field; omitted entirely when argv[4] isn't
 #   given, which is the exact entry shape this script produced before the
 #   field existed.
+#   argv[5] (optional): a JSON object of env vars written as the entry's own
+#   "env" field; omitted entirely when argv[5] isn't given.
 #
 # argv[4] is not cosmetic: bin/lib/agentMcpServer.Common refuses to enter
 # the server loop on a bare invocation (see its own header comment), so an
@@ -44,6 +46,7 @@ path = sys.argv[1]
 server_script = sys.argv[2]
 key = sys.argv[3]
 args_json = sys.argv[4] if len(sys.argv) > 4 else None
+env_json = sys.argv[5] if len(sys.argv) > 5 else None
 
 data = {}
 if os.path.exists(path):
@@ -73,6 +76,14 @@ if args_json is not None:
 	if not isinstance(args, list):
 		raise SystemExit("argv[4] must be a JSON array of args")
 	entry["args"] = args
+if env_json is not None:
+	try:
+		env = json.loads(env_json)
+	except json.JSONDecodeError as e:
+		raise SystemExit("argv[5] does not parse as JSON: %s" % e)
+	if not isinstance(env, dict):
+		raise SystemExit("argv[5] must be a JSON object of env vars")
+	entry["env"] = env
 
 # Drop any other entry launching a command from inside this product's tree --
 # a duplicate registration under a stale key, which the host would launch

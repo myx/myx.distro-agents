@@ -367,6 +367,17 @@ case "$1" in
 			## between them cover every client this workspace registers for.
 			## Same upsert script for both, parameterized by target path +
 			## key name via argv rather than duplicated verbatim.
+			## Reuse myx.common's existing JSON-string escaper
+			## (agentMcpJsonEscape.awk) rather than inventing another one --
+			## same pattern already used at
+			## AgentsTools.MemberCommsSlack.include:2944-2947. Pinned to
+			## $mcpRoot, not the global $MYXROOT, for the same reason the
+			## home-scope tier above is: $mcpRoot is the copy resolved for
+			## THIS workspace.
+			local escapedWorkspace
+			escapedWorkspace="$( printf '%s' "$workspace" | LC_ALL=C awk -f "$mcpRoot/include/data/agentMcpJsonEscape.awk" )"
+			local mmdappEnvJson="{\"MMDAPP\":\"$escapedWorkspace\"}"
+
 			local mcpTarget
 			for mcpTarget in \
 				"$vscodeMcpDir/mcp.json:servers" \
@@ -380,7 +391,7 @@ case "$1" in
 				## bare invocation instead of entering the server loop (its own
 				## header states this), so an entry without it registers a
 				## command the host can launch but that can never serve.
-				if ! python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.py" "$mcpFile" "$serverScript" "$mcpKey" '["--run"]' ; then
+				if ! python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.py" "$mcpFile" "$serverScript" "$mcpKey" '["--run"]' "$mmdappEnvJson" ; then
 					echo "FAIL mcp-upsert $mcpFile" >&2
 					failed=1
 					continue
