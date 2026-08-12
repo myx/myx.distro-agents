@@ -201,12 +201,17 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local stateDir="$MDAT_DATA_ROOT/.runtime"
+		local stateDir="$MDAT_DATA_ROOT/inboxes/magic-coordinator"
 		mkdir -p "$stateDir" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: can't create runtime directory: $stateDir" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
 		}
-		local target="$stateDir/sweep-state.md"
+		## Fixed literal filename, same shape and same "stamped once, reused
+		## verbatim forever" mechanism as the sibling routines' own lock/state
+		## notes (e.g. note-20260809T155000Z-heartbeat-state-and-lock.md) --
+		## same inboxes/magic-coordinator/ home, same naming convention, not a
+		## new one invented for this file.
+		local target="$stateDir/note-20260812T231137Z-sweep-state.md"
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -277,7 +282,9 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-read: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local target="$MDAT_DATA_ROOT/.runtime/sweep-state.md"
+		## Same fixed literal filename as --magic-sweep-state-upsert above --
+		## must match exactly, since this is a read of the SAME document.
+		local target="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260812T231137Z-sweep-state.md"
 		if [ -f "$target" ] ; then
 			cat "$target"
 		else

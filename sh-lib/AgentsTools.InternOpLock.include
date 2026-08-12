@@ -26,23 +26,24 @@
 ##
 ## Before this file there were two parallel mechanisms: a `mkdir` mutex
 ## (routine-heartbeat's single-instance lock) and, separately, fixed
-## `*-state-and-lock.md` documents. They are one mechanism now -- the document
-## IS the lock -- with the transport chosen by configuration:
+## `*-state-and-lock.md` documents. They are one mechanism now, unconditionally
+## -- the document IS the lock, always, regardless of whether
+## TEAM_DATA_GIT_REMOTE is configured. There is no second, mkdir-based
+## transport any more.
 ##
-##   TEAM_DATA_GIT_REMOTE set   -> frontmatter + git; the push is the lock.
-##   TEAM_DATA_GIT_REMOTE unset -> the `mkdir` mutex, exactly as before.
+## ACCEPTED TRADEOFF: NO ATOMIC CREATE-OR-FAIL WITHOUT A CONFIGURED REMOTE
 ##
-## WHY `mkdir` STAYS, AND MUST NOT BE "SIMPLIFIED AWAY" LATER
-##
-## A file write is not atomic. Two writers both succeed, last-wins, and BOTH
-## come away believing they hold the lock -- with no error anywhere. The git
-## path gets its atomicity from the remote ref update, which is atomic and
-## rejects a non-fast-forward push; that is the whole basis of push-is-the-lock.
-## With no remote configured there is NO other atomic primitive available
-## here. `mkdir` is that primitive: it creates the directory or fails, with
-## nothing in between. Deleting the local branch as "duplicate logic" would
-## silently remove mutual exclusion from every board that has no remote --
-## which is currently every board. This is load-bearing, not legacy.
+## A plain file write is not atomic: two writers can both succeed, last-wins,
+## and both come away believing they hold the lock, with no error anywhere.
+## The git path still gets real atomicity from the remote ref update (a
+## rejected non-fast-forward push, then a session-id read-back verdict --
+## see AgentsTools.InternOpStateAndLockUpsert.include). With no remote
+## configured there is no atomic primitive in play here any more, and no
+## replacement lock-file mechanism is introduced to manufacture one --
+## the mkdir mutex this file used to fall back to for that case is gone. This
+## is an explicit, human-owner-directed choice, not an oversight: every board
+## without a configured remote now has the same narrow TOCTOU exposure a plain
+## document write already carries everywhere else in this system.
 ##
 ## STATE IS NOT TOUCHED BY THIS FILE
 ##
@@ -74,34 +75,25 @@
 ## discriminator without inventing a second identity field.
 ##
 
-## Resolves the lock's storage and the configured remote for every verb below.
-## Sets: lockNote, lockDir, lockMeta, lockRemote. Never prints; a missing
-## remote is the ordinary local case, not an error.
+## Resolves the lock's storage for every verb below. Sets: lockNote. Never
+## prints. This file no longer resolves TEAM_DATA_GIT_REMOTE itself --
+## --intern-op-state-and-lock-upsert (the one call every verb below routes
+## its actual write through) resolves that config option on its own, so a
+## second resolution here was a redundant subprocess on every lock call,
+## answering a question none of these four verbs ever branches on.
 AgentsToolsLockResolve(){
 	local itemName="$1"
 	lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/$itemName"
-	lockDir="$MDAT_DATA_ROOT/.runtime/$itemName.lock"
-	lockMeta="$lockDir/meta"
-	lockRemote=""
-	set +e
-	lockRemote="$( DistroAgentsTools --agents-config-option magic-coordinator --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
-	set -e
 	return 0
 }
 
 case "$1" in
 
-	## Git configured: the state-and-lock upsert IS the acquire -- it writes
-	## the note, commits that one file, pushes, syncs everything back and
-	## decides ownership by reading the note's session-id back. Its exit
-	## status is the verdict, so this verb adds no second opinion on top.
-	##
-	## No remote: `mkdir` first, as the atomic gate, and only then the note.
-	## Order matters -- writing the note first would let two acquirers both
-	## produce a note and only afterwards discover one of them must lose.
-	## 900s stale reclaim is carried over unchanged from the mechanism this
-	## replaces, so a crashed holder still frees its lock on the same timing
-	## callers already expect.
+	## Read-modify-write-with-a-check: read the note's own frontmatter first
+	## (same state/recheck-date read --intern-op-lock-status uses) and refuse
+	## (ACTIVE) or report a reclaim (RECLAIMED_STALE) before calling the
+	## upsert, which does the actual write (and, git configured, the
+	## push/read-back verdict on top).
 	--intern-op-lock-acquire)
 		shift
 		local opContext="<no --context given>" ctxWanted="" ctxArg
@@ -121,34 +113,27 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-acquire (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local lockNote lockDir lockMeta lockRemote
+		local lockNote
 		AgentsToolsLockResolve "$itemName"
 
-		if [ -z "$lockRemote" ] ; then
-			mkdir -p "$MDAT_DATA_ROOT/.runtime" || {
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-acquire (internal operation, invoked via $opContext): can't create runtime directory" >&2
-				set +e ; return 1
-			}
-			if mkdir "$lockDir" 2>/dev/null ; then
-				printf 'owner=%s\npid=%s\nstart=%s\nheartbeat=%s\n' "$ownerLabel" "$$" "$( date +%s )" "$( date +%s )" > "$lockMeta"
-			elif [ -f "$lockMeta" ] ; then
-				local hbAge hbOwner hbSince
-				hbOwner="$( LC_ALL=C awk -F= '/^owner=/{ print $2 ; }' "$lockMeta" )"
-				hbSince="$( LC_ALL=C awk -F= '/^start=/{ print $2 ; }' "$lockMeta" )"
-				hbAge=$(( $( date +%s ) - $( LC_ALL=C awk -F= '/^heartbeat=/{ print $2 ; }' "$lockMeta" ) ))
-				if [ "$hbAge" -gt 900 ] ; then
-					rm -rf "$lockDir" || true
-					mkdir "$lockDir" 2>/dev/null || true
-					printf 'owner=%s\npid=%s\nstart=%s\nheartbeat=%s\n' "$ownerLabel" "$$" "$( date +%s )" "$( date +%s )" > "$lockMeta"
-					echo "RECLAIMED_STALE:prev_owner=$hbOwner:age=${hbAge}s"
-				else
-					echo "ACTIVE:owner=$hbOwner:since=$hbSince:heartbeat_age=${hbAge}s"
-					set +e ; return 1
-				fi
-			else
-				echo "ACTIVE:owner=unknown:no_meta"
-				set +e ; return 1
-			fi
+		if [ -f "$lockNote" ] ; then
+			local stState stRecheck stEpoch stSession
+			stState="$( LC_ALL=C awk '/^state: /{ print substr($0, 8) ; exit ; }' "$lockNote" )"
+			case "$stState" in
+				*-finished|'') : ;;
+				*)
+					stRecheck="$( LC_ALL=C awk '/^recheck-date: /{ print substr($0, 15) ; exit ; }' "$lockNote" )"
+					stSession="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$lockNote" )"
+					set +e
+					stEpoch="$( printf '%s\n' "$stRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk" 2>/dev/null )"
+					set -e
+					if [ -z "$stEpoch" ] || [ "$(( $( date +%s ) - stEpoch ))" -lt 60 ] ; then
+						echo "ACTIVE:owner=$stSession:state=$stState:recheck_date=$stRecheck"
+						set +e ; return 1
+					fi
+					echo "RECLAIMED_STALE:prev_owner=$stSession:age=$(( $( date +%s ) - stEpoch ))s"
+				;;
+			esac
 		fi
 
 		DistroAgentsTools --intern-op-state-and-lock-upsert "$callingMember" "$itemName" \
@@ -156,8 +141,8 @@ case "$1" in
 			"$@"
 		local acquireRc=$?
 		if [ "$acquireRc" -ne 0 ] ; then
-			## Git path only: the note lost the race. Nothing to unwind on the
-			## local path, which already returned above if it lost.
+			## The upsert lost the race (git configured) or otherwise failed.
+			## Nothing to unwind: no separate lock primitive was taken above.
 			set +e ; return 1
 		fi
 		echo "ACQUIRED"
@@ -169,9 +154,8 @@ case "$1" in
 	## replaces did. Git configured, it commits and pushes the lock file --
 	## re-asserting ownership against the remote through the same
 	## push-is-the-lock primitive that acquired it, not merely bumping a local
-	## timestamp. No remote, it refreshes the `mkdir` meta's heartbeat so a
-	## concurrent acquire does not mistake a slow-but-alive holder for a
-	## crashed one.
+	## timestamp. No remote, it is a plain re-write of the note (see this
+	## file's own header comment on the accepted no-remote tradeoff).
 	--intern-op-lock-refresh)
 		shift
 		local opContext="<no --context given>" ctxWanted="" ctxArg
@@ -189,18 +173,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-refresh (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local lockNote lockDir lockMeta lockRemote
+		local lockNote
 		AgentsToolsLockResolve "$itemName"
-
-		if [ -z "$lockRemote" ] ; then
-			if [ -d "$lockDir" ] && [ -f "$lockMeta" ] ; then
-				local metaTmp="$lockMeta.tmp.$$"
-				LC_ALL=C awk -v t="$( date +%s )" -F= 'BEGIN{ OFS="=" ; } /^heartbeat=/{ $2=t ; } { print ; }' "$lockMeta" > "$metaTmp" && mv "$metaTmp" "$lockMeta"
-			else
-				echo "NO_LOCK_HELD"
-				set +e ; return 1
-			fi
-		fi
 
 		if [ ! -f "$lockNote" ] ; then
 			echo "NO_LOCK_HELD"
@@ -237,12 +211,11 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-release (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local lockNote lockDir lockMeta lockRemote
+		local lockNote
 		AgentsToolsLockResolve "$itemName"
 		if [ -f "$lockNote" ] ; then
 			DistroAgentsTools --intern-op-state-and-lock-upsert "$callingMember" "$itemName" "$@" || true
 		fi
-		[ -z "$lockRemote" ] && rm -rf "$lockDir" || true
 		echo "RELEASED"
 		return 0
 	;;
@@ -270,17 +243,13 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-status (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local lockNote lockDir lockMeta lockRemote
+		local lockNote
 		AgentsToolsLockResolve "$itemName"
 
-		if [ -z "$lockRemote" ] ; then
-			if [ -f "$lockMeta" ] ; then cat "$lockMeta" ; else echo "NO_LOCK" ; fi
-			return 0
-		fi
-
-		## Git path: the document is the lock, so its own frontmatter answers.
-		## Held == state is not `*-finished` AND recheck-date has not passed by
-		## a full minute -- the same rule the routines' own start check uses.
+		## The document is the lock, so its own frontmatter answers, whether or
+		## not a remote is configured. Held == state is not `*-finished` AND
+		## recheck-date has not passed by a full minute -- the same rule the
+		## routines' own start check uses.
 		if [ ! -f "$lockNote" ] ; then
 			echo "NO_LOCK"
 			return 0

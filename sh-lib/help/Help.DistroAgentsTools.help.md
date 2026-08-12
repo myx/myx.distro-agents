@@ -1384,14 +1384,14 @@
 
 		--magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 			Writes routine-communication-sweep state to
-			`$MDAT_DATA_ROOT/.runtime/sweep-state.md`.
+			`$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260812T231137Z-sweep-state.md`.
 			Input source is exactly one of: stdin (default), `--from-file`, or
 			`--edit-patch-from-stdin`. Empty content is rejected. If
 			`--edit-patch-from-stdin` is used, stdin must be a JSON patch array
 			for exact-literal replace operations.
 
 		--magic-sweep-state-read <team-member>
-			Reads `$MDAT_DATA_ROOT/.runtime/sweep-state.md`.
+			Reads `$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260812T231137Z-sweep-state.md`.
 			Outputs file content, or `NO_STATE` if it does not exist.
 			Read-only.
 
@@ -1644,7 +1644,7 @@
 			Takes the calling routine's lock before any other step. Prints
 			`ACQUIRED` (rc 0) on a fresh take; `RECLAIMED_STALE:prev_owner=
 			...:age=...s` (rc 0) when the previous holder went stale;
-			`ACTIVE:owner=...:since=...:heartbeat_age=...s` (rc 1) when
+			`ACTIVE:owner=...:state=...:recheck_date=...` (rc 1) when
 			another holder genuinely has it -- rc 1 means do not start.
 			<owner-label> names the running process, not a chat-session id.
 			Takes no options; any further argument is rejected.
@@ -1679,12 +1679,10 @@
 		--magic-daily-lock-status <team-member>
 		--magic-retro-lock-status <team-member>
 			Read-only, returns 0 always -- including when free, so a caller
-			can check before deciding to start. Prints `NO_LOCK` when free.
-			When held it prints the lock's own metadata: raw `owner=`/
-			`pid=`/`start=`/`heartbeat=` lines, or
-			`ACTIVE:owner=...:state=...:recheck_date=...` where a git remote
-			is configured for the board. Takes no options; any further
-			argument is rejected.
+			can check before deciding to start. Prints `NO_LOCK` when free,
+			or `ACTIVE:owner=...:state=...:recheck_date=...` when held --
+			read from the lock note's own frontmatter. Takes no options;
+			any further argument is rejected.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1734,20 +1732,35 @@
 
 		--magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]
 			Heartbeat/advance spawn relay: executes a spawn prompt through
-			DistroAgentsConsole.sh and emits a runtime receipt for per-item
-			execution accounting. Prompt body source is stdin (default),
+			DistroAgentsConsole.sh. Prompt body source is stdin (default),
 			--from-board, --from-vault, or --from-audit (exactly one source
 			selector when used); empty body is rejected.
-			Default mode is async (returns STATUS=started + PID); --wait blocks
-			for completion and returns non-zero on failure. Always prints
-			RECEIPT_ID/RECEIPT_FILE (and OUTPUT_FILE) so the caller can record
-			a concrete execution receipt on the board item.
+
+			Two tracking outcomes, never a private receipt file: a
+			--from-board/--from-vault/--from-audit call already names an
+			existing tracking document, so nothing new is written and the
+			call prints `TRACKING_ITEM=<name>` instead. A stdin/--from-file
+			call is ad-hoc, so a `dispatch-*` board-item is created in
+			board-running up front (verbatim prompt as its own "## Brief"),
+			and the same item is updated in place on completion — a
+			`status:` header moving from `dispatch-started` to
+			`dispatch-succeeded`/`dispatch-failed`, `resolved-at` stamped,
+			and a real "## Result" section appended — printed as
+			`DISPATCH_ITEM=<name>`. Async spawns close their own dispatch
+			item from a background subshell once the child exits, so
+			closure happens even though the call itself already returned.
+
+			Default mode is async (returns STATUS=started + PID); --wait
+			blocks for completion and returns non-zero on failure. Always
+			prints RECEIPT_ID (a correlation id) and OUTPUT_FILE — the
+			spawned process's own raw stdout/stderr, written under
+			`$MDAT_DATA_ROOT/audit/<YYYY-MM>/`.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 			Writes routine-heartbeat state to
-			`$MDAT_DATA_ROOT/.runtime/main-loop-state.md`.
+			`$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260812T231137Z-heartbeat-state.md`.
 			Input source is exactly one of: stdin (default), `--from-file`, or
 			`--edit-patch-from-stdin`. Empty content is rejected. If
 			`--edit-patch-from-stdin` is used, stdin must be a JSON patch array
@@ -1759,7 +1772,7 @@
 			Takes routine-heartbeat's lock before any other step. Prints
 			`ACQUIRED` (rc 0) on a fresh take; `RECLAIMED_STALE:prev_owner=
 			...:age=...s` (rc 0) when the previous holder went stale;
-			`ACTIVE:owner=...:since=...:heartbeat_age=...s` (rc 1) when
+			`ACTIVE:owner=...:state=...:recheck_date=...` (rc 1) when
 			another holder genuinely has it -- rc 1 means do not start.
 			<owner-label> names the running process (e.g. "main-loop"), not
 			a chat-session id. Takes no options; any further argument is rejected.
@@ -1782,16 +1795,15 @@
 
 		--magic-heartbeat-lock-status <team-member>
 			Read-only, returns 0 always -- including when free, so a caller
-			can check before deciding to start. Prints `NO_LOCK` when free.
-			When held it prints the lock's own metadata: raw `owner=`/
-			`pid=`/`start=`/`heartbeat=` lines, or
-			`ACTIVE:owner=...:state=...:recheck_date=...` where a git remote
-			is configured for the board. Takes no options; any further argument is rejected.
+			can check before deciding to start. Prints `NO_LOCK` when free,
+			or `ACTIVE:owner=...:state=...:recheck_date=...` when held --
+			read from the lock note's own frontmatter. Takes no options;
+			any further argument is rejected.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-heartbeat-state-read <team-member>
-			Reads `$MDAT_DATA_ROOT/.runtime/main-loop-state.md`.
+			Reads `$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260812T231137Z-heartbeat-state.md`.
 			Outputs file content, or `NO_STATE` if it does not exist.
 			Read-only.
 
