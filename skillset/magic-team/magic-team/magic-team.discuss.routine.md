@@ -21,12 +21,12 @@ Doesn't do: collection-only (`routine-interview`'s job), idea-generation-only (`
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0a. **process-own-inbox**: run `routine-process-inbox <executor>` — inline execution (own identity). Items asking for a decision (an `inquiry-*`, a `note-*` handed off unresolved) — candidates for the decision step 1 frames, and context for it. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
-1. **frame-the-decision**: state plainly, up front, what needs deciding by the end of this session — a discuss session with no clear decision target risks drifting into either an interview (pure collection) or a brainstorm (pure idea generation) without anyone noticing the shift. **One topic, one thread — fork, don't absorb**: same threading discipline as `routine-interview`'s step 1 — if an unrelated topic surfaces mid-discussion, fork it into its own new Slack thread immediately rather than letting the current thread drift off its framed decision.
-2. **surface-options-and-tradeoffs**: lay out the genuine alternatives (not a strawman single "right answer" dressed up as a discussion) — bring in `magic-architect` if the decision is structural/design-shaped, `magic-librarian` if it's a docs/convention question, or the relevant keeper/partner if it's domain-specific. Same pacing discipline as `routine-interview`'s step 2: small, minimal-assumption-gap questions/statements-to-approve, iterative — but once something is genuinely clear and agreed, go further rather than re-confirming it in smaller pieces. Inherits the team's own topic/queue/question mechanics for managing the framed decision's own sub-points.
-3. **converge-explicitly**: work toward an actual resolution, stated plainly at the end — not left as "we talked about it." If the session runs out of time/information before converging, say so explicitly rather than letting an inconclusive conversation quietly stand in for a decision.
-4. **checkpoint-decide-vs-build**: if the discussion is about to produce a real build/edit dispatch, pause once and confirm explicitly with the user — "this is now becoming build work, confirmed?" — before firing it, per `magic-coordinator`'s standing rule. A decision reached here is not automatically a mandate to also implement it.
-5. **record-the-outcome**: the actual decision (and, if useful, the rejected alternatives and why) gets written down — typically a `change-*`/`note-*` board item, or folded into whatever inquiry/task prompted this discussion — not left only in this conversation's own transcript. **Filing this follows the same gate as dispatch**: propose the item (piece, type, goal) and wait for confirmation before writing it, unless the human-owner explicitly asked for that specific filing.
+1. **process-own-inbox**: run `routine-process-inbox <executor>` — inline execution (own identity). Items asking for a decision (an `inquiry-*`, a `note-*` handed off unresolved) — candidates for the decision **frame-the-decision** frames, and context for it. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
+2. **frame-the-decision**: state plainly, up front, what needs deciding by the end of this session — a discuss session with no clear decision target risks drifting into either an interview (pure collection) or a brainstorm (pure idea generation) without anyone noticing the shift. **One topic, one thread — fork, don't absorb**: same threading discipline as `routine-interview`'s **open-channel-and-create-item** — if an unrelated topic surfaces mid-discussion, fork it into its own new Slack thread immediately rather than letting the current thread drift off its framed decision.
+3. **surface-options-and-tradeoffs**: lay out the genuine alternatives (not a strawman single "right answer" dressed up as a discussion) — bring in `magic-architect` if the decision is structural/design-shaped, `magic-librarian` if it's a docs/convention question, or the relevant keeper/partner if it's domain-specific. Same pacing discipline as `routine-interview`'s **collect-dont-converge**: small, minimal-assumption-gap questions/statements-to-approve, iterative — but once something is genuinely clear and agreed, go further rather than re-confirming it in smaller pieces. Inherits the team's own topic/queue/question mechanics for managing the framed decision's own sub-points.
+4. **converge-explicitly**: work toward an actual resolution, stated plainly at the end — not left as "we talked about it." If the session runs out of time/information before converging, say so explicitly rather than letting an inconclusive conversation quietly stand in for a decision.
+5. **checkpoint-decide-vs-build**: if the discussion is about to produce a real build/edit dispatch, pause once and confirm explicitly with the user — "this is now becoming build work, confirmed?" — before firing it, per `magic-coordinator`'s standing rule. A decision reached here is not automatically a mandate to also implement it.
+6. **record-the-outcome**: the actual decision (and, if useful, the rejected alternatives and why) gets written down — typically a `change-*`/`note-*` board item, or folded into whatever inquiry/task prompted this discussion — not left only in this conversation's own transcript. **Filing this follows the same gate as dispatch**: propose the item (piece, type, goal) and wait for confirmation before writing it, unless the human-owner explicitly asked for that specific filing.
 
 # Closure steps
 
@@ -58,11 +58,11 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-slack-send-message <team-member> <target> [text...]` (Slack activity-tracking obligation, when `magic-coordinator` is the convener)
+- `--member-comms-slack-send-message <team-member> <target> [text...]` (Slack activity-tracking obligation, when `magic-coordinator` is the convener)
 
-## `--member-slack-send-message` operation reference
+## `--member-comms-slack-send-message` operation reference
 
-`DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
 # Maintainer Notes
 
@@ -84,10 +84,10 @@ Used to check this file's own definitions against its own goals when it is updat
 - `routine-brainstorm` — idea generation, distinct purpose.
 - `routine-process-inbox` — own-inbox processing.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — calling convention.
-- `magic-team/magic-team.negotiations.md` — topic/queue/question mechanics this routine's step 2 uses for a framed decision's own sub-points, and the `check-restart` procedure step 2a inherits.
+- `magic-team/magic-team.negotiations.md` — topic/queue/question mechanics **surface-options-and-tradeoffs** uses for a framed decision's own sub-points, and the `check-restart` procedure this routine's own Local rules inherit.
 - `magic-team/magic-team.conversations.md` — conversation-mechanics baseline (always in force).
-- `magic-team/magic-team.basic.md` — the propose-and-wait-for-confirmation filing gate step 5 reuses.
-- `magic-coordinator` — decide-vs-build checkpoint (step 4).
+- `magic-team/magic-team.basic.md` — the propose-and-wait-for-confirmation filing gate **record-the-outcome** reuses.
+- `magic-coordinator` — decide-vs-build checkpoint (**checkpoint-decide-vs-build**).
 
 ### Conventions
 

@@ -43,7 +43,7 @@ case "$1" in
 	## --all-types, --item restricted to exactly the given names (a
 	## targeted lookup, not a whole-folder scan) -- this op's own real
 	## purpose per the routine text: "the given item(s) plus anything
-	## references/blocks/blocked-by them". AgentRoutineCoworkingReferenceNames
+	## references/blocks/blocked-by them". AgentsRoutineCoworkingReferenceNames
 	## .awk (external, per this package's own externalize-awk/py convention)
 	## reads that document and prints every name mentioned in any of those
 	## three fields, across every given item, handling both plain scalar
@@ -89,14 +89,14 @@ case "$1" in
 		for n in "${names[@]}" ; do phaseAArgs+=( --item "$n" ) ; done
 
 		local phaseAOutput
-		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "${phaseAArgs[@]}" \
+		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseAArgs[@]}" \
 			--header references --header blocks --header blocked-by --all-types \
 			--context --routine-coworking-session-input-scan )" || return 1
 
 		local relatedFile
 		relatedFile="$( mktemp "${TMPDIR:-/tmp}/mdat-routine-coworking-related.XXXXXX" )" || { set +e ; return 1 ; }
 		trap 'rm -f "$relatedFile"' EXIT
-		printf '%s\n' "$phaseAOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentRoutineCoworkingReferenceNames.awk" | sort -u > "$relatedFile"
+		printf '%s\n' "$phaseAOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRoutineCoworkingReferenceNames.awk" | sort -u > "$relatedFile"
 
 		## Union: originally-given names, in order, then every discovered
 		## related name not already present.
@@ -117,7 +117,7 @@ case "$1" in
 		for s in "${allStates[@]}" ; do phaseBArgs+=( --state "$s" ) ; done
 		for n in "${unionNames[@]}" ; do phaseBArgs+=( --item "$n" ) ; done
 
-		DistroAgentsTools --intern-op-session-context-scan "${phaseBArgs[@]}" --all-types --context --routine-coworking-session-input-scan
+		DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" --all-types --context --routine-coworking-session-input-scan
 		return $?
 	;;
 

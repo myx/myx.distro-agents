@@ -9,7 +9,9 @@ maintainers: magic-librarian, magic-coordinator, human-owner
      `magic-team.shared.md` because it's hosted in magic-team's own folder, the same "<owning-folder-
      name>.<type>.md" pattern every other typed file follows. Per-routine-specific content (executor/
      maintainer notes, special-care details) is not duplicated here — it lives natively in each routine's
-     own single .routine.md file. -->
+     own single .routine.md file.
+     It also hosts the human-owner's own standing rules (last root section) — the one place they are
+     stated in full, because the skillset is the only thing that persists across machines. -->
 
 # Skill-folder model: routine-\* virtual members and the typed-suffix file scheme
 
@@ -22,6 +24,11 @@ A routine is executed by whichever member actually runs it — most often its ow
 ## Tooling
 
 Read `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section before doing any shell commands.
+
+## Human-owner conversations: two identities
+
+- The team bot and a member's own IM account are two separate conversations with the human-owner. A member with no account of its own reaches the human-owner in the bot's conversation — today only `magic-coordinator` has its own.
+- Identity defaults to the member's own where it exists, the team bot otherwise; `--identity-bot` is the only modifier, and it selects the bot's conversation on reads, checks and reactions as well as sends — that is how a member with its own account works in the bot's conversation. There is no opposite flag. One exception: message search runs under the member's own identity only and refuses `--identity-bot` outright.
 
 ## Folder shape — the typed-suffix scheme
 
@@ -44,6 +51,72 @@ Every acting member (`magic-*`/`keeper-*`/`partner-*`) skill folder under `~/.cl
 - "Sufficient on its own" means readable and actionable following the folder's own stated cross-reference graph, not literally zero pointers elsewhere — a cross-reference is fine when it's explicit and named, and the referencing step stays independently actionable without following it.
 - Real work-duty content is loaded by reading `.armed.md` directly, plus whatever it cross-references.
 - A routine's own single `.routine.md` file is independently sufficient the same way, on its own, without needing its owning member's other typed files.
+
+## Duty content only — tooling internals belong to the package, never the skillset
+
+**A duty instruction says how to perform the duty. Nothing else belongs in a skill file.**
+
+If a member does not need a fact **in order to act**, it is not duty content. Specifically never in a
+skill file:
+
+- **Flags and arguments a stub forwards** to an underlying operation.
+- **Internal operation names** (`--intern-op-*` and anything else a member never calls directly).
+- **What a tool does beneath its own interface** — how it scans, what it hardcodes, what it passes on.
+- **Design rationale that is still unsettled** — "interim default", "not yet reconciled", "flagged for
+  review". A member following a routine at 3am does not need to know the design is in progress.
+- **Platform-specific caveats** — a vendor's API limits, required permission scopes, per-service quirks.
+  The tooling layer hides them completely, and the same routine may later run against an entirely
+  different messaging platform. State a limitation in platform-neutral terms instead, describing what
+  cannot be done, never the vendor-specific setting that would fix it. Human-owner: "WHY THIS DETAIL? IT
+  IS HIDDEN BY TOOLING - IT CAN LATER RUN ON OTHER MESSAGING PLATFORM AS WELL!!!! ALL HIDDEN BY TOOLING -
+  NO need-to-know here at all!"
+
+### The test
+
+**Can a member perform this step without this sentence?** If yes, it is not duty content — remove it.
+
+Ask it of the sentence, not of the section: a paragraph that is 90% duty content and 10% internals is
+not exempt, it is one edit away from correct.
+
+### Where it goes instead
+
+A rule that only forbids leaves a true and useful fact with nowhere to live, and it comes straight
+back. Every category above has a real home, and **all of them belong to the package and to the owning
+`keeper-*`, not here**:
+
+- **Operation behaviour, arguments, flags** -> the package's own help pair (`Help.<Name>.include` +
+  `Help.<Name>.help.md` under the owning package's `sh-lib/help/`). Help pairing is mandatory and the
+  owning `keeper-*` already maintains it; this is the operation's real manual.
+- **Package architecture and conventions** -> the package's own `CLAUDE.md`/`README.md`.
+- **Design rationale, interim choices, open questions** -> the owning `keeper-*`'s own `reference/`
+  material, or a board item if it needs a decision. Never an operating instruction.
+- **Platform-specific caveats** -> the tooling implementation's own source comments, where the
+  encapsulation they belong to actually lives.
+
+### A capability gap gets closed in tooling, not reworded in the doc
+
+When a step cannot do something because the tooling cannot yet do it, the fix is to close that gap in the
+tooling — *so that* the skillset never needs detail-awareness of it at all — not to soften how the
+limitation is worded. Human-owner: "FILLING GAP IN TOOLING TO NOT MENTION DETAILS IN SKILLSET".
+
+One carve-out: a gap that needs a real external account or infrastructure action, not just code, is not a
+pure tooling fix. Flag it as its own decision point and stop; never pursue it silently.
+
+### Why this rule exists — measured, not asserted
+
+- Renaming **one** internal option forced edits to **three** member-owned files, for a change that
+  altered nothing any member does. With internals out of the skillset, the same rename touches **zero**
+  skillset files. Documenting internals couples member-owned docs to tooling refactors.
+- A routine step carried a self-flagged, unresolved contradiction — its documented scan scope
+  contradicted the step's own wording, "flagged, not yet reconciled". The mismatch existed **only**
+  because a forwarded flag was documented. Deleting the internals **dissolved** the contradiction
+  rather than resolving it: there was never a real conflict, only a leaked detail disagreeing with the
+  duty text.
+
+A stated prohibition is also worse than silence when it names the mechanism: *"no caller-facing
+`--state`/`--header` override"* tells a member what it cannot do about something it should not know
+exists, which invites the question. State the call signature positively instead — what the member
+passes, and what it gets back.
 
 ## Armed & Routine contracts
 
@@ -153,6 +226,8 @@ Copyable skeleton: `magic-team/templates/team-member.contract.format.md`.
 
 ### Keeper / Warden (`keeper-*`/`warden-*`)
 
+Which side a member sits on: the keeper side is that organisation's own — non-private, knowing their assets and conventions. The client side is ours and private — it holds our credentials for work with them. Same distinction restated under Partner / Client below.
+
 Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
 
 - Frontmatter: `maintainers:` only.
@@ -199,6 +274,8 @@ Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
 - Landed instances of this shape exist under the owning `keeper-*`/`warden-*` members' own folders.
 
 ### Partner / Client (`partner-*`/`client-*`)
+
+Which side a member sits on: the client side is ours and private — it holds our credentials for work with that organisation. The keeper side is that organisation's own — non-private, knowing their assets and conventions. Same distinction restated under Keeper / Warden above.
 
 Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
 
@@ -440,7 +517,7 @@ A rule is `owner-guaranteed` when it protects the human-owner's own position aga
 
 ## Doc/disk mismatch repair loop
 
-If the human-owner flags a doc/disk mismatch directly, or a session notices staleness itself, the fix is to correct the real source file directly.
+If the human-owner flags a doc/disk mismatch directly, or a session notices staleness itself, the fix is to correct the real source file directly. Scope: a skillset file's own content disagreeing with what is actually on disk — never the installed/local copy of the tooling, which "Never mention local-cache sync staleness" below puts out of bounds entirely.
 
 ## Two independent dimensions (pointer, not duplicated)
 
@@ -452,4 +529,102 @@ Full write-up lives in `magic-team.board.md`'s "Two independent dimensions: item
 - Every routine's own non-default executor/maintainer notes, invitee roster, special-care content, and design rationale live natively inside that specific routine's own `.routine.md` file (frontmatter plus body) — read it directly for its current, authoritative shape rather than expecting a central table to summarize it.
 - A live enumeration of which routines exist: each owning acting member's own `.armed.md` names its owned routines and their exact filenames, typically in a routines-index subsection of its own `Domain knowledge` (e.g. `magic-coordinator.armed.md`'s `## Routines (index)`) — the only in-file source of truth for that.
 - On disk: `ls ~/.claude/skills/*/*.routine.md` across every acting member's folder — but per the team's own "trust the cache, don't rediscover" discipline, prefer reading the `.armed.md` sections already surfaced in the skill-discovery listing every session gets.
+
+# Human-owner's standing rules
+
+The human-owner's own standing corrections. Binding on every member, in every session, whether or not the rule's subject matter is that member's own domain.
+
+They are stated here, in full, because the skillset is the only thing that carries them forward — an agent's own private memory does not.
+
+Every quoted line below is his own wording, kept character-for-character, including its typos. A quote is trimmed of surrounding narration, never reworded. Another file may state a compact form of a rule from this section and point back here; it never restates it in different words.
+
+## Recheck before reporting
+
+Before reporting any negative or surprising result, establish that the test itself was valid — environment set, right tree, the code actually under test really loaded. A first run that looks like a defect is frequently a broken harness, and reporting it declares a correct thing broken. State residual caveats explicitly rather than rounding a partial pass up to a clean one.
+
+"skip - I've seen it done, always recheck defore report"
+
+## Atomic move edits
+
+Moving or regrouping existing content inside a file: one block at a time, each move a single edit that removes it from its old place and inserts it at its new place in the same diff. Never one large rewrite covering many moves at once, and never a deletion whose matching insertion is not visible in the same diff — that reads as data loss.
+
+"NO - ATOMIC MOVE EDITS ONLY. DO NOT APPROVE DELETION."
+
+## Never re-touch approved content
+
+Once the human-owner has confirmed a specific piece of code or content as good, it is never touched again as a side effect of unrelated work nearby — not for a different bug, not for a rename, not for a comment cleanup. Incremental change is the right way to work; the failure is the collateral edit. Scope every diff to the lines actually implicated, and if a fix genuinely requires touching approved content, say so before doing it rather than doing it silently.
+
+"NO - incremental - good / random fucking of approved code that was not to touch - bad."
+
+Distinct from `magic-team.conversations.md` rule 8 (replacing an already-approved *point* needs approval first) and rule 10c (no-regress): those govern what is proposed, this one governs what an unrelated edit quietly touches.
+
+## No rephrasing him, no annotation without readback and approval
+
+Two rules, given together.
+
+**His own words are used literally.** Restating or confirming an instruction back to him uses his wording, not a summary of it in different words — quote it back verbatim, or ask a direct yes/no question. Every rephrase attempt drifts a little from what was actually said, and the drift has to be walked back afterwards.
+
+**A comment or annotation is never written into a file** as part of an edit unless its exact wording was read back to him and approved first. Never bundle an explanatory comment into a substantive change and let acceptance of the change stand as approval of the comment.
+
+"STOP REPHRASING ME - IT ALWAYS BREAKS EVERYTHING / NO ANNOTATIONS UNLESS READBACK AND APPROVED"
+
+"When you relay my commands, clarifications, comments, decisions - NEVER REPHRASE. RELAY VERBATIM. WHAT I SAID OR WHAT YOU READBACK AND I APPROVED."
+
+Open conflict, his to rule on, both sides deliberately left standing: `magic-team.conversations.md` rule 5 ("Rephrase-and-confirm before acting on correction") and rule 4 of its checkpoint loop, plus `magic-team.interview.routine.md`'s "Rephrase and confirm before acting, every time", all instruct the opposite move. Rule 9a reconciles it for a *relayed* message only, not for confirming his own instruction back to him. Nobody on the team resolves this one.
+
+## Naming goes via approval, with siblings shown
+
+Every new name — operation, flag, file, key, document type — is approved by the human-owner before it lands, internal ones nobody can invoke included: a name is user-visible interface, and approval is how intent gets confirmed.
+
+This covers new operation/method *syntax*, not only the name. A new mode, flag pair or call shape is approved before it is built. Having been asked only to propose it is not an exemption, and neither is needing to build it in order to test it — say that it cannot be validated without building, and ask.
+
+The request shows the sibling names it would join **and** the adjacent sets that are deliberately not the same thing, so the boundary is visible too. A name is only judgeable against the set it joins. Preferred shape: self-describing `--verb-noun` or `--noun-verb`, never a bare single word.
+
+**An operation carries its owner's namespace; a flag does not.** An operation is prefixed by the member or routine owning it — `--member-comms-<platform>-<verb>`, `--magic-<routine>-<verb>`, `--intern-op-<verb>` for internal ones — however long that makes the name. A flag is not an operation: it modifies one, keeps its own shorter prefix (the `--comms-*` scope selectors and cut-off arguments), and an operation-renaming pass leaves it untouched.
+
+"`--member-comms-*` all - namespace."
+
+"FLAGS ARE NOT TO REMOVE. I ASKED FOR OPERATIONS."
+
+"All naming questions - always via approval - showing the siblings and similar but distinctly other sets we are using. So while deciding it was possible to see the picture and notice that not the best suitable (for our intents) name chosen"
+
+"DONT DO THAT AGAIN - NEW METHOD/OPERATION SYNTAX - ONLY VIA APPROVAL/CONFIRMATION/COMMENTS"
+
+## Conflicts and ambiguities go to the human-owner
+
+Any conflict or ambiguity between two instruction files or conventions goes to the human-owner for the decision — real ambiguity about what the rules mean or how they apply, not only literally contradictory text. Dispatching a member to investigate one is fine; that dispatch is never authorization to reconcile it. Both sides stay intact, unedited, until he rules.
+
+"ALL RULE CONFLICTS TO BE REVIEWED BY human-owner - not just librarian"
+
+"CONFLICTS/AMBIGUOSITY - NOT JUST TEXT"
+
+## We build software, not fixes for one workspace
+
+The tool family is software with other clients. Any member can be set up in any other workspace, and those workspaces use the features *they* need — including features this one has no use for. Completeness is judged against what the software must offer generally, never against what is exercised here. Having no caller in this tree is not evidence that an operation is unneeded, an obviously incomplete operation family is itself the defect, and an operation's parameters are never narrowed to only what the local caller passes.
+
+"SOMEONE ELSE CAN BE SETUP IN ANY OTHER WORKSPACE / CAN YOU REMEMBER IT FOREVER / WE DO SOFT / OTHER CLIENTS USE IT / THEY USE FEATURES THEY NEED / FEATURES NOT NEEDED IN THIS WORKSPACE"
+
+## The team works in one workspace; the others are clients
+
+The team does its own work only inside the workspace containing the team's own source tree — every other tracked workspace is a client, read for reference but never directly edited by the team, even when a board item names files living there. Surface the boundary and ask, rather than requesting a one-off access grant. Workspaces are named, never pathed (see "Workspace" in `magic-team.armed.md`).
+
+"Team is in this workspace only - others are clients."
+
+Distinct from "We build software, not fixes for one workspace" above: that one is about what the team *builds*, this one about where the team *edits*.
+
+## A rule statement stays a rule statement
+
+In a backlog document, a `CONVENTION`/`INTENT`/`TASK` body is a clean, timeless statement of the rule or the task itself. No investigative facts, no status or progress notes, no dates or temporal framing beyond the one standard assessment line every item already carries. All of that goes in the document's own Context Detail section instead.
+
+A convention exists to be checked against later, as a standing rule. Narrative and facts mixed into its body make that check noisy and date an item that should not age.
+
+"convention is not a task - set of statements to stay and be checked against"
+
+"NO STATUS UPDATES AND TEMPORAL FACTS IN ITEMS - USE LAST SECTIONS"
+
+## Never mention local-cache sync staleness
+
+Never raise whether an installed/local copy of the tooling is stale, or whether a source-to-local sync needs running — not as a flag, a caveat, a note for awareness, or a suggested next step. It is the human-owner's own separate workflow. A spawned session's own report carrying such a note has it dropped, not forwarded. This is the one kind of staleness "Doc/disk mismatch repair loop" above does not reach.
+
+"YOU BEEN TOLD NEVER TO THINK ABOUT IT"
 

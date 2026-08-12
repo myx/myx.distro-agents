@@ -21,7 +21,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
   - `routine-conventions-check` is outside the no-auto-trigger line above: it runs on every skillset-file change per `magic-team.armed.md`'s standing rule, and on generated documents as strictly as the owning routine's own rules require. Any armed member already in session runs it inline — spawning `magic-librarian` purely to run it is never required.
   - Open executor model: any member, or the human-owner directly, may invoke either role.
   - Two standing scope exceptions beyond README/CLAUDE.md/AGENTS.md, both running daily, unconditionally:
-    - **Team shared-state files** — cross-workspace, cross-day files that exist because `TodoWrite` alone resets every session: the `heartbeat-state-note` — main-loop's day-rhythm control state plus per-platform comms-sweep mechanical state, read via `--magic-heartbeat-state-read` and rewritten via `--magic-heartbeat-state-upsert`. It is user-wide, not scoped to any single repo's documentation units — treat it as its own thing, not a CLAUDE.md. Maintaining it is in scope whenever the relevant routine calls for it.
+    - **Team shared-state files** — cross-workspace, cross-day files that exist because `TodoWrite` alone resets every session: the `heartbeat-state-note` — main-loop's day-rhythm control state plus per-platform comms-sweep mechanical state. `magic-librarian` owns and maintains its *content*; the operations that read and rewrite the record belong to `magic-coordinator` and are executed by the coordinator instance present in the session, never by this member directly. It is user-wide, not scoped to any single repo's documentation units — treat it as its own thing, not a CLAUDE.md. Maintaining it is in scope whenever the relevant routine calls for it.
     - **Team self-sufficiency audit** — every `magic-*` skill directory's formal documents (see `team-self-sufficiency-audit` procedure below).
   - Own inbox: collects doc-fix notes filed by any member (including itself), processed once per workday as one batched pass.
 - Doesn't:
@@ -200,15 +200,12 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 ## DistroAgentsTools magic-tooling operations
 
 - `--help`
-- `--list-md <path>...`
 - `--librarian-list-team-files [<path>...]`
 - `--librarian-list-team-files-dates [<path>...]`
 - `--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>`
 - `--librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]`
-- `--magic-heartbeat-state-read <team-member>`
-- `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]`
 
 Note: `--librarian-list-team-files`/`-dates` (below) are this skill's dedicated replacement for raw `Bash`/`stat`/`find` when listing/verifying skill files — same optional scope args on both (zero or more: a bare path relative to the skill-root, or an absolute path resolving inside it; no args means the whole skill-root; a missing/outside-root arg is skipped and reported, not a hard abort).
 
@@ -217,10 +214,6 @@ Note: `--librarian-inbox-item-trash`/`--librarian-inbox-to-retained` (below) are
 ## `--help` Operation Reference
 
 `DistroAgentsTools.fn.sh --help` — prints this syntax + summary and exits. Verbatim: "Prints this syntax + summary and exits."
-
-## `--list-md` Operation Reference
-
-`DistroAgentsTools.fn.sh --list-md <path>...` — existence + line count for one or more caller-supplied file paths, one line of output per path: `<path>: <N> lines` if found, `<path>: MISSING` if not — returns 1 if any path was missing, 0 otherwise. Read-only, no credentials, no network. Despite the flag name, not restricted to `.md` files — any path works; at least one path argument is required.
 
 ## `--librarian-list-team-files` Operation Reference
 
@@ -245,14 +238,6 @@ Note: `--librarian-inbox-item-trash`/`--librarian-inbox-to-retained` (below) are
 ## `--member-append-session-transcript` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]` — appends exactly one canonical transcript-entry block (`<speaker-name> (<timestamp>): followed by quoted message lines`) to the team's shared audit tree. Missing target transcript is an error unless `--create` is passed. Payload must be provided by exactly one source among `--message`, `--message-from-stdin`/`--from-stdin`, or `--message-file <path>`.
-
-## `--magic-heartbeat-state-read` Operation Reference
-
-`DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>` — read-only: prints the whole heartbeat day-rhythm state record verbatim. Prints `NO_STATE` and returns 0 when nothing is stored yet — a normal first-run outcome, not an error.
-
-## `--magic-heartbeat-state-upsert` Operation Reference
-
-`DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]` — writes (creates or overwrites) `routine-heartbeat`'s own day-rhythm state record, plus `routine-communication-sweep`'s per-platform mechanical sweep state. Content via stdin by default, or via `--from-file <path>`. Always a whole-record overwrite, never an append. Empty content is refused rather than written.
 
 # Maintainer Notes
 
@@ -281,6 +266,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-librarian.basic.md` — identity.
 - This file's own "Team-Member's (-specific) local rules" section — who may run/change this skill, decision-making (there is no separate `magic-librarian.access.md`; per `magic-team.shared.md`'s folder-shape spec, an acting member's access facts live inside its own `.armed.md`).
 - `reference/mcp.md` — MCP (Model Context Protocol) / JSON-RPC 2.0 reference module. Fully populated — the former standalone `magic-mcp` skill, retired and folded in here.
+- `reference/messaging.md` — messaging-platform reference module: message-size limits and silent truncation (with the measured evidence behind `magic-team.conversations.md`'s rule 1a), and identity-scoped send/read asymmetry. Platform specifics live here deliberately; the conventions file stays platform-neutral.
 - `routine-conventions-check` / `routine-librarian-morning-review` — this skill's two named routines; files named in `# Domain knowledge`'s `## Routines (index)`.
 - `magic-developer` — per-language `reference/` modules, same shape as this skill's own protocol/format modules.
 - `magic-team/magic-team.shared.md` — the `routine-*` virtual-member model and the typed-suffix file-format conventions.

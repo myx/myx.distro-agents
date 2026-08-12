@@ -1,11 +1,11 @@
 #!/usr/bin/env awk
 
 # Markdown-ish plain text (stdin) -> Slack Block Kit JSON array (stdout), for
-# DistroAgentsTools.fn.sh's --member-slack-send-message --format markdown
+# DistroAgentsTools.fn.sh's --member-comms-slack-send-message --format markdown
 # path (myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh /
 # sh-lib/AgentsTools.Member.include). Deliberately a small, restricted
 # markdown-ish syntax, not a general markdown parser -- see
-# Help.DistroAgentsTools.help.md's --member-slack-send-message section for
+# Help.DistroAgentsTools.help.md's --member-comms-slack-send-message section for
 # the exact rules and a worked example.
 #
 # Recognized per line:

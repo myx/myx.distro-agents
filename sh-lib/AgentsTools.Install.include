@@ -1,0 +1,692 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Install.include -- the workspace/skillset install operations.
+## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced
+## for $1/$@/$MDSC_CMD.
+##
+## These run once per workspace setup and never on a normal operation, so
+## they are exactly the kind of bulk that must not sit in the dispatcher --
+## that file is parsed for EVERY operation, including the tiniest.
+##
+## Routed by the dispatcher's `--install-*)` glob, so a new --install-* op
+## needs no dispatcher edit.
+##
+## Supported operations:
+##   --install-skillset-symlinks [--remove]
+##   --install-workspace-integrations
+##   --install-vscode-integrations
+##
+## --install-skillset-symlinks is a RECONCILE, not an add: it converges this
+## workspace's registered set in `.linked.magic-team.members.txt` to what the
+## workspace currently declares. A member that has disappeared loses its line,
+## and its symlink too if that was the last line for the slot. `--remove` is
+## the same reconcile with an empty "declared now" set, so it removes every
+## line this workspace owns. Both touch ONLY this workspace's own lines.
+##
+
+case "$1" in
+
+		--install-skillset-symlinks)
+			shift
+
+			local scope="workspace" workspaceArg scopeExplicit="false" removeMode="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--remove)
+						removeMode="true" ; shift
+					;;
+					--scope)
+						case "$2" in
+							workspace|user-home)
+							;;
+							*)
+								echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --scope must be workspace or user-home" >&2
+								set +e ; return 1
+							;;
+						esac
+						scope="$2" ; scopeExplicit="true" ; shift 2
+					;;
+					--workspace)
+						if [ -z "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --workspace requires a value" >&2
+							set +e ; return 1
+						fi
+						workspaceArg="$2" ; shift 2
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			local workspace="${workspaceArg:-$MMDAPP}"
+			[ -d "$workspace" ] && workspace="$( cd "$workspace" && pwd )"
+
+			if [ ! -f "$workspace/.local/myx/myx.distro-.local/sh-lib/LocalContext.include" ] ; then
+				if [ "$scope" = "workspace" ] ; then
+					if [ "$scopeExplicit" = "true" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: not a set-up myx.distro workspace: $workspace" >&2
+						set +e ; return 1
+					fi
+					scope="user-home"
+				fi
+			fi
+
+			local bundleRoot="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"
+			if [ "$removeMode" != "true" ] && [ ! -d "$bundleRoot" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundle directory does not exist: $bundleRoot" >&2
+				set +e ; return 1
+			fi
+
+			local targetRoot
+			case "$scope" in
+				user-home) targetRoot="$HOME/.claude/skills" ;;
+				workspace) targetRoot="$workspace/.claude/skills" ;;
+			esac
+			mkdir -p "$targetRoot" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: can't create target directory: $targetRoot" >&2
+				set +e ; return 1
+			}
+
+			##
+			## `--remove` is NOT a second removal implementation. It is this
+			## same reconcile run with an empty "declared now" set: linking and
+			## discovery are skipped, so every line this workspace owns falls
+			## into the "no longer declared" subset and is removed by the one
+			## removal path in Phase C. Reconcile removes the disappeared
+			## subset; --remove removes the whole set; same code does both.
+			##
+			local memberNames memberDir
+			if [ "$removeMode" = "true" ] ; then
+				memberNames=""
+				echo "# $MDSC_CMD --install-skillset-symlinks --remove: removing every line owned by this workspace, linking skipped" >&2
+			else
+				memberNames="$(
+					for memberDir in "$bundleRoot"/*/ "$targetRoot"/*/ ; do
+						[ -d "${memberDir%/}" ] || continue
+						basename "${memberDir%/}"
+					done | sort -u
+				)"
+			fi
+
+			## `ownedMembers` accumulates THIS workspace's own claim on each
+			## member -- `<member> <this-workspace's-own-source-path>`. It is
+			## what Phase C registers from. Deliberately NOT derived from
+			## readlink: a shared symlink root may already point at some other
+			## workspace's copy, and this workspace's line must still describe
+			## its own source, not whoever happened to win the slot.
+			local hadError="false" memberName memberTarget memberBundled
+			local ownedMembers=""
+			while IFS= read -r memberName ; do
+				[ -n "$memberName" ] || continue
+				[ "$memberName" != "trash" ] || continue
+				case "$memberName" in
+					keeper-*|partner-*|oncall-*|expert-*|warden-*) continue ;;
+				esac
+				memberTarget="$targetRoot/$memberName"
+				memberBundled="$bundleRoot/$memberName"
+				if [ ! -e "$memberBundled" ] ; then
+					## Present in the shared root but absent from this
+					## workspace's bundle -- someone else's symlink, or a real
+					## directory the user keeps there. Either way there is
+					## nothing for this workspace to link, so it is simply not
+					## ours: skip it. Emphatically NOT an error -- raising one
+					## here set hadError, which switched the reconcile off for
+					## the whole run. Real skills roots routinely hold non-bundle
+					## directories that match no `keeper-*`/`partner-*` prefix,
+					## so that made reconcile permanently dead on real machines
+					## and left today's safety resting on a bug rather than on
+					## the guards that are supposed to provide it.
+					continue
+				fi
+				if [ -L "$memberTarget" ] ; then
+					## Already linked -- by an earlier run, or by another
+					## workspace sharing this root. Never an error: this
+					## workspace adds its OWN registry line and leaves the
+					## existing link, and every other workspace's line, exactly
+					## as found.
+					if [ "$( readlink "$memberTarget" )" != "$memberBundled" ] ; then
+						echo "# $MDSC_CMD --install-skillset-symlinks: $memberTarget already linked by another workspace, kept as-is: $( readlink "$memberTarget" )" >&2
+					fi
+					ownedMembers="${ownedMembers}${memberName} ${memberBundled}
+"
+					continue
+				fi
+				if [ -e "$memberTarget" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: real content at $memberTarget, won't overwrite (bundle already has $memberBundled)" >&2
+					hadError="true"
+					continue
+				fi
+				if ! ln -s "$memberBundled" "$memberTarget" ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $memberTarget" >&2
+					hadError="true"
+					continue
+				fi
+				ownedMembers="${ownedMembers}${memberName} ${memberBundled}
+"
+				echo "OK --install-skillset-symlinks linked $memberTarget -> $memberBundled" >&2
+			done <<< "$memberNames"
+
+			local workspaceName registryFile compositeRoot
+			workspaceName="$( basename "$workspace" )"
+			registryFile="$targetRoot/.linked.magic-team.members.txt"
+			## NOTE: `.local/agents/`, ONE dot. `.local/.agents/` is the
+			## credential store and is never read, written, listed or walked
+			## from here (or anywhere else) -- `--agents-config-option
+			## --select` is its only sanctioned reader.
+			compositeRoot="$workspace/.local/agents/magic-team-composite"
+
+			##
+			## Phase B -- additional team-members scattered across the
+			## workspace's own source projects, declared as
+			##   Declares: magic-team:team-member:skillset/<name>:<host-glob>
+			## Discovery goes through ListDistroDeclares (the established
+			## declares-index reader), never a hand-rolled tree scan.
+			##
+			local declaresTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroDeclares.fn.sh"
+			local projectsTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroProjects.fn.sh"
+			local selectedProjects selectStatus declaredMembers declaredStatus
+			local memberSources=""
+
+			## Gate on the reconcile's removal step. A run that could not see
+			## what this workspace declares must never let a blank member list
+			## be read as "every member disappeared" -- that is the one path in
+			## this op that could delete a correctly-linked shared slot.
+			##
+			## ONE call to `--filter-and-cut` supplies both the member list and
+			## the trust signal. There is deliberately no second declares query:
+			## two calls asking the same question can disagree, and that
+			## disagreement was the original defect -- `--all-declares` passing
+			## while `--all-filter-and-cut` returned nothing read as "declares
+			## nothing" and deleted live links.
+			##
+			## `--filter-and-cut`, not `--all-filter-and-cut`: it runs over
+			## MDSC_SELECT_PROJECTS -- THIS workspace's selected projects --
+			## whereas the `--all-*` variants walk the whole cached index. A
+			## per-workspace reconcile must not ask a whole-estate question.
+			##
+			## The selection itself comes from ListDistroProjects, the framework's
+			## normal selection step and the documented input to
+			## `--select-from-env`. That is not a second probe of the same
+			## question: it answers "which projects", not "which members", and
+			## `--filter-and-cut` cannot run without it. Invoked bare, it
+			## silently returns empty with status 0 even where members exist --
+			## verified live: the real workspace answers 1 via the selection and
+			## 0 without it.
+			##
+			## Three states, distinguished by that single call plus its input:
+			##   projects=0 or declares status != 0  -> COULD-NOT-CHECK
+			##   projects>0 and status 0, n=0        -> genuinely none declared
+			##   projects>0 and status 0, n>0        -> that many members
+			## Verified live across four workspaces including one where zero is
+			## the correct answer.
+			local discoveryTrusted="true"
+
+			if [ "$removeMode" = "true" ] ; then
+				## --remove: nothing is declared by definition, and no discovery
+				## is consulted, so there is nothing to distrust.
+				memberSources=""
+			elif [ ! -f "$declaresTool" ] || [ ! -f "$projectsTool" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: missing ListDistroDeclares.fn.sh ($declaresTool) or ListDistroProjects.fn.sh ($projectsTool)" >&2
+				hadError="true" ; discoveryTrusted="false"
+			else
+				## Status is captured with `|| status=$?`, never as a bare
+				## `var="$( … )"` followed by `$?`: under `set -e` the bare form
+				## aborts the function outright before the next line runs, so the
+				## COULD-NOT-CHECK diagnostic never prints and the gate it feeds
+				## is dead code. Nothing was removed in that state, but by abort
+				## rather than by design -- the safety vanishes the moment any
+				## caller wraps this in a context that tolerates the failure.
+				selectStatus=0
+				selectedProjects="$( MMDAPP="$workspace" "$projectsTool" --all-projects 2>/dev/null )" || selectStatus=$?
+
+				declaredStatus=0
+				declaredMembers="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --filter-and-cut 'magic-team:team-member' 2>/dev/null )" || declaredStatus=$?
+
+				if [ "$selectStatus" != "0" ] || [ "$( printf '%s' "$selectedProjects" | grep -c '' )" = "0" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: no projects could be selected in workspace $workspace (ListDistroProjects --all-projects exited $selectStatus) -- without a selection --filter-and-cut answers empty for every workspace, which must never be read as 'declares nothing'" >&2
+					hadError="true" ; discoveryTrusted="false"
+				elif [ "$declaredStatus" != "0" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroDeclares --filter-and-cut (the command this op acts on) exited $declaredStatus for workspace $workspace" >&2
+					hadError="true" ; discoveryTrusted="false"
+				else
+					## Zero declared members here is a legitimate, common state
+					## -- a real workspace that simply scatters none -- and is
+					## handled as "none declared", not as a malfunction. It is
+					## distinguishable because the selection above was non-empty
+					## and this call succeeded.
+					echo "# $MDSC_CMD --install-skillset-symlinks: $( printf '%s' "$selectedProjects" | grep -c '' ) project(s) selected, $( printf '%s' "$declaredMembers" | grep -c '' ) magic-team:team-member declare(s)" >&2
+
+						local dLine dProject dRest dSkillsetPath dHostGlob dMember dHostShort dHostFull
+						dHostShort="$( hostname -s 2>/dev/null )" || dHostShort=""
+						dHostFull="$( hostname 2>/dev/null )" || dHostFull=""
+						while IFS= read -r dLine ; do
+							[ -n "$dLine" ] || continue
+							dProject="${dLine%% *}"
+							dRest="${dLine#* }"
+							## `skillset/<name>:<host-glob>` -- the host glob is
+							## the LAST colon-field; the skillset path is what
+							## precedes it.
+							dHostGlob="${dRest##*:}"
+							dSkillsetPath="${dRest%:*}"
+							dMember="$( basename "$dSkillsetPath" )"
+							if [ -z "$dHostGlob" ] || [ "$dSkillsetPath" = "$dRest" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: malformed team-member declare in $dProject: magic-team:team-member:$dRest (expected skillset/<name>:<host-glob>)" >&2
+								hadError="true"
+								continue
+							fi
+							case "$dHostShort" in
+								$dHostGlob) ;;
+								*)
+									case "$dHostFull" in
+										$dHostGlob) ;;
+										*)
+											echo "# $MDSC_CMD --install-skillset-symlinks: skip $dMember from $dProject -- host glob '$dHostGlob' matches neither $dHostShort nor $dHostFull" >&2
+											continue
+										;;
+									esac
+								;;
+							esac
+							if [ ! -d "$workspace/source/$dProject/$dSkillsetPath" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $dProject declares team-member $dMember but its skillset directory is missing: $workspace/source/$dProject/$dSkillsetPath" >&2
+								hadError="true"
+								continue
+							fi
+							memberSources="${memberSources}${dMember} ${workspace}/source/${dProject}/${dSkillsetPath}
+"
+						done <<< "$declaredMembers"
+				fi
+			fi
+
+			local dcMember dcSources dcCount dcLinkTarget dcSrc
+			for dcMember in $( printf '%s' "$memberSources" | awk 'NF { print $1 }' | sort -u ) ; do
+				dcSources="$( printf '%s\n' "$memberSources" | awk -v m="$dcMember" '$1 == m { sub(/^[^ ]+ /, ""); print }' )"
+				dcCount="$( printf '%s' "$dcSources" | grep -c '' )"
+
+				if [ "$dcCount" = "1" ] ; then
+					dcLinkTarget="$dcSources"
+				else
+					##
+					## Phase B2 -- composite member: the same team-member is
+					## declared by more than one workspace project. All sources
+					## are rsynced into one directory so their content mixes
+					## (deliberate, per human-owner), and the composite is then
+					## linked like any other member, as `.local-merged`.
+					##
+					echo "# $MDSC_CMD --install-skillset-symlinks: composite team-member $dcMember from $dcCount source project(s)" >&2
+
+					## Collisions are reported BEFORE any rsync runs, so the
+					## overlap is visible in full rather than discovered as a
+					## silently-won last-writer.
+					local dcCollisions
+					dcCollisions="$(
+						while IFS= read -r dcSrc ; do
+							[ -n "$dcSrc" ] || continue
+							( cd "$dcSrc" && find -L . -type f -print ) | sed 's|^\./||'
+						done <<< "$dcSources" | sort | uniq -d
+					)"
+					if [ -n "$dcCollisions" ] ; then
+						echo "# WARN $MDSC_CMD --install-skillset-symlinks: composite $dcMember has $( printf '%s' "$dcCollisions" | grep -c '' ) colliding path(s) across its sources; later source wins per path:" >&2
+						## Quoted, line-at-a-time: unquoted `$dcCollisions` in a
+						## printf would word-split and glob any path containing
+						## whitespace or a shell metacharacter.
+						while IFS= read -r dcCollision ; do
+							[ -n "$dcCollision" ] || continue
+							echo "#   collision: $dcCollision" >&2
+						done <<< "$dcCollisions"
+					else
+						echo "# $MDSC_CMD --install-skillset-symlinks: composite $dcMember has no colliding paths across its sources" >&2
+					fi
+
+					local dcTarget="$compositeRoot/$dcMember"
+					## `.local-merged` is regenerated wholesale, so the previous
+					## build is cleared first -- but never through a symlink, and
+					## only under the composite root this op itself owns.
+					if [ -L "$dcTarget" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: composite build path is a symlink, refusing to clear it: $dcTarget" >&2
+						hadError="true"
+						continue
+					fi
+					if [ -e "$dcTarget" ] && [ ! -d "$dcTarget" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: composite build path exists and is not a directory: $dcTarget" >&2
+						hadError="true"
+						continue
+					fi
+					rm -rf "$dcTarget" 2>/dev/null || true
+					mkdir -p "$dcTarget" || {
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: can't create composite directory: $dcTarget" >&2
+						hadError="true"
+						continue
+					}
+					local dcRsyncFailed="false"
+					while IFS= read -r dcSrc ; do
+						[ -n "$dcSrc" ] || continue
+						## -I (--ignore-times) is load-bearing, not belt-and-braces:
+						## rsync's default quick-check skips a file whose size AND
+						## mtime match the destination's, so a colliding path from
+						## a LATER source silently loses to the earlier one
+						## whenever the two happen to be the same size and were
+						## written in the same second -- which is exactly what
+						## sibling checkouts of the same skillset look like.
+						## Verified firing: without -I, a 2-source composite
+						## resolved a collision to the first source, not the last.
+						if ! rsync -a -I "$dcSrc/" "$dcTarget/" ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: rsync failed for composite $dcMember source: $dcSrc" >&2
+							dcRsyncFailed="true"
+						fi
+					done <<< "$dcSources"
+					if [ "$dcRsyncFailed" = "true" ] ; then
+						hadError="true"
+						continue
+					fi
+					dcLinkTarget="$dcTarget"
+				fi
+
+				local dcSlot="$targetRoot/$dcMember"
+				if [ -L "$dcSlot" ] ; then
+					## Same rule as the bundle members above: an existing link,
+					## whoever made it, is kept and is never an error. This
+					## workspace still records its own line for the member.
+					if [ "$( readlink "$dcSlot" )" != "$dcLinkTarget" ] ; then
+						echo "# $MDSC_CMD --install-skillset-symlinks: $dcSlot already linked by another workspace, kept as-is: $( readlink "$dcSlot" )" >&2
+					fi
+					ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}
+"
+					continue
+				fi
+				if [ -e "$dcSlot" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: real content at $dcSlot, won't overwrite (declared source is $dcLinkTarget)" >&2
+					hadError="true"
+					continue
+				fi
+				if ! ln -s "$dcLinkTarget" "$dcSlot" ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $dcSlot" >&2
+					hadError="true"
+					continue
+				fi
+				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}
+"
+				echo "OK --install-skillset-symlinks linked $dcSlot -> $dcLinkTarget" >&2
+			done
+
+			##
+			## Phase C -- registry upsert into `.linked.magic-team.members.txt`
+			## at the symlink root. One line per <team-member>:<workspace-name>:
+			##   <team-member>:<workspace-name>:<integration-type>:<target-path>
+			##
+			## HARD RULE: this workspace adds and removes ONLY its own lines,
+			## and never reads, rewrites or reasons about another workspace's.
+			## No count is maintained anywhere -- how many workspaces still want
+			## a member is simply how many lines the file happens to hold for
+			## it, which `--remove` observes once, at the moment it removes its
+			## own line, and never records.
+			##
+			local regLock="$registryFile.lock" regWait=0 regLocked="false"
+			while true ; do
+				if mkdir "$regLock" 2>/dev/null ; then
+					regLocked="true"
+					break
+				fi
+				regWait=$(( regWait + 1 ))
+				if [ "$regWait" -gt 10 ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry busy, lock not acquired after $regWait attempts: $regLock" >&2
+					hadError="true"
+					break
+				fi
+				## POSIX `sleep` guarantees whole seconds only -- `sleep 0.1` is
+				## a GNU/BSD extension, so the retry budget is 10 one-second
+				## attempts rather than 50 tenths.
+				sleep 1
+			done
+
+			if [ "$regLocked" = "true" ] ; then
+				[ -f "$registryFile" ] || : > "$registryFile"
+
+				local regEntry regName regResolved regType regRel regLine regTmp
+				while IFS= read -r regEntry ; do
+					[ -n "$regEntry" ] || continue
+					regName="${regEntry%% *}"
+					regResolved="${regEntry#* }"
+					case "$regResolved" in
+						"$compositeRoot"/*)      regType=".local-merged"   ; regRel="${regResolved#$workspace/.local/}" ;;
+						"$workspace/.local/"*)   regType=".local-symlink"  ; regRel="${regResolved#$workspace/.local/}" ;;
+						"$workspace/source/"*)   regType="source-symlink"  ; regRel="${regResolved#$workspace/source/}" ;;
+						*)
+							## $MDLT_ORIGIN resolves outside the workspace (the
+							## shared-origin case, e.g. ws-myx.prv-farm): no
+							## workspace-relative target-path exists, so none of
+							## the three declared integration types can express
+							## this member and no line can be written for it.
+							## Stays loud -- an unregistered slot is one that
+							## nothing protects on the way back out.
+							echo "# WARN $MDSC_CMD --install-skillset-symlinks: not registered, own source outside workspace $workspace: $regName -> $regResolved" >&2
+							continue
+						;;
+					esac
+					regLine="$regName:$workspaceName:$regType:$regRel"
+
+					## Every registry match below is FIELD-EXACT via awk, never a
+					## grep regex over an interpolated name. `ws-myx.prv-farm` is
+					## a real workspace name in this estate, and in a regex its
+					## `.` matches any character -- workspace `ws-a.b` was shown
+					## deleting all of `ws-aXb`'s lines and unlinking a slot that
+					## workspace still wanted. The same hazard applies to member
+					## names. awk also distinguishes a read error (non-zero exit)
+					## from a legitimately empty result, which `grep` cannot:
+					## grep's exit 1 (no match) and exit 2 (read error) would both
+					## have staged an empty file over the registry.
+					if awk -F: -v m="$regName" -v w="$workspaceName" -v t="$regType" -v p="$regRel" '
+						$1 == m && $2 == w && $3 == t && substr( $0, length($1) + length($2) + length($3) + 4 ) == p { hit = 1 }
+						END { exit !hit }
+					' "$registryFile" 2>/dev/null ; then
+						continue
+					fi
+					if awk -F: -v m="$regName" -v w="$workspaceName" '$1 == m && $2 == w { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
+						## Key present with different content -- rewrite via
+						## temp-then-mv so a reader never sees a partial file.
+						regTmp="$registryFile.tmp.$$"
+						if awk -F: -v m="$regName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$regTmp" ; then
+							printf '%s\n' "$regLine" >> "$regTmp"
+							if ! mv -f "$regTmp" "$registryFile" ; then
+								echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed for $regLine" >&2
+								rm -f "$regTmp" 2>/dev/null || true
+								hadError="true"
+								continue
+							fi
+						else
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while rewriting $regLine -- registry left untouched" >&2
+							rm -f "$regTmp" 2>/dev/null || true
+							hadError="true"
+							continue
+						fi
+					else
+						## New key -- append-only.
+						printf '%s\n' "$regLine" >> "$registryFile"
+					fi
+					echo "OK --install-skillset-symlinks registered $regLine" >&2
+				done <<< "$ownedMembers"
+
+				##
+				## Reconcile -- the ONE removal path, serving both modes.
+				## Selection differs, mechanism does not: a normal run's
+				## "declared now" set is $ownedMembers, so this workspace's
+				## lines absent from it are the members that disappeared;
+				## --remove arrives here with $ownedMembers empty, making that
+				## subset the whole set.
+				##
+				if [ "$discoveryTrusted" != "true" ] ; then
+					echo "# WARN $MDSC_CMD --install-skillset-symlinks: discovery could not be trusted this run -- removing NOTHING. An unreadable or empty member list is never read as 'every member disappeared'." >&2
+				elif [ "$hadError" = "true" ] ; then
+					echo "# WARN $MDSC_CMD --install-skillset-symlinks: errors earlier this run -- removing NOTHING, this run's member list is not a complete picture of the workspace." >&2
+				else
+					local rcOwned rcEntry rcName rcType rcRel rcPath rcSlot rcTmp
+					## Only ever this workspace's own lines, selected by exact
+					## field match. Another workspace's are neither input nor
+					## output here. Emitted tab-separated so the recorded
+					## target-path survives intact.
+					rcOwned="$(
+						awk -F: -v w="$workspaceName" '
+							$2 == w {
+								rest = substr( $0, length($1) + length($2) + length($3) + 4 )
+								printf "%s\t%s\t%s\n", $1, $3, rest
+							}
+						' "$registryFile"
+					)"
+					while IFS="$( printf '\t' )" read -r rcName rcType rcRel ; do
+						[ -n "$rcName" ] || continue
+						## Still declared by this workspace? Then it stays --
+						## line and symlink both untouched.
+						if printf '%s\n' "$ownedMembers" | awk -v m="$rcName" 'NF && $1 == m { hit = 1 } END { exit !hit }' ; then
+							continue
+						fi
+
+						## THE guard that actually closes the stale-discovery
+						## hole. Absence from this run's member list is only ever
+						## a hint -- it is equally consistent with the member
+						## being gone and with discovery having malfunctioned.
+						## So a reconcile additionally demands positive evidence
+						## on disk: the very path this line recorded must really
+						## be gone. A stale cache reporting zero members cannot
+						## delete anything, because every recorded source is
+						## still sitting there. `--remove` is explicit operator
+						## intent and needs no such evidence.
+						case "$rcType" in
+							source-symlink) rcPath="$workspace/source/$rcRel" ;;
+							*)              rcPath="$workspace/.local/$rcRel" ;;
+						esac
+						if [ "$removeMode" != "true" ] && [ -e "$rcPath" ] ; then
+							echo "# $MDSC_CMD --install-skillset-symlinks: $rcName absent from this run's member list, but its recorded source still exists -- keeping line and symlink: $rcPath" >&2
+							continue
+						fi
+
+						rcTmp="$registryFile.tmp.$$"
+						if ! awk -F: -v m="$rcName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$rcTmp" ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while removing $rcName:$workspaceName -- registry left untouched" >&2
+							rm -f "$rcTmp" 2>/dev/null || true
+							hadError="true"
+							continue
+						fi
+						if ! mv -f "$rcTmp" "$registryFile" ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed removing $rcName:$workspaceName" >&2
+							rm -f "$rcTmp" 2>/dev/null || true
+							hadError="true"
+							continue
+						fi
+						echo "OK --install-skillset-symlinks deregistered $rcName:$workspaceName" >&2
+
+						## Unlink ONLY when removing our own line left the file
+						## with no line at all for this slot. Presence is read
+						## at this instant, by exact field match, and never
+						## recorded anywhere.
+						if awk -F: -v m="$rcName" '$1 == m { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
+							echo "# $MDSC_CMD --install-skillset-symlinks: $rcName still registered by another workspace, symlink kept" >&2
+							continue
+						fi
+						rcSlot="$targetRoot/$rcName"
+						if [ -L "$rcSlot" ] ; then
+							if rm -f "$rcSlot" ; then
+								echo "OK --install-skillset-symlinks unlinked $rcSlot (last registered workspace removed)" >&2
+							else
+								echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to unlink: $rcSlot" >&2
+								hadError="true"
+							fi
+						elif [ -e "$rcSlot" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $rcSlot is not a symlink, refusing to remove real content" >&2
+							hadError="true"
+						else
+							echo "# $MDSC_CMD --install-skillset-symlinks: nothing to unlink, already absent: $rcSlot" >&2
+						fi
+					done <<< "$rcOwned"
+				fi
+
+				rmdir "$regLock" 2>/dev/null || true
+				echo "# $MDSC_CMD --install-skillset-symlinks: registry $registryFile now holds $( grep -c '' "$registryFile" ) line(s), $( awk -F: -v w="$workspaceName" '$2 == w' "$registryFile" | grep -c '' ) of them this workspace's" >&2
+			fi
+
+			if [ "$hadError" = "true" ] ; then
+				set +e ; return 1
+			fi
+			return 0
+		;;
+
+		--install-workspace-integrations)
+			shift
+			local scope workspaceArg
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--scope)
+						scope="$2" ; shift 2
+					;;
+					--workspace)
+						workspaceArg="$2" ; shift 2
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			local workspace="${workspaceArg:-$MMDAPP}"
+			if [ ! -d "$workspace" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: workspace not found: $workspace" >&2
+				set +e ; return 1
+			fi
+			workspace="$( cd "$workspace" && pwd )"
+
+			echo "# $MDSC_CMD --install-workspace-integrations: step 1/2 skillset symlinks" >&2
+			if [ -n "$scope" ] ; then
+				DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" || { set +e ; return 1 ; }
+			else
+				## --install-skillset-symlinks itself requires an explicit
+				## --scope (2026-08-06 correction) -- "both" is composed here,
+				## at this caller's own level, not delegated to an implicit
+				## no-scope mode on the child op. user-home only runs when
+				## $HOME/.claude/skills actually exists (not explicitly
+				## requested here, so skipped gracefully rather than erroring);
+				## workspace always runs.
+				[ ! -d "$HOME/.claude/skills" ] || DistroAgentsTools --install-skillset-symlinks --scope user-home --workspace "$workspace" || { set +e ; return 1 ; }
+				DistroAgentsTools --install-skillset-symlinks --scope workspace --workspace "$workspace" || { set +e ; return 1 ; }
+			fi
+
+			echo "# $MDSC_CMD --install-workspace-integrations: step 2/2 vscode + mcp integrations" >&2
+			DistroAgentsTools --owner-install-vscode-integrations --workspace "$workspace" || { set +e ; return 1 ; }
+
+			echo "OK --install-workspace-integrations" >&2
+			return 0
+		;;
+
+		--install-vscode-integrations)
+			shift
+			local workspaceArg
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--workspace)
+						workspaceArg="$2" ; shift 2
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			local workspace="${workspaceArg:-$MMDAPP}"
+			if [ ! -d "$workspace" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: workspace not found: $workspace" >&2
+				set +e ; return 1
+			fi
+			workspace="$( cd "$workspace" && pwd )"
+
+			DistroAgentsTools --owner-install-vscode-integrations --workspace "$workspace" || { set +e ; return 1 ; }
+			echo "OK --install-vscode-integrations" >&2
+			return 0
+		;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.Install.include's own default (*) branch, the operation group sourced by the dispatcher's --install-* route; no operation of that name is defined in this include" >&2
+			set +e ; return 1
+		;;
+esac

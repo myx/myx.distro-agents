@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MagicDaily.include -- routine-daily's own --magic-daily-*
+## operation group for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily
+## from the `--magic-daily-*)` wildcard arm via the standard
+## $MDLT_ORIGIN-based path. Not standalone: relies on being dot-sourced for
+## $1/$@/$MDSC_CMD. Same "own dedicated namespace/.include per routine"
+## convention as AgentsTools.MagicGrooming.include/AgentsTools.MagicAdvance.include
+## -- five ops today, room for more of this routine's own ops later.
+##
+## --magic-daily-lock-* -- routine-daily's own lock: four thin stubs over the
+## shared --intern-op-lock-* family (AgentsTools.InternOpLock.include), same
+## unified mechanism every routine now uses -- frontmatter + git when
+## TEAM_DATA_GIT_REMOTE is configured, the `mkdir` mutex when it is not.
+##
+## Position in the routine is fixed: lock before all, unlock in closure.
+## The `-lock-` / `-state-` infix split keeps the two namespaces separate: a
+## lock is not this routine's input and not its state record.
+##
+## This routine locks against its OWN fixed note, never another routine's --
+## same rule the heartbeat/advance/grooming stubs already follow.
+##
+## The +30-minute recheck offset is this routine's own: a daily meeting's own
+## pass (roll call, board pass, supervised work-session fan-out) runs long,
+## the same order of magnitude as routine-grooming's, so it carries the same
+## offset rather than routine-advance's shorter one.
+##
+
+case "$1" in
+
+	## <team-member> [--header:<upsert|append|remove>:name[:value]]...
+	##   [--from-file <path>|--edit-patch-from-stdin]
+	## routine-daily's own state-and-lock note: state and lock in one
+	## document, and this routine's session tracking document between
+	## iterations (tactical status needed to continue the next iterative call
+	## -- explicitly NOT a transcript). Prefers REFERENCING TEAM-DATA over
+	## copying it, to stay compact.
+	##
+	## One more stub over --intern-op-state-and-lock-upsert, alongside
+	## --magic-advance-state-and-lock-upsert and
+	## --magic-grooming-state-and-lock-upsert: same "own dedicated stub per
+	## calling routine, each carrying its own validation even where identical
+	## today" convention this file's own --magic-daily-lock-* arms already
+	## follow. The note filename is fixed and hardcoded here -- it is this
+	## routine's own identity, never a caller argument, so no caller can point
+	## this routine's lock at another routine's note.
+	##
+	## Introduces no option of its own. The state values and the +30-minute
+	## recheck offset are properties of THIS ROUTINE, so they are hardcoded
+	## here and expressed through the ordinary --header:upsert vocabulary.
+	## There is deliberately no "closing" flag: a closing call is this stub
+	## being handed --header:upsert:state:daily-finished by its caller.
+	##
+	## HEADER ORDER IS LOAD-BEARING.
+	## AgentsBoardItemHeaderOpsApply.awk resolves repeat upserts on one field
+	## as last-wins, so position decides overridability, and these two fields
+	## want opposite answers:
+	##   - `state` goes BEFORE the caller's headers, so a closing call can
+	##     override it to daily-finished. Closure has no other way to say so.
+	##   - `recheck-date` goes AFTER them, so it always wins. The spec re-sets
+	##     it on EVERY update, and a caller able to override it could pin the
+	##     lock open indefinitely -- turning the one bound on a crashed or
+	##     wedged holder into a caller-supplied suggestion.
+	## That asymmetry is a lock-correctness property, not a style choice.
+	## Measured, not assumed: the awk's own header documents the last-wins
+	## rule, and --header:'s parser takes headerValue as everything after the
+	## first colon following the name, so a date-time value keeps its own
+	## colons intact. Don't normalize these two back to one order.
+	--magic-daily-state-and-lock-upsert)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-daily-state-and-lock-upsert: syntax is <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--header:*|--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
+				--from-file)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-daily-state-and-lock-upsert: --from-file: value required" >&2
+						set +e ; return 1
+					fi
+					passthrough+=( "$1" "$2" ) ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-daily-state-and-lock-upsert: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		## +30 minutes, UTC, in the team's own `date-time` shape
+		## (`YYYY-MM-DD HH:MM ±HHMM`). Composed from AgentsEpochToIsoDate.awk
+		## plus integer arithmetic rather than date(1) arithmetic: BSD spells
+		## the offset `date -v+30M`, GNU spells it `date -d '+30 min'`, and
+		## POSIX specifies neither -- date(1) is standardised only as a reader
+		## of the CURRENT time. `date +%s` is the one portable primitive here,
+		## already relied on by --magic-heartbeat-lock-*. Cross-platform
+		## correctness is a hard requirement in this tree, so there is one code
+		## path exercised on Darwin, FreeBSD and Linux alike.
+		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
+		nowEpoch="$( date +%s )"
+		targetEpoch=$(( nowEpoch + 30 * 60 ))
+		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
+		recheckRem=$(( targetEpoch % 86400 ))
+		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		DistroAgentsTools --intern-op-state-and-lock-upsert "$callingMember" \
+			note-20260811T120000Z-daily-state-and-lock.md \
+			--header:upsert:state:daily-running \
+			"${passthrough[@]}" \
+			--header:upsert:recheck-date:"$recheckDate" \
+			--context --magic-daily-state-and-lock-upsert
+		return $?
+	;;
+
+	--magic-daily-lock-acquire)
+		shift
+		local callingMember="$1" ; shift || true
+		local ownerLabel="$1" ; shift || true
+		if [ -z "$callingMember" ] || [ -z "$ownerLabel" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-acquire: <team-member> <owner-label> required" >&2
+			set +e ; return 1
+		fi
+		## Rejects any argument beyond this op's own positionals --
+		## an unknown flag AND an unexpected extra positional alike.
+		## Silently ignoring them let a typo through as a successful
+		## call: `--magic-heartbeat-lock-status <member> owner-x
+		## --bogus` returned 0 and acted as if nothing were wrong.
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-acquire: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
+		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 30 * 60 ))
+		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
+		recheckRem=$(( targetEpoch % 86400 ))
+		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		DistroAgentsTools --intern-op-lock-acquire "$callingMember" \
+			note-20260811T120000Z-daily-state-and-lock.md "$ownerLabel" \
+			--header:upsert:state:daily-running \
+			--header:upsert:recheck-date:"$recheckDate" \
+			--context --magic-daily-lock-acquire
+		return $?
+	;;
+
+	--magic-daily-lock-refresh)
+		shift
+		local callingMember="$1" ; shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-refresh: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		## Rejects any argument beyond this op's own positionals --
+		## an unknown flag AND an unexpected extra positional alike.
+		## Silently ignoring them let a typo through as a successful
+		## call: `--magic-heartbeat-lock-status <member> owner-x
+		## --bogus` returned 0 and acted as if nothing were wrong.
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-refresh: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
+		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 30 * 60 ))
+		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
+		recheckRem=$(( targetEpoch % 86400 ))
+		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		DistroAgentsTools --intern-op-lock-refresh "$callingMember" \
+			note-20260811T120000Z-daily-state-and-lock.md \
+			--header:upsert:state:daily-running \
+			--header:upsert:recheck-date:"$recheckDate" \
+			--context --magic-daily-lock-refresh
+		return $?
+	;;
+
+	--magic-daily-close-state-and-unlock)
+		shift
+		local callingMember="$1" ; shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-daily-close-state-and-unlock: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		## Rejects any argument beyond this op's own positionals --
+		## an unknown flag AND an unexpected extra positional alike.
+		## Silently ignoring them let a typo through as a successful
+		## call: `--magic-heartbeat-lock-status <member> owner-x
+		## --bogus` returned 0 and acted as if nothing were wrong.
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-daily-close-state-and-unlock: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-lock-release "$callingMember" \
+			note-20260811T120000Z-daily-state-and-lock.md \
+			--header:upsert:state:daily-finished \
+			--context --magic-daily-close-state-and-unlock
+		return $?
+	;;
+
+	--magic-daily-lock-status)
+		shift
+		local callingMember="$1" ; shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-status: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		## Rejects any argument beyond this op's own positionals --
+		## an unknown flag AND an unexpected extra positional alike.
+		## Silently ignoring them let a typo through as a successful
+		## call: `--magic-heartbeat-lock-status <member> owner-x
+		## --bogus` returned 0 and acted as if nothing were wrong.
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-status: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-lock-status "$callingMember" \
+			note-20260811T120000Z-daily-state-and-lock.md \
+			--context --magic-daily-lock-status
+		return $?
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MagicDaily.include's own default (*) branch, the operation group sourced by the --magic-daily-* dispatcher route; no operation of that name is defined in this include" >&2
+		set +e ; return 1
+	;;
+esac

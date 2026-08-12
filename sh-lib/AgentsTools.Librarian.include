@@ -1,0 +1,343 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Librarian.include -- magic-librarian own --librarian-*
+## operation group for DistroAgentsTools.fn.sh dispatcher. Sourced
+## lazily from the `--librarian-*)` glob arm via the standard
+## $MDLT_ORIGIN-based path, same as every other operation group.
+## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
+##
+## These four arms previously sat inline in the dispatcher behind
+## exact-match routes. They are a glob route now, matching every
+## other family here -- so a new --librarian-* op needs no dispatcher
+## edit, which is exactly what the exact-match form cost.
+##
+
+case "$1" in
+
+
+		## No sanctioned read-only listing op existed for skill-folder files
+		## before this (the --member-upsert-* family covers different,
+		## specific
+		## write targets, not this). find-based (not a hand-rolled directory
+		## walk), pure path listing -- no per-file stat call, so this stays
+		## fast even across the whole skill-root (measured: the mtime variant
+		## below took ~3s over 678 files; this one is the no-stat fast path,
+		## sub-second). Takes zero or more optional scope arguments, each
+		## either a bare path relative to the skill-root
+		## ($HOME/.claude/skills/) or an absolute path that must resolve
+		## inside it (anything outside is rejected, not silently ignored); a
+		## bare file scopes to just that file, a directory scopes
+		## recursively. No arguments means the whole skill-root. Only `*.md`
+		## files are listed -- a deliberate whitelist (the human-owner's own
+		## design call), never a blacklist of known strays like .DS_Store, so
+		## the next non-markdown file to appear needs no code change. Corner
+		## worth knowing: a bare non-`*.md` path passed as a scope argument
+		## passes the existence check above and then contributes nothing to
+		## the listing -- it is filtered out silently, not reported as an
+		## error, so an empty result for such an argument is expected, not a
+		## fault. Prints one
+		## skill-root-relative path per matched file (never absolute),
+		## sorted alphabetically. A missing or outside-skill-root scope
+		## argument is reported and skipped, not a hard abort -- so one bad
+		## argument among several doesn't lose the rest of the listing. See
+		## --librarian-list-team-files-dates below for the same listing with
+		## per-file modification dates (slower, real stat overhead).
+		--librarian-list-team-files)
+			shift
+			local skillRoot="$HOME/.claude/skills"
+			local hadError="false"
+			local pathsTmp
+			pathsTmp="$( mktemp )" || { set +e ; return 1 ; }
+			trap 'rm -f "$pathsTmp"' EXIT
+
+			## INVARIANT: all four `find` calls in this file (both here and in
+			## --librarian-list-team-files-dates below) carry the identical
+			## `-name '*.md'` filter. They are a deliberate copy of one
+			## another, so they can silently drift -- change one, change all
+			## four, or the two ops start reporting different file sets.
+			##
+			## ACCEPTANCE PREDICATE, stated RELATIONALLY and never as a literal
+			## count: the correct test is
+			##
+			##     (files under skill-root) - (non-`*.md` files) == (lines emitted)
+			##
+			## An absolute number ("this must return 116") is wrong on a tree the
+			## team edits continuously -- it was already invalidated once by a
+			## single new reference file. A stale absolute manufactures a false
+			## failure, and a team trained to expect it will either chase a
+			## non-bug or quietly edit the number until it matches. Both are
+			## worse than the defect the filter fixed. Compare the relation.
+			if [ $# -eq 0 ] ; then
+				find -L "$skillRoot" -type f -name '*.md' 2>/dev/null > "$pathsTmp" || true
+			else
+				: > "$pathsTmp"
+				while [ $# -gt 0 ] ; do
+					local argPath="$1"
+					shift
+					local resolvedPath="$argPath"
+					case "$resolvedPath" in
+						/*) : ;;
+						*) resolvedPath="$skillRoot/$resolvedPath" ;;
+					esac
+					case "$resolvedPath" in
+						"$skillRoot"|"$skillRoot"/*) : ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --librarian-list-team-files: path outside skill-root, skipping: $argPath" >&2
+							hadError="true"
+							continue
+						;;
+					esac
+					if [ ! -e "$resolvedPath" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --librarian-list-team-files: not found, skipping: $resolvedPath" >&2
+						hadError="true"
+						continue
+					fi
+					find -L "$resolvedPath" -type f -name '*.md' 2>/dev/null >> "$pathsTmp" || true
+				done
+			fi
+
+			while IFS= read -r f ; do
+				printf '%s\n' "${f#"$skillRoot"/}"
+			done < "$pathsTmp" | sort
+
+			rm -f "$pathsTmp"
+			trap - EXIT
+			if [ "$hadError" = "true" ] ; then
+				set +e ; return 1
+			fi
+			return 0
+		;;
+
+		## Same as --librarian-list-team-files above (find-based scope
+		## resolution/error handling, identical argument grammar), but with
+		## a per-file modification date printed alongside each path -- the
+		## real reason this is a separate op rather than a flag on the plain
+		## version: the per-file stat call this needs is real, measured
+		## overhead (~3s over the full 678-file skill-root vs. sub-second for
+		## the plain listing), so a caller who only needs paths (the more
+		## common case) shouldn't pay for dates it isn't asking for. BSD stat
+		## then GNU stat fallback, inlined directly here rather than factored
+		## into a shared helper function, per this file's actual convention:
+		## logic stays inline within the case arm; a `source`d include file,
+		## never a function, is the answer if an arm gets too long. Normalized to a common
+		## "YYYY-MM-DD HH:MM:SS" width on both platforms -- GNU stat's own
+		## %y includes sub-second precision + a timezone offset by default,
+		## trimmed to the same 19 characters as BSD's explicit -t format so
+		## output sorts/compares consistently regardless of which stat
+		## flavor actually answered. Carries the same `*.md`-only whitelist as
+		## --librarian-list-team-files above, and must stay identical to it --
+		## see that op's own note for the reasoning and for the
+		## non-`*.md`-scope-argument corner. Prints one line per matched file: mtime
+		## ("YYYY-MM-DD HH:MM:SS") then two spaces then the path relative to
+		## the skill-root (never absolute), sorted newest-first -- the most
+		## useful order for the actual trigger case (confirming a
+		## just-edited batch of files really did just change).
+		--librarian-list-team-files-dates)
+			shift
+			local skillRoot="$HOME/.claude/skills"
+			local hadError="false"
+			local pathsTmp
+			pathsTmp="$( mktemp )" || { set +e ; return 1 ; }
+			trap 'rm -f "$pathsTmp"' EXIT
+
+			## INVARIANT: see --librarian-list-team-files above -- all four
+			## `find` calls in this file carry the identical `-name '*.md'`
+			## filter and must stay identical to one another.
+			if [ $# -eq 0 ] ; then
+				find -L "$skillRoot" -type f -name '*.md' 2>/dev/null > "$pathsTmp" || true
+			else
+				: > "$pathsTmp"
+				while [ $# -gt 0 ] ; do
+					local argPath="$1"
+					shift
+					local resolvedPath="$argPath"
+					case "$resolvedPath" in
+						/*) : ;;
+						*) resolvedPath="$skillRoot/$resolvedPath" ;;
+					esac
+					case "$resolvedPath" in
+						"$skillRoot"|"$skillRoot"/*) : ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --librarian-list-team-files-dates: path outside skill-root, skipping: $argPath" >&2
+							hadError="true"
+							continue
+						;;
+					esac
+					if [ ! -e "$resolvedPath" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --librarian-list-team-files-dates: not found, skipping: $resolvedPath" >&2
+						hadError="true"
+						continue
+					fi
+					find -L "$resolvedPath" -type f -name '*.md' 2>/dev/null >> "$pathsTmp" || true
+				done
+			fi
+
+			while IFS= read -r f ; do
+				local mtime relPath
+				mtime="$( stat -f '%Sm' -t '%Y-%m-%d %H:%M:%S' "$f" 2>/dev/null || stat -c '%y' "$f" 2>/dev/null | cut -c1-19 )"
+				relPath="${f#"$skillRoot"/}"
+				printf '%s  %s\n' "$mtime" "$relPath"
+			done < "$pathsTmp" | sort -r
+
+			rm -f "$pathsTmp"
+			trap - EXIT
+			if [ "$hadError" = "true" ] ; then
+				set +e ; return 1
+			fi
+			return 0
+		;;
+
+		##
+		## magic-librarian's own inbox-clearing pair. The dispatcher reaches
+		## this whole file by a single `--librarian-*)` glob arm, so a third op
+		## added later needs an arm HERE and no dispatcher edit at all -- the
+		## reverse of the exact-match routing these ops were originally written
+		## under.
+		##
+		## One stub per routine step, each carrying its own validation even
+		## where the two overlap, both over the one shared --intern-op-*
+		## implementation -- the same convention --magic-board-to-* and
+		## --magic-grooming-to-* already follow.
+		##
+
+		## <team-member> <item-filename> --from-inbox:<member>
+		##
+		## Discards one already-processed inbox item: <member>'s own inbox
+		## processed/ area -> trash/.
+		##
+		## NOT UNDOABLE BY TOOLING. Two different things are true here and the
+		## earlier wording ("REVERSIBLE") collapsed them: the FILE survives,
+		## because trash/ relocates rather than deletes, so it can be restored
+		## by hand. The OPERATION has no inverse -- --intern-op-board-trash
+		## refuses --untrash for an inbox-sourced item outright, since it
+		## restores into board/<state> and an item taken out of
+		## inboxes/<member>/processed/ has no board state to return to.
+		##
+		## Stated this way deliberately: a reader deciding how carefully to
+		## check a batch before running it would take "REVERSIBLE" as the
+		## tooling's word that a mistake is recoverable by tooling, which it
+		## is not. Per-item trash provenance would change this, and is
+		## deliberately not added with this arm.
+		--librarian-inbox-item-trash)
+			shift
+			## <team-member> captured for future logging/validation, unused
+			## today -- tooling operation discipline convention, same as every
+			## --magic-board-* sibling.
+			local callingMember="$1"
+			shift || true
+			local itemName="$1"
+			shift || true
+			if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-item-trash: syntax is <team-member> <item-filename> --from-inbox:<member>" >&2
+				set +e ; return 1
+			fi
+			local fromInboxArg=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--from-inbox:*) fromInboxArg="$1" ; shift ;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-item-trash: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ -z "$fromInboxArg" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-item-trash: --from-inbox:<member> is required" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "${fromInboxArg#--from-inbox:}" "--from-inbox: member name" "$MDSC_CMD --librarian-inbox-item-trash" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --librarian-inbox-item-trash" || { set +e ; return 1 ; }
+			case "$itemName" in
+				*.md) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-item-trash: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+					set +e ; return 1
+				;;
+			esac
+			DistroAgentsTools --intern-op-board-trash "$fromInboxArg" "$itemName" \
+				--context --librarian-inbox-item-trash
+			return $?
+		;;
+
+		## <team-member> <item-filename> --from-inbox:<member>
+		##   [--header:<upsert|append|remove>:name[:value]]...
+		##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		##
+		## Promotes one already-processed inbox item into board/retained.
+		##
+		## ONE-WAY DOOR, and that is the load-bearing fact about this op:
+		## --intern-op-board-upsert-move-edit's --from-inbox: source has no
+		## --to-inbox: counterpart. A board->board move reverses by swapping the
+		## two states; an inbox->board move has no inverse at all. Nothing here
+		## is "undo-able later" -- treat every call as final.
+		##
+		## NOT a contrast with the trash sibling above: that one has no tooling
+		## inverse either (--untrash is refused for an inbox-sourced item). An
+		## earlier draft of this block said the sibling "is recoverable via
+		## --untrash" -- it never was. What actually differs is where the
+		## ORIGINAL FILE ends up: the sibling leaves it in trash/, intact and
+		## restorable by hand; this op leaves it in trash/ too, but has already
+		## written a copy into board/retained/, so undoing it by hand means
+		## reversing two placements, not one.
+		##
+		## No auto-stamp, matching every --magic-board-to-* sibling: retained
+		## has no established always-set field, and any provenance the caller
+		## wants recorded rides the ordinary --header:* passthrough.
+		--librarian-inbox-to-retained)
+			shift
+			## <team-member> captured for future logging/validation, unused
+			## today -- same convention as the sibling above.
+			local callingMember="$1"
+			shift || true
+			local itemName="$1"
+			shift || true
+			if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-retained: syntax is <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+				set +e ; return 1
+			fi
+			local fromInboxArg=""
+			local passthrough=()
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--from-inbox:*) fromInboxArg="$1" ; shift ;;
+					--from-state:*)
+						echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-retained: --from-state: is not valid here -- this op moves an item out of a member inbox, never between board states. Use --magic-board-to-*/--magic-grooming-to-* for a board-to-board move." >&2
+						set +e ; return 1
+					;;
+					--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+						passthrough+=( "$1" ) ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-retained: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ -z "$fromInboxArg" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-retained: --from-inbox:<member> is required" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "${fromInboxArg#--from-inbox:}" "--from-inbox: member name" "$MDSC_CMD --librarian-inbox-to-retained" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --librarian-inbox-to-retained" || { set +e ; return 1 ; }
+			case "$itemName" in
+				*.md) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-retained: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+					set +e ; return 1
+				;;
+			esac
+			DistroAgentsTools --intern-op-board-upsert-move-edit retained "$itemName" \
+				"$fromInboxArg" \
+				--context --librarian-inbox-to-retained \
+				"${passthrough[@]}"
+			return $?
+		;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.Librarian.include own default (*) branch, the operation group sourced by the --librarian-* dispatcher route; no operation of that name is defined in this include" >&2
+		set +e ; return 1
+	;;
+
+esac

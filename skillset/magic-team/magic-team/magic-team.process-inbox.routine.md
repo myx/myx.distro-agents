@@ -23,7 +23,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **read-and-classify**: a status/block report, a request/question, a routine handoff, a reflection, something else. Not an exhaustive list — classify by what it actually says.
 2. **act-lightweight**: reply, route to another member or to `magic-coordinator`, or resolve inline if it's genuinely simple/obvious and within this member's own duties. Needs a formal board change and this isn't `magic-coordinator` running the pass: route to `magic-coordinator` rather than attempting the write.
-3. **reply-on-cross-member-handoff**: a reply/route/handoff touching another member (including routing to `magic-coordinator`) sends an immediate reply to `slack-magic-team` via the `--member-slack-send-message` operation — compact, who + what it relates to. `magic-coordinator` sends it even when it isn't the one who performed the underlying write. Self-writes to one's own inbox don't need one.
+3. **reply-on-cross-member-handoff**: a reply/route/handoff touching another member (including routing to `magic-coordinator`) sends an immediate reply to `slack-magic-team` via the `--member-comms-slack-send-message` operation — compact, who + what it relates to. `magic-coordinator` sends it even when it isn't the one who performed the underlying write. Self-writes to one's own inbox don't need one.
 4. **run-gc-in-heartbeat**: when `magic-coordinator` runs this for its own inbox as part of `routine-heartbeat`, run `routine-heartbeat`'s own GC sub-step — full mechanics live there, not restated here.
 
 **Not automatic just because a spawn happened**: a spawned session processes the executing member's own inbox only when its `.routine.md` Steps sequence contains an explicit `routine-process-inbox <that member>` call — a real step each routine's own file is responsible for including, same as any acting member's duties include reading its mail. A routine whose own Steps never contain this explicit call gives no guarantee its executor's inbox is ever read, no matter how routine its invocation looks.
@@ -62,7 +62,7 @@ All statements apply at the same time, always. These rules override a participan
 - An item needs a formal board change but this isn't `magic-coordinator` running the pass: always route, even if the fix looks small — not a case-by-case judgment call.
 - Unsure whether a cross-member touch is significant enough for an immediate reply to `slack-magic-team`: default to sending one.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
-- When `magic-coordinator` is the executor (own inbox, non-acting-owner content, or a board-formal-state write), it is obligated to keep `slack-event-track` activity tracking current — extends to the pass's broader progress, not just individual handoffs already covered by step 3.
+- When `magic-coordinator` is the executor (own inbox, non-acting-owner content, or a board-formal-state write), it is obligated to keep `slack-event-track` activity tracking current — extends to the pass's broader progress, not just individual handoffs already covered by **reply-on-cross-member-handoff**.
 - `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
@@ -71,11 +71,11 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-slack-send-message <team-member> <target> [text...]` (step 3: cross-member handoff immediate reply; Slack activity-tracking obligation)
+- `--member-comms-slack-send-message <team-member> <target> [text...]` (**reply-on-cross-member-handoff**: cross-member handoff immediate reply; Slack activity-tracking obligation)
 
-## `--member-slack-send-message` operation reference
+## `--member-comms-slack-send-message` operation reference
 
-`DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
 # Maintainer Notes
 

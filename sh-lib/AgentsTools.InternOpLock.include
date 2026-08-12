@@ -1,0 +1,313 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpLock.include -- the --intern-op-lock-* operation family
+## for DistroAgentsTools.fn.sh's dispatcher: acquire / refresh / release /
+## status. Sourced lazily from the `--intern-op-lock-*)` wildcard arm via the
+## standard $MDLT_ORIGIN-based path. Not standalone: relies on being
+## dot-sourced for $1/$@/$MDSC_CMD.
+##
+## WILDCARD ROUTE, not four exact-match arms. The sibling intern-ops are
+## one-op-per-file on exact-match arms, but each of those files holds exactly
+## ONE op; this file holds a four-verb family, which is the shape
+## --magic-heartbeat-*/--magic-grooming-*/--magic-advance-*/--magic-daily-*/
+## --magic-retro-* are already routed with. Routing a family by wildcard keeps
+## a future verb from needing a dispatcher edit, and the default (*) branch
+## below still rejects an unknown verb by name, so nothing silently falls
+## through.
+##
+## No --help entry: internal plumbing. The one shared implementation under
+## --magic-{heartbeat,advance,grooming,daily,retro}-lock-{acquire,refresh,release,status}
+## -- twenty stubs, each validating and forwarding its own allowed argument
+## set, none calling another.
+##
+## THE UNIFICATION
+##
+## Before this file there were two parallel mechanisms: a `mkdir` mutex
+## (routine-heartbeat's single-instance lock) and, separately, fixed
+## `*-state-and-lock.md` documents. They are one mechanism now -- the document
+## IS the lock -- with the transport chosen by configuration:
+##
+##   TEAM_DATA_GIT_REMOTE set   -> frontmatter + git; the push is the lock.
+##   TEAM_DATA_GIT_REMOTE unset -> the `mkdir` mutex, exactly as before.
+##
+## WHY `mkdir` STAYS, AND MUST NOT BE "SIMPLIFIED AWAY" LATER
+##
+## A file write is not atomic. Two writers both succeed, last-wins, and BOTH
+## come away believing they hold the lock -- with no error anywhere. The git
+## path gets its atomicity from the remote ref update, which is atomic and
+## rejects a non-fast-forward push; that is the whole basis of push-is-the-lock.
+## With no remote configured there is NO other atomic primitive available
+## here. `mkdir` is that primitive: it creates the directory or fails, with
+## nothing in between. Deleting the local branch as "duplicate logic" would
+## silently remove mutual exclusion from every board that has no remote --
+## which is currently every board. This is load-bearing, not legacy.
+##
+## STATE IS NOT TOUCHED BY THIS FILE
+##
+## This unifies LOCK semantics only. The `heartbeat-state-note`
+## (--magic-heartbeat-state-read/-upsert) stays exactly what it was: a state
+## record with at least six readers outside routine-heartbeat
+## (magic-team.armed.md, magic-team.board.md, routine-advance,
+## routine-communication-sweep, magic-librarian.armed.md,
+## routine-librarian-morning-review). No lock write ever lands in it -- each
+## routine locks against its OWN `*-state-and-lock.md` note instead, which is
+## why heartbeat has one of its own rather than borrowing the state note.
+##
+## ARGUMENTS
+##
+##   --intern-op-lock-acquire <team-member> <item-filename> <owner-label>
+##       [--header:<upsert|append|remove>:name[:value]]... --context <caller-op>
+##   --intern-op-lock-refresh <team-member> <item-filename>
+##       [--header:...]... --context <caller-op>
+##   --intern-op-lock-release <team-member> <item-filename>
+##       [--header:...]... --context <caller-op>
+##   --intern-op-lock-status  <team-member> <item-filename> --context <caller-op>
+##
+## No option name is introduced. `--header:*` and `--context` are established,
+## and each stub expresses its own routine's state values and recheck offset
+## through --header:upsert, the same way the --*-state-and-lock-upsert stubs
+## already do. <owner-label> is the existing heartbeat-lock vocabulary: the
+## running process/instance's own label, distinct from <team-member>. It is
+## also written as the note's `session-id`, so the git path's read-back has a
+## discriminator without inventing a second identity field.
+##
+
+## Resolves the lock's storage and the configured remote for every verb below.
+## Sets: lockNote, lockDir, lockMeta, lockRemote. Never prints; a missing
+## remote is the ordinary local case, not an error.
+AgentsToolsLockResolve(){
+	local itemName="$1"
+	lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/$itemName"
+	lockDir="$MDAT_DATA_ROOT/.runtime/$itemName.lock"
+	lockMeta="$lockDir/meta"
+	lockRemote=""
+	set +e
+	lockRemote="$( DistroAgentsTools --agents-config-option magic-coordinator --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+	set -e
+	return 0
+}
+
+case "$1" in
+
+	## Git configured: the state-and-lock upsert IS the acquire -- it writes
+	## the note, commits that one file, pushes, syncs everything back and
+	## decides ownership by reading the note's session-id back. Its exit
+	## status is the verdict, so this verb adds no second opinion on top.
+	##
+	## No remote: `mkdir` first, as the atomic gate, and only then the note.
+	## Order matters -- writing the note first would let two acquirers both
+	## produce a note and only afterwards discover one of them must lose.
+	## 900s stale reclaim is carried over unchanged from the mechanism this
+	## replaces, so a crashed holder still frees its lock on the same timing
+	## callers already expect.
+	--intern-op-lock-acquire)
+		shift
+		local opContext="<no --context given>" ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then opContext="$ctxArg" ; ctxWanted="" ; continue ; fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		local callingMember="$1" ; shift || true
+		local itemName="$1" ; shift || true
+		local ownerLabel="$1" ; shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] || [ -z "$ownerLabel" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-acquire (internal operation, invoked via $opContext): syntax is <team-member> <item-filename> <owner-label>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --intern-op-lock-acquire (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-acquire (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local lockNote lockDir lockMeta lockRemote
+		AgentsToolsLockResolve "$itemName"
+
+		if [ -z "$lockRemote" ] ; then
+			mkdir -p "$MDAT_DATA_ROOT/.runtime" || {
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-acquire (internal operation, invoked via $opContext): can't create runtime directory" >&2
+				set +e ; return 1
+			}
+			if mkdir "$lockDir" 2>/dev/null ; then
+				printf 'owner=%s\npid=%s\nstart=%s\nheartbeat=%s\n' "$ownerLabel" "$$" "$( date +%s )" "$( date +%s )" > "$lockMeta"
+			elif [ -f "$lockMeta" ] ; then
+				local hbAge hbOwner hbSince
+				hbOwner="$( LC_ALL=C awk -F= '/^owner=/{ print $2 ; }' "$lockMeta" )"
+				hbSince="$( LC_ALL=C awk -F= '/^start=/{ print $2 ; }' "$lockMeta" )"
+				hbAge=$(( $( date +%s ) - $( LC_ALL=C awk -F= '/^heartbeat=/{ print $2 ; }' "$lockMeta" ) ))
+				if [ "$hbAge" -gt 900 ] ; then
+					rm -rf "$lockDir" || true
+					mkdir "$lockDir" 2>/dev/null || true
+					printf 'owner=%s\npid=%s\nstart=%s\nheartbeat=%s\n' "$ownerLabel" "$$" "$( date +%s )" "$( date +%s )" > "$lockMeta"
+					echo "RECLAIMED_STALE:prev_owner=$hbOwner:age=${hbAge}s"
+				else
+					echo "ACTIVE:owner=$hbOwner:since=$hbSince:heartbeat_age=${hbAge}s"
+					set +e ; return 1
+				fi
+			else
+				echo "ACTIVE:owner=unknown:no_meta"
+				set +e ; return 1
+			fi
+		fi
+
+		DistroAgentsTools --intern-op-state-and-lock-upsert "$callingMember" "$itemName" \
+			--header:upsert:session-id:"$ownerLabel" \
+			"$@"
+		local acquireRc=$?
+		if [ "$acquireRc" -ne 0 ] ; then
+			## Git path only: the note lost the race. Nothing to unwind on the
+			## local path, which already returned above if it lost.
+			set +e ; return 1
+		fi
+		echo "ACQUIRED"
+		return 0
+	;;
+
+	## A real operation, not a side effect of writing content: a routine doing
+	## long work keeps its lock by calling this, exactly as the mechanism this
+	## replaces did. Git configured, it commits and pushes the lock file --
+	## re-asserting ownership against the remote through the same
+	## push-is-the-lock primitive that acquired it, not merely bumping a local
+	## timestamp. No remote, it refreshes the `mkdir` meta's heartbeat so a
+	## concurrent acquire does not mistake a slow-but-alive holder for a
+	## crashed one.
+	--intern-op-lock-refresh)
+		shift
+		local opContext="<no --context given>" ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then opContext="$ctxArg" ; ctxWanted="" ; continue ; fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		local callingMember="$1" ; shift || true
+		local itemName="$1" ; shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-refresh (internal operation, invoked via $opContext): syntax is <team-member> <item-filename>" >&2
+			set +e ; return 1
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-refresh (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local lockNote lockDir lockMeta lockRemote
+		AgentsToolsLockResolve "$itemName"
+
+		if [ -z "$lockRemote" ] ; then
+			if [ -d "$lockDir" ] && [ -f "$lockMeta" ] ; then
+				local metaTmp="$lockMeta.tmp.$$"
+				LC_ALL=C awk -v t="$( date +%s )" -F= 'BEGIN{ OFS="=" ; } /^heartbeat=/{ $2=t ; } { print ; }' "$lockMeta" > "$metaTmp" && mv "$metaTmp" "$lockMeta"
+			else
+				echo "NO_LOCK_HELD"
+				set +e ; return 1
+			fi
+		fi
+
+		if [ ! -f "$lockNote" ] ; then
+			echo "NO_LOCK_HELD"
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-state-and-lock-upsert "$callingMember" "$itemName" "$@"
+		local refreshRc=$?
+		if [ "$refreshRc" -ne 0 ] ; then
+			set +e ; return 1
+		fi
+		echo "REFRESHED"
+		return 0
+	;;
+
+	## Closure. The caller's own `--header:upsert:state:<routine>-finished`
+	## rides through, and the upsert's closure behaviour applies: a conflict
+	## at closure is reported and the close proceeds, because refusing to
+	## finish would leave the note at `*-running` and lock the next run out
+	## for a whole recheck window over a failure that no longer matters.
+	--intern-op-lock-release)
+		shift
+		local opContext="<no --context given>" ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then opContext="$ctxArg" ; ctxWanted="" ; continue ; fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		local callingMember="$1" ; shift || true
+		local itemName="$1" ; shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-release (internal operation, invoked via $opContext): syntax is <team-member> <item-filename>" >&2
+			set +e ; return 1
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-release (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local lockNote lockDir lockMeta lockRemote
+		AgentsToolsLockResolve "$itemName"
+		if [ -f "$lockNote" ] ; then
+			DistroAgentsTools --intern-op-state-and-lock-upsert "$callingMember" "$itemName" "$@" || true
+		fi
+		[ -z "$lockRemote" ] && rm -rf "$lockDir" || true
+		echo "RELEASED"
+		return 0
+	;;
+
+	## Read-only, ALWAYS returns 0 -- including when nothing is held. A live
+	## caller depends on that: routine-heartbeat's own `main` checks this
+	## before deciding whether to relay into an already-running main-loop or
+	## spawn a fresh one, and a non-zero "free" would read as a failed check
+	## rather than an available lock. `NO_LOCK` is a normal answer, not an
+	## error, the same contract the mechanism this replaces published.
+	--intern-op-lock-status)
+		shift
+		local opContext="<no --context given>" ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then opContext="$ctxArg" ; ctxWanted="" ; continue ; fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		local callingMember="$1" ; shift || true
+		local itemName="$1" ; shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-status (internal operation, invoked via $opContext): syntax is <team-member> <item-filename>" >&2
+			set +e ; return 1
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-lock-status (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local lockNote lockDir lockMeta lockRemote
+		AgentsToolsLockResolve "$itemName"
+
+		if [ -z "$lockRemote" ] ; then
+			if [ -f "$lockMeta" ] ; then cat "$lockMeta" ; else echo "NO_LOCK" ; fi
+			return 0
+		fi
+
+		## Git path: the document is the lock, so its own frontmatter answers.
+		## Held == state is not `*-finished` AND recheck-date has not passed by
+		## a full minute -- the same rule the routines' own start check uses.
+		if [ ! -f "$lockNote" ] ; then
+			echo "NO_LOCK"
+			return 0
+		fi
+		local stState stRecheck stEpoch stSession
+		stState="$( LC_ALL=C awk '/^state: /{ print substr($0, 8) ; exit ; }' "$lockNote" )"
+		stRecheck="$( LC_ALL=C awk '/^recheck-date: /{ print substr($0, 15) ; exit ; }' "$lockNote" )"
+		stSession="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$lockNote" )"
+		case "$stState" in
+			*-finished|'')
+				echo "NO_LOCK"
+				return 0
+			;;
+		esac
+		set +e
+		stEpoch="$( printf '%s\n' "$stRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk" 2>/dev/null )"
+		set -e
+		if [ -n "$stEpoch" ] && [ "$(( $( date +%s ) - stEpoch ))" -ge 60 ] ; then
+			echo "NO_LOCK"
+			return 0
+		fi
+		echo "ACTIVE:owner=$stSession:state=$stState:recheck_date=$stRecheck"
+		return 0
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.InternOpLock.include's own default (*) branch, the operation group sourced by the --intern-op-lock-* dispatcher route; no operation of that name is defined in this include" >&2
+		set +e ; return 1
+	;;
+esac

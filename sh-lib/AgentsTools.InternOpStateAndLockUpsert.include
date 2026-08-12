@@ -1,0 +1,501 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpStateAndLockUpsert.include -- the
+## --intern-op-state-and-lock-upsert op for DistroAgentsTools.fn.sh's
+## dispatcher. Sourced lazily from that exact op's own dispatcher arm (not a
+## wildcard -- this file holds one op only, same convention as
+## AgentsTools.InternOpMemberInboxUpsert.include) via the standard
+## $MDLT_ORIGIN-based path. Not standalone: relies on being dot-sourced for
+## $1/$@/$MDSC_CMD.
+##
+## No --help entry: this is internal plumbing. The one shared implementation
+## under --magic-grooming-state-and-lock-upsert and
+## --magic-advance-state-and-lock-upsert -- each of those stubs validates and
+## forwards its own allowed argument set, neither calls the other.
+##
+## <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]...
+##   [--from-file <path>|--edit-patch-from-stdin] --context <caller-op>
+##
+## Every option above is an already-established one. This op introduces no
+## option name of its own: the state values and the recheck offsets are
+## properties of the calling ROUTINE, so each stub hardcodes its own and
+## expresses them through the ordinary --header:upsert vocabulary. There is
+## deliberately no flag meaning "closing" -- a closing call is just the stub
+## upserting its own `*-finished` state value.
+##
+## THE PUSH IS THE LOCK
+##
+## This op writes a `*-state-and-lock.md` inbox note that is state and lock in
+## one document, then -- when, and only when, a git remote is configured for
+## the board -- commits THAT ONE FILE and pushes it. The push result is the
+## lock verdict: a rejected / non-fast-forward push means another holder got
+## there first, so the lock is lost and this op hard-fails. Nothing else is
+## committed: not the working tree, not the rest of the board. `git commit --
+## <path>` is path-limited precisely so a concurrent holder's unrelated
+## in-progress board edits are never swept into this commit.
+##
+## No pull happens here, deliberately. Pulling before the push would resolve
+## the very contention the push exists to detect, and would hand the lock to
+## whoever pulls last instead of whoever pushes first. The read side
+## (--*-input-scan) is where the board gets pulled.
+##
+## NETWORK FAILURE vs REJECTION -- the load-bearing distinction
+##
+## These two look alike (both are "git push exited non-zero") and mean
+## opposite things. A network failure means we do not know who holds the lock;
+## a rejection means we know we do not. Misreading a rejection as a network
+## blip makes this op sleep 15s and retry into a lock it does not hold, which
+## breaks mutual exclusion SILENTLY -- no error, two routines running, both
+## believing they are alone. So: rejection patterns are tested FIRST, network
+## patterns second, and anything unrecognized fails closed (treated as lock
+## lost, never as "probably fine"). An unknown git error is not evidence that
+## the push succeeded.
+##
+## Retry is exactly one, per spec ("sleep 15 seconds, then retry"), and the
+## retry's own result is classified by the same rules. Not a loop: an
+## unbounded retry against a down remote would hold a routine open
+## indefinitely, which is the failure mode the recheck-date exists to bound.
+##
+## NO GIT REMOTE CONFIGURED -> local-only, silent
+##
+## Git is conditional. The `TEAM_DATA_GIT_REMOTE` config option is set, or it
+## is not; when it is not, this op writes the note and returns success without
+## a word about git. That is the spec's own "only if git remote is configured
+## for the board, not skillset duty, not need-to-know" -- a routine must
+## behave identically either way, so a missing remote is never an error, never
+## a warning, and never visible in this op's output.
+##
+## The remote comes from that config option, read through
+## `--agents-config-option --select` like every other key -- NOT from the
+## checkout's own `origin`. CONFIGURATION is what declares the board
+## git-backed; a checkout that merely happens to carry an origin is a
+## different statement, and reading one as the other would switch git sync on
+## for a board nobody configured for it.
+##
+## FRONTMATTER SKELETON ON FIRST CREATION -- silent-failure guard
+##
+## AgentsBoardItemHeaderOpsApply.awk applies header ops to frontmatter
+## delimited by two literal `---` lines. Handed a file with no such
+## delimiters, it has nowhere to land a `--header:upsert` and passes the body
+## through unchanged: the write "succeeds", the headers vanish, and the very
+## first lock this op ever takes silently has no state and no recheck-date at
+## all. So a missing target is created with a minimal skeleton FIRST, the same
+## way --intern-op-board-upsert-move-edit's own --create does, and the header
+## ops are applied to that.
+##
+## The skeleton carries ONLY fields that have a real value. It deliberately
+## does NOT pre-seed empty `state:` / `recheck-date:` / `session-id:` lines:
+## that awk matches an existing field as `^<name>: ` (with the trailing
+## space), so a valueless `state:` line does not match, the upsert appends a
+## SECOND `state: <value>` line at the frontmatter close, and the note ends up
+## with two of the same key -- the first of which, being the one a naive
+## reader hits first, is the empty one. Placeholder lines would actively
+## create the bug the skeleton exists to prevent.
+##
+## SECOND CALL SITE for AgentsBoardItemHeaderOpsApply.awk
+##
+## Until this op, that helper had exactly one caller
+## (--intern-op-board-upsert-move-edit). A helper with a single caller can
+## quietly grow that caller's assumptions, and a second consumer is where they
+## get tested. This op therefore uses it as-is and adapts nothing in it. Any
+## assumption found leaking through is a finding to report, not a licence to
+## edit the awk -- the existing caller is in production and does not move for
+## this one.
+##
+
+case "$1" in
+
+	--intern-op-state-and-lock-upsert)
+		shift
+		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
+		## own copy of this block for the full reasoning. Pre-scanned before any
+		## validation so every message here can name the invoking operation;
+		## the option loop below consumes it again as an ordinary option.
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): syntax is <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" "$MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+
+		## Inbox owner is FIXED to magic-coordinator, not an argument: both
+		## fixed-name state-and-lock notes live in that one inbox, and a
+		## caller must never be in a position to name a path or redirect the
+		## lock to some other member's inbox. Same "callers name the
+		## operation, never a path" rule the sibling --magic-heartbeat-state-*
+		## ops follow.
+		local inboxDir="$MDAT_DATA_ROOT/inboxes/magic-coordinator"
+		mkdir -p "$inboxDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): can't create inbox directory: $inboxDir" >&2
+			set +e ; return 1
+		}
+		local target="$inboxDir/$itemName"
+
+		local headerOpsFile
+		headerOpsFile="$( mktemp "${TMPDIR:-/tmp}/mdat-state-and-lock-headers.XXXXXX" )" || { set +e ; return 1 ; }
+
+		local content contentFromFile="false" bodyMode="" bodyModeCount=0
+		local headerOp headerSpec headerRest headerName headerValue
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--header:*)
+					headerSpec="${1#--header:}"
+					headerOp="${headerSpec%%:*}"
+					headerRest="${headerSpec#*:}"
+					case "$headerRest" in
+						*:*) headerName="${headerRest%%:*}" ; headerValue="${headerRest#*:}" ;;
+						*)   headerName="$headerRest" ; headerValue="" ;;
+					esac
+					if [ -z "$headerName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): --header:$headerOp: field name required" >&2
+						rm -f "$headerOpsFile" ; set +e ; return 1
+					fi
+					case "$headerOp" in
+						upsert|append)
+							if [ -z "$headerValue" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): --header:$headerOp:$headerName requires a value" >&2
+								rm -f "$headerOpsFile" ; set +e ; return 1
+							fi
+						;;
+						remove)
+							;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): --header: unrecognized operation: $headerOp (upsert/append/remove)" >&2
+							rm -f "$headerOpsFile" ; set +e ; return 1
+						;;
+					esac
+					printf '%s\t%s\t%s\n' "$headerOp" "$headerName" "$headerValue" >> "$headerOpsFile"
+					shift
+				;;
+				--from-file)
+					if [ -z "${2:-}" ] || [ ! -f "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): --from-file: file not found: ${2:-}" >&2
+						rm -f "$headerOpsFile" ; set +e ; return 1
+					fi
+					content="$( cat "$2" )"
+					contentFromFile="true"
+					bodyMode="file"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift 2
+				;;
+				--edit-patch-from-stdin)
+					bodyMode="patch"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift
+				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): --context: value required" >&2
+						rm -f "$headerOpsFile" ; set +e ; return 1
+					fi
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): unrecognized argument: $1" >&2
+					rm -f "$headerOpsFile" ; set +e ; return 1
+				;;
+			esac
+		done
+		if [ "$bodyModeCount" -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
+			rm -f "$headerOpsFile" ; set +e ; return 1
+		fi
+
+		## No bare-stdin body mode, unlike --intern-op-member-inbox-upsert.
+		## The common call by far is a header-only update (every iteration
+		## re-stamps state/recheck-date and touches nothing else), and a
+		## default-read-stdin op has no way to tell "no body given" from "an
+		## empty body given" -- it would block on, or silently blank, a note
+		## whose body the caller meant to keep. Body absent means body
+		## preserved, explicitly.
+		if [ "$bodyMode" = "patch" ] ; then
+			local patchJson existingContent contentFile patchFile
+			patchJson="$( cat )"
+			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
+			contentFile="$( mktemp "${TMPDIR:-/tmp}/mdat-state-and-lock-patch-content.XXXXXX" )" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+			patchFile="$( mktemp "${TMPDIR:-/tmp}/mdat-state-and-lock-patch-spec.XXXXXX" )" || { rm -f "$headerOpsFile" "$contentFile" ; set +e ; return 1 ; }
+			printf '%s' "$existingContent" > "$contentFile"
+			printf '%s' "$patchJson" > "$patchFile"
+			content="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" "$contentFile" "$patchFile" )" || { rm -f "$headerOpsFile" "$contentFile" "$patchFile" ; set +e ; return 1 ; }
+			rm -f "$contentFile" "$patchFile"
+		elif [ "$contentFromFile" = "true" ] ; then
+			:
+		elif [ -f "$target" ] ; then
+			content="$( cat "$target" )"
+		else
+			## First creation. Minimal skeleton -- real values only, no empty
+			## placeholder lines. See this file's own header comment for why a
+			## pre-seeded `state:` line would break the very first upsert.
+			content="$( printf '%s\n' \
+				'---' \
+				'type: note' \
+				"from: $callingMember" \
+				"date: $( date +"%Y-%m-%d %H:%M %z" )" \
+				'owner: magic-coordinator' \
+				'---' \
+				'' \
+				'# State and lock' \
+				'' \
+				'(no session content recorded yet)' )"
+		fi
+		if [ -z "$content" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): empty content -- refusing to write an empty state-and-lock note" >&2
+			rm -f "$headerOpsFile" ; set +e ; return 1
+		fi
+
+		if [ -s "$headerOpsFile" ] ; then
+			local bodyTmp
+			bodyTmp="$( mktemp "${TMPDIR:-/tmp}/mdat-state-and-lock-body.XXXXXX" )" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+			printf '%s\n' "$content" > "$bodyTmp"
+			content="$( LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" "$bodyTmp" )" || { rm -f "$headerOpsFile" "$bodyTmp" ; set +e ; return 1 ; }
+			rm -f "$bodyTmp"
+		fi
+		rm -f "$headerOpsFile"
+
+		printf '%s\n' "$content" > "$target"
+
+		##
+		## Git half. Everything above this point has already happened on disk
+		## and is not undone by a lock failure: the note IS the state record,
+		## and losing a race must not also lose the tactical status the
+		## routine just wrote into it.
+		##
+
+		## Remote comes from the TEAM_DATA_GIT_REMOTE config option, never from
+		## the checkout's own origin -- see this file's own header comment for
+		## why configuration and not the checkout is what decides. Read first:
+		## with no key set there is nothing to ask git about, so the git probe
+		## is not even attempted. Both are `set +e`-wrapped: an unset key and a
+		## non-repo board are the ordinary local-only case, not errors, and
+		## must not trip the caller's `set -e`.
+		local repoRoot="" originUrl=""
+		set +e
+		originUrl="$( DistroAgentsTools --agents-config-option magic-coordinator --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		if [ -n "$originUrl" ] ; then
+			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
+		fi
+		set -e
+		if [ -z "$originUrl" ] || [ -z "$repoRoot" ] ; then
+			## No git remote configured for the board: local-only, silently.
+			## Not a warning -- see this file's own header comment.
+			echo "# $MDSC_CMD --intern-op-state-and-lock-upsert: wrote $target ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+			return 0
+		fi
+
+		## Is this note a `*-finished` closure? Read back from the file just
+		## written, not from an argument: the stub expresses closure by
+		## upserting its own `*-finished` state value, and this op has no
+		## flag for it by design. On closure a conflict is reported and the
+		## close proceeds; mid-run a conflict is a hard lock failure.
+		local isClosing="false"
+		case "$( LC_ALL=C awk '/^state: /{ print substr($0, 8) ; exit ; }' "$target" )" in
+			*-finished) isClosing="true" ;;
+		esac
+
+		## Commit exactly this one file. `-- "$target"` makes the commit
+		## path-limited: whatever else is staged or dirty in the board
+		## checkout is another session's business and is not swept in here.
+		local gitOut="" gitRc=0
+		set +e
+		gitOut="$( git -C "$repoRoot" add -- "$target" 2>&1 )"
+		gitRc=$?
+		set -e
+		if [ "$gitRc" -ne 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): git add failed for $target: $gitOut" >&2
+			set +e ; return 1
+		fi
+
+		## --allow-empty is MANDATORY here, and is a fix for a measured defect,
+		## not a defensive nicety. Without it: `recheck-date` has minute
+		## resolution (the team's own `date-time` shape), so two calls inside
+		## the same minute write byte-identical notes, git finds nothing to
+		## commit, and an "unchanged, nothing to push" early return hands back
+		## SUCCESS having never pushed at all -- which means never having
+		## contested the lock. Measured live against a rival holder that had
+		## already pushed: the op returned 0 and the routine would have
+		## continued, believing it held a lock another holder owned. That is
+		## the silent mutual-exclusion break this whole classification exists
+		## to prevent, reached on the first adversarial run.
+		##
+		## The push is the lock, so there must ALWAYS be something to push:
+		## an empty commit still contests the ref and is still rejected when
+		## we are behind. Do not "optimize away" the empty commit -- the
+		## no-op-looking commit IS the lock acquisition. Raising
+		## recheck-date's resolution to seconds would also mask this, but it
+		## would leave the same hole open for any future field that happens to
+		## be unchanged, and it would break the team's own date-time format.
+		set +e
+		gitOut="$( git -C "$repoRoot" commit --allow-empty -m "$MDSC_CMD --intern-op-state-and-lock-upsert: $itemName" -- "$target" 2>&1 )"
+		gitRc=$?
+		set -e
+		if [ "$gitRc" -ne 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): git commit failed for $target: $gitOut" >&2
+			set +e ; return 1
+		fi
+
+		## PUSH, THEN PULL AGAIN -- THE READ-BACK IS THE VERDICT.
+		##
+		## The push's own exit status is NOT the answer. A push can report
+		## success and still be superseded, and an unrecognized git error is
+		## not evidence either way. So the push is attempted, and then the
+		## remote's own copy of this one note is read back and its session-id
+		## compared against the one we just wrote. Ours -> we hold the lock.
+		## Someone else's -> they won, and this routine exits.
+		##
+		## Network failures still get one 15s retry (spec), because an
+		## unreachable remote is a "cannot check" rather than an answer. Every
+		## other push outcome falls through to the read-back, which decides.
+		local pushAttempt=1 pushOut="" pushRc=0
+		while : ; do
+			set +e
+			pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
+			pushRc=$?
+			set -e
+			[ "$pushRc" -eq 0 ] && break
+			case "$pushOut" in
+				*"Could not resolve host"*|*"could not resolve host"*|*"unable to access"*|*"Could not read from remote repository"*|*"Connection timed out"*|*"Connection refused"*|*"Operation timed out"*|*"Network is unreachable"*|*"connection reset"*)
+					if [ "$pushAttempt" -eq 1 ] ; then
+						echo "# $MDSC_CMD --intern-op-state-and-lock-upsert: push network failure, retrying once in 15s" >&2
+						sleep 15
+						pushAttempt=2
+						continue
+					fi
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): LOCK_UNCHECKABLE -- the remote was unreachable after one 15s retry, so whether this routine holds the lock is UNKNOWN, not lost; the local note is written but this routine must not continue: $pushOut" >&2
+					set +e ; return 1
+				;;
+			esac
+			break
+		done
+
+		## Step 5: pull again -- EVERYTHING, via git/cloneSync. This step does
+		## TWO jobs and both are load-bearing:
+		##   1. it answers "is the note mine?", the lock verdict; and
+		##   2. it brings in the whole board as the previous holder left it.
+		## Acquiring the lock is a HANDOFF, not just mutual exclusion: the
+		## instance that held it before us moved board items between states
+		## and rewrote frontmatter, so a routine that took the lock while
+		## holding a stale board would believe it had exclusive access and act
+		## on facts that were true minutes ago -- the exact failure the lock
+		## exists to prevent, wearing the appearance of correctness.
+		## Do NOT narrow this to a one-file read just because the verdict only
+		## needs one file. That was tried and ruled against twice.
+		##
+		## git/cloneSync, never git/clonePull: clonePull overwrites
+		## locally-generated content by design (it will wipe and re-clone a
+		## checkout), which is right for a generated tree and wrong for a
+		## board carrying other sessions' work. cloneSync merges instead.
+		##
+		## `--no-push` is required, and is a lock-correctness constraint, not
+		## tidiness: without it cloneSync pushes after pulling, so a losing
+		## acquirer whose push was just rejected would merge the winner's note
+		## and then push the merge -- winning the lock by merging, which
+		## defeats the entire mechanism. Read-back never writes.
+		local localSessionId="" remoteSessionId="" syncOut="" syncRc=0 lockBranch=""
+		set +e
+		lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )"
+		set -e
+		## Captured BEFORE the sync: the sync can rewrite this very file, and
+		## the whole comparison depends on knowing what WE wrote.
+		localSessionId="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$target" )"
+		set +e
+		syncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
+		syncRc=$?
+		set -e
+		if [ "$syncRc" -ne 0 ] ; then
+			## Losing acquirer: our push did not land, so our own commit has
+			## diverged from the board and the sync cannot be taken. RECONCILE
+			## FIRST, THEN COMPARE. The verdict must always come from step 6's
+			## session-id comparison, never from a sync failure -- a sync
+			## failure is not an answer about ownership, and reading it as one
+			## makes the outcome depend on the box's own git configuration
+			## (measured: an unset `pull.rebase` turns divergence into "Need
+			## to specify how to reconcile divergent branches", so the same
+			## race would fail differently on a differently-configured
+			## machine).
+			##
+			## Only OUR OWN commit and OUR OWN one file are undone. Never
+			## `git reset --hard` here: that discards other sessions'
+			## uncommitted board work, which is the single thing acquiring a
+			## lock must never do. `--soft` keeps every other change intact,
+			## and the note is then restored to its pre-commit state, or
+			## removed if this session was the one that created it.
+			local relPath="${target#"$repoRoot"/}"
+			set +e
+			git -C "$repoRoot" reset --soft HEAD~1 >/dev/null 2>&1
+			git -C "$repoRoot" reset -- "$relPath" >/dev/null 2>&1
+			if git -C "$repoRoot" cat-file -e "HEAD:$relPath" 2>/dev/null ; then
+				git -C "$repoRoot" checkout -- "$relPath" >/dev/null 2>&1
+			else
+				rm -f "$target"
+			fi
+			syncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
+			syncRc=$?
+			set -e
+			if [ "$syncRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): LOCK_UNCHECKABLE -- the board could not be synced even after discarding this session's own commit, so ownership is UNKNOWN, not lost; this routine must not continue: $syncOut" >&2
+				set +e ; return 1
+			fi
+		fi
+
+		## Step 6: is the note now on the board MINE? session-id is the
+		## discriminator, and it is the field the specification already gives
+		## this note for exactly this purpose -- no new field invented.
+		## Content comparison would NOT work here: two acquirers writing in
+		## the same minute produce byte-identical notes (state and
+		## recheck-date both match), so content equality would tell both of
+		## them they had won. Measured earlier in this same op's own history:
+		## same-minute identical bytes is a real, reachable condition, not a
+		## theoretical one.
+		remoteSessionId="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$target" 2>/dev/null )"
+		if [ -z "$localSessionId" ] ; then
+			## Ownership cannot be established without the identifier the note
+			## is specified to carry. Refusing rather than assuming -- an
+			## acquirer that cannot prove the note is its own has not proven
+			## it holds the lock.
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): LOCK_UNCHECKABLE -- no session-id on the note, so ownership cannot be read back and is UNKNOWN; pass --header:upsert:session-id:<id>; routine must not continue" >&2
+			set +e ; return 1
+		fi
+		if [ "$remoteSessionId" = "$localSessionId" ] ; then
+			echo "# $MDSC_CMD --intern-op-state-and-lock-upsert: wrote, pushed and read back $target -- lock held by session-id $localSessionId" >&2
+			return 0
+		fi
+
+		if [ "$isClosing" = "true" ] ; then
+			## Closure: report the error, close anyway. The routine is ending
+			## either way, and refusing to finish would leave the note stuck
+			## at `*-running` -- locking the next run out for a full
+			## recheck-date window over a failure that no longer matters.
+			echo "⚠️ WARNING: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): closing update did not land -- closing anyway, local note is written: $pushOut" >&2
+			return 0
+		fi
+
+		## Read-back showed a different session-id: another acquirer's note is
+		## on the board, so this one lost. The verdict comes from the
+		## read-back, not from the push's own exit status.
+		echo "⛔ ERROR: $MDSC_CMD --intern-op-state-and-lock-upsert (internal operation, invoked via $opContext): LOCK_LOST -- the board's state-and-lock note belongs to session-id '$remoteSessionId', not '$localSessionId'; another holder has the lock; this routine must not continue" >&2
+		set +e ; return 1
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.InternOpStateAndLockUpsert.include's own default (*) branch, the operation group sourced by the --intern-op-state-and-lock-upsert dispatcher route; no operation of that name is defined in this include" >&2
+		set +e ; return 1
+	;;
+esac

@@ -35,8 +35,9 @@ Doesn't do: daily status reporting (`routine-daily`'s job).
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **session-start**: execute `routine-coworking`'s Steps — grooming is coworking-like, so its coworking-gated parts apply.
-1. **gather-the-backlog**
+1. **acquire-lock**: Acquire this routine's own lock — a single `--magic-grooming-lock-acquire` call, before anything else in this routine runs. `ACQUIRED`, or a reclaim of a dead holder's lock, means go. Contention means another `routine-grooming` is live: this pass does not start, and nothing below runs.
+2. **session-start**: execute `routine-coworking`'s Steps — grooming is coworking-like, so its coworking-gated parts apply.
+3. **gather-the-backlog**
    - Read all of `the board`:
      - every permanent member's open, deferred, or "not yet done" items
      - across `running/`, `blocked/`, and `parked/`
@@ -47,8 +48,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - `routine-ingest-task`
        - a member writing directly into its own or another's inbox (a genuine write by that member itself, not routed through `magic-coordinator` first)
    - Mechanically, this read happens as:
-     - the board half: `--magic-grooming-input-scan` operation — a fixed, read-only scan, always `backlog`/`pending`/`running`/`blocked`/`parked`, `--all-types`, every frontmatter field (wider than this step's own `running/`/`blocked/`/`parked/` wording above — flagged, not yet reconciled)
+     - the board half: `--magic-grooming-input-scan` operation — a fixed, read-only scan returning the open board items this step works from, each with its current state and frontmatter
      - the inbox half: no mechanized equivalent — still a direct read
+   - **Session tracking**: this routine's own `state-and-lock` note comes back with that scan, as part of this routine's own input. It is this pass's tracking document — the tactical status, and whatever the next pass needs to pick up from here. Reference `TEAM-DATA` rather than copying it, to keep it compact. Write it via the `--magic-grooming-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close. Holding the lock across a long pass is a separate obligation: call `--magic-grooming-lock-refresh` periodically — writing content does not itself hold the lock.
    - This is the same real backlog `magic-coordinator`'s Prioritize section already points to; grooming is where that backlog gets actively worked, not just consulted.
    - Sub-checks, also part of gathering:
      - **Roster/tooling recheck** (grooming-cadence, not every routine):
@@ -64,21 +66,21 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - run it here instead: refresh the OAuth token, then `files.list` ordered by `modifiedTime desc`
      - **Human-action-required items**:
        - collect items that are generally approved but need the human-owner's own hands-on action (Slack app config, OAuth scope grants, and similar) as they accumulate; consolidate into one batch
-       - **send this batch, don't just file it**: fire it directly via `--member-slack-send-message` operation, as part of this same pass:
-         - at step 5's "Review with the user" conversation, if the user is live, or
+       - **send this batch, don't just file it**: fire it directly via `--member-comms-slack-send-message` operation, as part of this same pass:
+         - at **review-with-the-user**, if the user is live, or
          - proactively, once this step's gather is done —
          - whichever comes first
        - don't write a `note-2026-08-05-human-decision-batch.md` item and assume some other routine will later notice and pick it up (no routine's Steps currently do that)
        - the note is still filed in `board-processed` afterward, as the record of what was asked and when — not as the trigger mechanism itself
-     - **Process own inbox** (every grooming pass, not cadence-gated like the roster recheck): run `routine-process-inbox magic-coordinator` (the confirmed default executor for this joint-executor routine) — inline execution (own identity). Fresh inbox items not yet on the board, gathered here so step 2 triages them alongside the open backlog. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
-2. **triage-per-item**
+     - **Process own inbox** (every grooming pass, not cadence-gated like the roster recheck): run `routine-process-inbox magic-coordinator` (the confirmed default executor for this joint-executor routine) — inline execution (own identity). Fresh inbox items not yet on the board, gathered here so **triage-per-item** triages them alongside the open backlog. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
+4. **triage-per-item**
    - For each open item, narrate its owning member deciding what happens to it. Same narrated-pass style as `routine-daily`'s roll call — this is not a full agent spawn per item. The outcome is one of:
      - **Keep** — as-is
      - **Defer**
      - **Reassign** — to a different member
      - **Split** — into smaller pieces
      - **Drop** — stale, no longer relevant
-   - RICE scoring is its own dedicated pass (step 3, below), not folded in here — this step decides an item's *state*, step 3 decides its *numbers*.
+   - RICE scoring is its own dedicated pass (**rescore-backlog-rice**, below), not folded in here — this step decides an item's *state*, that one decides its *numbers*.
    - **State transitions and their own re-check happen atomically.** When any part of this step moves an item into a state that has its own separate re-check procedure below (for example, the `board-blocked` re-check, the `board-running` in-place testing re-check), run that re-check right away, as part of the same move — not deferred to the next grooming pass. This rule applies everywhere in this step, not just at one spot.
    - **General resume-review delegation**:
      - when an item's type has an owning routine that defines its own `resume-review` procedure, run that procedure on pickup first — before judging this item's own triage outcome — so triage works from current content, not a stale snapshot
@@ -98,10 +100,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - when it instead genuinely needs human-owner-level approval, the authority group makes two calls: `--magic-grooming-create-pending` for the `approval-*` item that runs the negotiation, which `routine-advance` then promotes, and `--magic-grooming-create-blocked` for the promoted item (see the board's own `board-backlog` entry for the full mechanic)
        - each of these is the item's first write, not a move of an existing file: a `--magic-grooming-create-<state>` call, which takes a body-input mode and rejects `--from-state:`
        - `owner`, `groomed-at` and `track:true` are stamped; `groomed-from` is not
-   - **Attach `source-slack-channel`/`source-slack-ts` at promotion time, when the item genuinely traces to one originating Slack message**:
-     - when promoting an inbox item (or any item created directly during this pass) that started life as a specific Slack DM/channel message — not a migration artifact, not an indirect mention — record that message's channel id and ts in the new Item's frontmatter right then, at creation/promotion, not as a deferred cleanup
-     - this is what makes the board's own Slack-reaction-on-resolution mechanism (and `magic-coordinator`'s `check-pending-comms-actions` procedure) actually able to find the right message later — a promoted item with no `source-slack-channel`/`source-slack-ts` is invisible to that mechanism even when a real originating message exists
-     - `--header:upsert:source-slack-channel:<value>` and `--header:upsert:source-slack-ts:<value>` on that same create call — not a separate write
+   - **Attach `communication-channel-id` at promotion time, when the item genuinely traces to one originating Slack message**:
+     - when promoting an inbox item (or any item created directly during this pass) that started life as a specific Slack DM/channel message — not a migration artifact, not an indirect mention — record that message as one composed `slack:<channel>:<ts>` value in the new Item's frontmatter right then, at creation/promotion, not as a deferred cleanup
+     - this is what makes the board's own Slack-reaction-on-resolution mechanism (and `magic-coordinator`'s `check-pending-comms-actions` procedure) actually able to find the right message later — a promoted item with no `communication-channel-id` is invisible to that mechanism even when a real originating message exists
+     - `--header:upsert:communication-channel-id:<value>` on that same create call — one header, not a separate write
    - **Duplicate-check, before settling on one of the outcomes above**:
      - for each inbox item, do a quick, cheap look — is this a duplicate of (or cleanly mergeable with) something already sitting in:
        - the same member's inbox
@@ -123,7 +125,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - the merged item's `superseded-by` + `board-processed` landing: a single `--magic-grooming-to-processed` call
        - an item never filed on the board, landing in `board-processed` for the first time: a fresh create, not a move
    - **Cross-member handoff → immediate reply**:
-     - whenever this step's outcome creates or updates a cross-member item (one member's item now owned by/assigned to another, not a self-write), that's the trigger point for `routine-process-inbox`'s own step 3 — send the compact who+`references` reply to `slack-magic-team` as part of closing out that item's triage, not as a separate deferred step
+     - whenever this step's outcome creates or updates a cross-member item (one member's item now owned by/assigned to another, not a self-write), that's the trigger point for `routine-process-inbox`'s own **reply-on-cross-member-handoff** — send the compact who+`references` reply to `slack-magic-team` as part of closing out that item's triage, not as a separate deferred step
      - since `magic-coordinator` is the board's sole writer, this covers both halves: the ask itself and this step's resulting decision
      - peer-to-peer asks made outside grooming get the same treatment at the moment coordinator acts on them, via `routine-process-inbox`, not retroactively at the next grooming pass
    - **Triage verbs mapped onto board states**: for items already living in `board-backlog`, `board-pending`, or `board-running` (not just fresh inbox items), this same keep/defer/reassign/split/drop vocabulary applies:
@@ -157,8 +159,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **Slack-reaction closeout**:
      - this step does not react to Slack messages on promotion/move
      - the reaction mechanism: execute `magic-coordinator`'s `check-pending-comms-actions` procedure
-     - this step's only obligation on `source-slack-channel`/`source-slack-ts` (see the team's own Item entity model): carry the fields unchanged across any promotion/move — never react to the message itself, never drop or re-derive the fields
-       - concretely: whenever a move re-assembles the item's content into the new state, these two fields must be copied over verbatim, not omitted or regenerated
+     - this step's only obligation on `communication-channel-id` (see the team's own Item entity model): carry the field unchanged across any promotion/move — never react to the message itself, never drop or re-derive the field
+       - concretely: whenever a move re-assembles the item's content into the new state, this field must be copied over verbatim, not omitted or regenerated
      - full mechanic and rationale: `magic-coordinator`'s `check-pending-comms-actions` procedure, and the board's own `processed/`/`archived/` cross-cutting entry
    - **`board-blocked` re-check — four real outcomes, not just "still blocked or not"**: grooming is where `blocked/` items get periodically revisited — not every pass needs to resolve every one, but each should at least get a quick "has anything changed" glance. For each, the authority group's assessment lands on one of:
      - **Escalate** — push for resolution now (chase the human-owner's answer, investigate an alternative, whatever moves it). Stays `blocked/` while the escalation is in flight.
@@ -187,7 +189,11 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - the fast-gate rules (`magic-coordinator`'s own "Dispatch & delegation" standard) are a narrow, fast gate on whether a proposed task should even be allowed to exist (a permission/mandate check, can auto-reject), run early, typically right at intake
      - the staged lifecycle above is about whether a task that *does* pass that gate is actually well-formed and ready to commit to (a quality/readiness check, always needs real judgment, never auto-anything) — it's what a promoted item goes through on its way from `board-backlog` to `board-pending`, per the Advancement review above, not a substitute for it
 
-3. **rescore-backlog-rice**
+5. **assess-finished-unresolved**
+   - Pick up every item carrying `processed-at` with no `resolved-at` — finished, awaiting assessment, and otherwise indistinguishable from work still in progress.
+   - Assess each and decide its outcome, then record it: `--header:upsert:resolved-at:<value>` on a single same-state `--magic-grooming-to-<its current state>` call, `--from-state:` set to that same state.
+   - No outcome decidable this pass: leave `resolved-at` unset and say why — it stays visible here next pass rather than being silently closed.
+6. **rescore-backlog-rice**
    - Do this every grooming — not just for newly-triaged items.
    - Before reprioritizing, re-score **every** open task and project across the board's states:
      - **`board-backlog`** — freshly-triaged, not yet assessed
@@ -196,15 +202,15 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **`board-blocked`** — stalled on external/human-owner action
      - **`board-parked`** — deliberately deferred or waiting on external state change/check
    - The four normalized dimensions (Profit/Cost/Time/Dependencies) are relative to the whole current backlog, so an item that didn't change can still need a new number purely because something around it did.
-   - Do this as one pass over the whole set, not folded item-by-item into step 2's triage — triage decides an item's *state*, this decides its *numbers*, and both use the same current-backlog snapshot to stay consistent with each other.
-4. **reprioritize-across-members**
+   - Do this as one pass over the whole set, not folded item-by-item into **triage-per-item** — triage decides an item's *state*, this decides its *numbers*, and both use the same current-backlog snapshot to stay consistent with each other.
+7. **reprioritize-across-members**
    - Apply the coordinator's own important-vs-eager distinction across the triaged, re-scored set — informed by the RICE numbers but not decided by them alone.
    - Surface blockers/dependencies between items explicitly rather than leaving a flat list, since a high score doesn't jump a queue if something else blocks it. This is where the coordinator's cross-team view earns its keep.
    - `blocks:`/`blocked-by:` are already recorded on the board-item files themselves — read them directly as part of this pass, don't recompute here.
    - **Prefer the nearest-to-approval item, not just the biggest-value one** — same discipline `routine-interview`'s own nearest-to-approval rule (its Local rules) applies to open questions, generalized here to backlog items:
      - when several items are otherwise close in priority, favor whichever has the smallest remaining scope/assumption gap and the highest likelihood of a clean approval, regardless of its own size
      - a large-but-ready item can still outrank a smaller-but-still-fuzzy one, and vice versa; readiness is its own axis, not just RICE's Cost/Time/Dependencies
-5. **review-with-the-user**
+8. **review-with-the-user**
    - This is a conversation, not a report.
    - Present the reprioritized, re-scored backlog and let the user reorder, push back, or approve before it's considered final.
 
@@ -216,7 +222,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - the `slack-magic-team`/Trello broadcast
      - the skill-update-discussion offer
    - All apply here — grooming is coworking-like.
-   - No status-file GC step exists in `routine-coworking`'s Closure Steps; this routine's own triage pass (step 2) is where drop/split decisions actually happen.
+   - No status-file GC step exists in `routine-coworking`'s Closure Steps; this routine's own triage pass (**triage-per-item**) is where drop/split decisions actually happen.
+2. **close-state-and-unlock**
+   - Write the pass's closing status into the `state-and-lock` note via `--magic-grooming-state-and-lock-upsert`, then release the lock via `--magic-grooming-close-state-and-unlock`. That order is required: the release is what sets `state: grooming-finished`, and a content write after it would put the note back to running. Until the release lands, the next pass sees this one as still running.
 
 # Routine's local procedures
 
@@ -226,18 +234,18 @@ Named procedure blocks. Steps above call them by name. Not separate routines - n
 
 Single source for whether/how a `board-backlog` item advances — into `board-pending` or `board-blocked`. Once there, `routine-advance`'s own `check-execute-board` procedure takes over.
 
-Go through every `board-backlog` item, same per-item pass as triage (Step 2), not a separate sweep.
+Go through every `board-backlog` item, same per-item pass as **triage-per-item**, not a separate sweep.
 
 Rules by filename prefix:
 
 Each item is a tracking document. Where a rule below opens or resumes work on one, it spawns the group that item's `participants` record names, handing each member the goal, the task, the document itself, and that prefix's own rule below; a prefix may also have a routine assigned. A prefix with no rule yet stated is a deferral to complete, not a licence to improvise per item.
 
 - `interview-*` / `talk-*` / `task-*` / `proposal-*`, zero activity since posting (`task-*`/`proposal-*` only when explicitly awaiting interview, not yet ingested — read content first, ordinary grooming material can look interview-shaped from its title alone):
-  - Interactive-ownership check first: read `owner-session` frontmatter (set by `magic-team.interview.routine.md` step 1). If `owner-session: interactive` is present and `owner-session-since` is fresh (within ~1 hour), skip — a live session already owns it.
+  - Interactive-ownership check first: read `owner-session` frontmatter (set by `magic-team.interview.routine.md`'s **open-channel-and-create-item**). If `owner-session: interactive` is present and `owner-session-since` is fresh (within ~1 hour), skip — a live session already owns it.
   - Otherwise, open or continue the interview thread via the already-sanctioned `routine-interview`/`routine-communication-sweep` Slack mechanism (not a new authority grant — a communication sweep already does this routinely).
   - Once the thread is genuinely active, move the item to `board-pending` via `--magic-grooming-to-pending`.
 - Any other type:
-  - Dependencies clear (`blocked-by`/`dependency-note` empty or already resolved) and priority confirmed (present authority group's own consensus this pass, not gated on Step 3's later RICE re-score):
+  - Dependencies clear (`blocked-by`/`dependency-note` empty or already resolved) and priority confirmed (present authority group's own consensus this pass, not gated on **rescore-backlog-rice**'s later pass):
     - Nobody dissents → `--magic-grooming-to-pending` operation, `approved-by`/`approved-at` set, moves the item to `board-pending`.
   - Dependency still open, confirmed this pass:
     - `--magic-grooming-to-blocked` operation, with a note. No `approval-*` — not a human decision.
@@ -255,7 +263,7 @@ Quorum: `magic-coordinator` + `magic-librarian` + `magic-architect`, jointly —
 - Item's own scope or assumptions have shifted enough that its current triage state no longer reflects reality — not just "still blocked"/"still parked," the framing itself is stale:
   - Quorum agrees → `--magic-grooming-to-backlog` operation, `--from-state:<state>` set to the item's actual current state, with a note explaining what triggered the recall.
     - Item carries `approved-by`/`approved-at` → clear both in the same call; re-earned via `check-backlog-promote` on its next pass, not carried over.
-  - Quorum disagrees → resolve through real discussion, same as the rest of Step 2's triage; never a silent default; escalate to the human-owner if genuinely unresolved.
+  - Quorum disagrees → resolve through real discussion, same as the rest of **triage-per-item**; never a silent default; escalate to the human-owner if genuinely unresolved.
 - Framing still holds:
   - Quorum agrees → no state move; update frontmatter only if something narrower changed (owner, `recheck-date`, a note).
 
@@ -274,12 +282,12 @@ All statements apply at the same time, always. These rules override a participan
 - RICE re-scoring and per-item triage are separate passes with separate purposes (state vs. numbers) — never folded into each other, even though they happen in the same session.
 - The task-creation lifecycle (investigation → `magic-architect` → `magic-librarian` → `magic-coordinator` polished proposal → human-owner only on real doubt) is not optional for a promoted item — `magic-coordinator`'s own "Dispatch & delegation" fast-gate rules are a separate, narrower permission check, not a substitute.
 - `blocked/`'s "stays blocked" outcome requires a real attempt that pass — a silent no-op re-confirmation is not a legitimate outcome.
-- Slack-reaction closeout is not this routine's job — `magic-coordinator`'s `check-pending-comms-actions` procedure reacts later, reading the resolution text this routine writes onto the item. `source-slack-channel`/`source-slack-ts` still carry unchanged across any promotion/move.
+- Slack-reaction closeout is not this routine's job — `magic-coordinator`'s `check-pending-comms-actions` procedure reacts later, reading the resolution text this routine writes onto the item. `communication-channel-id` still carries unchanged across any promotion/move.
 - The three-member group disagreeing on an item's triage outcome: resolve through actual discussion, never let one member's view silently win by default. If genuinely unresolved, surface to the human-owner rather than pick arbitrarily — running unattended (`routine-heartbeat`'s first-iteration-of-the-day branch, no human-owner to surface to), leave the item exactly where it already is, no forced pick, and flag the open disagreement for the next grooming pass.
 - An item unchanged since the last grooming pass still gets at least a glance, not deep re-litigation.
 - A `blocked/` item with genuinely nothing left to try this pass: don't manufacture a token action to force "stays blocked" — that's what `parked/` is for.
 - RICE scores and recorded dependency ordering disagreeing on priority: record both truthfully, never smooth one to match the other.
-- Autonomous invocation (`routine-heartbeat`'s first-iteration-of-the-day branch): step 5's user review does not block — findings are recorded provisional, flagged for confirmation next time a human is present.
+- Autonomous invocation (`routine-heartbeat`'s first-iteration-of-the-day branch): **review-with-the-user** does not block — findings are recorded provisional, flagged for confirmation next time a human is present.
 - Goal-directedness: when a goal is set for this session, actively work toward it; non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` is obligated to keep `slack-event-track` activity tracking current as things are found, not batch it artificially, while acting as executor here.
 - Each board move posts one short structured line as it happens, per `magic-team.armed.md`'s announce rule, plus one short structured summary closing the pass.
@@ -296,7 +304,12 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 - `--help`
 - `--magic-grooming-input-scan <team-member>`
-- `--magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
+- `--magic-grooming-lock-acquire <team-member> <owner-label>`
+- `--magic-grooming-lock-refresh <team-member>`
+- `--magic-grooming-close-state-and-unlock <team-member>`
+- `--magic-grooming-lock-status <team-member>`
+- `--magic-grooming-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]`
+- `--magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--magic-grooming-to-pending` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-pending`)
 - `--magic-grooming-to-processed` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-processed`)
 - `--magic-grooming-to-parked` (same shape as `--magic-grooming-to-backlog`, target fixed to `board-parked`)
@@ -309,7 +322,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-grooming-create-running` (creates a new board-item in `board-running`)
 - `--magic-grooming-create-blocked` (creates a new board-item in `board-blocked`)
 - `--magic-grooming-create-processed` (creates a new board-item in `board-processed`)
-- `--member-slack-send-message <team-member> <target> [text...]`
+- `--member-comms-slack-send-message <team-member> <target> [text...]`
 - `--member-work-session-input-scan <team-member>`
 - `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 
@@ -319,11 +332,19 @@ Prints this syntax + summary and exits.
 
 ## `--magic-grooming-input-scan` operation reference
 
-`DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>` — read-only: lists board items as `<state>/<item-filename>`, one per line, with every frontmatter field. Always scans backlog/pending/running/blocked/parked, `--all-types`. Use this to find an item's actual current state before calling `--magic-grooming-to-*`.
+`DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>` — read-only: lists the open board items as `<state>/<item-filename>`, one per line, with their frontmatter, and this routine's own `state-and-lock` note alongside them as part of the same prepared input. Use this to find an item's actual current state before calling `--magic-grooming-to-*`.
+
+## `--magic-grooming-lock-acquire` / `--magic-grooming-lock-refresh` / `--magic-grooming-close-state-and-unlock` / `--magic-grooming-lock-status` operation reference
+
+`DistroAgentsTools.fn.sh --magic-grooming-lock-acquire <team-member> <owner-label>` / `--magic-grooming-lock-refresh <team-member>` / `--magic-grooming-close-state-and-unlock <team-member>` / `--magic-grooming-lock-status <team-member>` — the single-instance lock this routine owns, one holder at a time. `acquire` prints `ACQUIRED` on a fresh take, or `RECLAIMED_STALE:...` when a dead holder's lock is taken over, both returning 0; on contention it prints `ACTIVE:...` and returns 1, which means this pass does not start. `<owner-label>` identifies the actual running agent/process by a fixed, discoverable name, not an ephemeral session id — distinct from `<team-member>`, the calling member's own identity. `refresh` prints `REFRESHED` and is what holds the lock across a long pass. `close-state-and-unlock` prints `RELEASED` and sets `state: grooming-finished`. `status` is a question, not a gate: it prints current lock metadata, or `NO_LOCK` when free, and always returns 0.
+
+## `--magic-grooming-state-and-lock-upsert` operation reference
+
+`DistroAgentsTools.fn.sh --magic-grooming-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]` — writes this routine's own `state-and-lock` note: the pass's session tracking content. Body content via `--from-file` or `--edit-patch-from-stdin`. Every call stamps `state: grooming-running` and renews `recheck-date` itself — the caller never supplies `recheck-date`, and never names the note.
 
 ## `--magic-grooming-to-backlog` operation reference
 
-`DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item to `board-backlog` and/or patches its frontmatter, one call, no full-content rewrite required. `--from-state:<state>` and `--owner` are both required; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied.
+`DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item to `board-backlog` and/or patches its frontmatter, one call, no full-content rewrite required. `--from-state:<state>` and `--owner-header-value` are both required; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied.
 
 Every grooming-driven state move uses its own `--magic-grooming-to-*` operation: it does the content patch and the move in one call. It is never replaced by a raw `Edit`/`Write`/`Bash mv` on a board-item file.
 
@@ -341,32 +362,31 @@ Same shape as `--magic-grooming-to-backlog` operation, target fixed to `board-pa
 
 ## `--magic-grooming-to-running` operation reference
 
-`DistroAgentsTools.fn.sh --magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-running` in one call, and/or patches its frontmatter. `--owner` is mandatory; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied.
+`DistroAgentsTools.fn.sh --magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-running` in one call, and/or patches its frontmatter. `--owner-header-value` is mandatory; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied.
 
 ## `--magic-grooming-create-*` operation reference
 
-`DistroAgentsTools.fn.sh --magic-grooming-create-<state> <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` — writes a new board-item into `board-<state>`. A body-input mode is required. `--from-state:` is rejected: a created item has no source state, and a move uses `--magic-grooming-to-<state>` instead. `owner`, `groomed-at` and `track:true` are stamped; `groomed-from` is not. Everything else the creating step sets — `approved-by`/`approved-at`, `blocks`/`blocked-by`, `references`, `source-slack-channel`/`source-slack-ts` — rides `--header:*` on the same call.
+`DistroAgentsTools.fn.sh --magic-grooming-create-<state> <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` — writes a new board-item into `board-<state>`. A body-input mode is required. `--from-state:` is rejected: a created item has no source state, and a move uses `--magic-grooming-to-<state>` instead. `owner`, `groomed-at` and `track:true` are stamped; `groomed-from` is not. Everything else the creating step sets — `approved-by`/`approved-at`, `blocks`/`blocked-by`, `references`, `communication-channel-id` — rides `--header:*` on the same call.
 
 ## `--magic-grooming-to-retained` operation reference
 
-`DistroAgentsTools.fn.sh --magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-retained` in one call, and/or patches its frontmatter. `--owner` is mandatory; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied. Called with `--from-state:retained` it is a same-state field update, which is how `recheck-and-exit` renews a `recheck-date`.
+`DistroAgentsTools.fn.sh --magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-retained` in one call, and/or patches its frontmatter. `--owner-header-value` is mandatory; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied. Called with `--from-state:retained` it is a same-state field update, which is how `recheck-and-exit` renews a `recheck-date`.
 
 ## `--magic-grooming-to-archived` operation reference
 
-`DistroAgentsTools.fn.sh --magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-archived` in one call, and/or patches its frontmatter. `--owner` is mandatory; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied.
+`DistroAgentsTools.fn.sh --magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-archived` in one call, and/or patches its frontmatter. `--owner-header-value` is mandatory; `groomed-at`/`groomed-from`/`track` are always auto-stamped, never caller-supplied.
 
 ## `--magic-grooming-to-blocked` operation reference
 
-`DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-blocked` in one call, and/or patches its frontmatter. `--owner` is mandatory. Auto-stamps `groomed-at`, `groomed-from` and `track:true` — full grooming policy, same as its `--magic-grooming-to-*` siblings and unlike the `--magic-advance-*`/`--magic-board-*` families, which stamp nothing.
+`DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-blocked` in one call, and/or patches its frontmatter. `--owner-header-value` is mandatory. Auto-stamps `groomed-at`, `groomed-from` and `track:true` — full grooming policy, same as its `--magic-grooming-to-*` siblings and unlike the `--magic-advance-*`/`--magic-board-*` families, which stamp nothing.
 
-## `--member-slack-send-message` operation reference
+## `--member-comms-slack-send-message` operation reference
 
-`DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
 ## `--member-work-session-input-scan` operation reference
 
-Read-only: one member's own current work-session input — personal, not routine-dictated (every armed member runs this against its own name as it becomes armed, regardless of which routine triggered the arming). Fixed `--owner <member>` and `--all-types`.
-
+Read-only: one member's own current work-session input — personal, not routine-dictated (every armed member runs this against its own name as it becomes armed, regardless of which routine triggered the arming).
 ## `--member-upsert-inbox-note` operation reference
 
 `DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into any member's own personal inbox; content via stdin. `<member>` must already exist as a real skill directory, `<item-filename>` must be a bare filename.
@@ -394,15 +414,15 @@ Used to check this file's own definitions against its own goals when it is updat
 - `routine-daily` — reports what's outstanding; grooming asks whether the backlog is still the right shape.
 - `routine-coworking` — the template this routine extends; its Steps are the opening this routine executes.
 - `routine-coworking` — its Closure Steps are the closing this routine executes.
-- `routine-process-inbox` — own-inbox processing (step 1), and the personal-inbox model fresh items are triaged against.
+- `routine-process-inbox` — own-inbox processing (**gather-the-backlog**), and the personal-inbox model fresh items are triaged against.
 - `magic-coordinator`'s `check-pending-comms-actions` procedure — the resolver of the Slack-reaction closeout. Not this routine's job.
-- `routine-heartbeat` — can trigger this routine as its first-iteration-of-the-day branch (step 5's user review becomes non-blocking/provisional in that mode).
+- `routine-heartbeat` — can trigger this routine as its first-iteration-of-the-day branch (**review-with-the-user** becomes non-blocking/provisional in that mode).
 - `routine-communication-sweep` — feeds this routine's backlog (inbox items); this routine runs the heavier Google Drive/Sheets and Trello-coverage checks that sweep deliberately excludes.
 - `magic-team/magic-team.board.md` — full board-state model (`running/`/`blocked/`/`parked/`/`processed/`/`archived/`/`cleanup/`), the `processed/`/`archived/` Slack-reaction cross-cutting entry, `board-backlog` entry, "at least three paths" note, qualifying-reference definition.
 - `magic-coordinator/magic-coordinator.armed.md`'s "Dispatch & delegation" section (a subsection of its `# Domain knowledge`) — the fast permission/mandate gate rules (destructive-action mandate boundaries, the human-owner sole-channel rule, cross-domain task boundaries) checked at task-creation.
-- `magic-coordinator/RICE-SCORING.md` — the four normalized dimensions (Profit/Cost/Time/Dependencies) used in step 3.
+- `magic-coordinator/RICE-SCORING.md` — the four normalized dimensions (Profit/Cost/Time/Dependencies) used at **rescore-backlog-rice**.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, calling convention, sole-sanctioned Slack-posting mechanism.
-- `magic-team/magic-team.armed.md` — `board-item` entity model, `source-slack-channel`/`source-slack-ts` frontmatter convention, field list (`supersedes`/`superseded-by`).
+- `magic-team/magic-team.armed.md` — `board-item` entity model, `communication-channel-id` frontmatter convention, field list (`supersedes`/`superseded-by`).
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.
 
 ### Conventions

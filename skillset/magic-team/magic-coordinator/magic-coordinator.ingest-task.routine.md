@@ -21,14 +21,14 @@ Doesn't do: guess at unstated intent, rush an ambiguous ask straight to a task f
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — ideas and asks already queued there awaiting ingest, so this session settles them alongside the one it was invoked for rather than writing a duplicate task-description.
-1. **gather-and-agree**: interactively gather and agree with the requester, one topic at a time, until the content is actually settled — don't rush to a task write while real ambiguity remains. Same pacing discipline `routine-interview` uses for its own gathering step: small, minimal-assumption-gap questions, iterative; once something is genuinely clear and agreed, move on rather than re-confirming it in smaller pieces.
-2. **output**, once settled:
+1. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — ideas and asks already queued there awaiting ingest, so this session settles them alongside the one it was invoked for rather than writing a duplicate task-description.
+2. **gather-and-agree**: interactively gather and agree with the requester, one topic at a time, until the content is actually settled — don't rush to a task write while real ambiguity remains. Same pacing discipline `routine-interview` uses for its own gathering step: small, minimal-assumption-gap questions, iterative; once something is genuinely clear and agreed, move on rather than re-confirming it in smaller pieces.
+3. **output**, once settled:
    - (a) Default: write a task-description into the relevant inbox via `--member-upsert-inbox-note` — an individual member's own inbox or `magic-coordinator`'s own, depending on content, never the board. Creates the record only — does not start work; execution starts later when whatever owns that inbox picks the item up (see **note-on-inline-execution** for the one live exception).
    - (b) Dispatch straight to execution via `magic-coordinator` — only within `magic-coordinator`'s own mandate, or explicitly authorized live by someone holding that mandate.
    - Even (b) routes through writing to an inbox first — no path skips inbox entirely.
-3. **note-on-inline-execution**: if the requester explicitly says to execute inline, now, in this same conversation, that overrides the "UI instance never executes" default for this one request only.
-4. **relationship-to-grooming**: gather and file only (or, rarely, dispatch under live authorization) — never triage, RICE-score, or make backlog decisions; that's `routine-grooming`'s job, later, when it processes the inbox.
+4. **note-on-inline-execution**: if the requester explicitly says to execute inline, now, in this same conversation, that overrides the "UI instance never executes" default for this one request only.
+5. **relationship-to-grooming**: gather and file only (or, rarely, dispatch under live authorization) — never triage, RICE-score, or make backlog decisions; that's `routine-grooming`'s job, later, when it processes the inbox.
 
 # Closure steps
 
@@ -63,16 +63,16 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (step 2a: write the settled task-description)
-- `--member-slack-send-message <team-member> <target> [text...]` (Slack activity-tracking obligation)
+- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (**output**, branch (a): write the settled task-description)
+- `--member-comms-slack-send-message <team-member> <target> [text...]` (Slack activity-tracking obligation)
 
 ## `--member-upsert-inbox-note` operation reference
 
 `DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
 
-## `--member-slack-send-message` operation reference
+## `--member-comms-slack-send-message` operation reference
 
-`DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
 # Maintainer Notes
 
@@ -90,8 +90,8 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `routine-process-inbox` — own-inbox processing (step 0).
-- `routine-interview` — step 1's pacing discipline (small, minimal-assumption-gap questions) is the same as `routine-interview`'s own step 2.
+- `routine-process-inbox` — own-inbox processing (**process-own-inbox**).
+- `routine-interview` — **gather-and-agree**'s pacing discipline (small, minimal-assumption-gap questions) is the same as `routine-interview`'s own **collect-dont-converge**.
 - `routine-grooming` — the destination that later triages/RICE-scores whatever this routine files into an inbox.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — calling convention, `DistroAgentsTools.fn.sh` trust policy.
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.

@@ -66,20 +66,18 @@ case "$1" in
 					"--member-*"
 					"--owner-workspace-list"
 					"--check-*"
-					"--send-email-message"
-					"--comms-email-mark-seen"
+					"--member-comms-email-send"
+					"--member-comms-email-mark-seen"
 					"--magic-*"
-					"--write-board-item"
 					"--console-*"
-					"--sweep-read-incoming-comms"
-					"--comms-slack-react"
+					"--member-comms-slack-react"
 					"--routine-*"
 				)
 			;;
 			magic-librarian)
 				commonPrefixes=(
 					"--member-*"
-					"--lilbrarian-*"
+					"--librarian-*"
 				)
 			;;
 			magic-devops)

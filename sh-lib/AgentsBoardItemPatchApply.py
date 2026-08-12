@@ -4,7 +4,7 @@
 # DistroAgentsTools.fn.sh's --edit-patch-from-stdin body-input mode
 # (myx.distro-agents/sh-lib/AgentsTools.InternOpBoardUpsertMoveEdit.include),
 # externalized per this package's own externalize-awk/py convention (see
-# AgentBoardItemFrontmatterPrint.awk's own header comment for that name).
+# AgentsBoardItemFrontmatterPrint.awk's own header comment for that name).
 #
 # argv[1]: path to a file holding the existing board-item body text (empty
 #   file on --create). argv[2]: path to a file holding a JSON array of patch

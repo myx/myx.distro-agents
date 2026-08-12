@@ -5,33 +5,37 @@
 📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
-📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--identity bot|user] [text...]
-📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> [--identity bot|user] --from-stdin [--format text|blocks]
-📘 syntax: DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> [--identity bot|user] --from-file <path> [--format text|blocks]
-📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- <body...>
-📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-stdin
-📘 syntax: DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- --from-file <path>
-📘 syntax: DistroAgentsTools.fn.sh --comms-slack-check <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]
-📘 syntax: DistroAgentsTools.fn.sh --comms-slack-react <channel>:<ts> <emoji-name>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [text...]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] --from-stdin [--format text|blocks]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] --from-file <path> [--format text|blocks]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path>
+📘 syntax: DistroAgentsTools.fn.sh --intern-op-slack-check <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--oldest <ts>] [--identity-bot] [--raw]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] [text...]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] --from-stdin
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] --from-file <path>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-info <team-member> <file-id> [--identity-bot] [--raw]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-fetch <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
-📘 syntax: DistroAgentsTools.fn.sh --comms-email-check
-📘 syntax: DistroAgentsTools.fn.sh --comms-email-mark-seen <uid>
-📘 syntax: DistroAgentsTools.fn.sh --comms-trello-check
-📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> [text...]
-📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> --from-stdin
-📘 syntax: DistroAgentsTools.fn.sh --magic-trello-post-comment <team-member> <card-id> --from-file <path>
-📘 syntax: DistroAgentsTools.fn.sh --sweep-read-incoming-comms [--oldest <ts>] [--raw]
-📘 syntax: DistroAgentsTools.fn.sh --comms-slack-read <channel>:<ts> [--thread]
-📘 syntax: DistroAgentsTools.fn.sh --comms-email-read <uid> [--seen]
-📘 syntax: DistroAgentsTools.fn.sh --comms-trello-read <notification-id>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-check <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> [text...]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-stdin
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-read <team-member> <uid> [--seen]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-read <team-member> <notification-id>
 📘 syntax: DistroAgentsTools.fn.sh --self-test
 📘 syntax: DistroAgentsTools.fn.sh --verify-permissions
-📘 syntax: DistroAgentsTools.fn.sh --list-md <path>...
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --write-board-item <state> <item-filename>
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
@@ -46,21 +50,21 @@
 📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-backlog <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-processed <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-pending <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-blocked <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-running <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-processed <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-pending <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-blocked <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-running <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>
@@ -77,9 +81,29 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-heartbeat <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-release <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-refresh <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-close-state-and-unlock <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-acquire <team-member> <owner-label>
+📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-refresh <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-advance-close-state-and-unlock <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-status <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-acquire <team-member> <owner-label>
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-refresh <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-close-state-and-unlock <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-status <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-acquire <team-member> <owner-label>
+📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-refresh <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-daily-close-state-and-unlock <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-status <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire <team-member> <owner-label>
+📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-retro-close-state-and-unlock <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-status <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-advance-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-daily-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-retro-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
@@ -148,8 +172,9 @@
 			NOT pass arbitrary free text (a message body, anything with
 			shell metacharacters like parentheses/quotes/semicolons) as the
 			trailing argument -- that has crashed a live console process for
-			real. For free text, call --member-slack-send-message/--send-email-message as
-			bare direct invocations instead; neither goes through
+			real. For free text, call
+			--member-comms-slack-send-message/--member-comms-email-send
+			as bare direct invocations instead; neither goes through
 			--console-send.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
@@ -205,15 +230,24 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-slack-send-message <team-member> <target> [--identity bot|user] [text...]
-		--member-slack-send-message <team-member> <target> [--identity bot|user] --from-stdin [--format text|blocks]
-		--member-slack-send-message <team-member> <target> [--identity bot|user] --from-file <path> [--format text|blocks]
+		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [text...]
+		--member-comms-slack-send-message <team-member> <target> [--identity-bot] --from-stdin [--format text|blocks]
+		--member-comms-slack-send-message <team-member> <target> [--identity-bot] --from-file <path> [--format text|blocks]
 			Posts a message, attributed to <team-member>, to one of:
-			magic-team, human-owner, event-track, event-alert, or a literal
-			<channel>:<ts> (posted as a threaded reply). Content comes from
+			magic-team, human-owner, event-track, event-alert, a bare
+			<conversation-id> (posted as a NEW TOP-LEVEL message in that
+			conversation), or a literal <channel>:<ts> (posted as a
+			THREADED REPLY under that one message). The forms are told
+			apart in that order: a target containing `:` is
+			<channel>:<ts>; one of the four alias words resolves to its
+			configured conversation; otherwise a token of uppercase
+			letters and digits, starting with a letter and at least 9
+			characters long, is taken as a literal conversation id. A
+			target matching none of these forms is REJECTED with an error
+			and nothing is sent anywhere. Content comes from
 			trailing text args, --from-stdin, or --from-file <path> —
-			exactly one. --identity bot|user optionally forces which account
-			posts, overriding the default automatic selection. --format
+			exactly one. --identity-bot posts as the team bot instead of
+			this member's own identity. --format
 			blocks sends a caller-supplied Block Kit JSON array instead of
 			plain text (with --from-stdin/--from-file only) — malformed JSON
 			or an unsupported block type is rejected before anything is
@@ -221,11 +255,18 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--send-email-message <email@address>... -- <subject> -- <body...>
-		--send-email-message <email@address>... -- <subject> -- --from-stdin
-		--send-email-message <email@address>... -- <subject> -- --from-file <path>
-			Real, standalone SMTP send. Uses this tool's configured email
-			credentials, not just an internal fallback -- --member-slack-send-message's exhausted-retry
+		--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>
+		--member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin
+		--member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path>
+			`<team-member>` is the member this send acts as, and it comes
+			first, ahead of the recipients. It is required, and it is strict:
+			the credentials the send authenticates with are that member's own,
+			with no fallback to another member's scope, so a member without a
+			mailbox of its own fails here rather than quietly sending from
+			someone else's address.
+
+			Real, standalone SMTP send. Uses that member's configured email
+			credentials, not just an internal fallback -- --member-comms-slack-send-message's exhausted-retry
 			path calls this same op via self-recursion. Multiple recipients
 			accepted before the first `--`; subject is everything between the
 			two `--` separators; everything after the second `--` becomes the
@@ -235,7 +276,7 @@
 			a heredoc, per the team-wide convention above), avoiding
 			multi-line/shell-metacharacter argv fragility. `--from-file <path>`
 			reads the body from a file instead — same motivation
-			as --member-slack-send-message's own --from-file (write the body with a plain Write
+			as --member-comms-slack-send-message's own --from-file (write the body with a plain Write
 			tool call first, then invoke this op as one single-line command).
 			Giving more than one of `--from-stdin`/`--from-file`/trailing body argv
 			together is an error (`⛔ ERROR: ... given alongside ... -- use one
@@ -244,27 +285,71 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--comms-slack-check <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]
+		--intern-op-slack-check <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--oldest <ts>] [--identity-bot] [--raw]
+			`<team-member>` is the member this read acts as, and it comes
+			first, ahead of the target. It is required: a direct conversation
+			belongs to one identity, so the acting member decides which
+			conversation this call can see at all, and a read performed under
+			the wrong member returns that other member's conversations while
+			reporting them as this one's.
+
 			Reads Slack activity for ONE specific, caller-chosen target --
 			target is required, this is a general-purpose single-target
-			reader, not the comms-sweep macro-op (see --sweep-read-incoming-comms
+			reader, not the comms-sweep op (see --magic-sweep-input-scan
 			below; conflating the two into one op that accepted an optional
-			target would be a real design bug). Target grammar mirrors --member-slack-send-message's:
+			target would be a real design bug). Target grammar is the same
+			widened grammar --member-comms-slack-send-message takes, and this op
+			accepts every one of its forms:
 			`magic-team`/`human-owner`/`event-track`/`event-alert` reads that
-			watched target's channel history; `<channel>:<ts>` fetches that
+			watched target's channel history; a bare `<conversation-id>`
+			reads THAT conversation's history, exactly as a bare alias does
+			-- a new accepted spelling, not a new behaviour, and the form to
+			reach a conversation no alias is configured for;
+			`<channel>:<ts>` fetches that
 			specific thread's replies instead (same
-			addressing --member-slack-send-message already uses for threaded replies).
+			addressing --member-comms-slack-send-message already uses for threaded replies).
+			A target matching none of these forms is rejected and no read is
+			performed.
 			`--oldest <ts>` is passed through to the Slack API call as-is,
 			letting the caller pass its own last-check marker for an
 			incremental read. Uses the same credential resolution as
-			--member-slack-send-message.
+			--member-comms-slack-send-message; `--identity-bot` acts as the team
+			bot instead of this member's own identity. A direct
+			conversation belongs to one identity, so the identity this
+			call acts as decides WHICH conversation it can see: the bot's
+			direct conversation with a person and a member's own are two
+			different conversations, and neither can read the other.
+			Channels are unaffected by it.
+
+			**`human-owner` alone reads BOTH of the human-owner's direct
+			conversations with the team**, one per team identity, and reports
+			them as one merged result -- the human-owner writes in either, so
+			reading only one would report the other's messages as absent.
+			Every message line carries the conversation it came from as its
+			first column, and the merged lines are ordered chronologically, so
+			an absent message is never ambiguous between "not there" and "in
+			the other conversation". Each conversation is checked individually
+			against the expected counterparty before it is read; the two are
+			never checked as a pair. `--raw` returns both API responses, each
+			labelled with its own conversation, never glued into one body.
+			`human-owner:<ts>` is unaffected -- a `<ts>` names one exact
+			message in one conversation -- as are `magic-team`, `event-track`,
+			`event-alert` and any explicit `<channel>:<ts>`.
+
+			Exit code (this target only; every other target keeps 0/1):
+			0 when both conversations were read,
+			3 when only one was (the failed one is named, with its reason, in
+			the output header -- the result is half the conversation and must
+			not be read as a complete answer),
+			4 when neither was,
+			1 when the operation failed before reaching either.
 
 			**No retry logic** -- applies to the whole --check-* family.
 			One attempt, fails clean if it fails.
 
 			**Output is pretty-formatted by default** ("ts | user | text"
 			one line per message, via myx.distro-agents's own
-			`sh-lib/AgentSlackMessagesFormat.awk` -- reuses the same
+			`sh-lib/AgentsSlackMessagesFormat.awk` -- reuses the same
 			recursive-descent JSON-parsing engine as myx.common's
 			`agentMcpJsonParseRequest.awk`, copied verbatim, only the
 			leaf-emission logic differs) instead of raw JSON -- every real
@@ -275,10 +360,116 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
+			`<team-member>` is the member this search acts as, and it comes
+			first, ahead of the target. It matters more here than on the
+			sibling read ops, not less: this operation always acts under a
+			user token, so the member is the only thing deciding whose
+			account performs the search and therefore what it can see.
+			Finds messages in ONE conversation since a cut-off, including
+			**thread replies whose parent message is older than that
+			cut-off**. That last part is the whole reason to reach for this
+			op instead of --intern-op-slack-check: a bounded --intern-op-slack-check
+			read reports a thread by its PARENT, so a long-running thread
+			whose parent predates the cut-off is invisible in that read no
+			matter how recently it was replied to. Measured on this
+			workspace: three threads in `magic-team` whose parents predated
+			a cut-off carried 41, 18 and 6 replies after it, and none of the
+			three appeared in the bounded read. Use --intern-op-slack-check for
+			"what is new at the top level of this conversation", and this op
+			for "what has been said anywhere in this conversation, threads
+			included". They answer different questions and neither replaces
+			the other.
+
+			Target grammar is the same vocabulary the rest of the
+			family takes -- `magic-team`/`human-owner`/`event-track`/
+			`event-alert`, an explicit channel, or a bare
+			`<conversation-id>`, which searches THAT conversation exactly as
+			a bare alias does; it is the form to reach a conversation no
+			alias is configured for. **A `<channel>:<ts>`
+			target is refused**, not silently accepted with the `<ts>`
+			dropped: a `<ts>` names one exact message and this op searches a
+			whole conversation over a time window. Read one message or one
+			thread with --member-comms-slack-read instead. There is deliberately no
+			free-text query form; the query is built from the target, so
+			every op in this family is addressed the same way.
+
+			A cut-off is **required** -- `--comms-since-date-time
+			<YYYY-MM-DD...>` or `--comms-since-utime <epoch-seconds>`,
+			mutually exclusive, neither repeatable, the same pair
+			--magic-sweep-input-scan takes. Without one, the search would
+			walk the conversation's entire history a page at a time.
+			The cut-off is applied to each message's own timestamp at full
+			precision. The window actually requested of Slack starts one day
+			earlier than the cut-off on purpose -- Slack's own date filtering
+			is whole-day and exclusive -- so results are asked for widely and
+			then narrowed here. The `after=` value in the summary line
+			reports that widened start date; the `cutoff=` value is the real
+			boundary, and nothing older than it is ever printed.
+
+			**`--identity-bot` is REFUSED by this operation**, and this is
+			the one op in the family where that flag cannot work. Slack's
+			message search is available to a user identity only -- no
+			permission grant changes that -- so the flag is rejected with a
+			reason rather than accepted and quietly ignored, which would mean
+			acting under an identity the caller did not ask for. Every other
+			--member-comms-slack-* op does accept it. One consequence worth knowing
+			before choosing this op: a conversation only the team bot can see
+			is not reachable here at all.
+
+			`--max-pages <n>` bounds how many result pages are read
+			(default 10; each page holds up to 100 messages). The read stops
+			on its own as soon as it has reached back past the cut-off, so
+			the bound only matters for a genuinely large window. **Hitting
+			the bound is reported as its own outcome and never returned as
+			if the read were complete** -- see the exit codes below.
+
+			Exit code:
+			0 matches found, and the whole window was read.
+			3 no matches in the window, and the whole window was read -- a
+			real, complete answer that this conversation holds nothing
+			there. Deliberately not 0, so absence cannot be read as
+			presence by a caller that ignores status.
+			4 incomplete -- the `--max-pages` bound was reached before the
+			cut-off was, so what was printed is the newest matches only, a
+			prefix of the answer. Nothing in it supports concluding any
+			message is absent. Raise `--max-pages` or move the cut-off
+			forward and read again.
+			1 the search could not be performed at all; nothing is known
+			about presence or absence.
+
+			**Output is pretty-formatted by default**, oldest first, one
+			line per message in the same `ts | user | text` shape
+			--intern-op-slack-check prints, with ` [thread-reply of <parent-ts>]`
+			appended to a message that sits inside a thread -- that parent ts
+			is what a follow-up `--member-comms-slack-read <team-member> <channel>:<ts> --thread`
+			needs. A message's own line breaks are flattened to spaces to
+			keep one line per message; `--raw` returns the full API responses
+			instead, each labelled with its own page and never glued into one
+			body. A `##` summary line reports the match and thread-reply
+			counts, how many pages were read, and the cut-off actually
+			applied.
+
+			**Known limits, stated rather than implied away.** Search results
+			come from an index, not from the live conversation, so a very
+			recent message may not be findable yet -- a lag of about five
+			minutes has been observed here, and the upper bound is not known.
+			For anything just posted, --intern-op-slack-check reads the
+			conversation directly and this op does not. Two further
+			behaviours are unverified in this workspace and may affect
+			completeness: messages posted by bots are reported elsewhere as
+			sometimes missing from search results, and search may honour
+			search-preference settings configured in the Slack UI for the
+			acting identity. Neither has been confirmed or ruled out here, so
+			a zero-match result on a conversation known to be busy is worth
+			cross-checking with --intern-op-slack-check.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
 			General coordinator comms-id resolver. Authenticates as one
 			specific team-member identity (uses the same credential
-			resolution as --member-slack-send-message), then reports:
+			resolution as --member-comms-slack-send-message), then reports:
 			(1) auth identity (`AUTH_USER_ID`, `AUTH_USER_NAME`),
 			(2) requested user-name and channel-name matches with resolved IDs,
 			(3) configured alias reachability for `magic-team`, `human-owner`,
@@ -300,9 +491,18 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--comms-slack-react <channel>:<ts> <emoji-name>
+		--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
+			<team-member> is the acting identity: the reaction is posted BY
+			that member, and it must be a bare team-member name whose skill
+			directory already exists (a `routine-*` caller is exempt from the
+			directory check, as on every other op taking a member). The
+			identity rule is the one this whole family follows -- the
+			member's own user token when it has one, the team bot when it
+			does not, and `--identity-bot` to skip the user token and act as
+			the bot.
+
 			Posts one Slack reaction to a specific message --
-			<channel>:<ts> only, same target grammar as --comms-slack-read (no
+			<channel>:<ts> only, same target grammar as --member-comms-slack-read (no
 			magic-team/human-owner shortcut, since a reaction always targets one
 			exact message, not a channel). <emoji-name> has no colons (matches
 			Slack's own `name` field, e.g. `white_check_mark`, not
@@ -310,69 +510,265 @@
 			design (`routine-communication-sweep`,
 			`routine-board-actualisation`'s pending-reaction lookup) calls
 			this op to actually post. Uses the same credential resolution as
-			--member-slack-send-message. Prints the raw API response and returns
-			0 on `ok:true` -- an `already_reacted` error is treated as a
-			harmless no-op (also returns 0, with a `#` note, not an error),
-			since Slack itself returns that for a reaction that's already
-			present and this tool family's design already expects that as
-			success, not a retry/investigate case. Any other error returns 1.
+			--member-comms-slack-send-message; `--identity-bot` reacts as the team
+			bot instead of this member's own identity. Reply and react take
+			the same identity surface on purpose: you reply as yourself, you
+			react as yourself; you reply as the bot, you react as the bot. A
+			direct conversation belongs to one identity, so this also decides
+			which conversation the reaction can reach at all. Channels are
+			unaffected by it.
+
+			Three outcomes, kept distinct. **Added**: the reaction was posted
+			by this call -- raw API response printed, returns 0.
+			**Already present**: the acting identity had already added that
+			emoji to that message, so the end state asked for holds and this
+			call posted nothing -- reported as its own outcome with a `#`
+			note, returns 0, never folded into "added" and never an error.
+			**Could not react**: anything else, Slack's own error code
+			included -- returns 1 and nothing about the message's existing
+			reactions is known from it. Reactions are per identity, so
+			"already present" speaks only for the identity this call acted
+			as; the same reaction under another identity is a normal result,
+			not a duplicate.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--comms-email-check
+		--member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]
+			<team-member> is the acting identity, and on this operation it
+			decides whether the call can succeed at all -- see the authorship
+			rule below. It must be a bare team-member name whose skill
+			directory already exists (`routine-*` callers exempt). The
+			identity rule is the family's own: the member's own user token
+			when it has one, the team bot when it does not, and
+			`--identity-bot` to skip the user token and act as the bot.
+
+			Deletes one specific Slack message -- <channel>:<ts> only, same
+			target grammar as --member-comms-slack-react (no
+			magic-team/human-owner shortcut, since a deletion always targets
+			one exact message, not a channel). There is no channel-wide or
+			"delete all" form: every target is named explicitly, every time.
+			Uses the same credential resolution as
+			--member-comms-slack-send-message; `--identity-bot` acts as the team
+			bot instead of this member's own identity.
+
+			**More than one target may be given, and each one reports its
+			own result.** Targets are attempted in order, a failure on one
+			never stops the rest, and stdout carries a
+			`DELETE_TARGET=<as given>` line followed by a `DELETE_STATE=` line
+			for every single target: `deleted` (the raw API response follows
+			it), `refused-on-authorship`, `could-not-call`,
+			`unresolvable-target`, or `no-message-ts`. A partial failure is
+			therefore visible per target rather than collapsed into one
+			verdict. The exit status is 0 only when EVERY target was deleted;
+			a non-zero exit never means the whole run failed, and the targets
+			reporting `DELETE_STATE=deleted` really were deleted. A closing
+			`#` note on stderr states how many of how many were deleted.
+
+			**Slack permits deleting only a message the acting identity
+			itself authored**, so this call succeeds or fails on who is
+			asking. A refusal on that basis is reported as an authorship
+			refusal naming the acting member and identity, distinct from a
+			call that could not complete at all, and the raw Slack error is
+			printed alongside it. The other identity is never retried
+			automatically -- ask for it explicitly with `--identity-bot`
+			instead.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] [text...|--from-stdin|--from-file <path>]
+			<team-member> is the acting identity, and as on
+			--member-comms-slack-delete-message it decides whether the call can
+			succeed at all -- Slack permits editing only what that identity
+			itself authored. Bare team-member name, skill directory must
+			exist (`routine-*` callers exempt). The member's own user token
+			when it has one, the team bot when it does not, and
+			`--identity-bot` to skip the user token and act as the bot.
+
+			Replaces the text of one specific Slack message -- same
+			<channel>:<ts> target grammar as --member-comms-slack-delete-message. The
+			replacement text comes from the same three input forms
+			--member-comms-slack-send-message accepts: trailing argv,
+			`--from-stdin` (alias `--message-from-stdin`), or
+			`--from-file <path>`. `--format` is not offered here: this op
+			edits plain text only. Empty replacement text is refused rather
+			than applied, since that would blank the message. Re-running the
+			same edit is safe -- it leaves the message as the first run left
+			it.
+
+			**Slack permits editing only a message the acting identity
+			itself authored**, exactly as for --member-comms-slack-delete-message above:
+			an authorship refusal is reported as such, naming the acting
+			identity, with the raw Slack error alongside it, and the other
+			identity is never retried automatically. Prints the raw API
+			response and returns 0 on `ok:true`; any refusal or failure
+			returns 1 and leaves the message unchanged.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-slack-file-info <team-member> <file-id> [--identity-bot] [--raw]
+			<team-member> is the acting identity, and it is load-bearing
+			here: a file lives in a conversation, so which identity asks
+			decides whether the file is visible at all -- that is exactly
+			what the exit code 3 below reports. Bare team-member name, skill
+			directory must exist (`routine-*` callers exempt). The member's
+			own user token when it has one, the team bot when it does not,
+			and `--identity-bot` to skip the user token and act as the bot.
+
+			Reports the metadata of one Slack file (`files.info`) so a caller
+			can decide whether that file is worth retrieving at all.
+			<file-id> is a Slack file id -- `F` followed by uppercase
+			letters and digits, taken from a message payload's own file
+			object `id` field; a permalink, a filename or a <channel>:<ts>
+			pair is refused before any call is made. Uses the same
+			credential resolution as --member-comms-slack-send-message;
+			`--identity-bot` acts as the team bot instead of this member's
+			own identity.
+
+			**This operation tells you ABOUT a file and never fetches its
+			bytes.** The URLs it prints (`URL_PRIVATE`,
+			`URL_PRIVATE_DOWNLOAD`, the thumbnails) are metadata like every
+			other field: reading what is behind them is an authenticated
+			download, which is a different call, not a flag on this one.
+
+			Output is stable `KEY=value` lines on stdout, one field per
+			line, in this fixed order: `FILE_INFO_STATE`, `FILE_ID`,
+			`NAME`, `TITLE`, `MIMETYPE`, `FILETYPE`, `SIZE`, `TIMESTAMP`,
+			`AUTHOR_USER_ID`, `URL_PRIVATE`, `URL_PRIVATE_DOWNLOAD`,
+			`THUMB_64`, `THUMB_80`, `THUMB_160`, `THUMB_360`, `THUMB_480`,
+			`THUMB_720`, `THUMB_800`, `THUMB_960`, `THUMB_1024`. Each field
+			is preceded by its own `<KEY>_STATE=present|absent|present-multiline`
+			line, so a file with no title or no thumbnails says so
+			positively instead of leaving a blank to guess at; `<KEY>=` is
+			printed only for `present`. `--raw` prints the unparsed
+			files.info response instead, for a field this op does not
+			declare.
+
+			Four exit codes, kept distinct. **0**: metadata found and
+			emitted. **3**: Slack answered `file_not_found` -- one code for
+			two situations it does not separate, either no file has that id
+			or this identity cannot see it, so the message names the acting
+			identity and the other identity is never retried automatically.
+			**4**: Slack answered `file_deleted` -- the file existed and is
+			gone, final for every identity. **1**: the call did not
+			complete, from which nothing may be concluded about whether the
+			file exists.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-slack-file-fetch <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite]
+			<team-member> is the acting identity, used for BOTH steps this
+			op takes -- the metadata read and the authenticated byte fetch --
+			so the two can never run as different identities. Bare
+			team-member name, skill directory must exist (`routine-*` callers
+			exempt). The member's own user token when it has one, the team
+			bot when it does not, and `--identity-bot` to skip the user token
+			and act as the bot.
+
+			Retrieves one Slack file's actual bytes and writes them to
+			<destination-path>. The counterpart to --member-comms-slack-file-info
+			above: info tells you about a file so you can decide whether it
+			is worth retrieving, this gets it -- so a member can open an
+			attached screenshot rather than only read its description.
+			<file-id> is a Slack file id, validated in the same way and
+			refused the same way as by --member-comms-slack-file-info.
+
+			**All three arguments are required and the destination is always
+			yours.** There is no default location, no downloads directory,
+			and the credential store is refused as a destination. The
+			parent directory must already exist -- this operation writes a
+			file, it does not create the tree above it. An existing file at
+			the destination is left untouched unless `--overwrite` is
+			given.
+
+			**A successful-looking fetch is not accepted on its own.**
+			An unauthenticated or under-scoped request for Slack file
+			content is answered with HTTP 200 and a sign-in page, which
+			without checking is indistinguishable from the file. So the
+			result is verified before it is delivered: it must not be a web
+			page, and its byte count must match exactly the size reported
+			for that file. Bytes are written to <destination-path> only
+			after every check passes -- a failed fetch never leaves a
+			plausible-looking wrong file there, and never leaves a partial
+			one.
+
+			`--identity-bot` runs the call as the team's bot rather than
+			the acting member's own identity. Note that being able to see a
+			file is per-conversation, not per-workspace: a file in one
+			identity's DM is genuinely invisible to the other, and that is
+			reported rather than worked around by silently switching.
+
+			On success, stable `KEY=value` lines on stdout, in this fixed
+			order: `FETCH_STATE`, `FILE_ID`, `DESTINATION`,
+			`VERIFIED_BYTES`, `MIMETYPE`, `SOURCE_URL_KIND`.
+			`VERIFIED_BYTES` is the count that was actually checked.
+
+			Four exit codes, the same four --member-comms-slack-file-info uses.
+			**0**: fetched and verified; the file is at the destination.
+			**3**: `file_not_found` -- either no file has that id or this
+			identity cannot see it, the two situations Slack does not
+			separate. **4**: `file_deleted` -- final for every identity.
+			**1**: the fetch did not complete, or it completed and the
+			result was not the file. For every non-zero code the
+			destination is left exactly as it was.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-email-check <team-member>
+			`<team-member>` is the member this check acts as, and it comes
+			first. It is required, and it is strict: what is counted is that
+			member's own mailbox and nothing else. There is no fallback to
+			another member's scope, so a member without a mailbox of its own
+			fails here rather than quietly reporting someone else's unread
+			count.
+
 			IMAP STATUS INBOX (UNSEEN) check only -- unread count, not a full
-			fetch. Same EMAIL_* config as --send-email-message.
+			fetch. Same EMAIL_* config as
+			--member-comms-email-send.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--comms-email-mark-seen <uid>
+		--member-comms-email-mark-seen <team-member> <uid>
+			`<team-member>` is the member this mark acts as, and it comes
+			first, ahead of the `<uid>`. It is required, and it is strict:
+			the mailbox written to is that member's own, with no fallback to
+			another member's. A UID only means anything inside one mailbox,
+			so the same `<uid>` under a different member names a different
+			message, or none at all.
+
 			Marks one specific email (by IMAP UID, same identifier
-			--comms-email-read takes) as \Seen via IMAP UID STORE -- otherwise every
+			--member-comms-email-read takes) as \Seen via IMAP UID STORE -- otherwise every
 			comms-sweep pass keeps re-seeing the same UIDs as unseen.
-			Same EMAIL_* config as --comms-email-check/
-			--send-email-message.
+			Same EMAIL_* config as --member-comms-email-check/
+			--member-comms-email-send.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--comms-trello-check
+		--member-comms-trello-check <team-member>
+			`<team-member>` is the member this check acts as, and it comes
+			first. It is required, and it is strict: the unread list returned
+			is that member's own notifications, never another member's, and
+			there is no fallback to another member's scope.
+
 			Unread Trello notifications only (`read_filter=unread`), not a
 			full board read. Uses configured Trello credentials.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-trello-post-comment <team-member> <card-id> [text...]
-		--magic-trello-post-comment <team-member> <card-id> --from-stdin
-		--magic-trello-post-comment <team-member> <card-id> --from-file <path>
+		--magic-comms-trello-post-comment <team-member> <card-id> [text...]
+		--magic-comms-trello-post-comment <team-member> <card-id> --from-stdin
+		--magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>
+			`<team-member>` is the member this write acts as, and it comes
+			first, ahead of the card. It is required: a comment is authored by
+			one identity, so the acting member decides which Trello
+			credentials sign it, read strictly from that member's own scope
+			with no fallback.
+
 			Direct Trello write operation for process-flow use (no
 			console-session mechanism required): posts one comment onto one
 			card (`/1/cards/{id}/actions/comments`) using
-			configured Trello credentials. Exactly one
+			that member's configured Trello credentials. Exactly one
 			content source: trailing text args, --from-stdin, or --from-file.
 			Returns Trello API response JSON on success.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
-		--sweep-read-incoming-comms [--oldest <ts>] [--raw]
-			**Not a general-purpose Slack reader -- takes no target at all.**
-			This is the dedicated macro-operation for exactly one caller,
-			magic-coordinator's communication-sweep.md Check step: it always
-			reads the exact same predefined, pre-configured set of watched
-			sources (both Slack targets via --comms-slack-check, plus --comms-email-check
-			and --comms-trello-check) in one combined pass, producing one specific
-			mixed output meant as the initial text source for comms
-			processing. Also surfaces freshly-active related threads on the
-			watched Slack channels, even ones not individually tracked yet,
-			plus any thread involving Vane specifically. Takes no target —
-			for one specific Slack target/thread, call --comms-slack-check
-			directly instead. No retry logic: one attempt per source, per
-			call.
-
-			**Still not a workspace-wide mention search.** Older untracked
-			thread parents that fall outside the watched channel-history page,
-			or arbitrary unsubscribed threads/channels elsewhere, are not
-			discoverable here -- true "Vane tagged anywhere, on whatever's
-			being watched" coverage is a separate, not-yet-built capability,
-			not something this op's current design can reach.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -392,20 +788,6 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--list-md <path>...
-			Existence + line count for one or more caller-supplied file paths,
-			one line of output per path: `<path>: <N> lines` if found, `<path>:
-			MISSING` if not -- returns 1 if any path was missing, 0 otherwise.
-			Replaces the hand-rolled `for f in ...; do wc -l "$f"; done`-style
-			Bash loop agents kept reaching for before editing a batch of
-			markdown/doc files -- each such loop is a fresh, non-matching
-			command string that costs its own permission-prompt grant.
-			Read-only, no credentials, no
-			network. Despite the flag name, not restricted to `.md` files --
-			any path works; at least one path argument is required.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
 		--librarian-list-team-files [<path>...]
 			Read-only path listing of skill-folder files. The faster of
 			the two listing ops — prefer this one when mtimes aren't
@@ -413,9 +795,15 @@
 			arguments, each either a bare path relative to the skill-root
 			(`$HOME/.claude/skills/`) or an absolute path that must resolve
 			inside it (anything outside is rejected and skipped, not
-			silently ignored, same per-argument error handling as
-			--list-md); a bare file scopes to just that file, a directory
+			silently ignored); a bare file scopes to just that file, a directory
 			scopes recursively. No arguments means the whole skill-root.
+			Only `*.md` files are listed — a deliberate whitelist, so any
+			non-markdown file in the skill-root (`.DS_Store` and anything
+			like it) never appears. Note the corner this creates: a bare
+			non-`*.md` path given as a scope argument passes the
+			existence check and then contributes nothing to the output —
+			it is filtered out silently, so an empty result for such an
+			argument is expected behaviour, not an error.
 			Prints one skill-root-relative path per matched file (never
 			absolute), sorted alphabetically.
 
@@ -425,7 +813,9 @@
 			Same listing, plus each file's mtime. Slower than the plain
 			listing — use only when mtimes are actually needed (staleness
 			sweeps, mtime-before-editing checks). Same scope-argument
-			grammar and error handling as --librarian-list-team-files.
+			grammar and error handling as --librarian-list-team-files,
+			including the same `*.md`-only whitelist and the same
+			silently-filtered non-`*.md`-scope-argument corner.
 			Prints one
 			line per matched file: mtime (`YYYY-MM-DD HH:MM:SS`) then two
 			spaces then the path relative to the skill-root (never
@@ -476,24 +866,6 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--write-board-item <state> <item-filename>
-			**magic-coordinator-only op by design** — BOARD.md states plainly
-			that write authority over the board (creating/moving/scoring an
-			Item) is exclusive to magic-coordinator; this op is the tool-
-			mediated mechanism magic-coordinator itself uses to do that, not
-			a general-purpose board-writing op for any member. No caller-
-			identity enforcement exists (same convention-based-trust model as
-			every other op here) — this is documented, not code-enforced.
-			<state> must be one of the board's real state names
-			(backlog/pending/running/blocked/parked/processed/
-			archived/retained); <item-filename> must be a bare filename (no
-			`/`, not `.`/`..`). Content via stdin only. Writes (creates or
-			overwrites) that item under board/<state>/. Moving an Item between states is two calls
-			(write into the new state, then remove the old file separately) —
-			this op has no built-in move/rename primitive.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
 		--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a note into your own personal
 			inbox. <member> must already exist as a real
@@ -530,12 +902,43 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
+			Writes (creates or overwrites) a reflection-type item into a
+			member's own personal inbox. <member> must already exist as a
+			real skill directory; <item-filename> must be a bare filename.
+			The inbox directory is created lazily if it doesn't exist yet.
+			Content via stdin by default, or via --from-file <path> -- either
+			overwrites the target outright. --edit-patch-from-stdin IS
+			accepted here (unlike --member-upsert-member-inquiry, which
+			rejects it) and behaves exactly as on
+			--member-upsert-inbox-note: a JSON array of {"old": <text>,
+			"new": <text>, "replace_all": <bool, default false>} patch
+			objects on stdin, each applied in order as an exact literal
+			(non-regex) substring match-and-replace against the existing
+			item, failing loud before any write if a patch's old text isn't
+			found or matches more than once without replace_all.
+
+			Mechanically identical to --member-upsert-inbox-note (both are
+			thin wrappers over the same shared write primitive; neither calls
+			the other) -- kept as its own distinctly-named op because
+			reflection notes are an established content family in this team's
+			inboxes: a frontmatter block followed by a "# Reflection: <title>"
+			heading and "## What happened"/"## Why this is worth keeping"
+			sections, as distinct from a plain free-form note or a passed
+			inquiry. <item-filename> is conventionally expected to contain
+			"reflection-" in its slug, matching every existing example, but
+			that is a naming convention to follow, not something enforced by
+			this operation.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
 			Appends exactly one canonical transcript-entry block:
 			<speaker-name> (<timestamp>): followed by quoted message lines.
 			Transcripts save under the team's shared audit tree -- not a
-			board/<state>/ folder; see --write-board-item above for the real
-			board state names. <YYYY-MM> is derived from the date
+			board/<state>/ folder (the real board state names are
+			backlog/pending/running/blocked/parked/processed/archived/
+			retained). <YYYY-MM> is derived from the date
 			embedded in <transcript-file-name> (transcript-YYYY-MM-DD-*),
 			falling back to the current UTC year-month otherwise.
 			<team-member> is an enforced first positional argument, not a
@@ -692,7 +1095,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item to board/backlog/ and/or patches its
 			frontmatter, one call -- no full-content rewrite required
 			(--upsert-from-stdin/--edit-script-from-stdin/
@@ -703,7 +1106,7 @@
 			exact literal (non-regex) substring match-and-replace against the
 			body -- a small localized body edit without supplying the whole
 			new body verbatim or writing a full script. --from-state:<state>
-			and --owner are both required; groomed-at/groomed-from/track are
+			and --owner-header-value are both required; groomed-at/groomed-from/track are
 			always auto-stamped, never caller-supplied. --header:*/
 			--upsert-from-stdin/--edit-script-from-stdin/
 			--edit-patch-from-stdin pass straight through for whatever else
@@ -713,7 +1116,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as --magic-grooming-to-backlog, target fixed to
 			board/pending/ -- the Advancement-review case (backlog->pending,
 			e.g. --header:upsert:approved-by:"<team-member> (<session-id>,
@@ -724,13 +1127,13 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as --magic-grooming-to-backlog, target fixed to
 			board/processed/. Own dedicated case arm.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as --magic-grooming-to-backlog, target fixed to
 			board/parked/ -- routine-grooming's own Defer outcome, a
 			deliberate deferral by the team's own choice (distinct from
@@ -743,12 +1146,12 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as --magic-grooming-to-backlog, target fixed to
 			board/blocked/ -- routine-grooming's own stalled-on-something-
 			external outcome, as distinct from board/parked/, where the team
 			deliberately chooses to stop pushing. Replaces the two-call
-			--write-board-item recipe routine-grooming previously used for
+			write-then-remove recipe routine-grooming previously used for
 			this move. owner/groomed-at/groomed-from/track are stamped exactly
 			as the other grooming ops stamp them -- that stamping is what
 			distinguishes this op from --magic-board-to-blocked, which targets
@@ -759,12 +1162,12 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as --magic-grooming-to-backlog, target fixed to
 			board/running/ -- routine-grooming's own check-backlog-promote
 			dispatch, "once the thread is genuinely active, move the item to
 			board-running", which that step previously did as a two-call
-			--write-board-item move. Distinct from --magic-advance-to-running,
+			write-then-remove move. Distinct from --magic-advance-to-running,
 			which targets the same state: that one is routine-advance's own
 			dispatch and auto-stamps started-at, while this one is
 			routine-grooming's and stamps owner/groomed-at/groomed-from/track
@@ -775,14 +1178,14 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as --magic-grooming-to-backlog, target fixed to
 			board/archived/ -- routine-grooming's own Drop outcome (dropped
 			with no future intent), plus the two archived exits from its
 			re-check steps: a board-parked item whose trigger the group
 			concludes is never coming, and a board-blocked item the group
 			decides is not worth even waiting on. Replaces the two-call
-			--write-board-item recipe that routine-grooming previously
+			write-then-remove recipe that routine-grooming previously
 			prescribed for this move. board-archived being terminal is not a
 			reason to withhold the grooming stamps --
 			--magic-grooming-to-processed already stamps the same set onto a
@@ -793,7 +1196,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as --magic-grooming-to-backlog, target fixed to
 			board/retained/ -- but for a SAME-STATE PATCH, not a move.
 			routine-grooming does not move items into board-retained, and this
@@ -801,7 +1204,7 @@
 			board-retained is routine-heartbeat's own GC diversion. This op
 			serves one case from routine-grooming's board-retained
 			recheck-and-exit step -- "still referenced, stays, recheck-date
-			renewed" -- which was previously a --write-board-item call in the
+			renewed" -- which was previously a single raw write in the
 			same state. Called with --from-state:retained, so source and
 			target match and nothing relocates: the intern-op
 			reads-and-preserves the existing body whenever --from-state equals
@@ -815,7 +1218,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-create-backlog <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+		--magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
 			Creates a board-item directly in board/backlog/ -- routine-grooming's
 			own first write of that item, not a move. The Promoted default landing for an inbox item the authority group promotes.
 			--from-state: is rejected here: a created item has no source
@@ -823,13 +1226,13 @@
 			family; groomed-from deliberately is NOT -- it records the state
 			an item moved from, and a created item moved from nowhere. One
 			body-input mode is required: there is no existing body to carry
-			forward. source-slack-channel/source-slack-ts, approved-by/
-			approved-at, blocks/blocked-by and references ride --header:* in
+			forward. communication-channel-id, approved-by/approved-at,
+			blocks/blocked-by and references ride --header:* in
 			this same single write. Own dedicated case arm.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-create-processed <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+		--magic-grooming-create-processed <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
 			Creates a board-item directly in board/processed/ -- routine-grooming's
 			own first write of that item, not a move. A promoted-or-denied item landing with its resolution text attached.
 			--from-state: is rejected here: a created item has no source
@@ -837,13 +1240,13 @@
 			family; groomed-from deliberately is NOT -- it records the state
 			an item moved from, and a created item moved from nowhere. One
 			body-input mode is required: there is no existing body to carry
-			forward. source-slack-channel/source-slack-ts, approved-by/
-			approved-at, blocks/blocked-by and references ride --header:* in
+			forward. communication-channel-id, approved-by/approved-at,
+			blocks/blocked-by and references ride --header:* in
 			this same single write. Own dedicated case arm.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-create-pending <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+		--magic-grooming-create-pending <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
 			Creates a board-item directly in board/pending/ -- routine-grooming's
 			own first write of that item, not a move. Promotion where the group's own context already warrants approval at creation.
 			--from-state: is rejected here: a created item has no source
@@ -851,13 +1254,13 @@
 			family; groomed-from deliberately is NOT -- it records the state
 			an item moved from, and a created item moved from nowhere. One
 			body-input mode is required: there is no existing body to carry
-			forward. source-slack-channel/source-slack-ts, approved-by/
-			approved-at, blocks/blocked-by and references ride --header:* in
+			forward. communication-channel-id, approved-by/approved-at,
+			blocks/blocked-by and references ride --header:* in
 			this same single write. Own dedicated case arm.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-create-blocked <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+		--magic-grooming-create-blocked <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
 			Creates a board-item directly in board/blocked/ -- routine-grooming's
 			own first write of that item, not a move. Promotion that needs human-owner approval, so the item lands blocked.
 			--from-state: is rejected here: a created item has no source
@@ -865,13 +1268,13 @@
 			family; groomed-from deliberately is NOT -- it records the state
 			an item moved from, and a created item moved from nowhere. One
 			body-input mode is required: there is no existing body to carry
-			forward. source-slack-channel/source-slack-ts, approved-by/
-			approved-at, blocks/blocked-by and references ride --header:* in
+			forward. communication-channel-id, approved-by/approved-at,
+			blocks/blocked-by and references ride --header:* in
 			this same single write. Own dedicated case arm.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-grooming-create-running <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+		--magic-grooming-create-running <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
 			Creates a board-item directly in board/running/ -- routine-grooming's
 			own first write of that item, not a move. The approval-* item the human-owner approval negotiation runs in.
 			--from-state: is rejected here: a created item has no source
@@ -879,8 +1282,8 @@
 			family; groomed-from deliberately is NOT -- it records the state
 			an item moved from, and a created item moved from nowhere. One
 			body-input mode is required: there is no existing body to carry
-			forward. source-slack-channel/source-slack-ts, approved-by/
-			approved-at, blocks/blocked-by and references ride --header:* in
+			forward. communication-channel-id, approved-by/approved-at,
+			blocks/blocked-by and references ride --header:* in
 			this same single write. Own dedicated case arm.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
@@ -890,20 +1293,48 @@
 			line, with every frontmatter field. Always scans backlog/
 			pending/running/blocked/parked, --all-types. Use this to find an
 			item's actual current state before calling --magic-grooming-to-*.
-			<team-member> is the only argument -- no --state/--header
-			override.
+			Also returns routine-grooming's own state-and-lock note content
+			ahead of the board rows, so a pass can continue from what the
+			previous one recorded; a note that does not exist yet reports as
+			having nothing to report and is not an error. Returns content
+			only -- it never evaluates the lock. <team-member> is the only
+			argument -- no --state/--header override.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-sweep-input-scan <team-member>
-			Read-only: routine-communication-sweep's own first-stage board
-			scan. Scans backlog/pending/running/blocked -- not parked.
-			Returns only the items carrying both source-slack-channel and
-			source-slack-ts, i.e. those tracking a live, reply-pending
-			Slack thread, every board-item type, every frontmatter field.
+		--magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]
+			Read-only: routine-communication-sweep's own combined check
+			pass. Scans backlog/pending/running/blocked -- not parked.
+			Returns only the items whose communication-channel-id is the
+			three-field `slack:<channel>:<ts>` form, i.e. those tracking a
+			live, reply-pending Slack thread -- a bare `slack:<channel>`
+			names no thread, and a non-slack service is not one at all.
+			Every board-item type, every frontmatter field --
+			and reads every watched source in the same pass.
 			An empty result (no live-tracked thread) is a normal, clean
-			outcome, not an error. <team-member> is the only argument -- no
-			--state/--header override.
+			outcome, not an error. No --state/--header override.
+
+			An optional cut-off narrows the read: --comms-since-utime takes
+			epoch seconds, with or without a fractional part; --comms-since-date-time
+			takes a YYYY-MM-DD-leading value. Mutually exclusive, neither
+			repeatable -- one cut-off, one spelling.
+
+			**Not a workspace-wide mention search.** A conversation outside
+			the already-watched sources, or an identity mention that falls
+			outside them, stays undiscoverable here -- true "tagged anywhere"
+			coverage is a separate, not-yet-built capability.
+
+			Exit code, reporting how much of the watched set was actually
+			read (the body reports the same fact in its own
+			`sources-scanned: N of M` lines and `NOT SCANNED`/partial
+			markers; this makes it readable by status alone):
+			0 when every source was scanned,
+			3 when some were and some could not be -- the result is a
+			partial sweep and must not be read as a complete one,
+			4 when none could be,
+			1 when the operation failed before producing a document.
+			Same three-way shape and meanings as --member-comms-slack-read's
+			human-owner fan-out.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -950,28 +1381,39 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-heartbeat-input-scan <team-member>
-			Read-only: routine-heartbeat's own board scan. Scans backlog/
-			pending/running/blocked/parked -- a broad "pulse of the whole
-			active board" reading -- every board-item type, every
-			frontmatter field. <team-member> is the only argument -- no
-			--state/--header override.
+			Read-only: routine-heartbeat's own prepared input, narrowed to
+			what that routine's own steps consume. Returns
+			routine-heartbeat's own state-and-lock note content first, so a
+			pass can continue from what the previous one recorded; a note
+			that does not exist yet reports as having nothing to report and
+			is not an error. That is the lock note, not the heartbeat state
+			record read by --magic-heartbeat-state-read. Returns content
+			only -- it never evaluates the lock. Then an index of running/
+			blocked only, every board-item type, carrying the `status`
+			field alone -- the Test-email-report sub-step's own
+			active-processes list, not a whole-board digest. <team-member>
+			is the only argument -- no --state/--header override.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-heartbeat-config-check
 			Read-only, no arguments -- routine-heartbeat's step-0 upfront
-			config gate, always against magic-coordinator's own config.
+			config gate. Checks two scopes: magic-coordinator's own config
+			for the keys below, and magic-team's for SLACK_BOT_TOKEN, which
+			is the team's own credential rather than any one member's.
 			Prints one `<KEY>: OK`/`<KEY>: FAIL` line per key checked (name
-			only, never the value): TEAM_DATA_DIRECTORY, SLACK_BOT_TOKEN,
-			SLACK_CHANNEL_EVENT_TRACK, SLACK_CHANNEL_MAGIC_TEAM,
-			SLACK_CHANNEL_HUMAN_OWNER, EMAIL_IMAP_HOST, EMAIL_USER,
-			EMAIL_APP_PASSWORD, TRELLO_KEY, TRELLO_TOKEN. Only
-			TEAM_DATA_DIRECTORY is required -- missing, also prints a
+			only, never the value): TEAM_DATA_DIRECTORY,
+			SLACK_CHANNEL_EVENT_TRACK, SLACK_CHANNEL_EVENT_ALERT,
+			SLACK_CHANNEL_MAGIC_TEAM, SLACK_CHANNEL_HUMAN_OWNER,
+			EMAIL_IMAP_HOST, EMAIL_USER, EMAIL_APP_PASSWORD, TRELLO_KEY,
+			TRELLO_TOKEN, TEAM_DATA_GIT_REMOTE. Five are required:
+			TEAM_DATA_DIRECTORY and the four SLACK_CHANNEL_* keys -- any of
+			them missing also prints a
 			`⛔ ERROR ... set it first: DistroAgentsTools.fn.sh
-			--agents-config-option magic-coordinator --upsert TEAM_DATA_DIRECTORY <path>`
-			line and returns 1. The other nine are optional/informational --
-			each FAIL prints its own fix command too, but never affects the
-			exit code.
+			--agents-config-option magic-coordinator --upsert <KEY> <value>`
+			line and returns 1. The other six, and SLACK_BOT_TOKEN, are
+			optional/informational -- each FAIL prints its own fix command
+			too, but never affects the exit code.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -982,8 +1424,13 @@
 			every frontmatter field. A caller needing a narrower view
 			(routine-update-board uses only running/blocked) selects from
 			the returned rows itself -- each one is labelled
-			<state>/<item-filename>. <team-member> is the only argument --
-			no --state/--header override.
+			<state>/<item-filename>. Also returns routine-advance's own
+			state-and-lock note content ahead of the board rows, so a pass
+			can continue from what the previous one recorded; a note that
+			does not exist yet reports as having nothing to report and is
+			not an error. Returns content only -- it never evaluates the
+			lock. <team-member> is the only argument -- no --state/--header
+			override.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1102,6 +1549,83 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--magic-advance-lock-acquire <team-member> <owner-label>
+		--magic-grooming-lock-acquire <team-member> <owner-label>
+		--magic-daily-lock-acquire <team-member> <owner-label>
+		--magic-retro-lock-acquire <team-member> <owner-label>
+			Takes the calling routine's lock before any other step. Prints
+			`ACQUIRED` (rc 0) on a fresh take; `RECLAIMED_STALE:prev_owner=
+			...:age=...s` (rc 0) when the previous holder went stale;
+			`ACTIVE:owner=...:since=...:heartbeat_age=...s` (rc 1) when
+			another holder genuinely has it -- rc 1 means do not start.
+			<owner-label> names the running process, not a chat-session id.
+			Takes no options; any further argument is rejected.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-advance-lock-refresh <team-member>
+		--magic-grooming-lock-refresh <team-member>
+		--magic-daily-lock-refresh <team-member>
+		--magic-retro-lock-refresh <team-member>
+			Re-asserts a held lock so a long run is not mistaken for a
+			crashed one. Prints `REFRESHED` (rc 0), or `NO_LOCK_HELD` (rc 1)
+			when nothing is held. Takes no options; any further argument is
+			rejected.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-advance-close-state-and-unlock <team-member>
+		--magic-grooming-close-state-and-unlock <team-member>
+		--magic-daily-close-state-and-unlock <team-member>
+		--magic-retro-close-state-and-unlock <team-member>
+			Releases the lock in routine closure, setting the note's own
+			`state: advance-finished`, `state: grooming-finished`,
+			`state: daily-finished` or `state: retro-finished`
+			respectively. Prints `RELEASED` and returns 0 always. Takes no
+			options; any further argument is rejected.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-advance-lock-status <team-member>
+		--magic-grooming-lock-status <team-member>
+		--magic-daily-lock-status <team-member>
+		--magic-retro-lock-status <team-member>
+			Read-only, returns 0 always -- including when free, so a caller
+			can check before deciding to start. Prints `NO_LOCK` when free.
+			When held it prints the lock's own metadata: raw `owner=`/
+			`pid=`/`start=`/`heartbeat=` lines, or
+			`ACTIVE:owner=...:state=...:recheck_date=...` where a git remote
+			is configured for the board. Takes no options; any further
+			argument is rejected.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-advance-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]
+		--magic-grooming-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]
+		--magic-daily-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]
+		--magic-retro-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]
+			Writes the calling routine's own fixed state-and-lock note --
+			its session tracking document between iterations, not a
+			transcript. Prefer referencing TEAM-DATA over copying it.
+			`state` and `recheck-date` are stamped by the operation itself
+			(+10 minutes for advance, +30 for grooming, daily and retro);
+			pass `--header:upsert:state:<routine>-finished` to close.
+
+			--header:<upsert|append|remove>:name[:value]
+				Frontmatter field operations, applied in order. A repeated
+				upsert on one field takes the last value. `recheck-date` is
+				always re-stamped by the operation and cannot be overridden.
+
+			--from-file <path>
+				Replace the note body with this file's contents.
+
+			--edit-patch-from-stdin
+				Apply a JSON array of {"old","new","replace_all"} patches to
+				the existing body. Mutually exclusive with --from-file.
+				Given neither, the existing body is preserved.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--magic-advance-sleep-run
 			Read-only, no arguments -- a fixed-duration pacing operation in
 			routine-advance's operation group.
@@ -1143,6 +1667,41 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--magic-heartbeat-lock-acquire <team-member> <owner-label>
+			Takes routine-heartbeat's lock before any other step. Prints
+			`ACQUIRED` (rc 0) on a fresh take; `RECLAIMED_STALE:prev_owner=
+			...:age=...s` (rc 0) when the previous holder went stale;
+			`ACTIVE:owner=...:since=...:heartbeat_age=...s` (rc 1) when
+			another holder genuinely has it -- rc 1 means do not start.
+			<owner-label> names the running process (e.g. "main-loop"), not
+			a chat-session id. Takes no options; any further argument is rejected.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-heartbeat-lock-refresh <team-member>
+			Re-asserts a held lock so a long run is not mistaken for a
+			crashed one. Prints `REFRESHED` (rc 0), or `NO_LOCK_HELD` (rc 1)
+			when nothing is held. Takes no options; any further argument is rejected.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-heartbeat-close-state-and-unlock <team-member>
+			Releases the lock in routine closure, setting the note's
+			`state: heartbeat-finished`. Prints `RELEASED` and returns 0
+			always. Takes no options; any further argument is rejected.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-heartbeat-lock-status <team-member>
+			Read-only, returns 0 always -- including when free, so a caller
+			can check before deciding to start. Prints `NO_LOCK` when free.
+			When held it prints the lock's own metadata: raw `owner=`/
+			`pid=`/`start=`/`heartbeat=` lines, or
+			`ACTIVE:owner=...:state=...:recheck_date=...` where a git remote
+			is configured for the board. Takes no options; any further argument is rejected.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--magic-heartbeat-state-read <team-member>
 			Reads `$MDAT_DATA_ROOT/.runtime/main-loop-state.md`.
 			Outputs file content, or `NO_STATE` if it does not exist.
@@ -1169,33 +1728,79 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--comms-slack-read <channel>:<ts> [--thread]
+		--member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]
+			`<team-member>` is the member this read acts as, and it comes
+			first, ahead of the target. It is required, for the reason the
+			identity paragraph below already gives: the acting member decides
+			which conversation this call can see at all.
+
 			Full detail for one specific message (default) or its whole
 			thread (--thread) -- all meta-info, reactions, formatting,
 			files/attachments, exactly as Slack's own API returns them.
-			Complement to --comms-slack-check: that one is a lightweight,
+			Complement to --intern-op-slack-check: that one is a lightweight,
 			pretty-formatted scan; this one is the deep read for actually
 			processing one specific item. Always returns full raw JSON,
 			never pretty-formatted -- "full" is the entire point.
 
+			Thread replies are covered: a `<ts>` naming a reply inside a
+			thread reads back that reply, exactly as a thread parent or a
+			plain non-threaded message does.
+
+			Uses the same credential resolution as
+			--member-comms-slack-send-message; `--identity-bot` reads as the team
+			bot instead of this member's own identity. A direct
+			conversation belongs to one identity, so the identity this call
+			acts as decides WHICH conversation it can see: the bot's direct
+			conversation with a person and a member's own are two different
+			conversations, and neither can read the other. Channels are
+			unaffected by it.
+
+			**An empty result is never an answer from this operation.** A
+			call that could not see the message it was asked for fails with
+			a non-zero status and names the requested `<ts>`. Nothing this
+			operation returns ever supports concluding "there is no such
+			message" or "nobody replied yet" -- that conclusion needs a
+			successful read, not an empty one.
+
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--comms-email-read <uid> [--seen]
+		--member-comms-email-read <team-member> <uid> [--seen]
+			`<team-member>` is the member this read acts as, and it comes
+			first, ahead of the `<uid>`. It is required, and it is strict:
+			the mailbox read is that member's own, with no fallback to
+			another member's. A UID only means anything inside one mailbox,
+			so the same `<uid>` under a different member names a different
+			message, or none at all -- and the not-found code below is about
+			this member's mailbox, never about email in general.
+
 			Full RFC822 message (headers + body + MIME multipart,
 			attachments included as their raw MIME parts) for one specific
-			email by IMAP UID -- contrast with --comms-email-check's
+			email by IMAP UID -- contrast with --member-comms-email-check's
 			STATUS-only unread count.
 
-			**Reading does not mark the message read.** The fetch uses
-			BODY.PEEK[], so \Seen is left exactly as it was found. Reading is
-			not a decision about the message; marking it read is, and that
-			decision is made separately -- either by --comms-email-mark-seen,
-			or inline with --seen below.
+			**Reading does not mark the message read.** The mailbox is
+			opened read-only for the fetch, so the server cannot set \Seen
+			on it at all; the fetch also asks for BODY.PEEK[]. \Seen is
+			left exactly as it was found. Reading is not a decision about
+			the message; marking it read is, and that decision is made
+			separately -- either by --member-comms-email-mark-seen, or inline with
+			--seen below.
+
+			**An empty result is never an answer from this operation.** A
+			call that could not return the message it was asked for fails
+			with a non-zero status; empty stdout is never a successful
+			answer. Four non-zero codes. **1**: no `<uid>` argument was
+			given. **2**: `<uid>` is malformed, or the mailbox could not be
+			reached or logged into. **3**: the server refused the fetch.
+			**4**: no message with that `<uid>` exists in the mailbox --
+			the not-found case, distinct from every failure above, so
+			"there is no such message" is a conclusion this operation
+			states itself rather than one a caller infers from silence.
 
 			--seen marks the message \Seen after a successful read, for the
 			case where a caller reads and immediately concludes. It runs only
 			once the read has succeeded -- a failed read leaves the message
-			untouched -- and it delegates to --comms-email-mark-seen rather
+			untouched -- and it delegates to --member-comms-email-mark-seen rather
 			than doing its own STORE, so there is one mechanism for the
 			mutation and this op owns only the choice to invoke it. That
 			ordering is also what keeps a later "mark seen everything matching
@@ -1204,10 +1809,17 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--comms-trello-read <notification-id>
+		--member-comms-trello-read <team-member> <notification-id>
+			`<team-member>` is the member this read acts as, and it comes
+			first, ahead of the `<notification-id>`. It is required, and it
+			is strict: the notification is read as that member, with no
+			fallback to another member's scope. A notification belongs to
+			one member's own list, so an id taken from another member's
+			check is not readable here.
+
 			Full detail for one specific Trello notification (the unit
-			--comms-trello-check's unread list returns), including its related
-			card/board summary. Contrast with --comms-trello-check's unread-list
+			--member-comms-trello-check's unread list returns), including its related
+			card/board summary. Contrast with --member-comms-trello-check's unread-list
 			scan.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
@@ -1260,34 +1872,37 @@
 		`DistroAgentsTools.fn.sh --console-stop myx.distro-agent-console.<slug>.source`
 
 		# Set/read a credential-bearing setting
-		`DistroAgentsTools.fn.sh --agents-config-option magic-coordinator --upsert SLACK_BOT_TOKEN xoxb-...`
-		`DistroAgentsTools.fn.sh --agents-config-option magic-coordinator --select SLACK_BOT_TOKEN`
+		`DistroAgentsTools.fn.sh --agents-config-option magic-team --upsert SLACK_BOT_TOKEN xoxb-...`
+		`DistroAgentsTools.fn.sh --agents-config-option magic-team --select SLACK_BOT_TOKEN`
 
 		# Send a plain-text message to a fixed target
-		`DistroAgentsTools.fn.sh --member-slack-send-message keeper-myx magic-team Build finished OK.`
+		`DistroAgentsTools.fn.sh --member-comms-slack-send-message keeper-myx magic-team Build finished OK.`
 
 		# Send a threaded reply with rich Block Kit formatting from stdin -- heredoc,
 		# not a piping command in front; --from-stdin is the standardized name
 		# (--message-from-stdin still works too, same flag)
 		```
-		DistroAgentsTools.fn.sh --member-slack-send-message keeper-myx C0123ABCD:1700000000.000100 --from-stdin --format blocks <<'EOF'
+		DistroAgentsTools.fn.sh --member-comms-slack-send-message keeper-myx C0123ABCD:1700000000.000100 --from-stdin --format blocks <<'EOF'
 		[{"type":"section","text":{"type":"mrkdwn","text":"*done*"}}]
 		EOF
 		```
 
 		# Send the same via --from-file instead -- write content with a plain Write tool
 		# call first, then this stays a single-line command
-		`DistroAgentsTools.fn.sh --member-slack-send-message keeper-myx magic-team --from-file /path/to/message.txt`
+		`DistroAgentsTools.fn.sh --member-comms-slack-send-message keeper-myx magic-team --from-file /path/to/message.txt`
 
 		# Mark an email UID as read after processing it
-		`DistroAgentsTools.fn.sh --comms-email-mark-seen 48`
+		`DistroAgentsTools.fn.sh --member-comms-email-mark-seen magic-coordinator 48`
 
-		# Write/update a board Item -- magic-coordinator-only op, see --write-board-item above
+		# Create a board Item -- one call, see --magic-grooming-create-backlog above
 		```
-		DistroAgentsTools.fn.sh --write-board-item backlog task-example.md <<'EOF'
+		DistroAgentsTools.fn.sh --magic-grooming-create-backlog magic-coordinator task-example.md --owner-header-value magic-coordinator --upsert-from-stdin <<'EOF'
 		... board item content ...
 		EOF
 		```
+
+		# Move an existing board Item between states -- one call, old file relocated to trash/
+		`DistroAgentsTools.fn.sh --magic-board-to-pending magic-coordinator task-example.md --from-state:backlog`
 
 		# Post a note into another member's own personal inbox
 		```
@@ -1336,22 +1951,22 @@
 
 		# Send an email with a multi-line body from stdin instead of fragile trailing argv
 		```
-		DistroAgentsTools.fn.sh --send-email-message example@example.org -- "Status update" -- --from-stdin <<'EOF'
+		DistroAgentsTools.fn.sh --member-comms-email-send magic-coordinator example@example.org -- "Status update" -- --from-stdin <<'EOF'
 		Line one of the body.
 		Line two, with 'quotes' and (parens) that would have been fragile as argv.
 		EOF
 		```
 
 		# Sweep all watched targets (magic-team, human-owner, email, Trello) for new activity --
-		# takes no target, this is the fixed comms-sweep macro-op, not a single-target reader
-		`DistroAgentsTools.fn.sh --sweep-read-incoming-comms`
+		# board-tracked threads and every watched source in one pass, not a single-target reader
+		`DistroAgentsTools.fn.sh --magic-sweep-input-scan magic-coordinator`
 
 		# Sweep all watched targets, incrementally since a prior check marker
-		`DistroAgentsTools.fn.sh --sweep-read-incoming-comms --oldest 1700000000.000000`
+		`DistroAgentsTools.fn.sh --magic-sweep-input-scan magic-coordinator --comms-since-utime 1786140114.450349`
 
-		# Read one specific target/thread instead -- use --comms-slack-check, not --sweep-read-incoming-comms
-		`DistroAgentsTools.fn.sh --comms-slack-check magic-team --oldest 1700000000.000000`
-		`DistroAgentsTools.fn.sh --comms-slack-check C0123ABCD:1700000000.000100`
+		# Read one specific target/thread instead -- use --intern-op-slack-check, not --magic-sweep-input-scan
+		`DistroAgentsTools.fn.sh --intern-op-slack-check magic-coordinator magic-team --oldest 1700000000.000000`
+		`DistroAgentsTools.fn.sh --intern-op-slack-check magic-coordinator C0123ABCD:1700000000.000100`
 
 		# Regression-test permission hardening under a deliberately permissive umask
 		`DistroAgentsTools.fn.sh --self-test`
@@ -1360,8 +1975,8 @@
 		`DistroAgentsTools.fn.sh --verify-permissions`
 
 		# Ad hoc: check a JSON file someone produced, independent of any op --
-		# NOT a required pre-step before --member-slack-send-message --format blocks (that op
-		# already validates its own stdin internally, see --member-slack-send-message above)
+		# NOT a required pre-step before --member-comms-slack-send-message --format blocks (that op
+		# already validates its own stdin internally, see --member-comms-slack-send-message above)
 		`DistroAgentsTools.fn.sh --intern-validate-json /path/to/payload.json`
 
 		# Ad hoc: check JSON from stdin the same way -- heredoc, not a piping command in front
@@ -1370,10 +1985,3 @@
 		[{"type":"section","text":{"type":"mrkdwn","text":"*ok*"}}]
 		EOF
 		```
-
-		# Existence + line count for a batch of files in one call, instead of a hand-rolled `for`/`wc -l` loop
-		`DistroAgentsTools.fn.sh --list-md /path/to/one.md /path/to/two.md /path/to/missing.md`
-		# -> /path/to/one.md: 67 lines
-		# -> /path/to/two.md: 43 lines
-		# -> /path/to/missing.md: MISSING
-		# (returns 1 since one path was missing)

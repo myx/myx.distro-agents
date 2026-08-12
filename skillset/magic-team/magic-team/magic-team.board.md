@@ -31,7 +31,7 @@ This file itself stays thin: a rollup pointing into `board/`'s folders, not wher
   - There is no `triage/` folder.
 - **Approval is a header fact, not a folder.** `approved-by`/`approved-at` (see `magic-team.armed.md`'s field list) record that the authority group or the human-owner approved an item, whatever state folder it's actually sitting in — there is no dedicated `approved/` state.
 - **`board-backlog`** — concurrency-safe drop point for a freshly-triaged board-item; the default landing spot for one.
-  - Who may place one here directly (without needing `magic-coordinator`'s otherwise-exclusive board-write turn): grooming, `magic-coordinator` itself, and other session-routine-mandated members (e.g. `routine-interview` step 3a).
+  - Who may place one here directly (without needing `magic-coordinator`'s otherwise-exclusive board-write turn): grooming, `magic-coordinator` itself, and other session-routine-mandated members (e.g. `routine-interview`'s **run-minimal-step-cycle**).
   - An item sitting here hasn't been assessed yet — the next `routine-advance`/`routine-grooming` pass picks it up.
 - **`board-pending`**
   - An item whose `approved-by`/`approved-at` is already recorded (the "go" decision, made by the authority group or the human-owner during grooming/triage) but that hasn't actually been dispatched (no real work-session/Agent/console spun up for it) yet.
@@ -73,7 +73,7 @@ This file itself stays thin: a rollup pointing into `board/`'s folders, not wher
 **`board-running`→`board-blocked` has at least four paths in** (not exhaustive — whichever discovers it first fires this):
 - Live, during a `daily-meeting.md` work session, when a dispatched agent genuinely can't make progress.
 - Grooming's own periodic advancement review, catching what wasn't flagged live.
-- A member's own async block-report — posted any time, into `magic-coordinator`'s own personal inbox (a cross-member handoff, so it sends an immediate reply to `slack-magic-team` per [routine-process-inbox](../routine-process-inbox/)'s own step 3), acted on the next time that routine runs over it.
+- A member's own async block-report — posted any time, into `magic-coordinator`'s own personal inbox (a cross-member handoff, so it sends an immediate reply to `slack-magic-team` per [routine-process-inbox](../routine-process-inbox/)'s own **reply-on-cross-member-handoff**), acted on the next time that routine runs over it.
 - A `board-running` item's own testing round finishes clean but needs human-owner sign-off before it can be finalized (see `board-running` above).
 
 All four are equally valid; none is the "real" or "canonical" one. **Not the same as `board-parked`**: `board-blocked` keeps getting worked *at* even while it can't move; `board-parked` is the team consciously choosing to stop that active effort and just wait instead (see below).
@@ -109,16 +109,16 @@ All four are equally valid; none is the "real" or "canonical" one. **Not the sam
   - **Settled**: a qualifying reference must be structurally load-bearing (e.g. a child that genuinely depends on its parent still being resolvable, such as an `inquiry-*`'s spawned children) — an incidental passing mention never qualifies. Decided this way because `references:` is documented elsewhere as informational/soft, and an unrestricted reading risks `board-retained` slowly absorbing most of `board-processed` over time. This same definition backs `recheck-and-exit` too — defined once, here.
 
 **Resolving a Slack-originated `board-item` also closes the loop on its originating message.**
-- Whenever a `board-item` carrying `source-slack-channel`/`source-slack-ts` (see `magic-team.armed.md`'s "Board & Inbox board-items entity model" section) moves into `board-processed`, `board-archived`, or `board-retained`, the originating Slack message eventually gets a reaction reflecting the real outcome.
+- Whenever a Slack-origin `board-item` — one whose `communication-channel-id` value starts with `slack:` (see `magic-team.armed.md`'s "Board & Inbox board-items entity model" section) — moves into `board-processed`, `board-archived`, or `board-retained`, the originating Slack message eventually gets a reaction reflecting the real outcome.
 - `:white_check_mark:` for a positive/successful resolution; an assessed negative-outcome emoji for a negative one (denied, dropped, archived without a positive outcome) — `:x:`/❌ is a sensible floor/fallback, not a fixed choice, `:-1:`/thumbsdown or another may fit a given case better.
 
 **The move and the reaction are decoupled, not one write-time action.**
 - Whichever routine resolves the `board-item` (`routine-grooming`'s triage, an inline `magic-coordinator` resolution, or any other path) does not react itself — it only needs to write a clear resolution (so positive-vs-negative can be judged later, since `board-processed` holds both outcomes and folder placement alone never distinguishes them).
-- Separately, at the moment a message's reaction first needs to stay deferred (its handling spawned/is the source of a still-open `board-item`), `routine-communication-sweep` files a lightweight `note-pending-slack-reaction-*.md` record — `source-slack-channel`/`source-slack-ts` + a `references` pointer to the tied `board-item`, no deep classification — into `magic-coordinator`'s own inbox or `board-running`.
-- **`routine-advance`'s own pending-reaction-lookup step (its step 6) is the actual reactor** — every `routine-heartbeat` iteration, once that pass's own board read has already loaded, it looks up all outstanding pending-reaction records, checks whether each referenced `board-item` has resolved, reacts via `DistroAgentsTools.fn.sh --comms-slack-react` if so, and clears the record.
-- It never *performs the move itself* (its own Scope only ever moves items *out of* `board-processed`/`board-archived`, the narrow step-3c reopen case) — it is the sole reactor for this mechanism, via its own independent queue-lookup, not by being the trigger for the move.
+- Separately, at the moment a message's reaction first needs to stay deferred (its handling spawned/is the source of a still-open `board-item`), `routine-communication-sweep` files a lightweight `note-pending-slack-reaction-*.md` record — the `communication-channel-id` + a `references` pointer to the tied `board-item`, no deep classification — into `magic-coordinator`'s own inbox or `board-running`.
+- **`routine-advance`'s own pending-reaction-lookup step is the actual reactor** (`check-process-board`'s **board-run-pending-comms-actions**) — every `routine-heartbeat` iteration, once that pass's own board read has already loaded, it looks up all outstanding pending-reaction records, checks whether each referenced `board-item` has resolved, reacts via `DistroAgentsTools.fn.sh --member-comms-slack-react` if so, and clears the record.
+- It never *performs the move itself* (its own Scope only ever moves items *out of* `board-processed`/`board-archived`, the narrow `check-process-board` **board-reopen-signaled-items** case) — it is the sole reactor for this mechanism, via its own independent queue-lookup, not by being the trigger for the move.
 
-`board-item`s with no `source-slack-channel`/`source-slack-ts` recorded (no real originating Slack message) simply have nothing to react to — this rule is silent for them, not a gap.
+`board-item`s carrying no `communication-channel-id` at all, or one whose value is not `slack:`-prefixed, have no originating Slack message to react to — this rule is silent for them, not a gap.
 
 ## Two independent dimensions: item types vs. routines/activities
 
@@ -211,7 +211,7 @@ Not something every individual member independently maintains or is expected to 
 
 The board matters at three points:
 - **Grooming** — the authority group's periodic deep read/write pass (triage, advancement, re-scoring).
-- **Daily-meeting** — the roll call narrates from it, and the coordinator's own todo-assignment step (step 4) is where a relevant board item gets folded into a properly-scoped dispatch for that day's work session, same as any other assignment.
+- **Daily-meeting** — the roll call narrates from it, and the coordinator's own todo-assignment step (**update-todos**) is where a relevant board item gets folded into a properly-scoped dispatch for that day's work session, same as any other assignment.
 - **On request** — any member (or the human-owner) can ask about the board's current state at any time; it's a legitimate thing to consult, just not a mandatory per-dispatch step for everyone.
 
 This board has exactly one writer, so there's no multi-writer race to solve here — that concern only applies to personal inboxes (many members writing into each other's), which is `routine-process-inbox`'s territory, not this file's.
@@ -222,5 +222,5 @@ This board has exactly one writer, so there's no multi-writer race to solve here
 
 Two kinds of state deliberately live outside it, and are not exceptions to that rule so much as different things entirely — neither is board status:
 
-- Per-platform mechanical comms-sweep state lives as structured fields in the `heartbeat-state-note` (`last_swept_ts`/`watched_slack_conversations`/`known_comms_gaps`), read via the `--magic-heartbeat-state-read` operation and rewritten via `--magic-heartbeat-state-upsert`.
-- Open-thread status lives on the owning `board-item`s directly (`source-slack-channel`/`source-slack-ts`) — `routine-communication-sweep` reads/writes those, not this file.
+- Per-platform mechanical comms-sweep state lives as structured fields in the `heartbeat-state-note` (`last_swept_ts`/`known_comms_gaps`). The operations that read and rewrite that record are `magic-coordinator`'s own, executed by the coordinator instance present in the session — same rule as this file's opening "A routine is not a second authority" statement.
+- Open-thread status lives on the owning `board-item`s directly (`communication-channel-id`) — `routine-communication-sweep` reads/writes those, not this file.

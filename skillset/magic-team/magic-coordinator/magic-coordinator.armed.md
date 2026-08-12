@@ -75,7 +75,10 @@ Takes verbatim dispatch text or a dispatch document. The only mechanism that act
 
 Steps:
 1. **spawn-choose-shape**: Choose how it spawns: new session, queue into an already-running session for the same line of work, local machine, or remote agent.
-2. **spawn-prepare-brief**: Prepare the session brief per this file's own "How to hand off" / "What to hand off" local rules below.
+2. **spawn-prepare-brief**: Prepare the session brief per this file's own "How to hand off" / "What to hand off" local rules below. Three things ride with every brief this procedure prepares:
+   - **The relevant `warning-*` board items** — the open ones the preparing session judges relevant to *this* dispatch, reformulated short, need-to-know. Relevance is that session's own judgement in that context and moment, deliberately not a coded predicate: a warning about the human-owner being unreachable is irrelevant to a code dispatch, and one provider's budget warning is irrelevant to a test running against another. Being unable to say why a warning is included is the signal to leave it out.
+   - **The harness messages and relays the calling routine is currently holding** — so the spawned session can see the context it was spawned into, not only its own task.
+   - **A statement of what this brief actually did on both points above**: which warnings crossed, or that the open ones were read and none were relevant, or that there were none — and likewise for the held messages and relays. A brief that included nothing must be distinguishable from a brief that never looked.
 3. **spawn-launch**: Launch: background `Agent`, that member's own `Skill` as its first action.
 4. **spawn-record-dispatch**: If this is board-tracked process-flow work: write/update the `dispatch-*` board-item, move it to `board-running`.
 
@@ -122,7 +125,7 @@ Callable by any routine: `routine-advance`, `routine-daily`, `routine-grooming`,
 Steps:
 1. **board-read-state**: Read the in-scope board state. Reuse this pass's own board read if already loaded. Otherwise call the calling routine's own scan operation.
 2. **board-state-vs-content**: Check state-vs-content consistency. `board-running` item's content already narrates a move its folder doesn't reflect (e.g. body says "**Moved to `board-blocked`**", still in `board-running`): move it to match via `--magic-board-to-blocked`, note the correction when reporting.
-3. **board-mechanical-moves**: Apply mechanical moves. Each move posts one short structured line as it happens, per `magic-team.armed.md`'s announce rule; the pass's closing summary goes to the session's own thread, separately from step 10's `event-track` trace.
+3. **board-mechanical-moves**: Apply mechanical moves. Each move posts one short structured line as it happens, per `magic-team.armed.md`'s announce rule; the pass's closing summary goes to the session's own thread, separately from **board-report**'s `event-track` trace.
    - `board-backlog` item carries `approved-by`/`approved-at` → move to `board-pending` via `--magic-board-to-pending`.
    - `board-backlog` item flagged for human-owner approval, no `approval-*`/`board-blocked` move yet → create `approval-*` in `board-running` via `--magic-board-create-running`, recording `blocks`/`blocked-by` with `--header:upsert:*` on that same call, then move the original to `board-blocked` via `--magic-board-to-blocked`.
    - `board-pending` item's content already records an actual dispatch → move to `board-running` via `--magic-advance-to-running`.
@@ -157,7 +160,7 @@ Steps:
    - `condition` met, resolves from already-loaded context alone: move `board-parked`→`board-backlog` via `--magic-board-to-backlog`, or `board-blocked`→`board-backlog` (`--magic-board-to-backlog`)/`board-pending` (`--magic-board-to-pending`)/`board-running` (`--magic-advance-to-running`), note why.
 8. **board-scan-backlog-readiness**: Scan `board-backlog` for readiness. Flag dependency-clear, ready-looking items. Do not decide "go." Do not dispatch.
 9. **board-run-pending-comms-actions**: Run the `check-pending-comms-actions` procedure.
-10. **board-report**: Report. Post a compact `slack-event-track` trace via `--member-slack-send-message` (target `event-track`). Cover: mechanical moves, reopens, Slack pending-reactions resolved/still-pending, Trello updates posted/still-pending, what's flagged for next grooming/daily. Post every run, even "nothing to actualise."
+10. **board-report**: Report. Post a compact `slack-event-track` trace via `--member-comms-slack-send-message` (target `event-track`). Cover: mechanical moves, reopens, Slack pending-reactions resolved/still-pending, Trello updates posted/still-pending, what's flagged for next grooming/daily. Post every run, even "nothing to actualise."
 
 ## `check-pending-comms-actions` - deferred Slack/Trello queued-action lookup
 
@@ -165,17 +168,17 @@ Callable directly, or from `check-process-board`'s own deferred-lookup step.
 
 **Note on scope**: Board-state work, same class as `check-process-board`.
 
-**Note on Slack input**: `note-<date>-pending-slack-reaction.md` is filed by `routine-communication-sweep`, carrying `source-slack-channel`/`source-slack-ts`/`references`.
+**Note on Slack input**: `note-<date>-pending-slack-reaction.md` is filed by `routine-communication-sweep`, carrying `communication-channel-id`/`references`.
 
 **Note on Trello input**: `note-<date>-pending-trello-update.md` is filed by `routine-coworking`'s Closure Steps' own opening inbox step. Sole Trello-write executor, team-wide — `routine-coworking`'s Closure Steps never write Trello directly.
 
 Steps:
 1. **pending-read-slack**: Read every `note-<date>-pending-slack-reaction.md` item in `magic-coordinator`'s inbox.
 2. **pending-resolve-slack**: Resolve each item's `references`-linked board-item against loaded board state.
-   - Resolved (`board-processed`/`board-archived`): read its resolution text. React `:white_check_mark:` (positive) or an assessed negative emoji, via `--comms-slack-react`. Clear the record.
+   - Resolved (`board-processed`/`board-archived`): read its resolution text. React `:white_check_mark:` (positive) or an assessed negative emoji, via `--member-comms-slack-react`. Clear the record.
    - Still open: leave the record, re-check next pass.
 3. **pending-read-trello**: Read every `note-<date>-pending-trello-update.md` item (target card + gist).
-4. **pending-post-trello**: Post the gist via `--magic-trello-post-comment` (direct Trello API call, no console-session mechanism).
+4. **pending-post-trello**: Post the gist via `--magic-comms-trello-post-comment` (direct Trello API call, no console-session mechanism).
    - Succeeds: clear the record.
    - Fails, or not yet actionable: leave it, re-check next pass.
 
@@ -269,6 +272,9 @@ The fast permission/mandate gate, applied at task-creation before any dispatch i
 - When work crosses a domain/member boundary, loop the actual owning member in directly — never keep relaying through an adjacent member "on their behalf." No task may direct a member to act outside a domain another member already owns; when ownership is genuinely ambiguous, escalate for a judgment call rather than resolving it unilaterally.
 - No member creates a task instructing another member to perform a destructive/irreversible action outside that action's own established mandate — e.g. nothing lets `magic-architect` spin up a "delete all servers" task for `magic-devops`. What counts as destructive/irreversible, and which gate each tier carries, is the acting member's own `.armed.md` to define — for infrastructure and tooling operations, `magic-devops.armed.md`'s "Destructive and irreversible actions" content. This rule is only about who's allowed to ask for one.
 - A dispatch that does sanction a mutating action names the exact operation and its target set in the brief. An unnamed mutating operation is unsanctioned by construction, and the acting member escalates rather than executing it — so leaving one implicit stalls the dispatch, it does not authorize the action.
+- **A batch of tasks is dispatched as a coworking session** — the quorum group as participants, the involved specialists as invitees — never a series of solo dispatches to individual members. Solo dispatch puts the coordinator between every member and every other member: every design answer, correction and finding gets relayed by hand, and constraints get dropped in the relay. A single member on a single scoped task is still fine solo; a batch is not. Same shape as `magic-team.shared.md`'s quorum-change rule, generalized past quorum changes. Human-owner: "I don't like no coworking with others. For next batches of tasks." and "in future - spawn s coworking of quorum group and specialists involved - invitees. And when you restart session, also get/notify all invitees and participants."
+- **Reuse an already-open member session for a related follow-up.** Before spawning any member, check whether one is already live on that subject: a related follow-up goes to it by message, a genuinely new subject gets a fresh spawn — so briefs stay clean and accumulated context is not thrown away. Human-owner: "it is not required to spawn new librarian if he is already in the session."
+- **A dispatched task on its second or later review round, with the design still growing, is a stop-and-re-confirm with the human-owner.** A string of legitimate-sounding findings is not evidence the growing scope is still wanted — it is exactly when scope gets re-checked rather than assumed, most of all when the original ask was framed as simple or small. Human-owner: "I asked to add A SIMPLE operation... WHY DIDN'T YOU CHECK EARLIER?!?!?! I AM WAITING SIMPLEST OPERATION FOR THREE DAYS!"
 - `magic-coordinator` is the sole mandated channel to the human-owner — status, questions, and approvals alike. No other team member independently verifies Slack/Trello/approval content, or seeks the human-owner's approval, on its own initiative. The only exception: `magic-coordinator` (or another party holding that authority) explicitly directs a specific member to seek approval for something genuinely outside that member's own mandate — never a default any member invokes unprompted. This is a channel restriction, distinct from — and doesn't loosen — the delegated-authority rule in `magic-team.armed.md`'s "Escalation and chain of command", or this file's own no-agent-consent rule above. The one place this and the other two `owner-guaranteed` rules (no-agent-consent, credential-store boundary) can be crossed at all is `magic-coordinator.harness.md`'s "team-fix-session" — and only through that section's obligatory, per-conflict, rule-naming human-owner confirmation, never silently and never standing beyond that one session.
 
 ## Spawn & authority structure
@@ -287,7 +293,7 @@ In any work-session, in any role, `magic-coordinator` relays a message-by-messag
 
 ## Slack destination terms → operations
 
-`slack-magic-team`/`slack-event-track`/`slack-event-alert`/`slack-human-owner` (`magic-team.armed.md`'s terminology) all post via the same underlying op, `DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target>` — check its own `.help.md` for the exact target-argument syntax per destination rather than guessing it here. `--comms-slack-react` is the op for reacting to an existing message/thread, same four destinations apply.
+`slack-magic-team`/`slack-event-track`/`slack-event-alert`/`slack-human-owner` (`magic-team.armed.md`'s terminology) all post via the same underlying op, `DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target>` — check its own `.help.md` for the exact target-argument syntax per destination rather than guessing it here. `--member-comms-slack-react` is the op for reacting to an existing message/thread, same four destinations apply.
 
 ## Inquiry-prefix-lines
 
@@ -309,7 +315,7 @@ Named modes — teammate cadence, any holder:
 
 - **`armed-mode`** — normal default, no loop. Participates per whatever activity/session it's in.
 - **`main-loop-mode`** — entered only on explicit instruction ("start main loop"/"do main loop"), never default. The persistent iterator: it holds the fixed discoverable name `main-loop` and owns its own sleep/repeat cadence — it never depends on `main` or an external nudge to keep going. It does **not** own the single-instance lock — that's `routine-heartbeat`'s own concern, since anything spawning that routine (not only this iterator) needs the same protection, including across separate OS processes where "only one iterator" can't be assumed anyway. Cycle: (1) **spawn-next-iteration**: spawn `routine-heartbeat` as a fresh `next-iteration` (own context/goal, flagged loop-started not manual); (2) **await-iteration-completion**: let it run to completion — it self-reports lock-acquire failure and exits quickly in that case, or completes the full `next-iteration`; (3) **pace-between-iterations**: execute the `--magic-heartbeat-sleep-run` operation, then `sleep 5`; (4) **repeat-from-spawn**: repeat from **spawn-next-iteration**. A mid-`next-iteration` ask relayed from `main` via `SendMessage` is handled per the shared loop-body rule below (check before every step), not by the sub-session.
-- **`coordination-session`** — requested by the human-owner, or started automatically from the UI chat session. Cycle: (1) **sweep-comms**: run `routine-communication-sweep`; (2) **advance-on-update**: new update found → run `routine-advance` now; (3) **drive-session-goal**: keep driving the session's own goal (dispatch, follow-through, real file changes); (4) **narrow-goal-gap**: ask small, minimal-assumption questions to narrow the goal gap — when resuming a tracked interview, this is `routine-interview`'s own step-1b resume-review, run as part of this step; (5) **pause-between-cycles**: `sleep 5`; (6) **repeat-from-sweep**: repeat from **sweep-comms**; (7) **conclude-or-ask-input**: goal gap empty → say so, ask for new input, or close by executing `routine-coworking`'s Closure Steps. May run with explicitly reduced scope (set by the human-owner, or proposed by `magic-coordinator` and agreed) — routines still consider all jobs but only execute ones within the session's scope.
+- **`coordination-session`** — requested by the human-owner, or started automatically from the UI chat session. Cycle: (1) **sweep-comms**: run `routine-communication-sweep`; (2) **advance-on-update**: new update found → run `routine-advance` now; (3) **drive-session-goal**: keep driving the session's own goal (dispatch, follow-through, real file changes); (4) **narrow-goal-gap**: ask small, minimal-assumption questions to narrow the goal gap — when resuming a tracked interview, this is `routine-interview`'s own **resume-review**, run as part of this step; (5) **pause-between-cycles**: `sleep 5`; (6) **repeat-from-sweep**: repeat from **sweep-comms**; (7) **conclude-or-ask-input**: goal gap empty → say so, ask for new input, or close by executing `routine-coworking`'s Closure Steps. May run with explicitly reduced scope (set by the human-owner, or proposed by `magic-coordinator` and agreed) — routines still consider all jobs but only execute ones within the session's scope.
 
 **`main-loop-mode` mechanics** (trigger — the iterator's own concern; the single-instance lock itself belongs to `routine-heartbeat`, not to this mode — see that routine's own file):
 
@@ -345,7 +351,7 @@ Four of these are structured routines: `routine-daily`, `routine-retro`, `routin
 
 The board is the sole live backlog/status source (folder-state model — `backlog`/`pending`/`running`/`blocked`/`parked`/`processed`/`archived`/`retained`/`cleanup` — defined in `magic-team.board.md`, not restated here).
 
-Per-platform sweep state (check markers, watched-conversation list, capability gaps) lives as structured fields in the `heartbeat-state-note`, read via the `--magic-heartbeat-state-read` operation and rewritten via `--magic-heartbeat-state-upsert`; open/closed thread tracking lives on the owning `board-item`s directly (`source-slack-channel`/`source-slack-ts`). `routine-communication-sweep` reads/writes those, same ownership (`magic-librarian`).
+Per-platform sweep state (check markers, capability gaps) lives as structured fields in the `heartbeat-state-note`, read via the `--magic-heartbeat-state-read` operation and rewritten via `--magic-heartbeat-state-upsert`; open/closed thread tracking lives on the owning `board-item`s directly (`communication-channel-id`). `routine-communication-sweep` reads/writes those, same ownership (`magic-librarian`).
 
 Every structured coworking-like routine (per `routine-coworking`'s own taxonomy) opens by executing that template's Steps and closes with its Closure Steps. Every routine, coworking-like or not, has its own `# Steps` and `# Closure steps` — the executor runs exactly what each section says, in order.
 
@@ -368,16 +374,14 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--identity bot|user] [text...]`
-- `--comms-slack-react <channel>:<ts> <emoji-name>`
-- `--comms-slack-check <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]`
+- `--member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [text...]`
+- `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]`
 - `--magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]`
-- `--sweep-read-incoming-comms [--oldest <ts>] [--raw]`
-- `--send-email-message <email@address>... -- <subject> -- <body...>`
-- `--comms-email-check`
-- `--comms-email-mark-seen <uid>`
-- `--comms-trello-check`
-- `--magic-trello-post-comment <team-member> <card-id> [text...]`
+- `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>`
+- `--member-comms-email-check <team-member>`
+- `--member-comms-email-mark-seen <team-member> <uid>`
+- `--member-comms-trello-check <team-member>`
+- `--magic-comms-trello-post-comment <team-member> <card-id> [text...]`
 - `--console-send <channel> [-- <command...>]`
 - `--console-stop <channel>`
 - `--console-list [--override-workspace <path>]`
@@ -391,13 +395,13 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 - `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
 - `--owner-workspace-list`
-- `--magic-sweep-input-scan <team-member>`
+- `--magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]`
 - `--magic-heartbeat-input-scan <team-member>`
 - `--magic-advance-input-scan <team-member>`
 - `--member-work-session-input-scan <team-member>`
 - `--magic-heartbeat-lock-acquire <team-member> <owner-label>`
-- `--magic-heartbeat-lock-heartbeat <team-member>`
-- `--magic-heartbeat-lock-release <team-member>`
+- `--magic-heartbeat-lock-refresh <team-member>`
+- `--magic-heartbeat-close-state-and-unlock <team-member>`
 - `--magic-heartbeat-lock-status <team-member>`
 - `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]`
 - `--magic-heartbeat-state-read <team-member>`
@@ -405,45 +409,37 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 - `--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>`
 - `--magic-heartbeat-spawn-proxy <team-member> [--from-file <path>|--wait]`
 
-## `--member-slack-send-message` Operation Reference
+## `--member-comms-slack-send-message` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <target> [--identity bot|user] [text...]` (also `--from-stdin [--format text|blocks]` or `--from-file <path> [--format text|blocks]`) — posts a message, attributed to `<team-member>`. The only Slack-post op — no separate anonymous/unattributed variant. An optional `--identity bot|user` overrides the automatic native-user-vs-bot selection — `bot` forces the shared bot-token path unconditionally, `user` forces `<team-member>`'s own token and errors if none is configured. Omitted: unchanged auto-detect behavior. A `<team-member>` argument itself prefixed `routine-*` (a routine acting as sender, not a persona) skips the skill-directory existence check and defaults to bot identity automatically, no flag needed — `--identity bot|user` still overrides this default in either direction when passed explicitly. `<target>` is `magic-team`/`human-owner`, `event-track`/`event-alert`, or a literal `<channel>:<ts>` posted as a threaded reply. `--from-stdin` (or the original `--message-from-stdin`) reads content from stdin; `--from-file <path>` reads from a file — use exactly one, never both. `--format blocks` treats the content as a caller-supplied Block Kit JSON array — malformed JSON or an unsupported block type is rejected before sending. Any unrecognized `--`-shaped trailing token is rejected rather than silently absorbed into the text field.
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [text...]` (also `--from-stdin [--format text|blocks]` or `--from-file <path> [--format text|blocks]`) — posts a message, attributed to `<team-member>`. The only Slack-post op — no separate anonymous/unattributed variant. Optional `--identity-bot` posts as the team bot instead of `<team-member>`'s own identity. Omitted: the member's own identity when it has one, the team bot when it does not. A `<team-member>` argument itself prefixed `routine-*` (a routine acting as sender, not a persona) skips the skill-directory existence check and defaults to bot identity automatically, no flag needed — `--identity-bot` is already that default there, so passing it changes nothing. `<target>` is `magic-team`/`human-owner`, `event-track`/`event-alert`, a bare conversation id posted as a new top-level message in that conversation, or a literal `<channel>:<ts>` posted as a threaded reply under that one message. A target carrying a `:` always means `<channel>:<ts>`, so a bare conversation id is how a member starts a conversation somewhere no alias exists. A target matching none of these forms is rejected with an error and nothing is sent anywhere. `--from-stdin` (or the original `--message-from-stdin`) reads content from stdin; `--from-file <path>` reads from a file — use exactly one, never both. `--format blocks` treats the content as a caller-supplied Block Kit JSON array — malformed JSON or an unsupported block type is rejected before sending. Any unrecognized `--`-shaped trailing token is rejected rather than silently absorbed into the text field.
 
-## `--comms-slack-react` Operation Reference
+## `--member-comms-slack-react` Operation Reference
 
-`DistroAgentsTools.fn.sh --comms-slack-react <channel>:<ts> <emoji-name>` — posts one Slack reaction to a specific message, `<channel>:<ts>` only (no `magic-team`/`human-owner` shortcut — a reaction always targets one exact message). `<emoji-name>` has no colons. An `already_reacted` error is a harmless no-op (returns 0), not a failure.
-
-## `--comms-slack-check` Operation Reference
-
-`DistroAgentsTools.fn.sh --comms-slack-check <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--oldest <ts>] [--raw]` — reads Slack activity for ONE specific, caller-chosen target; target is required. Not the comms-sweep macro-op (see `--sweep-read-incoming-comms`). `--oldest <ts>` passes through as-is for an incremental read. Output is pretty-formatted by default; `--raw` opts into the full API response. No retry logic — one attempt, fails clean.
+`DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]` — posts one Slack reaction to a specific message, `<channel>:<ts>` only (no `magic-team`/`human-owner` shortcut — a reaction always targets one exact message). `<emoji-name>` has no colons. An `already_reacted` error is a harmless no-op (returns 0), not a failure. `<team-member>` is the acting identity — the reaction is posted BY that member, under its own identity when it has one and the team bot when it does not. Optional `--identity-bot` reacts as the team bot instead of the member's own identity.
 
 ## `--magic-comms-slack-resolve-ids` Operation Reference
 
 `DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]` — resolves real Slack IDs: authenticates as `<team-member>` and reports its own auth identity, any requested `--user-name`/`--channel-name` matches, configured-alias (`magic-team`/`human-owner`/`event-track`/`event-alert`) reachability, and the best-known reachable human-owner DM target. Exit 0 once a reachable human-owner target is confirmed, 1 otherwise.
 
-## `--sweep-read-incoming-comms` Operation Reference
+## `--member-comms-email-send` Operation Reference
 
-`DistroAgentsTools.fn.sh --sweep-read-incoming-comms [--oldest <ts>] [--raw]` — not a general-purpose Slack reader, takes no target at all. The dedicated macro-operation for `routine-communication-sweep`'s Check step: reads the exact same predefined set of watched sources (both Slack targets via `--comms-slack-check`, plus `--comms-email-check` and `--comms-trello-check`) in one combined pass. For one specific arbitrary target/thread, call `--comms-slack-check` directly instead.
+`DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (also `-- --from-stdin` or `-- --from-file <path>`) — real, standalone SMTP send via curl, not just an internal fallback (`--member-comms-slack-send-message`'s exhausted-retry path calls this same op via self-recursion). `<team-member>` comes first and is required: it is the acting identity, and the credentials the send authenticates with are that member's own, strictly — never another member's, and never a fallback to one. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; body is everything after. Exactly one body source required.
 
-## `--send-email-message` Operation Reference
+## `--member-comms-email-check` Operation Reference
 
-`DistroAgentsTools.fn.sh --send-email-message <email@address>... -- <subject> -- <body...>` (also `-- --from-stdin` or `-- --from-file <path>`) — real, standalone SMTP send via curl, not just an internal fallback (`--member-slack-send-message`'s exhausted-retry path calls this same op via self-recursion). Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; body is everything after. Exactly one body source required.
+`DistroAgentsTools.fn.sh --member-comms-email-check <team-member>` — IMAP STATUS INBOX (UNSEEN) check only, unread count, not a full fetch. `<team-member>` comes first and is required: the count is that member's own mailbox, strictly — never another member's, and never a fallback to one.
 
-## `--comms-email-check` Operation Reference
+## `--member-comms-email-mark-seen` Operation Reference
 
-`DistroAgentsTools.fn.sh --comms-email-check` — IMAP STATUS INBOX (UNSEEN) check only, unread count, not a full fetch.
+`DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>` — marks one specific email (by IMAP UID) as `\Seen` via IMAP UID STORE, otherwise every comms-sweep pass keeps re-seeing the same UIDs as unseen. `<team-member>` comes first and is required: the mailbox written to is that member's own, strictly — and a UID only means anything inside one mailbox, so the same `<uid>` under a different member names a different message, or none.
 
-## `--comms-email-mark-seen` Operation Reference
+## `--member-comms-trello-check` Operation Reference
 
-`DistroAgentsTools.fn.sh --comms-email-mark-seen <uid>` — marks one specific email (by IMAP UID) as `\Seen` via IMAP UID STORE, otherwise every comms-sweep pass keeps re-seeing the same UIDs as unseen.
-
-## `--comms-trello-check` Operation Reference
-
-`DistroAgentsTools.fn.sh --comms-trello-check` — unread Trello notifications only (`read_filter=unread`), not a full board read.
+`DistroAgentsTools.fn.sh --member-comms-trello-check <team-member>` — unread Trello notifications only (`read_filter=unread`), not a full board read. `<team-member>` comes first and is required: the unread list is that member's own notifications, strictly — never another member's, and never a fallback to one.
 
 ## `--console-send` Operation Reference
 
-`DistroAgentsTools.fn.sh --console-send <channel> [-- <command...>]` — sends one command line into an open channel's FIFO. With `-- <command...>`, that argument list (joined with spaces) is sent; with no command given, stdin is read and piped through as-is (multi-line/heredocs work). Command-only, not a data-transport — the joined command is written raw and unquoted, exactly like typing at an interactive shell prompt. Never pass free text with shell metacharacters as the trailing argument; use `--member-slack-send-message`/`--send-email-message` directly for that instead.
+`DistroAgentsTools.fn.sh --console-send <channel> [-- <command...>]` — sends one command line into an open channel's FIFO. With `-- <command...>`, that argument list (joined with spaces) is sent; with no command given, stdin is read and piped through as-is (multi-line/heredocs work). Command-only, not a data-transport — the joined command is written raw and unquoted, exactly like typing at an interactive shell prompt. Never pass free text with shell metacharacters as the trailing argument; use `--member-comms-slack-send-message`/`--member-comms-email-send` directly for that instead.
 
 ## `--console-stop` Operation Reference
 
@@ -455,7 +451,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## `--magic-board-create-running` Operation Reference
 
-`DistroAgentsTools.fn.sh --magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` — writes a new board-item into `board-running`. A body-input mode is required. `--from-state:` is rejected. It takes no `--owner` and stamps nothing, matching its `--magic-board-to-*` move siblings; `blocks`/`blocked-by` and any other fields ride `--header:*` on the same call.
+`DistroAgentsTools.fn.sh --magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` — writes a new board-item into `board-running`. A body-input mode is required. `--from-state:` is rejected. It takes no `--owner-header-value` and stamps nothing, matching its `--magic-board-to-*` move siblings; `blocks`/`blocked-by` and any other fields ride `--header:*` on the same call.
 
 ## `--magic-board-to-pending` / `--magic-board-to-blocked` / `--magic-board-to-backlog` / `--magic-board-to-parked` Operation Reference
 
@@ -479,7 +475,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## `--magic-sweep-input-scan` Operation Reference
 
-`DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member>` — read-only: `routine-communication-sweep`'s own first-stage board scan. Scans backlog/pending/running/blocked (not parked). Returns only items carrying both `source_slack_channel` and `source_slack_ts` — i.e. those tracking a live, reply-pending Slack thread.
+`DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]` — read-only: `routine-communication-sweep`'s own combined check pass. Scans backlog/pending/running/blocked (not parked), returning only items whose `communication-channel-id` is `slack:`-prefixed and carries a thread-ts component — the three-part `slack:<channel>:<ts>` shape, which is what tracks a live, reply-pending Slack thread; a bare `slack:<channel>` does not — and reads every watched source in the same pass. The optional cut-off narrows that read; the two spellings are mutually exclusive and neither is repeatable. Not a platform-wide search: a conversation outside the already-watched sources, or an identity mention that falls outside them, stays undiscoverable here — true "tagged anywhere" coverage is a separate, not-yet-built capability.
 
 ## `--magic-heartbeat-input-scan` Operation Reference
 
@@ -493,9 +489,9 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 `DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>` — read-only: one member's own current work-session input, personal, not routine-dictated. Scans backlog/pending/running/blocked/parked, restricted to items owned by `<team-member>`. Appends that same member's own `inbox/` contents as a second section.
 
-## `--magic-heartbeat-lock-acquire` / `--magic-heartbeat-lock-heartbeat` / `--magic-heartbeat-lock-release` / `--magic-heartbeat-lock-status` Operation Reference
+## `--magic-heartbeat-lock-acquire` / `--magic-heartbeat-lock-refresh` / `--magic-heartbeat-close-state-and-unlock` / `--magic-heartbeat-lock-status` Operation Reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>` / `--magic-heartbeat-lock-heartbeat <team-member>` / `--magic-heartbeat-lock-release <team-member>` / `--magic-heartbeat-lock-status <team-member>` — the single-instance lock family `routine-heartbeat` owns (see "Operating modes" above: `main-loop-mode` itself does not own this lock, `routine-heartbeat` does, since anything spawning that routine needs the same protection). `--magic-heartbeat-lock-status` prints `NO_LOCK` and returns 0 when nothing is held yet — a normal outcome, not an error.
+`DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>` / `--magic-heartbeat-lock-refresh <team-member>` / `--magic-heartbeat-close-state-and-unlock <team-member>` / `--magic-heartbeat-lock-status <team-member>` — the single-instance lock family `routine-heartbeat` owns (see "Operating modes" above: `main-loop-mode` itself does not own this lock, `routine-heartbeat` does, since anything spawning that routine needs the same protection). `--magic-heartbeat-lock-status` prints `NO_LOCK` and returns 0 when nothing is held yet — a normal outcome, not an error.
 
 ## `--magic-heartbeat-state-upsert` / `--magic-heartbeat-state-read` Operation Reference
 
@@ -550,6 +546,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - Every routine this member hosts (see "Routines (index)" above) — `magic-coordinator` is the default/sole executor for most of them.
 - `inbox/` — this member's own personal inbox (not indexed file-by-file; per-member work-queue state).
 - The main-loop lock's storage is tool-owned and tool-resolved internally (see `magic-coordinator.heartbeat.routine.md`'s `single-instance-lock` procedure) — not a file/directory tracked under this skill folder, and not a path stated here.
+- `magic-team/magic-team.armed.md`'s `warning-*` board-item-type entry — the item type `spawn-one-dispatch`'s **spawn-prepare-brief** step carries into a dispatch brief when it is relevant.
 - `magic-librarian` — README/CLAUDE.md/board-item writing, the shared reference files' maintainer.
 - `magic-architect` — design-consistency dispatch target for doc-drift signals, joint grooming authority.
 - `magic-tester` — testing/verification dispatch target, `board/testing/` gate.

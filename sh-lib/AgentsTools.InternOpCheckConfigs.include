@@ -8,6 +8,31 @@
 ## primitive (name only, never the value); --required gates exit 1,
 ## --optional is informational only. No --help entry: internal plumbing.
 ##
+## Result vocabulary: OK / WARN / FAIL. Only FAIL on a --required key gates the
+## exit code. WARN is visible, named and non-gating -- it reports a value that
+## is present but wrong in a way the caller declared, never a missing one.
+##
+## RECORDED INVARIANT -- the rule this check only partially enforces:
+##
+##   A VALUE SCOPED TO ONE IDENTITY PAIR MUST NOT LIVE IN A SHARED CONFIG KEY.
+##
+## --expect-id-kind below catches the one instance of that rule which happens to
+## be mechanically detectable: a Slack DM id (`D...`) sitting in a key that is
+## declared to hold a user id. DM ids are detectable only because the id kind
+## announces itself in the prefix. The invariant is BROADER than the check, and
+## deliberately so:
+##
+##   - a PRIVATE channel (`C...`, indistinguishable by prefix from a public one)
+##     that only one identity has been invited to is an equally real violation
+##     and this check CANNOT see it;
+##   - so is any other per-identity handle that happens to be prefix-shaped like
+##     a shared one.
+##
+## Deferring that wider machinery is a recorded decision here, not an oversight:
+## the rule is written down even though only part of it is automated, precisely
+## so the unautomated part is something known rather than something nobody
+## noticed. Do not read a passing check as proof the invariant holds.
+##
 
 case "$1" in
 
@@ -24,6 +49,35 @@ case "$1" in
 				opContext="$ctxArg" ; ctxWanted="" ; continue
 			fi
 			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		## --expect-id-kind <KEY>:<user|channel> pre-scan. The CALLING STUB
+		## declares, explicitly, as a call option, what kind of id a key is
+		## contracted to hold. NEVER inferred from the <KEY>:<hint> display
+		## string (the hint stays decorative) and NEVER from the key's own name
+		## -- a key called SLACK_CHANNEL_* may legitimately be contracted to
+		## hold a user id, which is exactly the case that produced this check.
+		## Pre-scanned for the same reason --context is: a declaration may sit
+		## anywhere on the command line, including after the --required/--optional
+		## it describes, and must be known before that key is evaluated. The
+		## option loop below consumes it again as an ordinary option.
+		local expectKinds=() ekWanted="" ekArg
+		for ekArg in "$@" ; do
+			if [ -n "$ekWanted" ] ; then
+				expectKinds+=( "$ekArg" ) ; ekWanted="" ; continue
+			fi
+			if [ "$ekArg" = "--expect-id-kind" ] ; then ekWanted="1" ; fi
+		done
+
+		## --expect-path-exists <KEY>:<resolved-path> pre-scan. Same declared-not-
+		## inferred contract as --expect-id-kind above, same pre-scan reason, and
+		## deliberately a SEPARATE option rather than another meaning loaded onto
+		## the <KEY>:<hint> display string.
+		local expectPaths=() epWanted="" epArg
+		for epArg in "$@" ; do
+			if [ -n "$epWanted" ] ; then
+				expectPaths+=( "$epArg" ) ; epWanted="" ; continue
+			fi
+			if [ "$epArg" = "--expect-path-exists" ] ; then epWanted="1" ; fi
 		done
 		local callingMember="$1"
 		shift || true
@@ -43,6 +97,61 @@ case "$1" in
 						set +e ; return 1
 					fi
 					shift 2
+					## MUST `continue`, unlike --required/--optional above:
+					## those two deliberately fall through to the shared
+					## <KEY>:<hint> tail below, but --context has already
+					## consumed its own value pair here. Without this, the
+					## tail re-reads $2 on an exhausted argument list and
+					## reports a bogus "needs a <KEY>:<hint> argument",
+					## making --magic-heartbeat-config-check return 1
+					## against a fully healthy config.
+					continue
+				;;
+				--expect-id-kind)
+					## Consumed here as an ordinary option; the pre-scan above is
+					## what actually collected it. Validated at this point so a
+					## malformed declaration fails loud at the call site rather
+					## than silently never matching any key.
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --expect-id-kind: value required (<KEY>:<user|channel|dm>)" >&2
+						set +e ; return 1
+					fi
+					## Kinds are SINGULAR and never a union: `channel` means C...
+					## only, `dm` means D... only. A union kind would have the
+					## form of a declaration with none of its force -- it would
+					## permit exactly what the declaration exists to constrain.
+					case "${2#*:}" in
+						user|channel|dm) ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --expect-id-kind: unknown kind in '$2' -- expected <KEY>:user, <KEY>:channel or <KEY>:dm" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+					## Same `continue` requirement as --context above, for the
+					## same reason: this arm has already consumed its own value
+					## pair, so falling through to the shared <KEY>:<hint> tail
+					## would re-read an exhausted $2.
+					continue
+				;;
+				--expect-path-exists)
+					## Consumed here as an ordinary option; the pre-scan above
+					## collected it. Validated at the call site so a malformed
+					## declaration fails loud rather than silently matching no key.
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --expect-path-exists: value required (<KEY>:<resolved-path>)" >&2
+						set +e ; return 1
+					fi
+					case "$2" in
+						*:*) ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --expect-path-exists: expected <KEY>:<resolved-path>, got: $2" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+					## Same `continue` requirement as the two arms above.
+					continue
 				;;
 				*)
 					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): invalid option: $1" >&2
@@ -60,7 +169,107 @@ case "$1" in
 			if [ "$checkHint" = "$checkSpec" ] ; then checkHint="<value>" ; fi
 			checkVal="$( DistroAgentsTools --agents-config-option "$callingMember" --select "$checkKey" )"
 			if [ -n "$checkVal" ] ; then
-				echo "$checkKey: OK"
+				## Value is present, so this key cannot FAIL here. It can still
+				## be the WRONG KIND of id, which is a WARN: named, visible, and
+				## deliberately non-gating (requiredMissing is never touched
+				## below). Only fires for a key the caller explicitly declared
+				## via --expect-id-kind -- an undeclared key is silent, never
+				## guessed at, so adding keys can never make this noisy.
+				## TWO INDEPENDENT CHECKS run against a key whose value is set, and
+				## they answer different questions:
+				##   --expect-id-kind      : is the value the right KIND of id?
+				##   --expect-path-exists  : does the path it names actually exist?
+				## Neither is derived from the other, neither is inferred from the
+				## <KEY>:<hint> display string, and a key may declare either, both
+				## or neither. Both are non-gating -- requiredMissing is untouched
+				## here. FAIL is reserved for a value that is missing outright; a
+				## value that is present but questionable is a WARN.
+				local warnDetail=()
+
+				## --- check 1: declared id kind ---
+				local expectedKind="" ekEntry
+				if [ ${#expectKinds[@]} -gt 0 ] ; then
+					for ekEntry in "${expectKinds[@]}" ; do
+						if [ "${ekEntry%%:*}" = "$checkKey" ] ; then expectedKind="${ekEntry#*:}" ; fi
+					done
+				fi
+				if [ -n "$expectedKind" ] ; then
+					## Slack id prefixes are load-bearing: U user, C public
+					## channel, D DM, G group/private. First character only --
+					## the rest of the value is never printed or logged.
+					local idPrefix wantPrefix wantLabel gotLabel
+					idPrefix="$( printf '%s' "$checkVal" | cut -c1 )"
+					case "$expectedKind" in
+						user)    wantPrefix="U" ; wantLabel="a user id (U...)" ;;
+						channel) wantPrefix="C" ; wantLabel="a public channel id (C...)" ;;
+						dm)      wantPrefix="D" ; wantLabel="a DM channel id (D...)" ;;
+					esac
+					case "$idPrefix" in
+						U) gotLabel="a user id (U...)" ;;
+						C) gotLabel="a public channel id (C...)" ;;
+						D) gotLabel="a DM channel id (D...)" ;;
+						G) gotLabel="a group/private channel id (G...)" ;;
+						*) gotLabel="an unrecognised id kind" ;;
+					esac
+					if [ "$idPrefix" != "$wantPrefix" ] ; then
+						warnDetail+=( "  warn: declared to hold $wantLabel, but holds $gotLabel" )
+						if [ "$idPrefix" = "D" ] && [ "$expectedKind" = "user" ] ; then
+							warnDetail+=( "  why:  a DM id identifies ONE identity pair, so it cannot be a shared" )
+							warnDetail+=( "        config value at all. The id stored here resolves only for the" )
+							warnDetail+=( "        identity it was opened by; another identity posting under its own" )
+							warnDetail+=( "        SLACK_USER_TOKEN gets channel_not_found, and that identity's real" )
+							warnDetail+=( "        DM with the same person is a DIFFERENT id the first one cannot" )
+							warnDetail+=( "        read. Store the USER id and let each identity open its own DM." )
+						fi
+						warnDetail+=( "  fix:  DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey <$expectedKind-id>" )
+					fi
+				fi
+
+				## --- check 2: declared path existence ---
+				## SEPARATE from the value-set check, deliberately: "a value is
+				## configured" and "the path it names exists" are different facts,
+				## and collapsing them is exactly what let a nonexistent data root
+				## report OK while every read silently returned nothing.
+				##
+				## The calling stub supplies the RESOLVED path next to the key.
+				## Resolution (absolute / $MMDAPP-relative / $MMDAPP/source-relative)
+				## already happens once in DistroAgentsTools.fn.sh's own bootstrap;
+				## re-deriving it here would be a second implementation of one rule.
+				## An empty resolved path means the stub had nothing to resolve, so
+				## there is nothing to assert and this check stays silent.
+				##
+				## Printing the path is safe BECAUSE the stub declared this key to
+				## be a path: the "name only, never the value" contract exists to
+				## protect token/password keys, and no key is ever printed here
+				## unless its own stub declared it a path.
+				##
+				## NON-GATING BY NECESSITY, not merely by policy: nothing in this
+				## package creates the data root -- every writer mkdir -p's a
+				## subpath beneath it -- so on a fresh workspace the root correctly
+				## does not exist until the first write. Absence therefore cannot
+				## distinguish "not created yet" from "configured wrong", and an
+				## install must never fail on it. It reports; it does not gate.
+				local expectedPath="" epEntry
+				if [ ${#expectPaths[@]} -gt 0 ] ; then
+					for epEntry in "${expectPaths[@]}" ; do
+						if [ "${epEntry%%:*}" = "$checkKey" ] ; then expectedPath="${epEntry#*:}" ; fi
+					done
+				fi
+				if [ -n "$expectedPath" ] && [ ! -d "$expectedPath" ] ; then
+					warnDetail+=( "  warn: configured, but the directory it resolves to does not exist" )
+					warnDetail+=( "  path: $expectedPath" )
+					warnDetail+=( "  note: expected on a fresh workspace -- nothing creates this directory" )
+					warnDetail+=( "        until the first write, so this is not an install failure. Treat" )
+					warnDetail+=( "        it as a real fault only if work was already done here, in which" )
+					warnDetail+=( "        case the configured path is probably wrong." )
+				fi
+
+				if [ ${#warnDetail[@]} -eq 0 ] ; then
+					echo "$checkKey: OK"
+				else
+					echo "$checkKey: WARN"
+					printf '%s\n' "${warnDetail[@]}"
+				fi
 			else
 				echo "$checkKey: FAIL"
 				if [ "$checkMode" = "required" ] ; then

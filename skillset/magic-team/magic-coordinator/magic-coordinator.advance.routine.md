@@ -47,11 +47,13 @@ The board isn't trustworthy between daily/grooming cycles — sessions die mid-w
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **advance-process-inbox**: run `routine-process-inbox magic-coordinator` — the whole inbox, not `check-pending-comms-actions`'s narrow deferred-action slice: items reporting an already-decided move (a landed approval, a finished or stalled dispatch) this pass reconciles onto the board.
-1. **advance-read-board-state**: Call the `--magic-advance-input-scan` operation.
-2. **advance-run-process-board**: Run the `check-process-board` procedure (`magic-coordinator.armed.md`) against this pass's own read.
-3. **advance-run-execute-board**: Run the `check-execute-board` procedure (below) against this pass's own read.
-4. **advance-trigger-daily**: Trigger `routine-daily`'s later-today flow, once per workday, if due and not yet spawned.
+1. **advance-acquire-lock**: Acquire this routine's own lock — a single `--magic-advance-lock-acquire` call, before anything else in this routine runs. `ACQUIRED`, or a reclaim of a dead holder's lock, means go. Contention means another `routine-advance` is live: this pass does not start, and nothing below runs.
+2. **advance-process-inbox**: run `routine-process-inbox magic-coordinator` — the whole inbox, not `check-pending-comms-actions`'s narrow deferred-action slice: items reporting an already-decided move (a landed approval, a finished or stalled dispatch) this pass reconciles onto the board.
+3. **advance-read-board-state**: Call the `--magic-advance-input-scan` operation.
+   - This routine's own `state-and-lock` note comes back with that scan, as part of this routine's own input. It is this pass's tracking document — the tactical status, and whatever the next iteration needs to continue. Reference `TEAM-DATA` rather than copying it, to keep it compact. Write it via the `--magic-advance-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close. Holding the lock across a long pass is a separate obligation: call `--magic-advance-lock-refresh` periodically — writing content does not itself hold the lock.
+4. **advance-run-process-board**: Run the `check-process-board` procedure (`magic-coordinator.armed.md`) against this pass's own read.
+5. **advance-run-execute-board**: Run the `check-execute-board` procedure (below) against this pass's own read.
+6. **advance-trigger-daily**: Trigger `routine-daily`'s later-today flow, once per workday, if due and not yet spawned.
    - condition: `today_stage` (from the `heartbeat-state-note`) indicates weekday + first-today `routine-grooming` already done + later-today flow not yet spawned today
    - action: spawn it as its own independent co-working session — `SPAWN-REQUEST`, fire-and-forget
    - never: inline-drive it step by step across multiple `next-iteration`s
@@ -59,7 +61,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **advance-report**: Post `check-execute-board`'s own findings (redispatches performed, interview threads opened/continued) to `slack-event-track` via `--member-slack-send-message` (target `event-track`).
+1. **advance-report**: Post `check-execute-board`'s own findings (redispatches performed, interview threads opened/continued) to `slack-event-track` via `--member-comms-slack-send-message` (target `event-track`).
+2. **advance-close-state-and-unlock**: Write the pass's closing status into the `state-and-lock` note via `--magic-advance-state-and-lock-upsert`, then release the lock via `--magic-advance-close-state-and-unlock`. That order is required: the release is what sets `state: advance-finished`, and a content write after it would put the note back to running. Until the release lands, the next iteration sees this pass as still running.
 
 # Routine's local procedures
 
@@ -112,13 +115,13 @@ Continue an already-dispatched `board-running` item. Never a first-time start (s
   - failed nudge → treat as if `session-id` absent, continue below
 - liveness unknown and no nudge path available from this pass alone → treat as if `session-id` absent (do not convert this into a pass-level blanket defer)
 - `session-id` absent:
-  - `interview-*`/`talk-*` prefix with `source-slack-channel`/`source-slack-ts` set → apply this item's `interview-*`/`talk-*` per-type rule (below), this same pass — a bounded resume-review + re-assess round over the existing Slack thread — never fall through to the `restart-session:` branch below for this case, even when `restart-session:` is also present.
-  - `interview-*`/`talk-*` prefix with `source-slack-channel`/`source-slack-ts` absent → apply this item's `interview-*`/`talk-*` per-type rule (below), this same pass, posting to a fresh Slack thread via `--member-slack-send-message` (target `human-owner`) instead of a reply into an existing one — same bounded resume-review + re-assess round as above, never a separate pre-round message — never fall through to the `restart-session:` branch below for this case either, even when `restart-session:` is also present.
-    - Write the returned `channel`/`ts` back as `source-slack-channel`/`source-slack-ts` via `--magic-advance-to-running <team-member> <item-filename> --from-state:running --header:upsert:source-slack-channel:<value> --header:upsert:source-slack-ts:<value>` (same-state patch, existing content preserved), so the item is Slack-thread-backed from the next pass onward.
+  - `interview-*`/`talk-*` prefix already tracking a Slack thread — `communication-channel-id` in the three-part `slack:<channel>:<ts>` shape → apply this item's `interview-*`/`talk-*` per-type rule (below), this same pass — a bounded resume-review + re-assess round over the existing Slack thread — never fall through to the `restart-session:` branch below for this case, even when `restart-session:` is also present.
+  - `interview-*`/`talk-*` prefix not tracking a Slack thread — no `communication-channel-id` at all, or one that is not a three-part `slack:<channel>:<ts>` value (a bare `slack:<channel>` tracks no thread) → apply this item's `interview-*`/`talk-*` per-type rule (below), this same pass, posting to a fresh Slack thread via `--member-comms-slack-send-message` (target `human-owner`) instead of a reply into an existing one — same bounded resume-review + re-assess round as above, never a separate pre-round message — never fall through to the `restart-session:` branch below for this case either, even when `restart-session:` is also present.
+    - Compose the returned `channel`/`ts` into one `slack:<channel>:<ts>` value and write it back as `communication-channel-id` via `--magic-advance-to-running <team-member> <item-filename> --from-state:running --header:upsert:communication-channel-id:<value>` (one header, same-state patch, existing content preserved), so the item is Slack-thread-backed from the next pass onward.
     - Post succeeded but write-back failed this pass → `flagged-once` (report the orphaned `channel:ts` via `slack-event-track`), never re-post a second backfill thread next pass.
   - `restart-session: <team-member> [<team-member>...]` present → spawn a coworking session (`magic-coordinator` + the named member(s)) via `spawn-one-dispatch`, passing the corresponding routine, document name, context
     - set `recheck-date` to now + 7min (jittered ±2min) and `session-id` to the new session's identifier, via `--magic-advance-to-running <team-member> <item-filename> --from-state:running --header:upsert:recheck-date:<value> --header:upsert:session-id:<value>` (same-state patch, existing content preserved)
-  - `restart-session:` absent, no per-type rule matches this item's prefix → post to `slack-event-track` via `--member-slack-send-message` (target `event-track`) — "active `board-running` document with no handler: `<filename>`" — flag for `routine-grooming`. Never execute anything inline for an unhandled prefix.
+  - `restart-session:` absent, no per-type rule matches this item's prefix → post to `slack-event-track` via `--member-comms-slack-send-message` (target `event-track`) — "active `board-running` document with no handler: `<filename>`" — flag for `routine-grooming`. Never execute anything inline for an unhandled prefix.
 
 - before continuing to check-restart the next `board-running` item: execute the `--magic-advance-sleep-run` operation
 
@@ -153,9 +156,9 @@ Apply these per-`board-running`-item task rules, by filename prefix. State-only 
 
 Each item here is a tracking document. Where a rule below spawns or restarts work on one, it spawns the group that item's `participants` record names, and hands each member the goal, the task, the document itself, and that prefix's own rule below. A prefix may also have a routine assigned — run it in the situations that prefix calls for. A `(placeholder) not yet defined` entry is a real deferral: complete it when that type is settled, never improvise a rule per item.
 
-- `approval-*` / `approve-*`: not resolved, `recheck-date` due → re-ask via `source-slack-channel`/`source-slack-ts` or the `--member-slack-send-message` operation to human-owner; extend `recheck-date`. Re-ask leads with the `NEEDS REPLY:` marker; report `waiting on human-owner` only while that marker's occurrence stays unanswered.
-- `interview-*` / `talk-*`: run exactly one round — `routine-interview`'s own step 1b (resume-review) + step 1c (re-assess) — per that routine's own explicit non-blocking design. Never attempt to run the interview to completion inline. Any re-ask leads with the `NEEDS REPLY:` marker; report `waiting on human-owner` only while that marker's occurrence stays unanswered.
-- `inquiry-*`: `recheck-date` due, no reply → re-ask via `source-slack-channel`/`source-slack-ts` or the `--member-slack-send-message` operation; extend `recheck-date`. Otherwise → no action this pass.
+- `approval-*` / `approve-*`: not resolved, `recheck-date` due → re-ask into the thread its `communication-channel-id` tracks, or via the `--member-comms-slack-send-message` operation to human-owner; extend `recheck-date`. Re-ask leads with the `NEEDS REPLY:` marker; report `waiting on human-owner` only while that marker's occurrence stays unanswered.
+- `interview-*` / `talk-*`: run exactly one round — `routine-interview`'s own **resume-review** + **reassess-before-next-message** — per that routine's own explicit non-blocking design. Never attempt to run the interview to completion inline. Any re-ask leads with the `NEEDS REPLY:` marker; report `waiting on human-owner` only while that marker's occurrence stays unanswered.
+- `inquiry-*`: `recheck-date` due, no reply → re-ask into the thread its `communication-channel-id` tracks, or via the `--member-comms-slack-send-message` operation; extend `recheck-date`. Otherwise → no action this pass.
 - `task-*` / `project-*` / `epic-*`: apply the console-session/Agent-dispatch stale-check above.
 - `proposal-*`: `recheck-date` due → re-ask.
 - `dispatch-*`: `session-id` set → nudge per the general mechanism above; append the report-back as a new dated log entry via `--magic-advance-to-running --from-state:running` — the item stays in `board-running`.
@@ -187,7 +190,7 @@ All statements apply at the same time, always. These rules override a participan
 - Overrides the inherited coworking thread anchor: this routine's session thread lives in `slack-event-track`, not `slack-magic-team`. Genuinely important items still go separately to the human-owner DM and `slack-magic-team`.
 - Does not run **fold-in-learned-lessons** — that step works a small, recent, unresolved reflection set, and this routine's every-iteration cadence would grind the whole accumulated pile each pass.
 - Not wired into `routine-coworking`'s Steps/Closure Steps as separate calls — this routine runs unattended every main-loop iteration and its trace is debug-level. **advance-report** is that inherited closing obligation, discharged into `slack-event-track`.
-- Every real file read/write and communications API call this routine makes (including `check-process-board`'s own `--comms-slack-react` calls) is its own direct `lib/execShStdin` call — no Keep-Alive Console Session assumed or required, per `magic-team.armed.md`'s process-flow rule.
+- Every real file read/write and communications API call this routine makes (including `check-process-board`'s own `--member-comms-slack-react` calls) is its own direct `lib/execShStdin` call — no Keep-Alive Console Session assumed or required, per `magic-team.armed.md`'s process-flow rule.
 - Never resolves an open design/judgment question surfaced by an investigation subtask — flags it for `routine-grooming`/`magic-architect`.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as things are found, not batch it artificially.
@@ -201,13 +204,18 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--magic-advance-input-scan <team-member>` (step 1: read the in-scope board state; also `check-process-board`'s own dependency-recompute step, on the same already-loaded read)
+- `--magic-advance-input-scan <team-member>` (**advance-read-board-state**: read the in-scope board state; also `check-process-board`'s own **board-recompute-dependencies**, on the same already-loaded read)
 - `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board`'s own never-started-`board-pending`-items step: basic-task start)
 - `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board` fallback when spawn is required but cannot execute in this pass)
+- `--magic-advance-lock-acquire <team-member> <owner-label>` (**advance-acquire-lock**: take this routine's lock before anything else runs)
+- `--magic-advance-lock-refresh <team-member>` (hold the lock across a long pass)
+- `--magic-advance-close-state-and-unlock <team-member>` (**advance-close-state-and-unlock**: release, setting `state: advance-finished`)
+- `--magic-advance-lock-status <team-member>` (ask who holds the lock; never a gate)
+- `--magic-advance-state-and-lock-upsert <team-member> [--header:...]... [--from-file <path>|--edit-patch-from-stdin]` (**advance-read-board-state**'s own session tracking document, kept current as the pass proceeds; **advance-close-state-and-unlock**'s closing content write)
 - `--magic-advance-sleep-run` (`check-restart`: executed before continuing to the next `board-running` item)
 - `--magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]` (`check-execute-board` autonomous spawn relay with execution receipt)
 - `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (per-type checks' closing human-owner DM: **Thread continuity** write-back of `human_owner_broadcast_thread_ts`/`human_owner_broadcast_thread_date`)
-- `--member-slack-send-message <team-member> <target> [text...]` (step 5: post the `event-track` report trace; also `check-execute-board`'s own per-type re-ask rules)
+- `--member-comms-slack-send-message <team-member> <target> [text...]` (**advance-report**: post the `event-track` report trace; also `check-execute-board`'s own per-type re-ask rules)
 
 ## `--magic-advance-sleep-run` operation reference
 
@@ -215,7 +223,15 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-advance-input-scan` operation reference
 
-`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — read-only scan giving all board job-state information relevant to this routine, every board-item type, every frontmatter field. `<team-member>` is the only argument; the scanned state list is fixed, with no caller-facing override.
+`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — read-only scan giving all board job-state information relevant to this routine, plus this routine's own `state-and-lock` note as part of the same prepared input. `<team-member>` is the only argument; the scan's shape is fixed.
+
+## `--magic-advance-lock-acquire` / `--magic-advance-lock-refresh` / `--magic-advance-close-state-and-unlock` / `--magic-advance-lock-status` operation reference
+
+`DistroAgentsTools.fn.sh --magic-advance-lock-acquire <team-member> <owner-label>` / `--magic-advance-lock-refresh <team-member>` / `--magic-advance-close-state-and-unlock <team-member>` / `--magic-advance-lock-status <team-member>` — the single-instance lock this routine owns, one holder at a time. `acquire` prints `ACQUIRED` on a fresh take, or `RECLAIMED_STALE:...` when a dead holder's lock is taken over, both returning 0; on contention it prints `ACTIVE:...` and returns 1, which means this pass does not start. `<owner-label>` identifies the actual running agent/process by a fixed, discoverable name, not an ephemeral session id — distinct from `<team-member>`, the calling member's own identity. `refresh` prints `REFRESHED` and is what holds the lock across a long pass. `close-state-and-unlock` prints `RELEASED` and sets `state: advance-finished`. `status` is a question, not a gate: it prints current lock metadata, or `NO_LOCK` when free, and always returns 0.
+
+## `--magic-advance-state-and-lock-upsert` operation reference
+
+`DistroAgentsTools.fn.sh --magic-advance-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]` — writes this routine's own `state-and-lock` note: the pass's session tracking content. Body content via `--from-file` or `--edit-patch-from-stdin`. Every call stamps `state: advance-running` and renews `recheck-date` itself — the caller never supplies `recheck-date`, and never names the note.
 
 ## `--magic-advance-to-parked` operation reference
 
@@ -229,9 +245,9 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 `DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]` — writes (creates or overwrites) `routine-heartbeat`'s own day-rhythm state record, plus `routine-communication-sweep`'s per-platform mechanical sweep state. Content via stdin by default, or `--from-file <path>`. Always a whole-record overwrite, never an append; empty content is refused rather than written — so a write-back of individual fields supplies the whole record, not just the changed pair.
 
-## `--member-slack-send-message` operation reference
+## `--member-comms-slack-send-message` operation reference
 
-`DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
 # Maintainer Notes
 
@@ -259,7 +275,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `routine-process-inbox` — full own-inbox read (**advance-process-inbox**), distinct from `check-pending-comms-actions`'s narrow deferred-action slice.
 - `magic-coordinator/magic-coordinator.armed.md` — `check-process-board`'s own home, called from **advance-run-process-board**; `spawn-one-dispatch`, called from `check-execute-board`.
 - `magic-team/magic-team.board.md` — the board's own state model, write-authority rule, `processed/`/`archived/` outcome-ambiguity note, `# Process-Flow, the board dynamics` section.
-- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, `--console-list`, calling convention, `--comms-slack-react`/`--console-send` mechanics.
+- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, `--console-list`, calling convention, `--member-comms-slack-react`/`--console-send` mechanics.
 - `magic-coordinator/RICE-SCORING.md` — the four normalized dimensions `check-process-board`'s own dependency-recompute step records alongside, never silently reconciled with.
 
 ### Conventions

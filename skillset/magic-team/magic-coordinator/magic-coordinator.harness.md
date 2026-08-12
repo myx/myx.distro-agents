@@ -168,8 +168,8 @@ Available to `team-fix-session` and `armed-harness-mode`. Runs an interview-like
 current session, using `routine-interview`'s own semantics as the base — including its
 inheritance of `magic-team.negotiations.md`'s topic/queue/question mechanics (both presentation modes
 available) — with one explicit override: no `inquiry-*` tracking board Item is created; the current
-session's own context is the record instead of a board Item. `routine-interview`'s step 1 (board
-Item creation) and step 5 (keeping that Item current) are skipped for this reason. Everything else —
+session's own context is the record instead of a board Item. `routine-interview`'s **open-channel-and-create-item** (board
+Item creation) and **keep-tracking-item-current** are skipped for this reason. Everything else —
 collect-don't-converge pacing, rephrase-and-confirm, dispatch-as-you-go, compaction shape — carries over
 unchanged. Trigger: the enclosing mode's own trigger already covers this; no separate phrase needed.
 
@@ -234,10 +234,10 @@ mechanics.
   SLACK or EMAIL)."
 - No exemptions. Every activity posts, including a solo/no-human one — any member can just call the tool
   itself; nothing gates it.
-- Posting means calling `DistroAgentsTools.fn.sh --member-slack-send-message <team-member> ...` directly — same action whether
+- Posting means calling `DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> ...` directly — same action whether
   `magic-coordinator` or another member calls it. Also floor, not ceiling: checking replies/reactions on the
   posted message, or confirming receipt when the source was an untrusted channel, can layer on top.
-- **If `--member-slack-send-message` fails, record it — don't drop it.** File it as an inquiry into `magic-coordinator`'s
+- **If `--member-comms-slack-send-message` fails, record it — don't drop it.** File it as an inquiry into `magic-coordinator`'s
   own inbox to send later, using the same deferred-record mechanics already used elsewhere (e.g. the
   pending-Slack-reaction pattern). `magic-coordinator` is authorized to do this on behalf of any team member
   whose own post failed.

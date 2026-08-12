@@ -7,7 +7,7 @@
 ## $1 actually matches --owner-*) from that file's own `--owner-*)` arm,
 ## via the absolute $MDLT_ORIGIN-based path already used for every other
 ## cross-file source in this family (see --agents-config-option and the
-## --pretty AgentSlackMessagesFormat.awk reference in the same file).
+## --pretty AgentsSlackMessagesFormat.awk reference in the same file).
 ##
 ## Not standalone-executable: relies on being dot-sourced into
 ## DistroAgentsTools's own function scope for $1/$@, the $MDSC_CMD local,
@@ -296,7 +296,7 @@ case "$1" in
 				local mcpFile="${mcpTarget%%:*}"
 				local mcpKey="${mcpTarget#*:}"
 				echo "# Upserting MCP server entry in $mcpFile" >&2
-				if ! python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentMcpServerJsonUpsert.py" "$mcpFile" "$serverScript" "$mcpKey" ; then
+				if ! python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.py" "$mcpFile" "$serverScript" "$mcpKey" ; then
 					echo "FAIL mcp-upsert $mcpFile" >&2
 					failed=1
 				else

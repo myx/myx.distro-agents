@@ -1,6 +1,6 @@
 #!/usr/bin/awk -f
 ##
-## AgentBoardItemFrontmatterPrint.awk -- prints every `key: value` frontmatter
+## AgentsBoardItemFrontmatterPrint.awk -- prints every `key: value` frontmatter
 ## line of one file (given as the sole ARGV argument), verbatim, in order.
 ## Shared by AgentsTools.InternOpSessionContextScan.include's own all-headers case and
 ## AgentsTools.Member.include's --member-work-session-input-scan (identical

@@ -212,6 +212,24 @@ END {
 		printf("⛔ ERROR: Slack API call failed: ok:false%s\n", (apiError != "" ? " error=" apiError : "")) > "/dev/stderr"
 		exit 1
 	}
+	# COULD-NOT-PARSE, distinct from "parsed fine, nothing to report".
+	# Every real conversations.history response carries an `ok` key, so
+	# reaching END having seen no `ok` at all means the input was not the
+	# JSON this script parses -- a truncated body, an HTML error page, an
+	# empty read. Without this, all three returned rc 0 with no output and
+	# were indistinguishable from a channel that simply has no threads,
+	# which then propagated as a confident "no open threads" upstream.
+	#
+	# `msgCount == 0` is required alongside it, not optional: the recogniser
+	# must not fire on input that clearly DID parse. A response whose
+	# messages array came through is parsed input by definition, so a
+	# missing `ok` there is a Slack-side shape change to notice separately,
+	# not a parse failure to abort on -- and aborting would throw away
+	# messages already extracted.
+	if (!apiOkSeen && msgCount == 0) {
+		printf("⛔ ERROR: could not parse Slack conversations.history response: no `ok` key and no messages -- input was not a parseable API response (truncated body, error page, or empty read), not a channel with no threads\n") > "/dev/stderr"
+		exit 1
+	}
 	for (i = 0; i < msgCount; i++) {
 		ts = tsOf[i]
 		replyCount = ((i in replyCountOf) ? replyCountOf[i] + 0 : 0)

@@ -1,37 +1,31 @@
 #!/usr/bin/env awk
 
 # Parses one single-line Slack conversations.history/conversations.replies
-# JSON response (fed on stdin, run under LC_ALL=C for byte safety) and
-# prints one clean "ts | user | text" line per message to stdout, instead
-# of the caller needing to hand-roll a `python3 -c "import json..."`
-# one-liner every single time -- this is the sanctioned fix, not another
-# one-off script.
+# JSON response (stdin, LC_ALL=C for byte safety) and prints one clean
+# "ts | user | text" line per message to stdout.
 #
-# A message's `reactions` array and its `reply_count`/`latest_reply`/
-# `reply_users` thread-metadata fields are present directly on the message
-# object in both conversations.history and conversations.replies, even
-# without fetching the thread itself -- when present, they get appended to
-# that message's line as "[reactions: NAME xCOUNT (USERS)]" (one bracket per
-# distinct reaction) and "[thread: N replies, latest by USER at TS]". A
-# channel-wide sweep still can't discover thread replies it has no ts for --
-# these annotations only flag that a known message has activity worth an
-# explicit `--comms-slack-read <channel>:<ts> --thread` follow-up.
+# A message's `reactions` array and its `reply_count`/`latest_reply` fields
+# sit directly on the message object in both APIs. When present they go on
+# that message's HEAD line, BEFORE the text, as "[reactions: NAME xCOUNT
+# (USERS)]" (one bracket per distinct reaction) and "[thread: N replies,
+# latest at TS]". Before and not after because message text can carry an
+# embedded newline: appended, the annotation stranded itself on a trailing
+# physical line, where the fan-out tagger read it as a continuation. The
+# thread annotation names no author -- conversations.history has no field
+# naming the latest reply's author, and `reply_users` is not parsed at all.
 #
 # Lives here (myx.distro-agents/sh-lib, not myx.common) because it's
-# 100% Slack/DistroAgentsTools-specific with no general devops-CLI use --
-# the only real consumer is DistroAgentsTools.fn.sh --sweep-read-incoming-comms
-# in this same repo. Only the reusable parsing engine below was copied from
-# myx.common (see the comment on it) -- the file itself belongs with its
-# one caller, not in a general-purpose cross-platform tool that explicitly
-# says not to carry over distro-* conventions into it.
+# Slack/DistroAgentsTools-specific: the only consumers are the two
+# `--intern-op-slack-check` call sites in
+# sh-lib/AgentsTools.InternOpSlackCheck.include (per-DM fan-out leg,
+# single-conversation path). NOT --magic-sweep-input-scan, which never
+# invokes this file -- that op feeds AgentsSessionContextCommsItems.awk.
 #
 # Parsing engine (skipws/hex2dec/utf8enc/parseString/parseValue/
 # parseObject/parseArray) is copied verbatim from myx.common's
-# agentMcpJsonParseRequest.awk (os-myx.common/host/tarball/share/myx.common/
-# include/data/) -- same general-purpose recursive-descent JSON parser,
-# only the leaf-emission logic differs (Slack message fields instead of
-# MCP JSON-RPC fields). Not a general-purpose formatter: only understands
-# the flat messages[] array shape Slack's own API actually returns.
+# agentMcpJsonParseRequest.awk; only the leaf-emission logic differs. Not a
+# general-purpose formatter: only understands the flat messages[] array
+# shape Slack's own API actually returns.
 
 BEGIN { msgCount = 0; apiOk = "true"; apiOkSeen = 0; }
 
@@ -120,7 +114,7 @@ function parseString(   c, out, hex, code, hex2, code2, cp) {
 }
 
 ## Slack-specific: track ts/user/bot_id/text plus each message's own
-## reactions[] array and reply_count/latest_reply/reply_users fields, per
+## reactions[] array and reply_count/latest_reply fields, per
 ## message index; print in END once every field has been seen -- field
 ## order in Slack's real API responses isn't something to depend on.
 function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afterJ, jNum) {
@@ -145,13 +139,6 @@ function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afte
 
 	if (afterIdx == "reply_count") { replyCountOf[idx] = val; return; }
 	if (afterIdx == "latest_reply") { latestReplyOf[idx] = val; return; }
-	if (index(afterIdx, "reply_users.") == 1) {
-		## reply_users[0] is Slack's own most-recently-replied user -- only
-		## that one is surfaced (matches the "[thread: ... latest by ...]"
-		## annotation, not a full replier roster).
-		if (substr(afterIdx, length("reply_users.") + 1) == "0") latestReplyUserOf[idx] = val
-		return
-	}
 	if (index(afterIdx, "reactions.") == 1) {
 		afterReactions = substr(afterIdx, length("reactions.") + 1)
 		j = afterReactions
@@ -251,23 +238,22 @@ END {
 	}
 
 	for (i = msgCount - 1; i >= 0; i--) {
-		line = sprintf("%s | %s | %s", tsOf[i], (i in userOf ? userOf[i] : "?"), textOf[i])
+		annotations = ""
 
 		if (i in reactionCountPerMsg) {
 			for (j = 0; j < reactionCountPerMsg[i]; j++) {
 				rName = ((i, j) in reactionNameOf) ? reactionNameOf[i, j] : "?"
 				rCount = ((i, j) in reactionCountOf) ? reactionCountOf[i, j] : "?"
 				rUsers = ((i, j) in reactionUsersOf) ? reactionUsersOf[i, j] : "?"
-				line = line sprintf(" [reactions: %s x%s (%s)]", rName, rCount, rUsers)
+				annotations = annotations sprintf(" [reactions: %s x%s (%s)]", rName, rCount, rUsers)
 			}
 		}
 
 		if ((i in replyCountOf) && replyCountOf[i] + 0 > 0) {
-			line = line sprintf(" [thread: %s replies, latest by %s at %s]", \
-				replyCountOf[i], (i in latestReplyUserOf ? latestReplyUserOf[i] : "?"), \
-				(i in latestReplyOf ? latestReplyOf[i] : "?"))
+			annotations = annotations sprintf(" [thread: %s replies, latest at %s]", \
+				replyCountOf[i], (i in latestReplyOf ? latestReplyOf[i] : "?"))
 		}
 
-		print line
+		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, textOf[i])
 	}
 }

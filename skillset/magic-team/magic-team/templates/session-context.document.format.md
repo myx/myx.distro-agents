@@ -103,14 +103,20 @@ comms-cut-off: <--comms-since-* kind and value, or "none — per-service unread 
   email and Trello offer unread and take no cut-off. Stated once at the top, form 1 would be
   ambiguous across exactly the services it reports on.
 - rule: Every item block states its **type name and id** on its heading line.
-- rule: Caps, applied after sorting: **128** IM, **128** email, **64** Trello, **32** each inbox
-  section. A truncated section says so on its own line.
+- rule: Caps: **128** IM conversations — a thread, a channel or a DM is **one** unit, not one
+  message — **128** email, **64** Trello, **32** each inbox section. A truncated section says so on
+  its own line, naming every dropped conversation and its message count, and stating the cap as a
+  display limit, not a source of unread state.
 - rule: The board section has **no cap** and is never truncated — the board is the work list, and
   silently dropping part of a member's own work is the exact failure this document exists to
   prevent.
 - rule: Inbox sections sort by file modification time, newest first.
 - rule: Comms sections sort by **message timestamp**, newest first — comms items have no file
   modification time. (Recorded gap: the spec says "modification time" for all sections.)
+- rule: IM is the carve-out, and it is two stages: the cap **selects** the newest **N**
+  conversations, ranked by each conversation's own newest message; the document then **renders**
+  them oldest-first, with messages oldest-first inside each conversation and no message-level merge
+  across conversations. Email and Trello follow the rule above unchanged.
 - rule: The board section keeps the existing per-item format verbatim.
 
 # Recorded gaps

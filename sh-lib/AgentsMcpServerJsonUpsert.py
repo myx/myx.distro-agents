@@ -4,7 +4,7 @@
 # DistroAgentsTools.fn.sh's --owner-install-vscode-integrations
 # (myx.distro-agents/sh-lib/AgentsTools.Owner.include), externalized per
 # this package's own externalize-awk/py convention (see
-# AgentBoardItemFrontmatterPrint.awk's own header comment for that name).
+# AgentsBoardItemFrontmatterPrint.awk's own header comment for that name).
 #
 # argv[1]: path to the JSON config file to upsert into (created if it
 #   doesn't exist yet). argv[2]: path to the myx MCP server script

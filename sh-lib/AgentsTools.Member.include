@@ -7,7 +7,7 @@
 ## $1 actually matches --member-*) from that file's own `--member-*)` arm,
 ## via the absolute $MDLT_ORIGIN-based path already used for every other
 ## cross-file source in this family (see --agents-config-option and the
-## --pretty AgentSlackMessagesFormat.awk reference in the same file).
+## --pretty AgentsSlackMessagesFormat.awk reference in the same file).
 ##
 ## Not standalone-executable: relies on being dot-sourced into
 ## DistroAgentsTools's own function scope for $1/$@, the $MDSC_CMD local,
@@ -18,7 +18,7 @@
 ## reintroducing the reverted per-op-function pattern (a separate
 ## DistroAgentsTools<OpName> function per op) that caused a real bare
 ## self-call bug; see myx.distro-agents/CLAUDE.md's "DistroAgentsTools --
-## gotchas" section. Splitting these 4 arms into 4 separate functions is
+## gotchas" section. Splitting these 8 arms into 8 separate functions is
 ## the one thing NOT to do here, even though this file only holds one
 ## group -- consistency with the reverted-pattern lesson, not a
 ## per-file judgment call.
@@ -135,12 +135,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: syntax is <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]" >&2
 			set +e ; return 1
 		fi
-		case "$memberName" in
-			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: member name must be a bare name, not a path: $memberName" >&2
-				set +e ; return 1
-			;;
-		esac
+		AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-append-session-transcript" || { set +e ; return 1 ; }
 		local speakerName timestampUtc messageText transcriptName workspaceRoot
 		local messageFromStdin="false" messageFile messageArgProvided="false"
 		local allowCreate="false"
@@ -213,12 +208,7 @@ case "$1" in
 			fi
 			messageText="$(cat -- "$messageFile")"
 		fi
-		case "$transcriptName" in
-			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: transcript name must be a bare filename, not a path: $transcriptName" >&2
-				set +e ; return 1
-			;;
-		esac
+		AgentsToolsAssertBareName "$transcriptName" "<transcript-file-name>" "$MDSC_CMD --member-append-session-transcript" || { set +e ; return 1 ; }
 		case "$workspaceRoot" in
 			/*)
 			;;
@@ -310,23 +300,13 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: syntax is <team-member> <document-name> [--start-line <N> --end-line <N>]" >&2
 			set +e ; return 1
 		fi
-		case "$memberName" in
-			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: member name must be a bare directory name, not a path: $memberName" >&2
-				set +e ; return 1
-			;;
-		esac
+		AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-read-audit-item" || { set +e ; return 1 ; }
 		local memberDir="$HOME/.claude/skills/$memberName"
 		if [ ! -d "$memberDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
 		fi
-		case "$documentName" in
-			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: document name must be a bare filename, not a path: $documentName" >&2
-				set +e ; return 1
-			;;
-		esac
+		AgentsToolsAssertBareName "$documentName" "<document-name>" "$MDSC_CMD --member-read-audit-item" || { set +e ; return 1 ; }
 		case "$documentName" in
 			transcript-*)
 			;;
@@ -401,23 +381,13 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: syntax is <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
 			set +e ; return 1
 		fi
-		case "$memberName" in
-			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: member name must be a bare directory name, not a path: $memberName" >&2
-				set +e ; return 1
-			;;
-		esac
+		AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-read-board-item" || { set +e ; return 1 ; }
 		local memberDir="$HOME/.claude/skills/$memberName"
 		if [ ! -d "$memberDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
 		fi
-		case "$itemName" in
-			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: item name must be a bare filename, not a path: $itemName" >&2
-				set +e ; return 1
-			;;
-		esac
+		AgentsToolsAssertBareName "$itemName" "<item-name>" "$MDSC_CMD --member-read-board-item" || { set +e ; return 1 ; }
 		case "$itemName" in
 			*-*.md)
 			;;
@@ -495,7 +465,7 @@ case "$1" in
 	## default) and stays; no --state/--header flags alongside it --
 	## dedicated wrappers are fixed, not flexible, a caller wanting a
 	## different scan shape calls --intern-op-session-context-scan directly instead.
-	## Fixed filters: --owner <member> (this op's whole point -- "what's
+	## Fixed filters: --filter-owner <member> (this op's whole point -- "what's
 	## currently assigned to me") and --all-types (no board-item-type
 	## restriction; a member's own work spans every type). Always
 	## backlog/pending/running/blocked/parked -- same "active work" list as
@@ -505,7 +475,7 @@ case "$1" in
 	## text the way grooming's/sweep's lists were). Always every
 	## frontmatter field. Appends this same member's own inbox/ contents as
 	## a second section, identical `## inbox/<item-filename>` + frontmatter
-	## shape (the shared AgentBoardItemFrontmatterPrint.awk, reused rather
+	## shape (the shared AgentsBoardItemFrontmatterPrint.awk, reused rather
 	## than duplicated) -- a lazily-created, possibly-absent inbox/ is a
 	## silent empty section, not an error (same laziness as
 	## --member-upsert-inbox-note's own inbox/ handling).
@@ -521,21 +491,16 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: unrecognized argument: $1" >&2
 			set +e ; return 1
 		fi
-		case "$memberName" in
-			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: member name must be a bare directory name, not a path: $memberName" >&2
-				set +e ; return 1
-			;;
-		esac
+		AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-work-session-input-scan" || { set +e ; return 1 ; }
 		local memberDir="$HOME/.claude/skills/$memberName"
 		if [ ! -d "$memberDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
 		fi
 
-		DistroAgentsTools --intern-op-session-context-scan \
+		DistroAgentsTools --intern-op-session-context-scan "$memberName" \
 			--state backlog --state pending --state running --state blocked --state parked \
-			--all-types --owner "$memberName" \
+			--all-types --filter-owner "$memberName" \
 			--context --member-work-session-input-scan || return 1
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
@@ -548,512 +513,11 @@ case "$1" in
 				[ -f "$f" ] || continue
 				base="${f##*/}"
 				printf '## inbox/%s\n' "$base"
-				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentBoardItemFrontmatterPrint.awk" "$f"
+				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrint.awk" "$f"
 				printf '\n'
 			done
 		fi
 		return 0
-	;;
-
-	## Posts to Slack via chat.postMessage. If <team-member> has its own
-	## SLACK_USER_TOKEN configured in its member config scope, sends through
-	## that native user account. Otherwise falls back to the existing shared
-	## bot path, preserving the current attributed-message behavior. The
-	## ONE Slack-post op now -- replaces the old, anonymous --send-message
-	## (removed; DistroAgentsTools.fn.sh no longer has that arm) with a
-	## single member-attributed op, per direct human-owner decision. Body
-	## below is --send-message's own former implementation, relocated here
-	## mostly unchanged (target resolution, format/--from-stdin/--from-file
-	## parsing, curl POST + retry/backoff, email fallback), with
-	## <team-member> validation (same existence-check pattern as
-	## --member-upsert-inbox-note above) and conditional attribution: native
-	## user sends go out as-is; bot sends keep the existing
-	## "*<team-member>:*" prefix.
-	##
-	## Secret handling: the chosen Slack token is resolved on demand right
-	## before use (member-scoped SLACK_USER_TOKEN first, shared
-	## magic-coordinator SLACK_BOT_TOKEN as fallback), then written to a
-	## private (chmod 600) mktemp header file and passed to curl via
-	## `-H @file` (trap-cleaned on exit) rather than as an inline argv
-	## string -- keeps the token out of `ps`/`/proc/<pid>/cmdline` for the
-	## curl invocation's lifetime. Never echoed/printed anywhere in this
-	## branch.
-	##
-	## Resilience: retries a handful of times with increasing backoff before
-	## treating the send as failed -- covers the transient-network-hiccup
-	## class already handled for imap.gmail.com/smtp.gmail.com in this same
-	## environment, not a persistent block. Falls back to email only once
-	## genuinely exhausted, never on the first blip. Success is detected by
-	## grepping for `"ok":true` in the raw response body -- this shell layer
-	## has no real JSON parser, and a literal `"ok":true` substring match is
-	## reliable enough for Slack's actual response shape without inventing
-	## one. The fallback itself is a real, separately-callable op
-	## (--send-email-message) invoked here via self-recursion, not a
-	## private-only helper.
-	--member-slack-send-message)
-		shift
-		local memberName="$1"
-		shift || true
-		if [ -z "$memberName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: syntax is <team-member> <target> [--identity bot|user] [text...] (magic-team|human-owner|event-track|event-alert|<channel>:<ts>) -- or --from-stdin / --from-file <path>" >&2
-			set +e ; return 1
-		fi
-		case "$memberName" in
-			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: member name must be a bare directory name, not a path: $memberName" >&2
-				set +e ; return 1
-			;;
-		esac
-		local memberDir="$HOME/.claude/skills/$memberName"
-		case "$memberName" in
-			routine-*)
-				## Routines don't have and aren't expected to have their own
-				## skill directory -- per direct human-owner decision, skip
-				## the existence check entirely for this name shape rather
-				## than requiring one to be created as a workaround. Falls
-				## straight through to the routine-authored bot-identity
-				## default added below, same "no error, just fall through to
-				## bot credentials" treatment the existing
-				## no-SLACK_USER_TOKEN-configured case already gets.
-			;;
-			*)
-				if [ ! -d "$memberDir" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: no such member skill directory: $memberDir" >&2
-					set +e ; return 1
-				fi
-			;;
-		esac
-
-		local target="$1"
-		shift || true
-
-		if [ -z "$target" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: target required (magic-team|human-owner|event-track|event-alert|<channel>:<ts>)" >&2
-			set +e ; return 1
-		fi
-
-		local resolved rc channel="" threadTs=""
-		resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
-		case "$rc" in
-			0)
-				channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
-				threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
-			;;
-			2)
-				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: unrecognized target: $target" >&2
-				set +e ; return 1
-			;;
-			*)
-				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: could not resolve a channel for target '$target' -- check SLACK_CHANNEL_MAGIC_TEAM/SLACK_CHANNEL_HUMAN_OWNER in .local/.agents" >&2
-				set +e ; return 1
-			;;
-		esac
-
-		local format="text" fromStdin="false" identityOverride=""
-		local textArgs stdinContent
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--identity)
-					## Optional, additive override of the automatic
-					## SLACK_USER_TOKEN-presence identity selection below.
-					## Omitted entirely: no behavior change at all (see that
-					## selection's own comment). `bot`/`user` are the only
-					## two valid values -- anything else fails loud here,
-					## before any network call, same discipline as the
-					## unrecognized-option catch-all further down.
-					identityOverride="$2"
-					case "$identityOverride" in
-						bot|user) ;;
-						*)
-							echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --identity must be 'bot' or 'user', got: $identityOverride" >&2
-							set +e ; return 1
-						;;
-					esac
-					shift 2
-				;;
-				--message-from-stdin|--from-stdin)
-					## `--from-stdin` is the standardized, uniform name for "read
-					## content from stdin instead of argv" across every
-					## DistroAgentsTools op that accepts free-text content (see
-					## also --send-email-message's body, --intern-validate-json's
-					## bare-stdin mode). `--message-from-stdin` stays recognized
-					## too, unchanged, since it's already documented/used across
-					## several skill files -- this is an additive alias, not a
-					## rename.
-					fromStdin="true" ; shift
-				;;
-				--from-file)
-					## Lets a caller write content to a plain temp file first (an
-					## ordinary Write tool call, no Bash prompt) and still invoke
-					## this op as one single-line command, since a heredoc body
-					## makes the invoked command span multiple lines and no
-					## longer match a single-line settings.json allowlist glob.
-					## Validated and consumed directly here, at point of use, into
-					## the SAME stdinContent variable --from-stdin's own downstream
-					## handling already reads -- no separate fromFile="" sentinel
-					## held across branches.
-					if [ -z "$2" ] || [ ! -f "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --from-file: file not found: $2" >&2
-						set +e ; return 1
-					fi
-					stdinContent="$( cat "$2" )"
-					fromStdin="true"
-					shift 2
-				;;
-				--format)
-					format="$2" ; shift 2
-				;;
-				--*)
-					## Guards against an unrecognized flag-shaped token silently
-					## falling through to the catch-all below and getting posted
-					## as literal message text -- a stray "--from-stdin" would
-					## otherwise end up as the entire "text" field, with ok:true
-					## coming back, so it wouldn't even be a visible failure. Any
-					## token starting with "--" that didn't match a known option
-					## above is almost always a typo/wrong-order/mis-recognized
-					## flag, not intended literal content -- fail loud here
-					## instead of silently absorbing it as text. Genuine literal
-					## text starting with "--" should go through
-					## --from-stdin/--from-file instead.
-					echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: unrecognized option: $1 (if you need literal text starting with '--', use --from-stdin/--from-file instead of trailing argv)" >&2
-					set +e ; return 1
-				;;
-				*)
-					textArgs="$textArgs $1" ; shift
-				;;
-			esac
-		done
-
-		local rawText blocksJson sourceText
-		if [ "$fromStdin" = "true" ] ; then
-			## stdinContent may already be populated by --from-file above; only
-			## read real stdin here if it wasn't (--from-stdin, not --from-file,
-			## is what set fromStdin=true in that case).
-			[ -n "$stdinContent" ] || stdinContent="$( cat )"
-			sourceText="$stdinContent"
-		else
-			sourceText="${textArgs# }"
-		fi
-
-		## --format markdown builds blocksJson from sourceText via this
-		## repo's own sh-lib/AgentSlackBlocksBuild.awk (small restricted
-		## markdown-ish syntax -> Slack Block Kit JSON array -- see that
-		## file's own header for the exact rules), then falls straight into
-		## the SAME validation/send path as --format blocks below -- not a
-		## parallel/duplicated path. Unlike --format blocks (stdin/file-only,
-		## unchanged below), --format markdown accepts any input source
-		## (trailing argv included) since a short markdown-ish message is a
-		## realistic thing to type directly as argv text, unlike a raw Block
-		## Kit JSON array.
-		if [ "$format" = "markdown" ] ; then
-			if [ -z "$sourceText" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: no text/blocks content given" >&2
-				set +e ; return 1
-			fi
-			blocksJson="$( printf '%s\n' "$sourceText" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackBlocksBuild.awk" )"
-		elif [ "$fromStdin" = "true" ] && [ "$format" = "blocks" ] ; then
-			blocksJson="$sourceText"
-		fi
-
-		if [ -n "$blocksJson" ] ; then
-			## `blocksJson` gets spliced straight into the payload below
-			## (`"blocks":$blocksJson`) with no escaping, unlike `rawText`
-			## (which goes through agentMcpJsonEscape.awk) -- both --format
-			## blocks' caller-supplied array and --format markdown's
-			## awk-built array share this same bare-JSON-array contract, so
-			## both get validated here, once, before either ever reaches
-			## curl. Guards against stray content (a leftover
-			## "blocks: [...]"-style paste, or a malformed awk build) that
-			## isn't actually a bare array, which would splice into a
-			## literal `"blocks"::[...]` or similar in the payload -- Slack's
-			## chat.postMessage would bounce that as invalid_json on all 5
-			## retries, with nothing in the error pointing at the actual
-			## cause. Reuses this same file's own --intern-validate-json op via
-			## self-recursion (same convention as --send-email-message's
-			## fallback call below) for full JSON-syntax validation,
-			## rather than hand-rolling a second, weaker JSON check here.
-			## --intern-validate-json accepts any syntactically
-			## valid top-level JSON value though (object, string, number,
-			## ...), so a cheap bare `[` ... `]` shape check is layered on
-			## top of it to enforce the array-specifically requirement
-			## Slack's `blocks` field actually has.
-			if ! printf '%s' "$blocksJson" | DistroAgentsTools --intern-validate-json ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --format $format content failed --intern-validate-json (see above)" >&2
-				set +e ; return 1
-			fi
-			local blocksTrimmed
-			blocksTrimmed="$( printf '%s' "$blocksJson" | LC_ALL=C awk 'BEGIN{RS="\0"} { gsub(/^[ \t\r\n]+/, ""); gsub(/[ \t\r\n]+$/, ""); printf "%s", $0 }' )"
-			case "$blocksTrimmed" in
-				'['*']')
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --format $format content is valid JSON but not a bare array (must start with '[' and end with ']')" >&2
-					set +e ; return 1
-				;;
-			esac
-
-			## Guards against a chat.postMessage rejection shaped like
-			## `invalid_blocks: unsupported type "mrkdwn" [json-pointer:/blocks/3/type]`
-			## -- a caller (or, for --format markdown, a bug in
-			## AgentSlackBlocksBuild.awk) nesting a text-object type
-			## (`mrkdwn`, only valid inside a block's own `text` field)
-			## directly as a top-level block's own `type`, which Slack's
-			## Block Kit does not accept as a block type. Neither the
-			## --intern-validate-json check above (syntax only) nor the bare-array
-			## check above (shape only) catches this -- both are satisfied by
-			## a syntactically-valid array of objects regardless of what each
-			## object's own "type" value actually is. This is a cheap,
-			## non-recursive structural check (does every top-level element
-			## have a "type" key whose value is one of Slack's known top-level
-			## block types) layered on top of the syntax/shape checks, same
-			## spirit as those -- NOT a full Block Kit schema validator (this
-			## shell layer has no real JSON parser beyond what python3/awk give
-			## it here), so it deliberately does not recurse into each block's
-			## own nested fields (text objects, elements, accessory, ...).
-			local blocksBadTypes
-			blocksBadTypes="$( printf '%s' "$blocksJson" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentBlockKitValidate.py" 2>/dev/null )"
-			if [ -n "$blocksBadTypes" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --format $format content has an invalid/missing top-level 'type' at block index(es) $blocksBadTypes -- mrkdwn/plain_text/etc. are TEXT-OBJECT types, valid only nested inside a block's own \"text\" field, never as a block's own \"type\" (valid top-level types: section, divider, header, context, image, actions, input, video, rich_text, file)" >&2
-				set +e ; return 1
-			fi
-
-			## NOTE: not auto-deriving a text fallback from the blocks' own
-			## text.text fields yet (that needs real JSON parsing this shell
-			## layer doesn't have) -- using a static fallback instead. Revisit
-			## with a real parser (e.g. agentMcpJsonParseRequest.awk's
-			## approach) if Slack's own notification quality demands better.
-			rawText="(formatted message -- see blocks)"
-		else
-			rawText="$sourceText"
-		fi
-
-		if [ -z "$rawText" ] && [ -z "$blocksJson" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: no text/blocks content given" >&2
-			set +e ; return 1
-		fi
-
-		local sendIdentity="bot" memberUserToken=""
-		memberUserToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null || true )"
-
-		## Routine-authored detection: the <team-member> argument itself
-		## being `routine-*`-prefixed means a routine is the "sender," not
-		## an actual team-member persona (e.g. "routine-heartbeat" passed as
-		## $memberName, not "magic-coordinator") -- per direct human-owner
-		## decision, this defaults to bot identity automatically, purely by
-		## name-prefix on this argument value, no flag needed and no
-		## target-based check. Detected once, up front, so both branches
-		## below can consult it without repeating the case match.
-		local routineAuthored="false"
-		case "$memberName" in
-			routine-*) routineAuthored="true" ;;
-		esac
-
-		## `--identity` (optional, additive): if the caller passed it, it
-		## wins outright over BOTH the routine-authored default above and
-		## the SLACK_USER_TOKEN auto-detect below -- `user` insists on the
-		## native account and fails loud (before any network call) if this
-		## member has no SLACK_USER_TOKEN configured, rather than silently
-		## falling back to bot; `bot` forces the shared bot path regardless
-		## of whether a native token happens to be configured. This is the
-		## documented override path for the opposite case: an actual
-		## persona explicitly choosing to post as bot even when not
-		## routine-authored (or vice versa). If the caller didn't pass it:
-		## routine-authored (see above) always resolves to bot, regardless
-		## of any configured SLACK_USER_TOKEN; otherwise, behavior is
-		## byte-for-byte unchanged from before either of these two
-		## mechanisms existed -- bot unless a native token is configured, in
-		## which case user.
-		if [ -n "$identityOverride" ] ; then
-			case "$identityOverride" in
-				user)
-					if [ -z "$memberUserToken" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: --identity user requested for $memberName but no SLACK_USER_TOKEN is configured for it" >&2
-						set +e ; return 1
-					fi
-					sendIdentity="user"
-				;;
-				bot)
-					sendIdentity="bot"
-				;;
-			esac
-		elif [ "$routineAuthored" = "true" ] ; then
-			sendIdentity="bot"
-		elif [ -n "$memberUserToken" ] ; then
-			sendIdentity="user"
-		fi
-
-		## Dynamic per-identity DM-channel resolution: Slack DM channel ids
-		## are per-identity-pair -- SLACK_CHANNEL_HUMAN_OWNER (used to
-		## resolve $channel above) was resolved/set against the shared bot
-		## identity's own DM with the human-owner, so it does not exist for
-		## a member's own native user identity (confirmed live:
-		## channel_not_found on 5/5 retries). Scoped strictly to the one
-		## case that's actually broken -- human-owner target + user
-		## identity -- every other target/identity combination
-		## (including magic-team, a standing channel not a DM, so
-		## unaffected by this) is untouched. Reuses the exact same
-		## users.list + hint-match + conversations.open mechanism
-		## --magic-comms-slack-resolve-ids already proves out as a
-		## diagnostic (AgentsTools.MagicComms.include), narrowed to this
-		## one rare branch instead of running on every send -- avoids
-		## adding any new persisted config/state surface (a stored
-		## human-owner user id or a resolved-channel cache would each be
-		## their own config-schema change needing separate review). On any
-		## resolution failure here, $channel is left as the static alias
-		## and the existing retry-then-email-fallback path below handles
-		## it exactly as it does today -- no second fallback branch
-		## invented.
-		case "$target" in
-			human-owner|human-owner:*)
-				if [ "$sendIdentity" = "user" ] ; then
-					local dynUsersJson dynHintUserId dynOpenResp dynOpenOk dynOpenChannel
-					dynUsersJson="$( curl -sS -G https://slack.com/api/users.list -H "Authorization: Bearer $memberUserToken" --data-urlencode "limit=1000" 2>/dev/null )"
-					dynHintUserId="$( USERS_JSON="$dynUsersJson" HINT="myx" \
-						python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackResolveHintUserId.py" 2>/dev/null )"
-					if [ -n "$dynHintUserId" ] ; then
-						dynOpenResp="$( curl -sS -X POST https://slack.com/api/conversations.open -H "Authorization: Bearer $memberUserToken" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$dynHintUserId" 2>/dev/null )"
-						dynOpenOk="$( printf '%s' "$dynOpenResp" | sed -En 's/.*"ok":(true|false).*/\1/p' )"
-						dynOpenChannel="$( printf '%s' "$dynOpenResp" | sed -n 's/.*"id":"\([CDG][^"]*\)".*/\1/p' )"
-						if [ "$dynOpenOk" = "true" ] && [ -n "$dynOpenChannel" ] ; then
-							echo "# $MDSC_CMD --member-slack-send-message: dynamic per-identity resolution: human-owner DM channel for $memberName's own native identity resolved to $dynOpenChannel (static SLACK_CHANNEL_HUMAN_OWNER was $channel)" >&2
-							channel="$dynOpenChannel"
-						else
-							echo "# $MDSC_CMD --member-slack-send-message: dynamic per-identity resolution failed ($dynOpenResp) -- falling back to static SLACK_CHANNEL_HUMAN_OWNER, existing retry/email-fallback path will handle a channel_not_found from here" >&2
-						fi
-					else
-						echo "# $MDSC_CMD --member-slack-send-message: dynamic per-identity resolution: could not resolve a human-owner user id via hint 'myx' -- falling back to static SLACK_CHANNEL_HUMAN_OWNER" >&2
-					fi
-				fi
-			;;
-		esac
-
-		## Preserve the existing attributed bot-message behavior as the
-		## fallback path. Native-user sends go out as the user account itself,
-		## so no synthetic team-member prefix is added there.
-		if [ "$sendIdentity" = "bot" ] && [ -n "$rawText" ] ; then
-			rawText="$( printf '*%s:*\n%s' "$memberName" "$rawText" )"
-		fi
-
-		## Reuse myx.common's existing JSON-string escaper (agentMcpJsonEscape.awk,
-		## already shipped for agentMcpServer.sh) rather than inventing another one.
-		local escapedText
-		escapedText="$( printf '%s' "$rawText" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
-
-		local payload="{\"channel\":\"$channel\",\"text\":\"$escapedText\""
-		[ -z "$threadTs" ] || payload="$payload,\"thread_ts\":\"$threadTs\""
-		[ -z "$blocksJson" ] || payload="$payload,\"blocks\":$blocksJson"
-		payload="$payload}"
-
-		local tokenLabel
-		if [ "$sendIdentity" = "user" ] ; then
-			tokenLabel='SLACK_USER_TOKEN'
-		else
-			tokenLabel='SLACK_BOT_TOKEN'
-		fi
-
-		echo "# $MDSC_CMD --member-slack-send-message: POST https://slack.com/api/chat.postMessage using ${sendIdentity} token for $memberName -H 'Authorization: Bearer \$$tokenLabel' -H 'Content-type: application/json' -d '$payload'" >&2
-
-		local token
-		if [ "$sendIdentity" = "user" ] ; then
-			token="$memberUserToken"
-		else
-			token="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_BOT_TOKEN )"
-		fi
-		if [ -z "$token" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: no usable Slack token configured for $memberName (member SLACK_USER_TOKEN or shared magic-coordinator SLACK_BOT_TOKEN)" >&2
-			set +e ; return 1
-		fi
-
-		## Token goes into a private (chmod 600) temp file, read by curl via
-		## `-H @file` (curl >= 7.55.0) rather than as an inline argv string --
-		## avoids the token being visible in `ps`/`/proc/<pid>/cmdline` for
-		## the curl invocation's lifetime.
-		local headerFile
-		headerFile="$( mktemp )" || { set +e ; return 1 ; }
-		chmod 600 "$headerFile"
-		trap 'rm -f "$headerFile"' EXIT
-		printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
-
-		local authUserId=""
-		if [ "$sendIdentity" = "user" ] ; then
-			local authResp
-			authResp="$( curl -sS https://slack.com/api/auth.test -H @"$headerFile" 2>&1 )"
-			authUserId="$( printf '%s' "$authResp" | sed -n 's/.*"user_id":"\([^"]*\)".*/\1/p' )"
-			if [ -z "$authUserId" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: could not confirm auth.test user_id for $memberName SLACK_USER_TOKEN" >&2
-				echo "# Response: $authResp" >&2
-				rm -f "$headerFile"
-				trap - EXIT
-				set +e ; return 1
-			fi
-		fi
-
-		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false"
-		while [ "$attempt" -le "$maxAttempts" ] ; do
-			response="$( curl -sS -X POST "https://slack.com/api/chat.postMessage" \
-				-H @"$headerFile" \
-				-H "Content-type: application/json" \
-				-d "$payload" 2>&1 )"
-			if printf '%s' "$response" | grep -q '"ok":true' ; then
-				sent="true"
-				break
-			fi
-			if [ "$sendIdentity" = "bot" ] && [ "$joinAttempted" = "false" ] && [ -z "$threadTs" ] && printf '%s' "$response" | grep -q '"error":"not_in_channel"' ; then
-				joinAttempted="true"
-				local joinResponse
-				joinResponse="$( curl -sS -X POST "https://slack.com/api/conversations.join" \
-					-H @"$headerFile" \
-					-H "Content-type: application/x-www-form-urlencoded" \
-					--data-urlencode "channel=$channel" 2>&1 )"
-				echo "# $MDSC_CMD --member-slack-send-message: auto-join attempt for bot token on channel=$channel -- $joinResponse" >&2
-				if printf '%s' "$joinResponse" | grep -q '"ok":true' ; then
-					continue
-				fi
-			fi
-			echo "# $MDSC_CMD --member-slack-send-message: attempt $attempt/$maxAttempts did not confirm ok:true, retrying in ${backoff}s -- $response" >&2
-			sleep "$backoff"
-			attempt=$(( attempt + 1 ))
-			backoff=$(( backoff * 2 ))
-		done
-
-		rm -f "$headerFile"
-		trap - EXIT
-
-		if [ "$sent" = "true" ] ; then
-			if [ "$sendIdentity" = "user" ] ; then
-				local responseMessageUser
-				responseMessageUser="$( printf '%s' "$response" | sed -n 's/.*"message":{.*"user":"\([^"]*\)".*/\1/p' )"
-				if [ -z "$responseMessageUser" ] || [ "$responseMessageUser" != "$authUserId" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: member SLACK_USER_TOKEN send for $memberName did not confirm message.user=$authUserId" >&2
-					echo "# Response: $response" >&2
-					set +e ; return 1
-				fi
-			fi
-			printf '%s\n' "$response"
-			return 0
-		fi
-
-		## NOT a channel switch -- email here is a notification that Slack
-		## itself is stuck, not a substitute delivery path for the message.
-		## The message stays queued for Slack; the email's job is only to
-		## say so and describe what's waiting.
-		echo "⛔ $MDSC_CMD --member-slack-send-message: Slack did not confirm after $maxAttempts attempts -- notifying by email that Slack comms are stuck" >&2
-		local fallbackUser
-		fallbackUser="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_USER )"
-		if [ -z "$fallbackUser" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-slack-send-message: no EMAIL_USER configured, cannot notify" >&2
-			set +e ; return 1
-		fi
-		DistroAgentsTools --send-email-message "$fallbackUser" -- \
-			"Slack comms stuck -- message queued for target $target" -- \
-			"Slack did not confirm this send after $maxAttempts retries -- comms to Slack appear stuck." "" \
-			"Nothing was rerouted to email -- this is a notification only. The" \
-			"message below stays queued for Slack and should go out once it" \
-			"recovers; retry --member-slack-send-message manually if it doesn't." "" \
-			"Team-member: $memberName" "Target: $target" "" \
-			"Queued message:" "$rawText" "" \
-			"Last Slack error response:" "$response"
-		return $?
 	;;
 
 	## Lives here, not in the outer dispatcher, because --member-help matches

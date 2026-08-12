@@ -1,0 +1,3117 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberCommsSlack.include -- the raw per-member Slack comms
+## operations (read, search, react, send, edit, delete, file info/fetch).
+## Split out of the former single comms include, which carried Slack, email
+## and Trello in one file and no longer exists; the email and Trello arms now
+## live in AgentsTools.MemberCommsEmail.include and AgentsTools.MemberCommsTrello.include.
+##
+## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced
+## for $1/$@/$MDSC_CMD and for the shared helper
+## DistroAgentsToolsResolveTarget, which stays in the dispatcher because
+## AgentsTools.MagicComms.include, AgentsTools.Member.include and
+## AgentsTools.InternOpSessionContextScan.include all call it too.
+##
+## EVERY OP HERE TAKES <team-member> FIRST, and that member IS the acting
+## identity -- which is why `comms` is a namespace layer UNDER the member
+## prefix, --member-comms-<service>-<verb>, rather than a prefix of its own.
+## The name says who acts before it says through which service.
+##
+## THE DISPATCHER REACHES THIS FILE BY THE --member-comms-slack-* GLOB, and
+## that route is only correct because EVERY op of that name lives here now.
+## --member-comms-slack-send-message used to sit in AgentsTools.Member.include
+## instead, and that one absence was the whole reason the old route had to be
+## a by-name enumeration: a glob would have stolen the op from the file that
+## implemented it. Bringing it home is what retires the enumeration. Adding a
+## --member-comms-slack-* op therefore costs no dispatcher line; moving one
+## back out to another include would silently break the glob's one
+## precondition.
+##
+## NOTE that --magic-comms-slack-resolve-ids is deliberately NOT here: it
+## matches neither route, and it already has its own include
+## (AgentsTools.MagicComms.include). --intern-op-slack-check is likewise not
+## here: it carries the --intern-op-* prefix, is the sweep machinery's own
+## internal reader rather than a member-facing op, and has its own include
+## (AgentsTools.InternOpSlackCheck.include) exactly as every other
+## --intern-op-* primitive does.
+##
+## Supported operations:
+##   --member-comms-slack-read   --member-comms-slack-search-messages
+##   --member-comms-slack-react  --member-comms-slack-send-message
+##   --member-comms-slack-delete-message  --member-comms-slack-edit-message
+##   --member-comms-slack-file-info    --member-comms-slack-file-fetch
+##
+## --member-comms-slack-delete-message and --member-comms-slack-edit-message are the only MUTATING Slack
+## operations here, and they differ from everything else in this file in one
+## specific way: Slack permits deleting or editing only a message the ACTING
+## IDENTITY itself authored, so the same call succeeds or fails purely on who
+## is asking. Both therefore carry a refusal branch of their own that names the
+## acting identity and the authorship rule, and neither ever retries under the
+## other identity to make a destructive call succeed.
+##
+## THE API'S STATUS CODE IS NOT THE ANSWER TO THE QUESTION THE CALLER ASKED.
+## For reads, an empty result must not read as success. For react, an
+## `already_reacted` error must not read as failure.
+##
+## This is ONE rule with two faces, stated here once so no arm has to
+## rediscover it: what an arm reports is the outcome of the QUESTION its caller
+## asked ("is there a reply?", "is the reaction on that message?"), and Slack's
+## own ok:true/ok:false is only evidence toward that answer, never the answer
+## itself. Both faces are already live in this file -- --member-comms-slack-read fails
+## loud on a successful call that carried no such message, and
+## --member-comms-slack-react reports `already_reacted` as a distinct success -- and
+## each arm's own comment points back here rather than restating the rule.
+##
+## Two consequences that follow from it, and hold for any arm added later:
+##   - The tolerance or the loud failure lives in the ARM, interpreting the
+##     result. --intern-op-slack-call's contract, that an ok:false never
+##     surfaces as rc 0, stays exactly as it is: bending the shared call to
+##     suit one caller's question would soften every other caller's failure
+##     detection.
+##   - Outcomes are told apart by POSITIVE tests on what is present -- a found
+##     element, a named error code -- never by a negation against an empty
+##     result, which is indistinguishable from "could not see anything".
+##
+
+## --member-comms-slack-file-info's own per-field emitter. A function rather than the
+## same eight lines copied nineteen times, one per declared field: a copy
+## missed at one field is indistinguishable, to a caller, from a field the
+## payload did not carry, and a field added later would silently be that missed
+## copy. Defined here, above the dispatch `case`, for the same reason
+## AgentsTools.InternOpSlackCall.include defines its own field emitter at file
+## top level -- a function definition is not an operation and must not sit
+## inside one arm of a `case` that other arms are also routed through.
+##
+## Arguments:
+##   $1  the output key, e.g. `URL_PRIVATE`
+##   $2  the full JSON key path, e.g. `file.url_private`
+##   $3  the raw files.info response body
+##
+## PRESENCE IS THE READER'S EXIT STATUS, NEVER THE PRINTED STRING. That is the
+## whole contract of sh-lib/AgentsSlackJsonField.awk (see its own header): rc 0
+## found, rc 3 parsed fine and that path is not in this payload, rc 1 the body
+## was not a parseable API response at all. A JSON `null`, and a key genuinely
+## holding `""`, are both PRESENT and both print nothing -- so testing the
+## captured string for emptiness would report a file whose title is the empty
+## string as a file with no title, and would report BOTH of them the same way it
+## reports a read that failed. `optional=1` is passed because absence is an
+## expected state for every field here (a file with no title, an audio file with
+## no thumbnails); it suppresses the reader's own rc-3 note and changes nothing
+## else.
+##
+## Three POSITIVELY-named states per field, emitted as this package's own
+## established state-plus-value pair -- exactly the shape
+## --intern-op-slack-call already uses for RESPONSE_BODY_STATE=/RESPONSE_BODY=,
+## not a new convention invented here:
+##   <KEY>_STATE=present            + <KEY>=<value>
+##   <KEY>_STATE=absent             (no <KEY>= line: there is no value)
+##   <KEY>_STATE=present-multiline  (no <KEY>= line: the value carries a line
+##                                  break and cannot be carried by a format
+##                                  whose whole promise is one field per line.
+##                                  Reported rather than truncated or escaped,
+##                                  and --raw is where such a value is read.)
+## A caller therefore reads presence from the _STATE line and never has to infer
+## it from a missing or empty <KEY>= line.
+##
+## The value is written with `printf '%s=%s\n'`, not `echo`: a title or filename
+## may legitimately begin with `-`, contain backslashes, spaces, or non-ASCII
+## bytes, and `echo`'s handling of all three is implementation-defined across
+## Darwin/FreeBSD/Linux shells. printf's `%s` passes the bytes through
+## unchanged. The reader already returns UTF-8 bytes (it decodes `\uXXXX`
+## escapes itself), so nothing here re-encodes them.
+##
+## rc 0 for present, absent and present-multiline alike -- all three are
+## successful reads. rc 1 only when the reader could not parse the payload at
+## all, which the caller turns into its own loud failure rather than letting a
+## half-emitted field set look complete.
+AgentsToolsCommsSlackFileInfoEmitField(){
+	local emitKey="$1" emitPath="$2" emitPayload="$3"
+	local emitNewline=$'\n'
+	local emitValue="" emitRc=0
+	## `sentinel=1`, and the matching one-byte strip below, because the fields
+	## read here include FREE TEXT -- NAME and TITLE are a user's own filename
+	## and caption. Without it the reader's own record separator and a trailing
+	## newline belonging to the value are indistinguishable to `$( ... )`, which
+	## strips both: a title ending in a newline would arrive one byte short AND
+	## be classified `present` by the newline test below rather than
+	## `present-multiline`. That is a wrong answer from the very test whose whole
+	## job is to give the right one. See the reader's own header for the mode.
+	emitValue="$( printf '%s\n' "$emitPayload" | LC_ALL=C awk -v path="$emitPath" -v optional=1 -v sentinel=1 \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || emitRc=$?
+	## Exactly the one byte the reader appended, and only on the found path --
+	## rc 1 and rc 3 print nothing at all, so there is no sentinel to remove and
+	## an unconditional strip would eat a real byte off some future output shape.
+	if [ "$emitRc" = "0" ] ; then
+		emitValue="${emitValue%X}"
+	fi
+	case "$emitRc" in
+		0)
+			## Quoted inside the pattern on purpose: quoting makes the newline a
+			## literal to match, not a glob metacharacter to expand.
+			case "$emitValue" in
+				*"$emitNewline"*)
+					printf '%s_STATE=present-multiline\n' "$emitKey"
+				;;
+				*)
+					printf '%s_STATE=present\n' "$emitKey"
+					printf '%s=%s\n' "$emitKey" "$emitValue"
+				;;
+			esac
+			return 0
+		;;
+		3)
+			printf '%s_STATE=absent\n' "$emitKey"
+			return 0
+		;;
+	esac
+	echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: the field reader could not parse the files.info response body while reading '$emitPath' (rc=$emitRc -- 1: the body is not a parseable Slack API response, 2: no key path was given). Nothing about this file is known from this call, and the fields printed before this line are NOT a complete metadata set." >&2
+	return 1
+}
+
+case "$1" in
+
+		## --read-* is the complementary concern to the --check-* scanning
+		## tools: given one specific message/thread's own id/address,
+		## retrieve its FULL content (all meta-info, reactions, formatting,
+		## images/attachments) for actually processing that one item in
+		## detail, not scanning for what's new. Always returns raw JSON
+		## (never pretty-formatted) -- "full" is the entire point of this op,
+		## there is no lossy default here. --thread returns the API response
+		## verbatim; the single-message default returns the one requested
+		## message object, byte-verbatim as Slack sent it, in a minimal
+		## {"ok":true,"messages":[...]} envelope (see that branch below for
+		## why the read has to select, and why the envelope is narrowed).
+		##
+		## An empty result is never an outcome of this op. A call that could
+		## not see the message it was asked for fails loud instead, because
+		## "no messages" and "could not read" were previously the same
+		## answer here, and callers read the wrong one.
+		--member-comms-slack-read)
+			shift
+			## Scope declaration for --intern-op-check-slack-scopes. Derived from
+			## the endpoints THIS arm calls, not from past incidents. Answered
+			## before any argument validation so the declaration is always
+			## introspectable. Declared per arm, never copied wholesale from the
+			## sibling arm: two arms reaching the same endpoints today is a fact
+			## about today, not a shared contract.
+			##
+			## conversations.replies (both branches now) -- the *:history set.
+			## conversations.info, when a caller turns the counterparty control on
+			##   -- the *:read set, already declared here for the same reason
+			##   conversations.open needs it, so it adds nothing new.
+			## conversations.open, reached inside --intern-op-slack-call whenever
+			##   --resolve-target below classifies the target as a party id (U/W)
+			##   and a DM has to be opened under this call's own identity -- that
+			##   is im:write, and it was missing from this declaration while the
+			##   call path already reached it.
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' channels:read channels:history groups:read groups:history im:read im:history mpim:read mpim:history im:write
+				return 0
+			fi
+			## <team-member> IS THE ACTING IDENTITY, AND IT IS WHY THIS OP TAKES ONE.
+			## A direct conversation belongs to one identity pair, so the identity a
+			## read acts as decides WHICH conversation it can see at all. This arm
+			## used to name `magic-coordinator` literally at both call sites below,
+			## which made every member-facing read return magic-coordinator's own
+			## conversations and report them as the caller's: a member with unread
+			## direct messages was told it had nothing outstanding. The member is
+			## supplied by the caller now, exactly as every --member-* op already
+			## does, and the ratified identity rule is unchanged by it -- the
+			## member's own token when it has one, the team bot otherwise,
+			## --identity-bot to select the bot's conversation instead.
+			##
+			## Validated with the same helper and the same routine-* carve-out
+			## --member-comms-slack-send-message uses, so one name shape is accepted
+			## across this package rather than a second spelling per op.
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: syntax is <team-member> <channel>:<ts> [--thread] [--identity-bot] -- the acting member is required, since a direct conversation belongs to one identity and the member decides which conversation is read" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-read" || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## A routine acting as caller has no skill directory and is not
+					## expected to grow one -- same treatment, same reason, as
+					## --member-comms-slack-send-message's own carve-out.
+				;;
+				*)
+					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local target="$1"
+			shift || true
+			if [ -z "$target" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: target required -- <channel>:<ts> only. Unlike --intern-op-slack-check, this op does not accept the magic-team/human-owner/event-track/event-alert channel shortcuts, nor a bare <conversation-id>: each of those names a conversation, and this op retrieves one specific message, which needs its own <ts>. That constraint is enforced further down by this same arm's own '<ts> is required' check." >&2
+				set +e ; return 1
+			fi
+
+			## --identity-bot is the same modifier the mutating arms already
+			## carry, spelled identically here on purpose: this op resolves an
+			## identity exactly as they do, and a caller that has learned the
+			## flag on one arm must not find a second spelling on another.
+			## Absent, the selection below is left untouched, which is the
+			## identity rule (member's own user token when it has one, else the
+			## team bot) rather than a default this arm invents.
+			local wantThread="false" identityAsBot="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--thread)
+						wantThread="true" ; shift
+					;;
+					--identity-bot)
+						identityAsBot="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			local resolved rc channel threadTs
+			resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
+			case "$rc" in
+				0)
+					channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
+					## Unit-2 forward compatibility, deliberately INERT today: the
+					## resolver emits no USER_ID= line yet, so this is "" and every
+					## branch below behaves exactly as before. It exists so the
+					## Unit-3 resolver flip has a reader already in place here --
+					## the flip is gated on all seven of these existing.
+					local targetUserId=""
+					targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
+					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: could not resolve target '$target' -- pass <channel>:<ts> for a specific message" >&2
+					set +e ; return 1
+				;;
+			esac
+			if [ -z "$threadTs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: a specific <ts> is required (magic-team/human-owner alone identify a channel, not one message) -- use <channel>:<ts>" >&2
+				set +e ; return 1
+			fi
+
+			## The Slack call itself is delegated to --intern-op-slack-call --
+			## THE one place Slack is called (see that file's own header). This
+			## arm therefore has no token read, no header file and no curl of its
+			## own: delegating the call and keeping a private copy of its
+			## machinery would be the two halves of one change done separately,
+			## and the half left behind is the one that goes stale.
+			##
+			## No identity is named here beyond what the caller asked for and
+			## what the target itself declares. Left alone, the op classifies
+			## $channel and derives the target kind from that: a party or DM
+			## target is read under the member's own native identity -- the same
+			## identity the send path writes with, therefore the same
+			## conversation -- and a channel target takes the op's own bot
+			## downgrade. Hardcoding an identity at this site is exactly how a
+			## read ends up inspecting a different conversation than the one the
+			## team sends into.
+			##
+			## What --identity-bot changes, and why the flag has to exist: a DM
+			## belongs to ONE identity pair, so the member's user identity and
+			## the team bot hold two DIFFERENT DMs with the same person and
+			## neither can read the other's. Without a selector this arm could
+			## only ever reach whichever DM the default identity happens to
+			## own, and the other one was unreachable for read with no
+			## workaround available to a caller -- not a permissions problem,
+			## just a missing argument. The flag is translated to the intern
+			## op's own --identity spelling at the call site below; the intern
+			## op keeps its two-valued form and is unchanged.
+			local identityArgs=()
+			if [ "$identityAsBot" = "true" ] ; then
+				identityArgs+=( --identity bot )
+			fi
+			##
+			## The op prints the response on stdout and every diagnostic on
+			## stderr, so this arm's output shape is what it always was: the raw
+			## API response, one trailing newline, nothing else.
+			if [ "$wantThread" = "true" ] ; then
+				## Full thread -- every reply, full detail (reactions/files/
+				## blocks all come through untouched since this is raw, not
+				## piped through the pretty formatter).
+				echo "# $MDSC_CMD --member-comms-slack-read: GET conversations.replies channel=$channel ts=$threadTs (full thread, acting member $memberName)" >&2
+				DistroAgentsTools --intern-op-slack-call "$memberName" \
+					--api conversations.replies \
+					--resolve-target "$channel" \
+					--form "ts=$threadTs" \
+					"${identityArgs[@]}" \
+					--context "--member-comms-slack-read" || { set +e ; return 1 ; }
+			else
+				## Exactly one message -- and read through conversations.replies,
+				## NOT conversations.history.
+				##
+				## conversations.history does not return thread replies at all.
+				## Asked for a reply's own ts (latest=oldest=ts, inclusive,
+				## limit=1) it answers {"ok":true,"messages":[],"has_more":false}
+				## -- success, empty array -- and every caller read that as "no
+				## reply yet" rather than "wrong endpoint for this question."
+				## Five of the human-owner's own answers were discarded that way,
+				## because the human-owner replies in threads.
+				##
+				## conversations.replies has no such blind spot: measured against
+				## a real DM, it returns the message for a thread-reply ts, for a
+				## thread-parent ts, AND for a plain non-threaded ts alike --
+				## Slack documents its `ts` as "either a thread's parent message
+				## or a message in the thread." There is no case where history
+				## succeeds and replies fails, so this is a strict widening of
+				## what the read can see, not a trade.
+				##
+				## What it costs: replies returns the SURROUNDING THREAD. This
+				## op's contract is one message, and callers depend on that, so
+				## the requested message is selected back out by exact ts before
+				## anything is printed -- see AgentsSlackMessageSelect.awk, which
+				## reuses this family's own proven JSON parser rather than
+				## inventing a sed/grep element-picker (a `\|` alternation in a
+				## BRE is a GNU extension that silently matches nothing on BSD,
+				## and this file family has already been bitten by exactly that).
+				## Returning the whole thread here instead would have changed the
+				## op's contract as a side effect of fixing the endpoint.
+				echo "# $MDSC_CMD --member-comms-slack-read: GET conversations.replies channel=$channel ts=$threadTs (single message, selected by exact ts, acting member $memberName)" >&2
+				## Captured and replayed into the selector rather than piped
+				## straight from the op: a pipeline reports only its LAST
+				## command's status, and the op's own rc is what turns Slack's
+				## HTTP-200-with-ok:false into a real failure. Same reasoning, and
+				## same shape, as --intern-op-slack-check's own capture in
+				## AgentsTools.InternOpSlackCheck.include.
+				local response callRc=0
+				response="$( DistroAgentsTools --intern-op-slack-call "$memberName" \
+					--api conversations.replies \
+					--resolve-target "$channel" \
+					--form "ts=$threadTs" \
+					"${identityArgs[@]}" \
+					--context "--member-comms-slack-read" )" || callRc=$?
+				## STATE 3 of 3, could-not-call: the op itself failed (ok:false or
+				## transport). The op has already reported what went wrong; this
+				## is the existing single failure branch, unchanged.
+				if [ "$callRc" != "0" ] ; then
+					set +e ; return 1
+				fi
+
+				## STATES 1 and 2 are decided by the selector's own exit status,
+				## which is a positive test for an element carrying the requested
+				## ts -- never a negation against an empty array:
+				##   rc 0 -- read-and-found: that one message goes to stdout.
+				##   rc 1 -- read-but-absent: the call succeeded and nothing in it
+				##           carries the requested ts.
+				##   rc 2 -- could-not-parse/ok:false: the response was not a
+				##           usable API response at all.
+				## Both non-zero cases are COULD-NOT-READ and fail loud with rc=1,
+				## naming the requested ts. Neither is ever rendered as "no
+				## messages": a caller must never be able to conclude "nothing
+				## there" from a call that could not have seen anything.
+				local selectStatus=0
+				printf '%s\n' "$response" | LC_ALL=C awk -v wantTs="$threadTs" \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessageSelect.awk" || selectStatus=$?
+				case "$selectStatus" in
+					0)
+						## read-and-found. Nothing to add: the selector already
+						## printed the message.
+					;;
+					1)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: COULD NOT READ $channel:$threadTs -- conversations.replies answered successfully but returned no message carrying that exact ts. This is a failed read, NOT an empty conversation: do not conclude the message is absent or unanswered from this result. Check the ts and the channel, then read again." >&2
+						set +e ; return 1
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: COULD NOT READ $channel:$threadTs -- the conversations.replies response could not be parsed as an API response, or Slack refused it (see the selector's own error above). Nothing was read, so nothing about that message is known from this call." >&2
+						set +e ; return 1
+					;;
+				esac
+			fi
+			return 0
+		;;
+
+		## The `search.messages` wrapper -- the ONLY mechanism in this file that
+		## can surface a thread reply whose parent lies outside every history
+		## page, and the reason it exists.
+		##
+		## WHY --intern-op-slack-check IS NOT ENOUGH, measured rather than assumed.
+		## conversations.history returns messages whose OWN `ts` falls in the
+		## requested window. A thread whose PARENT is older than the cut-off is
+		## therefore invisible in that window no matter how recent its replies
+		## are, because the parent is the only message of that thread history
+		## lists at all. Measured on this workspace's own `magic-team` channel
+		## with cut-off 1786250000: three real threads whose parents predate it
+		## carried 41, 18 and 6 replies AFTER it, and all three were absent from
+		## the bounded history page. Slack's own documentation says the same
+		## thing from the other side -- "to retrieve a message from a thread,
+		## check out conversations.replies" -- and conversations.replies needs
+		## the parent ts, which is exactly what a caller in this situation does
+		## not have. This op is how that ts is discovered.
+		##
+		## USER TOKEN ONLY, AND THAT IS A REFUSAL, NOT A FALLBACK. search.messages
+		## is not available to a bot token at all, so --identity-bot cannot be
+		## honoured here and is rejected loudly rather than accepted and quietly
+		## ignored. Every sibling arm in this file accepts --identity-bot, so a
+		## caller WILL reach for it here; an accepted-but-inert flag is a real
+		## defect this family has already been bitten by, and silently acting
+		## under a different identity than the caller named is the exact silent
+		## degrade --member-comms-slack-delete-message/--member-comms-slack-edit-message already forbid.
+		##
+		## TARGET-SHAPED, NOT A QUERY PASSTHROUGH. It takes the same symbolic
+		## target vocabulary as its siblings and builds the Slack query itself.
+		## Uniformity across the comms arms is the ratified rule here, and it
+		## decided this: a raw-query form would have made this the one op in the
+		## family addressed by a different grammar than every other.
+		##
+		## `after:` IS DAY-GRANULAR AND EXCLUSIVE, so the query deliberately asks
+		## for MORE than the caller wants and the real boundary is applied to
+		## each match's own `ts` afterwards. Measured: `after:2026-08-09` returned
+		## an earliest match of 2026-08-10 09:07 while history proves that channel
+		## had messages until 20:42 on 08-09 -- a whole evening the operator would
+		## silently lose. Asking from one day earlier makes that boundary
+		## harmless, and it makes the undocumented timezone basis of `after:`
+		## moot as well, which is the second and equally deliberate reason for it.
+		##
+		## THE ANSWER IS THE QUESTION'S, NOT THE API'S -- this file's own header
+		## rule. "Found nothing in range" and "could not search" are different
+		## answers and carry different exit codes, and a page-bounded read is a
+		## third answer again: a prefix of the truth, never reported as if it
+		## were all of it.
+		--member-comms-slack-search-messages)
+			shift
+			## Scope declaration for --intern-op-check-slack-scopes, derived from
+			## the ONE endpoint this arm calls and nothing else. Deliberately not
+			## copied from --intern-op-slack-check: this arm reaches no conversations.*
+			## method at all, so it needs none of that arm's history/read set.
+			## `search:read` is a user-token scope; see this arm's own identity
+			## refusal below for why that is a hard constraint here.
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' search:read
+				return 0
+			fi
+			## <team-member> IS THE ACTING IDENTITY -- the same leading argument,
+			## for the same reason, as the two sibling read arms above. It matters
+			## MORE here, not less, than it does for them: this arm already forces
+			## `--identity user` (search.messages is user-token-only), so the member
+			## is the ONLY thing deciding WHICH user token searches. A literal here
+			## meant every search ran under one member's account and returned that
+			## member's own visibility, whoever asked.
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: syntax is <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw] -- the acting member is required, and it is the only thing selecting which user token performs the search" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-search-messages" || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same routine-* carve-out as the sibling arms -- though a
+					## routine defaults to bot identity, which this op cannot use at
+					## all; that failure surfaces from the identity selection itself,
+					## with its own message, rather than being second-guessed here.
+				;;
+				*)
+					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local target="$1"
+			shift || true
+
+			if [ -z "$target" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: target required (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>)" >&2
+				set +e ; return 1
+			fi
+
+			## Option handling mirrors the siblings deliberately, spelling for
+			## spelling. The cut-off pair is --comms-since-date-time /
+			## --comms-since-utime, which is this tree's own established
+			## since-spelling (--magic-sweep-input-scan and
+			## --intern-op-session-context-scan both already take exactly that
+			## pair, mutually exclusive and non-repeatable) rather than a third
+			## spelling invented here. --raw is --intern-op-slack-check's own escape
+			## hatch, same meaning.
+			local cutoffKind="" cutoffValue="" maxPages=10 pretty="true"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--comms-since-date-time|--comms-since-utime)
+						if [ -n "$cutoffKind" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: --comms-since-date-time and --comms-since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
+							set +e ; return 1
+						fi
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: $1 requires a value" >&2
+							set +e ; return 1
+						fi
+						cutoffKind="$1" ; cutoffValue="$2" ; shift 2
+					;;
+					--max-pages)
+						if [ -z "${2:-}" ] || [ -n "$( printf '%s' "$2" | tr -d '0-9' )" ] || [ "$2" = "0" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: --max-pages requires a positive whole number of pages, got: ${2:-}" >&2
+							set +e ; return 1
+						fi
+						maxPages="$2" ; shift 2
+					;;
+					--raw)
+						pretty="false" ; shift
+					;;
+					## Accepted as an argument purely so it can be REFUSED by
+					## name. Falling through to the generic "invalid option"
+					## below would tell a caller the flag does not exist, when
+					## the real and much more useful fact is that it exists
+					## everywhere else in this family and cannot work here.
+					--identity-bot)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: --identity-bot is REFUSED by this operation -- Slack's search.messages is available to a user token only, and a bot token cannot call it at all. This is not a permission that could be granted: no scope makes a bot able to search. The flag is rejected rather than accepted-and-ignored on purpose, because acting under the member's user identity while the caller asked for the bot would be a silent identity substitution. Every other --member-comms-slack-* operation does accept --identity-bot; this one is the exception, and the exception is Slack's, not this tool's. Re-run without the flag to search under the member's own user identity." >&2
+						set +e ; return 1
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			if [ -z "$cutoffKind" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: a cut-off is required -- pass --comms-since-date-time <YYYY-MM-DD...> or --comms-since-utime <epoch-seconds>. There is deliberately no default: an unbounded search would return this conversation's entire history a page at a time, and a caller that meant 'recently' would get a truncated prefix of years-old messages instead." >&2
+				set +e ; return 1
+			fi
+
+			## The cut-off becomes epoch seconds here, once, and everything
+			## downstream compares against that one number. --comms-since-utime
+			## is already epoch; --comms-since-date-time goes through
+			## AgentsIsoToEpoch.awk -- pure integer arithmetic, no date(1), for
+			## the cross-platform reason that file's own header states.
+			local cutoffEpoch=""
+			if [ "$cutoffKind" = "--comms-since-utime" ] ; then
+				case "$cutoffValue" in
+					''|*[!0-9.]*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: --comms-since-utime: not epoch seconds: $cutoffValue" >&2
+						set +e ; return 1
+					;;
+				esac
+				cutoffEpoch="$cutoffValue"
+			else
+				case "$cutoffValue" in
+					[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]*) : ;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: --comms-since-date-time: must start with YYYY-MM-DD: $cutoffValue" >&2
+						set +e ; return 1
+					;;
+				esac
+				cutoffEpoch="$( printf '%s\n' "$cutoffValue" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk" )" || cutoffEpoch=""
+				if [ -z "$cutoffEpoch" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: --comms-since-date-time: could not convert to epoch seconds: $cutoffValue" >&2
+					set +e ; return 1
+				fi
+			fi
+
+			## The date actually asked of Slack: one full day before the real
+			## cut-off, for the granularity and timezone reasons in this arm's
+			## own header. Converted with AgentsEpochToIsoDate.awk, the same
+			## no-date(1) discipline as the forward direction above.
+			local afterDate=""
+			afterDate="$( printf '%s\n' "$(( ${cutoffEpoch%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )" || afterDate=""
+			if [ -z "$afterDate" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: could not derive the search window's start date from cut-off $cutoffEpoch" >&2
+				set +e ; return 1
+			fi
+
+			local resolved rc channel threadTs
+			resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
+			case "$rc" in
+				0)
+					channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
+					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				2)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: unrecognized target: $target" >&2
+					set +e ; return 1
+				;;
+				*)
+					## The key named here must be the key that ACTUALLY backs the
+					## target that failed. This op accepts four aliases, and naming a
+					## fixed pair sent an `event-track`/`event-alert` reader to two
+					## keys that have nothing to do with what they typed -- worse than
+					## naming no key at all, because it reads as authoritative.
+					##
+					## Derived from the alias rather than listing all four: the reader
+					## lands on exactly one key and does not have to work out which of
+					## a list is theirs. The arms mirror DistroAgentsToolsResolveTarget's
+					## own alias arms, stripping any `:<ts>` suffix the same way.
+					##
+					## A non-alias target (<conversation-id> or <channel>:<ts>) is
+					## backed by NO config key -- it carried its own channel and that
+					## channel came out empty -- so it is told that, instead of being
+					## pointed at a key that was never involved.
+					local targetKey=""
+					case "${target%%:*}" in
+						event-track)	targetKey="SLACK_CHANNEL_EVENT_TRACK" ;;
+						event-alert)	targetKey="SLACK_CHANNEL_EVENT_ALERT" ;;
+						magic-team)	targetKey="SLACK_CHANNEL_MAGIC_TEAM" ;;
+						human-owner)	targetKey="SLACK_CHANNEL_HUMAN_OWNER" ;;
+					esac
+					if [ -n "$targetKey" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: could not resolve a channel for target '$target' -- check $targetKey in .local/.agents" >&2
+					else
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: could not resolve a channel for target '$target' -- it names a conversation directly, so no config key backs it; its channel part is empty" >&2
+					fi
+					set +e ; return 1
+				;;
+			esac
+
+			## A <ts> names one exact message, and this op searches a whole
+			## conversation over a time window -- the two are different
+			## questions. Refused rather than silently ignoring the ts, the same
+			## way --member-comms-slack-read refuses a bare channel for the mirror-image
+			## reason.
+			if [ -n "$threadTs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: target '$target' names one specific message (<channel>:<ts>), and this operation searches a whole conversation over a time window. The <ts> was NOT ignored -- pass the channel alone. To read that one message or its thread, use --member-comms-slack-read <team-member> <channel>:<ts> [--thread] -- note that op takes the acting member as its FIRST argument, ahead of the target." >&2
+				set +e ; return 1
+			fi
+
+			## Slack's own `in:` operator, spelled from the id kind the resolver
+			## handed back. Positive tests on the id prefix, never a negation:
+			## a conversation id takes the `<#...>` form, a party id takes the
+			## `<@...>` form and Slack resolves it to the direct conversation
+			## between that party and the SEARCHING identity. Both forms were
+			## confirmed live against this workspace to return the same DM.
+			local inTerm=""
+			case "$channel" in
+				C*|D*|G*) inTerm="in:<#$channel>" ;;
+				U*|W*)    inTerm="in:<@$channel>" ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: target '$target' resolved to '$channel', which is neither a conversation id (C/D/G) nor a party id (U/W), so no Slack \`in:\` term can be built for it. Nothing was searched." >&2
+					set +e ; return 1
+				;;
+			esac
+
+			local searchQuery="$inTerm after:$afterDate"
+			echo "## target=$target channel=$channel query=$searchQuery cutoff=$cutoffEpoch"
+			echo "# $MDSC_CMD --member-comms-slack-search-messages: GET search.messages query='$searchQuery' (asking from one day early on purpose; real cut-off $cutoffEpoch applied per match)" >&2
+
+			## PAGINATION IS HANDLED, AND ITS BOUND IS REPORTED. Pages come
+			## newest-first (sort_dir=desc), so the loop can stop the moment a
+			## page's own oldest match falls below the cut-off: every later page
+			## is older still and cannot hold anything in range. That is a
+			## positive stop condition on data actually seen, not a guess. The
+			## --max-pages bound exists for the case where the answer genuinely
+			## is larger than that, and hitting it is reported as its own outcome
+			## rather than returned as if the read were complete.
+			local pageNum=1 pagesTotal="" grandMatches=0 grandReplies=0 truncated="false"
+			local pageBodies=() pageLines=()
+			while : ; do
+				local opArgs=( "$memberName" --api search.messages --identity user
+					--form "query=$searchQuery" --form sort=timestamp --form sort_dir=desc
+					--form count=100 --form "page=$pageNum"
+					--context "--member-comms-slack-search-messages" )
+
+				## Captured, never piped straight into awk: the op's own rc is
+				## what turns Slack's HTTP-200-with-ok:false into a real failure,
+				## and a pipeline reports only its last command's status. Same
+				## reasoning, same shape, as --intern-op-slack-check's own call site.
+				local response callRc=0
+				response="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" )" || callRc=$?
+				if [ "$callRc" != "0" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: COULD NOT SEARCH $channel -- search.messages failed on page $pageNum (see the op's own diagnostic above). This is NOT an empty result: nothing is known from this call about whether that conversation holds matching messages. A not_allowed_token_type error here means the acting identity has no user token, which this operation requires and cannot work around." >&2
+					set +e ; return 1
+				fi
+
+				local metaOut metaRc=0
+				metaOut="$( printf '%s\n' "$response" | LC_ALL=C awk -v cutoff="$cutoffEpoch" -v mode=meta \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackSearchMatches.awk" )" || metaRc=$?
+				if [ "$metaRc" = "1" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: COULD NOT READ the search.messages response for page $pageNum (see the reader's own error above). Nothing is known from this call about presence or absence of matches." >&2
+					set +e ; return 1
+				fi
+
+				local pageMatches pageExpected pageInRange pageReplies pageOldest
+				pagesTotal="$( printf '%s\n' "$metaOut" | sed -n 's/^SEARCH_PAGES=//p' )"
+				pageMatches="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_MATCH_COUNT=//p' )"
+				pageExpected="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_EXPECTED_COUNT=//p' )"
+				pageInRange="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_IN_RANGE_COUNT=//p' )"
+				pageReplies="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_THREAD_REPLIES=//p' )"
+				pageOldest="$( printf '%s\n' "$metaOut" | sed -n 's/^PAGE_OLDEST_TS=//p' )"
+
+				## A short body on a non-final page is a truncated read, not a
+				## small page. Caught here rather than downstream, where the
+				## missing matches would be indistinguishable from matches that
+				## do not exist.
+				if [ -n "$pagesTotal" ] && [ "$pageNum" -lt "$pagesTotal" ] && [ -n "$pageExpected" ] \
+					&& [ "$pageMatches" -lt "$pageExpected" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: page $pageNum of $pagesTotal carried $pageMatches matches where Slack's own paging says a full page holds $pageExpected. A non-final page is short, so the response body was truncated in transit and the missing matches are NOT known to be absent. Nothing is reported from this read." >&2
+					set +e ; return 1
+				fi
+
+				if [ "$pretty" = "true" ] ; then
+					local linesOut linesRc=0
+					linesOut="$( printf '%s\n' "$response" | LC_ALL=C awk -v cutoff="$cutoffEpoch" \
+						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackSearchMatches.awk" )" || linesRc=$?
+					if [ "$linesRc" = "1" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: COULD NOT FORMAT the search.messages matches for page $pageNum (see the reader's own error above)." >&2
+						set +e ; return 1
+					fi
+					pageLines+=( "$linesOut" )
+				else
+					pageBodies+=( "$response" )
+				fi
+
+				grandMatches=$(( grandMatches + pageInRange ))
+				grandReplies=$(( grandReplies + pageReplies ))
+
+				## Stop conditions, all positive. Crossing the cut-off first:
+				## this page reached older than the caller asked for, so the
+				## window is fully covered and no later page can add to it.
+				if [ -n "$pageOldest" ] && [ "$( LC_ALL=C awk -v a="$pageOldest" -v b="$cutoffEpoch" 'BEGIN{print (a+0 < b+0) ? "below" : "above"}' )" = "below" ] ; then
+					break
+				fi
+				if [ -z "$pagesTotal" ] || [ "$pageNum" -ge "$pagesTotal" ] ; then
+					break
+				fi
+				if [ "$pageNum" -ge "$maxPages" ] ; then
+					truncated="true"
+					break
+				fi
+				pageNum=$(( pageNum + 1 ))
+			done
+
+			## Pages arrived newest-first and each page's own lines are already
+			## oldest-first, so replaying the pages in reverse yields one fully
+			## chronological result -- the same direction --intern-op-slack-check
+			## prints in.
+			local idx
+			if [ "$pretty" = "true" ] ; then
+				for (( idx = ${#pageLines[@]} - 1 ; idx >= 0 ; idx-- )) ; do
+					if [ -n "${pageLines[$idx]}" ] ; then
+						printf '%s\n' "${pageLines[$idx]}"
+					fi
+				done
+			else
+				## Each body labelled with its own page and never glued into one
+				## JSON document -- the same rule --intern-op-slack-check's own --raw
+				## follows for the two human-owner conversations.
+				for (( idx = ${#pageBodies[@]} - 1 ; idx >= 0 ; idx-- )) ; do
+					printf '## page=%s\n' "$(( idx + 1 ))"
+					printf '%s\n' "${pageBodies[$idx]}"
+				done
+			fi
+
+			echo "## matches=$grandMatches thread-replies=$grandReplies pages-read=$pageNum pages-total=${pagesTotal:-?} cutoff=$cutoffEpoch after=$afterDate"
+
+			## THREE DISTINGUISHABLE ANSWERS, and a fourth for "could not ask",
+			## each with its own exit code -- absence is never rc 0 and a bounded
+			## read is never reported as a complete one.
+			if [ "$truncated" = "true" ] ; then
+				echo "## result=truncated"
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: INCOMPLETE -- the --max-pages bound of $maxPages was reached on a query Slack reports as $pagesTotal pages, and the search had not yet reached back to the cut-off. What is printed above is the NEWEST $grandMatches matches, a prefix of the answer and not the answer: older matches inside the requested window exist and were not read, so nothing here supports concluding any particular message is absent. Raise --max-pages or move the cut-off forward, then read again. rc=4 means exactly this incomplete state, distinct from rc=3 (a complete read that found nothing)." >&2
+				set +e ; return 4
+			fi
+			if [ "$grandMatches" = "0" ] ; then
+				echo "## result=none"
+				echo "# $MDSC_CMD --member-comms-slack-search-messages: NO MATCHES in $channel at or after $cutoffEpoch. The search itself completed normally across $pageNum page(s), so this is a real, complete answer -- that conversation holds no message in the requested window, as far as this identity can see it. rc=3 says exactly that, and is deliberately not rc 0, so absence cannot be read as presence by a caller that ignores status. It is also not rc 1, which would mean the search could not be performed at all." >&2
+				set +e ; return 3
+			fi
+			echo "## result=found"
+			return 0
+		;;
+
+		## The `reactions.add` wrapper -- the per-message Slack-reaction-tracking
+		## design (`routine-communication-sweep`, `routine-board-actualisation`'s
+		## pending-reaction lookup) uses this as its sanctioned way to actually
+		## post a reaction. Same target grammar as
+		## --member-comms-slack-read/--intern-op-slack-check (<channel>:<ts>, via
+		## DistroAgentsToolsResolveTarget) plus a required emoji name (no
+		## colons, matches Slack's own reactions.add `name` field exactly).
+		##
+		## This arm is the react face of this file's own header rule -- "the API's
+		## status code is not the answer to the question the caller asked" -- see
+		## that block above rather than a restatement here. Concretely, the call
+		## has THREE outcomes, not two:
+		##   added           -- reactions.add answered ok:true. rc 0.
+		##   already-present -- Slack answered ok:false/`already_reacted`, which
+		##                      says the acting identity already has this exact
+		##                      reaction on this exact message: the end state the
+		##                      caller asked for HOLDS. rc 0, reported distinctly
+		##                      from added, never folded into it.
+		##   could-not-react -- anything else, visibility and identity errors
+		##                      included. rc 1, with Slack's own error code
+		##                      surfaced rather than replaced by a summary.
+		## Told apart by a positive test for the error code Slack actually named,
+		## never by a negation against an empty response.
+		##
+		## The `already_reacted` tolerance lives HERE, in the arm, interpreting the
+		## op's failure -- never in --intern-op-slack-call, whose contract is that
+		## an ok:false never surfaces as rc 0. That contract is not weakened to
+		## spare this arm one `case`.
+		##
+		## REACTIONS ARE PER IDENTITY, and that is not a defect to work around: a
+		## reaction added under the bot identity is invisible as "already reacted"
+		## to the user identity, so the very same call can legitimately answer
+		## `added` twice under two identities with nothing wrong. Nothing is
+		## deduplicated across identities here, and a second `added` is never
+		## evidence of a double post.
+		--member-comms-slack-react)
+			shift
+			## Scope declaration for --intern-op-check-slack-scopes, derived from the
+			## endpoints THIS arm reaches -- declared per arm, never copied from a
+			## sibling. Answered before any argument validation so the declaration
+			## stays introspectable, same discipline as the arms above.
+			##
+			## reactions.add -- reactions:write. reactions:read is declared alongside
+			##   it, as it always has been here, for reading the reaction state back.
+			## conversations.open, reached inside --intern-op-slack-call whenever
+			##   --resolve-target below classifies the target as a party id (U/W) and
+			##   a DM has to be opened under this call's own identity -- that is
+			##   im:write, reached the moment this arm started delegating, exactly as
+			##   for the read and delete/edit arms.
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' reactions:write reactions:read im:write
+				return 0
+			fi
+			## <team-member> IS THE ACTING IDENTITY, AND IT IS WHY THIS OP TAKES ONE.
+			## A reaction is posted BY an identity exactly as a message is, and this
+			## arm used to name `magic-coordinator` literally at its own call site
+			## below: every reaction any member asked for was posted by the
+			## coordinator, and a member reacting to its own thread appeared in Slack
+			## as somebody else. The member is supplied by the caller now, exactly as
+			## every --member-* op already does, and the ratified identity rule is
+			## unchanged by it -- the member's own token when it has one, the team bot
+			## otherwise, --identity-bot to act as the bot instead.
+			##
+			## Validated with the same helper and the same routine-* carve-out
+			## --member-comms-slack-read uses, so one name shape is accepted across this
+			## package rather than a second spelling per op.
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: syntax is <team-member> <channel>:<ts> <emoji-name> [--identity-bot] -- the acting member is required, since a reaction is posted by one identity and the member decides which one posts it" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-react" || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same routine-* carve-out as the sibling arms.
+				;;
+				*)
+					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local target="$1"
+			shift || true
+			local emoji="$1"
+			shift || true
+
+			if [ -z "$target" ] || [ -z "$emoji" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: syntax is <team-member> <channel>:<ts> <emoji-name> [--identity-bot]" >&2
+				set +e ; return 1
+			fi
+
+			## --identity-bot is the same modifier every other Slack arm in this
+			## file carries, spelled identically here on purpose. A reaction is
+			## posted BY an identity exactly as a message is: you reply as
+			## yourself, you react as yourself; you reply as the bot, you react
+			## as the bot. A read/react arm differing from a send/edit arm on
+			## this is precisely the inconsistency the flag exists to remove.
+			## Absent, the selection is left untouched, which is the identity
+			## rule (member's own user token when it has one, else the team bot)
+			## rather than a default this arm invents.
+			local identityAsBot="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--identity-bot)
+						identityAsBot="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			local resolved rc channel threadTs
+			resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
+			case "$rc" in
+				0)
+					channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
+					## Unit-2 forward compatibility, deliberately INERT today: the
+					## resolver emits no USER_ID= line yet, so this is "" and every
+					## branch below behaves exactly as before. It exists so the
+					## Unit-3 resolver flip has a reader already in place here --
+					## the flip is gated on all seven of these existing.
+					local targetUserId=""
+					targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
+					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: could not resolve target '$target' -- pass <channel>:<ts>" >&2
+					set +e ; return 1
+				;;
+			esac
+			if [ -z "$threadTs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: a specific <ts> is required -- use <channel>:<ts>" >&2
+				set +e ; return 1
+			fi
+
+			## The Slack call is delegated to --intern-op-slack-call -- THE one place
+			## Slack is called (see that file's own header). This arm therefore has
+			## no token read, no header file and no curl of its own, and it names no
+			## identity: the op classifies $channel, opens the DM under this call's
+			## own identity when the target is a party, and takes its own bot
+			## downgrade for a channel target. Hand-rolling the call here is exactly
+			## why this op could not reach a DM at all before this change -- it
+			## posted a party id straight into reactions.add's `channel` field and
+			## got channel_not_found back.
+			##
+			## stdout and stderr are captured apart, same shape as the delete/edit
+			## arms below: on a failure the op prints NOTHING on stdout and carries
+			## Slack's own response inside its stderr diagnostic, so the diagnostic
+			## is where `already_reacted` has to be recognised. It is replayed to
+			## stderr unconditionally -- Slack's raw words stay visible alongside
+			## whatever this arm concludes from them.
+			## What --identity-bot changes here, and why it must exist on a
+			## reaction exactly as it does on a send: a DM belongs to ONE
+			## identity pair, so the member's user identity and the team bot
+			## hold two DIFFERENT DMs with the same person and neither can see
+			## the other's. Reactions are per identity as well -- the same
+			## message reacted to under each identity is two separate reactions,
+			## not a duplicate. Without a selector this arm could only ever
+			## react in whichever DM the default identity happens to own, and
+			## the other one was unreachable with no workaround available to a
+			## caller. Translated to the intern op's own --identity spelling
+			## here; the intern op keeps its two-valued form and is unchanged.
+			## The acting member is passed straight through: it IS the identity
+			## this reaction is posted under, and naming a member here instead
+			## would be the hardcode this argument was added to remove.
+			local opArgs=( "$memberName" --api reactions.add --resolve-target "$channel" \
+				--form "timestamp=$threadTs" --form "name=$emoji" )
+			if [ "$identityAsBot" = "true" ] ; then
+				opArgs+=( --identity bot )
+			fi
+			opArgs+=( --context "--member-comms-slack-react" )
+
+			local diagFile
+			diagFile="$( mktemp )" || { set +e ; return 1 ; }
+			chmod 600 "$diagFile"
+			trap 'rm -f "$diagFile"' EXIT
+
+			echo "# $MDSC_CMD --member-comms-slack-react: POST reactions.add channel=$channel timestamp=$threadTs name=$emoji (acting member $memberName)" >&2
+			local response callRc=0
+			response="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
+
+			local diag
+			diag="$( cat "$diagFile" )"
+			rm -f "$diagFile"
+			trap - EXIT
+			[ -z "$diag" ] || printf '%s\n' "$diag" >&2
+
+			if [ "$callRc" != "0" ] ; then
+				## The acting identity is read back out of the op's own STRUCTURED
+				## field, not re-derived here and not cut out of its prose. It is
+				## still read back rather than recomputed for the original reason:
+				## a second copy of the op's identity selection would drift and
+				## then name the wrong identity in the one message whose whole job
+				## is naming the right one.
+				##
+				## This line used to be
+				##   sed -n 's/.*under \([a-z][a-z]*\) identity.*/\1/p' | head -1
+				## run against a sentence THIS PACKAGE ITSELF emits. That made the
+				## wording load-bearing -- reword "under <x> identity" and this arm
+				## silently starts naming no identity at all -- and it carried the
+				## same greedy `.*` last-match hazard as the JSON reads this family
+				## has been removing: a diagnostic naming the identity twice hands
+				## back the second one. The op now emits ACTING_IDENTITY= on EVERY
+				## exit path, so this is a line-anchored read that matches once and
+				## has no `.*` in it.
+				local actingIdentity=""
+				actingIdentity="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^ACTING_IDENTITY=//p' | head -1 )"
+				## Three states, each tested POSITIVELY for the value it means.
+				## `not-yet-selected` is a real state the op reports on purpose --
+				## it failed before choosing an identity -- and saying "the bot
+				## identity" there would be reporting something that never
+				## happened. The final arm covers a diagnostic with no field in it
+				## at all and points at the op's own output instead of guessing.
+				local actingIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
+				case "$actingIdentity" in
+					bot|user)
+						actingIdentityText="the $actingIdentity identity"
+					;;
+					not-yet-selected)
+						actingIdentityText="no identity at all -- the call failed before one was selected"
+					;;
+				esac
+				## Shell `case` rather than a grep alternation: `\|` in a BRE is a GNU
+				## extension that silently matches nothing on BSD, and this file family
+				## has already been bitten by exactly that.
+				case "$diag" in
+					*already_reacted*)
+						## STATE 2 of 3, already-present -- a success dressed as an API
+						## error, per this file's own header rule. rc 0, and said in its
+						## own words so a caller that needs to know whether THIS call
+						## posted the reaction still can, while one that only cares about
+						## the end state is not sent off to retry a call that has
+						## nothing left to do.
+						##
+						## The raw API response is replayed on stdout, so this outcome
+						## keeps the same output shape as `added` and as this arm had
+						## before delegating. It comes from the op's own RESPONSE_BODY=
+						## field, NOT from its prose: this used to be
+						##   sed -n 's/.*identity: \({.*\)$/\1/p' | head -1
+						## which cut the body back out of the sentence "<method>
+						## returned ok:false under <x> identity: {...}" that this
+						## package writes itself. That made the wording an interface --
+						## change "identity: " and this arm silently prints nothing --
+						## and the leading greedy `.*` picked the LAST such phrase in
+						## the diagnostic, not necessarily the one belonging to this
+						## call.
+						##
+						## Whether a body exists at all is decided by a POSITIVE test on
+						## RESPONSE_BODY_STATE, which the op emits on every exit path,
+						## rather than by testing the extracted string for emptiness: a
+						## failure with no API body behind it (a transport failure, or a
+						## refusal before the method was called) is its own state, and
+						## `in-diagnostic` is the only one that carries a body to print.
+						local rawResponseState="" rawResponse=""
+						rawResponseState="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^RESPONSE_BODY_STATE=//p' | head -1 )"
+						if [ "$rawResponseState" = "in-diagnostic" ] ; then
+							rawResponse="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^RESPONSE_BODY=//p' | head -1 )"
+							printf '%s\n' "$rawResponse"
+						fi
+						echo "# $MDSC_CMD --member-comms-slack-react: ALREADY PRESENT on $channel:$threadTs -- $actingIdentityText had already added :$emoji: to this message, so the end state asked for HOLDS and nothing was posted by this call. This is a success, not a failure and not a fresh reaction, and it is deliberately reported apart from one. Reactions are per identity: this says nothing about whether any OTHER identity has reacted, and the same call under another identity adding the reaction again is correct behaviour, not a duplicate." >&2
+						return 0
+					;;
+					*)
+						## STATE 3 of 3, could-not-react: transport, configuration,
+						## visibility, an identity that cannot see the message, or any
+						## other ok:false. The op has already reported what went wrong
+						## and that report is above; this line only states what must not
+						## be concluded from it.
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: COULD NOT REACT to $channel:$threadTs with :$emoji: -- the call did not complete under $actingIdentityText (see the op's own diagnostic above, which carries Slack's own error code). The reaction was NOT added, and this is NOT an already-present result: nothing is known from this call about which reactions that message already carries. channel_not_found here means this identity cannot see that conversation at all, not that the message is gone." >&2
+						set +e ; return 1
+					;;
+				esac
+			fi
+
+			## STATE 1 of 3, added: the op confirmed ok:true, so this call is what
+			## put the reaction there. Raw API response to stdout, same output shape
+			## as the delete/edit arms below.
+			printf '%s\n' "$response"
+			return 0
+		;;
+
+		## The `chat.delete` wrapper -- with --member-comms-slack-edit-message below, one of the
+		## two MUTATING Slack ops in this file, and the first destructive one.
+		##
+		## Target grammar is <channel>:<ts> only, resolved through
+		## DistroAgentsToolsResolveTarget, exactly as --member-comms-slack-react's own arm
+		## above: no magic-team/human-owner/event-track/event-alert shortcut, since
+		## each of those names a CHANNEL and a deletion always targets one exact
+		## message. A missing <ts> is therefore an error, enforced further down by
+		## this same arm's own '<ts> is required' check -- it never widens into a
+		## channel-scoped deletion. There is no "delete all" form of this op, and
+		## none is to be added.
+		##
+		## MORE THAN ONE TARGET MAY BE NAMED, and that is not a widening of the
+		## rule above: each target is still one exact <channel>:<ts>, named in full
+		## by the caller, and nothing is ever selected on the caller's behalf. What
+		## the list buys is one identity resolution and one pass instead of N
+		## invocations. Each target is attempted independently, carries its own
+		## DELETE_TARGET/DELETE_STATE result on stdout, and a failure on one never
+		## stops the rest -- a batch that collapsed to one pass/fail would hide the
+		## mixed outcome this op produces most often, some messages authored by the
+		## acting identity and some not.
+		##
+		## Re-running is safe by construction: an explicit target is required every
+		## time, so there is no destructive default to trip over, and a second run
+		## against an already-deleted message deletes nothing (Slack answers
+		## message_not_found, which this arm reports rather than treating as work
+		## done).
+		--member-comms-slack-delete-message)
+			shift
+			## Scope declaration for --intern-op-check-slack-scopes, derived from the
+			## endpoints THIS arm reaches -- not copied from a sibling arm. Answered
+			## before any argument validation so the declaration is always
+			## introspectable, same discipline as the read arms above.
+			##
+			## chat.delete -- chat:write.
+			## conversations.open, reached inside --intern-op-slack-call whenever
+			##   --resolve-target below classifies the target as a party id (U/W) and
+			##   a DM has to be opened under this call's own identity -- that is
+			##   im:write, declared here for exactly the reason the read arms above
+			##   declare it.
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' chat:write im:write
+				return 0
+			fi
+			## <team-member> IS THE ACTING IDENTITY, AND IT IS WHY THIS OP TAKES ONE.
+			## Slack permits deleting only a message the acting identity itself
+			## authored, so on this op the identity is not a detail of the call --
+			## it decides whether the call can succeed at all. This arm used to name
+			## `magic-coordinator` literally at its own call site below, which meant
+			## every member asking to delete its OWN message was refused on
+			## authorship for a reason that had nothing to do with the message. The
+			## member is supplied by the caller now, exactly as every --member-* op
+			## already does, and the ratified identity rule is unchanged by it --
+			## the member's own token when it has one, the team bot otherwise,
+			## --identity-bot to act as the bot instead.
+			##
+			## Validated with the same helper and the same routine-* carve-out
+			## --member-comms-slack-read uses, so one name shape is accepted across this
+			## package rather than a second spelling per op.
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: syntax is <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot] -- the acting member is required, since Slack permits deleting only a message the acting identity itself authored" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-delete-message" || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same routine-* carve-out as the sibling arms.
+				;;
+				*)
+					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+
+			## ONE OR MORE TARGETS, and the one option this op takes -- the
+			## bot-identity modifier. Anything else flag-shaped fails loud here,
+			## before any network call: on a destructive op an unrecognized token is
+			## far more likely to be a mistyped target or a stray flag than
+			## something safe to ignore. A non-flag token is a target, so the
+			## targets need not be contiguous and --identity-bot may sit anywhere
+			## among them.
+			##
+			## MULTIPLE TARGETS ARE DELETED ONE BY ONE, EACH WITH ITS OWN REPORTED
+			## RESULT. A batch that answered with a single pass/fail would hide
+			## exactly the outcome this op is most likely to produce -- some
+			## messages authored by the acting identity and some not -- so every
+			## target gets its own DELETE_TARGET/DELETE_STATE pair on stdout and its
+			## own explanation on stderr. A failure on one target never stops the
+			## remaining ones: the run continues, and the exit status reports
+			## whether ALL of them were deleted.
+			##
+			## --identity-bot takes no value, and there is no --identity-user to
+			## pair with it: the member's own USER_TOKEN is already what this call
+			## uses when one exists, so asking for it would be asking for the
+			## default. Translated to the internal spelling at the call site
+			## below -- --intern-op-slack-call still owns the selection rule and
+			## still speaks --identity bot|user on its own wire; what changed is
+			## only what a member reads and types.
+			local identityAsBot="false"
+			local deleteTargets=()
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--identity-bot)
+						identityAsBot="true" ; shift
+					;;
+					--*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+					*)
+						deleteTargets+=( "$1" ) ; shift
+					;;
+				esac
+			done
+
+			if [ "${#deleteTargets[@]}" -eq 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: syntax is <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot] -- at least one target is required. <channel>:<ts> only, same target grammar as --member-comms-slack-react (no magic-team/human-owner shortcut, since a deletion always targets one exact message, not a channel)" >&2
+				set +e ; return 1
+			fi
+
+			local deleteTotal="${#deleteTargets[@]}" deleteDone=0 deleteFailed=0
+			local oneTarget
+			for oneTarget in "${deleteTargets[@]}" ; do
+				local resolved rc channel threadTs
+				rc=0
+				resolved="$( DistroAgentsToolsResolveTarget "$oneTarget" )" || rc=$?
+				if [ "$rc" != "0" ] ; then
+					## Reported as this target's OWN result and then moved past --
+					## a target that cannot even be resolved says nothing about the
+					## targets after it, so it must not decide their fate.
+					printf 'DELETE_TARGET=%s\n' "$oneTarget"
+					printf '%s\n' DELETE_STATE=unresolvable-target
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: could not resolve target '$oneTarget' -- pass <channel>:<ts>. Nothing was deleted for this target; the remaining targets are still attempted." >&2
+					deleteFailed=$(( deleteFailed + 1 ))
+					continue
+				fi
+				channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
+				## Unit-2 forward compatibility, deliberately INERT today: the
+				## resolver emits no USER_ID= line yet, so this is "" and every
+				## branch below behaves exactly as before. It exists so the
+				## Unit-3 resolver flip has a reader already in place here --
+				## the flip is gated on all seven of these existing.
+				local targetUserId=""
+				targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
+				threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				if [ -z "$threadTs" ] ; then
+					printf 'DELETE_TARGET=%s\n' "$oneTarget"
+					printf '%s\n' DELETE_STATE=no-message-ts
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: a specific <ts> is required -- use <channel>:<ts>. Nothing was deleted for '$oneTarget'; the remaining targets are still attempted." >&2
+					deleteFailed=$(( deleteFailed + 1 ))
+					continue
+				fi
+
+				## The Slack call is delegated to --intern-op-slack-call -- THE one place
+				## Slack is called (see that file's own header). This arm therefore has
+				## no token read, no header file and no curl of its own, and it names no
+				## identity of its own beyond the acting member the caller supplied: the
+				## op uses that member's USER identity when one is configured, the BOT
+				## identity when none is, and --identity-bot in the arguments overrides
+				## that. Routing through the op IS the token handling here, not a step
+				## beside it, and this arm must never re-implement or second-guess the
+				## selection.
+				##
+				## The op prints its response on stdout and every diagnostic on stderr,
+				## so the two are captured apart: the response is this arm's own output,
+				## and the diagnostic is what carries Slack's own error code when the
+				## call fails. It is replayed to stderr below unconditionally -- the raw
+				## error is surfaced alongside whatever this arm concludes from it, never
+				## swallowed and replaced by a friendlier summary.
+				local opArgs=( "$memberName" --api chat.delete --resolve-target "$channel" --form "ts=$threadTs" )
+				## TRANSLATION TO THE INTERNAL SPELLING. --intern-op-slack-call keeps
+				## --identity bot|user on its own wire and is deliberately unchanged;
+				## only the member-facing surface retired the two-valued form. So the
+				## modifier is translated here, at the call site, exactly as
+				## --member-comms-slack-file-fetch already does.
+				##
+				## POSITIVE test on the modifier, and nothing is passed when it is
+				## absent: not passing it is what leaves the op's own selection
+				## untouched, which is the identity rule this arm is required to
+				## honour. There is nothing to translate for the default case,
+				## because the default is precisely "say nothing".
+				if [ "$identityAsBot" = "true" ] ; then
+					opArgs+=( --identity bot )
+				fi
+				opArgs+=( --context "--member-comms-slack-delete-message" )
+
+				local diagFile
+				diagFile="$( mktemp )" || { set +e ; return 1 ; }
+				chmod 600 "$diagFile"
+				trap 'rm -f "$diagFile"' EXIT
+
+				echo "# $MDSC_CMD --member-comms-slack-delete-message: chat.delete channel=$channel ts=$threadTs (acting member $memberName, target $(( deleteDone + deleteFailed + 1 )) of $deleteTotal)" >&2
+				local response callRc=0
+				response="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
+
+				local diag
+				diag="$( cat "$diagFile" )"
+				rm -f "$diagFile"
+				trap - EXIT
+				[ -z "$diag" ] || printf '%s\n' "$diag" >&2
+
+				if [ "$callRc" != "0" ] ; then
+					## The acting identity is read back out of the op's own STRUCTURED
+					## ACTING_IDENTITY= field. Still read back rather than re-derived:
+					## re-deriving it would be a second copy of the selection this arm
+					## is forbidden to re-implement, and a copy that drifts names the
+					## wrong identity in the one message whose whole job is naming the
+					## right one. No longer cut out of the op's prose, though -- see
+					## --member-comms-slack-react's own branch above for why parsing a sentence
+					## this package writes itself was both a wording dependency and a
+					## last-match hazard. Line-anchored, matches once, no `.*` at all,
+					## and identical on Darwin/FreeBSD/Linux.
+					local actingIdentity=""
+					actingIdentity="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^ACTING_IDENTITY=//p' | head -1 )"
+					## Three states, each tested positively for the value it means.
+					## `not-yet-selected` is the op's own report that it failed before
+					## choosing an identity; naming one there would state a fact that
+					## never happened, which in an authorship-refusal message is exactly
+					## the fact the reader acts on.
+					local actingIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
+					case "$actingIdentity" in
+						bot|user)
+							actingIdentityText="the $actingIdentity identity"
+						;;
+						not-yet-selected)
+							actingIdentityText="no identity at all -- the call failed before one was selected"
+						;;
+					esac
+					## Shell `case` rather than a grep alternation: `\|` in a BRE is a GNU
+					## extension that silently matches nothing on BSD, and this file family
+					## has already been bitten by exactly that.
+					printf 'DELETE_TARGET=%s\n' "$oneTarget"
+					case "$diag" in
+						*cant_delete_message*|*message_not_found*)
+							## STATE 2 of 3, refused-on-authorship. Reported as exactly
+							## that, never as a generic failure: Slack permits deleting
+							## only a message the acting identity itself authored, so this
+							## outcome is about WHO asked, and a caller told merely that
+							## "the call failed" would go looking for a permission or
+							## network fault that is not there.
+							printf '%s\n' DELETE_STATE=refused-on-authorship
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: REFUSED FOR $channel:$threadTs -- Slack permits deleting only a message the acting identity itself authored, and this call acted as $memberName under $actingIdentityText. The message was NOT deleted and nothing about it changed. Slack's own code is in the diagnostic above: cant_delete_message means the message exists and belongs to a different identity; message_not_found means this identity cannot see a message with that ts at all (already deleted, wrong ts, or once again another identity's message). Retrying under the other identity is deliberately NOT attempted -- substituting an identity to make a destructive call succeed is the silent degrade this op family forbids. Decide which identity should own this deletion and ask for it explicitly with --identity-bot." >&2
+						;;
+						*)
+							## STATE 3 of 3, could-not-call: transport, configuration, or
+							## any other ok:false. The op has already reported what went
+							## wrong and that report is above; this line only states what
+							## must not be concluded from it.
+							printf '%s\n' DELETE_STATE=could-not-call
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: COULD NOT DELETE $channel:$threadTs -- the call did not complete (see the op's own diagnostic above). This is NOT an authorship refusal: nothing is known from this result about who authored that message, and the message was not deleted." >&2
+						;;
+					esac
+					deleteFailed=$(( deleteFailed + 1 ))
+					continue
+				fi
+
+				## STATE 1 of 3, deleted: the op confirmed ok:true. The raw API
+				## response goes to stdout after this target's own result pair, so a
+				## caller reading result lines and a caller reading raw responses are
+				## both served without either having to parse prose.
+				printf 'DELETE_TARGET=%s\n' "$oneTarget"
+				printf '%s\n' DELETE_STATE=deleted
+				printf '%s\n' "$response"
+				deleteDone=$(( deleteDone + 1 ))
+			done
+
+			## THE RUN'S OWN SUMMARY, always printed, single target or many: a
+			## partial failure is the outcome this op exists to make visible, and it
+			## must be readable without counting result lines by hand.
+			echo "# $MDSC_CMD --member-comms-slack-delete-message: $deleteDone of $deleteTotal target(s) deleted, $deleteFailed not deleted (acting member $memberName)" >&2
+			if [ "$deleteFailed" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: $deleteFailed of $deleteTotal target(s) were NOT deleted -- read the per-target DELETE_STATE lines above; a non-zero exit here never means the whole run failed, and the targets reported DELETE_STATE=deleted really were deleted." >&2
+				set +e ; return 1
+			fi
+			return 0
+		;;
+
+		## The `chat.update` wrapper -- the editing half of the mutating pair, and
+		## subject to the same authorship rule as --member-comms-slack-delete-message above: Slack
+		## permits editing only a message the acting identity itself authored.
+		##
+		## Target grammar is <channel>:<ts> only, resolved through
+		## DistroAgentsToolsResolveTarget, for the same reason the delete arm above
+		## takes no channel shortcut: an edit replaces one exact message's text.
+		##
+		## The replacement text arrives through the SAME input forms
+		## --member-comms-slack-send-message already accepts -- trailing argv,
+		## --from-stdin (with --message-from-stdin kept as its established alias),
+		## or --from-file <path> -- so there is no second input convention to learn
+		## for the one op that writes message text besides the send path. Deliberately
+		## NOT carried over from that op: --format text|blocks|markdown. This is the
+		## minimal edit op; a blocks-shaped edit is a separate decision to make
+		## deliberately, not something to inherit by default.
+		##
+		## Re-running is safe and meaningful here: an edit is idempotent, so
+		## applying the same replacement text twice leaves the message exactly as
+		## the first run left it. Empty replacement text is refused rather than
+		## applied -- chat.update with an empty text field blanks the message, and a
+		## destructive outcome must never be what "no content given" quietly does.
+		--member-comms-slack-edit-message)
+			shift
+			## Scope declaration for --intern-op-check-slack-scopes, derived from the
+			## endpoints THIS arm reaches. Coincides with --member-comms-slack-delete-message's own
+			## list today, and that coincidence is a fact about today, not a shared
+			## contract: each arm owns its own declaration so one arm changing its
+			## calls never silently moves another's requirements.
+			##
+			## chat.update -- chat:write.
+			## conversations.open, reached inside --intern-op-slack-call whenever
+			##   --resolve-target below classifies the target as a party id (U/W) and
+			##   a DM has to be opened under this call's own identity -- im:write.
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' chat:write im:write
+				return 0
+			fi
+			## <team-member> IS THE ACTING IDENTITY, AND IT IS WHY THIS OP TAKES ONE.
+			## Slack permits editing only a message the acting identity itself
+			## authored, so as on the delete arm above the identity decides whether
+			## the call can succeed at all. This arm used to name `magic-coordinator`
+			## literally at its own call site below, so a member editing its OWN
+			## message was refused on authorship for a reason that had nothing to do
+			## with the message. The member is supplied by the caller now, exactly as
+			## every --member-* op already does, and the ratified identity rule is
+			## unchanged by it -- the member's own token when it has one, the team
+			## bot otherwise, --identity-bot to act as the bot instead.
+			##
+			## Validated with the same helper and the same routine-* carve-out
+			## --member-comms-slack-read uses, so one name shape is accepted across this
+			## package rather than a second spelling per op.
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: syntax is <team-member> <channel>:<ts> [--identity-bot] [text...] -- the acting member is required, since Slack permits editing only a message the acting identity itself authored" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-edit-message" || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same routine-* carve-out as the sibling arms.
+				;;
+				*)
+					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local target="$1"
+			shift || true
+
+			if [ -z "$target" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: syntax is <team-member> <channel>:<ts> [--identity-bot] [text...] -- or --from-stdin / --from-file <path>. <channel>:<ts> only, same target grammar as --member-comms-slack-delete-message (no magic-team/human-owner shortcut, since an edit replaces one exact message, not a channel)" >&2
+				set +e ; return 1
+			fi
+
+			## Option vocabulary mirrored from --member-comms-slack-send-message's own
+			## consumption block, name for name, including its --message-from-stdin
+			## alias and its guard against a flag-shaped token silently becoming
+			## message text. Same reasoning as there: a stray "--from-stdin" absorbed
+			## as content would post as the entire replacement text and come back
+			## ok:true, so it would not even be a visible failure.
+			## --identity-bot takes no value, and there is no --identity-user: the
+			## member's own USER_TOKEN is already the default when one exists.
+			## Translated to the internal spelling at the call site below.
+			local identityAsBot="false" fromStdin="false"
+			local textArgs stdinContent
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--identity-bot)
+						identityAsBot="true" ; shift
+					;;
+					--message-from-stdin|--from-stdin)
+						fromStdin="true" ; shift
+					;;
+					--from-file)
+						## Validated and consumed at point of use into the SAME
+						## stdinContent variable --from-stdin's own handling reads
+						## below -- no separate sentinel held across branches, exactly
+						## as the send path does it.
+						if [ -z "$2" ] || [ ! -f "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: --from-file: file not found: $2" >&2
+							set +e ; return 1
+						fi
+						stdinContent="$( cat "$2" )"
+						fromStdin="true"
+						shift 2
+					;;
+					--*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: unrecognized option: $1 (if you need literal text starting with '--', use --from-stdin/--from-file instead of trailing argv)" >&2
+						set +e ; return 1
+					;;
+					*)
+						textArgs="$textArgs $1" ; shift
+					;;
+				esac
+			done
+
+			local sourceText
+			if [ "$fromStdin" = "true" ] ; then
+				## stdinContent may already be populated by --from-file above; real
+				## stdin is read only when it was not (--from-stdin, not --from-file,
+				## is what set fromStdin=true in that case).
+				[ -n "$stdinContent" ] || stdinContent="$( cat )"
+				sourceText="$stdinContent"
+			else
+				sourceText="${textArgs# }"
+			fi
+			if [ -z "$sourceText" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: no replacement text given -- chat.update with an empty text field blanks the message, so an empty edit is refused here rather than performed silently. Pass the text as trailing argv, --from-stdin, or --from-file <path>." >&2
+				set +e ; return 1
+			fi
+
+			local resolved rc channel threadTs
+			resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
+			case "$rc" in
+				0)
+					channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
+					## Unit-2 forward compatibility, deliberately INERT today: the
+					## resolver emits no USER_ID= line yet, so this is "" and every
+					## branch below behaves exactly as before. It exists so the
+					## Unit-3 resolver flip has a reader already in place here --
+					## the flip is gated on all seven of these existing.
+					local targetUserId=""
+					targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
+					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: could not resolve target '$target' -- pass <channel>:<ts>" >&2
+					set +e ; return 1
+				;;
+			esac
+			if [ -z "$threadTs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: a specific <ts> is required -- use <channel>:<ts>" >&2
+				set +e ; return 1
+			fi
+
+			## Same delegation, same reasoning, as --member-comms-slack-delete-message above: no
+			## token read, no header file, no curl and no identity named here. The op
+			## uses the member's USER identity when one is configured, the BOT
+			## identity when none is, and --identity-bot in the arguments
+			## overrides that. Routing through the op IS the token handling.
+			##
+			## The replacement text travels as a form field, so curl's own
+			## --data-urlencode inside the op does the escaping -- this arm builds no
+			## JSON and therefore has no escaping of its own to get wrong.
+			local opArgs=( "$memberName" --api chat.update --resolve-target "$channel" --form "ts=$threadTs" --form "text=$sourceText" )
+			## Translated to the internal spelling here, at the call site: the
+			## intern op keeps --identity bot|user and is unchanged. Passing
+			## nothing is what leaves its own selection untouched.
+			if [ "$identityAsBot" = "true" ] ; then
+				opArgs+=( --identity bot )
+			fi
+			opArgs+=( --context "--member-comms-slack-edit-message" )
+
+			local diagFile
+			diagFile="$( mktemp )" || { set +e ; return 1 ; }
+			chmod 600 "$diagFile"
+			trap 'rm -f "$diagFile"' EXIT
+
+			echo "# $MDSC_CMD --member-comms-slack-edit-message: chat.update channel=$channel ts=$threadTs (acting member $memberName)" >&2
+			local response callRc=0
+			response="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
+
+			local diag
+			diag="$( cat "$diagFile" )"
+			rm -f "$diagFile"
+			trap - EXIT
+			[ -z "$diag" ] || printf '%s\n' "$diag" >&2
+
+			if [ "$callRc" != "0" ] ; then
+				## Acting identity read back from the op's own structured
+				## ACTING_IDENTITY= field, never re-derived and never parsed out of
+				## its prose -- same reasoning, and the same line-anchored read, as
+				## --member-comms-slack-delete-message's own branch above.
+				local actingIdentity=""
+				actingIdentity="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^ACTING_IDENTITY=//p' | head -1 )"
+				local actingIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
+				case "$actingIdentity" in
+					bot|user)
+						actingIdentityText="the $actingIdentity identity"
+					;;
+					not-yet-selected)
+						actingIdentityText="no identity at all -- the call failed before one was selected"
+					;;
+				esac
+				case "$diag" in
+					*cant_update_message*|*message_not_found*)
+						## STATE 2 of 3, refused-on-authorship.
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: REFUSED FOR $channel:$threadTs -- Slack permits editing only a message the acting identity itself authored, and this call acted as $memberName under $actingIdentityText. The message was NOT edited and its text is unchanged. Slack's own code is in the diagnostic above: cant_update_message means the message exists and belongs to a different identity; message_not_found means this identity cannot see a message with that ts at all (wrong ts, deleted message, or once again another identity's message). Retrying under the other identity is deliberately NOT attempted -- substituting an identity to make a mutating call succeed is the silent degrade this op family forbids. Decide which identity should own this edit and ask for it explicitly with --identity-bot." >&2
+					;;
+					*)
+						## STATE 3 of 3, could-not-call.
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: COULD NOT EDIT $channel:$threadTs -- the call did not complete (see the op's own diagnostic above). This is NOT an authorship refusal: nothing is known from this result about who authored that message, and its text was not changed." >&2
+					;;
+				esac
+				set +e ; return 1
+			fi
+
+			## STATE 1 of 3, edited: the op confirmed ok:true. Raw API response to
+			## stdout, same output shape as the delete arm above.
+			printf '%s\n' "$response"
+			return 0
+		;;
+
+		## The `files.info` wrapper -- A DECISION AID, NOT A FETCH.
+		##
+		## WHY IT EXISTS. A message payload carries file metadata, and until this
+		## op there was nothing that could do anything with it: a member could see
+		## that a file was attached and had no way to learn what it was. This op
+		## hands back everything needed to JUDGE whether a file is worth
+		## retrieving -- its name, what kind of thing it is, how big it is, who
+		## posted it, when, and the URLs it would be retrieved FROM. Judging and
+		## then fetching beats always fetching, and that is the entire reason this
+		## is its own operation rather than a flag on a download.
+		##
+		## IT NEVER FETCHES THE BYTES, AND MUST NOT GROW INTO SOMETHING THAT DOES.
+		## `url_private` is emitted because a member cannot act without it, but
+		## reading what is behind it needs an authenticated download -- a
+		## different capability entirely, which will be its own separately named
+		## operation. Nothing here downloads, follows, or validates those URLs;
+		## they are metadata like every other field in the set. Adding a
+		## `--download`/`--content` flag here is the specific change this comment
+		## exists to forbid.
+		##
+		## Endpoint: files.info, and ONLY files.info. One call, one file id.
+		##
+		## The Slack call is delegated to --intern-op-slack-call, THE one place
+		## Slack is called -- so this arm holds no token, no header file and no
+		## curl, exactly like the read/react/delete/edit arms above. It names no
+		## identity of its own either: the op uses the member's USER identity when
+		## one is configured, the BOT identity when none is, and --identity-bot
+		## overrides that. Note what is deliberately NOT passed:
+		## --resolve-target/--resolve-dm/--target-kind. files.info addresses a
+		## FILE, not a conversation, so there is no target to classify and no DM
+		## to open -- which is also why this arm's scope declaration below is
+		## shorter than its siblings' rather than copied from them.
+		##
+		## THREE OUTCOMES, told apart by a POSITIVE test on the error code Slack
+		## actually named, never by a negation against an empty response -- this
+		## file's own header rule, and absence is loud on the EXIT STATUS so a
+		## caller never has to read prose to learn it:
+		##   found                  -- metadata emitted on stdout. rc 0.
+		##   not visible / no such  -- Slack answered `file_not_found`. rc 3.
+		##   deleted                -- Slack answered `file_deleted`. rc 4.
+		##   could-not-call         -- anything else. rc 1, the single-failure
+		##                             branch treatment every other arm here uses.
+		##
+		## rc 3 AND rc 4 ARE BOTH "the file is not readable", AND THEY ARE KEPT
+		## APART ON PURPOSE, because they call for different next moves. `deleted`
+		## is final for everyone -- there is nothing to retry and nothing to ask
+		## for. `file_not_found` is Slack's single answer to two genuinely
+		## different situations it does not separate: no file has that id at all,
+		## or a file does and THIS identity cannot see it. So the rc 3 message
+		## names the identity the call actually ran under and says plainly that
+		## the other identity may well see it. This arm never retries under the
+		## other identity by itself -- silently substituting an identity to turn a
+		## negative into a positive is the degrade this op family forbids, and a
+		## member deciding "I cannot see this" is a different report from "this
+		## does not exist".
+		##
+		## The rc 0/3/4 shape is this package's own established one for a
+		## three-way answer (the human-owner fan-out already uses exactly it), not
+		## a convention invented here.
+		--member-comms-slack-file-info)
+			shift
+			## Scope declaration for --intern-op-check-slack-scopes, derived from
+			## the endpoints THIS arm reaches -- never copied from a sibling.
+			## Answered before any argument validation so the declaration stays
+			## introspectable, same discipline as every arm above.
+			##
+			## files.info -- files:read.
+			## conversations.open is NOT declared, and its absence is deliberate
+			##   rather than an oversight: every arm above declares im:write
+			##   because it passes --resolve-target and the op may have to open a
+			##   DM under this call's identity. This arm passes no target at all,
+			##   so that path is never reached and declaring the scope would
+			##   overstate what this op needs.
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' files:read
+				return 0
+			fi
+			## <team-member> IS THE ACTING IDENTITY, AND IT IS WHY THIS OP TAKES ONE.
+			## A file lives in a conversation, so WHICH identity asks decides whether
+			## the file is visible at all -- that is exactly the situation this arm's
+			## own rc 3 message already describes, and it could not be acted on while
+			## the arm named `magic-coordinator` literally at its call site below: a
+			## member was told "the other identity may well see it" about an identity
+			## it had no way to be. The member is supplied by the caller now, exactly
+			## as every --member-* op already does, and the ratified identity rule is
+			## unchanged by it -- the member's own token when it has one, the team bot
+			## otherwise, --identity-bot to act as the bot instead.
+			##
+			## Validated with the same helper and the same routine-* carve-out
+			## --member-comms-slack-read uses, so one name shape is accepted across this
+			## package rather than a second spelling per op.
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: syntax is <team-member> <file-id> [--identity-bot] [--raw] -- the acting member is required, since a file lives in a conversation and the identity asking decides whether it is visible at all" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-file-info" || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same routine-* carve-out as the sibling arms.
+				;;
+				*)
+					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local fileId="$1"
+			shift || true
+
+			if [ -z "$fileId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: syntax is <team-member> <file-id> [--identity-bot] [--raw] -- a Slack file id (F...), not a URL, a filename or a message ts. This op reports metadata ABOUT a file and never retrieves its content." >&2
+				set +e ; return 1
+			fi
+
+			## POSITIVE shape check, before any network call: the id must LOOK
+			## like a Slack file id, rather than merely not look like something
+			## else. Slack file ids are an `F` followed by uppercase letters and
+			## digits, and anything else -- a URL pasted whole, a filename, a
+			## channel id, a message ts -- is a caller mistake worth a loud error
+			## here instead of a confusing `file_not_found` from Slack, which
+			## would be indistinguishable from a file this identity cannot see.
+			##
+			## `grep -qE` and not a shell `case` glob: a glob cannot express
+			## "one or more characters FROM this set", so the natural `case`
+			## spelling would be `F*`, which accepts every one of the wrong
+			## inputs listed above. POSIX ERE is honoured identically by BSD and
+			## GNU grep -- unlike the BRE `\|` alternation this family has already
+			## been bitten by on Darwin.
+			if ! printf '%s\n' "$fileId" | LC_ALL=C grep -qE '^F[A-Z0-9][A-Z0-9]*$' ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: '$fileId' is not a Slack file id -- expected F followed by uppercase letters and digits (e.g. FXXXXXXXXXX). Nothing was called. If this came out of a message payload, take the file object's own \`id\` field; a permalink, a filename or a <channel>:<ts> pair is not it." >&2
+				set +e ; return 1
+			fi
+
+			## The identity override is passed straight through to
+			## --intern-op-slack-call, which owns the selection rule. --raw is the
+			## escape hatch consistent with --intern-op-slack-check's own: the field
+			## set is the default and the full JSON is there when a caller needs a
+			## field this op does not declare. Anything else fails loud, before
+			## the call.
+			local identityAsBot="false" rawOutput="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--identity-bot)
+						identityAsBot="true" ; shift
+					;;
+					--raw)
+						rawOutput="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			local opArgs=( "$memberName" --api files.info --form "file=$fileId" )
+			## Translated to the internal spelling here, at the call site: the
+			## intern op keeps --identity bot|user and is unchanged. Passing
+			## nothing is what leaves its own selection untouched, which is the
+			## identity rule this arm honours by not touching it.
+			if [ "$identityAsBot" = "true" ] ; then
+				opArgs+=( --identity bot )
+			fi
+			opArgs+=( --context "--member-comms-slack-file-info" )
+
+			local diagFile
+			diagFile="$( mktemp )" || { set +e ; return 1 ; }
+			chmod 600 "$diagFile"
+			trap 'rm -f "$diagFile"' EXIT
+
+			echo "# $MDSC_CMD --member-comms-slack-file-info: GET files.info file=$fileId (metadata only -- no file content is retrieved by this op, acting member $memberName)" >&2
+			local response callRc=0
+			response="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
+
+			local diag
+			diag="$( cat "$diagFile" )"
+			rm -f "$diagFile"
+			trap - EXIT
+			[ -z "$diag" ] || printf '%s\n' "$diag" >&2
+
+			if [ "$callRc" != "0" ] ; then
+				## The acting identity comes from the op's own STRUCTURED
+				## ACTING_IDENTITY= field, line-anchored, matching once, with no
+				## `.*` in it -- never re-derived here (a second copy of the
+				## selection drifts and then names the wrong identity in the one
+				## message whose whole job is naming the right one) and never cut
+				## out of the op's prose (see --member-comms-slack-react's own branch
+				## above for why parsing a sentence we ourselves emit was both a
+				## wording dependency and a last-match hazard).
+				local actingIdentity=""
+				actingIdentity="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^ACTING_IDENTITY=//p' | head -1 )"
+				local actingIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
+				case "$actingIdentity" in
+					bot|user)
+						actingIdentityText="the $actingIdentity identity"
+					;;
+					not-yet-selected)
+						actingIdentityText="no identity at all -- the call failed before one was selected"
+					;;
+				esac
+
+				## Whether an API body exists behind this failure at all is
+				## decided by a POSITIVE test on RESPONSE_BODY_STATE, which the op
+				## emits on every exit path -- never by testing the extracted
+				## string for emptiness. A transport failure, or a refusal taken
+				## before the method was ever called, carries NO body, and
+				## `in-diagnostic` is the only state that does. Without a body
+				## there is no error code to read, and the only honest answer is
+				## could-not-call.
+				local rawResponseState="" failBody="" failError="" failErrorRc=0
+				rawResponseState="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^RESPONSE_BODY_STATE=//p' | head -1 )"
+				if [ "$rawResponseState" = "in-diagnostic" ] ; then
+					failBody="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^RESPONSE_BODY=//p' | head -1 )"
+					## The error code is PARSED at its own key path, not
+					## pattern-matched anywhere in the body. A `*file_not_found*`
+					## substring test would also fire on a body that merely
+					## mentions the string -- a warning array, a nested error on
+					## some other object -- and that is precisely the accident
+					## sh-lib/AgentsSlackJsonField.awk exists to end. `optional=1`
+					## because a body with no top-level `error` is a real, if
+					## odd, state here rather than a fault worth logging.
+					failError="$( printf '%s\n' "$failBody" | LC_ALL=C awk -v path=error -v optional=1 \
+						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || failErrorRc=$?
+				fi
+
+				## Positive test on the code Slack actually named, and only when
+				## the reader confirmed it FOUND that key (rc 0). An unparseable
+				## body or a missing `error` key falls through to could-not-call
+				## rather than being read as absence.
+				if [ "$failErrorRc" = "0" ] ; then
+					case "$failError" in
+						file_not_found)
+							## STATE 2a of 3 -- absent OR invisible, which Slack
+							## does not separate. Said in exactly those terms:
+							## reporting it as "no such file" would state a fact
+							## this call cannot know.
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: NO METADATA FOR $fileId -- Slack answered file_not_found under $actingIdentityText. Slack returns this one code for two different situations and does not tell them apart: either no file has that id at all, or a file does and this identity cannot see it (it lives in a conversation this identity is not in). The other identity may well see it -- ask for it explicitly with --identity-bot; this op deliberately does not retry under it by itself. Nothing was fetched and nothing about the file's content is known." >&2
+							set +e ; return 3
+						;;
+						file_deleted)
+							## STATE 2b of 3 -- the file existed and is gone.
+							## Final for every identity, so no retry is suggested
+							## here: that is the whole reason it is kept apart
+							## from file_not_found above.
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: FILE DELETED -- $fileId existed and has been deleted, reported by Slack as file_deleted under $actingIdentityText. This is NOT a visibility problem and NOT a wrong id: no identity can read this file's metadata or content, and retrying under --identity-bot would change nothing." >&2
+							set +e ; return 4
+						;;
+					esac
+				fi
+
+				## STATE 3 of 3, could-not-call: transport, configuration, a
+				## missing scope, or any other ok:false. The op has already
+				## reported what went wrong and that report is above; this line
+				## states only what must NOT be concluded from it.
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: COULD NOT READ METADATA FOR $fileId -- the call did not complete under $actingIdentityText (see the op's own diagnostic above, which carries Slack's own error code). This is NOT an absence result: nothing is known from this call about whether that file exists, whether it is deleted, or whether this identity can see it." >&2
+				set +e ; return 1
+			fi
+
+			## --raw: the unparsed files.info body, for the rare case a caller
+			## needs a field this op does not declare. Same escape-hatch role
+			## --intern-op-slack-check's own --raw plays, and the same reason it is
+			## an opt-in rather than the default.
+			if [ "$rawOutput" = "true" ] ; then
+				printf '%s\n' "$response"
+				return 0
+			fi
+
+			## STATE 1 of 3, found. Stable KEY=value lines on stdout, one field
+			## per line, in the FIXED order below -- documented in
+			## help/Help.DistroAgentsTools.help.md and not to be reordered, since
+			## the whole promise of this shape is that a caller reads one field
+			## without parsing prose. Every field goes through the one emitter
+			## defined at the top of this file, which reports presence as its own
+			## <KEY>_STATE= line so a genuinely absent title or thumbnail set is
+			## stated POSITIVELY and can never be inferred from a missing or empty
+			## value line.
+			##
+			## FILE_INFO_STATE= leads, so the found outcome is readable off
+			## stdout as well as off the exit status.
+			##
+			## The order is grouped by the decision it serves: what the file IS
+			## first (identity, name, kind, size), then who put it there and when,
+			## then -- last -- the URLs a member would use IF it decides the file
+			## is worth retrieving. The thumbnails follow the private URLs because
+			## they are the cheap look, ascending by pixel width.
+			## PARSE VALIDITY IS ONE QUESTION, ASKED ONCE, BEFORE ANY FIELD IS
+			## READ. A body that is not a parseable Slack API response fails
+			## EVERY field read for the same single reason, and this arm used to
+			## report that reason nineteen times over -- the reader's own error
+			## plus the emitter's, once per declared field, for what is one root
+			## cause. Volume is not honesty: thirty-eight lines saying one thing
+			## bury the one thing.
+			##
+			## The probe reads `ok`, and reads it through the same reader every
+			## field goes through, so this is the real parse rather than a
+			## prediction of it. `ok` is the right path to ask for because the
+			## reader REQUIRES a top-level `ok` to consider the input a Slack
+			## response at all (its own header): rc 0 means the body parsed and
+			## is one, rc 1 means it is not, and rc 3 -- absent field -- cannot
+			## occur for this path by that same rule. So a non-zero rc here is
+			## unambiguously "this body cannot be read", and it is stated once.
+			##
+			## SUPPRESSION IS NOT WHAT CHANGED. The per-field failure branch
+			## below stays exactly as loud as it was, and the INCOMPLETE summary
+			## stays; what the probe removes is the eighteen repetitions of a
+			## cause already stated. stdout is still untouched at this point --
+			## not even FILE_INFO_STATE has been printed -- so a caller cannot
+			## read a partial set here under any circumstances.
+			local parseProbeRc=0
+			printf '%s\n' "$response" | LC_ALL=C awk -v path=ok \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" >/dev/null || parseProbeRc=$?
+			if [ "$parseProbeRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: COULD NOT PARSE THE files.info RESPONSE for $fileId (field reader rc=$parseProbeRc; its own one-line reason is above). Slack reported this call as successful, so this is a malformed, truncated or non-JSON body rather than an API refusal. NO metadata was emitted -- nothing at all was printed on stdout -- and nothing is known from this call about the file. Use --raw to see the body as it arrived." >&2
+				set +e ; return 1
+			fi
+
+			printf '%s\n' FILE_INFO_STATE=found
+			## The declared field set and its FIXED order, as data rather than
+			## nineteen near-identical call lines: the order is the contract
+			## (see the comment above and the help entry), and a table makes it
+			## one readable list instead of something to diff line by line.
+			##
+			## Each entry is `<OUTPUT_KEY> <json.path>` and is split on
+			## whitespace deliberately -- both words are fixed literals written
+			## right here, containing no spaces, globs or other metacharacters,
+			## so word splitting is exact. `"$response"` stays quoted, because
+			## that one genuinely can contain anything.
+			##
+			## BREAK ON THE FIRST FAILURE, do not press on through the rest.
+			## Once the emitter reports it could not read a field, the set being
+			## built is already incomplete and every later field would fail the
+			## same way for the same reason. This is the backstop the probe above
+			## makes unreachable in practice and neither replaces the other: the
+			## probe stops a bad body before stdout is touched, this stops a
+			## surprise mid-set.
+			local fieldSpec fieldRc=0
+			for fieldSpec in \
+				"FILE_ID file.id" \
+				"NAME file.name" \
+				"TITLE file.title" \
+				"MIMETYPE file.mimetype" \
+				"FILETYPE file.filetype" \
+				"SIZE file.size" \
+				"TIMESTAMP file.timestamp" \
+				"AUTHOR_USER_ID file.user" \
+				"URL_PRIVATE file.url_private" \
+				"URL_PRIVATE_DOWNLOAD file.url_private_download" \
+				"THUMB_64 file.thumb_64" \
+				"THUMB_80 file.thumb_80" \
+				"THUMB_160 file.thumb_160" \
+				"THUMB_360 file.thumb_360" \
+				"THUMB_480 file.thumb_480" \
+				"THUMB_720 file.thumb_720" \
+				"THUMB_800 file.thumb_800" \
+				"THUMB_960 file.thumb_960" \
+				"THUMB_1024 file.thumb_1024" \
+			; do
+				AgentsToolsCommsSlackFileInfoEmitField $fieldSpec "$response" || { fieldRc=$? ; break ; }
+			done
+			## A reader that could not parse the body is a FAILED READ, never an
+			## absent field -- the emitter has already said so on stderr, and
+			## returning 0 here would hand back a half-emitted set that looks
+			## exactly like a complete one. rc 1, the could-not-call treatment,
+			## because that is what it is: the metadata was not read.
+			if [ "$fieldRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: the field set above for $fileId is INCOMPLETE -- a field could not be read out of the files.info response (see the emitter's own error above) and the remaining fields were not attempted. Do not treat the lines already printed as a full metadata set." >&2
+				set +e ; return 1
+			fi
+			return 0
+		;;
+
+		## THE FETCH -- retrieves one Slack file's actual bytes to a
+		## caller-named path. The counterpart to --member-comms-slack-file-info above:
+		## info tells you ABOUT a file so you can decide whether it is worth
+		## retrieving, this gets it. A member that attached a screenshot can
+		## finally be opened rather than merely described.
+		##
+		## THE DESTINATION IS ALWAYS THE CALLER'S. There is no default path, no
+		## downloads directory, and nothing is ever written inside the
+		## credential store. That is also why the operation is named `fetch` and
+		## not `download`: `download` implies a place bytes land, and this op
+		## does not have one.
+		##
+		## THIS IS AN AUTHENTICATED HTTPS GET, NOT AN API CALL, AND THE
+		## DIFFERENCE IS THE WHOLE HAZARD. `url_private`/`url_private_download`
+		## are ordinary URLs on files.slack.com that need the SAME
+		## `Authorization: Bearer` header an API method needs. Fetch one without
+		## it, or with a token that lacks the scope, and Slack answers HTTP 200
+		## with an HTML SIGN-IN PAGE. Every naive check passes: the request
+		## succeeded, a file was written, it is not empty. What is on disk is a
+		## login form named screenshot.png. That success-shaped failure is the
+		## exact shape this op family exists to remove, so it is detected
+		## explicitly and positively below rather than hoped against.
+		##
+		## THREE INDEPENDENT CHECKS, ALL OF WHICH MUST PASS, and no result is
+		## promoted to the destination until they all have:
+		##   1. HTTP 200                 -- from --intern-op-slack-call, which
+		##                                  fails the fetch on anything else.
+		##   2. NOT HTML                 -- the Content-Type the server sent AND
+		##                                  the bytes' own leading markup, tested
+		##                                  separately because either can be
+		##                                  wrong on its own: a sign-in page
+		##                                  mislabelled as an image is caught by
+		##                                  the second, a body whose first bytes
+		##                                  are unrecognisable by the first.
+		##   3. EXACT SIZE               -- byte count on disk equals the `size`
+		##                                  files.info reports. Equality, never
+		##                                  "at least": a truncated body is as
+		##                                  wrong as a substituted one, and a
+		##                                  sign-in page that happened to exceed
+		##                                  the real length would pass a >= test.
+		##
+		## The bytes go to a TEMPORARY FILE in the destination's own directory
+		## and are promoted with `mv` only after all three pass. So a failed
+		## fetch never leaves a plausible-looking wrong file at the path the
+		## caller will go on to read, and the promotion is a same-filesystem
+		## rename rather than a second copy that could itself be interrupted.
+		##
+		## files.info IS CALLED FIRST, and not merely to find the URL. It is
+		## where the expected size and type come from, which is what makes check
+		## 3 possible at all -- a fetch that only had the URL could verify that
+		## it received SOMETHING, never that it received THE FILE. Its rc 3
+		## (not visible / no such) and rc 4 (deleted) are passed straight
+		## through, so this op answers absence exactly as its sibling does
+		## rather than inventing a second vocabulary for the same two facts.
+		##
+		## VISIBILITY IS CONVERSATION-SCOPED, NOT WORKSPACE-SCOPED. Holding
+		## files:read is necessary and not sufficient: a file living in a DM
+		## belonging to the member's user identity is invisible to the bot, which
+		## reports file_not_found for a file id it can plainly see quoted. That is
+		## a real, expected rc 3 and not a defect. Identity is never substituted
+		## here to turn it into a success.
+		##
+		## Exit codes, the same four this arm's sibling uses:
+		##   0  fetched, all three checks passed, file is at the destination.
+		##   3  files.info answered file_not_found (absent OR invisible).
+		##   4  files.info answered file_deleted.
+		##   1  anything else -- the fetch did not complete, or it completed and
+		##      the result was NOT the file. The destination is untouched.
+		--member-comms-slack-file-fetch)
+			shift
+			## Scope declaration for --intern-op-check-slack-scopes, derived from
+			## the endpoints THIS arm reaches -- never copied from a sibling.
+			##
+			## files.info -- files:read. The authenticated GET of url_private
+			## needs no scope of its own beyond the one that already grants the
+			## file: it is not an API method, it is the same file read over
+			## HTTPS. So the declaration is files:read and nothing more, and it
+			## matches --member-comms-slack-file-info's exactly because it reaches the
+			## same permission. conversations.open is again NOT declared: no
+			## target is passed, so that path is never reached.
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' files:read
+				return 0
+			fi
+			## <team-member> IS THE ACTING IDENTITY, AND IT IS WHY THIS OP TAKES ONE.
+			## Same reason as --member-comms-slack-file-info's own leading argument, which
+			## this arm calls: the bytes are fetched under an identity, and whether
+			## they are reachable at all depends on which one. This arm used to name
+			## `magic-coordinator` literally at both its own call sites below, so a
+			## member's fetch ran on the coordinator's credentials. The member is
+			## supplied by the caller now and passed to BOTH steps, so the metadata
+			## read and the byte fetch can never run as two different identities.
+			##
+			## Validated with the same helper and the same routine-* carve-out
+			## --member-comms-slack-read uses, so one name shape is accepted across this
+			## package rather than a second spelling per op.
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: syntax is <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite] -- the acting member is required, since a file lives in a conversation and the identity fetching decides whether its bytes are reachable at all" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-file-fetch" || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same routine-* carve-out as the sibling arms.
+				;;
+				*)
+					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local fetchFileId="$1"
+			shift || true
+			local fetchDest="$1"
+			shift || true
+
+			if [ -z "$fetchFileId" ] || [ -z "$fetchDest" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: syntax is <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite] -- ALL THREE are required. The destination is always named by the caller: this op has no default location and will not invent one. To decide whether a file is worth fetching at all, ask --member-comms-slack-file-info first." >&2
+				set +e ; return 1
+			fi
+
+			## POSITIVE shape check on the id, before any network call and using
+			## the identical expression --member-comms-slack-file-info uses -- the same
+			## reasoning applies unchanged, and the two must not drift: a
+			## permalink, a filename, a channel id or a message ts is a caller
+			## mistake worth a loud error here rather than a file_not_found from
+			## Slack that cannot be told apart from a file this identity cannot
+			## see. POSIX ERE, honoured identically by BSD and GNU grep.
+			if ! printf '%s\n' "$fetchFileId" | LC_ALL=C grep -qE '^F[A-Z0-9][A-Z0-9]*$' ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: '$fetchFileId' is not a Slack file id -- expected F followed by uppercase letters and digits (e.g. FXXXXXXXXXX). Nothing was called and nothing was written. If this came out of a message payload, take the file object's own \`id\` field." >&2
+				set +e ; return 1
+			fi
+
+			## --identity-bot is a MODIFIER, not a two-valued selector, and this
+			## is deliberate. The identity rule is: the member's own user token
+			## when it has one, the team's bot token when it does not. `user` is
+			## therefore already the default and nothing ever needs to ask for
+			## it, so there is no --identity-user to pair with this. The one
+			## purpose of the bot modifier is keeping mechanical traffic off the
+			## human's own credentials -- and, here, making the cross-identity
+			## visibility case demonstrable on demand.
+			local fetchAsBot="false" fetchOverwrite="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--identity-bot)
+						fetchAsBot="true" ; shift
+					;;
+					--overwrite)
+						fetchOverwrite="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			## THE CREDENTIAL STORE IS NOT A DESTINATION. Tested on the literal
+			## argument FIRST, before anything resolves or touches a path, so a
+			## request to write there is refused without this op going anywhere
+			## near that directory. `/.agents/` as a whole path segment, not the
+			## bare word, so an ordinary file named `my.agents-notes` is
+			## unaffected.
+			case "/$fetchDest/" in
+				*/.agents/*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: refusing '$fetchDest' as a destination -- it is inside the credential store, which is never written to, read from or listed by any operation. Nothing was called. Choose a destination outside it." >&2
+					set +e ; return 1
+				;;
+			esac
+
+			## The parent directory must already exist: creating directories on
+			## a caller's behalf is a side effect this op has no mandate for, and
+			## a typo'd path would silently produce a tree nobody asked for.
+			## Resolved with `cd`/`pwd -P` rather than `realpath`, which is not
+			## present on every one of Darwin/FreeBSD/Linux in the same form.
+			local fetchDestDir="" fetchDestBase="" fetchDestDirAbs=""
+			fetchDestDir="$( dirname "$fetchDest" )"
+			fetchDestBase="$( basename "$fetchDest" )"
+			fetchDestDirAbs="$( cd "$fetchDestDir" 2>/dev/null && pwd -P )" || fetchDestDirAbs=""
+			if [ -z "$fetchDestDirAbs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: the destination directory '$fetchDestDir' does not exist or cannot be entered. Nothing was called. This op writes a file; it does not create the directory tree above it." >&2
+				set +e ; return 1
+			fi
+			## Re-tested on the RESOLVED path: the literal check above cannot see
+			## through a symlink or a relative path that lands in the store.
+			case "$fetchDestDirAbs/" in
+				*/.agents/*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: refusing '$fetchDest' as a destination -- it resolves to '$fetchDestDirAbs', which is inside the credential store. Nothing was called." >&2
+					set +e ; return 1
+				;;
+			esac
+			local fetchDestAbs="$fetchDestDirAbs/$fetchDestBase"
+
+			## Overwriting is possible but never the silent default -- this op is
+			## safe to re-run, and re-running it must not destroy something the
+			## caller did not mean to replace. A directory at the destination is
+			## refused outright: --overwrite means "replace that file", never
+			## "replace that tree".
+			if [ -d "$fetchDestAbs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: '$fetchDestAbs' is a directory, not a file. Nothing was called. Name the file to write, including its filename." >&2
+				set +e ; return 1
+			fi
+			if [ -e "$fetchDestAbs" ] && [ "$fetchOverwrite" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: '$fetchDestAbs' already exists and was left exactly as it is. Nothing was called. Pass --overwrite to replace it, or name a different destination -- this op does not overwrite by default." >&2
+				set +e ; return 1
+			fi
+
+			## STEP 1 of 2 -- files.info, via this file's own sibling arm rather
+			## than a second files.info call written here. Reusing the arm means
+			## the id validation, the identity rule, and above all the rc 3 / rc 4
+			## distinction are the SAME code, not a copy that can drift from it.
+			## Its stdout is the KEY=value field set; its stderr carries the
+			## reader's own notes and, on failure, its already-worded explanation
+			## of which of the three outcomes happened.
+			local infoOut="" infoRc=0 infoDiagFile=""
+			infoDiagFile="$( mktemp )" || { set +e ; return 1 ; }
+			chmod 600 "$infoDiagFile"
+			trap 'rm -f "$infoDiagFile"' EXIT
+
+			local infoIdentityArgs=()
+			if [ "$fetchAsBot" = "true" ] ; then
+				infoIdentityArgs+=( --identity-bot )
+			fi
+
+			echo "# $MDSC_CMD --member-comms-slack-file-fetch: reading metadata for $fetchFileId before fetching (expected size and type come from there)" >&2
+			infoOut="$( DistroAgentsTools --member-comms-slack-file-info "$memberName" "$fetchFileId" "${infoIdentityArgs[@]}" 2>"$infoDiagFile" )" || infoRc=$?
+			local infoDiag=""
+			infoDiag="$( cat "$infoDiagFile" )"
+			rm -f "$infoDiagFile"
+			trap - EXIT
+			[ -z "$infoDiag" ] || printf '%s\n' "$infoDiag" >&2
+
+			## rc 3 and rc 4 are PASSED THROUGH unchanged, not flattened into a
+			## generic failure. They are the same two facts about the same file,
+			## and a caller that already knows what they mean from the info op
+			## must not have to learn a second vocabulary here. The sibling has
+			## already explained each one on stderr; this adds only what is
+			## specific to a fetch -- that nothing was written.
+			case "$infoRc" in
+				0) ;;
+				3)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT FETCHED -- $fetchFileId could not be read (file_not_found; the metadata op's own explanation of the two situations that produce it is above). No fetch was attempted and '$fetchDestAbs' was not created or modified." >&2
+					set +e ; return 3
+				;;
+				4)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT FETCHED -- $fetchFileId has been deleted (file_deleted). There are no bytes to retrieve under any identity. '$fetchDestAbs' was not created or modified." >&2
+					set +e ; return 4
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT FETCHED -- the metadata read for $fetchFileId did not complete (see its own diagnostic above). This is NOT an absence result: nothing is known about whether the file exists. '$fetchDestAbs' was not created or modified." >&2
+					set +e ; return 1
+				;;
+			esac
+
+			## Fields read off the sibling's own stable KEY=value stdout, each
+			## line-anchored, matched once, no `.*` -- the same read discipline
+			## this file uses for --intern-op-slack-call's structured stderr, and
+			## for the same reason: the field set is the interface, the prose
+			## around it is not.
+			local infoSizeState="" infoSize="" infoName="" infoMimetype=""
+			local infoUrlDownloadState="" infoUrlDownload="" infoUrlPrivateState="" infoUrlPrivate=""
+			infoSizeState="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^SIZE_STATE=//p' | head -1 )"
+			infoSize="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^SIZE=//p' | head -1 )"
+			infoName="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^NAME=//p' | head -1 )"
+			infoMimetype="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^MIMETYPE=//p' | head -1 )"
+			infoUrlDownloadState="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^URL_PRIVATE_DOWNLOAD_STATE=//p' | head -1 )"
+			infoUrlDownload="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^URL_PRIVATE_DOWNLOAD=//p' | head -1 )"
+			infoUrlPrivateState="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^URL_PRIVATE_STATE=//p' | head -1 )"
+			infoUrlPrivate="$( printf '%s\n' "$infoOut" | LC_ALL=C sed -n 's/^URL_PRIVATE=//p' | head -1 )"
+
+			## WHICH URL, AND WHY, stated here because the choice is not
+			## arbitrary. `url_private_download` is Slack's own URL for
+			## retrieving the bytes -- it is served with a
+			## Content-Disposition: attachment, so nothing along the way is
+			## invited to render, transform or resize it -- and it is therefore
+			## the first choice whenever the file object carries it.
+			## `url_private` addresses the SAME bytes but is the inline-display
+			## URL, and it is the fallback rather than the preference for that
+			## reason alone. The fallback is real and not decorative: not every
+			## file object carries a download URL, and a fetch that failed
+			## outright on a file whose bytes are plainly reachable would be a
+			## worse answer than using the URL that is there.
+			##
+			## Chosen on the sibling's POSITIVE _STATE line, never by testing the
+			## URL string for emptiness -- `present` is the field saying it is
+			## there, and an empty-string test could not tell an absent field
+			## apart from a field the reader failed on.
+			local fetchUrlChosen="" fetchUrlWhich=""
+			if [ "$infoUrlDownloadState" = "present" ] && [ -n "$infoUrlDownload" ] ; then
+				fetchUrlChosen="$infoUrlDownload" ; fetchUrlWhich="url_private_download"
+			elif [ "$infoUrlPrivateState" = "present" ] && [ -n "$infoUrlPrivate" ] ; then
+				fetchUrlChosen="$infoUrlPrivate" ; fetchUrlWhich="url_private (fallback -- this file object carries no url_private_download)"
+			else
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT FETCHED -- files.info reported $fetchFileId but carried neither url_private_download nor url_private, so there is no address to retrieve the bytes from. This is a metadata shape this op does not know how to fetch, NOT a missing or deleted file. '$fetchDestAbs' was not created or modified." >&2
+				set +e ; return 1
+			fi
+
+			## THE EXPECTED SIZE IS REQUIRED, AND ITS ABSENCE IS LOUD. Without it
+			## check 3 cannot run, and a fetch that silently skipped its own
+			## truncation/substitution check while still reporting success would
+			## be precisely the quiet degrade this op was built to prevent.
+			## Could-not-check is reported as could-not-check, never as a pass.
+			if [ "$infoSizeState" != "present" ] || ! printf '%s\n' "$infoSize" | LC_ALL=C grep -qE '^[0-9][0-9]*$' ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT FETCHED -- files.info did not report a usable byte size for $fetchFileId (SIZE_STATE='$infoSizeState', SIZE='$infoSize'). The fetch was NOT attempted: without the expected size there is no way to tell a complete file from a truncated one or from a sign-in page, and this op does not fetch what it cannot verify. '$fetchDestAbs' was not created or modified." >&2
+				set +e ; return 1
+			fi
+
+			## STEP 2 of 2 -- the authenticated GET, delegated to
+			## --intern-op-slack-call exactly as every Slack call in this file is.
+			## No token, no header file and no curl appear in this arm. The op
+			## owns identity selection and credential handling; this arm owns the
+			## question of whether what came back is really the file.
+			##
+			## Written to a TEMPORARY FILE beside the destination, never to the
+			## destination itself -- see this arm's header. `mktemp` with an
+			## explicit template in that directory keeps the later promotion a
+			## same-filesystem rename; a dot-leading name keeps a partial fetch
+			## out of ordinary directory listings while it exists.
+			local fetchTmp=""
+			fetchTmp="$( mktemp "$fetchDestDirAbs/.$fetchDestBase.fetch.XXXXXX" )" || {
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: could not create a temporary file in '$fetchDestDirAbs'. Nothing was fetched and '$fetchDestAbs' was not created or modified." >&2
+				set +e ; return 1
+			}
+			chmod 600 "$fetchTmp"
+
+			local fetchDiagFile=""
+			fetchDiagFile="$( mktemp )" || { rm -f "$fetchTmp" ; set +e ; return 1 ; }
+			chmod 600 "$fetchDiagFile"
+			trap 'rm -f "$fetchDiagFile" "$fetchTmp"' EXIT
+
+			local fetchOpArgs=( "$memberName" --fetch-url "$fetchUrlChosen" --fetch-to "$fetchTmp" )
+			if [ "$fetchAsBot" = "true" ] ; then
+				fetchOpArgs+=( --identity bot )
+			fi
+			fetchOpArgs+=( --context "--member-comms-slack-file-fetch" )
+
+			echo "# $MDSC_CMD --member-comms-slack-file-fetch: GET $fetchUrlWhich for $fetchFileId (${infoName:-<no name>}, ${infoMimetype:-<no mimetype>}, expecting $infoSize bytes, acting member $memberName)" >&2
+			local fetchCallRc=0
+			DistroAgentsTools --intern-op-slack-call "${fetchOpArgs[@]}" 2>"$fetchDiagFile" || fetchCallRc=$?
+
+			local fetchDiag=""
+			fetchDiag="$( cat "$fetchDiagFile" )"
+			rm -f "$fetchDiagFile"
+			[ -z "$fetchDiag" ] || printf '%s\n' "$fetchDiag" >&2
+
+			if [ "$fetchCallRc" != "0" ] ; then
+				rm -f "$fetchTmp"
+				trap - EXIT
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT FETCHED -- the authenticated GET for $fetchFileId did not complete (see the op's own diagnostic above, which carries the HTTP status it saw). Whatever arrived was discarded with the temporary file, and '$fetchDestAbs' was not created or modified." >&2
+				set +e ; return 1
+			fi
+
+			## The transport facts, read off --intern-op-slack-call's own
+			## structured stderr fields -- line-anchored, matched once, never cut
+			## out of its prose.
+			local fetchContentType=""
+			fetchContentType="$( printf '%s\n' "$fetchDiag" | LC_ALL=C sed -n 's/^FETCH_CONTENT_TYPE=//p' | head -1 )"
+
+			## CHECK 2a -- the Content-Type the server declared. A sign-in page is
+			## served as text/html, and this is the cheapest way to catch one.
+			## It is not the only check because a server is free to mislabel, and
+			## `text/html*` rather than an exact match because the header
+			## routinely carries a charset.
+			case "$fetchContentType" in
+				text/html*)
+					rm -f "$fetchTmp"
+					trap - EXIT
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT THE FILE -- the fetch of $fetchFileId returned HTTP 200 but the server sent Content-Type '$fetchContentType', which is a WEB PAGE and not $fetchFileId's content (files.info reports it as '${infoMimetype:-<no mimetype>}'). This is Slack's sign-in page: the request reached Slack but was not accepted as authenticated for this file, which answers 200 with a login form rather than an error. A 200 is NOT evidence the bytes are the file. Nothing was written to '$fetchDestAbs'." >&2
+					set +e ; return 1
+				;;
+			esac
+
+			## CHECK 2b -- the bytes' OWN leading markup, independent of what the
+			## server claimed. This is the authoritative half of check 2: a
+			## sign-in page labelled image/png passes 2a and is caught here.
+			##
+			## Only the first 1024 bytes are examined -- a doctype or an <html>
+			## tag is at the very front of an HTML document by definition, and
+			## scanning further would start matching ordinary binary content that
+			## happens to contain those bytes. NULs are stripped first so grep
+			## treats the sample as text rather than short-circuiting on a binary
+			## file. `head -c` and POSIX ERE are honoured on BSD and GNU alike;
+			## the character class is used in place of a literal space so the
+			## expression cannot be broken by whitespace normalisation.
+			if LC_ALL=C head -c 1024 "$fetchTmp" | LC_ALL=C tr -d '\000' | LC_ALL=C grep -qiE '<!doctype[[:space:]]+html|<html[[:space:]>]' ; then
+				rm -f "$fetchTmp"
+				trap - EXIT
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT THE FILE -- the fetch of $fetchFileId returned HTTP 200 and Content-Type '$fetchContentType', but the bytes themselves begin as an HTML document. This is Slack's sign-in page wearing the right content type: an unauthenticated or under-scoped fetch of a url_private is answered with a login form at HTTP 200, and only reading the bytes catches it. files.info reports this file as '${infoMimetype:-<no mimetype>}'. Nothing was written to '$fetchDestAbs'." >&2
+				set +e ; return 1
+			fi
+
+			## CHECK 3 -- exact byte count against the size files.info reported.
+			## `wc -c` rather than `stat`, which spells this differently on BSD
+			## and GNU; `wc -c` is POSIX and identical on Darwin, FreeBSD and
+			## Linux. Compared with `-eq` after the digits-only validation above,
+			## so this is a numeric comparison of two numbers and not a string
+			## compare that leading zeroes or padding could upset.
+			local fetchActualBytes=""
+			fetchActualBytes="$( wc -c < "$fetchTmp" | tr -d '[:space:]' )"
+			if [ "$fetchActualBytes" -ne "$infoSize" ] ; then
+				rm -f "$fetchTmp"
+				trap - EXIT
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT THE FILE -- the fetch of $fetchFileId returned HTTP 200 and $fetchActualBytes bytes, but files.info reports this file as $infoSize bytes. The sizes must match EXACTLY: a short body is a truncated or interrupted transfer, and a body of any other length is not this file's content at all. Nothing was written to '$fetchDestAbs'." >&2
+				set +e ; return 1
+			fi
+
+			## ALL THREE PASSED. Only now is the result promoted to the caller's
+			## own path, as a same-filesystem rename.
+			if ! mv -f "$fetchTmp" "$fetchDestAbs" ; then
+				rm -f "$fetchTmp"
+				trap - EXIT
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: the fetch of $fetchFileId succeeded and passed every check, but the verified result could not be moved into place at '$fetchDestAbs'. The temporary file has been removed; the destination was not modified." >&2
+				set +e ; return 1
+			fi
+			trap - EXIT
+			## 600, matching the temporary file it came from: this is content out
+			## of a private conversation, and it is not this op's place to widen
+			## that. A caller wanting it readable more broadly says so itself.
+			chmod 600 "$fetchDestAbs"
+
+			## Stable KEY=value lines on stdout, the same shape and the same
+			## promise as --member-comms-slack-file-info's own output: a caller reads one
+			## field without parsing prose. FETCH_STATE leads, so the outcome is
+			## readable off stdout as well as off the exit status. VERIFIED_BYTES
+			## is reported as its own field rather than left implicit -- it is the
+			## number that was actually checked, and a caller can hold this op to
+			## it.
+			printf '%s\n' FETCH_STATE=fetched
+			printf 'FILE_ID=%s\n' "$fetchFileId"
+			printf 'DESTINATION=%s\n' "$fetchDestAbs"
+			printf 'VERIFIED_BYTES=%s\n' "$fetchActualBytes"
+			printf 'MIMETYPE=%s\n' "$infoMimetype"
+			printf 'SOURCE_URL_KIND=%s\n' "$fetchUrlWhich"
+			return 0
+		;;
+
+	## Posts to Slack via chat.postMessage. If <team-member> has its own
+	## SLACK_USER_TOKEN configured in its member config scope, sends through
+	## that native user account. Otherwise falls back to the existing shared
+	## bot path, preserving the current attributed-message behavior. The
+	## ONE Slack-post op now -- replaces the old, anonymous --send-message
+	## (removed; DistroAgentsTools.fn.sh no longer has that arm) with a
+	## single member-attributed op, per direct human-owner decision. Body
+	## below is --send-message's own former implementation, relocated here
+	## mostly unchanged (target resolution, format/--from-stdin/--from-file
+	## parsing, curl POST + retry/backoff, email fallback), with
+	## <team-member> validation (same existence-check pattern as
+	## --member-upsert-inbox-note above) and conditional attribution: native
+	## user sends go out as-is; bot sends keep the existing
+	## "*<team-member>:*" prefix.
+	##
+	## Secret handling: the chosen Slack token is resolved on demand right
+	## before use (member-scoped SLACK_USER_TOKEN first, shared
+	## the team's own SLACK_BOT_TOKEN in magic-team scope as fallback), then written to a
+	## private (chmod 600) mktemp header file and passed to curl via
+	## `-H @file` (trap-cleaned on exit) rather than as an inline argv
+	## string -- keeps the token out of `ps`/`/proc/<pid>/cmdline` for the
+	## curl invocation's lifetime. Never echoed/printed anywhere in this
+	## branch.
+	##
+	## Resilience: retries a handful of times with increasing backoff before
+	## treating the send as failed -- covers the transient-network-hiccup
+	## class already handled for imap.gmail.com/smtp.gmail.com in this same
+	## environment, not a persistent block. Falls back to email only once
+	## genuinely exhausted, never on the first blip. Success is detected by
+	## grepping for `"ok":true` in the raw response body -- this shell layer
+	## has no real JSON parser, and a literal `"ok":true` substring match is
+	## reliable enough for Slack's actual response shape without inventing
+	## one. The fallback itself is a real, separately-callable op
+	## (--member-comms-email-send) invoked here via self-recursion, not a
+	## private-only helper.
+	--member-comms-slack-send-message)
+		shift
+		## Scope declaration -- this arm calls chat.postMessage, users.list,
+		## conversations.open, conversations.join and auth.test. channels:join is
+		## required by the not_in_channel auto-join retry, which is part of this
+		## op's own send path, not an optional extra.
+		##
+		## channels:join and channels:write are ONE requirement with two
+		## spellings, not two requirements, and they are declared as one
+		## alternation to say so: conversations.join takes a different scope
+		## name per token type -- channels:join under a bot token,
+		## channels:write under a user token -- and this op runs under
+		## whichever identity the acting member resolves to.
+		##
+		## Written `a|b` because listing them as two independent scopes made
+		## the checker demand BOTH of a single token, which no single token can
+		## ever hold: the check reported `bot missing: channels:write` and
+		## `user missing: channels:join` against a correctly-configured
+		## workspace, every run. An alternation is satisfied by any one of its
+		## alternatives, which is exactly the real requirement -- the acting
+		## identity must be able to join a channel, by whatever name its own
+		## token spells that capability.
+		if [ "$1" = "--print-required-scopes" ] ; then
+			printf '%s\n' chat:write users:read channels:read 'channels:join|channels:write' im:write mpim:write
+			return 0
+		fi
+		local memberName="$1"
+		shift || true
+		if [ -z "$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: syntax is <team-member> <target> [--identity-bot] [text...] (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>) -- or --from-stdin / --from-file <path>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-send-message" || { set +e ; return 1 ; }
+		local memberDir="$HOME/.claude/skills/$memberName"
+		case "$memberName" in
+			routine-*)
+				## Routines don't have and aren't expected to have their own
+				## skill directory -- per direct human-owner decision, skip
+				## the existence check entirely for this name shape rather
+				## than requiring one to be created as a workaround. Falls
+				## straight through to the routine-authored bot-identity
+				## default added below, same "no error, just fall through to
+				## bot credentials" treatment the existing
+				## no-SLACK_USER_TOKEN-configured case already gets.
+			;;
+			*)
+				if [ ! -d "$memberDir" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no such member skill directory: $memberDir" >&2
+					set +e ; return 1
+				fi
+			;;
+		esac
+
+		local target="$1"
+		shift || true
+
+		if [ -z "$target" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: target required (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>)" >&2
+			set +e ; return 1
+		fi
+
+		local resolved rc channel="" threadTs=""
+		resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
+		case "$rc" in
+			0)
+				channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
+				## Unit-2 forward compatibility -- "" until the Unit-3 flip.
+				local targetUserId=""
+				targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
+
+				## CONSUMPTION -- the send path's half of the migration, and the
+				## three states are distinguished explicitly rather than by one
+				## value being falsy:
+				##
+				##   present-and-used     USER_ID= emitted -> send to the USER id.
+				##                        chat.postMessage accepts a user id as
+				##                        `channel` and resolves it to the CALLING
+				##                        identity's own DM -- measured on both
+				##                        identities. So the send path needs no
+				##                        conversations.open; only reads and
+				##                        reactions do. Asymmetry is per-op, never
+				##                        assumed uniform.
+				##   absent-and-not-asked no USER_ID=, CHANNEL= present -> unchanged
+				##                        behaviour, the channel is used as-is.
+				##   genuinely-none       neither emitted -> the resolver already
+				##                        returned non-zero and this arm was never
+				##                        reached. Nothing here fabricates a target.
+				##
+				## Positive test on "present", never a negation against empty: an
+				## absent USER_ID= must leave the existing channel path untouched,
+				## not fall into a user-id branch with an empty value.
+				if [ -n "$targetUserId" ] ; then
+					channel="$targetUserId"
+				fi
+				threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+			;;
+			2)
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: unrecognized target: $target" >&2
+				set +e ; return 1
+			;;
+			*)
+				## The key named here must be the key that ACTUALLY backs the
+				## target that failed. This op accepts four aliases, and naming a
+				## fixed pair sent an `event-track`/`event-alert` reader to two
+				## keys that have nothing to do with what they typed -- worse than
+				## naming no key at all, because it reads as authoritative.
+				##
+				## Derived from the alias rather than listing all four: the reader
+				## lands on exactly one key and does not have to work out which of
+				## a list is theirs. The arms mirror DistroAgentsToolsResolveTarget's
+				## own alias arms, stripping any `:<ts>` suffix the same way.
+				##
+				## A non-alias target (<conversation-id> or <channel>:<ts>) is
+				## backed by NO config key -- it carried its own channel and that
+				## channel came out empty -- so it is told that, instead of being
+				## pointed at a key that was never involved.
+				local targetKey=""
+				case "${target%%:*}" in
+					event-track)	targetKey="SLACK_CHANNEL_EVENT_TRACK" ;;
+					event-alert)	targetKey="SLACK_CHANNEL_EVENT_ALERT" ;;
+					magic-team)	targetKey="SLACK_CHANNEL_MAGIC_TEAM" ;;
+					human-owner)	targetKey="SLACK_CHANNEL_HUMAN_OWNER" ;;
+				esac
+				if [ -n "$targetKey" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: could not resolve a channel for target '$target' -- check $targetKey in .local/.agents" >&2
+				else
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: could not resolve a channel for target '$target' -- it names a conversation directly, so no config key backs it; its channel part is empty" >&2
+				fi
+				set +e ; return 1
+			;;
+		esac
+
+		local format="text" fromStdin="false" identityAsBot="false"
+		local textArgs stdinContent
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				## THE ONLY IDENTITY FLAG, and it takes no value. The rule it
+				## modifies is: this member's own USER_TOKEN when it has one,
+				## the team's BOT_TOKEN when it does not. `user` is therefore
+				## already what happens by default, so asking for it says
+				## nothing -- which is why there is no --identity-user to pair
+				## with this, and why the old two-valued --identity bot|user is
+				## gone from every arm a member reads. The one thing a caller
+				## can genuinely need to say is "not my own credentials for this
+				## call", and that is this flag.
+				--identity-bot)
+					identityAsBot="true" ; shift
+				;;
+				--message-from-stdin|--from-stdin)
+					## `--from-stdin` is the standardized, uniform name for "read
+					## content from stdin instead of argv" across every
+					## DistroAgentsTools op that accepts free-text content (see
+					## also --member-comms-email-send's body, --intern-validate-json's
+					## bare-stdin mode). `--message-from-stdin` stays recognized
+					## too, unchanged, since it's already documented/used across
+					## several skill files -- this is an additive alias, not a
+					## rename.
+					fromStdin="true" ; shift
+				;;
+				--from-file)
+					## Lets a caller write content to a plain temp file first (an
+					## ordinary Write tool call, no Bash prompt) and still invoke
+					## this op as one single-line command, since a heredoc body
+					## makes the invoked command span multiple lines and no
+					## longer match a single-line settings.json allowlist glob.
+					## Validated and consumed directly here, at point of use, into
+					## the SAME stdinContent variable --from-stdin's own downstream
+					## handling already reads -- no separate fromFile="" sentinel
+					## held across branches.
+					if [ -z "$2" ] || [ ! -f "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --from-file: file not found: $2" >&2
+						set +e ; return 1
+					fi
+					stdinContent="$( cat "$2" )"
+					fromStdin="true"
+					shift 2
+				;;
+				--format)
+					format="$2" ; shift 2
+				;;
+				--*)
+					## Guards against an unrecognized flag-shaped token silently
+					## falling through to the catch-all below and getting posted
+					## as literal message text -- a stray "--from-stdin" would
+					## otherwise end up as the entire "text" field, with ok:true
+					## coming back, so it wouldn't even be a visible failure. Any
+					## token starting with "--" that didn't match a known option
+					## above is almost always a typo/wrong-order/mis-recognized
+					## flag, not intended literal content -- fail loud here
+					## instead of silently absorbing it as text. Genuine literal
+					## text starting with "--" should go through
+					## --from-stdin/--from-file instead.
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: unrecognized option: $1 (if you need literal text starting with '--', use --from-stdin/--from-file instead of trailing argv)" >&2
+					set +e ; return 1
+				;;
+				*)
+					textArgs="$textArgs $1" ; shift
+				;;
+			esac
+		done
+
+		local rawText blocksJson sourceText
+		if [ "$fromStdin" = "true" ] ; then
+			## stdinContent may already be populated by --from-file above; only
+			## read real stdin here if it wasn't (--from-stdin, not --from-file,
+			## is what set fromStdin=true in that case).
+			[ -n "$stdinContent" ] || stdinContent="$( cat )"
+			sourceText="$stdinContent"
+		else
+			sourceText="${textArgs# }"
+		fi
+
+		## --format markdown builds blocksJson from sourceText via this
+		## repo's own sh-lib/AgentsSlackBlocksBuild.awk (small restricted
+		## markdown-ish syntax -> Slack Block Kit JSON array -- see that
+		## file's own header for the exact rules), then falls straight into
+		## the SAME validation/send path as --format blocks below -- not a
+		## parallel/duplicated path. Unlike --format blocks (stdin/file-only,
+		## unchanged below), --format markdown accepts any input source
+		## (trailing argv included) since a short markdown-ish message is a
+		## realistic thing to type directly as argv text, unlike a raw Block
+		## Kit JSON array.
+		if [ "$format" = "markdown" ] ; then
+			if [ -z "$sourceText" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no text/blocks content given" >&2
+				set +e ; return 1
+			fi
+			blocksJson="$( printf '%s\n' "$sourceText" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackBlocksBuild.awk" )"
+		elif [ "$fromStdin" = "true" ] && [ "$format" = "blocks" ] ; then
+			blocksJson="$sourceText"
+		fi
+
+		if [ -n "$blocksJson" ] ; then
+			## `blocksJson` gets spliced straight into the payload below
+			## (`"blocks":$blocksJson`) with no escaping, unlike `rawText`
+			## (which goes through agentMcpJsonEscape.awk) -- both --format
+			## blocks' caller-supplied array and --format markdown's
+			## awk-built array share this same bare-JSON-array contract, so
+			## both get validated here, once, before either ever reaches
+			## curl. Guards against stray content (a leftover
+			## "blocks: [...]"-style paste, or a malformed awk build) that
+			## isn't actually a bare array, which would splice into a
+			## literal `"blocks"::[...]` or similar in the payload -- Slack's
+			## chat.postMessage would bounce that as invalid_json on all 5
+			## retries, with nothing in the error pointing at the actual
+			## cause. Reuses this same file's own --intern-validate-json op via
+			## self-recursion (same convention as --member-comms-email-send's
+			## fallback call below) for full JSON-syntax validation,
+			## rather than hand-rolling a second, weaker JSON check here.
+			## --intern-validate-json accepts any syntactically
+			## valid top-level JSON value though (object, string, number,
+			## ...), so a cheap bare `[` ... `]` shape check is layered on
+			## top of it to enforce the array-specifically requirement
+			## Slack's `blocks` field actually has.
+			if ! printf '%s' "$blocksJson" | DistroAgentsTools --intern-validate-json ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format content failed --intern-validate-json (see above)" >&2
+				set +e ; return 1
+			fi
+			local blocksTrimmed
+			blocksTrimmed="$( printf '%s' "$blocksJson" | LC_ALL=C awk 'BEGIN{RS="\0"} { gsub(/^[ \t\r\n]+/, ""); gsub(/[ \t\r\n]+$/, ""); printf "%s", $0 }' )"
+			case "$blocksTrimmed" in
+				'['*']')
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format content is valid JSON but not a bare array (must start with '[' and end with ']')" >&2
+					set +e ; return 1
+				;;
+			esac
+
+			## Guards against a chat.postMessage rejection shaped like
+			## `invalid_blocks: unsupported type "mrkdwn" [json-pointer:/blocks/3/type]`
+			## -- a caller (or, for --format markdown, a bug in
+			## AgentsSlackBlocksBuild.awk) nesting a text-object type
+			## (`mrkdwn`, only valid inside a block's own `text` field)
+			## directly as a top-level block's own `type`, which Slack's
+			## Block Kit does not accept as a block type. Neither the
+			## --intern-validate-json check above (syntax only) nor the bare-array
+			## check above (shape only) catches this -- both are satisfied by
+			## a syntactically-valid array of objects regardless of what each
+			## object's own "type" value actually is. This is a cheap,
+			## non-recursive structural check (does every top-level element
+			## have a "type" key whose value is one of Slack's known top-level
+			## block types) layered on top of the syntax/shape checks, same
+			## spirit as those -- NOT a full Block Kit schema validator (this
+			## shell layer has no real JSON parser beyond what python3/awk give
+			## it here), so it deliberately does not recurse into each block's
+			## own nested fields (text objects, elements, accessory, ...).
+			local blocksBadTypes
+			blocksBadTypes="$( printf '%s' "$blocksJson" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBlockKitValidate.py" 2>/dev/null )"
+			if [ -n "$blocksBadTypes" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format content has an invalid/missing top-level 'type' at block index(es) $blocksBadTypes -- mrkdwn/plain_text/etc. are TEXT-OBJECT types, valid only nested inside a block's own \"text\" field, never as a block's own \"type\" (valid top-level types: section, divider, header, context, image, actions, input, video, rich_text, file)" >&2
+				set +e ; return 1
+			fi
+
+			## The fallback `text` for a blocks message, derived from the blocks
+			## themselves by this repo's own sh-lib/AgentsSlackBlocksFallbackText.py.
+			## Slack's top-level `text` is the summary/notification field
+			## whenever `blocks` are present, and this package's own sweep/history
+			## formatter (sh-lib/AgentsSlackMessagesFormat.awk) reads
+			## `messages.<idx>.text` and never `blocks` -- so a static string here
+			## makes every Block Kit message this tooling sends read back with no
+			## content at all. Derived from `blocksJson`, not from the markdown
+			## source, so ONE implementation covers both --format markdown
+			## (awk-built blocks) and --format blocks (a caller-supplied raw
+			## array); deriving it inside AgentsSlackBlocksBuild.awk would only
+			## ever cover the markdown path, and would force that awk to emit two
+			## outputs instead of its single stdin-markdown -> stdout-blocks-array
+			## contract. python3 is already an unconditional dependency of this
+			## exact branch (AgentsBlockKitValidate.py runs on this same
+			## `blocksJson` just above), so the real JSON parsing this shell layer
+			## genuinely lacks costs no new dependency here. Runs after the
+			## syntax/shape/type checks above, so it only ever sees blocks already
+			## proven valid and array-shaped. The static string stays as the
+			## defensive path -- a parse failure, or an array with genuinely no
+			## text in it (a lone divider, an image-only message) -- so the send
+			## never carries an empty `text`.
+			rawText="$( printf '%s' "$blocksJson" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackBlocksFallbackText.py" 2>/dev/null )"
+			[ -n "$rawText" ] || rawText="(formatted message -- see blocks)"
+		else
+			rawText="$sourceText"
+		fi
+
+		if [ -z "$rawText" ] && [ -z "$blocksJson" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no text/blocks content given" >&2
+			set +e ; return 1
+		fi
+
+		local sendIdentity="bot" memberUserToken=""
+		memberUserToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null || true )"
+
+		## Routine-authored detection: the <team-member> argument itself
+		## being `routine-*`-prefixed means a routine is the "sender," not
+		## an actual team-member persona (e.g. "routine-heartbeat" passed as
+		## $memberName, not "magic-coordinator") -- per direct human-owner
+		## decision, this defaults to bot identity automatically, purely by
+		## name-prefix on this argument value, no flag needed and no
+		## target-based check. Detected once, up front, so both branches
+		## below can consult it without repeating the case match.
+		local routineAuthored="false"
+		case "$memberName" in
+			routine-*) routineAuthored="true" ;;
+		esac
+
+		## IDENTITY SELECTION -- two inputs, and only two: does this member
+		## have its own USER_TOKEN, and was --identity-bot passed.
+		##
+		## --identity-bot wins outright over BOTH the routine-authored default
+		## above and the USER_TOKEN auto-detect below. It is the documented path
+		## for a real persona choosing to post as the bot when it is not
+		## routine-authored -- mechanical, debug or tracing traffic kept off the
+		## human's own credentials. Not passed: routine-authored resolves to bot
+		## regardless of any configured USER_TOKEN; otherwise bot unless a native
+		## token is configured, in which case user.
+		##
+		## THE `--identity user` BRANCH IS GONE, AND ITS ABSENCE IS THE POINT
+		## rather than an omission. It insisted on the native account and failed
+		## loud when the member had no USER_TOKEN. But `user` is what this
+		## selection already produces whenever the token exists, so the flag only
+		## ever changed the outcome in the one case where it could not be
+		## honoured -- it turned a silent, correct fallback to bot into an error.
+		## There is no way to ask for the default any more because there is no
+		## longer anything to ask: this is the ratified two-input model, and a
+		## caller wanting the native identity simply passes nothing.
+		if [ "$identityAsBot" = "true" ] ; then
+			sendIdentity="bot"
+		elif [ "$routineAuthored" = "true" ] ; then
+			sendIdentity="bot"
+		elif [ -n "$memberUserToken" ] ; then
+			sendIdentity="user"
+		fi
+
+		## Dynamic per-identity DM-channel resolution: Slack DM channel ids
+		## are per-identity-pair -- SLACK_CHANNEL_HUMAN_OWNER (used to
+		## resolve $channel above) was resolved/set against the shared bot
+		## identity's own DM with the human-owner, so it does not exist for
+		## a member's own native user identity (confirmed live:
+		## channel_not_found on 5/5 retries). Scoped strictly to the one
+		## case that's actually broken -- human-owner target + user
+		## identity -- every other target/identity combination
+		## (including magic-team, a standing channel not a DM, so
+		## unaffected by this) is untouched. Reuses the exact same
+		## users.list + hint-match + conversations.open mechanism
+		## --magic-comms-slack-resolve-ids already proves out as a
+		## diagnostic (AgentsTools.MagicComms.include), narrowed to this
+		## one rare branch instead of running on every send -- avoids
+		## adding any new persisted config/state surface (a stored
+		## human-owner user id or a resolved-channel cache would each be
+		## their own config-schema change needing separate review). On any
+		## resolution failure here, $channel is left as the static alias
+		## and the existing retry-then-email-fallback path below handles
+		## it exactly as it does today -- no second fallback branch
+		## invented.
+		case "$target" in
+			human-owner|human-owner:*)
+				if [ "$sendIdentity" = "user" ] ; then
+					local dynUsersJson dynHintUserId dynOpenResp dynOpenOk dynOpenChannel
+					dynUsersJson="$( curl -sS -G https://slack.com/api/users.list -H "Authorization: Bearer $memberUserToken" --data-urlencode "limit=1000" 2>/dev/null )"
+					dynHintUserId="$( USERS_JSON="$dynUsersJson" HINT="myx" \
+						python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveHintUserId.py" 2>/dev/null )"
+					if [ -n "$dynHintUserId" ] ; then
+						dynOpenResp="$( curl -sS -X POST https://slack.com/api/conversations.open -H "Authorization: Bearer $memberUserToken" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$dynHintUserId" 2>/dev/null )"
+						## `ok` and `channel.id` are read out of the same body by
+						## the same key-path reader, together, rather than one of
+						## them being a leftover regex beside the other. This line
+						## used to be
+						##   sed -En 's/.*"ok":(true|false).*/\1/p'
+						## which was portable -- `-E` is an ERE, so its alternation
+						## is not the BSD `\|` trap documented elsewhere in this
+						## package -- and wrong in the same way as the rest of this
+						## class anyway: ERE `.*` is greedy, so the leading `.*`
+						## ate as far as it could and the capture landed on the
+						## LAST `"ok":` in the whole body, at any depth. It read
+						## the top-level `ok` only while nothing nested carried
+						## one, which is a fact about Slack's current response
+						## shape, not about this code.
+						##
+						## Two states here, both stated positively: rc 0 with
+						## `true`/`false`, or rc 1 because the body was not a
+						## parseable API response at all (empty read, truncated,
+						## an error page). `ok` is required by the reader's own
+						## contract, so rc 3 cannot occur for this path. The rc-1
+						## state renders as `-`, which is a different fact from a
+						## body that genuinely reported `ok:false`.
+						local dynOpenOkRc=0
+						dynOpenOk="$( printf '%s\n' "$dynOpenResp" | LC_ALL=C awk -v path=ok -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || dynOpenOkRc=$?
+						[ "$dynOpenOkRc" = "0" ] || dynOpenOk='-'
+						## Structural read of the opened conversation's own
+						## `channel.id`, not a pattern match. This line used to be
+						##   sed -n 's/.*"id":"\([CDG][^"]*\)".*/\1/p'
+						## and that is wrong by construction: BRE `.*` is greedy,
+						## so the leading `.*` eats as far as it can and the
+						## capture lands on the LAST `"id"` in the whole body that
+						## happens to begin with C/D/G -- at any depth, in any
+						## nested object. The `[CDG]` class never selected the
+						## right field, it only filtered out the ids that would
+						## have made the accident obvious. It is right today only
+						## because a conversations.open body happens to carry one
+						## such id: a property of Slack's response shape, not of
+						## this code, undocumented and unenforced. A full key path
+						## cannot pick up a nested id, whatever the body grows.
+						##
+						## Presence is decided by EXIT STATUS, never by testing the
+						## string for emptiness: rc 0 means `channel.id` was there,
+						## rc 3 means it genuinely is not in this payload, rc 1
+						## means the body was not a parseable API response at all
+						## (empty read, truncated, an error page). All three
+						## non-zero outcomes fall through to the same existing
+						## static-alias fallback below -- this whole branch is
+						## best-effort and always was -- but the diagnostic now
+						## says which one happened rather than showing "" for
+						## every one of them.
+						local dynOpenChannelRc=0
+						dynOpenChannel="$( printf '%s\n' "$dynOpenResp" | LC_ALL=C awk -v path=channel.id -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || dynOpenChannelRc=$?
+						if [ "$dynOpenOk" = "true" ] && [ "$dynOpenChannelRc" = "0" ] && [ -n "$dynOpenChannel" ] ; then
+							echo "# $MDSC_CMD --member-comms-slack-send-message: dynamic per-identity resolution: human-owner DM channel for $memberName's own native identity resolved to $dynOpenChannel (static SLACK_CHANNEL_HUMAN_OWNER was $channel)" >&2
+							channel="$dynOpenChannel"
+						else
+							echo "# $MDSC_CMD --member-comms-slack-send-message: dynamic per-identity resolution failed (ok=$dynOpenOk, ok reader rc=$dynOpenOkRc, channel.id reader rc=$dynOpenChannelRc: $dynOpenResp) -- falling back to static SLACK_CHANNEL_HUMAN_OWNER, existing retry/email-fallback path will handle a channel_not_found from here" >&2
+						fi
+					else
+						echo "# $MDSC_CMD --member-comms-slack-send-message: dynamic per-identity resolution: could not resolve a human-owner user id via hint 'myx' -- falling back to static SLACK_CHANNEL_HUMAN_OWNER" >&2
+					fi
+				fi
+			;;
+		esac
+
+		## Preserve the existing attributed bot-message behavior as the
+		## fallback path. Native-user sends go out as the user account itself,
+		## so no synthetic team-member prefix is added there.
+		if [ "$sendIdentity" = "bot" ] && [ -n "$rawText" ] ; then
+			rawText="$( printf '*%s:*\n%s' "$memberName" "$rawText" )"
+		fi
+
+		## Reuse myx.common's existing JSON-string escaper (agentMcpJsonEscape.awk,
+		## already shipped for agentMcpServer.sh) rather than inventing another one.
+		local escapedText
+		escapedText="$( printf '%s' "$rawText" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
+
+		local payload="{\"channel\":\"$channel\",\"text\":\"$escapedText\""
+		[ -z "$threadTs" ] || payload="$payload,\"thread_ts\":\"$threadTs\""
+		[ -z "$blocksJson" ] || payload="$payload,\"blocks\":$blocksJson"
+		payload="$payload}"
+
+		local tokenLabel
+		if [ "$sendIdentity" = "user" ] ; then
+			tokenLabel='SLACK_USER_TOKEN'
+		else
+			tokenLabel='SLACK_BOT_TOKEN'
+		fi
+
+		echo "# $MDSC_CMD --member-comms-slack-send-message: POST https://slack.com/api/chat.postMessage using ${sendIdentity} token for $memberName -H 'Authorization: Bearer \$$tokenLabel' -H 'Content-type: application/json' -d '$payload'" >&2
+
+		local token
+		if [ "$sendIdentity" = "user" ] ; then
+			token="$memberUserToken"
+		else
+			## The team's own bot token, read from the team's own scope -- see
+			## AgentsTools.InternOpSlackCall.include's own copy of this fallback
+			## for why it does not live in any single member's settings.
+			token="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN )"
+		fi
+		if [ -z "$token" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no usable Slack token configured for $memberName (member SLACK_USER_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)" >&2
+			set +e ; return 1
+		fi
+
+		## Token goes into a private (chmod 600) temp file, read by curl via
+		## `-H @file` (curl >= 7.55.0) rather than as an inline argv string --
+		## avoids the token being visible in `ps`/`/proc/<pid>/cmdline` for
+		## the curl invocation's lifetime.
+		local headerFile
+		headerFile="$( mktemp )" || { set +e ; return 1 ; }
+		chmod 600 "$headerFile"
+		trap 'rm -f "$headerFile"' EXIT
+		printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
+
+		local authUserId=""
+		if [ "$sendIdentity" = "user" ] ; then
+			local authResp
+			authResp="$( curl -sS https://slack.com/api/auth.test -H @"$headerFile" 2>&1 )"
+			## Structural read of the top-level `user_id`, not a pattern match.
+			## This line used to be
+			##   sed -n 's/.*"user_id":"\([^"]*\)".*/\1/p'
+			## which reads the LAST `"user_id"` anywhere in the body, because
+			## BRE `.*` is greedy -- it was written as if the key occurs exactly
+			## once, and it is correct only while that stays true of whatever
+			## auth.test returns. Nothing documents or enforces that. The key
+			## path pins it to the top-level field and to nothing else.
+			##
+			## This value is REQUIRED: it is the identity the send is checked
+			## against below. Absence is therefore a hard stop, tested on the
+			## reader's exit status rather than on the string being empty -- rc
+			## 3 (no such field) and rc 1 (unparseable body) are both refusals
+			## to proceed, and neither may hand an empty string to the
+			## message.user comparison, where it would compare equal to another
+			## unread field and pass.
+			local authUserIdRc=0
+			authUserId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || authUserIdRc=$?
+			if [ "$authUserIdRc" != "0" ] || [ -z "$authUserId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: could not confirm auth.test user_id for $memberName SLACK_USER_TOKEN (user_id reader rc=$authUserIdRc)" >&2
+				echo "# Response: $authResp" >&2
+				rm -f "$headerFile"
+				trap - EXIT
+				set +e ; return 1
+			fi
+		fi
+
+		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false"
+		while [ "$attempt" -le "$maxAttempts" ] ; do
+			response="$( curl -sS -X POST "https://slack.com/api/chat.postMessage" \
+				-H @"$headerFile" \
+				-H "Content-type: application/json" \
+				-d "$payload" 2>&1 )"
+			if printf '%s' "$response" | grep -q '"ok":true' ; then
+				sent="true"
+				break
+			fi
+			if [ "$sendIdentity" = "bot" ] && [ "$joinAttempted" = "false" ] && [ -z "$threadTs" ] && printf '%s' "$response" | grep -q '"error":"not_in_channel"' ; then
+				joinAttempted="true"
+				local joinResponse
+				joinResponse="$( curl -sS -X POST "https://slack.com/api/conversations.join" \
+					-H @"$headerFile" \
+					-H "Content-type: application/x-www-form-urlencoded" \
+					--data-urlencode "channel=$channel" 2>&1 )"
+				echo "# $MDSC_CMD --member-comms-slack-send-message: auto-join attempt for bot token on channel=$channel -- $joinResponse" >&2
+				if printf '%s' "$joinResponse" | grep -q '"ok":true' ; then
+					continue
+				fi
+			fi
+			echo "# $MDSC_CMD --member-comms-slack-send-message: attempt $attempt/$maxAttempts did not confirm ok:true, retrying in ${backoff}s -- $response" >&2
+			sleep "$backoff"
+			attempt=$(( attempt + 1 ))
+			backoff=$(( backoff * 2 ))
+		done
+
+		rm -f "$headerFile"
+		trap - EXIT
+
+		if [ "$sent" = "true" ] ; then
+			if [ "$sendIdentity" = "user" ] ; then
+				## THIS IS THE SEND-IDENTITY CONTROL, and it is parsed rather
+				## than pattern-matched for the same reason the counterparty
+				## control next door is. The line used to be
+				##   sed -n 's/.*"message":{.*"user":"\([^"]*\)".*/\1/p'
+				## -- TWO greedy `.*` in one expression, and greedy `.*`
+				## returns the LAST match. The first `.*` runs past the
+				## `"message":{` it is supposed to anchor on if a later one
+				## exists, and the second lands on the last `"user"` in the
+				## rest of the body. A chat.postMessage response provably
+				## carries several: `message.user`, `message.bot_profile.
+				## user_id`, and more as Slack adds them. The expression was
+				## written as if `"user"` occurred exactly once; it is correct
+				## only while that accident holds, and nothing anywhere
+				## guarantees it. Reading the full key path `message.user`
+				## cannot land on a nested author, whatever the payload grows.
+				##
+				## A control that cannot reach a verdict is NOT a pass. The
+				## three reader states are handled as three, on exit status,
+				## never by inspecting the string: rc 1 means the response was
+				## not parseable and the send is unverified; rc 3 means there
+				## is no message.user at all and the send is unverified; rc 0
+				## means the field was read and may be compared. The old form
+				## tested `-z` first, which made "field absent" and "field
+				## present but empty" the same event and let an unread payload
+				## report as a plain mismatch.
+				local responseMessageUser="" responseMessageUserRc=0
+				responseMessageUser="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=message.user -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || responseMessageUserRc=$?
+				if [ "$responseMessageUserRc" != "0" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: member SLACK_USER_TOKEN send for $memberName could not be confirmed as message.user=$authUserId -- the response carries no readable message.user (reader rc=$responseMessageUserRc), so the control reached no verdict, which is not a pass" >&2
+					echo "# Response: $response" >&2
+					set +e ; return 1
+				fi
+				if [ "$responseMessageUser" != "$authUserId" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: member SLACK_USER_TOKEN send for $memberName did not confirm message.user=$authUserId (actual message.user=$responseMessageUser)" >&2
+					echo "# Response: $response" >&2
+					set +e ; return 1
+				fi
+			fi
+			printf '%s\n' "$response"
+			return 0
+		fi
+
+		## NOT a channel switch -- email here is a notification that Slack
+		## itself is stuck, not a substitute delivery path for the message.
+		## The message stays queued for Slack; the email's job is only to
+		## say so and describe what's waiting.
+		echo "⛔ $MDSC_CMD --member-comms-slack-send-message: Slack did not confirm after $maxAttempts attempts -- notifying by email that Slack comms are stuck" >&2
+		local fallbackUser
+		fallbackUser="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_USER )"
+		if [ -z "$fallbackUser" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no EMAIL_USER configured, cannot notify" >&2
+			set +e ; return 1
+		fi
+		## `magic-coordinator` is passed as the acting member EXPLICITLY, not
+		## "$memberName": $fallbackUser above is already magic-coordinator's own
+		## EMAIL_USER, so this notification is coordinator-mailbox to
+		## coordinator-mailbox, and the sending credential has to come from the same
+		## scope the recipient was read from. Passing the acting member instead would
+		## newly break this fallback for every member that holds no EMAIL_* keys of
+		## its own -- naming the scope keeps today's behaviour exactly while still
+		## honouring the op's <team-member> argument.
+		DistroAgentsTools --member-comms-email-send magic-coordinator "$fallbackUser" -- \
+			"Slack comms stuck -- message queued for target $target" -- \
+			"Slack did not confirm this send after $maxAttempts retries -- comms to Slack appear stuck." "" \
+			"Nothing was rerouted to email -- this is a notification only. The" \
+			"message below stays queued for Slack and should go out once it" \
+			"recovers; retry --member-comms-slack-send-message manually if it doesn't." "" \
+			"Team-member: $memberName" "Target: $target" "" \
+			"Queued message:" "$rawText" "" \
+			"Last Slack error response:" "$response"
+		return $?
+	;;
+
+		*)
+			echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MemberCommsSlack.include's own default (*) branch, the operation group sourced by the dispatcher's --member-comms-slack-* route; no operation of that name is defined in this include" >&2
+			set +e ; return 1
+		;;
+esac

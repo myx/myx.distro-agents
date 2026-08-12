@@ -33,12 +33,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): syntax is <document-name> --lookup-folder <absolute-folder> [--lookup-folder <absolute-folder>]... [--start-line <N> --end-line <N>]" >&2
 			set +e ; return 1
 		fi
-		case "$documentName" in
-			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext): document name must be a bare filename, not a path: $documentName" >&2
-				set +e ; return 1
-			;;
-		esac
+		AgentsToolsAssertBareName "$documentName" "<document-name>" "$MDSC_CMD --intern-op-data-read (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
 
 		local lookupFolders=()
 		local startLine="" endLine=""

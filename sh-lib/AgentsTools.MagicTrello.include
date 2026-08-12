@@ -12,12 +12,14 @@ case "$1" in
 	## Post one comment to one Trello card via direct API call.
 	##
 	## Syntax:
-	##   --magic-trello-post-comment <team-member> <card-id> [text...]
-	##   --magic-trello-post-comment <team-member> <card-id> --from-stdin
-	##   --magic-trello-post-comment <team-member> <card-id> --from-file <path>
+	##   --magic-comms-trello-post-comment <team-member> <card-id> [text...]
+	##   --magic-comms-trello-post-comment <team-member> <card-id> --from-stdin
+	##   --magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>
 	##
-	## Exactly one content source is allowed.
-	--magic-trello-post-comment)
+	## Exactly one content source is allowed. <team-member> is the acting
+	## identity: the comment is authored by one member, so that member's own
+	## scope is where the signing Trello credentials are read from.
+	--magic-comms-trello-post-comment)
 		shift
 		local callingMember="$1"
 		shift || true
@@ -25,16 +27,86 @@ case "$1" in
 		shift || true
 
 		if [ -z "$callingMember" ] || [ -z "$cardId" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: syntax is <team-member> <card-id> [text...]|--from-stdin|--from-file <path>" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: syntax is <team-member> <card-id> [text...]|--from-stdin|--from-file <path>" >&2
 			set +e ; return 1
 		fi
 
-		case "$cardId" in
-			*/*|*" "*)
-				echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: card-id must be a bare Trello card id" >&2
-				set +e ; return 1
+		## Same <team-member> validation shape as --member-comms-trello-check and
+		## --member-comms-trello-read in AgentsTools.MemberCommsTrello.include. All of it runs
+		## BEFORE the credential read and BEFORE any network call.
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" "$MDSC_CMD --magic-comms-trello-post-comment" || { set +e ; return 1 ; }
+		case "$callingMember" in
+			routine-*)
+				## A routine acting as caller has no skill directory and is not
+				## expected to grow one -- same treatment, same reason, as
+				## --member-comms-slack-read's own carve-out.
+			;;
+			*)
+				if [ ! -d "$HOME/.claude/skills/$callingMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: no such member skill directory: $HOME/.claude/skills/$callingMember" >&2
+					set +e ; return 1
+				fi
 			;;
 		esac
+
+		## <card-id> validation, with the same rigour and for the same reason as
+		## the <team-member> validation above, and likewise BEFORE the credential
+		## read and BEFORE any network call. The value is interpolated straight
+		## into the request path below, so an unvalidated one redirects an
+		## AUTHENTICATED POST: '..' is squashed by curl (no --path-as-is) into a
+		## different endpoint than the caller named, '?' and '#' end the path
+		## segment and turn the rest into a query/fragment, '/' walks the path
+		## outright, and a leading '-' is argv-ambiguous.
+		##
+		## DELIBERATELY NOT AgentsToolsAssertBareName, though it is the family's
+		## bare-name gate and does reject every hostile value listed above. Two
+		## reasons, both about fit rather than strength:
+		##   - Its alphabet is wrong in BOTH directions for this argument. It
+		##     admits '.', '_' and '-' inside the value, none of which a Trello
+		##     card id ever contains, so it would accept 'a..b' and 'a.b' -- ids
+		##     that cannot exist -- and let them reach a live authenticated POST.
+		##     A Trello card id is one of exactly two shapes, and both are
+		##     strictly alphanumeric: the 24-character hex ObjectId the API
+		##     returns, and the 8-character alphanumeric shortLink that appears
+		##     in a card's browser URL (trello.com/c/<shortLink>/...). The check
+		##     below is therefore alphanumeric-only -- strictly tighter than the
+		##     bare-name alphabet, and it still rejects everything that gate does.
+		##   - Its message says the value "must be a bare name -- one path segment
+		##     of letters, digits, '.', '_' or '-'", which is a member-name/
+		##     filename statement. Told that about a card id, a caller would read
+		##     it as licence to use the punctuation it names.
+		##
+		## NO LENGTH TEST. Both shapes are accepted by the API on this endpoint
+		## and pinning 24-or-8 would refuse a legitimate id the day Trello adds a
+		## third form; the alphabet is what closes the redirect, not the length.
+		##
+		## REJECT, NEVER SANITISE, and the id is passed through verbatim: a
+		## malformed card id is a caller error, and quietly rewriting one would
+		## post a comment onto a card the caller did not name. A comment posted
+		## to the wrong card cannot be recalled.
+		##
+		## NEVER a [0-9A-Za-z] bracket range below, for the reason
+		## AgentsToolsAssertBareName states at length: bracket ranges are
+		## collation-dependent under en_US.UTF-8, so a range-based whitelist is
+		## not a whitelist at all. Every accepted character is enumerated.
+		if [ -z "$cardId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: <card-id> must not be empty -- it must be a Trello card id: the 24-character hex id, or the short link from the card URL" >&2
+			set +e ; return 1
+		fi
+		local cardIdRest="$cardId" cardIdChar
+		while [ -n "$cardIdRest" ] ; do
+			cardIdChar="${cardIdRest%"${cardIdRest#?}"}"
+			cardIdRest="${cardIdRest#?}"
+			case "$cardIdChar" in
+				a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+				A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+				0|1|2|3|4|5|6|7|8|9) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: <card-id> must be a Trello card id -- letters and digits only, no '/', '?', '#', '.', '-' or whitespace; the value goes into the request path, so it is refused, never repaired: $cardId" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
 
 		local bodyMode="args" bodyText fromFilePath
 		case "$1" in
@@ -42,7 +114,7 @@ case "$1" in
 				bodyMode="stdin"
 				shift
 				[ $# -eq 0 ] || {
-					echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: --from-stdin takes no trailing arguments" >&2
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: --from-stdin takes no trailing arguments" >&2
 					set +e ; return 1
 				}
 			;;
@@ -51,11 +123,11 @@ case "$1" in
 				fromFilePath="$2"
 				shift 2 || true
 				if [ -z "$fromFilePath" ] || [ ! -f "$fromFilePath" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: --from-file requires an existing file" >&2
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: --from-file requires an existing file" >&2
 					set +e ; return 1
 				fi
 				[ $# -eq 0 ] || {
-					echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: --from-file takes no trailing arguments" >&2
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: --from-file takes no trailing arguments" >&2
 					set +e ; return 1
 				}
 			;;
@@ -74,28 +146,66 @@ case "$1" in
 		esac
 
 		if [ -z "$bodyText" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: empty comment text" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: empty comment text" >&2
 			set +e ; return 1
 		fi
 
+		## Strictly the acting member's own scope, no fallback -- same rule and
+		## same shape as --member-comms-trello-check and --member-comms-trello-read
+		## in AgentsTools.MemberCommsTrello.include: the comment is authored by an identity, so
+		## the <team-member> this op already requires is what decides whose
+		## credential signs it. A fallback would recreate the
+		## accepted-and-ignored defect this argument exists to end.
 		local trelloKey trelloToken
-		trelloKey="$( DistroAgentsTools --agents-config-option magic-coordinator --select TRELLO_KEY )"
-		trelloToken="$( DistroAgentsTools --agents-config-option magic-coordinator --select TRELLO_TOKEN )"
+		trelloKey="$( DistroAgentsTools --agents-config-option "$callingMember" --select TRELLO_KEY )"
+		trelloToken="$( DistroAgentsTools --agents-config-option "$callingMember" --select TRELLO_TOKEN )"
 		if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-trello-post-comment: TRELLO_KEY/TRELLO_TOKEN not fully set in .local/.agents" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: TRELLO_KEY/TRELLO_TOKEN not fully set in ${callingMember}'s own scope in .local/.agents" >&2
 			set +e ; return 1
 		fi
+		local trelloNewline=$'\n'
+		case "$trelloKey$trelloToken" in
+			*"$trelloNewline"*)
+				echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: TRELLO_KEY/TRELLO_TOKEN in ${callingMember}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
+				set +e ; return 1
+			;;
+		esac
 
-		echo "# $MDSC_CMD --magic-trello-post-comment: posting comment to card=$cardId" >&2
-		curl -sS -X POST "https://api.trello.com/1/cards/${cardId}/actions/comments" \
-			--data-urlencode "key=${trelloKey}" \
-			--data-urlencode "token=${trelloToken}" \
-			--data-urlencode "text=${bodyText}"
-		return $?
+		## THE CREDENTIALS NEVER APPEAR ON A COMMAND LINE -- same `curl -K -`
+		## shape, same reasons, and the same load-bearing quoting and escaping as
+		## --member-comms-trello-read in AgentsTools.MemberCommsTrello.include, which carries
+		## the full argument. In short: the header value must stay double-quoted
+		## or a `-K` value ends at its first space, and `\` is escaped before `"`
+		## because an unescaped one would close that value early and send a
+		## silently truncated credential. `--data-urlencode` below is still on
+		## argv on purpose -- it carries the comment text, which is the payload
+		## this op exists to send, never a credential.
+		local trelloKeyEsc trelloTokenEsc
+		trelloKeyEsc="${trelloKey//\\/\\\\}"
+		trelloKeyEsc="${trelloKeyEsc//\"/\\\"}"
+		trelloTokenEsc="${trelloToken//\\/\\\\}"
+		trelloTokenEsc="${trelloTokenEsc//\"/\\\"}"
+		echo "# $MDSC_CMD --magic-comms-trello-post-comment: posting comment to card=$cardId" >&2
+		## -sS, "|| trelloRc=$?" and --fail-with-body, for the reasons stated on
+		## --member-comms-trello-read in AgentsTools.MemberCommsTrello.include: -s alone
+		## swallows curl's own error text, a bare call followed by `return $?`
+		## cannot run at all under the active set -e, and curl exits 0 for a
+		## 4xx/5xx response -- so without --fail-with-body a rejected POST would
+		## report the comment as posted.
+		local trelloRc=0
+		printf 'header = "Authorization: OAuth oauth_consumer_key=\\"%s\\", oauth_token=\\"%s\\""\n' \
+			"$trelloKeyEsc" "$trelloTokenEsc" \
+			| curl -sS --fail-with-body -K - -X POST "https://api.trello.com/1/cards/${cardId}/actions/comments" \
+				--data-urlencode "text=${bodyText}" || trelloRc=$?
+		if [ "$trelloRc" -ne 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: posting the comment to card=$cardId failed (curl rc=$trelloRc) -- the comment was NOT posted; curl's own error is on the line above" >&2
+			set +e ; return "$trelloRc"
+		fi
+		return 0
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MagicTrello.include's own default (*) branch, the operation group sourced by the --magic-trello-* dispatcher route; no operation of that name is defined in this include" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MagicTrello.include's own default (*) branch, the operation group sourced by the --magic-comms-trello-* dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

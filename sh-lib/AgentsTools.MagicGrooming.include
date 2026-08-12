@@ -23,10 +23,10 @@
 
 case "$1" in
 
-	## <item-filename> --from-state:<state> --owner <value>
+	## <item-filename> --from-state:<state> --owner-header-value <value>
 	##   [--header:<upsert|append|remove>:name[:value]]...
 	##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-	## Target state is backlog (fixed by this op's own name). --owner and
+	## Target state is backlog (fixed by this op's own name). --owner-header-value and
 	## --from-state:<state> are both required; groomed-at (today, UTC),
 	## groomed-from (the --from-state value), and track (true) are always
 	## auto-stamped, never caller-supplied. --header:*/--upsert-from-stdin/
@@ -42,7 +42,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -50,9 +50,9 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -71,7 +71,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
@@ -99,7 +99,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -107,9 +107,9 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -128,7 +128,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
@@ -156,7 +156,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -164,9 +164,9 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -185,16 +185,31 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		## processed-at records when the item ENTERED board-processed, which is
+		## the one fact age-based cleanup needs and which nothing else carries.
+		## Not the same as groomed-at: a same-state patch re-stamps groomed-at
+		## every time it touches the item, so groomed-at drifts forward and
+		## cannot answer "how long has this been processed". Deliberately
+		## auto-stamped and never caller-supplied, same rule as its siblings.
+		##
+		## Measured 2026-08-10, which is why this exists: of 115 board-processed
+		## items, groomed-at covered 3 and resolved-at covered 9. Filesystem
+		## mtime was no help either -- a reference sweep had rewritten 726 files
+		## that day, so every mtime recorded the sweep rather than the work. A
+		## cleanup pass therefore had to fall back to the date in the filename,
+		## which is the item's own date and not when it was processed at all.
+		local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:groomed-from:"$fromStateVal" \
+			--header:upsert:processed-at:"$processedAt" \
 			--header:upsert:track:true \
 			--context --magic-grooming-to-processed \
 			"${passthrough[@]}"
@@ -215,7 +230,7 @@ case "$1" in
 	## validation even where identical today, and all three share the one
 	## --intern-op-board-upsert-move-edit implementation.
 	##
-	## Carries this file's full grooming policy (mandatory --owner, auto
+	## Carries this file's full grooming policy (mandatory --owner-header-value, auto
 	## groomed-at/groomed-from/track) exactly as its three siblings do --
 	## parked being a deferred state is not a reason to withhold it: the
 	## -to-processed sibling stamps the same set onto a terminal state, and
@@ -233,7 +248,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -241,9 +256,9 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -262,7 +277,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
@@ -294,7 +309,7 @@ case "$1" in
 	## remembering to pass them. Consistency of family over reuse of an
 	## existing op -- the human-owner's own call.
 	##
-	## Carries this file's full grooming policy (mandatory --owner, auto
+	## Carries this file's full grooming policy (mandatory --owner-header-value, auto
 	## groomed-at/groomed-from/track) exactly as its four siblings do. That
 	## stamping is precisely what distinguishes this op from
 	## --magic-board-to-blocked, which stamps nothing: same target state,
@@ -311,7 +326,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -319,9 +334,9 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -340,7 +355,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
@@ -360,9 +375,9 @@ case "$1" in
 	## running. Deliberately its own full copy, not a shared helper -- see
 	## this file's own header note. routine-grooming's own check-backlog-promote
 	## dispatch: "once the thread is genuinely active, move the item to
-	## board-running", which that step still described as a two-call
-	## --write-board-item move (write the new state, remove the old file) --
-	## the non-atomic half-write every op in this family exists to retire.
+	## board-running", which that step once described as a two-call move
+	## (write the new state, remove the old file) -- the non-atomic
+	## half-write every op in this family exists to retire.
 	##
 	## Distinct from --magic-advance-to-running, which targets the same state:
 	## that one is routine-advance's/check-execute-board's own dispatch and
@@ -374,7 +389,7 @@ case "$1" in
 	## throughout, so a grooming-driven move carries grooming's stamps by
 	## construction rather than by the caller remembering to pass them.
 	##
-	## Carries this file's full grooming policy (mandatory --owner, auto
+	## Carries this file's full grooming policy (mandatory --owner-header-value, auto
 	## groomed-at/groomed-from/track) exactly as its siblings do. Anything
 	## this op does not own -- started-at included -- stays caller-supplied
 	## via --header:*.
@@ -387,7 +402,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -395,9 +410,9 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -416,7 +431,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
@@ -438,8 +453,8 @@ case "$1" in
 	## (dropped with no future intent), plus the two archived exits from its
 	## re-check steps: a parked item whose trigger the group concludes is
 	## never coming, and a blocked item the group decides is not worth even
-	## waiting on. That routine named this move as having no stub and staying
-	## the two-call --write-board-item recipe -- this op is what retires it.
+	## waiting on. That routine once named this move as having no stub and
+	## staying a two-call recipe -- this op is what retired it.
 	##
 	## board-archived is terminal, which is not a reason to withhold the
 	## grooming stamps: --magic-grooming-to-processed already stamps the same
@@ -457,7 +472,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -465,9 +480,9 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -486,7 +501,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
@@ -527,7 +542,7 @@ case "$1" in
 	## The renewed recheck-date itself is caller-supplied via --header:* -- it
 	## is a scheduling judgment this op cannot compute.
 	##
-	## Carries this file's full grooming policy (mandatory --owner, auto
+	## Carries this file's full grooming policy (mandatory --owner-header-value, auto
 	## groomed-at/groomed-from/track) exactly as its siblings do. On a
 	## same-state call groomed-from records retained, which is correct and
 	## intended: it says this item was groomed while sitting in retained, not
@@ -541,7 +556,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: syntax is <team-member> <item-filename> --from-state:<state> --owner <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -549,9 +564,9 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -570,7 +585,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
@@ -620,7 +635,7 @@ case "$1" in
 	## existing body, so omitting one would file an empty board-item. Each arm
 	## enforces that itself.
 	##
-	## source-slack-channel/source-slack-ts, blocks/blocked-by, approved-by/
+	## communication-channel-id, blocks/blocked-by, approved-by/
 	## approved-at and references all ride the ordinary --header:* passthrough
 	## at creation time -- the routine requires them set in the same single
 	## write, and this shape is what makes that one call rather than two.
@@ -639,7 +654,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
 			set +e ; return 1
 		fi
 		local owner="" bodyMode=""
@@ -650,9 +665,9 @@ case "$1" in
 					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
 					set +e ; return 1
 				;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -671,7 +686,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$bodyMode" ] ; then
@@ -703,7 +718,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
 			set +e ; return 1
 		fi
 		local owner="" bodyMode=""
@@ -714,9 +729,9 @@ case "$1" in
 					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
 					set +e ; return 1
 				;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -735,7 +750,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$bodyMode" ] ; then
@@ -743,10 +758,16 @@ case "$1" in
 			set +e ; return 1
 		fi
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		## processed-at: same contract as the --magic-grooming-to-processed
+		## arm above -- when the item entered board-processed, auto-stamped,
+		## never caller-supplied. A created item enters processed at the
+		## moment it is written, so creation time is its entry time.
+		local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
 			--header:upsert:owner:"$owner" \
 			--header:upsert:groomed-at:"$groomedAt" \
+			--header:upsert:processed-at:"$processedAt" \
 			--header:upsert:track:true \
 			--context "$createOp" \
 			"${passthrough[@]}"
@@ -767,7 +788,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
 			set +e ; return 1
 		fi
 		local owner="" bodyMode=""
@@ -778,9 +799,9 @@ case "$1" in
 					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
 					set +e ; return 1
 				;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -799,7 +820,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$bodyMode" ] ; then
@@ -831,7 +852,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
 			set +e ; return 1
 		fi
 		local owner="" bodyMode=""
@@ -842,9 +863,9 @@ case "$1" in
 					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
 					set +e ; return 1
 				;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -863,7 +884,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$bodyMode" ] ; then
@@ -895,7 +916,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+			echo "⛔ ERROR: $MDSC_CMD $createOp: syntax is <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
 			set +e ; return 1
 		fi
 		local owner="" bodyMode=""
@@ -906,9 +927,9 @@ case "$1" in
 					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
 					set +e ; return 1
 				;;
-				--owner)
+				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD $createOp: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -927,7 +948,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD $createOp: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$bodyMode" ] ; then
@@ -981,10 +1002,242 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: syntax is <team-member>, no other arguments" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-session-context-scan \
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		## This routine's own state-and-lock note comes back as part of the
+		## digest, because a scan returns the routine's COMPLETE prepared
+		## input and this note is where the previous pass recorded what the
+		## next one needs to continue from. Without it there is no read path
+		## for that content at all: --magic-grooming-lock-status reports lock
+		## METADATA, not the note's body.
+		##
+		## CONTENT ONLY -- this is deliberately NOT the lock gate returning in
+		## another form. Nothing here evaluates state or recheck-date, decides
+		## contention, or fails. The lock check is its own operation
+		## (--magic-grooming-lock-acquire), called BEFORE this scan; a scan
+		## reporting a lock verdict would put the two concerns back in one
+		## call, which is exactly what the -lock- / -state- split exists to
+		## prevent.
+		##
+		## A note that does not exist yet is ordinary, not special: it reports
+		## as a source with nothing to report, the same as any other, and the
+		## scan still succeeds. The first-ever pass is not a distinct outcome.
+		printf '%s\n\n' "## state-and-lock (routine-grooming)"
+		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154332Z-grooming-state-and-lock.md"
+		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
+		printf '\n%s\n\n' "## board digest"
+		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--state backlog --state pending --state running --state blocked --state parked \
 			--all-types \
 			--context --magic-grooming-input-scan
+		return $?
+	;;
+
+	## <team-member> [--header:<upsert|append|remove>:name[:value]]...
+	##   [--from-file <path>|--edit-patch-from-stdin]
+	## routine-grooming's own state-and-lock note: state and lock in one
+	## document, and this routine's session tracking document between
+	## iterations (tactical status needed to continue the next iterative call
+	## -- explicitly NOT a transcript). Prefers REFERENCING TEAM-DATA over
+	## copying it, to stay compact.
+	##
+	## One of two stubs over --intern-op-state-and-lock-upsert, the other being
+	## --magic-advance-state-and-lock-upsert: same "own dedicated stub per
+	## calling routine, each carrying its own validation even where identical
+	## today" convention this file's own --magic-grooming-to-* arms already
+	## follow. The note filename is fixed and hardcoded here -- it is this
+	## routine's own identity, never a caller argument, so no caller can point
+	## this routine's lock at another routine's note.
+	##
+	## Introduces no option of its own. The state values and the +30-minute
+	## recheck offset are properties of THIS ROUTINE, so they are hardcoded
+	## here and expressed through the ordinary --header:upsert vocabulary.
+	## There is deliberately no "closing" flag: a closing call is this stub
+	## being handed --header:upsert:state:grooming-finished by its caller.
+	##
+	## HEADER ORDER IS LOAD-BEARING.
+	## AgentsBoardItemHeaderOpsApply.awk resolves repeat upserts on one field
+	## as last-wins, so position decides overridability, and these two fields
+	## want opposite answers:
+	##   - `state` goes BEFORE the caller's headers, so a closing call can
+	##     override it to grooming-finished. Closure has no other way to say so.
+	##   - `recheck-date` goes AFTER them, so it always wins. The spec re-sets
+	##     it on EVERY update, and a caller able to override it could pin the
+	##     lock open indefinitely -- turning the one bound on a crashed or
+	##     wedged holder into a caller-supplied suggestion.
+	## That asymmetry is a lock-correctness property, not a style choice.
+	## Measured, not assumed: the awk's own header documents the last-wins
+	## rule, and --header:'s parser takes headerValue as everything after the
+	## first colon following the name, so a date-time value keeps its own
+	## colons intact. Don't normalize these two back to one order.
+	--magic-grooming-state-and-lock-upsert)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-state-and-lock-upsert: syntax is <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--header:*|--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
+				--from-file)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-state-and-lock-upsert: --from-file: value required" >&2
+						set +e ; return 1
+					fi
+					passthrough+=( "$1" "$2" ) ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-state-and-lock-upsert: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		## +30 minutes, UTC, in the team's own `date-time` shape
+		## (`YYYY-MM-DD HH:MM ±HHMM`). Composed from AgentsEpochToIsoDate.awk
+		## plus integer arithmetic rather than date(1) arithmetic: BSD spells
+		## the offset `date -v+30M`, GNU spells it `date -d '+30 min'`, and
+		## POSIX specifies neither -- date(1) is standardised only as a reader
+		## of the CURRENT time. `date +%s` is the one portable primitive here,
+		## already relied on by --magic-heartbeat-lock-*. Cross-platform
+		## correctness is a hard requirement in this tree, so there is one code
+		## path exercised on Darwin, FreeBSD and Linux alike.
+		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
+		nowEpoch="$( date +%s )"
+		targetEpoch=$(( nowEpoch + 30 * 60 ))
+		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
+		recheckRem=$(( targetEpoch % 86400 ))
+		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		DistroAgentsTools --intern-op-state-and-lock-upsert "$callingMember" \
+			note-20260809T154332Z-grooming-state-and-lock.md \
+			--header:upsert:state:grooming-running \
+			"${passthrough[@]}" \
+			--header:upsert:recheck-date:"$recheckDate" \
+			--context --magic-grooming-state-and-lock-upsert
+		return $?
+	;;
+
+	##
+	## --magic-grooming-lock-* -- routine-grooming's own lock: four thin stubs
+	## over the shared --intern-op-lock-* family
+	## (AgentsTools.InternOpLock.include), same unified mechanism every
+	## routine now uses -- frontmatter + git when TEAM_DATA_GIT_REMOTE is
+	## configured, the `mkdir` mutex when it is not.
+	##
+	## Position in the routine is fixed: lock before all, unlock in closure.
+	## Not inside --magic-grooming-input-scan -- that op's contract is "return
+	## this routine's prepared input", and a lock is not input. The `-lock-` /
+	## `-state-` infix split says the same thing about the two namespaces.
+	##
+	## The +30-minute recheck offset is this routine's own, matching its own
+	## state-and-lock cadence.
+	##
+
+	--magic-grooming-lock-acquire)
+		shift
+		local callingMember="$1" ; shift || true
+		local ownerLabel="$1" ; shift || true
+		if [ -z "$callingMember" ] || [ -z "$ownerLabel" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-acquire: <team-member> <owner-label> required" >&2
+			set +e ; return 1
+		fi
+		## Rejects any argument beyond this op's own positionals --
+		## an unknown flag AND an unexpected extra positional alike.
+		## Silently ignoring them let a typo through as a successful
+		## call: `--magic-heartbeat-lock-status <member> owner-x
+		## --bogus` returned 0 and acted as if nothing were wrong.
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-acquire: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
+		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 30 * 60 ))
+		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
+		recheckRem=$(( targetEpoch % 86400 ))
+		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		DistroAgentsTools --intern-op-lock-acquire "$callingMember" \
+			note-20260809T154332Z-grooming-state-and-lock.md "$ownerLabel" \
+			--header:upsert:state:grooming-running \
+			--header:upsert:recheck-date:"$recheckDate" \
+			--context --magic-grooming-lock-acquire
+		return $?
+	;;
+
+	--magic-grooming-lock-refresh)
+		shift
+		local callingMember="$1" ; shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-refresh: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		## Rejects any argument beyond this op's own positionals --
+		## an unknown flag AND an unexpected extra positional alike.
+		## Silently ignoring them let a typo through as a successful
+		## call: `--magic-heartbeat-lock-status <member> owner-x
+		## --bogus` returned 0 and acted as if nothing were wrong.
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-refresh: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
+		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 30 * 60 ))
+		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
+		recheckRem=$(( targetEpoch % 86400 ))
+		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		DistroAgentsTools --intern-op-lock-refresh "$callingMember" \
+			note-20260809T154332Z-grooming-state-and-lock.md \
+			--header:upsert:state:grooming-running \
+			--header:upsert:recheck-date:"$recheckDate" \
+			--context --magic-grooming-lock-refresh
+		return $?
+	;;
+
+	--magic-grooming-close-state-and-unlock)
+		shift
+		local callingMember="$1" ; shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-close-state-and-unlock: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		## Rejects any argument beyond this op's own positionals --
+		## an unknown flag AND an unexpected extra positional alike.
+		## Silently ignoring them let a typo through as a successful
+		## call: `--magic-heartbeat-lock-status <member> owner-x
+		## --bogus` returned 0 and acted as if nothing were wrong.
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-close-state-and-unlock: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-lock-release "$callingMember" \
+			note-20260809T154332Z-grooming-state-and-lock.md \
+			--header:upsert:state:grooming-finished \
+			--context --magic-grooming-close-state-and-unlock
+		return $?
+	;;
+
+	--magic-grooming-lock-status)
+		shift
+		local callingMember="$1" ; shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-status: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		## Rejects any argument beyond this op's own positionals --
+		## an unknown flag AND an unexpected extra positional alike.
+		## Silently ignoring them let a typo through as a successful
+		## call: `--magic-heartbeat-lock-status <member> owner-x
+		## --bogus` returned 0 and acted as if nothing were wrong.
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-status: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-lock-status "$callingMember" \
+			note-20260809T154332Z-grooming-state-and-lock.md \
+			--context --magic-grooming-lock-status
 		return $?
 	;;
 

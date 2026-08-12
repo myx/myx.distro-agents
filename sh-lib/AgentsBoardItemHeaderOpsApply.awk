@@ -1,14 +1,14 @@
 #!/usr/bin/awk -f
 ##
-## AgentBoardItemHeaderOpsApply.awk -- applies a set of upsert/append/remove
+## AgentsBoardItemHeaderOpsApply.awk -- applies a set of upsert/append/remove
 ## header operations to a board-item body's frontmatter, for
 ## DistroAgentsTools.fn.sh's --intern-op-board-upsert-move-edit op
 ## (myx.distro-agents/sh-lib/AgentsTools.InternOpBoardUpsertMoveEdit.include),
 ## externalized per this package's own externalize-awk/py convention (see
-## AgentBoardItemFrontmatterPrint.awk's own header comment for that name).
+## AgentsBoardItemFrontmatterPrint.awk's own header comment for that name).
 ##
 ## Sole ARGV argument: the body file (frontmatter delimited by two literal
-## `---` lines, same shape AgentBoardItemFrontmatterPrint.awk reads).
+## `---` lines, same shape AgentsBoardItemFrontmatterPrint.awk reads).
 ## `-v opsFile=<path>`: a tab-separated `opType<TAB>opName<TAB>opValue` file,
 ## one header operation per line, in application order -- opType is one of
 ## upsert/append/remove. Repeat upserts/removes on the same field: last

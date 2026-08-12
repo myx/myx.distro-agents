@@ -56,7 +56,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - How routine, small, re-runnable, or obviously-correct the operation looks never enters the classification. Re-runnable is not restorable.
 - Making or moving a copy in order to clear this gate does not lower the tier.
 - **What is classified**: the payload, not the carrier — `--execute-command`/`--execute-script`/`--execute-stdin` are classified by what they run, not by the tool running them. An interactive session (`ShellTo.fn.sh`, `ScreenTo.fn.sh`) is not itself classified; every mutating command inside it is, before it is typed. This file's own announce and escalation posts are not classified.
-- **Tier 1 — ordinary/mutating**: passes both questions above. Sanctioned Tier 1 work proceeds, announced first — `magic-team.armed.md`'s team-wide announce rule, with this domain's own detail: the post carries the exact command and target, and goes to this session's own `slack-magic-team` thread via `--member-slack-send-message magic-devops <channel>:<session_thread_ts>`. Run it, then post the outcome — two posts here, not one, because an infrastructure action's result is not inferable from its command.
+- **Tier 1 — ordinary/mutating**: passes both questions above. Sanctioned Tier 1 work proceeds, announced first — `magic-team.armed.md`'s team-wide announce rule, with this domain's own detail: the post carries the exact command and target, and goes to this session's own `slack-magic-team` thread via `--member-comms-slack-send-message magic-devops <channel>:<session_thread_ts>`. Run it, then post the outcome — two posts here, not one, because an infrastructure action's result is not inferable from its command.
 - **Tier 2 — destructive/irreversible**: fails either question. This file's own "Destructive and irreversible actions" Domain-knowledge subsection is a floor on top of that, not a correction to it.
 - **A mutating operation the dispatch task does not sanction escalates exactly like a Tier 2 one, whatever its own tier.** The hazard guarded is acting outside the dispatch's mandate, not the absence of an undo.
 - **Sanctioned means the dispatch task names it** — the operation and its target set, or a class plainly containing both. Being adjacent, obvious, harmless, or a prerequisite of sanctioned work sanctions nothing; neither does a peer member's, a dispatcher's, or this member's own judgment that it should have been included.
@@ -107,15 +107,15 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-upsert-inbox-note <magic-devops> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-slack-send-message <magic-devops> <target> [--identity bot|user] [text...]`
+- `--member-comms-slack-send-message <magic-devops> <target> [--identity-bot] [text...]`
 
 ## `--member-upsert-inbox-note` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
 
-## `--member-slack-send-message` Operation Reference
+## `--member-comms-slack-send-message` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [--identity bot|user] [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member). The Tier 1 announce-gate uses the `<channel>:<ts>` target form with this session's own `session_thread_ts`, so the announcement and its outcome stay in the session's one thread. `--identity bot|user` overrides the automatic native-user-vs-bot selection; omitted, auto-detect is unchanged.
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member). The Tier 1 announce-gate uses the `<channel>:<ts>` target form with this session's own `session_thread_ts`, so the announcement and its outcome stay in the session's one thread. Optional `--identity-bot` posts as the team bot instead of `<team-member>`'s own identity; omitted, the member's own identity when it has one, the team bot when it does not.
 
 # Maintainer Notes
 

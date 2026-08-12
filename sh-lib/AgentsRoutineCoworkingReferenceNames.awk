@@ -1,6 +1,6 @@
 #!/usr/bin/awk -f
 ##
-## AgentRoutineCoworkingReferenceNames.awk -- reads an --intern-op-session-context-scan
+## AgentsRoutineCoworkingReferenceNames.awk -- reads an --intern-op-session-context-scan
 ## document (## <state>/<item> blocks restricted to `references:`/`blocks:`/
 ## `blocked-by:` headers) on stdin, and prints one bare item-name per line for
 ## every value found across all three fields, every block -- including

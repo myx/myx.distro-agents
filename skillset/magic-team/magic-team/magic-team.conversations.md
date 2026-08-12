@@ -26,6 +26,21 @@ Referenced from each member's `.basic.md`. Not a `routine-*` member.
    - If one reaction would leave part of the message unaddressed, split it. 
    - If your message fits more than one clause of "Address your messages clearly" of this section, split it.
 
+1a. **Message shape is a correctness constraint, not a style preference.**
+   A message the recipient cannot read, or cannot react to point by point, has **failed** — whether or
+   not it was delivered intact. Communication intent outranks platform mechanics: there is no point
+   sending something that is harder to read or harder to respond to. A wall of text is a failed
+   message even when every byte arrives.
+   - One point per message — so a reader can react to *that* point, and so it can be forwarded,
+     quoted, or answered on its own. Distinct sub-topics together, only within a report.
+   - Long content — code, diffs, plans, anything awaiting approval — goes in a snippet or attachment,
+     never in the message body. This is the mechanism, not a suggestion. **A truncated plan still
+     looks like a plan** — and so does one nobody can read through; either way the reader cannot act
+     on it, which is the only thing a plan is for.
+   - Supporting note, not the reason: platforms may also drop content past a size limit while still
+     reporting success. When completeness matters, read back what was stored. Mechanics and
+     measurements live in `magic-librarian`'s `reference/messaging.md`.
+
 2. **React at each stage — required, not optional.**
    The moment a message is read, react with a `seen`-class emoji (e.g. 👀); when work on it genuinely starts, add a `started`-class reaction; when it's resolved, add a `done`/`noted`-class reaction. Additive stage semantics (seen → started → done/noted) — a later stage's reaction doesn't remove an earlier one. React AND reply — a reaction never replaces an owed reply, and a reply never exempts you from reacting.
 
@@ -180,7 +195,7 @@ Referenced from each member's `.basic.md`. Not a `routine-*` member.
     The literal marker `NEEDS REPLY:`, on its own line immediately before the question, is the only
     recognized signal that a message solicits the human-owner's reply — never buried mid-message, never
     implied by tone or closing prose alone. A claim that a thread is "waiting on human-owner" must cite a
-    still-unanswered occurrence of that marker (its `source-slack-channel`/`source-slack-ts`) — a status
+    still-unanswered occurrence of that marker (its `communication-channel-id`) — a status
     field, a bolded question, or an unmarked unreplied message never qualifies on its own.
     verbatim-intent: `"waiting on human-owner" is a checkable fact, not a narrative judgment call`.
     verbatim-benchmark: `a message asked the human-owner something without a "NEEDS REPLY:" marker line —

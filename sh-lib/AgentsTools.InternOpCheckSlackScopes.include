@@ -1,0 +1,308 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpCheckSlackScopes.include -- --intern-op-check-slack-scopes.
+## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being dot-sourced
+## for $1/$@/$MDSC_CMD. No --help entry: internal plumbing.
+##
+## WHAT THIS VERIFIES, AND WHAT IT DOES NOT:
+##
+##   It verifies GRANTED SCOPES. It does NOT verify EFFECTIVE ACCESS.
+##
+## A green result here means "Slack has granted these scopes to this token". It
+## does NOT mean the operation will succeed. The two are genuinely different:
+## the bot token holds `files:read` and still cannot read a file living in a DM
+## the bot was never added to -- granted scope, no access. Membership, channel
+## visibility and per-identity DM pairing are all invisible to this check.
+## Never report a pass here as "Slack works".
+##
+## WHY THIS EXISTS: nothing ever derived the required-scope list. Scopes were
+## added reactively, one failure at a time, so the person granting them was
+## never handed a complete list up front. This check exists so the list is
+## derived from what the code actually calls and can be granted in one pass.
+##
+## ONE IDENTITY IS EVALUATED: the one that actually performs the op, obtained
+## from --intern-op-slack-call --print-acting-identity. Not "does some identity
+## hold this scope" -- that question is not about the caller, and answering it
+## was wrong in both directions live: it passed an op whose acting identity was
+## missing nothing only because the other identity covered it, and failed an op
+## because no single token held both spellings of one capability.
+##
+## A declared requirement may be an ALTERNATION (`a|b`) -- one capability whose
+## scope name differs by token type, satisfied by any one alternative. A plain
+## scope must be held outright.
+##
+## DECLARED, NOT INFERRED -- and this file holds NO scope list of its own. Each
+## Slack op declares the scopes it needs, in its own arm, and answers
+## `--print-required-scopes` with them. The caller names which ops to poll via
+## repeatable --scope-source <op-name>; this op unions the answers. Adding a
+## Slack call means editing that op's own declaration and nothing here.
+##
+
+case "$1" in
+
+	--intern-op-check-slack-scopes)
+		shift
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-check-slack-scopes (internal operation, invoked via $opContext): syntax is <team-member> [--scope-source <op-name>]..." >&2
+			set +e ; return 1
+		fi
+
+		local scopeSources=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--scope-source)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-check-slack-scopes (internal operation, invoked via $opContext): --scope-source: value required (<op-name>)" >&2
+						set +e ; return 1
+					fi
+					scopeSources+=( "$2" )
+					shift 2
+				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-check-slack-scopes (internal operation, invoked via $opContext): --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-slack-scopes (internal operation, invoked via $opContext): invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		if [ ${#scopeSources[@]} -eq 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-check-slack-scopes (internal operation, invoked via $opContext): at least one --scope-source <op-name> is required -- this op declares no scopes of its own" >&2
+			set +e ; return 1
+		fi
+
+		## A DECLARED SOURCE THAT ANSWERS NOTHING IS AN ERROR, NEVER A PASS.
+		## An op that does not implement --print-required-scopes would otherwise
+		## contribute an empty set and read as "nothing needed" -- a declaration
+		## with no implementation behind it, which is the one shape that must
+		## never render as clean.
+		local srcOp srcScopes
+		local srcNames=() srcLists=()
+		for srcOp in "${scopeSources[@]}" ; do
+			srcScopes="$( DistroAgentsTools "$srcOp" --print-required-scopes 2>/dev/null )" || srcScopes=""
+			if [ -z "$srcScopes" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-check-slack-scopes (internal operation, invoked via $opContext): declared --scope-source '$srcOp' returned no scope declaration -- it does not implement --print-required-scopes, so its requirements cannot be verified. A declared check with nothing implementing it must never pass silently." >&2
+				set +e ; return 1
+			fi
+			srcNames+=( "$srcOp" )
+			## Normalised to a comma-delimited, comma-fenced string so every later
+			## comparison is delimited. NEVER a substring test: `im:history` is a
+			## substring of `mpim:history`, so a containment check passes a token
+			## holding only the latter -- one revocation away from a silent false
+			## pass.
+			srcLists+=( ",$( printf '%s' "$srcScopes" | tr '\n' ',' | sed 's/,,*/,/g; s/^,//; s/,$//' )," )
+		done
+
+		## Granted scopes come from auth.test's own x-oauth-scopes response header.
+		## auth.test REQUIRES NO SCOPES, deliberately: a scope check whose probe
+		## needed a scope could fail for exactly the reason it exists to detect.
+		## One call per identity is inherent -- a bot-token call cannot report the
+		## user token's grants.
+		local identity token grantedRaw grantedList headerFile httpBody
+		local anyFinding=0
+		local identLabels=() identGrants=()
+
+		for identity in bot user ; do
+			token=""
+			if [ "$identity" = "bot" ] ; then
+				## THE TEAM'S SCOPE, NOT THE CALLING MEMBER'S -- and this site was
+				## wrong in a way that could not show: it asked each member for a
+				## token that lived in one specific member's settings, so for every
+				## member except that one it read nothing and reported
+				## `could-not-check`, a state indistinguishable from a genuinely
+				## unconfigured workspace. The bot identity is the team's, one
+				## token for everyone, so it is read from the team's own scope and
+				## the answer is now the same for every caller -- which is what
+				## "the granted scopes of the bot identity" always meant.
+				token="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN 2>/dev/null )" || token=""
+			else
+				token="$( DistroAgentsTools --member-config-option "$callingMember" --select SLACK_USER_TOKEN 2>/dev/null )" || token=""
+			fi
+
+			if [ -z "$token" ] ; then
+				echo "slack-scopes[$identity]: could-not-check"
+				echo "  note: no token configured for this identity -- NOT the same as 'no scopes granted'"
+				identLabels+=( "$identity" )
+				identGrants+=( "" )
+				continue
+			fi
+
+			## Token to a 0600 header file, never argv -- keeps it out of ps.
+			headerFile="$( mktemp )" || { set +e ; return 1 ; }
+			chmod 600 "$headerFile"
+			trap 'rm -f "$headerFile" "$dumpFile"' EXIT
+			printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
+
+			local dumpFile
+			dumpFile="$( mktemp )" || { rm -f "$headerFile" ; set +e ; return 1 ; }
+
+			httpBody="$( curl -sS -D "$dumpFile" -o /dev/null https://slack.com/api/auth.test -H @"$headerFile" 2>&1 )"
+			local curlRc=$?
+			rm -f "$headerFile"
+
+			if [ "$curlRc" -ne 0 ] ; then
+				echo "slack-scopes[$identity]: could-not-check"
+				echo "  note: auth.test transport failed (curl exit $curlRc) -- grants unknown, NOT empty"
+				rm -f "$dumpFile"
+				trap - EXIT
+				identLabels+=( "$identity" )
+				identGrants+=( "" )
+				continue
+			fi
+
+			## CRLF strip: HTTP headers end CR-LF, and a trailing CR would ride
+			## into the last scope name and silently never match.
+			grantedRaw="$( LC_ALL=C awk 'BEGIN{IGNORECASE=1} /^x-oauth-scopes:/ { sub(/^[^:]*:[ \t]*/, "") ; gsub(/\r/, "") ; print ; exit }' "$dumpFile" )"
+			rm -f "$dumpFile"
+			trap - EXIT
+
+			if [ -z "$grantedRaw" ] ; then
+				echo "slack-scopes[$identity]: could-not-check"
+				echo "  note: no x-oauth-scopes header in the auth.test response -- grants unknown, NOT empty"
+				identLabels+=( "$identity" )
+				identGrants+=( "" )
+				continue
+			fi
+
+			grantedList=",$( printf '%s' "$grantedRaw" | tr -d ' \r' ),"
+			identLabels+=( "$identity" )
+			identGrants+=( "$grantedList" )
+		done
+
+		## WHICH IDENTITY ACTUALLY PERFORMS THESE OPS.
+		##
+		## This replaces an existential test -- "does SOME identity hold this
+		## scope" -- that was the wrong question in both directions, and was
+		## wrong in both directions live. It passed --member-comms-slack-react because
+		## the bot holds reactions:read, while the identity that actually runs
+		## the op is the member's own user identity, which does not; and it
+		## failed --member-comms-slack-send-message because no single token held both
+		## spellings of one capability. An existential answer is not an answer
+		## about the caller.
+		##
+		## The rule is NOT restated here. It is asked of --intern-op-slack-call,
+		## the one place identity selection lives, via --print-acting-identity,
+		## which reports what its own selection resolved to. Re-deriving it here
+		## from "does a user token exist" would be a second copy of the rule,
+		## free to drift from the op it claims to describe -- and the drift
+		## would be invisible, because a checker that agrees with itself still
+		## looks clean.
+		local actingIdentity=""
+		actingIdentity="$( DistroAgentsTools --intern-op-slack-call "$callingMember" --print-acting-identity --context "$MDSC_CMD --intern-op-check-slack-scopes" 2>/dev/null )" || actingIdentity=""
+		case "$actingIdentity" in
+			bot|user) ;;
+			*) actingIdentity="" ;;
+		esac
+
+		## The acting identity's own grants, picked out of the per-identity
+		## reads above. An identity whose grants could not be read is unknown,
+		## never empty -- the distinction the whole file exists to keep.
+		local k actingGrants="" actingGrantsKnown="false"
+		if [ -n "$actingIdentity" ] ; then
+			for k in "${!identLabels[@]}" ; do
+				[ "${identLabels[$k]}" = "$actingIdentity" ] || continue
+				actingGrants="${identGrants[$k]}"
+				[ -z "$actingGrants" ] || actingGrantsKnown="true"
+			done
+		fi
+
+		if [ -z "$actingIdentity" ] ; then
+			echo "slack-scopes: acting-identity could-not-check"
+			echo "  note: --intern-op-slack-call did not report an acting identity for $callingMember --"
+			echo "        requirements cannot be attributed to a token, so nothing below is verified"
+		else
+			echo "slack-scopes: acting identity is '$actingIdentity' -- the identity these operations"
+			echo "  actually run under for $callingMember, per --intern-op-slack-call's own selection"
+		fi
+
+		## Per-operation evaluation against that one identity. An alternation
+		## (`a|b`) is one requirement with per-token spellings and is satisfied
+		## by ANY of its alternatives; a plain scope must be held outright.
+		## Still never a substring test: every comparison stays comma-fenced,
+		## because `im:history` is a substring of `mpim:history`.
+		local i need rest alt altRest altOk opOk missing
+		local unknowns=0
+		for i in "${!srcNames[@]}" ; do
+			if [ "$actingGrantsKnown" != "true" ] ; then
+				echo "${srcNames[$i]}: could-not-check"
+				echo "  note: the acting identity's granted scopes could not be read -- unverified, NOT clean"
+				unknowns=$(( unknowns + 1 ))
+				continue
+			fi
+			opOk="true" ; missing=""
+			rest="${srcLists[$i]#,}"
+			while [ -n "$rest" ] && [ "$rest" != "," ] ; do
+				need="${rest%%,*}"
+				rest="${rest#*,}"
+				[ -n "$need" ] || continue
+				altOk="false"
+				altRest="$need|"
+				while [ -n "$altRest" ] ; do
+					alt="${altRest%%|*}"
+					altRest="${altRest#*|}"
+					[ -n "$alt" ] || continue
+					case "$actingGrants" in
+						*",$alt,"*) altOk="true" ;;
+					esac
+				done
+				if [ "$altOk" != "true" ] ; then opOk="false" ; missing="$missing $need" ; fi
+			done
+			if [ "$opOk" = "true" ] ; then
+				echo "${srcNames[$i]}: OK"
+			else
+				echo "${srcNames[$i]}: WARN"
+				echo "  warn: acting identity '$actingIdentity' is missing:${missing}"
+				anyFinding=$(( anyFinding + 1 ))
+			fi
+		done
+
+		## SCOPE IS NECESSARY AND NOT SUFFICIENT, stated on every run rather
+		## than only beside a finding -- a clean result is exactly the case
+		## where a reader is most likely to hear "Slack works".
+		##
+		## Proven live: files.info visibility is conversation-scoped, not
+		## workspace-scoped. The bot identity holds files:read and still gets
+		## file_not_found on a file whose id it can plainly see, because the
+		## file lives in the user identity's DM. Membership, channel visibility
+		## and per-identity DM pairing are all invisible here.
+		echo "slack-scopes: $anyFinding operation(s) with a missing scope, $unknowns unverified"
+		echo "  note: granted-scope check only. This answers 'may this identity ever',"
+		echo "        never 'can this identity here' -- a call can still fail on"
+		echo "        conversation membership with every scope in place."
+
+		## Exit status, distinguishing the three states that actually exist. A
+		## real finding outranks an unverified one: an unknown says the check
+		## could not see, a finding says it saw a gap.
+		if [ "$anyFinding" -gt 0 ] ; then
+			set +e ; return 4
+		fi
+		if [ "$unknowns" -gt 0 ] || [ -z "$actingIdentity" ] ; then
+			set +e ; return 3
+		fi
+		return 0
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpCheckSlackScopes.include's own default (*) branch, the operation group sourced by the --intern-op-check-slack-scopes dispatcher route; no operation of that name is defined in this include" >&2
+		set +e ; return 1
+	;;
+esac

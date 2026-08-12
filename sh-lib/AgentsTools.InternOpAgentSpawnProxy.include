@@ -134,12 +134,7 @@ case "$1" in
 				spawnContext="$( cat "$fromFilePath" )"
 			;;
 			board)
-				case "$fromBoardName" in
-					*/*|.|..)
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): board item name must be a bare filename: $fromBoardName" >&2
-						set +e ; return 1
-					;;
-				esac
+				AgentsToolsAssertBareName "$fromBoardName" "<board-item-name>" "$MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
 				if [ ${#boardStates[@]} -eq 0 ] ; then
 					boardStates=( backlog pending running blocked parked processed archived retained )
 				fi
@@ -154,21 +149,11 @@ case "$1" in
 				spawnContext="$( DistroAgentsTools "${readArgs[@]}" )" || { set +e ; return 1 ; }
 			;;
 			vault)
-				case "$fromVaultName" in
-					*/*|.|..)
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): vault item name must be a bare filename: $fromVaultName" >&2
-						set +e ; return 1
-					;;
-				esac
+				AgentsToolsAssertBareName "$fromVaultName" "<vault-item-name>" "$MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
 				spawnContext="$( DistroAgentsTools --intern-op-data-read "$fromVaultName" --lookup-folder "$MDAT_DATA_ROOT/vault" --context "$opContext" )" || { set +e ; return 1 ; }
 			;;
 			audit)
-				case "$fromAuditName" in
-					*/*|.|..)
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): audit item name must be a bare filename: $fromAuditName" >&2
-						set +e ; return 1
-					;;
-				esac
+				AgentsToolsAssertBareName "$fromAuditName" "<audit-item-name>" "$MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
 				## Propagates $opContext for the same reason as the board branch above.
 				local auditReadArgs=( --intern-op-data-read "$fromAuditName" --context "$opContext" )
 				case "$fromAuditName" in

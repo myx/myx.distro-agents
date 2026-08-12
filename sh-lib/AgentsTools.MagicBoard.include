@@ -74,9 +74,9 @@ case "$1" in
 	## Same shape as --magic-board-to-pending, target fixed to blocked --
 	## the backlog->blocked half of check-process-board's own
 	## human-owner-approval-needed branch. The companion approval-* item
-	## (board-running, fresh create) is a separate --write-board-item call,
-	## not this op's concern -- that's a create, not a move, so it already
-	## has a safe one-call path.
+	## (board-running, fresh create) is a separate --magic-board-create-running
+	## call, defined further down this same file -- not this op's concern.
+	## That's a create, not a move, so it has its own one-call path.
 	--magic-board-to-blocked)
 		shift
 		local callingMember="$1"

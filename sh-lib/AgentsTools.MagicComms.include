@@ -14,6 +14,14 @@ case "$1" in
 
 	--magic-comms-slack-resolve-ids)
 		shift
+		## Scope declaration -- this arm calls auth.test (no scope required),
+		## users.list, conversations.list, conversations.info and
+		## conversations.open. The *:write scopes are for opening DM/group-DM
+		## conversations, not for posting.
+		if [ "$1" = "--print-required-scopes" ] ; then
+			printf '%s\n' users:read channels:read groups:read im:read im:write mpim:read mpim:write
+			return 0
+		fi
 		local memberName="$1"
 		shift || true
 		if [ -z "$memberName" ] ; then
@@ -64,7 +72,10 @@ case "$1" in
 		if [ -n "$token" ] ; then
 			tokenSource="member-user-token"
 		else
-			token="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_BOT_TOKEN )"
+			## The team's own bot token, read from the team's own scope -- see
+			## AgentsTools.InternOpSlackCall.include's own copy of this fallback
+			## for why it does not live in any single member's settings.
+			token="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN )"
 			tokenSource="shared-bot-token"
 		fi
 		if [ -z "$token" ] ; then
@@ -82,19 +93,85 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local authUserId authUserName
-		authUserId="$( printf '%s' "$authResp" | sed -n 's/.*"user_id":"\([^"]*\)".*/\1/p' )"
-		authUserName="$( printf '%s' "$authResp" | sed -n 's/.*"user":"\([^"]*\)".*/\1/p' )"
+		## Every Slack field read in this arm goes through one structural
+		## key-path reader, sh-lib/AgentsSlackJsonField.awk, instead of a
+		## per-field `sed` expression. Each of those expressions was of the
+		## form `s/.*"KEY":"\([^"]*\)".*/\1/p`, and BRE `.*` is greedy, so
+		## every one of them returned the LAST occurrence of that key anywhere
+		## in the body -- at any depth, in any nested object. They were all
+		## written as if the key occurs exactly once, and they were correct
+		## only while that happened to be true of the shape Slack returns:
+		## undocumented, unenforced, and unchecked by the code depending on
+		## it. A full key path matches by equality and cannot drift onto a
+		## nested namesake.
+		##
+		## The reader reports three states on its EXIT STATUS -- rc 0 found,
+		## rc 3 that path is not in this payload, rc 1 the body was not a
+		## parseable API response -- and each read below acts on the status,
+		## never on whether the returned string looks empty. `-v optional=1`
+		## is set only where absence is a genuinely normal state, and says so
+		## on purpose rather than being inferred from "".
+		local slackJsonField="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk"
+
+		## auth.test is already confirmed ok:true above, so `user_id` is
+		## required here, not optional. It is also consumed downstream (the
+		## session-context scan reads the AUTH_USER_ID= line this op prints),
+		## and printing an empty one would hand a silently-absent identity to
+		## that consumer -- the exact failure this whole conversion exists to
+		## remove. Absence stops the op.
+		local authUserId="" authUserName="" authUserIdRc=0 authUserNameRc=0
+		authUserId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -f "$slackJsonField" )" || authUserIdRc=$?
+		if [ "$authUserIdRc" != "0" ] || [ -z "$authUserId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: auth.test returned ok:true but no readable top-level user_id (reader rc=$authUserIdRc) -- refusing to report an empty AUTH_USER_ID" >&2
+			set +e ; return 1
+		fi
 		printf 'AUTH_USER_ID=%s\n' "$authUserId"
-		printf 'AUTH_USER_NAME=%s\n' "$authUserName"
+
+		## The handle, by contrast, is a display detail with no downstream
+		## consumer, so its absence is reportable rather than fatal -- but it
+		## is reported as its own state (`-`, plus a note), not as an empty
+		## value a reader would have to guess at.
+		authUserName="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user -v optional=1 -f "$slackJsonField" )" || authUserNameRc=$?
+		if [ "$authUserNameRc" = "0" ] ; then
+			printf 'AUTH_USER_NAME=%s\n' "$authUserName"
+		else
+			echo "# $MDSC_CMD --magic-comms-slack-resolve-ids: auth.test carries no readable top-level user handle (reader rc=$authUserNameRc) -- reporting it absent, not empty" >&2
+			printf 'AUTH_USER_NAME=%s\n' '-'
+		fi
 
 		local usersJson channelsJson usersOk channelsOk
 		usersJson="$( curl -sS -G https://slack.com/api/users.list -H "Authorization: Bearer $token" --data-urlencode "limit=1000" )"
 		channelsJson="$( curl -sS -G https://slack.com/api/conversations.list -H "Authorization: Bearer $token" --data-urlencode "types=public_channel,private_channel,im,mpim" --data-urlencode "exclude_archived=true" --data-urlencode "limit=1000" )"
-		usersOk="$( printf '%s' "$usersJson" | sed -En 's/.*"ok":(true|false).*/\1/p' )"
-		channelsOk="$( printf '%s' "$channelsJson" | sed -En 's/.*"ok":(true|false).*/\1/p' )"
-		printf 'USERS_LIST_OK=%s\n' "${usersOk:--}"
-		printf 'CHANNELS_LIST_OK=%s\n' "${channelsOk:--}"
+		## Top-level `ok`, read by full key path like every other field in this
+		## arm. These two lines used to be
+		##   sed -En 's/.*"ok":(true|false).*/\1/p'
+		## which is a different bug from the `\|` one documented elsewhere in
+		## this package -- `-E` really is an ERE, so the alternation is portable
+		## and this form works on BSD -- but it is the SAME greedy-read class:
+		## ERE `.*` is greedy exactly as BRE `.*` is, so the leading `.*` eats as
+		## far as it can and the capture lands on the LAST `"ok":true|false` in
+		## the body, at any depth, in any nested object. It reads the top-level
+		## `ok` only while no nested object happens to carry one, which is a
+		## property of the shape Slack returns today: undocumented, unenforced,
+		## and unchecked by the code depending on it. `-v path=ok` matches the
+		## top-level key by equality and cannot drift onto a nested namesake.
+		##
+		## Two states, not three, and both are positive. The reader REQUIRES a
+		## top-level `ok` to accept a body as a Slack API response at all, so
+		## rc 3 (that path is absent) is unreachable for this exact path: either
+		## rc 0 with `true`/`false`, or rc 1 because the body was not a parseable
+		## API response (empty read, an HTML error page, curl's own diagnostics
+		## captured in place of a body). The rc-1 state is rendered as `-` -- its
+		## own fact, "no readable ok in this body", distinct from a body that
+		## genuinely said `ok:false`, which the `${usersOk:--}` default this
+		## replaced could not tell apart.
+		local usersOkRc=0 channelsOkRc=0
+		usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || usersOkRc=$?
+		channelsOk="$( printf '%s\n' "$channelsJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || channelsOkRc=$?
+		[ "$usersOkRc" = "0" ] || usersOk='-'
+		[ "$channelsOkRc" = "0" ] || channelsOk='-'
+		printf 'USERS_LIST_OK=%s\n' "$usersOk"
+		printf 'CHANNELS_LIST_OK=%s\n' "$channelsOk"
 
 		if [ "$raw" = "true" ] ; then
 			printf 'USERS_JSON=%s\n' "$usersJson"
@@ -103,12 +180,12 @@ case "$1" in
 
 		if [ -n "$userNamesCsv" ] ; then
 			USERS_JSON="$usersJson" USER_NAMES_CSV="$userNamesCsv" \
-				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackResolveUserMatches.py"
+				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveUserMatches.py"
 		fi
 
 		if [ -n "$channelNamesCsv" ] ; then
 			CHANNELS_JSON="$channelsJson" CHANNEL_NAMES_CSV="$channelNamesCsv" \
-				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackResolveChannelMatches.py"
+				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveChannelMatches.py"
 		fi
 
 		local alias aliasTarget aliasResolved aliasRc aliasChannel aliasInfo aliasInfoOk aliasInfoErr aliasName
@@ -120,27 +197,78 @@ case "$1" in
 				continue
 			fi
 			aliasChannel="$( printf '%s\n' "$aliasResolved" | sed -n 's/^CHANNEL=//p' )"
+			## Unit-2 forward compatibility, INERT today -- "" until the Unit-3 flip.
+			local aliasUserId=""
+			aliasUserId="$( printf '%s\n' "$aliasResolved" | sed -n 's/^USER_ID=//p' )" || aliasUserId=""
 			aliasInfo="$( curl -sS -G https://slack.com/api/conversations.info -H "Authorization: Bearer $token" --data-urlencode "channel=$aliasChannel" )"
-			aliasInfoOk="$( printf '%s' "$aliasInfo" | sed -En 's/.*"ok":(true|false).*/\1/p' )"
-			aliasInfoErr="$( printf '%s' "$aliasInfo" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' )"
-			aliasName="$( printf '%s' "$aliasInfo" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p' )"
+			## `ok`, `error` and `name` all come out of the same body through the
+			## same key-path reader, in one group, rather than one of them being
+			## a leftover `sed -En 's/.*"ok":(true|false).*/\1/p'` beside the
+			## other two. That expression was portable -- `-E` is an ERE, so its
+			## alternation is not the BSD `\|` trap -- and still wrong in the same
+			## way as the rest of this class: ERE `.*` is greedy, so it returned
+			## the LAST `"ok":` in the body rather than the top-level one. A
+			## conversations.info body is exactly the shape where that matters:
+			## it nests whole objects (a channel's `latest` message, profiles,
+			## shared-team entries) that Slack is free to grow an `ok` inside at
+			## any time, with no warning and no version bump.
+			##
+			## `ok` is a required key by this reader's own contract, so its two
+			## states are rc 0 (`true`/`false`) and rc 1 (not a parseable API
+			## response); `-` states the latter positively, as its own fact, and
+			## is deliberately NOT the same thing as a body that said `ok:false`.
+			## `error` is top-level and absent on a successful call -- a
+			## genuinely optional field, declared optional rather than
+			## inferred from an empty string. `name` is the channel object's
+			## OWN `channel.name`: a conversations.info body can carry several
+			## `"name"` keys (a nested profile, a shared-team entry, a
+			## bot_profile), and the greedy expression this replaced returned
+			## whichever of them happened to come last. An IM has no name at
+			## all, which is a legitimate absence, not an empty name.
+			local aliasInfoOkRc=0 aliasInfoErrRc=0 aliasNameRc=0
+			aliasInfoOk=""
+			aliasInfoErr=""
+			aliasName=""
+			aliasInfoOk="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || aliasInfoOkRc=$?
+			aliasInfoErr="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path=error -v optional=1 -f "$slackJsonField" )" || aliasInfoErrRc=$?
+			aliasName="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path=channel.name -v optional=1 -f "$slackJsonField" )" || aliasNameRc=$?
+			## Rendered from the exit status, not from the string: `-` here
+			## states "this response does not carry that field", which is a
+			## different fact from "the response carries it and it is empty".
+			[ "$aliasInfoOkRc" = "0" ] || aliasInfoOk='-'
+			[ "$aliasNameRc" = "0" ] || aliasName='-'
+			[ "$aliasInfoErrRc" = "0" ] || aliasInfoErr='-'
 			if [ "$aliasInfoOk" = "true" ] ; then
-				echo "ALIAS|$alias|configured=true|channel=$aliasChannel|reachable=true|name=${aliasName:--}|error=-"
+				echo "ALIAS|$alias|configured=true|channel=$aliasChannel|reachable=true|name=$aliasName|error=-"
 			else
-				echo "ALIAS|$alias|configured=true|channel=$aliasChannel|reachable=false|name=${aliasName:--}|error=${aliasInfoErr:--}"
+				echo "ALIAS|$alias|configured=true|channel=$aliasChannel|reachable=false|name=$aliasName|error=$aliasInfoErr"
 			fi
 		done
 
 		local humanAliasResolved humanAliasChannel humanAliasInfo humanAliasErr
 		humanAliasResolved="$( DistroAgentsToolsResolveTarget human-owner )" || humanAliasResolved=""
 		humanAliasChannel="$( printf '%s\n' "$humanAliasResolved" | sed -n 's/^CHANNEL=//p' )"
+		## Unit-2 forward compatibility, INERT today. This is the site the Unit-3
+		## flip actually changes behaviour at: human-owner will emit USER_ID= and
+		## NO CHANNEL=, so humanAliasChannel goes empty and the branch below is
+		## skipped rather than querying a stale shared DM id.
+		local humanAliasUserId=""
+		humanAliasUserId="$( printf '%s\n' "$humanAliasResolved" | sed -n 's/^USER_ID=//p' )" || humanAliasUserId=""
 		if [ -n "$humanAliasChannel" ] ; then
 			humanAliasInfo="$( curl -sS -G https://slack.com/api/conversations.info -H "Authorization: Bearer $token" --data-urlencode "channel=$humanAliasChannel" )"
 			if printf '%s' "$humanAliasInfo" | grep -q '"ok":true' ; then
 				echo "HUMAN_OWNER_TARGET|status=reachable|target=$humanAliasChannel|source=config-alias"
 				return 0
 			fi
-			humanAliasErr="$( printf '%s' "$humanAliasInfo" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' )"
+			## Reached only when the call did NOT report ok:true, so an
+			## `error` is expected here -- but "expected" is not "guaranteed",
+			## and a body that carries none must say so as its own state
+			## rather than as an empty string the reporting line below would
+			## have had to second-guess.
+			local humanAliasErrRc=0
+			humanAliasErr=""
+			humanAliasErr="$( printf '%s\n' "$humanAliasInfo" | LC_ALL=C awk -v path=error -v optional=1 -f "$slackJsonField" )" || humanAliasErrRc=$?
+			[ "$humanAliasErrRc" = "0" ] || humanAliasErr='-'
 		else
 			humanAliasErr="unresolved"
 		fi
@@ -148,23 +276,55 @@ case "$1" in
 		if [ "$usersOk" = "true" ] ; then
 			local hintUserId
 			hintUserId="$( USERS_JSON="$usersJson" HINT="$humanOwnerHint" \
-				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentSlackResolveHintUserId.py" )"
+				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveHintUserId.py" )"
 			if [ -n "$hintUserId" ] ; then
 				local openResp openOk openErr openChannel
 				openResp="$( curl -sS -X POST https://slack.com/api/conversations.open -H "Authorization: Bearer $token" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$hintUserId" )"
-				openOk="$( printf '%s' "$openResp" | sed -En 's/.*"ok":(true|false).*/\1/p' )"
-				openErr="$( printf '%s' "$openResp" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' )"
-				openChannel="$( printf '%s' "$openResp" | sed -n 's/.*"id":"\([CDG][^"]*\)".*/\1/p' )"
-				if [ "$openOk" = "true" ] && [ -n "$openChannel" ] ; then
+				## `ok` joins the same read group as `error` and `channel.id`
+				## below, instead of staying a `sed -En 's/.*"ok":(true|false).*/\1/p'`
+				## alongside them. `-E` is an ERE here, so this one was never the
+				## BSD `\|` hazard -- but ERE `.*` is greedy exactly as BRE `.*`
+				## is, so it captured the LAST `"ok":` anywhere in the body rather
+				## than the top-level one, and was correct only while no nested
+				## object carried one. A conversations.open body already nests a
+				## whole `channel` object; what else Slack decides to put in it is
+				## not this code's to assume.
+				##
+				## Two states, both positive: rc 0 with `true`/`false`, or rc 1
+				## because the body was not a parseable API response at all --
+				## `ok` is required by the reader's own contract, so rc 3 cannot
+				## occur for this path. `-` is that rc-1 state said out loud, and
+				## is not interchangeable with a real `ok:false`.
+				## `error` is optional (absent on success). `channel.id` is
+				## the opened conversation's OWN id, by full key path -- the
+				## expression this replaced, `s/.*"id":"\([CDG][^"]*\)".*/\1/p`,
+				## captured the LAST C/D/G-prefixed `"id"` anywhere in the
+				## body, because BRE `.*` is greedy; the `[CDG]` class was
+				## never a selector for the right field, only a filter hiding
+				## how arbitrary the choice was.
+				local openOkRc=0 openErrRc=0 openChannelRc=0
+				openOk=""
+				openErr=""
+				openChannel=""
+				openOk="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || openOkRc=$?
+				openErr="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=error -v optional=1 -f "$slackJsonField" )" || openErrRc=$?
+				openChannel="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=channel.id -f "$slackJsonField" )" || openChannelRc=$?
+				[ "$openOkRc" = "0" ] || openOk='-'
+				[ "$openErrRc" = "0" ] || openErr='-'
+				## This id is REQUIRED -- it is reported as the human-owner
+				## target and used as one. Presence is tested on the reader's
+				## exit status; an absent id is never allowed to reach the
+				## reachable branch as an empty target.
+				if [ "$openOk" = "true" ] && [ "$openChannelRc" = "0" ] && [ -n "$openChannel" ] ; then
 					echo "HUMAN_OWNER_TARGET|status=reachable|target=$openChannel|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId"
 					return 0
 				fi
-				echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId|error=${openErr:--}|alias_error=${humanAliasErr:--}"
+				echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId|error=$openErr|channel_id_reader_rc=$openChannelRc|alias_error=$humanAliasErr"
 				return 1
 			fi
 		fi
 
-		echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=none|hint=$humanOwnerHint|alias_error=${humanAliasErr:--}|note=unable_to_resolve_hint_user"
+		echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=none|hint=$humanOwnerHint|alias_error=$humanAliasErr|note=unable_to_resolve_hint_user"
 		set +e ; return 1
 	;;
 

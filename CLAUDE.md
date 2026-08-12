@@ -80,6 +80,15 @@ scripts are), its own install/Command-Palette wiring (`sh-lib/AgentsTools.Make.i
 pair (magic-* team Slack/email/board/console-session automation — unrelated to the console
 launcher above, see the naming-collision note below).
 
+**Implementation language**: prefer `awk` or POSIX shell for anything new — `sh-lib/`
+currently carries 15 `.awk` helpers to 8 `.py`. Those eight Python helpers stay as they
+are; this is a preference for new code, not a ban and not a cleanup task. Reach for
+Python only when the job genuinely needs it, and say why at the call site:
+`AgentsImapFetchMessage.py` exists because `curl` cannot consume an IMAP literal at all;
+`AgentsSlackBlocksFallbackText.py` because deriving fallback text from a Block Kit array
+needs real JSON parsing, and `python3` was already an unconditional dependency of that
+exact code branch.
+
 **Not the same thing as `DistroAgentsConsole.sh`**: `sh-scripts/DistroAgentsTools.fn.sh`,
 also owned by this package, is a separate, unrelated magic-* team automation tool
 (Slack/email/board/console-session ops).

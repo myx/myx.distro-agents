@@ -22,8 +22,8 @@ Doesn't do: anything `routine-process-inbox` already covers for acting members. 
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-0. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — `magic-coordinator`'s own mail only; the non-acting-owner content sitting in that same inbox is **work-the-loop**'s job, not this step's.
-1. **work-the-loop**: pick one of five actions per item, by its own real history — not a fixed rotation.
+1. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — `magic-coordinator`'s own mail only; the non-acting-owner content sitting in that same inbox is **work-the-loop**'s job, not this step's.
+2. **work-the-loop**: pick one of five actions per item, by its own real history — not a fixed rotation.
    - **Retry**: the prior attempt may not have landed — try again through the same channel.
    - **Communicate**: send a fresh status/update even without a specific blocker, to keep the item visibly alive.
    - **Remind**: a gentle nudge on something already sent, not yet answered.
@@ -64,11 +64,11 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-slack-send-message <team-member> <target> [text...]` (step 1: escalation DM; Slack activity-tracking obligation)
+- `--member-comms-slack-send-message <team-member> <target> [text...]` (**work-the-loop**: escalation DM; Slack activity-tracking obligation)
 
-## `--member-slack-send-message` operation reference
+## `--member-comms-slack-send-message` operation reference
 
-`DistroAgentsTools.fn.sh --member-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
 # Maintainer Notes
 

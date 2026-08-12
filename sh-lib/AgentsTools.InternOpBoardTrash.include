@@ -209,12 +209,7 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
-		case "$itemName" in
-			*/*|.|..)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): item filename must be a bare filename: $itemName" >&2
-				set +e ; return 1
-			;;
-		esac
+		AgentsToolsAssertBareName "$itemName" "<item-name>" "$MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2

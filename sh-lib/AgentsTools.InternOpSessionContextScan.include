@@ -17,13 +17,19 @@
 ## default) lives in each calling wrapper, never here -- this file only knows
 ## the generic scan/filter/format mechanics.
 ##
-## CANONICAL NOTE -- identical wrappers are deliberate; do not collapse them.
-## --magic-advance-input-scan, --magic-grooming-input-scan and
-## --magic-heartbeat-input-scan pass byte-identical arguments to this primitive
-## (the same five active states backlog/pending/running/blocked/parked, plus
-## --all-types) and therefore produce byte-identical output on any successful
-## run. That is the designed state, ruled so by the human-owner, not an
-## oversight and not triplication to be refactored away.
+## CANONICAL NOTE -- per-consumer wrappers are deliberate; do not collapse them.
+## --magic-advance-input-scan and --magic-grooming-input-scan pass
+## byte-identical arguments to this primitive (the same five active states
+## backlog/pending/running/blocked/parked, plus --all-types) and therefore
+## produce byte-identical output on any successful run. That is the designed
+## state, ruled so by the human-owner, not an oversight and not duplication to
+## be refactored away.
+##
+## --magic-heartbeat-input-scan no longer does. It narrowed to
+## running/blocked with a single `status` header, because routine-heartbeat's
+## own steps consume nothing wider -- see that wrapper's own header comment in
+## AgentsTools.MagicHeartbeat.include for the trace. It diverged unilaterally,
+## which is precisely the freedom this per-consumer split exists to give.
 ##
 ## The reason is that these ops exist PER CONSUMER, not per scan scope. Each
 ## one is its own routine's own named input: routine-advance's,
@@ -67,7 +73,7 @@
 ##     nothing more; it never opens/reads the file or touches any frontmatter
 ##     field. Cheap enough to check before even stat-ing the file's content.
 ##   - OWNER (the `owner:` frontmatter field -- who's assigned) via the
-##     optional --owner <value>, exact match. A plain inline sed extraction +
+##     optional --filter-owner <value>, exact match. A plain inline sed extraction +
 ##     bash string comparison -- too trivial (one exact-match line check) to
 ##     need a script of its own.
 ##   - --item <name> (optional, repeatable): restricts matched files to just
@@ -91,7 +97,7 @@
 ##     always-correct universal default ("no restriction" = "everything"),
 ##     unlike type.
 ##   - no --header given -> every frontmatter field, verbatim (via the
-##     external AgentBoardItemFrontmatterPrint.awk, shared with
+##     external AgentsBoardItemFrontmatterPrint.awk, shared with
 ##     --member-work-session-input-scan's own inbox-listing half) -- same
 ##     "no restriction = everything" logic, also always safe (more headers
 ##     shown than needed is never wrong, just possibly more verbose).
@@ -108,36 +114,73 @@
 ## magic-team/templates/session-context.document.format.md and
 ## magic-team.shared.md's "Session-context document" entry.
 ##
-## BUILT SO FAR: the option surface and its validation only --
+## BUILT: the option surface and its validation --
 ##   --comms-since-date-time <YYYY-MM-DD...> | --comms-since-utime <epoch-seconds>
-##   --comms-do-all | --comms-do-slack | --comms-do-email | --comms-do-trello
+##   --comms-do-all | --intern-op-do-slack | --comms-do-email | --comms-do-trello
+##   --intern-op-do-slack-tags  (an additional IM source, needs --intern-op-do-slack or
+##                           --comms-do-all; declared and counted, not performed
+##                           yet -- see its own block below for why)
 ##   --do-inbox-inquiry-active | --do-inbox-inquiry-all
 ##   --do-inbox-reflections | --do-inbox-notes
 ##   --do-board-related-active | --do-board-related-all
-## plus a `## comms-scan` block that reports which services were REQUESTED and
-## states outright that none were read.
+## plus the three comms sections themselves -- `## Incoming IM Updates`,
+## `## Incoming Email Updates`, `## Incoming Trello Updates` -- each carrying
+## real items, its own `instrument:`, its own `sources-scanned: N of M`, the
+## format document's caps (128/128/64), and whichever of the three `**NOTE:**`
+## forms actually applies.
 ##
-## NOT BUILT YET: the comms reads themselves, the inbox sections, the
-## board-related sections, and the report's own section structure/caps. Every
-## flag above is accepted and reported but otherwise inert. `performed:` is
-## false on every path, deliberately -- an unfinished scan must never be
-## indistinguishable from an empty one, which is the whole point of the
-## document being built.
+## THE IM CAP COUNTS CONVERSATIONS; EMAIL AND TRELLO STILL COUNT ITEMS. A
+## thread, channel or DM is one unit of the IM cap however many messages it
+## carries, and the IM section reads oldest-first: conversations ordered by
+## their own newest message, messages oldest-first inside each. Selection and
+## presentation are separate on purpose -- the cap keeps the most recently
+## active conversations, then renders that window chronologically. There is
+## still no message-level merge ACROSS conversations, and the section says so.
 ##
-## Per-service reality, measured, which the unbuilt half has to solve:
+## This diverges from magic-team/templates/session-context.document.format.md,
+## which ratifies "128 IM" as an item cap and "newest first" as the sort. That
+## document is not this file's to edit; the divergence is deliberate, follows
+## the human-owner's own stated intent, and is raised with magic-librarian
+## rather than silently carried.
+##
+## NOT BUILT YET: the inbox sections (--do-inbox-*), board-relatedness scoping
+## (--do-board-related-*), and the report's own `# Session Sweep Report` /
+## `## Contents & Abstract` envelope. Those flags are accepted and their
+## sections ARE emitted, carrying the third `**NOTE:**` form ("no scan was
+## made -- ... not implemented ... yet"), never the first ("no new X"). An
+## unfinished scan must never be indistinguishable from an empty one, which is
+## the whole point of the document.
+##
+## Per-service reality, measured, and how each is resolved here:
 ##   - Slack: accepts a cut-off (--oldest), offers NO unread semantics.
+##     -> the cut-off IS the instrument; with none given the section says so
+##        outright rather than naming a fallback Slack does not have. The
+##        cut-off is NOT passed to Slack as `oldest` any more, though: a
+##        server-bounded page cannot contain a thread parent older than the
+##        bound, which made whole live threads undiscoverable. It is applied
+##        CLIENT-SIDE instead, to the display blocks only -- see this file's
+##        own commsCutoffTrimAwkProgram.
 ##   - email: offers UNSEEN, accepts no cut-off (no IMAP SINCE wired).
 ##   - Trello: offers read_filter=unread, accepts no cut-off.
+##     -> for both, unread IS the instrument, and a cut-off that was requested
+##        is reported as `cut-off-applied: no` rather than silently ignored.
 ## So the spec's "fall back to unread where the service offers it" resolves
-## differently per service, and a cut-off cannot reach email/Trello today.
-## Lagging pointers are the sanctioned mechanism where a service cannot take
-## the cut-off directly; none is implemented yet.
+## differently per service, which is exactly why `instrument:` is per section
+## and not one line at the top of the document.
 ##
-## NEITHER CUT-OFF SPELLING IS CONVERTED HERE. Validated for shape, recorded
-## and reported verbatim in the caller's own spelling. ISO->epoch needs date(1),
-## whose flags differ between Darwin/FreeBSD (-j -f) and Linux (-d);
-## cross-platform correctness is a hard requirement in this tree, so the
-## conversion belongs wherever a comms reader actually needs the number.
+## NO LAGGING POINTER IS STORED, deliberately. It is the sanctioned mechanism
+## where a service can take neither a cut-off nor unread semantics -- and no
+## service here is in that position: the two that refuse a cut-off both offer
+## unread. A pointer would add durable state, and a wrong-boundary failure
+## mode, to buy nothing the service does not already give.
+##
+## THE CUT-OFF IS CONVERTED ONCE, AT ITS POINT OF USE (the Slack block below,
+## where it feeds the client-side display filter and the thread-discovery awk --
+## no Slack read takes it as a parameter any more),
+## via AgentsIsoToEpoch.awk -- pure integer arithmetic, no date(1). There is no
+## portable ISO->epoch via date(1) at all: POSIX specifies date only as a
+## reader of the current time, and GNU's -d / BSD's -j -f are both extensions
+## to a spec with no such feature. See that file's own header.
 ##
 ## Strictly additive so far: a caller passing none of these options gets exactly
 ## the document it got before this surface existed, byte for byte -- verified by
@@ -151,9 +194,22 @@
 
 case "$1" in
 
-	## [--state <state>]... [--header <name>]...
+	## <team-member> [--state <state>]... [--header <name>]...
 	##   (--type-prefix:<value> [--type-prefix:<value>]... | --all-types)
-	##   [--owner <value>] [--item <name>]...
+	##   [--filter-owner <value>] [--item <name>]...
+	##
+	## THE LEADING <team-member> IS THE ACTING IDENTITY OF THE COMMS READS, and it
+	## is a positional rather than a flag because that is this package's own
+	## established shape for an --intern-op-*: --intern-op-slack-call and
+	## --intern-op-check-slack-scopes both already take the acting member first,
+	## and a third spelling for one concept is how a caller learns the wrong one.
+	##
+	## It is required on every call, not only comms-bearing ones. A board-only
+	## scan does not use it, but making it conditional would mean the one
+	## argument that decides WHOSE conversations get read is the one argument a
+	## caller can forget -- and forgetting it read as somebody else's inbox
+	## rather than as an error. Cheap to always supply; every wrapper already
+	## holds the name.
 	--intern-op-session-context-scan)
 		shift
 		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
@@ -168,6 +224,14 @@ case "$1" in
 			fi
 			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
 		done
+		local actingMember="$1"
+		shift || true
+		if [ -z "$actingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): syntax is <team-member> [options...] -- the acting member is required, since it is the identity every comms read in this scan acts as" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" "$MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+
 		local states=() headers=() typePrefixes=() items=()
 		local allTypes="false" owner=""
 		## Session-context surface (see this file's own header note). Every
@@ -176,6 +240,11 @@ case "$1" in
 		## whole point of the generated document.
 		local commsCutoffKind="" commsCutoffValue=""
 		local commsDoAll="false" commsDoSlack="false" commsDoEmail="false" commsDoTrello="false"
+		## An additional IM SOURCE, not a service of its own: the acting member's
+		## own tag, searched across the workspace via search.messages. Off unless
+		## asked for, because it costs a search call the rest of the IM read does
+		## not, and because a member that is never tagged gains nothing from it.
+		local commsDoSlackTags="false"
 		local doInboxInquiryActive="false" doInboxInquiryAll="false"
 		local doInboxReflections="false" doInboxNotes="false"
 		local doBoardRelatedActive="false" doBoardRelatedAll="false"
@@ -218,9 +287,14 @@ case "$1" in
 					allTypes="true"
 					shift
 				;;
-				--owner)
+				## Named --filter-owner, never --owner: this MATCHES on an item's
+				## existing `owner:` frontmatter and skips non-matching items --
+				## it is read-only and writes nothing. `--owner` as a write
+				## ("set this header") is a different meaning entirely, and one
+				## token must not carry both across this family.
+				--filter-owner)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --owner: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --filter-owner: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2"
@@ -235,9 +309,10 @@ case "$1" in
 					shift 2
 				;;
 				--comms-do-all)    commsDoAll="true" ; shift ;;
-				--comms-do-slack)  commsDoSlack="true" ; shift ;;
+				--intern-op-do-slack)  commsDoSlack="true" ; shift ;;
 				--comms-do-email)  commsDoEmail="true" ; shift ;;
 				--comms-do-trello) commsDoTrello="true" ; shift ;;
+				--intern-op-do-slack-tags) commsDoSlackTags="true" ; shift ;;
 				--do-inbox-inquiry-active) doInboxInquiryActive="true" ; shift ;;
 				--do-inbox-inquiry-all)    doInboxInquiryAll="true" ; shift ;;
 				--do-inbox-reflections)    doInboxReflections="true" ; shift ;;
@@ -255,12 +330,33 @@ case "$1" in
 					fi
 					case "$1" in
 						--comms-since-utime)
-							## Epoch seconds: digits only. Rejected here rather
-							## than passed through, so a malformed cut-off can
-							## never silently become "scan everything".
+							## Epoch seconds, with an OPTIONAL fractional part.
+							## Rejected here rather than passed through, so a
+							## malformed cut-off can never silently become
+							## "scan everything".
+							##
+							## The fraction is accepted deliberately, not
+							## leniently. The value a caller actually holds is a
+							## Slack ts -- epoch seconds carrying microseconds,
+							## e.g. 1786140114.450349 -- which is a utime, just a
+							## more precise one. Digits-only rejected it outright,
+							## so the first real sweep failed on the very value it
+							## was handed.
+							##
+							## Truncating to whole seconds was the alternative and
+							## is worse: Slack's `oldest` speaks this float
+							## natively, and dropping the fraction moves the
+							## boundary backwards, which re-reads the boundary
+							## message on every single sweep, forever. Precision
+							## is preserved end to end instead.
+							##
+							## Enumerated, never a [0-9] bracket range: ranges are
+							## collation-dependent, and this validator is the only
+							## thing standing between a malformed cut-off and a
+							## silently unbounded scan.
 							case "$2" in
-								''|*[!0-9]*)
-									echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-since-utime: must be epoch seconds, digits only: $2" >&2
+								''|*[!0123456789.]*|*.*.*|.*|*.)
+									echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-since-utime: must be epoch seconds, optionally with a fractional part (e.g. 1786140114 or 1786140114.450349): $2" >&2
 									set +e ; return 1
 								;;
 							esac
@@ -311,13 +407,22 @@ case "$1" in
 		## no-op: it reads like comms were requested when none were.
 		if [ -n "$commsCutoffKind" ] && [ "$commsDoAll" != "true" ] && [ "$commsDoSlack" != "true" ] \
 			&& [ "$commsDoEmail" != "true" ] && [ "$commsDoTrello" != "true" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): $commsCutoffKind given with no --comms-do-* selector -- a cut-off applies to a requested comms scan, and requesting none is never implied to mean all" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): $commsCutoffKind given with no comms selector (--comms-do-all, --intern-op-do-slack, --comms-do-email, --comms-do-trello) -- a cut-off applies to a requested comms scan, and requesting none is never implied to mean all" >&2
+			set +e ; return 1
+		fi
+		## The tag search is an IM source, so it needs the IM section to exist to
+		## report into. Refused rather than silently ignored: a caller that asked
+		## for tags and got a document with no IM section at all would read the
+		## absence as "nothing tagged you", which is the empty-versus-not-scanned
+		## confusion this document exists to prevent.
+		if [ "$commsDoSlackTags" = "true" ] && [ "$commsDoAll" != "true" ] && [ "$commsDoSlack" != "true" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --intern-op-do-slack-tags is an additional Slack/IM source and needs the IM scan itself -- pass it alongside --intern-op-do-slack or --comms-do-all" >&2
 			set +e ; return 1
 		fi
 		## --comms-do-all is the whole set, not a shorthand to combine with
 		## part of it -- same fixed-wrapper discipline as --all-types.
 		if [ "$commsDoAll" = "true" ] && { [ "$commsDoSlack" = "true" ] || [ "$commsDoEmail" = "true" ] || [ "$commsDoTrello" = "true" ] ; } ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-do-all and the individual --comms-do-slack/--comms-do-email/--comms-do-trello selectors are mutually exclusive" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-do-all and the individual --intern-op-do-slack/--comms-do-email/--comms-do-trello selectors are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 
@@ -330,7 +435,7 @@ case "$1" in
 			set +e ; return 1
 		}
 		local boardRoot="$MDAT_DATA_ROOT/board"
-		local frontmatterPrintAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentBoardItemFrontmatterPrint.awk"
+		local frontmatterPrintAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrint.awk"
 		local headersJoined="" sep=""
 		if [ ${#headers[@]} -gt 0 ] ; then
 			for h in "${headers[@]}" ; do
@@ -339,53 +444,35 @@ case "$1" in
 			done
 		fi
 
-		## Comms-scan declaration -- emitted only when a caller engaged the
-		## session-context surface at all, so a pure board-scan caller's
-		## document stays byte-identical to what it was before this surface
-		## existed. Printed BEFORE any board item.
+		## ------------------------------------------------------------------
+		## Which board items match, resolved ONCE, here, before anything is
+		## printed.
 		##
-		## Its `## comms-scan` header carries no `/`, so a consumer matching
-		## this document's item headers (`^## <state>/<item>`) never picks it
-		## up, while the key: value + blank-line body keeps the same shape
-		## every other block here uses.
+		## Two consumers need this same set, and the document's own section
+		## order puts them in the wrong order to share it any other way: the
+		## comms section prints FIRST but needs the open Slack threads recorded
+		## on board items, while the board section prints LAST and is where
+		## those items are actually walked. Collecting up front is what lets the
+		## comms reader see them without either buffering the uncapped board
+		## section in memory or emitting the sections out of the order the
+		## format document fixes.
 		##
-		## INCOMPLETE, deliberately and visibly: the revised spec's per-option
-		## reporting, the actual comms reads, the inbox sections and the
-		## board-related sections are NOT built yet -- see this file's own
-		## header note. Until they are, this block reports per-service what was
-		## requested and states plainly that nothing was read, so the document
-		## can never overstate what happened. `performed:` is false on every
-		## path here, without exception.
-		if [ -n "$commsCutoffKind" ] || [ "$commsDoAll" = "true" ] || [ "$commsDoSlack" = "true" ] \
-			|| [ "$commsDoEmail" = "true" ] || [ "$commsDoTrello" = "true" ] \
-			|| [ "$doInboxInquiryActive" = "true" ] || [ "$doInboxInquiryAll" = "true" ] \
-			|| [ "$doInboxReflections" = "true" ] || [ "$doInboxNotes" = "true" ] \
-			|| [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; then
-			printf '## comms-scan\n'
-			printf 'performed: false\n'
-			printf 'implementation-status: incomplete -- comms reads, inbox sections and board-related sections are not built yet\n'
-			if [ -z "$commsCutoffKind" ] ; then
-				printf 'cut-off: none\n'
-				printf 'fallback-intended: per-service read-not-seen / new-notifications where the service offers them\n'
-			else
-				printf 'cut-off-kind: %s\n' "$commsCutoffKind"
-				printf 'cut-off-value: %s\n' "$commsCutoffValue"
-			fi
-			printf 'requested-slack: %s\n'  "$( [ "$commsDoAll" = "true" ] || [ "$commsDoSlack" = "true" ]  && echo yes || echo no )"
-			printf 'requested-email: %s\n'  "$( [ "$commsDoAll" = "true" ] || [ "$commsDoEmail" = "true" ]  && echo yes || echo no )"
-			printf 'requested-trello: %s\n' "$( [ "$commsDoAll" = "true" ] || [ "$commsDoTrello" = "true" ] && echo yes || echo no )"
-			printf 'scanned-sources: none\n'
-			printf 'note: NO EXTERNAL COMMS SCAN WAS MADE by this operation, for any requested service. An empty comms result here means nothing was looked at, not that nothing was found. Do not read a declared cut-off or a requested-* yes as evidence that anything was read.\n'
-			printf '\n'
-		fi
-
-		local state f base h val it tp matched ownerVal
+		## The alternative -- a second filter pass private to the comms reader
+		## -- was rejected: two copies of the same three filters, which must
+		## agree forever or the document silently reads threads belonging to
+		## items it does not show. One implementation, two readers.
+		##
+		## Filter order is unchanged and still cheapest-first: --item (bare
+		## string compare, no file I/O) -> type (glob, no file open) -> owner
+		## (the only one that opens the file).
+		## ------------------------------------------------------------------
+		local matchedFiles=() matchedStates=()
+		local state f base it tp matched ownerVal
 		for state in "${states[@]}" ; do
 			for f in "$boardRoot/$state"/*.md ; do
 				[ -f "$f" ] || continue
 				base="${f##*/}"
 
-				## Cheapest check first: bare basename compare, no file I/O.
 				if [ ${#items[@]} -gt 0 ] ; then
 					matched="false"
 					for it in "${items[@]}" ; do
@@ -394,8 +481,6 @@ case "$1" in
 					[ "$matched" = "true" ] || continue
 				fi
 
-				## Type-prefix: a plain glob against the filename -- never
-				## opens the file, never touches frontmatter.
 				if [ "$allTypes" != "true" ] ; then
 					matched="false"
 					for tp in "${typePrefixes[@]}" ; do
@@ -406,55 +491,987 @@ case "$1" in
 					[ "$matched" = "true" ] || continue
 				fi
 
-				## Owner: the one filter that actually needs to read the
-				## file -- plain exact-match line extraction, same sed idiom
-				## the named-header display case below already uses.
 				if [ -n "$owner" ] ; then
-					ownerVal="$( LC_ALL=C sed -n 's/^owner: //p;q' "$f" )"
+					## The read-bound here is deliberate and KEPT -- this is the
+					## only filter that opens the file, so it must not read more
+					## than it has to. What it was NOT is a bound on how much
+					## frontmatter to consider: `sed -n 's/^owner: //p;q'` fired
+					## its `q` unconditionally after line 1, which on a board item
+					## is always the `---` fence, so the substitution never reached
+					## an `owner:` line at all. Measured: rc 0 and a 0-line
+					## document while 21 board-running items carried
+					## `owner: magic-coordinator`. Same intent, correctly placed:
+					## exit at the FIRST matching line rather than after the first
+					## line of the file.
+					ownerVal="$( LC_ALL=C awk '/^owner: / { sub(/^owner: /, "") ; print ; exit }' "$f" )"
 					[ "$ownerVal" = "$owner" ] || continue
 				fi
 
-				printf '## %s/%s\n' "$state" "$base"
-				if [ ${#headers[@]} -eq 0 ] ; then
-					LC_ALL=C awk -f "$frontmatterPrintAwk" "$f"
-				else
-					LC_ALL=C awk -v headers="$headersJoined" '
-						BEGIN {
-							n = split(headers, order, "\034")
-							for (i = 1; i <= n; i++) {
-								vals[order[i]] = ""
-							}
-						}
-						NR == 1 {
-							if ($0 == "---") {
-								in_fm = 1
-								next
-							}
-						}
-						in_fm {
-							if ($0 == "---") {
-								exit
-							}
-							pos = index($0, ": ")
-							if (pos > 0) {
-								key = substr($0, 1, pos - 1)
-								if ((key in vals) && vals[key] == "") {
-									vals[key] = substr($0, pos + 2)
-								}
-							}
-						}
-						END {
-							for (i = 1; i <= n; i++) {
-								printf "%s: %s\n", order[i], vals[order[i]]
-							}
-						}
-					' "$f"
-				fi
-				printf '\n'
+				matchedFiles+=( "$f" )
+				matchedStates+=( "$state" )
 			done
 		done
 
-		return 0
+		## ------------------------------------------------------------------
+		## Session-context surface. Emitted only when a caller engaged it at
+		## all, so a pure board-scan caller's document stays byte-identical to
+		## what it was before this surface existed. Printed BEFORE any board
+		## item, matching the format document's own section order (comms ->
+		## inbox -> board).
+		## ------------------------------------------------------------------
+		local sessionContextEngaged="false"
+		if [ -n "$commsCutoffKind" ] || [ "$commsDoAll" = "true" ] || [ "$commsDoSlack" = "true" ] \
+			|| [ "$commsDoEmail" = "true" ] || [ "$commsDoTrello" = "true" ] \
+			|| [ "$doInboxInquiryActive" = "true" ] || [ "$doInboxInquiryAll" = "true" ] \
+			|| [ "$doInboxReflections" = "true" ] || [ "$doInboxNotes" = "true" ] \
+			|| [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; then
+			sessionContextEngaged="true"
+		fi
+
+		## Exit-status inputs for the scan-completeness verdict at the end of
+		## this arm. Declared HERE, before the comms block, so the verdict is
+		## well-defined even for a call that requests no comms at all: zero
+		## sources asked for is zero sources missed, which is a clean 0 and
+		## not a "nothing scanned" 4. Every --*-input-scan wrapper that passes
+		## no --comms-* flag therefore keeps its present exit status exactly.
+		local sessionContextSourcesTotal=0 sessionContextSourcesScanned=0
+
+		if [ "$sessionContextEngaged" = "true" ] ; then
+			local commsItemsAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSessionContextCommsItems.awk"
+			local isoToEpochAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk"
+
+			## Caps, per the format document: 128 IM, 128 email, 64 Trello.
+			##
+			## THE IM CAP COUNTS CONVERSATIONS, NOT MESSAGES -- email and Trello
+			## still count items, and are untouched here. A thread, a channel or
+			## a DM is ONE unit of this cap however many messages it carries.
+			## Counting messages is what emptied the document of threads: thread
+			## blocks are appended after both watched channels, a first-come
+			## message cap kept whatever came first, and a 626-message no-cut-off
+			## run spent all 128 on two channels -- measured, zero thread items
+			## survived. The unit was the defect, not the number.
+			local sessionContextCapIm=128 sessionContextCapEmail=128 sessionContextCapTrello=64
+			## How many messages of lead-in context a trimmed thread keeps before
+			## its first unread one, so a reply is never read without the message
+			## it answers. Named rather than inlined because it is a judgement
+			## call, not a derived quantity: three is small enough that a busy
+			## thread stays readable and large enough to carry a question and its
+			## setup. Inert without a cut-off -- with none there is no "first
+			## unread", and the whole thread is already the answer.
+			local sessionContextThreadContextBefore=3
+
+			## Written as `if` statements, never `[ a ] || [ b ] && c`: that
+			## compound evaluates to non-zero when both tests fail, and under
+			## this script's `set -e` a false selector would end the operation
+			## right here -- printing a partial document that reads exactly
+			## like a complete one.
+			local wantSlack="false" wantEmail="false" wantTrello="false"
+			if [ "$commsDoAll" = "true" ] || [ "$commsDoSlack" = "true" ] ; then wantSlack="true" ; fi
+			if [ "$commsDoAll" = "true" ] || [ "$commsDoEmail" = "true" ] ; then wantEmail="true" ; fi
+			if [ "$commsDoAll" = "true" ] || [ "$commsDoTrello" = "true" ] ; then wantTrello="true" ; fi
+
+			## The cut-off is converted exactly once, here, at the one place a
+			## reader actually needs the number -- and only for Slack, the one
+			## service that can take it. --comms-since-utime is already epoch;
+			## --comms-since-date-time goes through AgentsIsoToEpoch.awk, pure
+			## integer arithmetic, no date(1) (see that file's own header for
+			## why date(1) is not merely awkward here but impossible to write
+			## portably). A conversion failure is a hard stop: a cut-off that
+			## silently became empty would widen the scan to everything.
+			local slackOldest="" cutoffEpoch=""
+			if [ "$commsCutoffKind" = "--comms-since-utime" ] ; then
+				cutoffEpoch="$commsCutoffValue"
+			elif [ "$commsCutoffKind" = "--comms-since-date-time" ] ; then
+				cutoffEpoch="$( printf '%s\n' "$commsCutoffValue" | LC_ALL=C awk -f "$isoToEpochAwk" )" || {
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-since-date-time: could not convert to epoch seconds: $commsCutoffValue" >&2
+					set +e ; return 1
+				}
+			fi
+			[ -z "$cutoffEpoch" ] || slackOldest="$cutoffEpoch"
+
+			## ---- Slack ----------------------------------------------------
+			## Slack offers NO unread semantics at all, so the cut-off is the
+			## whole instrument here and its absence is a real widening, stated
+			## as such rather than papered over with a fallback that does not
+			## exist. It is applied client-side rather than as Slack's own
+			## `oldest` -- the runtime instrument string below says so, and this
+			## comment must keep agreeing with it.
+			local imBlocks="" imInstrument="" imSourcesTotal=0 imSourcesScanned=0 imPartial=""
+			## imFailed means "not one source could be read". imAnySourceFailed
+			## means "at least one could not" -- the weaker condition, and the
+			## one the document-level aggregate note has to respect: a single
+			## unread source already makes "no new incoming communications" a
+			## claim about a scope nobody looked at.
+			local imFailed="false" imAnySourceFailed="false"
+			if [ "$wantSlack" = "true" ] ; then
+				if [ -n "$slackOldest" ] ; then
+					imInstrument="cut-off $commsCutoffKind $commsCutoffValue (applied client-side; Slack oldest= is deliberately NOT used, so thread discovery can still see parents older than the cut-off)"
+				else
+					imInstrument="none -- Slack offers no unread semantics and no cut-off was given; whatever conversations.history returns"
+				fi
+				## THE TAG SOURCE IS COUNTED, AND REPORTED AS NOT SCANNED.
+				##
+				## It is one more IM source, so it goes into the denominator the
+				## moment it is asked for: `sources-scanned: N of M` is the only
+				## thing standing between "nothing tagged you" and "the tag search
+				## never ran", and a source left out of M renders those two
+				## identically. Counted first, before anything can fail, for the
+				## same reason.
+				##
+				## WHY IT IS NOT PERFORMED YET, stated rather than worked around.
+				## The identity half of this is now solved -- the search runs
+				## through --member-comms-slack-search-messages, which takes the acting
+				## member and searches under that member's own user token.
+				##
+				## What is still missing is EXPRESSIVENESS, not identity. That arm
+				## is target-shaped by ratified design ("TARGET-SHAPED, NOT A QUERY
+				## PASSTHROUGH", its own header): it takes a conversation and builds
+				## `in:<#channel> after:<date>` itself. A tag search is the opposite
+				## shape -- a term naming the member, across every conversation,
+				## with no `in:` restriction at all -- and there is no argument that
+				## expresses it. Widening that arm into a query passthrough would
+				## overturn a ratified decision, so it is asked for, not assumed.
+				if [ "$commsDoSlackTags" = "true" ] ; then
+					imSourcesTotal=$(( imSourcesTotal + 1 ))
+					imPartial="$imPartial**NOTE:** partial -- member-tag search not scanned, no search term for a member's own tag is expressible through --member-comms-slack-search-messages (it searches one named conversation, not a term across all of them); no conclusion about tags is supported by this document"$'\n'
+					imAnySourceFailed="true"
+				fi
+
+				## Own Slack identity, resolved ONCE per pass and only through
+				## --magic-comms-slack-resolve-ids -- never a fresh auth.test
+				## with a token read here. That op owns token selection, and
+				## credential handling stays behind it even for a cheap lookup.
+				##
+				## It returns non-zero whenever it cannot confirm a reachable
+				## human-owner target, even though AUTH_USER_ID is already
+				## printed and perfectly usable -- so the `|| true` is what
+				## keeps that non-zero from ending this whole operation under
+				## `set -e` before a single section prints.
+				local ownSlackId="" ownResolveOutput=""
+				## Resolved for the ACTING MEMBER, not for a hardcoded
+				## magic-coordinator. This id is what the widening test below asks
+				## "was I tagged / did I post here" about, so resolving somebody
+				## else's id answers that question about somebody else -- the same
+				## identity substitution the two --intern-op-slack-check reads below
+				## carried, in its third form.
+				ownResolveOutput="$( DistroAgentsTools --magic-comms-slack-resolve-ids "$actingMember" )" || true
+				ownSlackId="$( printf '%s\n' "$ownResolveOutput" | LC_ALL=C sed -n 's/^AUTH_USER_ID=//p' | head -1 )" || ownSlackId=""
+				if [ -z "$ownSlackId" ] ; then
+					imPartial="$imPartial**NOTE:** partial -- identity-widening skipped, own Slack user id could not be resolved; watched-channel and open-thread reads unaffected"$'\n'
+				fi
+
+				## Every thread this pass will read as replies, from two
+				## independent discovery paths that both land here:
+				##   - widening: a thread in a watched channel this identity
+				##     posted in, was replied to in, or was tagged in
+				##   - board: a thread an open board-item already tracks via
+				##     communication-channel-id
+				local threadTargets=() dt discovered
+				local threadTargetsAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackHistoryThreadTargets.awk"
+
+				## ONE cut-off trim, used by BOTH read paths, held in a variable
+				## rather than written out twice. The channel path calls it with
+				## ctx=0 (drop everything at or before the cut-off, exactly what
+				## Slack oldest= used to do server-side) and the thread path with
+				## ctx=$sessionContextThreadContextBefore (same, plus that many
+				## messages of lead-in before the first unread one). Two copies of
+				## a cut-off test are two things that must agree forever, and the
+				## document silently misreports the moment they stop.
+				##
+				## WHY THE TRIM MOVED INTO THIS FILE AT ALL: the fetches below no
+				## longer pass --oldest, so nothing bounds them server-side any
+				## more, and without a client-side filter every pre-cut-off message
+				## would flood straight back into the document -- undoing the
+				## cut-off fix a previous session landed and proved. Discovery
+				## needs the unbounded page; display must not have it. Same bytes,
+				## two different requirements, so the split is explicit here.
+				local commsCutoffTrimAwkProgram='
+					## Float-free ordering key: zero-padded seconds then exactly six
+					## fractional digits, compared as a STRING. Concatenation always
+					## yields a string type in awk, so > here can never silently
+					## become the numeric compare a 22-digit key would not survive.
+					## Returns "" for anything unparseable -- read that as "cannot be
+					## dated", never as 0. An undatable block is KEPT: silently
+					## discarding what this code cannot date would lose real content
+					## to a parse gap.
+					##
+					## The empty-value case is REAL, not theoretical.
+					## AgentsSessionContextCommsItems.awk prints `ts:`
+					## unconditionally, so a message whose ts never parsed emits a
+					## `ts: ` line with an EMPTY value. The test this replaced matched
+					## that line, believed it therefore had a timestamp, compared the
+					## empty value as 0 and dropped the block as stale -- the exact
+					## opposite of the promise above. An unparseable value and an
+					## absent line are ONE case here, and this function is the single
+					## place that decides it.
+					##
+					## Not + 0: awk converts through strtod, whose decimal point is
+					## locale-dependent, so under a comma-decimal locale every
+					## sub-second ordering would collapse. The LC_ALL=C on every call
+					## site is what stands between that and this key.
+					function tskey(v,   d, sec, frac) {
+						gsub(/^[ \t]+|[ \t\r]+$/, "", v)
+						d = index(v, ".")
+						if (d == 0) { sec = v ; frac = "" ; }
+						else { sec = substr(v, 1, d - 1) ; frac = substr(v, d + 1) ; }
+						if (sec !~ /^[0-9]+$/ || length(sec) > 16) return ""
+						frac = substr(frac "000000", 1, 6)
+						if (frac !~ /^[0-9]+$/) return ""
+						while (length(sec) < 16) sec = "0" sec
+						return sec frac
+					}
+					function flush(   i, t) {
+						if (nb == 0) return
+						t = ""
+						for (i = 1; i <= nb; i++) t = t blk[i] "\n"
+						body[++nblk] = t
+						bkey[nblk] = curKey
+						nb = 0 ; curKey = "" ;
+					}
+					BEGIN {
+						cutKey = tskey(cut)
+						## An unparseable cut-off must never widen the scan to
+						## everything: with an empty key every real key compares
+						## greater and the entire read comes back as new.
+						if (cutKey == "") {
+							printf("⛔ ERROR: AgentsTools.InternOpSessionContextScan.include: cut-off is not a parseable timestamp: %s -- treat as NOT SCANNED, never as empty\n", cut) > "/dev/stderr"
+							bad = 1
+							exit 1
+						}
+					}
+					## This rule must precede the buffering rule, so a heading closes
+					## the PREVIOUS block and then lands in the new one. Never next
+					## here -- that would skip the buffering rule and the heading
+					## would vanish from its own block.
+					/^## / { flush() ; }
+					{ if ($0 != "") blk[++nb] = $0 ; }
+					## Offset derived from the colon, never a second hardcoded count
+					## that has to keep agreeing with the pattern.
+					/^ts:/ { if (curKey == "") curKey = tskey(substr($0, index($0, ":") + 1)) ; }
+					END {
+						if (bad) exit 1
+						flush()
+						## Oldest-first over a plain index array -- POSIX awk has no
+						## asort and macOS ships BWK awk. Collected back-to-front
+						## because Slack hands a page back newest-first, which leaves
+						## this insertion sort linear on the real data path.
+						m = 0
+						for (i = nblk; i >= 1; i--) ord[++m] = i
+						for (x = 2; x <= m; x++) {
+							v = ord[x] ; j = x - 1
+							while (j >= 1 && bkey[ord[j]] > bkey[v]) { ord[j + 1] = ord[j] ; j-- ; }
+							ord[j + 1] = v
+						}
+						## Dated and undatable separated, so the context window counts
+						## real messages instead of being eaten by blocks that have no
+						## position in the ordering at all.
+						nd = 0 ; nu = 0
+						for (x = 1; x <= m; x++) {
+							if (bkey[ord[x]] == "") { und[++nu] = ord[x] ; }
+							else { dat[++nd] = ord[x] ; }
+						}
+						first = 0
+						for (x = 1; x <= nd; x++) {
+							if (bkey[dat[x]] > cutKey) { first = x ; break ; }
+						}
+						## Nothing newer than the cut-off means nothing new here, and
+						## it emits NOTHING -- undatable blocks included. Emitting them
+						## anyway would put a conversation with no new content back
+						## under "New Incoming Communications" as though it were new,
+						## which is the stale-parent regression this trim exists to
+						## prevent.
+						if (first == 0) exit 0
+						for (x = 1; x <= nu; x++) printf("%s\n", body[und[x]])
+						start = first - ctx
+						if (start < 1) start = 1
+						for (x = start; x <= nd; x++) printf("%s\n", body[dat[x]])
+					}
+				'
+
+				local slackName slackResolved slackChannel slackRaw slackJson slackBlocks
+				for slackName in magic-team human-owner ; do
+					imSourcesTotal=$(( imSourcesTotal + 1 ))
+					slackResolved="$( DistroAgentsToolsResolveTarget "$slackName" )" || {
+						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, no channel id configured"$'\n'
+						imAnySourceFailed="true"
+						continue
+					}
+					slackChannel="$( printf '%s\n' "$slackResolved" | sed -n 's/^CHANNEL=//p' )"
+					## Unit-2 forward compatibility, INERT today. SITE 7 -- the one
+					## that must NOT be left to construct "$slackChannel:" once the
+					## channel can be empty: a bare ":" resolves to nothing and would
+					## degrade to a `**NOTE:** partial` marker, which reads as the
+					## system correctly reporting a known limitation and will be
+					## believed. A partial marker must be reachable only from a
+					## resolution that produced something and lost part of it, never
+					## from one that produced nothing.
+					local slackUserId=""
+					slackUserId="$( printf '%s\n' "$slackResolved" | sed -n 's/^USER_ID=//p' )" || slackUserId=""
+					## Captured whole, THEN stripped of its `## target=` header
+					## line. Piping the call straight into `sed` would hand back
+					## sed's own exit status, so a failed --intern-op-slack-check
+					## would arrive here as a successful empty read.
+					## NO --oldest, and this is the root-cause fix for thread
+					## discovery, measured rather than reasoned.
+					## conversations.history includes a message by its OWN ts, so a
+					## bounded page cannot contain a thread parent older than the
+					## cut-off -- however recently that thread was replied to.
+					## Measured on magic-team at cut-off 1786250000: three real
+					## threads carrying 41, 18 and 6 replies after the cut-off, the
+					## latest as recent as 1786301763, were ALL invisible in the
+					## bounded page. That also made AgentsSlackHistoryThreadTargets.awk
+					## a filter over an already-filtered page: its `fresh` test
+					## (latest_reply > oldest) is a tautology whenever oldest is set,
+					## and the vaneHit bypass written to surface exactly these
+					## threads was dead code. That awk is not the bug and is not
+					## edited -- unbinding this fetch is what makes its own test mean
+					## something again.
+					slackRaw="$( DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackChannel:" --raw )" || {
+						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, --intern-op-slack-check failed"$'\n'
+						imAnySourceFailed="true"
+						continue
+					}
+					slackJson="$( printf '%s\n' "$slackRaw" | sed '1d' )"
+					slackBlocks="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v kind=slack -v source="$slackName" -v channel="$slackChannel" -f "$commsItemsAwk" )" || {
+						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, response was an API failure, not an empty channel"$'\n'
+						imAnySourceFailed="true"
+						continue
+					}
+					## DISPLAY IS FILTERED HERE; DISCOVERY BELOW IS NOT. The fetch is
+					## now unbounded so discovery can see old parents, which means the
+					## cut-off has to be re-applied to the DISPLAY blocks or every
+					## pre-cut-off channel message walks straight back into the
+					## document. ctx=0: a channel gets no lead-in window -- that is a
+					## thread affordance, and this reproduces exactly what Slack
+					## oldest= did server-side before.
+					##
+					## Applied BEFORE imSourcesScanned is bumped, same discipline the
+					## thread path uses, so a filter failure counts as unread rather
+					## than as scanned-and-empty.
+					if [ -n "$cutoffEpoch" ] && [ -n "$slackBlocks" ] ; then
+						slackBlocks="$( printf '%s\n' "$slackBlocks" | LC_ALL=C awk -v cut="$cutoffEpoch" -v ctx=0 "$commsCutoffTrimAwkProgram" )" || {
+							imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, cut-off filter over the channel page failed"$'\n'
+							imAnySourceFailed="true"
+							continue
+						}
+					fi
+					imSourcesScanned=$(( imSourcesScanned + 1 ))
+					## `$( )` strips EVERY trailing newline, block terminator
+					## included, so a plain append glues this source's last value
+					## line onto the next source's `## ` heading -- measured: three
+					## items counted as two, which then drives imCount, the cap
+					## check and the 0-messages decision off a corrupted stream.
+					## The terminator is restored here. The `[ -z ]` guard keeps a
+					## source that returned nothing from injecting a stray blank
+					## pair, and the `|| ` form is what makes it `set -e`-safe.
+					[ -z "$slackBlocks" ] || imBlocks="$imBlocks$slackBlocks"$'\n\n'
+
+					## Identity-widening, from the history page just fetched.
+					## Bounded to that page by construction: a thread parent
+					## outside it stays undiscoverable here, and true
+					## workspace-wide mention coverage needs a search-capable
+					## token this does not have. Best-effort widening, never a
+					## claim of complete coverage.
+					## Captured, THEN guarded, THEN sorted -- never
+					## `awk ... | sort -u` in one substitution. There is no
+					## `pipefail` here, so a pipeline reports its LAST command's
+					## status: the awk could print its `ok:false` diagnostic and
+					## `exit 1` while `sort` returned 0, and this `||` handler --
+					## the one that writes the `**NOTE:** partial` line -- was
+					## unreachable. Measured: rc 0, empty output, no note. Same
+					## capture-then-guard shape the --intern-op-slack-check read above
+					## already uses deliberately for exactly this reason.
+					discovered="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v channel="$slackChannel" -v oldest="${slackOldest:-}" -v vaneId="$ownSlackId" -f "$threadTargetsAwk" )" || {
+						imPartial="$imPartial**NOTE:** partial -- thread discovery failed for $slackName, watched-channel read above unaffected"$'\n'
+						discovered=""
+					}
+					[ -z "$discovered" ] || discovered="$( printf '%s\n' "$discovered" | sort -u )"
+					while IFS= read -r dt ; do
+						[ -n "$dt" ] || continue
+						threadTargets+=( "$dt" )
+					done <<- EOF
+					$discovered
+					EOF
+				done
+
+				## Open threads recorded on the board items THIS call matched --
+				## same set the board section below will print, resolved once up
+				## front. Scoping them to matched items is deliberate: a document
+				## must never read a thread belonging to an item it does not show.
+				##
+				## The quote strip is load-bearing. These values are written by
+				## hand and are inconsistently quoted in the real tree -- some
+				## `communication-channel-id: "slack:D0BHQ3VTLB1:1786110788.609469"`,
+				## some bare. A literal quote carried into `<channel>:<ts>`
+				## produces a target Slack cannot resolve, and the read fails
+				## per-thread rather than loudly.
+				##
+				## The value is `<service>:<rest>`, and only the three-field
+				## `slack:<channel>:<ts>` form yields a thread target: a bare
+				## `slack:<channel>` names no thread, and an `email:` value is
+				## not a Slack thread at all. The target handed to Slack is
+				## exactly that value with its leading `slack:` removed.
+				## strip() removes the KEY prefix only -- `^[^:]*:` stops at the
+				## first colon, and the key itself contains none, so the
+				## colon-bearing value survives intact.
+				if [ ${#matchedFiles[@]} -gt 0 ] ; then
+					local boardThreads
+					boardThreads="$( LC_ALL=C awk '
+						function strip(v) {
+							sub(/^[^:]*:[ \t]*/, "", v)
+							gsub(/^[ \t]+|[ \t]+$/, "", v)
+							gsub(/^"|"$/, "", v)
+							return v
+						}
+						function flush(   n, f) {
+							n = split(val, f, ":")
+							if (n == 3 && f[1] == "slack" && f[2] != "" && f[3] != "") { print f[2] ":" f[3]; }
+							val = ""
+						}
+						FNR == 1 { flush(); }
+						/^communication-channel-id:/ { val = strip($0); next; }
+						END { flush(); }
+					' "${matchedFiles[@]}" )" || boardThreads=""
+					## Captured, THEN guarded, THEN sorted -- see the identical
+					## note on the thread-discovery read above. With `awk | sort -u`
+					## in one substitution and no `pipefail`, this `|| boardThreads=""`
+					## saw sort's status, never awk's.
+					[ -z "$boardThreads" ] || boardThreads="$( printf '%s\n' "$boardThreads" | sort -u )"
+					while IFS= read -r dt ; do
+						[ -n "$dt" ] || continue
+						threadTargets+=( "$dt" )
+					done <<- EOF
+					$boardThreads
+					EOF
+				fi
+
+				## One read per distinct thread, whichever path found it.
+				##
+				## READ ORDER CARRIES NO MEANING HERE, which is exactly why this
+				## is plain `sort -u` again. It was `sort -ru` because the cap
+				## kept the first N blocks in emission order, so the order threads
+				## happened to be READ in silently decided which threads survived
+				## into the document -- selection steered from a distance by
+				## something that should not have influenced it. Selection is now
+				## explicit and lives at emission time (the grouping filter below
+				## ranks conversations by their own newest message), so nothing
+				## downstream depends on this order at all. `-u` stays for the one
+				## thing it actually provides: de-duplicating the two discovery
+				## paths, which routinely find the same thread.
+				##
+				## NO --oldest ON A THREAD READ, deliberately, and this IS a
+				## behaviour change. Slack's `oldest` is a server-side lower
+				## bound, so the messages a reader needs as lead-in context -- the
+				## ones BEFORE the first unread reply -- cannot be fetched through
+				## it at all: asking the server to hide them and then trying to
+				## show them is not a thing. The thread is fetched whole and
+				## trimmed locally instead, which is the only place both halves of
+				## "several messages before first unread, and to the current
+				## ending" can be honoured at once. The watched-channel read above
+				## dropped it too, for its own separate reason (discovery cannot
+				## see a thread parent older than a bounded page), so NO Slack read
+				## in this file passes `oldest` any more and every cut-off in the
+				## document is applied client-side by commsCutoffTrimAwkProgram.
+				local uniqueThreads dtChannel
+				uniqueThreads="$( printf '%s\n' "${threadTargets[@]+"${threadTargets[@]}"}" | LC_ALL=C sort -u )" || uniqueThreads=""
+				while IFS= read -r dt ; do
+					[ -n "$dt" ] || continue
+					imSourcesTotal=$(( imSourcesTotal + 1 ))
+					dtChannel="${dt%%:*}"
+					slackRaw="$( DistroAgentsTools --intern-op-slack-check "$actingMember" "$dt" --raw )" || {
+						imPartial="$imPartial**NOTE:** partial -- thread $dt not scanned, --intern-op-slack-check failed"$'\n'
+						imAnySourceFailed="true"
+						continue
+					}
+					slackJson="$( printf '%s\n' "$slackRaw" | sed '1d' )"
+					slackBlocks="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v kind=slack -v source="thread:$dt" -v channel="$dtChannel" -f "$commsItemsAwk" )" || {
+						imPartial="$imPartial**NOTE:** partial -- thread $dt not scanned, response was an API failure, not an empty thread"$'\n'
+						imAnySourceFailed="true"
+						continue
+					}
+					## The shared cut-off trim, with the one parameter that is local
+					## to this path: ctx is sessionContextThreadContextBefore here,
+					## where the channel read above passes 0. That is the whole
+					## difference -- a thread carries lead-in context before its
+					## first unread message, a channel does not. The mechanism, and
+					## why a thread with nothing new emits nothing rather than
+					## surfacing its own weeks-old parent, lives once with the
+					## program itself.
+					##
+					## Applied BEFORE imSourcesScanned is bumped, so a filter failure
+					## counts as unread rather than as scanned-and-empty. That
+					## distinction carries more weight than it used to: this trim now
+					## has a second, entirely legitimate way to produce no output (a
+					## thread with nothing new), so "trimmed to empty" (rc 0) and
+					## "trim failed" (rc non-zero) must stay rigorously apart.
+					if [ -n "$cutoffEpoch" ] && [ -n "$slackBlocks" ] ; then
+						slackBlocks="$( printf '%s\n' "$slackBlocks" | LC_ALL=C awk -v cut="$cutoffEpoch" -v ctx="$sessionContextThreadContextBefore" "$commsCutoffTrimAwkProgram" )" || {
+							imPartial="$imPartial**NOTE:** partial -- thread $dt not scanned, cut-off filter over the reply set failed"$'\n'
+							imAnySourceFailed="true"
+							continue
+						}
+					fi
+					imSourcesScanned=$(( imSourcesScanned + 1 ))
+					[ -z "$slackBlocks" ] || imBlocks="$imBlocks$slackBlocks"$'\n\n'
+				done <<- EOF
+				$uniqueThreads
+				EOF
+
+				[ "$imSourcesScanned" -gt 0 ] || imFailed="true"
+			fi
+
+			## ---- email ----------------------------------------------------
+			## The inverse asymmetry: IMAP here offers UNSEEN and takes no
+			## cut-off (no SINCE is wired), so unread IS the instrument and a
+			## requested cut-off cannot reach it. Items are the unseen UIDs
+			## themselves -- --member-comms-email-check is a check, not a fetch; a
+			## session pulls one message's real content with --member-comms-email-read
+			## <team-member> <uid> once it has decided which one matters, under the
+			## same acting member this scan runs as.
+			local emailBlocks="" emailInstrument="" emailFailed="false"
+			if [ "$wantEmail" = "true" ] ; then
+				emailInstrument="unread-semantics (IMAP UID SEARCH UNSEEN)"
+				local emailCheck emailUids emailUid
+				## The ACTING MEMBER, not a hardcoded magic-coordinator: this
+				## scan already carries the identity every comms read in it acts
+				## as (see this op's own leading <team-member>), and the mailbox
+				## checked has to be that member's own, exactly as the Slack
+				## reads above already act under it.
+				emailCheck="$( DistroAgentsTools --member-comms-email-check "$actingMember" )" || emailFailed="true"
+				if [ "$emailFailed" = "false" ] ; then
+					## Slack and Trello get their empty-vs-failed guard inside
+					## AgentsSessionContextCommsItems.awk's END; email has no JSON
+					## and so no such guard, which left this the one path where a
+					## failed read rendered as a successful empty one. An absent
+					## SEARCH response line is now a failure, never zero UIDs.
+					##
+					## The `sub(/\r$/, "")` is FIRST, and load-bearing: IMAP is a
+					## CRLF protocol and awk's default FS does not treat \r as
+					## whitespace, so without it the final UID arrives as `12345\r`
+					## and is carried into the item heading and onward into any
+					## --member-comms-email-read the session makes from this document.
+					emailUids="$( printf '%s\n' "$emailCheck" | LC_ALL=C awk '
+						{ sub(/\r$/, ""); }
+						/^\* SEARCH/ { seenSearch = 1; for (i = 3; i <= NF; i++) print $i; }
+						END {
+							if (!seenSearch) {
+								printf("⛔ ERROR: AgentsTools.InternOpSessionContextScan.include: --member-comms-email-check returned no SEARCH response line -- treat as NOT SCANNED, never as empty\n") > "/dev/stderr"
+								exit 1
+							}
+						}
+					' )" || emailFailed="true"
+				fi
+				if [ "$emailFailed" = "false" ] ; then
+					while IFS= read -r emailUid ; do
+						[ -n "$emailUid" ] || continue
+						emailBlocks="$emailBlocks## email-message $emailUid"$'\n'"mailbox: INBOX"$'\n'"status: unseen"$'\n'$'\n'
+					done <<- EOF
+					$emailUids
+					EOF
+				fi
+			fi
+
+			## ---- Trello ---------------------------------------------------
+			## Same shape as email: read_filter=unread is the instrument, no
+			## cut-off is accepted.
+			local trelloBlocks="" trelloInstrument="" trelloFailed="false"
+			if [ "$wantTrello" = "true" ] ; then
+				trelloInstrument="unread-semantics (Trello read_filter=unread)"
+				local trelloJson
+				## The ACTING MEMBER, same reason as the email check above.
+				trelloJson="$( DistroAgentsTools --member-comms-trello-check "$actingMember" )" || trelloFailed="true"
+				if [ "$trelloFailed" = "false" ] ; then
+					trelloBlocks="$( printf '%s\n' "$trelloJson" | LC_ALL=C awk -v kind=trello -f "$commsItemsAwk" )" || {
+						trelloFailed="true"
+						trelloBlocks=""
+					}
+					## Same `$( )` trailing-newline strip as the Slack append
+					## above: without this the last notification's final value
+					## line runs straight into the next section's own heading.
+					[ -z "$trelloBlocks" ] || trelloBlocks="$trelloBlocks"$'\n\n'
+				fi
+			fi
+
+			## Counted from the emitted blocks themselves rather than tracked
+			## alongside them, so the reported number can never drift from what
+			## the document actually carries. awk, not `grep -c`: grep exits 1
+			## on zero matches, which under `set -e` would take the whole
+			## operation down at exactly the "nothing new" case this document
+			## most needs to report correctly.
+			local imCount emailCount trelloCount
+			imCount="$( printf '%s' "$imBlocks" | LC_ALL=C awk 'BEGIN { c = 0; } /^## / { c++; } END { print c; }' )"
+			emailCount="$( printf '%s' "$emailBlocks" | LC_ALL=C awk 'BEGIN { c = 0; } /^## / { c++; } END { print c; }' )"
+			trelloCount="$( printf '%s' "$trelloBlocks" | LC_ALL=C awk 'BEGIN { c = 0; } /^## / { c++; } END { print c; }' )"
+
+			## Aggregate note: allowed ONLY when every requested comms scope is
+			## empty AND was successfully scanned. A scope that could not be
+			## read is unknown, not empty, and blocks this note outright -- the
+			## parent must never assert emptiness over a scope nobody read.
+			local anyCommsRequested="false" allCommsEmptyAndScanned="true"
+			if [ "$wantSlack" = "true" ] || [ "$wantEmail" = "true" ] || [ "$wantTrello" = "true" ] ; then
+				anyCommsRequested="true"
+			fi
+			## imAnySourceFailed, NOT imFailed: one unread watched channel is
+			## already enough to make a document-level "no new incoming
+			## communications" an assertion about a scope nobody read.
+			if [ "$wantSlack" = "true" ]  && { [ "$imCount" != "0" ]     || [ "$imAnySourceFailed" = "true" ] ; } ; then allCommsEmptyAndScanned="false" ; fi
+			if [ "$wantEmail" = "true" ]  && { [ "$emailCount" != "0" ]  || [ "$emailFailed" = "true" ] ; }  ; then allCommsEmptyAndScanned="false" ; fi
+			if [ "$wantTrello" = "true" ] && { [ "$trelloCount" != "0" ] || [ "$trelloFailed" = "true" ] ; } ; then allCommsEmptyAndScanned="false" ; fi
+
+			## Verdict inputs, taken from EXACTLY the counters the body prints
+			## below -- imSourcesScanned/imSourcesTotal for Slack, and the
+			## same emailFailed/trelloFailed booleans that drive those two
+			## services' own hardcoded `sources-scanned: 0 of 1`/`1 of 1`
+			## lines. Never recounted from the rendered document: a verdict
+			## parsed back out of the text would be a second copy of the
+			## truth, free to drift from the numbers the caller reads, and
+			## the body is exactly what must not change here.
+			if [ "$wantSlack" = "true" ] ; then
+				sessionContextSourcesTotal=$(( sessionContextSourcesTotal + imSourcesTotal ))
+				sessionContextSourcesScanned=$(( sessionContextSourcesScanned + imSourcesScanned ))
+			fi
+			if [ "$wantEmail" = "true" ] ; then
+				sessionContextSourcesTotal=$(( sessionContextSourcesTotal + 1 ))
+				[ "$emailFailed" = "true" ] || sessionContextSourcesScanned=$(( sessionContextSourcesScanned + 1 ))
+			fi
+			if [ "$wantTrello" = "true" ] ; then
+				sessionContextSourcesTotal=$(( sessionContextSourcesTotal + 1 ))
+				[ "$trelloFailed" = "true" ] || sessionContextSourcesScanned=$(( sessionContextSourcesScanned + 1 ))
+			fi
+
+			printf '# New Incoming Communications\n\n'
+			if [ "$anyCommsRequested" = "false" ] ; then
+				printf '**NOTE:** not requested\n\n'
+			elif [ "$allCommsEmptyAndScanned" = "true" ] ; then
+				printf '**NOTE:** no new incoming communications\n\n'
+			fi
+
+			printf '## Incoming IM Updates\n\n'
+			if [ "$wantSlack" != "true" ] ; then
+				printf '**NOTE:** not requested\n\n'
+			elif [ "$imFailed" = "true" ] ; then
+				printf 'instrument: %s\n' "$imInstrument"
+				printf 'sources-scanned: %s of %s\n' "$imSourcesScanned" "$imSourcesTotal"
+				printf '**NOTE:** no scan was made -- no watched Slack source could be read\n'
+				[ -z "$imPartial" ] || printf '%s' "$imPartial"
+				printf '\n'
+			else
+				printf 'instrument: %s\n' "$imInstrument"
+				printf 'sources-scanned: %s of %s\n' "$imSourcesScanned" "$imSourcesTotal"
+				printf 'sort: oldest first -- conversations ordered by their own newest message, messages oldest first within each conversation (no message-level merge across conversations)\n'
+				printf 'cap: %s conversations -- a thread, channel or DM is ONE unit however many messages it carries\n' "$sessionContextCapIm"
+				## The cap no longer bounds document SIZE, only conversation
+				## count, so the message total is stated outright rather than
+				## being inferable from a cap that will now rarely fire.
+				printf 'messages-read: %s\n' "$imCount"
+				[ -z "$imPartial" ] || printf '%s' "$imPartial"
+				if [ "$imCount" = "0" ] ; then
+					printf '**NOTE:** no new incoming IM updates -- scanned %s of %s sources, 0 messages matched %s\n\n' \
+						"$imSourcesScanned" "$imSourcesTotal" "$imInstrument"
+				else
+					## CAPTURED, THEN GUARDED -- never left as a bare pipeline.
+					## The filter it replaced (`/^## / { c++; } c <= cap`) could
+					## not fail; this one can, and under this script's `set -e` a
+					## non-zero bare pipeline would end the operation right here --
+					## after the section heading and every header line had already
+					## printed, and before the verdict block at the end of this arm
+					## was ever reached. The caller would get a truncated document
+					## with a success-shaped absence of any verdict at all.
+					##
+					## Declared on its own line first: `local x="$( ... )"` takes
+					## `local`'s own exit status, so the guard would never fire.
+					## Same reason the imCount/emailCount/trelloCount declarations
+					## above are split from their assignments.
+					local imRendered=""
+					imRendered="$( printf '%s' "$imBlocks" | LC_ALL=C awk -v cap="$sessionContextCapIm" '
+							## Same float-free, locale-proof key as the per-thread trim
+							## above, and deliberately the same function: two orderings
+							## that must agree forever should not be two implementations.
+							function tskey(v,   d, sec, frac) {
+								gsub(/^[ \t]+|[ \t\r]+$/, "", v)
+								d = index(v, ".")
+								if (d == 0) { sec = v ; frac = "" ; }
+								else { sec = substr(v, 1, d - 1) ; frac = substr(v, d + 1) ; }
+								if (sec !~ /^[0-9]+$/ || length(sec) > 16) return ""
+								frac = substr(frac "000000", 1, 6)
+								if (frac !~ /^[0-9]+$/) return ""
+								while (length(sec) < 16) sec = "0" sec
+								return sec frac
+							}
+							function trim(v) {
+								gsub(/^[ \t]+|[ \t\r]+$/, "", v)
+								return v
+							}
+							function flush(   i, t, g) {
+								if (nb == 0) return
+								t = ""
+								for (i = 1; i <= nb; i++) t = t blk[i] "\n"
+								body[++nblk] = t
+								bkey[nblk] = curKey
+								g = (curSource == "" ? "(source unstated)" : curSource)
+								bsrc[nblk] = g
+								if (!(g in gseen)) { gseen[g] = 1 ; gname[++ng] = g ; gmax[g] = "" ; gn[g] = 0 ; }
+								gn[g]++
+								## An undatable conversation ranks HIGHEST, never lowest:
+								## the cap must not quietly delete the one conversation
+								## whose recency this code could not establish. "~" (0x7E)
+								## sorts above any digit under LC_ALL=C -- which is another
+								## reason that setting is not optional here.
+								if (curKey == "") { gmax[g] = "~" ; }
+								else if (gmax[g] != "~" && curKey > gmax[g]) { gmax[g] = curKey ; }
+								nb = 0 ; curKey = "" ; curSource = "" ;
+							}
+							/^## / { flush() ; }
+							{ if ($0 != "") blk[++nb] = $0 ; }
+							/^ts:/     { if (curKey == "")    curKey    = tskey(substr($0, index($0, ":") + 1)) ; }
+							/^source:/ { if (curSource == "") curSource = trim(substr($0, index($0, ":") + 1)) ; }
+							END {
+								flush()
+								## ONE comparator drives both stages. A conversation is
+								## ranked by its own NEWEST message: SELECTION keeps the
+								## top `cap` of that ranking, PRESENTATION renders that
+								## same window ascending. Two different keys would leave
+								## the rendered order non-monotone in the selection key,
+								## so a reader could not tell where the cap had fallen.
+								for (i = 1; i <= ng; i++) gord[i] = i
+								for (x = 2; x <= ng; x++) {
+									v = gord[x] ; j = x - 1
+									while (j >= 1 && gmax[gname[gord[j]]] > gmax[gname[v]]) { gord[j + 1] = gord[j] ; j-- ; }
+									gord[j + 1] = v
+								}
+								## gord ascends by recency, so the cap keeps the TAIL and
+								## never the head. Keeping the head is what the old
+								## first-come cap amounted to, and it is what starved every
+								## thread out of the document.
+								keepFrom = ng - cap + 1
+								if (keepFrom < 1) keepFrom = 1
+								printf("conversations: %d shown of %d\n", ng - keepFrom + 1, ng)
+								## Truncation is never silent, and never reads like an
+								## unread source: a dropped conversation WAS read and does
+								## count toward sources-scanned. Naming each one is the
+								## point -- "something was dropped" is not a report.
+								if (keepFrom > 1) {
+									dropped = ""
+									for (x = 1; x < keepFrom; x++) {
+										g = gname[gord[x]]
+										dropped = dropped (dropped == "" ? "" : ", ") g " (" gn[g] " messages)"
+									}
+									printf("**NOTE:** truncated -- %d conversations found, capped at %d; %d dropped as least-recently-active. Their sources WERE read and are counted in sources-scanned above -- this is a display cap, not an unread source. Dropped: %s\n", ng, cap, keepFrom - 1, dropped)
+								}
+								printf("\n")
+								for (x = keepFrom; x <= ng; x++) {
+									g = gname[gord[x]]
+									m = 0
+									for (i = nblk; i >= 1; i--) if (bsrc[i] == g) ord[++m] = i
+									for (y = 2; y <= m; y++) {
+										v = ord[y] ; j = y - 1
+										while (j >= 1 && bkey[ord[j]] > bkey[v]) { ord[j + 1] = ord[j] ; j-- ; }
+										ord[j + 1] = v
+									}
+									for (y = 1; y <= m; y++) printf("%s\n", body[ord[y]])
+								}
+							}
+					' )" || {
+						## `conversations:` is printed from INSIDE the awk, so a
+						## failed filter would otherwise leave this section carrying
+						## `cap:`/`messages-read:` and no `conversations:` line at
+						## all -- a section shape no reader has seen, and one that
+						## reads like the field was simply forgotten. The failure
+						## path states the field as unknown rather than dropping it.
+						imRendered=""
+						printf 'conversations: unknown -- the grouping/cap filter failed\n'
+						printf '**NOTE:** partial -- the conversation grouping/cap filter failed; IM item blocks are omitted from this document, though their sources WERE read and are counted in sources-scanned above\n\n'
+					}
+					## Guarded, so the failure path above does not also emit the
+					## stray blank-line pair an empty render would produce here.
+					[ -z "$imRendered" ] || printf '%s\n\n' "$imRendered"
+				fi
+			fi
+
+			printf '## Incoming Email Updates\n\n'
+			if [ "$wantEmail" != "true" ] ; then
+				printf '**NOTE:** not requested\n\n'
+			elif [ "$emailFailed" = "true" ] ; then
+				printf 'instrument: %s\n' "$emailInstrument"
+				printf 'sources-scanned: 0 of 1\n'
+				printf '**NOTE:** no scan was made -- --member-comms-email-check failed\n\n'
+			else
+				printf 'instrument: %s\n' "$emailInstrument"
+				printf 'sources-scanned: 1 of 1\n'
+				printf 'cap: %s\n' "$sessionContextCapEmail"
+				[ -z "$commsCutoffKind" ] || printf 'cut-off-applied: no -- this service accepts no cut-off; unread semantics used instead\n'
+				if [ "$emailCount" = "0" ] ; then
+					printf '**NOTE:** no new incoming email updates -- scanned 1 of 1 sources, 0 messages matched %s\n\n' "$emailInstrument"
+				else
+					[ "$emailCount" -le "$sessionContextCapEmail" ] || printf '**NOTE:** truncated -- %s items found, capped at %s\n' "$emailCount" "$sessionContextCapEmail"
+					printf '\n'
+					printf '%s' "$emailBlocks" | LC_ALL=C awk -v cap="$sessionContextCapEmail" '/^## / { c++; } c <= cap'
+				fi
+			fi
+
+			printf '## Incoming Trello Updates\n\n'
+			if [ "$wantTrello" != "true" ] ; then
+				printf '**NOTE:** not requested\n\n'
+			elif [ "$trelloFailed" = "true" ] ; then
+				printf 'instrument: %s\n' "$trelloInstrument"
+				printf 'sources-scanned: 0 of 1\n'
+				printf '**NOTE:** no scan was made -- --member-comms-trello-check failed or did not answer with JSON\n\n'
+			else
+				printf 'instrument: %s\n' "$trelloInstrument"
+				printf 'sources-scanned: 1 of 1\n'
+				printf 'cap: %s\n' "$sessionContextCapTrello"
+				[ -z "$commsCutoffKind" ] || printf 'cut-off-applied: no -- this service accepts no cut-off; unread semantics used instead\n'
+				if [ "$trelloCount" = "0" ] ; then
+					printf '**NOTE:** no new incoming Trello updates -- scanned 1 of 1 sources, 0 notifications matched %s\n\n' "$trelloInstrument"
+				else
+					[ "$trelloCount" -le "$sessionContextCapTrello" ] || printf '**NOTE:** truncated -- %s items found, capped at %s\n' "$trelloCount" "$sessionContextCapTrello"
+					printf '\n'
+					printf '%s' "$trelloBlocks" | LC_ALL=C awk -v cap="$sessionContextCapTrello" '/^## / { c++; } c <= cap'
+				fi
+			fi
+
+			## Inbox scopes: still unbuilt. Reported with the format document's
+			## own third NOTE form (asked, could not look) rather than the
+			## first (looked, found nothing) -- an unbuilt scan must never be
+			## indistinguishable from an empty one.
+			local inboxSection
+			for inboxSection in \
+				"Active Inbox Inquiry Items:$doInboxInquiryActive$doInboxInquiryAll" \
+				"Current Inbox Reflections:$doInboxReflections" \
+				"Current Inbox Notes:$doInboxNotes" \
+			; do
+				printf '## %s\n\n' "${inboxSection%%:*}"
+				case "${inboxSection#*:}" in
+					*true*) printf '**NOTE:** no scan was made -- inbox scopes are not implemented in this operation yet\n\n' ;;
+					*)      printf '**NOTE:** not requested\n\n' ;;
+				esac
+			done
+
+			printf '## Board Items\n\n'
+			if [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; then
+				printf '**NOTE:** no scan was made -- board-relatedness scoping (--do-board-related-*) is not implemented in this operation yet; the item blocks below are this call'"'"'s own --state/--type-prefix:/--filter-owner scan, unfiltered by relatedness\n\n'
+			fi
+		fi
+
+		## Filtering already happened once, up front -- this walks the resolved
+		## set in the same order it was resolved, so the emitted document is
+		## byte-identical to what the inline-filter version produced.
+		local h val mi
+		mi=0
+		while [ "$mi" -lt "${#matchedFiles[@]}" ] ; do
+			f="${matchedFiles[$mi]}"
+			state="${matchedStates[$mi]}"
+			mi=$(( mi + 1 ))
+			base="${f##*/}"
+
+			printf '## %s/%s\n' "$state" "$base"
+			if [ ${#headers[@]} -eq 0 ] ; then
+				LC_ALL=C awk -f "$frontmatterPrintAwk" "$f"
+			else
+				## A FENCE-LESS ITEM MUST NOT VANISH. This printer used to enter
+				## frontmatter only on `NR == 1 && $0 == "---"`, so an item whose
+				## `---` fence was missing yielded empty values for every
+				## requested header -- and a downstream survivor filter
+				## (AgentsMagicSweepSlackThreadNames.awk) drops an item whose
+				## values are empty. The item disappeared from the document with
+				## no diagnostic anywhere. Measured on
+				## board/blocked/warning-20260807T0000Z-keeper-myx-deploy-status-
+				## message-impersonation-suspected.md: phase A 126 blocks, 17
+				## survivors, that item 0 -- while the board-thread extractor in
+				## this same file DID produce its thread, because that one matches
+				## `^communication-channel-id:` on any line and has no fence
+				## concept at all. Two read paths, same file, opposite answers.
+				##
+				## Fixed in two parts, both needed:
+				##  1. The opening fence is now the FIRST `---` anywhere, not one
+				##     pinned to line 1 -- matching AgentsBoardItemFrontmatterPrint.awk,
+				##     the sibling printer used by this op's own all-headers case
+				##     three lines above. Those two disagreeing about where
+				##     frontmatter starts was a defect in itself.
+				##  2. A file with NO `---` at all falls back to harvesting the
+				##     same `key: value` lines from the whole document. Part 1
+				##     alone does not rescue a fence-less item -- with no `---`
+				##     anywhere, "first fence anywhere" still never fires and the
+				##     values stay empty. The fallback is what actually closes the
+				##     silent drop, and it lands this printer on the behaviour the
+				##     source-slack-* extractor already had, which is the reading
+				##     that was demonstrably right about this file.
+				##
+				## The fallback is deliberately SECOND-CLASS: it is consulted only
+				## when no fence was seen at all. A properly fenced item is parsed
+				## exactly as before, so body prose that happens to look like
+				## `key: value` can never shadow a real frontmatter field.
+				LC_ALL=C awk -v headers="$headersJoined" '
+					BEGIN {
+						n = split(headers, order, "\034")
+						for (i = 1; i <= n; i++) {
+							vals[order[i]] = ""
+							fallback[order[i]] = ""
+						}
+					}
+					!seen_fm && $0 == "---" {
+						seen_fm = 1
+						in_fm = 1
+						next
+					}
+					in_fm && $0 == "---" {
+						in_fm = 0
+						closed_fm = 1
+						next
+					}
+					closed_fm { next }
+					{
+						pos = index($0, ": ")
+						if (pos > 0) {
+							key = substr($0, 1, pos - 1)
+							if (key in vals) {
+								if (in_fm) {
+									if (vals[key] == "") vals[key] = substr($0, pos + 2)
+								} else {
+									if (fallback[key] == "") fallback[key] = substr($0, pos + 2)
+								}
+							}
+						}
+					}
+					END {
+						for (i = 1; i <= n; i++) {
+							key = order[i]
+							val = vals[key]
+							if (!seen_fm && val == "") val = fallback[key]
+							printf "%s: %s\n", key, val
+						}
+					}
+				' "$f"
+			fi
+			printf '\n'
+		done
+
+		## SCAN-COMPLETENESS VERDICT. The body above already reports every
+		## unread source honestly -- `NOT SCANNED`/`**NOTE:** partial` markers
+		## and a `sources-scanned: N of M` line per service -- and it still
+		## returned 0, so a human reading the output saw the gap while
+		## anything branching on exit status saw success. The report was never
+		## the problem; the verdict was.
+		##
+		## Codes follow the convention this package already ratified for the
+		## human-owner two-conversation fan-out (--member-comms-slack-read
+		## human-owner): 0 when everything asked for was read, 3 when only
+		## part of it was, 4 when none of it was, 1 when the operation failed
+		## before producing a document at all. Same three-way shape, same
+		## meanings, so a caller that already handles one handles this.
+		##
+		## `set +e` before a deliberate non-zero return is this script's own
+		## established idiom (see every `set +e ; return 1` above): the
+		## callers of this op invoke it as a bare command and then
+		## `return $?`, and under the function's own `set -e` a non-zero bare
+		## command would end the shell before that line was ever reached.
+		if [ "$sessionContextSourcesTotal" -eq 0 ] || [ "$sessionContextSourcesScanned" -eq "$sessionContextSourcesTotal" ] ; then
+			return 0
+		fi
+		if [ "$sessionContextSourcesScanned" -eq 0 ] ; then
+			set +e ; return 4
+		fi
+		set +e ; return 3
 	;;
 
 	*)
