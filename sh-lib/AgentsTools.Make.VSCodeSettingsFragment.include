@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Make.VSCodeSettingsFragment.include -- the `.code-workspace`
+## "settings" fragment contributed by myx.distro-agents. Sourced by
+## myx.distro-source's SourceTools.Make.BuildCodeWorkspaceData.include from
+## inside the generated file's "settings" object, exactly like the sibling
+## VSCodeTasksFragment is sourced from inside its "tasks" array. Every line
+## emitted here therefore needs its own trailing comma.
+##
+## WHAT THIS IS FOR
+##
+## It makes this workspace's magic-team members discoverable by the VS Code
+## chat client (Copilot Chat) WITHOUT touching $HOME and WITHOUT installing
+## any extension.
+##
+## The defect it fixes: on a fresh machine, `magic-coordinator` was not found
+## by Copilot in VS Code. The members were installed to
+## `<workspace>/.claude/skills` (and to `~/.claude/skills`), and VS Code does
+## read `.claude/skills` -- but only as a path relative to a WORKSPACE FOLDER
+## ROOT. The generated `.code-workspace` lists the source namespace roots
+## (`source/<ns>/`) and the two generated browse/status folders as its
+## folders; the workspace directory ITSELF is not one of them. So
+## `<workspace>/.claude/skills` sits one level above every folder VS Code
+## actually looks in, and is never scanned. Walking up to parent directories
+## is off by default (`chat.useCustomizationsInParentRepositories`), and even
+## when enabled it only climbs to a trusted `.git` root -- which the workspace
+## directory is not. The one location that did work was `~/.claude/skills`,
+## which is why the team appeared on a machine that had been set up by hand
+## and vanished on a new one.
+##
+## The fix is therefore a workspace-local, relative location added to
+## `chat.agentSkillsLocations`, pointing at the bundle's own skillset
+## directory. No symlink, no $HOME, no extension.
+##
+## WHY THESE EXACT KEYS AND SHAPES (all read out of the installed VS Code
+## build, not assumed):
+##
+##   - `chat.agentSkillsLocations` is `type: "object"`, `additionalProperties:
+##     {type: "boolean"}` -- a `{"<path>": true}` map.
+##   - Its value is ADDITIVE, not a replacement: the resolver seeds itself
+##     with the built-in defaults (`.claude/skills`, `.github/skills`,
+##     `.agents/skills`, and the `~/...` user ones) and drops a default only
+##     if this map sets that exact path to `false`. Extra keys are appended.
+##     So adding one key here cannot disable anything that already worked.
+##   - Path values are validated against a pattern that REJECTS absolute
+##     paths and glob characters; relative paths (including `../`) and
+##     `~/`-rooted paths are what it accepts. That is why the location below
+##     is expressed by climbing out of a workspace folder rather than as the
+##     absolute path we already have in hand.
+##   - A skill is a directory containing a literal `SKILL.md`, which is
+##     exactly the shape the bundle's members already have -- nothing about
+##     the members themselves has to change.
+##   - The setting is `restricted`, i.e. it applies once the workspace is
+##     trusted. That is already covered by the trust step in the op's
+##     Command Palette checklist.
+##
+## A location that does not exist is simply scanned and found empty, so the
+## keys below are emitted for every folder class the generated workspace can
+## have and the one that resolves is the one that takes effect.
+##
+
+## THE WORKSPACE-ROOT INTEGRATION ROOTS
+##
+## `--install-skillset-symlinks` symlinks every team member into the workspace
+## root's hidden integration directories -- `.agents/skills`, `.github/skills`
+## and `.claude/skills` -- which is where the human-owner wants them and where
+## the direct-reading clients (Claude Code, Copilot CLI) find them by
+## themselves. VS Code does NOT find them there on its own, for the reason
+## above: those three names are resolved relative to a workspace FOLDER, and
+## the workspace root is not one. Naming them here by the same relative climb
+## is what makes VS Code resolve them.
+##
+## This matters beyond tidiness: the symlink roots are the ONLY place the
+## scattered members live -- team members declared by individual source
+## projects, and merged composites built under `.local/agents/`. The bundle
+## location below covers only the members shipped inside myx.distro-agents.
+local MDAGENTS_WORKSPACE_SKILL_ROOTS=".agents/skills .github/skills .claude/skills"
+
+local MDAGENTS_SKILLSET_DIR
+MDAGENTS_SKILLSET_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../skillset/magic-team" 2>/dev/null && pwd )" || MDAGENTS_SKILLSET_DIR=""
+
+## The bundle key is emitted only when the bundle is INSIDE the workspace;
+## the workspace-root keys are always emitted, because they are workspace-root
+## relative by construction and so stay valid even on a shared-origin
+## workspace, which is exactly the case that has no bundle key at all.
+local MDAGENTS_SKILLSET_REL=""
+if [ -n "$MDAGENTS_SKILLSET_DIR" ] && [ "${MDAGENTS_SKILLSET_DIR#$MMDAPP/}" != "$MDAGENTS_SKILLSET_DIR" ] ; then
+	## Relative to the workspace directory, e.g.
+	## `source/myx/myx.distro-agents/skillset/magic-team` when the origin is
+	## the source tree, or `.local/myx/...` when it is the installed copy.
+	MDAGENTS_SKILLSET_REL="${MDAGENTS_SKILLSET_DIR#$MMDAPP/}"
+fi
+
+## Two climbs per location, because the generated workspace has folders at two
+## depths below the workspace directory: the namespace roots at
+## `$MMDAPP/source/<ns>` (two levels) and the generated browse/status folders
+## at `$MMDAPP/.local/.vscode/<name>` (three levels). Each key resolves to the
+## real directory from the folders at its own depth and to a non-existent path
+## from the others, which costs nothing -- a location that does not exist is
+## scanned and found empty.
+{
+	echo '		"chat.agentSkillsLocations": {'
+	local MDAGENTS_SKILL_KEYS="" MDAGENTS_SKILL_ROOT
+	for MDAGENTS_SKILL_ROOT in $MDAGENTS_WORKSPACE_SKILL_ROOTS ; do
+		MDAGENTS_SKILL_KEYS="$MDAGENTS_SKILL_KEYS../../$MDAGENTS_SKILL_ROOT
+../../../$MDAGENTS_SKILL_ROOT
+"
+	done
+	if [ -n "$MDAGENTS_SKILLSET_REL" ] ; then
+		MDAGENTS_SKILL_KEYS="$MDAGENTS_SKILL_KEYS../../$MDAGENTS_SKILLSET_REL
+../../../$MDAGENTS_SKILLSET_REL
+"
+	fi
+	## Comma placement is driven off the LAST line rather than the first, so
+	## the emitted object stays valid JSON however many keys the loop produced.
+	printf '%s' "$MDAGENTS_SKILL_KEYS" | awk '
+		NF { n = n + 1 ; k[n] = $0 }
+		END { for ( i = 1 ; i <= n ; i = i + 1 ) printf "\t\t\t\"%s\": true%s\n", k[i], ( i < n ? "," : "" ) }
+	'
+	echo '		},'
+}
+
+if [ -z "$MDAGENTS_SKILLSET_REL" ] ; then
+
+	## Shared-origin workspaces (MDLT_ORIGIN resolving outside $MMDAPP, e.g.
+	## ws-myx.prv-farm) have no workspace-relative way to name the BUNDLE, and
+	## VS Code rejects absolute paths for this setting. Not fatal any more: the
+	## workspace-root symlink roots emitted above are workspace-relative by
+	## construction and carry the same members, so discovery still works there.
+	## Still said out loud, because it is the difference between "found via the
+	## bundle directly" and "found only via the symlink roots".
+	echo "# WARN AgentsTools.Make.VSCodeSettingsFragment: magic-team bundle is outside the workspace ($MDAGENTS_SKILLSET_DIR vs $MMDAPP) -- no direct bundle entry in chat.agentSkillsLocations; members are still reachable through the workspace-root skills roots" >&2
+
+fi

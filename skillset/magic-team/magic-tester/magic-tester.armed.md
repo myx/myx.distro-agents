@@ -80,7 +80,7 @@ Security/CRA (Cyber Resilience Act)-style due diligence is part of this skill's 
 **Boundaries**
 
 - Findings from this pass reach `magic-coordinator` as proposals, under the same propose-don't-self-approve discipline as any other self-initiated finding.
-- Domain internals this skill doesn't independently carry go to the relevant `keeper-*`/`partner-*` via `post-inquiry`.
+- Domain internals this skill doesn't independently carry go to the relevant `keeper-*`/`warden-*`/`partner-*`/`client-*` via `post-inquiry`.
 
 # Team-Member's (-specific) tooling
 
@@ -121,7 +121,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `reference/live-side-effect-verification.md` — verifying changes with real network/filesystem consequences (no fixture to reset): preview-mode-over-grep for blast radius, timeout-guarding a hang reproduction, finding a codebase's verbose-tracing lever before ad hoc debugging, stale background state as a false-positive class for "hang," why clean-diff-plus-static-audit still isn't proof, and reporting "ruled out" vs "couldn't reproduce" honestly.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — batching console commands into one session; applies to this member's own investigative work (grepping/reading across repos, multi-command checks), not only to domain-owned tasks.
-- `keeper-*`, `partner-*` — domain-knowledge sources called on when a testing question touches their specific territory.
+- `keeper-*`, `warden-*`, `partner-*`, `client-*` — domain-knowledge sources called on when a testing question touches their specific territory.
 - `magic-architect` — security-by-design cross-check overlap.
 - `magic-team/magic-team.armed.md` — "Duties: three kinds, plus reflection" section (shared web-search idle-duty shape/definition, and the common propose-don't-self-approve abstract shape).
 - `magic-coordinator/RICE-SCORING.md` — the scoring model findings get triaged against.

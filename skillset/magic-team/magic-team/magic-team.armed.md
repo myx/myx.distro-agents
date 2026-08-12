@@ -529,7 +529,7 @@ Distinct from the board (coordinator-owned, continuous) — these are static-ish
 
 # Non-acting owners
 
-A `board-item`'s `owner` can be an acting team member (a spawned, working, self-reporting `magic-*`/`keeper-*`/`partner-*` skill) or a **non-acting owner** — anything that isn't one of those, mechanically: the human-owner, or an external contact (e.g. a partner support team). Non-acting owners have no skill directory of their own, so their inbox content lives inside `magic-coordinator`'s own inbox, handled *by* `magic-coordinator` via `routine-external-inbox-handle-loop`. Acting members read/reply/route their own personal inbox (not part of the board — see `routine-process-inbox`) directly — open to incoming from others, not coordinator-exclusive — not a mandatory per-dispatch checkpoint (`magic-team.board.md`'s "Who actually reads/writes the board" section), but genuinely the member's own action when it does happen, not something relayed through coordinator first.
+A `board-item`'s `owner` can be an acting team member (a spawned, working, self-reporting `magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*` skill) or a **non-acting owner** — anything that isn't one of those, mechanically: the human-owner, or an external contact (e.g. a partner support team). Non-acting owners have no skill directory of their own, so their inbox content lives inside `magic-coordinator`'s own inbox, handled *by* `magic-coordinator` via `routine-external-inbox-handle-loop`. Acting members read/reply/route their own personal inbox (not part of the board — see `routine-process-inbox`) directly — open to incoming from others, not coordinator-exclusive — not a mandatory per-dispatch checkpoint (`magic-team.board.md`'s "Who actually reads/writes the board" section), but genuinely the member's own action when it does happen, not something relayed through coordinator first.
 
 # Workspace
 
@@ -565,10 +565,6 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 - `--member-comms-slack-send-message`
 - `--member-help`
 - `--help`
-- `--console-start`
-- `--console-send`
-- `--console-stop`
-- `--console-list`
 - `--purge-cleanup`
 - `--member-comms-slack-react`
 - `--member-comms-slack-read`
@@ -588,18 +584,6 @@ Note: the `--magic-*` operation families are not on this list and never will be.
 
 ## `--help` Operation Reference
 "Prints this syntax + summary and exits."
-
-## `--console-start` Operation Reference
-"Starts (or, for an already-alive channel on the same workspace + console, reuses) a Keep-Alive console session."
-
-## `--console-send` Operation Reference
-"Sends one command line into an open channel's FIFO." It also checks liveness first: if the console or holder process is dead, it restarts the channel automatically (same mechanism `--console-start` uses) before sending. Callers do not need to check liveness manually before calling it.
-
-## `--console-stop` Operation Reference
-"Sends exit into the channel, then kills the console and FIFO-holder processes (TERM, then KILL after a 1s grace period if still alive), and removes the channel directory."
-
-## `--console-list` Operation Reference
-"Lists channels belonging to one workspace (default: this tool's own; see --override-workspace) with their console/holder liveness."
 
 ## `--purge-cleanup` Operation Reference
 "Empties $MMDAPP/.local/.cleanup/ (the folder itself stays). Takes no arguments -- always targets this one fixed location; nothing to parameterize."
@@ -638,7 +622,7 @@ Named directly in this file's own "Workspace" section above: the only sanctioned
 - **Every shell command, no exceptions, goes through `mcp__myx_common__lib_execShStdin` — never Bash, Python, or any other direct-execution tool.** Applies to every member and routine, not just `DistroAgentsTools.fn.sh` calls.
 - Every invocation of `DistroAgentsTools.fn.sh` — every op, no exceptions — uses this same channel.
 - **Global default: do not use console sessions unless explicitly instructed.** A Keep-Alive Console Session (`--console-start`/`--console-send`/`--console-stop`) is for batching several commands into one session only. A single, simple call — one `DistroAgentsTools.fn.sh` op, or any other one-off trivial command — never needs a console session first; call it directly via `lib/execShStdin`.
-- **Keeper exception: `keeper-*`/`partner-*` members may use console sessions only when their own instructions explicitly require it.** A member's own `.armed.md` explicitly listing `--console-start`/`--console-send` for its own domain counts as that instruction — e.g. `keeper-*`/`partner-*` batching multiple domain-investigation commands.
+- **Keeper exception: `keeper-*`/`warden-*`/`partner-*` members may use console sessions only when their own instructions explicitly require it.** A member's own `.armed.md` explicitly listing `--console-start`/`--console-send` for its own domain counts as that instruction — e.g. `keeper-*`/`warden-*`/`partner-*` batching multiple domain-investigation commands.
 - **Workspace boundary: in coworking, work on an explicitly different workspace must run in a console session for that target workspace.** Opens (or reuses) a console session scoped to that workspace (`--console-start --override-workspace <path>`, see the Workspace section above) — except the spawned-background-sub-agent single-call override the next bullet already documents, which stays a direct call by design.
 - **Process-flow default: process-flow steps run as direct tooling calls unless explicitly instructed otherwise.** `routine-heartbeat`/`routine-advance`/`routine-daily` (and any other process-flow step) execute every operation as a direct `lib/execShStdin` call — no console session opens or is assumed, unless the keeper exception or workspace boundary above applies.
 - `DistroAgentsTools.fn.sh` resolves its own workspace root from `$0`. In a spawned background sub-agent session, pass `env={"MMDAPP": "<workspace-root>"}` on the `mcp__myx_common__lib_execShStdin` call — confirmed working.
@@ -667,11 +651,11 @@ Used to check this file's own definitions against its own goals when it is updat
 - "`magic-team.board.md` (this folder) — the team's current-work index. Thin and reference-heavy by design: the board itself is a rollup, the substance lives in the individual `board-item` files under `board/`."
 - "Every file under `board/` is a **`board-item`**. `board-item` subtypes are distinguished by filename prefix."
 - "This list is \"at least,\" not exhaustive — new subtypes are expected over time. When one appears, the routines that create it and the routines that read it must be explicitly updated to mention it (no silent/dynamic discovery)."
-- "A `board-item`'s `owner` can be an acting team member (a spawned, working, self-reporting `magic-*`/`keeper-*`/`partner-*` skill) or a **non-acting owner** — anything that isn't one of those, mechanically: the human-owner, or an external contact (e.g. a partner support team)."
+- "A `board-item`'s `owner` can be an acting team member (a spawned, working, self-reporting `magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*` skill) or a **non-acting owner** — anything that isn't one of those, mechanically: the human-owner, or an external contact (e.g. a partner support team)."
 - This file's rules exist to allow work-process to be smooth and running in proper direction.
 - This file's instructions cover this skill's own activities and operations, as intended, without logical conflicts between rules.
 - "This file governs form and control points, not strategy."
-- "This is the durable, cross-cutting model doc for how the team's skill folders and routines work — every acting member's own skill folder (magic-\*/keeper-\*/partner-\*), plus every routine-\* virtual member hosted inside one of them: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule."
+- "This is the durable, cross-cutting model doc for how the team's skill folders and routines work — every acting member's own skill folder (magic-\*/keeper-\*/warden-\*/partner-\*/client-\*), plus every routine-\* virtual member hosted inside one of them: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule."
 - "This file is the member-specific option set for magic-team."
 - "magic-team.armed.md MUST instruct using this file."
 - Any process-flow/mechanics action (Slack post, board write, inbox filing) routes through the real DistroAgentsTools.fn.sh op via mcp__myx_common__lib_execShStdin — never a raw Bash call, never a Write/Edit shortcut standing in for the op. This includes reflection-* filing specifically — --member-upsert-inbox-reflection, never a raw Write of the file. Direct editing of a file's own content (an armed.md's prose, a tooling.md's option list) is not process-flow/mechanics and stays a plain Read/Edit action.

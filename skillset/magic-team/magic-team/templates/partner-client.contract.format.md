@@ -51,7 +51,7 @@ All statements apply at the same time, always. These rules override a magic-team
 
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `DistroAgentsTools.fn.sh` always executes via the `myx.common` MCP tool `mcp__myx_common__lib_execShStdin` (command `lib/execShStdin`) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way.
-- Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement.
+- [`partner-*` only — drop this bullet entirely for a `client-*` member, which is a representative with normally no workspace or console of its own. Keep it for a specific client only when that client genuinely needs console, stated explicitly here:] Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement.
 - [Flat, present-tense rule bullet: limit, restriction, or decision-making guidance.]
 
 # Domain knowledge: <topic>
@@ -64,6 +64,7 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 
 ## DistroAgentsTools magic-tooling operations
 
+- [`partner-*` only — drop both console operations for a `client-*` member unless that particular client genuinely needs console, matching its local-rules section above:]
 - `--console-start [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]`
 - `--console-send <channel> [-- <command...>]`
 - [`--operation-name <args>`]

@@ -56,7 +56,7 @@ Steps:
 2. **docgap-confirm**: Ask questions/test/confirm.
 3. **docgap-update**: Only then update docs and cards.
 
-Never write a doc section or card description from a guess. Multiple members are typically involved depending on the gap (`magic-coordinator` dispatch/synthesis, `magic-librarian` writing, the relevant `keeper-*`/`partner-*` domain grounding, `magic-tester` when "is this actually true/tested" matters) — pull in whoever the gap actually touches, not a fixed roster every time. Cadence is flexible: a small gap gets a short discussion during a daily meeting's roll call or work session; a bigger one gets its own dedicated ad-hoc meeting rather than being forced into a daily's timebox.
+Never write a doc section or card description from a guess. Multiple members are typically involved depending on the gap (`magic-coordinator` dispatch/synthesis, `magic-librarian` writing, the relevant `keeper-*`/`warden-*`/`partner-*`/`client-*` domain grounding, `magic-tester` when "is this actually true/tested" matters) — pull in whoever the gap actually touches, not a fixed roster every time. Cadence is flexible: a small gap gets a short discussion during a daily meeting's roll call or work session; a bigger one gets its own dedicated ad-hoc meeting rather than being forced into a daily's timebox.
 
 ## `missing-tool-option-escalation` - escalation ladder for a missing tool option/syntax
 
@@ -550,7 +550,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-librarian` — README/CLAUDE.md/board-item writing, the shared reference files' maintainer.
 - `magic-architect` — design-consistency dispatch target for doc-drift signals, joint grooming authority.
 - `magic-tester` — testing/verification dispatch target, `board/testing/` gate.
-- Every `keeper-*`/`partner-*` member — domain grounding, coordinator's assistants per `magic-team.authority.keeper.contract.md`'s policy.
+- Every `keeper-*`/`warden-*`/`partner-*`/`client-*` member — domain grounding, coordinator's assistants per `magic-team.authority.keeper.contract.md`'s policy.
 - `magic-team` — the board (`board/`) and shared reference files (`magic-team.board.md`, `magic-team.armed.md`'s tooling section, `magic-team.shared.md`) this member reads/writes continuously.
 - `RICE-SCORING.md`/`TEAM-ORGANIZATION-VISION.md` stay under this directory for now per `magic-team.armed.md`'s own note.
 

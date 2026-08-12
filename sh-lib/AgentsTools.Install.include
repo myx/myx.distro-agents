@@ -18,6 +18,12 @@
 ##   --install-workspace-integrations
 ##   --install-vscode-integrations
 ##
+## --install-skillset-symlinks installs into EVERY integration root its scope
+## covers (see the INTEGRATION ROOTS block below), not `.claude/skills` alone,
+## creating each root if it is missing. It fans out over those roots by
+## re-invoking itself once per root with the internal `--target-root`, so the
+## single-root body below stays the one implementation.
+##
 ## --install-skillset-symlinks is a RECONCILE, not an add: it converges this
 ## workspace's registered set in `.linked.magic-team.members.txt` to what the
 ## workspace currently declares. A member that has disappeared loses its line,
@@ -31,7 +37,7 @@ case "$1" in
 		--install-skillset-symlinks)
 			shift
 
-			local scope="workspace" workspaceArg scopeExplicit="false" removeMode="false"
+			local scope="workspace" workspaceArg scopeExplicit="false" removeMode="false" targetRootArg
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					--remove)
@@ -54,6 +60,19 @@ case "$1" in
 							set +e ; return 1
 						fi
 						workspaceArg="$2" ; shift 2
+					;;
+					--target-root)
+						## INTERNAL. Pins this invocation to ONE symlink root and
+						## suppresses the fan-out below. Set only by the fan-out
+						## re-invoking this same op once per integration root, so
+						## every root is served by the one already-proven
+						## single-root body rather than by a second
+						## implementation of it. Not for hand use.
+						if [ -z "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --target-root requires a value" >&2
+							set +e ; return 1
+						fi
+						targetRootArg="$2" ; shift 2
 					;;
 					*)
 						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: invalid option: $1" >&2
@@ -81,11 +100,69 @@ case "$1" in
 				set +e ; return 1
 			fi
 
+			##
+			## INTEGRATION ROOTS -- one symlink root per hidden directory that a
+			## popular AI chat client actually reads, not `.claude/skills` alone.
+			##
+			## The list is not guessed: it is the discovery table compiled into
+			## the installed VS Code build, which enumerates exactly
+			##   workspace-local: .agents/skills, .github/skills, .claude/skills
+			##   user-level:       ~/.agents/skills, ~/.copilot/skills, ~/.claude/skills
+			## (`.copilot/skills` is user-level ONLY -- there is no workspace-local
+			## Copilot entry, so none is written.) A skill is a directory
+			## containing a literal `SKILL.md`, which is what every member linked
+			## here already is, so one member serves all of them.
+			##
+			## Workspace-scope roots sit at the WORKSPACE ROOT, per human-owner:
+			## "I say workspace root - all works from there". Each root is created
+			## if missing -- `mkdir -p` below -- so a fresh machine needs no
+			## manual preparation.
+			##
+			## NOTE on what makes VS Code actually SEE the workspace-root ones:
+			## it resolves the three workspace-local names relative to each
+			## WORKSPACE FOLDER, and the generated `.code-workspace` lists
+			## `source/<ns>/` and the browse/status folders as its folders, not
+			## the workspace directory itself. The generated
+			## `chat.agentSkillsLocations` fragment therefore also names these
+			## roots by relative climb out of those folders
+			## (AgentsTools.Make.VSCodeSettingsFragment.include) -- the symlinks
+			## go where the human-owner says, and that settings key is what makes
+			## them resolve. Clients that read the roots directly (Claude Code,
+			## Copilot CLI) need only the symlinks.
+			##
 			local targetRoot
-			case "$scope" in
-				user-home) targetRoot="$HOME/.claude/skills" ;;
-				workspace) targetRoot="$workspace/.claude/skills" ;;
-			esac
+			if [ -z "$targetRootArg" ] ; then
+				local fanRoots fanRoot fanStatus=0
+				case "$scope" in
+					user-home)
+						fanRoots="$HOME/.agents/skills
+$HOME/.copilot/skills
+$HOME/.claude/skills"
+					;;
+					workspace)
+						fanRoots="$workspace/.agents/skills
+$workspace/.github/skills
+$workspace/.claude/skills"
+					;;
+				esac
+				## Newline-separated and read line-at-a-time: a space-separated
+				## list would word-split the moment $HOME or the workspace path
+				## contains a space.
+				while IFS= read -r fanRoot ; do
+					[ -n "$fanRoot" ] || continue
+					if [ "$removeMode" = "true" ] ; then
+						DistroAgentsTools --install-skillset-symlinks --remove --scope "$scope" --workspace "$workspace" --target-root "$fanRoot" || fanStatus=1
+					else
+						DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" --target-root "$fanRoot" || fanStatus=1
+					fi
+				done <<< "$fanRoots"
+				if [ "$fanStatus" != "0" ] ; then
+					set +e ; return 1
+				fi
+				return 0
+			fi
+
+			targetRoot="$targetRootArg"
 			mkdir -p "$targetRoot" || {
 				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: can't create target directory: $targetRoot" >&2
 				set +e ; return 1
@@ -142,14 +219,39 @@ case "$1" in
 					## the guards that are supposed to provide it.
 					continue
 				fi
-				if [ -L "$memberTarget" ] ; then
-					## Already linked -- by an earlier run, or by another
-					## workspace sharing this root. Never an error: this
-					## workspace adds its OWN registry line and leaves the
-					## existing link, and every other workspace's line, exactly
-					## as found.
+				## A symlink at the slot is only a reason to stand back if it
+				## actually RESOLVES. `[ -L ]` alone does not say that: it is
+				## true for a link pointing at nothing, and treating that as
+				## "already linked" registered the member as installed while
+				## the skill could never load -- permanently, since every
+				## later idempotent run applied the same test and preserved
+				## the same broken link. `[ -e ]` follows the link, so it is
+				## false exactly in that case.
+				if [ -L "$memberTarget" ] && [ ! -e "$memberTarget" ] ; then
+					## Reclaiming the slot destroys nothing: a dangling
+					## symlink is not content, and real content is a
+					## different case entirely (the `[ -e ]` branch below,
+					## which still refuses to overwrite).
+					echo "# $MDSC_CMD --install-skillset-symlinks: $memberTarget is a dangling symlink (points at $( readlink "$memberTarget" ), which does not exist) -- reclaiming the slot" >&2
+					if ! rm -f "$memberTarget" ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove dangling symlink: $memberTarget" >&2
+						hadError="true"
+						continue
+					fi
+				elif [ -L "$memberTarget" ] ; then
+					## Already linked, and the link resolves -- by an earlier
+					## run, or by another workspace sharing this root. Never an
+					## error: this workspace adds its OWN registry line and
+					## leaves the existing link, and every other workspace's
+					## line, exactly as found.
+					##
+					## The old wording here claimed the link came from
+					## "another workspace". Nothing checked here establishes
+					## that -- a stale link of this workspace's own, or one a
+					## human made by hand, reads identically. Only the
+					## difference in target is known, so only that is stated.
 					if [ "$( readlink "$memberTarget" )" != "$memberBundled" ] ; then
-						echo "# $MDSC_CMD --install-skillset-symlinks: $memberTarget already linked by another workspace, kept as-is: $( readlink "$memberTarget" )" >&2
+						echo "# $MDSC_CMD --install-skillset-symlinks: $memberTarget already links elsewhere, kept as-is: $( readlink "$memberTarget" ) (this workspace's own copy is $memberBundled)" >&2
 					fi
 					ownedMembers="${ownedMembers}${memberName} ${memberBundled}
 "
@@ -306,6 +408,44 @@ case "$1" in
 				dcSources="$( printf '%s\n' "$memberSources" | awk -v m="$dcMember" '$1 == m { sub(/^[^ ]+ /, ""); print }' )"
 				dcCount="$( printf '%s' "$dcSources" | grep -c '' )"
 
+				##
+				## NAME COLLISION -- this declared member's name is one Phase A
+				## has already claimed for the BUNDLED member of that name (the
+				## test is exactly that: a line already in $ownedMembers this
+				## run, not merely a directory existing in the bundle, since
+				## Phase A deliberately ignores whole name classes such as
+				## keeper-*/partner-* and never claims their slots).
+				##
+				## The bundled copy is what is on disk and stays there -- the
+				## slot is taken, and the branch below could only "resolve" the
+				## collision by leaving it as it found it. What it also used to
+				## do was add a second $ownedMembers line for the same member
+				## carrying the DECLARED path, which Phase C wrote over the
+				## truthful one, so the registry ended up naming a path the
+				## slot does not point at. That recorded path is the input to
+				## the reconcile's "recorded source still exists" guard, so the
+				## lie sits precisely where the reconcile makes its
+				## keep-or-unlink decision.
+				##
+				## So: say it, loudly, and add nothing -- Phase A's line is
+				## already correct and is left to stand. Not raised as an error
+				## on purpose: $hadError disables the reconcile's removal step
+				## for the entire run, and a collision is a standing condition
+				## of the workspace's own declares, so erroring would leave
+				## reconcile permanently switched off rather than switched off
+				## for one bad run. Whether a collision should nevertheless
+				## fail the install outright is a human-owner call, not one to
+				## take here.
+				##
+				if printf '%s\n' "$ownedMembers" | awk -v m="$dcMember" 'NF && $1 == m { hit = 1 } END { exit !hit }' ; then
+					echo "# WARN $MDSC_CMD --install-skillset-symlinks: NAME COLLISION on team-member $dcMember -- it is both bundled and declared by a workspace project. The bundled copy holds the slot $targetRoot/$dcMember and stays registered; the declared source(s) below are NOT linked and NOT registered, and will be shadowed until one of the two is renamed:" >&2
+					while IFS= read -r dcSrc ; do
+						[ -n "$dcSrc" ] || continue
+						echo "#   shadowed declared source: $dcSrc" >&2
+					done <<< "$dcSources"
+					continue
+				fi
+
 				if [ "$dcCount" = "1" ] ; then
 					dcLinkTarget="$dcSources"
 				else
@@ -386,12 +526,22 @@ case "$1" in
 				fi
 
 				local dcSlot="$targetRoot/$dcMember"
-				if [ -L "$dcSlot" ] ; then
-					## Same rule as the bundle members above: an existing link,
-					## whoever made it, is kept and is never an error. This
-					## workspace still records its own line for the member.
+				## Same dangling-symlink rule as the bundle members above, and
+				## for the same reason -- see the comment there.
+				if [ -L "$dcSlot" ] && [ ! -e "$dcSlot" ] ; then
+					echo "# $MDSC_CMD --install-skillset-symlinks: $dcSlot is a dangling symlink (points at $( readlink "$dcSlot" ), which does not exist) -- reclaiming the slot" >&2
+					if ! rm -f "$dcSlot" ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove dangling symlink: $dcSlot" >&2
+						hadError="true"
+						continue
+					fi
+				elif [ -L "$dcSlot" ] ; then
+					## Same rule as the bundle members above: an existing link
+					## that resolves, whoever made it, is kept and is never an
+					## error. This workspace still records its own line for the
+					## member.
 					if [ "$( readlink "$dcSlot" )" != "$dcLinkTarget" ] ; then
-						echo "# $MDSC_CMD --install-skillset-symlinks: $dcSlot already linked by another workspace, kept as-is: $( readlink "$dcSlot" )" >&2
+						echo "# $MDSC_CMD --install-skillset-symlinks: $dcSlot already links elsewhere, kept as-is: $( readlink "$dcSlot" ) (this workspace's declared source is $dcLinkTarget)" >&2
 					fi
 					ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}
 "
@@ -618,9 +768,17 @@ case "$1" in
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					--scope)
+						if [ -z "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: --scope requires a value" >&2
+							set +e ; return 1
+						fi
 						scope="$2" ; shift 2
 					;;
 					--workspace)
+						if [ -z "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: --workspace requires a value" >&2
+							set +e ; return 1
+						fi
 						workspaceArg="$2" ; shift 2
 					;;
 					*)
@@ -644,11 +802,18 @@ case "$1" in
 				## --install-skillset-symlinks itself requires an explicit
 				## --scope (2026-08-06 correction) -- "both" is composed here,
 				## at this caller's own level, not delegated to an implicit
-				## no-scope mode on the child op. user-home only runs when
-				## $HOME/.claude/skills actually exists (not explicitly
-				## requested here, so skipped gracefully rather than erroring);
-				## workspace always runs.
-				[ ! -d "$HOME/.claude/skills" ] || DistroAgentsTools --install-skillset-symlinks --scope user-home --workspace "$workspace" || { set +e ; return 1 ; }
+				## no-scope mode on the child op. Both scopes always run.
+				##
+				## The user-home step used to be conditional on
+				## $HOME/.claude/skills already existing. That skipped exactly
+				## the case it most needed to cover: on a machine set up from
+				## scratch that directory does not exist yet, so the one
+				## location every VS Code panel-facing client (Claude, Copilot,
+				## ...) reads the team skillset from was silently never
+				## populated -- silently, because a skip is not a failure. The
+				## child op already does its own `mkdir -p` on the target root,
+				## so there is nothing left for this guard to protect against.
+				DistroAgentsTools --install-skillset-symlinks --scope user-home --workspace "$workspace" || { set +e ; return 1 ; }
 				DistroAgentsTools --install-skillset-symlinks --scope workspace --workspace "$workspace" || { set +e ; return 1 ; }
 			fi
 
@@ -665,6 +830,10 @@ case "$1" in
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					--workspace)
+						if [ -z "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: --workspace requires a value" >&2
+							set +e ; return 1
+						fi
 						workspaceArg="$2" ; shift 2
 					;;
 					*)

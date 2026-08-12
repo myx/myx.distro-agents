@@ -3,7 +3,7 @@ maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 <!-- MAINTAINED BY magic-librarian — do not edit directly.
      This is the durable, cross-cutting model doc for how the team's skill folders and routines work —
-     every acting member's own skill folder (magic-*/keeper-*/partner-*), plus every routine-* virtual
+     every acting member's own skill folder (magic-*/keeper-*/warden-*/partner-*/client-*), plus every routine-* virtual
      member hosted inside one of them: the folder-shape spec, the
      typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule. Named
      `magic-team.shared.md` because it's hosted in magic-team's own folder, the same "<owning-folder-
@@ -17,7 +17,7 @@ maintainers: magic-librarian, magic-coordinator, human-owner
 
 ## Core idea
 
-Every team routine/activity (`daily`, `grooming`, `retro`, `one-on-one`, `heartbeat`, ..., plus conversational ones like `interview`/`discuss`/`brainstorm`) is a named procedure, not its own Claude Code skill folder. Its full definition lives in one self-contained `.routine.md` file, hosted inside its owning/executing team member's own skill folder (one of `magic-coordinator`, `magic-team`, `magic-librarian`, a `partner-*`), named following that member's own typed-file convention: `<owning-member>.<short-name>.routine.md`. Only acting members (`magic-*`/`keeper-*`/`partner-*`) are real, separate Claude Code skill folders under `~/.claude/skills/`, each with its own `SKILL.md` — a routine is not, and has no `SKILL.md` of its own.
+Every team routine/activity (`daily`, `grooming`, `retro`, `one-on-one`, `heartbeat`, ..., plus conversational ones like `interview`/`discuss`/`brainstorm`) is a named procedure, not its own Claude Code skill folder. Its full definition lives in one self-contained `.routine.md` file, hosted inside its owning/executing team member's own skill folder (one of `magic-coordinator`, `magic-team`, `magic-librarian`, a `partner-*`), named following that member's own typed-file convention: `<owning-member>.<short-name>.routine.md`. Only acting members (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) are real, separate Claude Code skill folders under `~/.claude/skills/`, each with its own `SKILL.md` — a routine is not, and has no `SKILL.md` of its own.
 
 A routine is executed by whichever member actually runs it — most often its own owning member, but any other member may run it too, by reading that routine's procedure directly out of the owning member's file and applying its own identity/skills while executing the steps. This is what makes `"magic-architect, ingest the task"` a real, distinct thing from `"Magic, ingest the task"` — the same procedure, performed by a different member, produces member-appropriate results.
 
@@ -34,9 +34,9 @@ Read `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" sect
 
 File set:
 
-- **Acting member** (`magic-*`/`keeper-*`/`partner-*` — the only real, separate folder under `~/.claude/skills/`): `SKILL.md`, `<name>.basic.md`, `<name>.armed.md`, optional `<name>.shared.md`, zero-or-more `<name>.<short-name>.routine.md` — each one self-contained, describing one procedure/activity this member owns, never its own folder.
+- **Acting member** (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*` — the only real, separate folder under `~/.claude/skills/`): `SKILL.md`, `<name>.basic.md`, `<name>.armed.md`, optional `<name>.shared.md`, zero-or-more `<name>.<short-name>.routine.md` — each one self-contained, describing one procedure/activity this member owns, never its own folder.
 
-Every acting member (`magic-*`/`keeper-*`/`partner-*`) skill folder under `~/.claude/skills/` contains:
+Every acting member (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) skill folder under `~/.claude/skills/` contains:
 
 - **`SKILL.md`** — the boot dispatcher only. Claude Code's own skill-discovery mechanism requires this exact filename, so it never gets renamed. Standard skill frontmatter (`description`) plus a short dispatch routine: read `<name>.basic.md` unconditionally first (identity-only), then `<name>.armed.md` directly for genuine active-work-duty. A non-active-duty presence wanting to dig deeper than `basic.md` reads `<name>.armed.md`'s own Maintainer Notes → Librarian Comments → Reference subsection, not a separate reference file.
 - **`<name>.basic.md`** — identity-only content, unconditionally loaded. Enough to respond in a casual/social context, not enough to actually do the work.
@@ -306,7 +306,7 @@ Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - "`DistroAgentsTools.fn.sh` always executes via the `myx.common` MCP tool `mcp__myx_common__lib_execShStdin` (command `lib/execShStdin`) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `lib/execShStdin` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
-    - "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement."
+    - `partner-*` only: "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement." Not part of the `client-*` shape — a `client-*` member is a representative, normally with no workspace or console of its own, so it gets no console grant by default. A specific client that genuinely needs one states it explicitly in its own file, which is what the `magic-team.armed.md` console rules require anyway.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
@@ -511,7 +511,7 @@ A rule is `owner-guaranteed` when it protects the human-owner's own position aga
 ### Invitees (routines only)
 
 **A third role, distinct from executors/maintainers** — who a session under this routine pulls in alongside its executor.
-- Only routines with genuine multi-member sessions (e.g. `routine-coworking`) declare it, in that routine's own `.routine.md` frontmatter; acting members (`magic-*`/`keeper-*`/`partner-*`) never declare `invitees` — their own `.armed.md` frontmatter carries `maintainers:` only.
+- Only routines with genuine multi-member sessions (e.g. `routine-coworking`) declare it, in that routine's own `.routine.md` frontmatter; acting members (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) never declare `invitees` — their own `.armed.md` frontmatter carries `maintainers:` only.
 - Floor, not a cap — a session may pull in others as needed beyond the declared roster.
 - Concrete roster and specifics live in each routine's own `.routine.md` file — read it directly rather than expecting a central table to summarize it.
 

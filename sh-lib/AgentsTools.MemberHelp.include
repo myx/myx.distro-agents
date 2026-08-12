@@ -47,18 +47,21 @@ case "$1" in
 
 		## Every recognized role-family prefix its own hardcoded arm (not one
 		## combined `a|b|c)` line) -- never a directory-existence test, since
-		## oncall-*/expert-*/warden-*/client-* currently have zero live
-		## members, so testing for a real folder would wrongly reject a
-		## valid, just-not-yet-created name. Each arm sets $commonPrefixes,
+		## oncall-*/expert-*/warden-* currently have zero live members, so
+		## testing for a real folder would wrongly reject a valid,
+		## just-not-yet-created name. Each arm sets $commonPrefixes,
 		## this role-family's own common tooling filter -- one prefix per
 		## line, vertical/array-shaped so the actual list is readable at a
 		## glance, not buried in a long horizontal string. `--member-*` is
 		## common to every arm (confirmed). Console ops are a hard
-		## requirement for keeper-*/warden-*/partner-*/client-* specifically
-		## (their own contract's console-session rule, magic-team.shared.md's
-		## "Armed & Routine contracts") -- not for magic-*/oncall-*/expert-*
-		## (oncall-*/expert-* are external billed resources that don't touch
-		## this tool's own console-session machinery at all).
+		## requirement for keeper-*/warden-* specifically (their own
+		## contract's console-session rule, magic-team.shared.md's "Armed &
+		## Routine contracts") -- not for magic-*/partner-*/client-*/oncall-*/
+		## expert-* (partner-*/client-* do get console ops, but per-member,
+		## via their own .armed.md's declared list -- their own contract
+		## makes those available, not a standing requirement; oncall-*/
+		## expert-* are external billed resources that don't touch this
+		## tool's own console-session machinery at all).
 		local commonPrefixes
 		case "$targetMember" in
 			magic-coordinator)

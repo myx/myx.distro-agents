@@ -1032,20 +1032,36 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--owner-install-vscode-integrations [--workspace <path>]
-			Installs/updates baseline VS Code + Claude Code integrations
-			(GitHub.copilot, GitHub.copilot-chat, anthropic.claude-code),
-			verifies they are listed by `code --list-extensions`, and
-			upserts MCP wiring for both clients: workspace `.vscode/mcp.json`
-			with a `servers.myx` stdio entry (VS Code/Copilot-Chat's own
-			schema) and workspace-root `.mcp.json` with a `mcpServers.myx`
-			stdio entry (Claude Code's own project-scope schema -- Claude
-			Code does not read `.vscode/mcp.json`), both pointing at the
-			resolved myx.common `agentMcpServer.sh` path.
+			Installs/updates baseline VS Code + Claude Code integrations.
+			Installs NO extensions and never invokes the `code` CLI --
+			which chat client is installed is the user's own choice; this
+			op only configures the workspace so that whichever client is
+			present can use it. Upserts MCP wiring for every client, in
+			three places:
+			workspace `.vscode/mcp.json` with a `servers.myx` stdio entry
+			(VS Code/Copilot-Chat's own schema); workspace-root `.mcp.json`
+			with a `mcpServers.myx` stdio entry (Claude Code's own
+			project-scope schema -- Claude Code does not read
+			`.vscode/mcp.json` -- and also what Copilot CLI reads since it
+			dropped `.vscode/mcp.json` support); and Claude Code's home
+			local scope, `~/.claude.json`'s
+			`projects["<workspace>"].mcpServers.myx`, delegated to
+			myx.common's own `setup/agentMcp` so that file keeps being edited
+			by its one owner. All three register the same resolved myx.common
+			`bin/lib/agentMcpServer.Common`, launched with `--run` (without
+			`--run` that script prints usage and exits instead of serving, so
+			the `args` are what make the entry actually work). Each written
+			file is verified by re-reading the `myx` entry and asserting both
+			its `command` and its `args`, and is left at mode 0644 regardless
+			of the caller's umask.
 			Default target workspace is the current shell directory; optional
 			`--workspace <path>` overrides it. Fails fast if the target isn't
 			already a set-up myx.distro workspace (checks for
-			`.local/myx/myx.distro-.local/sh-lib/LocalContext.include`) or if
-			VS Code CLI (`code`) is not present in PATH. Prints a compact
+			`.local/myx/myx.distro-.local/sh-lib/LocalContext.include`).
+			A missing VS Code CLI (`code`) is irrelevant to this op and is
+			neither checked nor reported. A missing `~/.claude.json` (Claude Code never
+			run on this machine yet) is a warning only -- the workspace
+			`.mcp.json` covers Claude Code here on its own. Prints a compact
 			OK/FAIL checklist, plus Command Palette trust/restart guidance
 			for MCP visibility.
 
@@ -1055,8 +1071,13 @@
 			Installs skillset-link integration. `$MDLT_ORIGIN/myx/
 			myx.distro-agents/skillset/magic-team` is the operation's source
 			skillset directory used for link targets.
-			Target root is `<workspace>/.claude/skills` for `--scope workspace`
-			or `$HOME/.claude/skills` for `--scope user-home`.
+			Target roots are every hidden skills directory a popular AI chat
+			client reads, all created if missing:
+			`<workspace>/.agents/skills`, `<workspace>/.github/skills` and
+			`<workspace>/.claude/skills` for `--scope workspace`, at the
+			WORKSPACE ROOT; `$HOME/.agents/skills`, `$HOME/.copilot/skills` and
+			`$HOME/.claude/skills` for `--scope user-home`. Every root gets the
+			same members and its own registry file.
 			For each member name seen in either target root or bundle root
 			(skipping `trash` and skipping names matching
 			`keeper-*|partner-*|oncall-*|expert-*|warden-*`), ensures
@@ -1079,10 +1100,13 @@
 			`--owner-install-vscode-integrations` against the same workspace.
 			If `--scope` is provided, forwards it directly to
 			`--install-skillset-symlinks`.
-			With no `--scope`, runs user-home step only when
-			`$HOME/.claude/skills` exists, then always runs workspace step,
+			With no `--scope`, runs the user-home step and then the workspace
+			step -- both unconditionally, since `$HOME/.claude/skills` is
+			where every VS Code panel-facing client reads the team skillset
+			from and on a machine set up from scratch it does not exist yet --
 			then runs the MCP/extension step. Fails fast if any executed step
-			fails.
+			fails. An empty value for `--scope` or `--workspace` is rejected
+			rather than silently treated as absent.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1091,7 +1115,8 @@
 			Resolves the workspace path (default current shell directory,
 			override with `--workspace <path>`) and delegates to the owner
 			backend unchanged, so extension installation + MCP upsert behavior
-			stays centralized in one implementation.
+			stays centralized in one implementation. An empty value for
+			`--workspace` is rejected rather than silently treated as absent.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
