@@ -904,7 +904,23 @@ case "$1" in
 					## threads was dead code. That awk is not the bug and is not
 					## edited -- unbinding this fetch is what makes its own test mean
 					## something again.
-					slackRaw="$( DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackChannel:" --raw )" || {
+					## --identity-bot here, and only outside --comms-member-scope-only:
+					## magic-team/human-owner are the TEAM's own shared sources, not
+					## this member's, so reading them must not depend on whether THIS
+					## acting member happens to hold a live SLACK_USER_TOKEN of its
+					## own -- --intern-op-slack-call's default identity selection
+					## prefers a present member token over the team bot even when
+					## that token is the one that is actually broken, which is
+					## exactly how this sweep silently missed both channels while
+					## --print-acting-identity still reported "user". Under
+					## --comms-member-scope-only, slackSourceNames is instead the
+					## member's own configured conversations, which do need that
+					## member's own identity to be read at all, so the flag stays off.
+					slackRaw="$( if [ "$commsMemberScopeOnly" = "true" ] ; then
+						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackChannel:" --raw
+					else
+						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackChannel:" --identity-bot --raw
+					fi )" || {
 						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, --intern-op-slack-check failed"$'\n'
 						imAnySourceFailed="true"
 						continue
