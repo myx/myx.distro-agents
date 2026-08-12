@@ -79,6 +79,22 @@ case "$1" in
 			fi
 			if [ "$epArg" = "--expect-path-exists" ] ; then epWanted="1" ; fi
 		done
+			## --expect-secret <KEY> pre-scan. Same declared-not-inferred contract
+			## as the two above: the stub states which keys hold a credential, and
+			## nothing here guesses it from the key's name -- TRELLO_KEY is a
+			## secret and SLACK_CHANNEL_* is not, and neither fact is readable
+			## from the spelling. The ONLY thing it changes is the form of the
+			## emitted fix hint: a declared secret is told to be set via
+			## --upsert-from-stdin, so the tool never teaches a user to put a
+			## credential in argv where the process table shows it.
+			local expectSecrets=() esWanted="" esArg
+			for esArg in "$@" ; do
+				if [ -n "$esWanted" ] ; then
+					expectSecrets+=( "$esArg" ) ; esWanted="" ; continue
+				fi
+				if [ "$esArg" = "--expect-secret" ] ; then esWanted="1" ; fi
+			done
+
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
@@ -132,6 +148,24 @@ case "$1" in
 					## same reason: this arm has already consumed its own value
 					## pair, so falling through to the shared <KEY>:<hint> tail
 					## would re-read an exhausted $2.
+					continue
+				;;
+				--expect-secret)
+					## Consumed here as an ordinary option; the pre-scan above
+					## collected it. Bare <KEY>, no `:` tail -- there is nothing
+					## to declare about a secret beyond that it is one.
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --expect-secret: value required (<KEY>)" >&2
+						set +e ; return 1
+					fi
+					case "$2" in
+						*:*)
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --expect-secret: expected a bare <KEY>, got: $2" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+					## Same `continue` requirement as the arms above.
 					continue
 				;;
 				--expect-path-exists)
@@ -272,11 +306,25 @@ case "$1" in
 				fi
 			else
 				echo "$checkKey: FAIL"
+				## One hint line, two forms. A key the stub declared
+				## --expect-secret gets the stdin form: a credential passed as
+				## an argv element is visible in `ps` to every local process,
+				## so printing the argv form for a token would be this tool
+				## teaching the leak. Non-secret keys (paths, channel ids, git
+				## remotes) keep the plain --upsert form -- nothing is gained
+				## by making those clumsier.
+				local fixHint esEntry
+				fixHint="DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey $checkHint"
+				for esEntry in ${expectSecrets[@]+"${expectSecrets[@]}"} ; do
+					if [ "$esEntry" = "$checkKey" ] ; then
+						fixHint="printf '%s' '$checkHint' | DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert-from-stdin $checkKey"
+					fi
+				done
 				if [ "$checkMode" = "required" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): $checkKey is not configured -- set it first: DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey $checkHint" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): $checkKey is not configured -- set it first: $fixHint" >&2
 					requiredMissing=1
 				else
-					echo "  fix: DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey $checkHint"
+					echo "  fix: $fixHint"
 				fi
 			fi
 		done

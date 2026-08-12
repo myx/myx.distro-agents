@@ -120,6 +120,9 @@
 ##   --intern-op-do-slack-tags  (an additional IM source, needs --intern-op-do-slack or
 ##                           --comms-do-all; declared and counted, not performed
 ##                           yet -- see its own block below for why)
+##   --comms-member-scope-only  (restricts a requested comms scan to the acting
+##                           member's own credentials and own configured
+##                           sources; see its own block below)
 ##   --do-inbox-inquiry-active | --do-inbox-inquiry-all
 ##   --do-inbox-reflections | --do-inbox-notes
 ##   --do-board-related-active | --do-board-related-all
@@ -245,6 +248,15 @@ case "$1" in
 		## asked for, because it costs a search call the rest of the IM read does
 		## not, and because a member that is never tagged gains nothing from it.
 		local commsDoSlackTags="false"
+		## MEMBER-SCOPE-ONLY. Opt-in, off by default, so no existing wrapper's
+		## behaviour changes. When on, the acting member's OWN Slack credentials
+		## and its OWN configured conversations are the only things Slack may be
+		## read with here: the team's shared SLACK_BOT_TOKEN fallback and the
+		## team-scoped watched pair are both unreachable, and a member holding
+		## neither gets a not-scanned section rather than somebody else's
+		## channels rendered under its name. Email and Trello are already
+		## member-scoped throughout and need no gate of their own.
+		local commsMemberScopeOnly="false"
 		local doInboxInquiryActive="false" doInboxInquiryAll="false"
 		local doInboxReflections="false" doInboxNotes="false"
 		local doBoardRelatedActive="false" doBoardRelatedAll="false"
@@ -313,6 +325,7 @@ case "$1" in
 				--comms-do-email)  commsDoEmail="true" ; shift ;;
 				--comms-do-trello) commsDoTrello="true" ; shift ;;
 				--intern-op-do-slack-tags) commsDoSlackTags="true" ; shift ;;
+				--comms-member-scope-only) commsMemberScopeOnly="true" ; shift ;;
 				--do-inbox-inquiry-active) doInboxInquiryActive="true" ; shift ;;
 				--do-inbox-inquiry-all)    doInboxInquiryAll="true" ; shift ;;
 				--do-inbox-reflections)    doInboxReflections="true" ; shift ;;
@@ -417,6 +430,16 @@ case "$1" in
 		## confusion this document exists to prevent.
 		if [ "$commsDoSlackTags" = "true" ] && [ "$commsDoAll" != "true" ] && [ "$commsDoSlack" != "true" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --intern-op-do-slack-tags is an additional Slack/IM source and needs the IM scan itself -- pass it alongside --intern-op-do-slack or --comms-do-all" >&2
+			set +e ; return 1
+		fi
+		## Refused rather than ignored, same reasoning as the cut-off guard
+		## above: a caller that asked for member-scope-only and got a document
+		## with no comms section at all has no way to tell the restriction was
+		## honoured, and the one thing this flag exists to guarantee is exactly
+		## what such a document could not evidence.
+		if [ "$commsMemberScopeOnly" = "true" ] && [ "$commsDoAll" != "true" ] && [ "$commsDoSlack" != "true" ] \
+			&& [ "$commsDoEmail" != "true" ] && [ "$commsDoTrello" != "true" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-member-scope-only restricts a requested comms scan and needs one -- pass it alongside --comms-do-all, --intern-op-do-slack, --comms-do-email or --comms-do-trello" >&2
 			set +e ; return 1
 		fi
 		## --comms-do-all is the whole set, not a shorthand to combine with
@@ -570,6 +593,11 @@ case "$1" in
 			if [ "$commsDoAll" = "true" ] || [ "$commsDoEmail" = "true" ] ; then wantEmail="true" ; fi
 			if [ "$commsDoAll" = "true" ] || [ "$commsDoTrello" = "true" ] ; then wantTrello="true" ; fi
 
+			## Our own side of each requested comms source, for that section's
+			## own `identity:` line. An unresolvable identity stays a stated
+			## value here and never becomes an error line or a failed scan.
+			local imIdentity="<unresolved>" emailIdentity="<not configured>" trelloIdentity="<unresolved>"
+
 			## The cut-off is converted exactly once, here, at the one place a
 			## reader actually needs the number -- and only for Slack, the one
 			## service that can take it. --comms-since-utime is already epoch;
@@ -608,6 +636,48 @@ case "$1" in
 					imInstrument="cut-off $commsCutoffKind $commsCutoffValue (applied client-side; Slack oldest= is deliberately NOT used, so thread discovery can still see parents older than the cut-off)"
 				else
 					imInstrument="none -- Slack offers no unread semantics and no cut-off was given; whatever conversations.history returns"
+				fi
+
+				## MEMBER-SCOPE-ONLY GATE. Resolved here, ahead of every Slack
+				## read AND ahead of the identity resolve below, because both of
+				## those fall back to the team's shared credentials on their own.
+				local slackSourceNames=( magic-team human-owner )
+				local slackOwnCredentials="true"
+				if [ "$commsMemberScopeOnly" = "true" ] ; then
+					## Presence only -- reduced to a boolean on the next lines and
+					## dropped. No credential is compared, stored or printed.
+					local ownTokenPresent=""
+					ownTokenPresent="$( DistroAgentsTools --member-config-option "$actingMember" --select SLACK_USER_TOKEN )" || ownTokenPresent=""
+					slackOwnCredentials="false"
+					[ -z "$ownTokenPresent" ] || slackOwnCredentials="true"
+					ownTokenPresent=""
+
+					## The team-scoped pair is REPLACED, never added to: under this
+					## flag the sources are the member's own configured
+					## conversations and nothing else. SLACK_CONVERSATIONS is a
+					## member-scoped config key holding conversation ids or
+					## <channel>:<ts> targets, whitespace- or comma-separated.
+					slackSourceNames=()
+					local configuredSources="" configuredSource
+					configuredSources="$( DistroAgentsTools --member-config-option "$actingMember" --select SLACK_CONVERSATIONS )" || configuredSources=""
+					for configuredSource in ${configuredSources//,/ } ; do
+						slackSourceNames+=( "$configuredSource" )
+					done
+
+					## Either refusal counts as ONE unread source, never as zero
+					## sources: a zero denominator renders "nothing to read" and
+					## "read nothing" identically, and the verdict at the end of
+					## this arm would come back 0 on a scan that never happened.
+					if [ "$slackOwnCredentials" != "true" ] ; then
+						slackSourceNames=()
+						imSourcesTotal=$(( imSourcesTotal + 1 ))
+						imAnySourceFailed="true"
+						imPartial="$imPartial**NOTE:** partial -- Slack not scanned, $actingMember holds no Slack credentials of its own; this scan never reads Slack under the team's shared credentials"$'\n'
+					elif [ ${#slackSourceNames[@]} -eq 0 ] ; then
+						imSourcesTotal=$(( imSourcesTotal + 1 ))
+						imAnySourceFailed="true"
+						imPartial="$imPartial**NOTE:** partial -- Slack not scanned, no conversation is configured for $actingMember"$'\n'
+					fi
 				fi
 				## THE TAG SOURCE IS COUNTED, AND REPORTED AS NOT SCANNED.
 				##
@@ -654,11 +724,19 @@ case "$1" in
 				## else's id answers that question about somebody else -- the same
 				## identity substitution the two --intern-op-slack-check reads below
 				## carried, in its third form.
-				ownResolveOutput="$( DistroAgentsTools --magic-comms-slack-resolve-ids "$actingMember" )" || true
+				## Not called at all once the gate above refused Slack: this
+				## resolver falls back to the team's shared credentials, so it
+				## would answer with the TEAM's own id and this section would
+				## print that as the member's own identity.
+				if [ "$slackOwnCredentials" = "true" ] ; then
+					ownResolveOutput="$( DistroAgentsTools --magic-comms-slack-resolve-ids "$actingMember" )" || true
+				fi
 				ownSlackId="$( printf '%s\n' "$ownResolveOutput" | LC_ALL=C sed -n 's/^AUTH_USER_ID=//p' | head -1 )" || ownSlackId=""
-				if [ -z "$ownSlackId" ] ; then
+				if [ -z "$ownSlackId" ] && [ "$slackOwnCredentials" = "true" ] ; then
 					imPartial="$imPartial**NOTE:** partial -- identity-widening skipped, own Slack user id could not be resolved; watched-channel and open-thread reads unaffected"$'\n'
 				fi
+				## Reused for the section's `identity:` line -- no second lookup.
+				[ -z "$ownSlackId" ] || imIdentity="$ownSlackId"
 
 				## Every thread this pass will read as replies, from two
 				## independent discovery paths that both land here:
@@ -789,7 +867,7 @@ case "$1" in
 				'
 
 				local slackName slackResolved slackChannel slackRaw slackJson slackBlocks
-				for slackName in magic-team human-owner ; do
+				for slackName in ${slackSourceNames[@]+"${slackSourceNames[@]}"} ; do
 					imSourcesTotal=$(( imSourcesTotal + 1 ))
 					slackResolved="$( DistroAgentsToolsResolveTarget "$slackName" )" || {
 						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, no channel id configured"$'\n'
@@ -914,7 +992,11 @@ case "$1" in
 				## strip() removes the KEY prefix only -- `^[^:]*:` stops at the
 				## first colon, and the key itself contains none, so the
 				## colon-bearing value survives intact.
-				if [ ${#matchedFiles[@]} -gt 0 ] ; then
+				## Skipped under --comms-member-scope-only: a board-recorded thread
+				## is one of OUR conversations, so reading it as this member would
+				## put team-side traffic into a document that names the member as
+				## its whole scope.
+				if [ "$commsMemberScopeOnly" != "true" ] && [ ${#matchedFiles[@]} -gt 0 ] ; then
 					local boardThreads
 					boardThreads="$( LC_ALL=C awk '
 						function strip(v) {
@@ -1031,6 +1113,11 @@ case "$1" in
 			local emailBlocks="" emailInstrument="" emailFailed="false"
 			if [ "$wantEmail" = "true" ] ; then
 				emailInstrument="unread-semantics (IMAP UID SEARCH UNSEEN)"
+				## The mailbox this scan reads as, from the acting member's own
+				## scope. A member with no EMAIL_USER keeps the stated default.
+				local emailUser=""
+				emailUser="$( DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_USER )" || emailUser=""
+				[ -z "$emailUser" ] || emailIdentity="$emailUser"
 				local emailCheck emailUids emailUid
 				## The ACTING MEMBER, not a hardcoded magic-coordinator: this
 				## scan already carries the identity every comms read in it acts
@@ -1077,6 +1164,16 @@ case "$1" in
 			local trelloBlocks="" trelloInstrument="" trelloFailed="false"
 			if [ "$wantTrello" = "true" ] ; then
 				trelloInstrument="unread-semantics (Trello read_filter=unread)"
+				## Trello's own identity, through the op that owns the Trello
+				## credentials -- never a token read here. A failed lookup leaves
+				## the stated default and does not touch the scan's verdict.
+				local trelloWhoami="" trelloUser="" trelloId=""
+				trelloWhoami="$( DistroAgentsTools --member-comms-trello-whoami "$actingMember" )" || trelloWhoami=""
+				trelloUser="$( printf '%s\n' "$trelloWhoami" | LC_ALL=C sed -n 's/^TRELLO_USERNAME=//p' | head -1 )" || trelloUser=""
+				trelloId="$( printf '%s\n' "$trelloWhoami" | LC_ALL=C sed -n 's/^TRELLO_USER_ID=//p' | head -1 )" || trelloId=""
+				if [ -n "$trelloUser" ] && [ -n "$trelloId" ] ; then
+					trelloIdentity="@$trelloUser / $trelloId"
+				fi
 				local trelloJson
 				## The ACTING MEMBER, same reason as the email check above.
 				trelloJson="$( DistroAgentsTools --member-comms-trello-check "$actingMember" )" || trelloFailed="true"
@@ -1150,12 +1247,14 @@ case "$1" in
 			if [ "$wantSlack" != "true" ] ; then
 				printf '**NOTE:** not requested\n\n'
 			elif [ "$imFailed" = "true" ] ; then
+				printf 'identity: slack %s (config: %s)\n' "$imIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$imInstrument"
 				printf 'sources-scanned: %s of %s\n' "$imSourcesScanned" "$imSourcesTotal"
 				printf '**NOTE:** no scan was made -- no watched Slack source could be read\n'
 				[ -z "$imPartial" ] || printf '%s' "$imPartial"
 				printf '\n'
 			else
+				printf 'identity: slack %s (config: %s)\n' "$imIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$imInstrument"
 				printf 'sources-scanned: %s of %s\n' "$imSourcesScanned" "$imSourcesTotal"
 				printf 'sort: oldest first -- conversations ordered by their own newest message, messages oldest first within each conversation (no message-level merge across conversations)\n'
@@ -1292,10 +1391,12 @@ case "$1" in
 			if [ "$wantEmail" != "true" ] ; then
 				printf '**NOTE:** not requested\n\n'
 			elif [ "$emailFailed" = "true" ] ; then
+				printf 'identity: email %s (config: %s)\n' "$emailIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$emailInstrument"
 				printf 'sources-scanned: 0 of 1\n'
 				printf '**NOTE:** no scan was made -- --member-comms-email-check failed\n\n'
 			else
+				printf 'identity: email %s (config: %s)\n' "$emailIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$emailInstrument"
 				printf 'sources-scanned: 1 of 1\n'
 				printf 'cap: %s\n' "$sessionContextCapEmail"
@@ -1313,10 +1414,12 @@ case "$1" in
 			if [ "$wantTrello" != "true" ] ; then
 				printf '**NOTE:** not requested\n\n'
 			elif [ "$trelloFailed" = "true" ] ; then
+				printf 'identity: trello %s (config: %s)\n' "$trelloIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$trelloInstrument"
 				printf 'sources-scanned: 0 of 1\n'
 				printf '**NOTE:** no scan was made -- --member-comms-trello-check failed or did not answer with JSON\n\n'
 			else
+				printf 'identity: trello %s (config: %s)\n' "$trelloIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$trelloInstrument"
 				printf 'sources-scanned: 1 of 1\n'
 				printf 'cap: %s\n' "$sessionContextCapTrello"

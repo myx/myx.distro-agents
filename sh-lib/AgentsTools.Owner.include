@@ -174,7 +174,9 @@ case "$1" in
 	## `chat.agentSkillsLocations` key (the magic-team member-discovery
 	## setting) exist -- so the install path leaves nothing further owed.
 	## Non-destructive to unrelated MCP servers in any of those
-	## files: only upserts/overwrites the one "myx" server key. Requires the
+	## files: only upserts/overwrites the one "myx.common" server key, and drops
+	## any other entry launching a command from inside the myx.common tree as a
+	## duplicate of that same server. Requires the
 	## target workspace to already be a set-up myx.distro workspace -- checks for
 	## .local/myx/myx.distro-.local/sh-lib/LocalContext.include, the same
 	## marker file SystemContext.SetInputSpec.include uses elsewhere in this
@@ -355,7 +357,7 @@ case "$1" in
 				failed=1
 			fi
 
-			## Two workspace MCP config targets, same "myx" stdio entry,
+			## Two workspace MCP config targets, same "myx.common" stdio entry,
 			## different client schema: VS Code/Copilot-Chat reads
 			## .vscode/mcp.json (top-level key "servers"); Claude Code's own
 			## project scope reads .mcp.json at the workspace root (top-level
@@ -398,21 +400,21 @@ case "$1" in
 					echo "FAIL mcp-chmod $mcpFile" >&2
 					failed=1
 				fi
-				## Verify the ENTRY, not merely that the string "myx" occurs
-				## somewhere in the file. The exact defect this op is being
-				## fixed for -- a registered command that could never start
-				## the server, because "args": ["--run"] was absent -- sailed
-				## through the previous grep-for-'"myx"' check unnoticed, and
-				## so would a command pointing at a long-deprecated server
-				## path. Assert both fields, against the values just written.
-				if python3 -c 'import json, sys
-d = json.load(open(sys.argv[1], encoding="utf-8"))
-e = d.get(sys.argv[2], {}).get("myx")
-sys.exit(0 if isinstance(e, dict) and e.get("command") == sys.argv[3] and e.get("args") == ["--run"] else 1)' \
-					"$mcpFile" "$mcpKey" "$serverScript" ; then
-					echo "OK mcp-check myx entry launches $serverScript --run ($mcpFile)" >&2
+				## Verify the ENTRY, not merely that the string "myx.common"
+				## occurs somewhere in the file. The exact defect this op is
+				## being fixed for -- a registered command that could never
+				## start the server, because "args": ["--run"] was absent --
+				## sailed through the previous grep-for-a-substring check
+				## unnoticed, and so would a command pointing at a
+				## long-deprecated server path. Also asserts no other key in the
+				## same object launches this same server.
+				local mcpVerdict
+				mcpVerdict="$( MYX_MCPVERIFY_TOPKEY="$mcpKey" MYX_MCPVERIFY_COMMAND="$serverScript" \
+					LC_ALL=C awk -v RS='\0' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonVerify.awk" "$mcpFile" )"
+				if [ "$mcpVerdict" = "OK" ] ; then
+					echo "OK mcp-check myx.common entry launches $serverScript --run ($mcpFile)" >&2
 				else
-					echo "FAIL mcp-check myx entry missing or not launching $serverScript --run ($mcpFile)" >&2
+					echo "FAIL mcp-check $mcpFile: $mcpVerdict" >&2
 					failed=1
 				fi
 			done

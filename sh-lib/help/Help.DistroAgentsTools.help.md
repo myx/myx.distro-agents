@@ -203,9 +203,13 @@
 			live under entity-id `magic-coordinator`).
 			<operation> is one of: --select-all, --select <key>|--all,
 			--select-default <key> <default>, --upsert <key> <val>,
-			--upsert-if <key> <val> <ifval>, --delete <key>, --delete-if
-			<key> <ifval> — the underlying config backend defines the
-			authoritative behavior of each.
+			--upsert-from-stdin <key>, --upsert-if <key> <val> <ifval>,
+			--delete <key>, --delete-if <key> <ifval> — the underlying
+			config backend defines the authoritative behavior of each.
+			--upsert-from-stdin reads the value from stdin instead of argv,
+			so a credential is never visible in the process table; trailing
+			newlines are stripped, and empty or multi-line input is an
+			error. Use it for every secret.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -754,6 +758,20 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--member-comms-trello-whoami <team-member>
+			`<team-member>` is the member this lookup acts as, and it is
+			required: the identity returned is whoever that member's own
+			Trello credentials resolve to, with no fallback to another
+			member's scope.
+
+			Call it when a report has to state WHICH Trello account a read
+			was made as. Prints `TRELLO_USER_ID=` and `TRELLO_USERNAME=`,
+			one per line, and returns non-zero when the identity could not
+			be established — an unknown identity is never reported as an
+			empty one.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--magic-comms-trello-post-comment <team-member> <card-id> [text...]
 		--magic-comms-trello-post-comment <team-member> <card-id> --from-stdin
 		--magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>
@@ -1038,22 +1056,23 @@
 			op only configures the workspace so that whichever client is
 			present can use it. Upserts MCP wiring for every client, in
 			three places:
-			workspace `.vscode/mcp.json` with a `servers.myx` stdio entry
+			workspace `.vscode/mcp.json` with a `servers."myx.common"` stdio entry
 			(VS Code/Copilot-Chat's own schema); workspace-root `.mcp.json`
-			with a `mcpServers.myx` stdio entry (Claude Code's own
+			with a `mcpServers."myx.common"` stdio entry (Claude Code's own
 			project-scope schema -- Claude Code does not read
 			`.vscode/mcp.json` -- and also what Copilot CLI reads since it
 			dropped `.vscode/mcp.json` support); and Claude Code's home
 			local scope, `~/.claude.json`'s
-			`projects["<workspace>"].mcpServers.myx`, delegated to
+			`projects["<workspace>"].mcpServers."myx.common"`, delegated to
 			myx.common's own `setup/agentMcp` so that file keeps being edited
 			by its one owner. All three register the same resolved myx.common
 			`bin/lib/agentMcpServer.Common`, launched with `--run` (without
 			`--run` that script prints usage and exits instead of serving, so
 			the `args` are what make the entry actually work). Each written
-			file is verified by re-reading the `myx` entry and asserting both
-			its `command` and its `args`, and is left at mode 0644 regardless
-			of the caller's umask.
+			file is verified by re-reading the `myx.common` entry and asserting
+			both its `command` and its `args`, that no other entry in the same
+			object launches a command from inside the myx.common tree, and is
+			left at mode 0644 regardless of the caller's umask.
 			Default target workspace is the current shell directory; optional
 			`--workspace <path>` overrides it. Fails fast if the target isn't
 			already a set-up myx.distro workspace (checks for
@@ -1376,6 +1395,47 @@
 			Outputs file content, or `NO_STATE` if it does not exist.
 			Read-only.
 
+		--client-sweep-input-scan <client-*|partner-* member> [--comms-since-utime <v>|--comms-since-date-time <v>]
+			Read-only: one client-*/partner-* member's own incoming
+			external communications -- Slack, email and Trello -- read as
+			that member, under that member's own credentials, from that
+			member's own configured sources. Use it to sweep one external
+			relationship's traffic; use --magic-sweep-input-scan for the
+			team's own.
+
+			The member name is the only required argument, and it must be
+			a client-* or partner-* one: the document names that member as
+			its entire scope, and no other member's is what it reports.
+			Each section states our own side of that source
+			(`identity: slack <id> (config: <member>)`, and the same for
+			email and Trello), and board items are limited to the ones
+			that member owns.
+
+			A source this member holds no credentials of its own for is
+			reported as not scanned, in that section's
+			`sources-scanned: N of M` line and its `**NOTE:** partial`
+			marker, and counts against the exit status. It is never read
+			under any other member's or the team's credentials.
+
+			Slack sources come from this member's own `SLACK_CONVERSATIONS`
+			config value -- conversation ids or `<channel>:<ts>` targets,
+			whitespace- or comma-separated. With none configured, the
+			Slack section reports that nothing was scanned rather than
+			falling back to any team-scoped conversation.
+
+			An optional cut-off narrows the read: --comms-since-utime takes
+			epoch seconds, with or without a fractional part;
+			--comms-since-date-time takes a YYYY-MM-DD-leading value.
+			Mutually exclusive, neither repeatable -- one cut-off, one
+			spelling.
+
+			Exit code, same three-way shape and meanings as
+			--magic-sweep-input-scan's: 0 when every source was scanned,
+			3 when some were and some could not be, 4 when none could be,
+			1 when the operation failed before producing a document.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--member-work-session-input-scan <team-member>
 			Read-only: one member's own current work-session input --
 			personal, not routine-dictated (every armed member runs this
@@ -1438,7 +1498,10 @@
 			--agents-config-option magic-coordinator --upsert <KEY> <value>`
 			line and returns 1. The other six, and SLACK_BOT_TOKEN, are
 			optional/informational -- each FAIL prints its own fix command
-			too, but never affects the exit code.
+			too, but never affects the exit code. For the credential-bearing
+			keys (EMAIL_APP_PASSWORD, TRELLO_KEY, TRELLO_TOKEN,
+			SLACK_BOT_TOKEN) that fix command is the --upsert-from-stdin
+			form, so following the hint never puts a secret in argv.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1897,7 +1960,7 @@
 		`DistroAgentsTools.fn.sh --console-stop myx.distro-agent-console.<slug>.source`
 
 		# Set/read a credential-bearing setting
-		`DistroAgentsTools.fn.sh --agents-config-option magic-team --upsert SLACK_BOT_TOKEN xoxb-...`
+		`printf '%s' "$TOKEN" | DistroAgentsTools.fn.sh --agents-config-option magic-team --upsert-from-stdin SLACK_BOT_TOKEN`
 		`DistroAgentsTools.fn.sh --agents-config-option magic-team --select SLACK_BOT_TOKEN`
 
 		# Send a plain-text message to a fixed target

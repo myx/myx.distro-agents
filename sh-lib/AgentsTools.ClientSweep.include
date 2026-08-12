@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ClientSweep.include -- the --client-sweep-* operation group for
+## DistroAgentsTools.fn.sh's dispatcher. Sourced lazily from the
+## `--client-sweep-*)` wildcard arm via the standard $MDLT_ORIGIN-based path.
+## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
+##
+## One client/partner member's own external accounts, and nothing else. The
+## restriction is enforced in the scan primitive by --comms-member-scope-only,
+## not by this stub's own reading of any credential: see
+## AgentsTools.InternOpSessionContextScan.include's own gate block.
+##
+
+case "$1" in
+
+	## Reads ONE client-*/partner-* member's own external incoming
+	## communications -- Slack, email and Trello -- as that member, under that
+	## member's own credentials, from that member's own configured sources.
+	##
+	## THE MEMBER PREFIX IS CHECKED, AND THE CHECK IS THE POINT. This document
+	## states in its own header that its whole scope is one external member. Run
+	## as a team member, that header would be false while the body looked exactly
+	## the same, so a name that is neither client-* nor partner-* is refused here
+	## rather than producing a correctly-formatted lie.
+	##
+	## A source this member holds no credentials for is reported as NOT SCANNED
+	## by the primitive, through the same `sources-scanned: N of M` and
+	## `**NOTE:** partial` machinery every other source-level failure already
+	## uses, and lands in the exit status. It is never read under the team's
+	## shared credentials -- that outcome is unreachable from this op.
+	--client-sweep-input-scan)
+		shift
+		local clientMember="$1"
+		shift || true
+		if [ -z "$clientMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <client-*|partner-* member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$clientMember" "<team-member>" "$MDSC_CMD --client-sweep-input-scan" || { set +e ; return 1 ; }
+
+		local clientKind=""
+		case "$clientMember" in
+			client-*)  clientKind="client" ;;
+			partner-*) clientKind="partner" ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: this operation reads one external member's own accounts and labels the whole document as that member's, so it runs only as a client-* or partner-* member: $clientMember" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		## The one option this stub accepts, same shape and same reasoning as
+		## --magic-sweep-input-scan's: which services get read is this op's own
+		## fixed contract, and the cut-off is genuinely per-call data. Value
+		## validation is left to the primitive, which owns it.
+		local commsCutoffArgs=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--comms-since-date-time|--comms-since-utime)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: $1: value required" >&2
+						set +e ; return 1
+					fi
+					if [ ${#commsCutoffArgs[@]} -gt 0 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: --comms-since-date-time and --comms-since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
+						set +e ; return 1
+					fi
+					commsCutoffArgs=( "$1" "$2" )
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: invalid option: $1 -- syntax is <client-*|partner-* member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		## Attribution first, before a single item. Every section below carries
+		## its own `identity:` line already; this states whose document the whole
+		## thing is, so a page of item blocks can never be read as the team's.
+		printf '# Incoming Communications Sweep -- %s\n\n' "$clientMember"
+		printf 'member: %s\n' "$clientMember"
+		printf 'member-kind: %s\n' "$clientKind"
+		printf 'scope: this member'"'"'s own external accounts only -- its own credentials, its own configured sources; no team-scoped source and no team credential is read here\n\n'
+
+		## Board items are scoped to this member's own by --filter-owner, for the
+		## same reason the header exists: an item owned by somebody else is not
+		## part of what this document claims to be.
+		DistroAgentsTools --intern-op-session-context-scan "$clientMember" \
+			--state backlog --state pending --state running --state blocked \
+			--all-types --filter-owner "$clientMember" \
+			--comms-do-all --comms-member-scope-only "${commsCutoffArgs[@]}" \
+			--context --client-sweep-input-scan
+		return $?
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.ClientSweep.include's own default (*) branch, the operation group sourced by the --client-sweep-* dispatcher route; no operation of that name is defined in this include" >&2
+		set +e ; return 1
+	;;
+esac

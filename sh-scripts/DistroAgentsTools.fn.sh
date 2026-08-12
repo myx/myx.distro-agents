@@ -746,6 +746,14 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## one client-*/partner-* member's own external-account sweep
+		## (--client-sweep-input-scan) -- see
+		## AgentsTools.ClientSweep.include's own header.
+		--client-sweep-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientSweep.include"
+			return $?
+		;;
+
 		## direct Trello write operations for process-flow steps
 		## (--magic-comms-trello-post-comment) -- see
 		## AgentsTools.MagicTrello.include's own header.

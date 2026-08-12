@@ -96,6 +96,15 @@ comms-cut-off: <--comms-since-* kind and value, or "none — per-service unread 
   only when every requested comms sub-section is **empty and successfully scanned**. A sub-section
   that could not be scanned is unknown, not empty, and blocks the aggregate note outright — the
   parent must never assert emptiness over a scope nobody successfully read.
+- rule: Each comms sub-section opens with its own `identity:` line, before `instrument:` — the
+  account that sub-section was read through, and the member whose config supplied the credentials:
+  `identity: slack <user-id> (config: <member>)`, `identity: email <address> (config: <member>)`,
+  `identity: trello @<username> / <id> (config: <member>)`. An absent value is stated, never an
+  error — `<unresolved>`, or `<not configured>` for email. A sub-section carrying
+  `**NOTE:** not requested` has no `identity:` line.
+- rule: `identity:` carries **identifiers only** — a Slack user id, an email address, a Trello
+  username and id. Credential values (tokens, passwords, keys) never appear in it, and this is the
+  only line in this document that names an account at all.
 - rule: Each comms sub-section states its own instrument, because the services differ:
   `instrument: cut-off <kind> <value>` or `instrument: unread-semantics (<service mechanism>)`.
   The global `comms-cut-off:` in `## Contents & Abstract` records what was *requested*; it cannot

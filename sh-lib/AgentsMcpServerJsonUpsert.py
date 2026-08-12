@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Upserts the "myx" stdio MCP server entry into a JSON config file, for
+# Upserts the "myx.common" stdio MCP server entry into a JSON config file, for
 # DistroAgentsTools.fn.sh's --owner-install-vscode-integrations
 # (myx.distro-agents/sh-lib/AgentsTools.Owner.include), externalized per
 # this package's own externalize-awk/py convention (see
@@ -8,7 +8,7 @@
 #
 # argv[1]: path to the JSON config file to upsert into (created if it
 #   doesn't exist yet). argv[2]: path to the myx MCP server script
-#   (bin/lib/agentMcpServer.Common) to register as the "myx" entry's stdio
+#   (bin/lib/agentMcpServer.Common) to register as the "myx.common" entry's stdio
 #   command. argv[3]: top-level object key the server entry lives under --
 #   "servers" for VS Code/Copilot-Chat's .vscode/mcp.json schema,
 #   "mcpServers" for Claude Code's own .mcp.json project-scope schema. Same
@@ -28,9 +28,11 @@
 # may reach across (see that file's header), so their signatures staying
 # identical is what keeps the two registrations interchangeable.
 #
-# Non-destructive to unrelated entries: only the "myx" key under the given
-# top-level key is set/overwritten -- every other existing server entry,
-# and the rest of the file's top-level object, is preserved as-is. Writes
+# Non-destructive to unrelated entries: only the "myx.common" key under the
+# given top-level key is set/overwritten, plus any other entry launching a
+# command from inside the myx.common tree, dropped as a duplicate of this
+# same server -- every other existing server entry, and the rest of the
+# file's top-level object, is preserved as-is. Writes
 # via a temp file + atomic os.replace. Prints "OK" to stdout on success.
 
 import json
@@ -72,7 +74,21 @@ if args_json is not None:
 		raise SystemExit("argv[4] must be a JSON array of args")
 	entry["args"] = args
 
-servers["myx"] = entry
+# Drop any other entry launching a command from inside this product's tree --
+# a duplicate registration under a stale key, which the host would launch
+# alongside the real one. "myx.common" as an exact path component, never a
+# substring: a directory merely named "not-myx.common-really" is a stranger's.
+def launches_our_server(value):
+	if not isinstance(value, dict):
+		return False
+	command = value.get("command")
+	return isinstance(command, str) and "myx.common" in command.split("/")
+
+
+for stale in [k for k, v in servers.items() if k != "myx.common" and launches_our_server(v)]:
+	del servers[stale]
+
+servers["myx.common"] = entry
 data[key] = servers
 
 # The temp file is created by mkstemp(), NOT at the predictable "<path>.tmp".

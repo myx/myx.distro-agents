@@ -232,6 +232,92 @@ case "$1" in
 			return 0
 		;;
 
+		## The acting side's OWN Trello identity -- whoever the TRELLO_KEY/
+		## TRELLO_TOKEN in <team-member>'s scope actually resolve to. Printed as
+		## KEY=VALUE lines, the same consumable shape --magic-comms-slack-resolve-ids
+		## already hands its caller for the Slack side of the same question.
+		--member-comms-trello-whoami)
+			shift
+			## <team-member> IS THE ACTING IDENTITY, same validation shape and
+			## same reason as --member-comms-trello-check above: `members/me`
+			## resolves against whichever token is presented, and this op exists
+			## precisely to say which one that is.
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: syntax is <team-member> -- the acting member is required, since members/me resolves against whichever token is presented" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-trello-whoami" || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same carve-out, same reason, as the two arms above.
+				;;
+				*)
+					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			local trelloKey trelloToken
+			trelloKey="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_KEY )"
+			trelloToken="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_TOKEN )"
+			if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
+				set +e ; return 1
+			fi
+			local trelloNewline=$'\n'
+			case "$trelloKey$trelloToken" in
+				*"$trelloNewline"*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
+					set +e ; return 1
+				;;
+			esac
+
+			## THE CREDENTIALS NEVER APPEAR ON A COMMAND LINE -- the `curl -K -`
+			## mechanism of --member-comms-trello-read above, verbatim, including
+			## its `\` then `"` escaping order. No temp file, so nothing to trap
+			## and nothing to leak.
+			local trelloKeyEsc trelloTokenEsc
+			trelloKeyEsc="${trelloKey//\\/\\\\}"
+			trelloKeyEsc="${trelloKeyEsc//\"/\\\"}"
+			trelloTokenEsc="${trelloToken//\\/\\\\}"
+			trelloTokenEsc="${trelloTokenEsc//\"/\\\"}"
+			## `fields=id,username` keeps the response a flat two-key object, so
+			## the reader below cannot pick up a same-named key from a nested
+			## object -- the failure mode AgentsSlackJsonField.awk's own header
+			## documents at length.
+			local trelloRc=0 trelloMe=""
+			trelloMe="$( printf 'header = "Authorization: OAuth oauth_consumer_key=\\"%s\\", oauth_token=\\"%s\\""\n' \
+				"$trelloKeyEsc" "$trelloTokenEsc" \
+				| curl -sS --fail-with-body -K - \
+					"https://api.trello.com/1/members/me?fields=id,username" )" || trelloRc=$?
+			if [ "$trelloRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: Trello members/me failed as $memberName (curl rc=$trelloRc) -- the acting identity is UNKNOWN, not absent; curl's own error is on the line above" >&2
+				set +e ; return "$trelloRc"
+			fi
+			printf '%s\n' "$trelloMe" | LC_ALL=C awk '
+				function field(k,   v) {
+					if (!match(body, "\"" k "\"[ \t]*:[ \t]*\"[^\"]*\"")) return ""
+					v = substr(body, RSTART, RLENGTH)
+					sub(/^"[^"]*"[ \t]*:[ \t]*"/, "", v)
+					sub(/"$/, "", v)
+					return v
+				}
+				{ body = body $0 }
+				END {
+					id = field("id") ; user = field("username")
+					if (id == "" || user == "") {
+						printf("⛔ ERROR: --member-comms-trello-whoami: members/me carried no id/username -- the acting identity is UNKNOWN, not absent\n") > "/dev/stderr"
+						exit 1
+					}
+					printf("TRELLO_USER_ID=%s\nTRELLO_USERNAME=%s\n", id, user)
+				}
+			' || { set +e ; return 1 ; }
+			return 0
+		;;
+
 		*)
 			echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MemberCommsTrello.include's own default (*) branch, the operation group sourced by the dispatcher's --member-comms-trello-* route; no operation of that name is defined in this include" >&2
 			set +e ; return 1

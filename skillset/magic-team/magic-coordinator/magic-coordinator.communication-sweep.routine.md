@@ -27,12 +27,15 @@ Doesn't do: Google (Drive/Sheets) — extended procedure, only when the task is 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
 1. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — items a previous sweep routed there and left unacted, read before this pass adds more.
-2. **check**: read the sweep-state-note via --magic-sweep-state-read. Call --magic-sweep-input-scan --comms-since-utime <last_swept_ts> — board-tracked threads and every watched source, one pass, covering both watched targets and every open thread (see Scope).
+2. **check**: read the sweep-state-note via --magic-sweep-state-read. Call --magic-sweep-input-scan <team-member> --comms-since-utime <last_swept_ts> — board-tracked threads and every watched source, one pass, covering both watched targets and every open thread (see Scope).
    - default: batch every platform's credential read + API call into one script/command block, piped through `lib/execShStdin`.
    - exception: a check call errors or returns something ambiguous → go deliberate.
    - a thread the coordinator's own identity participated in — started, was replied to, or was tagged in — is followed regardless of freshness; this widening degrades gracefully to the plain freshness check alone when the coordinator's identity can't be resolved this pass.
+   - incoming messages are located by enumerating **the messages' own** timestamps — every participant's in the conversation, not one identity's — and diffing them against what was already handled; never by "what came after my own last post". Own posts move such a watermark forward, so any participant's message in a thread already replied to falls below the line and stops being findable at all; the misses concentrate exactly in the threads that look most attended. Two passes, both required every sweep: top-level, then each open thread via `--member-comms-slack-read <team-member> <channel>:<parent> --thread`, whose whole-thread result is enumerated the same way over every message in it that is not the acting member's own — a top-level-only enumeration silently drops thread replies (see this file's own Verbatim-tests).
 3. **read**: pull the actual content of what's new.
+   - a message that quotes a block is read in full, never from the preview: the instruction usually sits *after* the quoted text and is exactly what a truncated read loses.
 4. **analyze**: cross-reference **check**/**read** against current state (`TodoWrite`, the board) and identify: anything unblocked and ready to dispatch, anything a keeper-*/partner-* idle pass would pick up, new-knowledge candidates for `magic-librarian`, what needs a reply and what it should say. Empty result is normal, not a failure.
+   - whether a message was handled is judged from what its own text asked for and whether that thing was actually done — the existence of a later reply of the coordinator's own is not evidence of it.
    - Slack: apply the `slack-reaction-tracking` procedure's Analyze-stage reaction.
 5. **act**: route each candidate by size.
    - Approved, simple, obvious → do it inline, now, standard dispatch mechanism only.
@@ -182,6 +185,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ## Verbatim-tests (benchmarks)
 
 - A new reply posted inside an existing Slack thread gets caught via the `conversations.replies` check — `conversations.history` alone never surfaces it.
+- A message from any conversation participant that is older than the coordinator's own last post in the same thread is still surfaced, and still assessed as unhandled until its own ask is done.
 
 ## Librarian Comments
 
