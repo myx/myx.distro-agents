@@ -85,11 +85,26 @@ case "$1" in
 
 		echo "## op=magic-comms-slack-resolve-ids member=$memberName token_source=$tokenSource"
 
+		## Token goes into a private (chmod 600) temp file, read by curl via
+		## `-H @file` (curl >= 7.55.0) rather than as an inline argv string --
+		## avoids the token being visible in `ps`/`/proc/<pid>/cmdline` for
+		## each curl invocation's lifetime. Same mechanism every other Slack
+		## path in this package uses (AgentsTools.InternOpSlackCall.include,
+		## AgentsTools.MemberCommsSlack.include). Every return below this point
+		## removes the file and clears the trap.
+		local headerFile
+		headerFile="$( mktemp )" || { set +e ; return 1 ; }
+		chmod 600 "$headerFile"
+		trap 'rm -f "$headerFile"' EXIT
+		printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
+
 		local authResp
-		authResp="$( curl -sS https://slack.com/api/auth.test -H "Authorization: Bearer $token" )"
+		authResp="$( curl -sS https://slack.com/api/auth.test -H @"$headerFile" )"
 		printf 'AUTH_JSON=%s\n' "$authResp"
 		if ! printf '%s' "$authResp" | grep -q '"ok":true' ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: auth.test failed" >&2
+			rm -f "$headerFile"
+			trap - EXIT
 			set +e ; return 1
 		fi
 
@@ -123,6 +138,8 @@ case "$1" in
 		authUserId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -f "$slackJsonField" )" || authUserIdRc=$?
 		if [ "$authUserIdRc" != "0" ] || [ -z "$authUserId" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: auth.test returned ok:true but no readable top-level user_id (reader rc=$authUserIdRc) -- refusing to report an empty AUTH_USER_ID" >&2
+			rm -f "$headerFile"
+			trap - EXIT
 			set +e ; return 1
 		fi
 		printf 'AUTH_USER_ID=%s\n' "$authUserId"
@@ -140,8 +157,8 @@ case "$1" in
 		fi
 
 		local usersJson channelsJson usersOk channelsOk
-		usersJson="$( curl -sS -G https://slack.com/api/users.list -H "Authorization: Bearer $token" --data-urlencode "limit=1000" )"
-		channelsJson="$( curl -sS -G https://slack.com/api/conversations.list -H "Authorization: Bearer $token" --data-urlencode "types=public_channel,private_channel,im,mpim" --data-urlencode "exclude_archived=true" --data-urlencode "limit=1000" )"
+		usersJson="$( curl -sS -G https://slack.com/api/users.list -H @"$headerFile" --data-urlencode "limit=1000" )"
+		channelsJson="$( curl -sS -G https://slack.com/api/conversations.list -H @"$headerFile" --data-urlencode "types=public_channel,private_channel,im,mpim" --data-urlencode "exclude_archived=true" --data-urlencode "limit=1000" )"
 		## Top-level `ok`, read by full key path like every other field in this
 		## arm. These two lines used to be
 		##   sed -En 's/.*"ok":(true|false).*/\1/p'
@@ -200,7 +217,7 @@ case "$1" in
 			## Unit-2 forward compatibility, INERT today -- "" until the Unit-3 flip.
 			local aliasUserId=""
 			aliasUserId="$( printf '%s\n' "$aliasResolved" | sed -n 's/^USER_ID=//p' )" || aliasUserId=""
-			aliasInfo="$( curl -sS -G https://slack.com/api/conversations.info -H "Authorization: Bearer $token" --data-urlencode "channel=$aliasChannel" )"
+			aliasInfo="$( curl -sS -G https://slack.com/api/conversations.info -H @"$headerFile" --data-urlencode "channel=$aliasChannel" )"
 			## `ok`, `error` and `name` all come out of the same body through the
 			## same key-path reader, in one group, rather than one of them being
 			## a leftover `sed -En 's/.*"ok":(true|false).*/\1/p'` beside the
@@ -255,9 +272,11 @@ case "$1" in
 		local humanAliasUserId=""
 		humanAliasUserId="$( printf '%s\n' "$humanAliasResolved" | sed -n 's/^USER_ID=//p' )" || humanAliasUserId=""
 		if [ -n "$humanAliasChannel" ] ; then
-			humanAliasInfo="$( curl -sS -G https://slack.com/api/conversations.info -H "Authorization: Bearer $token" --data-urlencode "channel=$humanAliasChannel" )"
+			humanAliasInfo="$( curl -sS -G https://slack.com/api/conversations.info -H @"$headerFile" --data-urlencode "channel=$humanAliasChannel" )"
 			if printf '%s' "$humanAliasInfo" | grep -q '"ok":true' ; then
 				echo "HUMAN_OWNER_TARGET|status=reachable|target=$humanAliasChannel|source=config-alias"
+				rm -f "$headerFile"
+				trap - EXIT
 				return 0
 			fi
 			## Reached only when the call did NOT report ok:true, so an
@@ -279,7 +298,7 @@ case "$1" in
 				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveHintUserId.py" )"
 			if [ -n "$hintUserId" ] ; then
 				local openResp openOk openErr openChannel
-				openResp="$( curl -sS -X POST https://slack.com/api/conversations.open -H "Authorization: Bearer $token" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$hintUserId" )"
+				openResp="$( curl -sS -X POST https://slack.com/api/conversations.open -H @"$headerFile" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$hintUserId" )"
 				## `ok` joins the same read group as `error` and `channel.id`
 				## below, instead of staying a `sed -En 's/.*"ok":(true|false).*/\1/p'`
 				## alongside them. `-E` is an ERE here, so this one was never the
@@ -317,14 +336,20 @@ case "$1" in
 				## reachable branch as an empty target.
 				if [ "$openOk" = "true" ] && [ "$openChannelRc" = "0" ] && [ -n "$openChannel" ] ; then
 					echo "HUMAN_OWNER_TARGET|status=reachable|target=$openChannel|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId"
+					rm -f "$headerFile"
+					trap - EXIT
 					return 0
 				fi
 				echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId|error=$openErr|channel_id_reader_rc=$openChannelRc|alias_error=$humanAliasErr"
+				rm -f "$headerFile"
+				trap - EXIT
 				return 1
 			fi
 		fi
 
 		echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=none|hint=$humanOwnerHint|alias_error=$humanAliasErr|note=unable_to_resolve_hint_user"
+		rm -f "$headerFile"
+		trap - EXIT
 		set +e ; return 1
 	;;
 

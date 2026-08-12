@@ -36,6 +36,7 @@
 import json
 import os
 import sys
+import tempfile
 
 path = sys.argv[1]
 server_script = sys.argv[2]
@@ -74,9 +75,40 @@ if args_json is not None:
 servers["myx"] = entry
 data[key] = servers
 
-tmp = path + ".tmp"
-with open(tmp, "w", encoding="utf-8") as f:
-	json.dump(data, f, indent=2, ensure_ascii=True)
-	f.write("\n")
-os.replace(tmp, path)
+# The temp file is created by mkstemp(), NOT at the predictable "<path>.tmp".
+# A fixed name beside the target is a name an attacker who can write to that
+# directory can pre-plant as a symlink, and open()/chmod()/replace() all follow
+# it -- which would hand out a 0644 chmod and an overwrite of whatever the link
+# pointed at. mkstemp() picks an unpredictable name and creates it O_EXCL, so
+# there is nothing to pre-plant. dir= is the target's OWN directory on purpose:
+# os.replace() is only atomic within one filesystem, so a temp file elsewhere
+# (/tmp) would trade this bug for a cross-device failure.
+fd, tmp = tempfile.mkstemp(
+	dir=os.path.dirname(path) or ".",
+	prefix=os.path.basename(path) + ".",
+	suffix=".tmp",
+)
+try:
+	with os.fdopen(fd, "w", encoding="utf-8") as f:
+		json.dump(data, f, indent=2, ensure_ascii=True)
+		f.write("\n")
+		# The mode is ASSERTED, not inherited. os.replace() keeps the temp
+		# file's own mode, and that mode came from the ambient umask of whoever
+		# ran the install -- so the same config landed 0644 under umask 022 and
+		# 0600 under umask 077, and a re-run under a restrictive umask silently
+		# converted an existing world-readable config to owner-only. These MCP
+		# config files are plain, non-secret registrations that every client of
+		# this workspace has to be able to read, so 0644 is a property of the
+		# file's role, not of the caller's environment. Asserted through the
+		# open fd rather than the path, so it cannot resolve to anything but
+		# the file we just created.
+		os.fchmod(f.fileno(), 0o644)
+	os.replace(tmp, path)
+except BaseException:
+	# Never leave the temp file behind on a failure path.
+	try:
+		os.unlink(tmp)
+	except OSError:
+		pass
+	raise
 print("OK")

@@ -2853,11 +2853,20 @@ case "$1" in
 			human-owner|human-owner:*)
 				if [ "$sendIdentity" = "user" ] ; then
 					local dynUsersJson dynHintUserId dynOpenResp dynOpenOk dynOpenChannel
-					dynUsersJson="$( curl -sS -G https://slack.com/api/users.list -H "Authorization: Bearer $memberUserToken" --data-urlencode "limit=1000" 2>/dev/null )"
+					## Same private-header-file mechanism as the send itself
+					## below: token in a chmod 600 temp file read by curl via
+					## `-H @file`, never as an inline argv string visible in
+					## `ps`/`/proc/<pid>/cmdline`.
+					local dynHeaderFile
+					dynHeaderFile="$( mktemp )" || { set +e ; return 1 ; }
+					chmod 600 "$dynHeaderFile"
+					trap 'rm -f "$dynHeaderFile"' EXIT
+					printf 'Authorization: Bearer %s\n' "$memberUserToken" > "$dynHeaderFile"
+					dynUsersJson="$( curl -sS -G https://slack.com/api/users.list -H @"$dynHeaderFile" --data-urlencode "limit=1000" 2>/dev/null )"
 					dynHintUserId="$( USERS_JSON="$dynUsersJson" HINT="myx" \
 						python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveHintUserId.py" 2>/dev/null )"
 					if [ -n "$dynHintUserId" ] ; then
-						dynOpenResp="$( curl -sS -X POST https://slack.com/api/conversations.open -H "Authorization: Bearer $memberUserToken" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$dynHintUserId" 2>/dev/null )"
+						dynOpenResp="$( curl -sS -X POST https://slack.com/api/conversations.open -H @"$dynHeaderFile" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$dynHintUserId" 2>/dev/null )"
 						## `ok` and `channel.id` are read out of the same body by
 						## the same key-path reader, together, rather than one of
 						## them being a leftover regex beside the other. This line
@@ -2919,6 +2928,8 @@ case "$1" in
 					else
 						echo "# $MDSC_CMD --member-comms-slack-send-message: dynamic per-identity resolution: could not resolve a human-owner user id via hint 'myx' -- falling back to static SLACK_CHANNEL_HUMAN_OWNER" >&2
 					fi
+					rm -f "$dynHeaderFile"
+					trap - EXIT
 				fi
 			;;
 		esac
