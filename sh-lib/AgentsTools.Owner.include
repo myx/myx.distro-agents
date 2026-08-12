@@ -484,8 +484,8 @@ sys.exit(0 if isinstance(e, dict) and e.get("command") == sys.argv[3] and e.get(
 		echo "# 4) Members (Copilot Chat): Chat -> expect the magic-team skills listed; this workspace's" >&2
 		echo "#    .code-workspace registers them via chat.agentSkillsLocations, which this op has just" >&2
 		echo "#    regenerated (see the code-workspace lines above); VS Code picks that up live -- no window reload needed." >&2
-		echo "#    Exception: if you have just granted workspace trust, reload the window -- the skills list is not" >&2
-		echo "#    refreshed by a trust change (custom agents and hooks are)." >&2
+		echo "#    But chat.agentSkillsLocations is a trust-restricted setting: an untrusted workspace drops it" >&2
+		echo "#    entirely and NO members appear -- grant workspace trust first (a fresh machine starts untrusted)." >&2
 		echo "# 5) Extensions are NOT installed by this op, by instruction -- install whichever chat" >&2
 		echo "#    client you want yourself; the settings written here are ready for it either way." >&2
 		echo "# Trust/Restart note: after mcp.json/.mcp.json changes, trust/start the server if prompted; reload VS Code window if tools are not visible." >&2
