@@ -253,8 +253,12 @@ case "$1" in
 	## -- explicitly NOT a transcript). Prefers REFERENCING TEAM-DATA over
 	## copying it, to stay compact.
 	##
-	## One of two stubs over --intern-op-state-and-lock-upsert, the other being
-	## --magic-grooming-state-and-lock-upsert: same "own dedicated stub per
+	## One of four stubs over --intern-op-item-upsert's default (no-flag)
+	## behavior, the others being --magic-grooming-state-and-lock-upsert/
+	## --magic-daily-state-and-lock-upsert/--magic-retro-state-and-lock-upsert
+	## (heartbeat has no stub of this kind -- its own state note is a
+	## separate mechanism, see AgentsTools.MagicHeartbeat.include's own
+	## header): same "own dedicated stub per
 	## calling routine, each carrying its own validation even where identical
 	## today" convention this file's own --magic-advance-to-running/-to-parked
 	## already follow. The note filename is fixed and hardcoded here -- it is
@@ -323,7 +327,7 @@ case "$1" in
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
 		recheckRem=$(( targetEpoch % 86400 ))
 		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
-		DistroAgentsTools --intern-op-state-and-lock-upsert "$callingMember" \
+		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
 			--header:upsert:state:advance-running \
 			"${passthrough[@]}" \
@@ -351,10 +355,10 @@ case "$1" in
 
 	##
 	## --magic-advance-lock-* -- routine-advance's own lock: four thin stubs
-	## over the shared --intern-op-lock-* family
-	## (AgentsTools.InternOpLock.include), same unified mechanism every
-	## routine now uses -- frontmatter + git when TEAM_DATA_GIT_REMOTE is
-	## configured, the `mkdir` mutex when it is not.
+	## over the shared --intern-op-item-read/--intern-op-item-upsert
+	## primitives (AgentsTools.InternOpItem.include), same unified mechanism
+	## every routine now uses -- frontmatter + git when TEAM_DATA_GIT_REMOTE
+	## is configured, local-only when it is not.
 	##
 	## Position in the routine is fixed: lock before all, unlock in closure.
 	## Not inside --magic-advance-input-scan -- that op's contract is "return
@@ -387,8 +391,9 @@ case "$1" in
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
 		recheckRem=$(( targetEpoch % 86400 ))
 		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
-		DistroAgentsTools --intern-op-lock-acquire "$callingMember" \
-			note-20260809T154715Z-advance-state-and-lock.md "$ownerLabel" \
+		DistroAgentsTools --intern-op-item-read "$callingMember" \
+			note-20260809T154715Z-advance-state-and-lock.md \
+			--acquire-lock "$ownerLabel" \
 			--header:upsert:state:advance-running \
 			--header:upsert:recheck-date:"$recheckDate" \
 			--context --magic-advance-lock-acquire
@@ -416,8 +421,9 @@ case "$1" in
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
 		recheckRem=$(( targetEpoch % 86400 ))
 		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
-		DistroAgentsTools --intern-op-lock-refresh "$callingMember" \
+		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
+			--update-lock \
 			--header:upsert:state:advance-running \
 			--header:upsert:recheck-date:"$recheckDate" \
 			--context --magic-advance-lock-refresh
@@ -440,8 +446,9 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-close-state-and-unlock: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-lock-release "$callingMember" \
+		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
+			--unlock-lock \
 			--header:upsert:state:advance-finished \
 			--context --magic-advance-close-state-and-unlock
 		return $?
@@ -463,7 +470,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-status: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-lock-status "$callingMember" \
+		DistroAgentsTools --intern-op-item-read "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
 			--context --magic-advance-lock-status
 		return $?

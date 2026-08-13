@@ -1070,50 +1070,110 @@ case "$1" in
 				## see a thread parent older than a bounded page), so NO Slack read
 				## in this file passes `oldest` any more and every cut-off in the
 				## document is applied client-side by commsCutoffTrimAwkProgram.
-				local uniqueThreads dtChannel
+				## PARALLEL FETCH: ~100 tracked threads meant ~100 sequential
+				## conversations.replies calls here -- the real cause of
+				## --magic-sweep-input-scan's multi-minute runtime. Slack has no
+				## thread batch-read, so each thread is fetched in its own
+				## backgrounded job instead; all shared accumulators are touched
+				## only in the merge loop below, after `wait`. Not routed through
+				## myx.common's Parallel() (lib/parallel): its eval-based arg
+				## join drops empty positional args, and cutoffEpoch is routinely
+				## empty. Capped via `jobs -pr` polling, not `wait -n` (bash
+				## 4.3+; this platform ships bash 3.2).
+				local threadFetchWorkDir
+				threadFetchWorkDir="$( mktemp -d "${TMPDIR:-/tmp}/mdat-sweep-threads.XXXXXX" )" || { set +e ; return 1 ; }
+				trap 'rm -rf "$threadFetchWorkDir"' EXIT
+
+				## Written to a file (unlike the channel-level trim call above,
+				## untouched) so a background job passes a path, not the awk
+				## program's own text, as an argument.
+				local threadTrimAwkFile="$threadFetchWorkDir/trim.awk"
+				printf '%s\n' "$commsCutoffTrimAwkProgram" > "$threadTrimAwkFile"
+
+				## Default 6, overridable -- unbounded fan-out risks Slack 429s
+				## this scan never had to handle serially.
+				local threadFetchWorkers="${ENV_MAGIC_SWEEP_THREAD_WORKERS:-6}"
+				case "$threadFetchWorkers" in
+					*[!0123456789]*|''|0)
+						threadFetchWorkers=6
+					;;
+				esac
+
+				## Real function, not inline, only because a backgrounded job
+				## needs a callable unit -- single-consumer otherwise.
+				AgentsSessionContextThreadFetchOne(){
+					local memberName="$1" dt="$2" cutoffEpoch="$3" ctxBefore="$4" commsItemsAwkFile="$5" trimAwkFile="$6" workDir="$7" memberScopeOnly="$8"
+					local dtChannel="${dt%%:*}"
+					local outBase
+					outBase="$( printf '%s' "$dt" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )"
+					local blocksFile="$workDir/blocks.$outBase" statusFile="$workDir/status.$outBase"
+					local fetchRaw fetchJson fetchBlocks
+					## Same --identity-bot branch as the watched-channel read above;
+					## the extraction into this backgroundable function dropped it.
+					fetchRaw="$( if [ "$memberScopeOnly" = "true" ] ; then
+						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --raw
+					else
+						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --identity-bot --raw
+					fi )" || {
+						printf 'FAIL:--intern-op-slack-check failed\n' > "$statusFile"
+						return 0
+					}
+					fetchJson="$( printf '%s\n' "$fetchRaw" | sed '1d' )"
+					fetchBlocks="$( printf '%s\n' "$fetchJson" | LC_ALL=C awk -v kind=slack -v source="thread:$dt" -v channel="$dtChannel" -f "$commsItemsAwkFile" )" || {
+						printf 'FAIL:response was an API failure, not an empty thread\n' > "$statusFile"
+						return 0
+					}
+					if [ -n "$cutoffEpoch" ] && [ -n "$fetchBlocks" ] ; then
+						fetchBlocks="$( printf '%s\n' "$fetchBlocks" | LC_ALL=C awk -v cut="$cutoffEpoch" -v ctx="$ctxBefore" -f "$trimAwkFile" )" || {
+							printf 'FAIL:cut-off filter over the reply set failed\n' > "$statusFile"
+							return 0
+						}
+					fi
+					[ -z "$fetchBlocks" ] || printf '%s\n' "$fetchBlocks" > "$blocksFile"
+					printf 'OK\n' > "$statusFile"
+					return 0
+				}
+
+				local uniqueThreads dt
 				uniqueThreads="$( printf '%s\n' "${threadTargets[@]+"${threadTargets[@]}"}" | LC_ALL=C sort -u )" || uniqueThreads=""
 				while IFS= read -r dt ; do
 					[ -n "$dt" ] || continue
-					imSourcesTotal=$(( imSourcesTotal + 1 ))
-					dtChannel="${dt%%:*}"
-					slackRaw="$( DistroAgentsTools --intern-op-slack-check "$actingMember" "$dt" --raw )" || {
-						imPartial="$imPartial**NOTE:** partial -- thread $dt not scanned, --intern-op-slack-check failed"$'\n'
-						imAnySourceFailed="true"
-						continue
-					}
-					slackJson="$( printf '%s\n' "$slackRaw" | sed '1d' )"
-					slackBlocks="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v kind=slack -v source="thread:$dt" -v channel="$dtChannel" -f "$commsItemsAwk" )" || {
-						imPartial="$imPartial**NOTE:** partial -- thread $dt not scanned, response was an API failure, not an empty thread"$'\n'
-						imAnySourceFailed="true"
-						continue
-					}
-					## The shared cut-off trim, with the one parameter that is local
-					## to this path: ctx is sessionContextThreadContextBefore here,
-					## where the channel read above passes 0. That is the whole
-					## difference -- a thread carries lead-in context before its
-					## first unread message, a channel does not. The mechanism, and
-					## why a thread with nothing new emits nothing rather than
-					## surfacing its own weeks-old parent, lives once with the
-					## program itself.
-					##
-					## Applied BEFORE imSourcesScanned is bumped, so a filter failure
-					## counts as unread rather than as scanned-and-empty. That
-					## distinction carries more weight than it used to: this trim now
-					## has a second, entirely legitimate way to produce no output (a
-					## thread with nothing new), so "trimmed to empty" (rc 0) and
-					## "trim failed" (rc non-zero) must stay rigorously apart.
-					if [ -n "$cutoffEpoch" ] && [ -n "$slackBlocks" ] ; then
-						slackBlocks="$( printf '%s\n' "$slackBlocks" | LC_ALL=C awk -v cut="$cutoffEpoch" -v ctx="$sessionContextThreadContextBefore" "$commsCutoffTrimAwkProgram" )" || {
-							imPartial="$imPartial**NOTE:** partial -- thread $dt not scanned, cut-off filter over the reply set failed"$'\n'
-							imAnySourceFailed="true"
-							continue
-						}
-					fi
-					imSourcesScanned=$(( imSourcesScanned + 1 ))
-					[ -z "$slackBlocks" ] || imBlocks="$imBlocks$slackBlocks"$'\n\n'
+					while [ "$( jobs -pr | wc -l | tr -d '[:space:]' )" -ge "$threadFetchWorkers" ] ; do
+						sleep 0.2
+					done
+					AgentsSessionContextThreadFetchOne "$actingMember" "$dt" "$cutoffEpoch" "$sessionContextThreadContextBefore" "$commsItemsAwk" "$threadTrimAwkFile" "$threadFetchWorkDir" "$commsMemberScopeOnly" &
 				done <<- EOF
 				$uniqueThreads
 				EOF
+				wait
+
+				## Merge after `wait`, same sorted order as before -- no
+				## concurrent writer here, so no lock is needed.
+				while IFS= read -r dt ; do
+					[ -n "$dt" ] || continue
+					imSourcesTotal=$(( imSourcesTotal + 1 ))
+					local outBase statusLine blocksFile statusFile
+					outBase="$( printf '%s' "$dt" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )"
+					blocksFile="$threadFetchWorkDir/blocks.$outBase"
+					statusFile="$threadFetchWorkDir/status.$outBase"
+					if [ -f "$statusFile" ] ; then statusLine="$( cat "$statusFile" )" ; else statusLine="FAIL:no status file -- job never ran or was lost" ; fi
+					case "$statusLine" in
+						OK)
+							imSourcesScanned=$(( imSourcesScanned + 1 ))
+							[ -f "$blocksFile" ] && imBlocks="$imBlocks$( cat "$blocksFile" )"$'\n\n'
+						;;
+						*)
+							imPartial="$imPartial**NOTE:** partial -- thread $dt not scanned, ${statusLine#FAIL:}"$'\n'
+							imAnySourceFailed="true"
+						;;
+					esac
+				done <<- EOF
+				$uniqueThreads
+				EOF
+
+				rm -rf "$threadFetchWorkDir"
+				trap - EXIT
+				unset -f AgentsSessionContextThreadFetchOne
 
 				[ "$imSourcesScanned" -gt 0 ] || imFailed="true"
 			fi

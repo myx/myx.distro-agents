@@ -11,9 +11,10 @@
 ## -- five ops today, room for more of this routine's own ops later.
 ##
 ## --magic-daily-lock-* -- routine-daily's own lock: four thin stubs over the
-## shared --intern-op-lock-* family (AgentsTools.InternOpLock.include), same
-## unified mechanism every routine now uses -- frontmatter + git when
-## TEAM_DATA_GIT_REMOTE is configured, the `mkdir` mutex when it is not.
+## shared --intern-op-item-read/--intern-op-item-upsert primitives
+## (AgentsTools.InternOpItem.include), same unified mechanism every routine
+## now uses -- frontmatter + git when TEAM_DATA_GIT_REMOTE is configured,
+## local-only when it is not.
 ##
 ## Position in the routine is fixed: lock before all, unlock in closure.
 ## The `-lock-` / `-state-` infix split keeps the two namespaces separate: a
@@ -38,9 +39,10 @@ case "$1" in
 	## -- explicitly NOT a transcript). Prefers REFERENCING TEAM-DATA over
 	## copying it, to stay compact.
 	##
-	## One more stub over --intern-op-state-and-lock-upsert, alongside
-	## --magic-advance-state-and-lock-upsert and
-	## --magic-grooming-state-and-lock-upsert: same "own dedicated stub per
+	## One more stub over --intern-op-item-upsert's default (no-flag)
+	## behavior, alongside --magic-advance-state-and-lock-upsert,
+	## --magic-grooming-state-and-lock-upsert and
+	## --magic-retro-state-and-lock-upsert: same "own dedicated stub per
 	## calling routine, each carrying its own validation even where identical
 	## today" convention this file's own --magic-daily-lock-* arms already
 	## follow. The note filename is fixed and hardcoded here -- it is this
@@ -108,7 +110,7 @@ case "$1" in
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
 		recheckRem=$(( targetEpoch % 86400 ))
 		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
-		DistroAgentsTools --intern-op-state-and-lock-upsert "$callingMember" \
+		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260811T120000Z-daily-state-and-lock.md \
 			--header:upsert:state:daily-running \
 			"${passthrough[@]}" \
@@ -139,8 +141,9 @@ case "$1" in
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
 		recheckRem=$(( targetEpoch % 86400 ))
 		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
-		DistroAgentsTools --intern-op-lock-acquire "$callingMember" \
-			note-20260811T120000Z-daily-state-and-lock.md "$ownerLabel" \
+		DistroAgentsTools --intern-op-item-read "$callingMember" \
+			note-20260811T120000Z-daily-state-and-lock.md \
+			--acquire-lock "$ownerLabel" \
 			--header:upsert:state:daily-running \
 			--header:upsert:recheck-date:"$recheckDate" \
 			--context --magic-daily-lock-acquire
@@ -168,8 +171,9 @@ case "$1" in
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
 		recheckRem=$(( targetEpoch % 86400 ))
 		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
-		DistroAgentsTools --intern-op-lock-refresh "$callingMember" \
+		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260811T120000Z-daily-state-and-lock.md \
+			--update-lock \
 			--header:upsert:state:daily-running \
 			--header:upsert:recheck-date:"$recheckDate" \
 			--context --magic-daily-lock-refresh
@@ -192,8 +196,9 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-daily-close-state-and-unlock: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-lock-release "$callingMember" \
+		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260811T120000Z-daily-state-and-lock.md \
+			--unlock-lock \
 			--header:upsert:state:daily-finished \
 			--context --magic-daily-close-state-and-unlock
 		return $?
@@ -215,7 +220,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-status: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-lock-status "$callingMember" \
+		DistroAgentsTools --intern-op-item-read "$callingMember" \
 			note-20260811T120000Z-daily-state-and-lock.md \
 			--context --magic-daily-lock-status
 		return $?

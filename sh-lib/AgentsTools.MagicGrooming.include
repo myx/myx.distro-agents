@@ -1043,8 +1043,10 @@ case "$1" in
 	## -- explicitly NOT a transcript). Prefers REFERENCING TEAM-DATA over
 	## copying it, to stay compact.
 	##
-	## One of two stubs over --intern-op-state-and-lock-upsert, the other being
-	## --magic-advance-state-and-lock-upsert: same "own dedicated stub per
+	## One of four stubs over --intern-op-item-upsert's default (no-flag)
+	## behavior, the others being --magic-advance-state-and-lock-upsert/
+	## --magic-daily-state-and-lock-upsert/--magic-retro-state-and-lock-upsert:
+	## same "own dedicated stub per
 	## calling routine, each carrying its own validation even where identical
 	## today" convention this file's own --magic-grooming-to-* arms already
 	## follow. The note filename is fixed and hardcoded here -- it is this
@@ -1112,7 +1114,7 @@ case "$1" in
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
 		recheckRem=$(( targetEpoch % 86400 ))
 		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
-		DistroAgentsTools --intern-op-state-and-lock-upsert "$callingMember" \
+		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
 			--header:upsert:state:grooming-running \
 			"${passthrough[@]}" \
@@ -1123,10 +1125,10 @@ case "$1" in
 
 	##
 	## --magic-grooming-lock-* -- routine-grooming's own lock: four thin stubs
-	## over the shared --intern-op-lock-* family
-	## (AgentsTools.InternOpLock.include), same unified mechanism every
-	## routine now uses -- frontmatter + git when TEAM_DATA_GIT_REMOTE is
-	## configured, the `mkdir` mutex when it is not.
+	## over the shared --intern-op-item-read/--intern-op-item-upsert
+	## primitives (AgentsTools.InternOpItem.include), same unified mechanism
+	## every routine now uses -- frontmatter + git when TEAM_DATA_GIT_REMOTE
+	## is configured, local-only when it is not.
 	##
 	## Position in the routine is fixed: lock before all, unlock in closure.
 	## Not inside --magic-grooming-input-scan -- that op's contract is "return
@@ -1159,8 +1161,9 @@ case "$1" in
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
 		recheckRem=$(( targetEpoch % 86400 ))
 		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
-		DistroAgentsTools --intern-op-lock-acquire "$callingMember" \
-			note-20260809T154332Z-grooming-state-and-lock.md "$ownerLabel" \
+		DistroAgentsTools --intern-op-item-read "$callingMember" \
+			note-20260809T154332Z-grooming-state-and-lock.md \
+			--acquire-lock "$ownerLabel" \
 			--header:upsert:state:grooming-running \
 			--header:upsert:recheck-date:"$recheckDate" \
 			--context --magic-grooming-lock-acquire
@@ -1188,8 +1191,9 @@ case "$1" in
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
 		recheckRem=$(( targetEpoch % 86400 ))
 		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
-		DistroAgentsTools --intern-op-lock-refresh "$callingMember" \
+		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
+			--update-lock \
 			--header:upsert:state:grooming-running \
 			--header:upsert:recheck-date:"$recheckDate" \
 			--context --magic-grooming-lock-refresh
@@ -1212,8 +1216,9 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-close-state-and-unlock: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-lock-release "$callingMember" \
+		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
+			--unlock-lock \
 			--header:upsert:state:grooming-finished \
 			--context --magic-grooming-close-state-and-unlock
 		return $?
@@ -1235,7 +1240,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-status: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-lock-status "$callingMember" \
+		DistroAgentsTools --intern-op-item-read "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
 			--context --magic-grooming-lock-status
 		return $?

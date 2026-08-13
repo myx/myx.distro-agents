@@ -644,26 +644,20 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		## Internal plumbing, no --help entry -- the shared lock implementation
-		## (acquire/refresh/release/status) underlying
-		## --magic-{heartbeat,advance,grooming,daily,retro}-lock-*. One unified mechanism:
-		## frontmatter + git when TEAM_DATA_GIT_REMOTE is configured, the
-		## `mkdir` mutex when it is not. Glob route, so a new verb needs no
-		## dispatcher edit. See AgentsTools.InternOpLock.include's own header.
-		--intern-op-lock-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpLock.include"
-			return $?
-		;;
-
-		## Internal plumbing, no --help entry -- the shared implementation
-		## underlying --magic-grooming-state-and-lock-upsert/
-		## --magic-advance-state-and-lock-upsert. Writes a routine's fixed
-		## `*-state-and-lock.md` note, then commits and pushes THAT ONE FILE
-		## when a git remote is configured for the board: the push result is
-		## the lock verdict. See AgentsTools.InternOpStateAndLockUpsert.include's
-		## own header.
-		--intern-op-state-and-lock-upsert)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpStateAndLockUpsert.include"
+		## Internal plumbing, no --help entry -- the shared item-read/
+		## item-upsert primitives underlying
+		## --magic-{heartbeat,advance,grooming,daily,retro}-lock-*/
+		## -state-and-lock-upsert. One unified mechanism: frontmatter + git
+		## when TEAM_DATA_GIT_REMOTE is configured, local-only when it is
+		## not. Generalizes across the board/vault/audit/inbox item
+		## categories (board/vault/audit resolution shared with
+		## --intern-op-agent-spawn-proxy). Glob route, so a new verb needs no
+		## dispatcher edit. Replaces the former --intern-op-lock-*/
+		## --intern-op-state-and-lock-upsert routes (removed; see
+		## AgentsTools.InternOpItem.include's own header for the
+		## consolidation this is).
+		--intern-op-item-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpItem.include"
 			return $?
 		;;
 

@@ -276,8 +276,8 @@ case "$1" in
 	##
 	## --magic-heartbeat-lock-* plus --magic-heartbeat-close-state-and-unlock
 	## -- routine-heartbeat's own single-instance lock, now four thin stubs
-	## over the shared --intern-op-lock-* family
-	## (AgentsTools.InternOpLock.include). The mechanism moved there when the
+	## over the shared --intern-op-item-read/--intern-op-item-upsert
+	## primitives (AgentsTools.InternOpItem.include). The mechanism moved there when the
 	## `mkdir` mutex and the fixed `*-state-and-lock.md` documents were
 	## unified into one lock: frontmatter + git when TEAM_DATA_GIT_REMOTE is
 	## configured, the same `mkdir` mutex as before when it is not. The stdout
@@ -324,8 +324,9 @@ case "$1" in
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
 		recheckRem=$(( targetEpoch % 86400 ))
 		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
-		DistroAgentsTools --intern-op-lock-acquire "$callingMember" \
-			note-20260809T155000Z-heartbeat-state-and-lock.md "$ownerLabel" \
+		DistroAgentsTools --intern-op-item-read "$callingMember" \
+			note-20260809T155000Z-heartbeat-state-and-lock.md \
+			--acquire-lock "$ownerLabel" \
 			--header:upsert:state:heartbeat-running \
 			--header:upsert:recheck-date:"$recheckDate" \
 			--context --magic-heartbeat-lock-acquire
@@ -353,8 +354,9 @@ case "$1" in
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
 		recheckRem=$(( targetEpoch % 86400 ))
 		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
-		DistroAgentsTools --intern-op-lock-refresh "$callingMember" \
+		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T155000Z-heartbeat-state-and-lock.md \
+			--update-lock \
 			--header:upsert:state:heartbeat-running \
 			--header:upsert:recheck-date:"$recheckDate" \
 			--context --magic-heartbeat-lock-refresh
@@ -377,8 +379,9 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-close-state-and-unlock: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-lock-release "$callingMember" \
+		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T155000Z-heartbeat-state-and-lock.md \
+			--unlock-lock \
 			--header:upsert:state:heartbeat-finished \
 			--context --magic-heartbeat-close-state-and-unlock
 		return $?
@@ -400,7 +403,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-status: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-lock-status "$callingMember" \
+		DistroAgentsTools --intern-op-item-read "$callingMember" \
 			note-20260809T155000Z-heartbeat-state-and-lock.md \
 			--context --magic-heartbeat-lock-status
 		return $?

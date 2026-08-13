@@ -17,7 +17,7 @@
 ##
 ## No more private package-storage receipt triplet -- unconditionally, same
 ## "document IS the tracking, always" principle as
-## AgentsTools.InternOpLock.include. Two tracking variants instead:
+## AgentsTools.InternOpItem.include. Two tracking variants instead:
 ##   1. --from-board/--from-vault/--from-audit: already names a tracking
 ##      document. Nothing new written -- reports TRACKING_ITEM=<name>.
 ##   2. stdin/--from-file: ad-hoc. A `dispatch-*` board-item is created in

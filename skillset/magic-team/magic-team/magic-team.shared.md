@@ -34,9 +34,9 @@ Read `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" sect
 
 File set:
 
-- **Acting member** (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*` — the only real, separate folder under `~/.claude/skills/`): `SKILL.md`, `<name>.basic.md`, `<name>.armed.md`, optional `<name>.shared.md`, zero-or-more `<name>.<short-name>.routine.md` — each one self-contained, describing one procedure/activity this member owns, never its own folder.
+- **Acting member** (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*` — the only real, separate folder under `~/.claude/skills/`): `SKILL.md`, `<name>.basic.md`, `<name>.armed.md`, optionally `<name>.shared.md` (see the gated condition below — currently unique to `magic-team`'s own folder, not a routine per-member option), zero-or-more `<name>.<short-name>.routine.md` — each one self-contained, describing one procedure/activity this member owns, never its own folder.
 
-Every acting member (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) skill folder under `~/.claude/skills/` contains:
+Every acting member (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) skill folder under `~/.claude/skills/` contains — careful: each of these folders may be (and, currently, every `magic-*` member's is) a symlink into the real source tree, not the canonical location itself, so anyone editing resolves the real path first:
 
 - **`SKILL.md`** — the boot dispatcher only. Claude Code's own skill-discovery mechanism requires this exact filename, so it never gets renamed. Standard skill frontmatter (`description`) plus a short dispatch routine: read `<name>.basic.md` unconditionally first (identity-only), then `<name>.armed.md` directly for genuine active-work-duty. A non-active-duty presence wanting to dig deeper than `basic.md` reads `<name>.armed.md`'s own Maintainer Notes → Librarian Comments → Reference subsection, not a separate reference file.
 - **`<name>.basic.md`** — identity-only content, unconditionally loaded. Enough to respond in a casual/social context, not enough to actually do the work.

@@ -1,0 +1,788 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpItem.include -- the --intern-op-item-read /
+## --intern-op-item-upsert operation pair for DistroAgentsTools.fn.sh's
+## dispatcher. Sourced lazily from the `--intern-op-item-*)` wildcard arm via
+## the standard $MDLT_ORIGIN-based path. Not standalone: relies on being
+## dot-sourced for $1/$@/$MDSC_CMD.
+##
+## Replaces AgentsTools.InternOpLock.include (four verbs: acquire/refresh/
+## release/status) and AgentsTools.InternOpStateAndLockUpsert.include (one
+## verb) with two generic primitives, per
+## board/backlog/proposal-20260813T0032Z-item-read-upsert-consolidation-design.md.
+## Consolidation, not a behavior change to the documented external contract:
+## every --magic-{heartbeat,advance,grooming,daily,retro}-lock-*/
+## -state-and-lock-upsert stub keeps its own name, syntax and stdout contract
+## (ACQUIRED/RECLAIMED_STALE/ACTIVE/REFRESHED/NO_LOCK_HELD/RELEASED/NO_LOCK)
+## unchanged; only what those stubs call underneath moves.
+##
+## No --help entry: internal plumbing, same as the two files this replaces.
+##
+## WHAT MOVED WHERE
+##
+## - The staleness-check logic (parse state/recheck-date/session-id, convert
+##   recheck-date to epoch, compare against now-60s) was written out in full
+##   TWICE across the old files (once in --intern-op-lock-acquire, once in
+##   --intern-op-lock-status). ONE implementation now: AgentsToolsItemStaleCheck
+##   below, called by both the plain-read and --acquire-lock paths of
+##   --intern-op-item-read.
+## - The --context pre-scan boilerplate was repeated SIX times across the two
+##   old files (four verbs in InternOpLock.include, one each in
+##   InternOpStateAndLockUpsert.include and InternOpDataRead.include -- that
+##   last one is untouched, see AgentsTools.InternOpDataRead.include, section 8
+##   of the design doc explains why it stays separate). ONE implementation now
+##   for this file's own two ops: AgentsToolsItemContextScan below.
+## - The fixed inbox storage path (`$MDAT_DATA_ROOT/inboxes/magic-coordinator/
+##   <item-filename>`) was asserted independently in both old files
+##   (AgentsToolsLockResolve in one, the inboxDir assignment in the other).
+##   ONE implementation now: AgentsToolsItemResolvePaths below, generalized to
+##   all four item categories (board/vault/audit/inbox), of which the fixed
+##   inbox path is one case.
+##
+## ITEM-CATEGORY ADDRESSING
+##
+## Both ops below accept ONE of:
+##   --from-board <state> <item-filename>   -- board/<state>/, state mandatory,
+##                                              no all-8-states fallback (a
+##                                              settled human-owner decision,
+##                                              see the design doc section 3).
+##   --from-vault <item-filename>           -- vault/ (single fixed folder).
+##   --from-audit <item-filename>           -- audit/<YYYY-MM>/ derived from a
+##                                              transcript-YYYY-MM-... name,
+##                                              else the current UTC
+##                                              year-month; audit/ itself as a
+##                                              read fallback.
+##   --from-inbox <team-member> <item-filename> -- inboxes/<team-member>/.
+##   <item-filename> alone, no selector     -- LEGACY DEFAULT, preserved
+##                                              unconditionally: every one of
+##                                              this consolidation's 24
+##                                              migrated stub call sites passes
+##                                              a bare <team-member>
+##                                              <item-filename> pair with no
+##                                              selector, exactly as it did
+##                                              against the old fixed-path
+##                                              --intern-op-lock-*/
+##                                              --intern-op-state-and-lock-upsert
+##                                              ops. A bare item-filename is
+##                                              therefore treated as shorthand
+##                                              for `--from-inbox
+##                                              magic-coordinator
+##                                              <item-filename>` -- the exact
+##                                              path AgentsToolsLockResolve
+##                                              hardcoded before this file
+##                                              existed. This is what makes
+##                                              the migration in section 7 of
+##                                              the design doc mechanical: the
+##                                              op name (and, for
+##                                              acquire/refresh, one flag)
+##                                              changes; the stub's own
+##                                              argument shape does not.
+##
+## board/vault/audit/inbox mirror exactly the four sources
+## --intern-op-agent-spawn-proxy already distinguishes (see
+## AgentsTools.InternOpAgentSpawnProxy.include's own board/vault/audit
+## resolution) plus the one category that resolution never covered: the fixed
+## lock/state-note storage path, which is neither board/, vault/, nor audit/.
+##
+## LOCK FLAGS ARE SCOPED TO board+inbox ONLY
+##
+## --acquire-lock/--update-lock/--unlock-lock are refused (LOCK_UNSUPPORTED)
+## against the vault/audit categories -- a settled design decision (section 4
+## of the design doc), not a frontmatter limitation: there is no
+## concurrent-write/mutual-exclusion use case for those two categories yet.
+## Plain --intern-op-item-read/--intern-op-item-upsert with no lock flag can
+## still read/write vault and audit content generically.
+##
+## ARGUMENTS
+##
+##   --intern-op-item-read <team-member> <item-selector>
+##       [--acquire-lock <owner-label> [--header:<upsert|append|remove>:name[:value]]...]
+##       --context <caller-op>
+##   --intern-op-item-upsert <team-member> <item-selector>
+##       [--header:<upsert|append|remove>:name[:value]]...
+##       [--from-file <path>|--edit-patch-from-stdin]
+##       [--update-lock|--unlock-lock] --context <caller-op>
+##
+## <item-selector> is one of the five forms under ITEM-CATEGORY ADDRESSING
+## above. No option name is introduced beyond what the two ops this file
+## replaces already established, plus the settled selector/lock-flag names
+## themselves (--from-board/--from-vault/--from-audit/--from-inbox,
+## --acquire-lock/--update-lock/--unlock-lock -- all human-owner-final,
+## verbatim, no alternatives, per the design doc section 2).
+##
+## ACCEPTED TRADEOFF: NO ATOMIC CREATE-OR-FAIL WITHOUT A CONFIGURED REMOTE
+##
+## Unchanged from AgentsTools.InternOpLock.include's own header: a plain file
+## write is not atomic; the git path gets real atomicity from the remote ref
+## update (a rejected non-fast-forward push, then a session-id read-back
+## verdict). With no remote configured there is no atomic primitive in play,
+## and no replacement lock-file mechanism is introduced to manufacture one.
+##
+
+## --context <caller-op> prescan -- see AgentsTools.InternOpBoardUpsertMoveEdit.include's
+## own copy of this block for the full reasoning. Pre-scanned before any
+## validation so every message here can name the invoking operation; the
+## option loop below consumes it again as an ordinary option. Sets: opContext.
+## Never prints, never mutates $@.
+AgentsToolsItemContextScan(){
+	opContext="<no --context given>"
+	local ctxWanted="" ctxArg
+	for ctxArg in "$@" ; do
+		if [ -n "$ctxWanted" ] ; then opContext="$ctxArg" ; ctxWanted="" ; continue ; fi
+		[ "$ctxArg" = "--context" ] && ctxWanted="1"
+	done
+}
+
+## Resolves one item's storage location(s) from already-parsed selector
+## fields. Both ops below parse their own selector tokens inline (each
+## already runs its own option loop for --header:/--acquire-lock/etc, so a
+## second nested loop just for the selector would be an odd split) and then
+## call this once. Sets:
+##   itemWriteDir      -- the single folder --intern-op-item-upsert writes
+##                         into (created with mkdir -p if missing).
+##   itemLookupFolders -- array, ordered, of folders --intern-op-item-read
+##                         searches. More than one only for the audit
+##                         category (derived year-month first, then audit/
+##                         itself as a fallback), mirroring
+##                         --intern-op-agent-spawn-proxy's own audit
+##                         resolution.
+##   itemLockable       -- "true" for board/inbox, "false" for vault/audit.
+## Never prints. $1=category $2=board-state (board only, else ignored)
+## $3=inbox-member (inbox only, else ignored) $4=item-filename.
+AgentsToolsItemResolvePaths(){
+	local category="$1" boardState="$2" inboxMember="$3" name="$4"
+	itemLookupFolders=()
+	case "$category" in
+		board)
+			itemWriteDir="$MDAT_DATA_ROOT/board/$boardState"
+			itemLookupFolders=( "$itemWriteDir" )
+			itemLockable="true"
+		;;
+		vault)
+			itemWriteDir="$MDAT_DATA_ROOT/vault"
+			itemLookupFolders=( "$itemWriteDir" )
+			itemLockable="false"
+		;;
+		audit)
+			## Same derivation --intern-op-agent-spawn-proxy's own audit
+			## branch uses for a read fallback order; the derived folder is
+			## also this op's own write target so a first write lands beside
+			## where later reads (including this op's own) expect it.
+			local auditYearMonth=""
+			case "$name" in
+				transcript-[0-9][0-9][0-9][0-9]-[0-9][0-9]-*)
+					auditYearMonth="$( printf '%s' "$name" | sed -E 's/^transcript-([0-9]{4})-([0-9]{2})-.*/\1-\2/' )"
+				;;
+			esac
+			[ -z "$auditYearMonth" ] && auditYearMonth="$( date -u +%Y-%m )"
+			itemWriteDir="$MDAT_DATA_ROOT/audit/$auditYearMonth"
+			itemLookupFolders=( "$itemWriteDir" "$MDAT_DATA_ROOT/audit" )
+			itemLockable="false"
+		;;
+		inbox)
+			itemWriteDir="$MDAT_DATA_ROOT/inboxes/$inboxMember"
+			itemLookupFolders=( "$itemWriteDir" )
+			itemLockable="true"
+		;;
+	esac
+}
+
+## Staleness check -- ONE implementation now, replacing the two duplicate
+## copies --intern-op-lock-acquire and --intern-op-lock-status each carried
+## in AgentsTools.InternOpLock.include. Reads state/recheck-date/session-id
+## from $1 (a path that may not exist) and sets:
+##   itemState   -- empty when unheld (missing file, no state line, or a
+##                  `*-finished` state).
+##   itemRecheck, itemSession -- raw frontmatter values, empty if unheld.
+##   itemHeld    -- "true" only when a non-finished state exists AND the
+##                  60s-tolerant recheck-date has not passed.
+##   itemRecheckEpoch -- itemRecheck converted to epoch seconds, empty if
+##                  unparsable. Exposed so a caller computing
+##                  RECLAIMED_STALE:...:age=...s (today's --intern-op-lock-acquire
+##                  contract) does not re-run the same AgentsIsoToEpoch.awk
+##                  conversion a second time for the value this function
+##                  already computed internally to decide itemHeld.
+## Never prints, never fails -- an unparsable recheck-date reads as stale
+## (itemHeld="false"), the same fail-open behaviour both duplicate copies
+## already had.
+AgentsToolsItemStaleCheck(){
+	local path="$1"
+	itemState="" itemRecheck="" itemSession="" itemHeld="false" itemRecheckEpoch=""
+	[ -f "$path" ] || return 0
+	itemState="$( LC_ALL=C awk '/^state: /{ print substr($0, 8) ; exit ; }' "$path" )"
+	case "$itemState" in
+		*-finished|'') itemState="" ; return 0 ;;
+	esac
+	itemRecheck="$( LC_ALL=C awk '/^recheck-date: /{ print substr($0, 15) ; exit ; }' "$path" )"
+	itemSession="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$path" )"
+	set +e
+	itemRecheckEpoch="$( printf '%s\n' "$itemRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk" 2>/dev/null )"
+	set -e
+	if [ -n "$itemRecheckEpoch" ] && [ "$(( $( date +%s ) - itemRecheckEpoch ))" -lt 60 ] ; then
+		itemHeld="true"
+	fi
+}
+
+case "$1" in
+
+	##
+	## Default (no --acquire-lock): today's --intern-op-lock-status behavior,
+	## unchanged -- resolves the item, reads state/recheck-date/session-id,
+	## applies the staleness check once, returns NO_LOCK or
+	## ACTIVE:owner=...:state=...:recheck_date=.... Always returns 0.
+	##
+	## --acquire-lock <owner-label>: today's --intern-op-lock-acquire
+	## behavior -- runs the SAME staleness check first (not a second copy),
+	## then: free or stale, echoes RECLAIMED_STALE:prev_owner=...:age=...s
+	## when reclaiming (informational, not a stop -- falls through to the
+	## write exactly as today's code does), calls --intern-op-item-upsert
+	## with --header:upsert:session-id:<owner-label> plus whatever
+	## --header:upsert:... the caller passed, and echoes ACQUIRED on success;
+	## held (not stale), returns 1, echoes ACTIVE:... -- no write attempted.
+	##
+	--intern-op-item-read)
+		shift
+		local opContext ; AgentsToolsItemContextScan "$@"
+		local callingMember="$1" ; shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): syntax is <team-member> [--from-board <state> <item-filename>|--from-vault <item-filename>|--from-audit <item-filename>|--from-inbox <team-member> <item-filename>|<item-filename>] [--acquire-lock <owner-label> [--header:...]...] --context <caller-op>" >&2
+			set +e ; return 1
+		fi
+		local category="" boardState="" inboxMember="" itemName=""
+		local acquireLock="false" ownerLabel="" headerArgs=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-board|--from-vault|--from-audit|--from-inbox)
+					if [ -n "$category" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): only one item-category selector is allowed" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--from-board)
+							category="board" ; boardState="$2" ; itemName="$3"
+							if [ -z "$boardState" ] || [ -z "$itemName" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): --from-board: <state> <item-filename> required" >&2
+								set +e ; return 1
+							fi
+							shift 3
+						;;
+						--from-vault)
+							category="vault" ; itemName="$2"
+							[ -z "$itemName" ] && { echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): --from-vault: <item-filename> required" >&2 ; set +e ; return 1 ; }
+							shift 2
+						;;
+						--from-audit)
+							category="audit" ; itemName="$2"
+							[ -z "$itemName" ] && { echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): --from-audit: <item-filename> required" >&2 ; set +e ; return 1 ; }
+							shift 2
+						;;
+						--from-inbox)
+							category="inbox" ; inboxMember="$2" ; itemName="$3"
+							if [ -z "$inboxMember" ] || [ -z "$itemName" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): --from-inbox: <team-member> <item-filename> required" >&2
+								set +e ; return 1
+							fi
+							shift 3
+						;;
+					esac
+				;;
+				--acquire-lock)
+					acquireLock="true" ; ownerLabel="$2"
+					[ -z "$ownerLabel" ] && { echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): --acquire-lock: <owner-label> required" >&2 ; set +e ; return 1 ; }
+					shift 2
+				;;
+				--header:*)
+					headerArgs+=( "$1" ) ; shift
+				;;
+				--context)
+					shift 2
+				;;
+				*)
+					## Legacy bare positional: <item-filename>, no selector.
+					## Shorthand for --from-inbox magic-coordinator
+					## <item-filename> -- see this file's own header comment.
+					if [ -z "$category" ] && [ -z "$itemName" ] ; then
+						category="inbox" ; inboxMember="magic-coordinator" ; itemName="$1" ; shift
+					else
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): invalid option: $1" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+		done
+		if [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): an item-category selector or a bare <item-filename> is required" >&2
+			set +e ; return 1
+		fi
+		if [ "${#headerArgs[@]}" -gt 0 ] && [ "$acquireLock" != "true" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): --header:* is only valid together with --acquire-lock" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+
+		local itemWriteDir itemLookupFolders itemLockable
+		AgentsToolsItemResolvePaths "$category" "$boardState" "$inboxMember" "$itemName"
+
+		if [ "$acquireLock" = "true" ] && [ "$itemLockable" != "true" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): LOCK_UNSUPPORTED -- --acquire-lock does not apply to the $category item category" >&2
+			set +e ; return 1
+		fi
+
+		local itemPath="" folder
+		for folder in "${itemLookupFolders[@]}" ; do
+			if [ -f "$folder/$itemName" ] ; then itemPath="$folder/$itemName" ; break ; fi
+		done
+		[ -z "$itemPath" ] && itemPath="${itemLookupFolders[0]}/$itemName"
+
+		local itemState itemRecheck itemSession itemHeld itemRecheckEpoch
+		AgentsToolsItemStaleCheck "$itemPath"
+
+		if [ "$acquireLock" != "true" ] ; then
+			## Read-only, ALWAYS returns 0 -- including when nothing is
+			## held. Live callers (e.g. routine-heartbeat's own `main`)
+			## depend on that; NO_LOCK is a normal answer, not an error.
+			if [ "$itemHeld" = "true" ] ; then
+				echo "ACTIVE:owner=$itemSession:state=$itemState:recheck_date=$itemRecheck"
+			else
+				echo "NO_LOCK"
+			fi
+			return 0
+		fi
+
+		## --acquire-lock path.
+		if [ "$itemHeld" = "true" ] ; then
+			echo "ACTIVE:owner=$itemSession:state=$itemState:recheck_date=$itemRecheck"
+			set +e ; return 1
+		fi
+		## A prior (now-stale, non-`*-finished`) holder existed --
+		## informational, not a stop: falls through to the write below,
+		## exactly as today's --intern-op-lock-acquire does. itemState is
+		## only non-empty here when the file exists and its own state line
+		## was neither missing nor `*-finished` (see AgentsToolsItemStaleCheck
+		## above), so this also implies -f "$itemPath".
+		if [ -n "$itemState" ] ; then
+			local reclaimAge=""
+			[ -n "$itemRecheckEpoch" ] && reclaimAge=$(( $( date +%s ) - itemRecheckEpoch ))
+			echo "RECLAIMED_STALE:prev_owner=$itemSession:age=${reclaimAge}s"
+		fi
+
+		local upsertSelectorArgs=()
+		case "$category" in
+			board) upsertSelectorArgs=( --from-board "$boardState" "$itemName" ) ;;
+			vault) upsertSelectorArgs=( --from-vault "$itemName" ) ;;
+			audit) upsertSelectorArgs=( --from-audit "$itemName" ) ;;
+			inbox) upsertSelectorArgs=( --from-inbox "$inboxMember" "$itemName" ) ;;
+		esac
+		DistroAgentsTools --intern-op-item-upsert "$callingMember" "${upsertSelectorArgs[@]}" \
+			--header:upsert:session-id:"$ownerLabel" \
+			"${headerArgs[@]}" \
+			--context "$opContext"
+		local acquireRc=$?
+		if [ "$acquireRc" -ne 0 ] ; then
+			## The upsert lost the race (git configured) or otherwise
+			## failed. Nothing to unwind: no separate lock primitive was
+			## taken above.
+			set +e ; return 1
+		fi
+		echo "ACQUIRED"
+		return 0
+	;;
+
+	##
+	## Default (neither --update-lock nor --unlock-lock): today's
+	## --intern-op-state-and-lock-upsert behavior, unchanged -- frontmatter
+	## skeleton on first creation, header-ops apply, and the
+	## TEAM_DATA_GIT_REMOTE-conditional git half: commit-path-limited,
+	## retry-once-on-network-failure, read-back verdict via session-id
+	## comparison, closing-tolerant behavior on a `*-finished` state. Carried
+	## into every item category unchanged (section 6 of the design doc).
+	##
+	## --update-lock: today's --intern-op-lock-refresh -- checks the item
+	## already exists first (NO_LOCK_HELD if missing; a bare upsert
+	## otherwise CREATES on first write, and this explicit check is what a
+	## refresh needs instead -- see the design doc section 6's own note on
+	## this real behavioral fork), then calls the same base upsert, echoes
+	## REFRESHED. NOTE: verified against all 20 real refresh call sites
+	## (4 routines x lock-refresh, since heartbeat's own set has no
+	## state-and-lock-upsert stub) -- none of them pass a session-id header
+	## on refresh, so this op does not fold one in either; the design doc's
+	## own section 5 describes session-id being "folded in" on --update-lock,
+	## which does not match any verified call site and is not implemented
+	## here -- flagged in this task's own report rather than silently guessed
+	## at.
+	##
+	## --unlock-lock: today's --intern-op-lock-release/
+	## close-state-and-unlock -- if the item exists, calls the base upsert
+	## (tolerates failure, || true), always echoes RELEASED.
+	##
+	--intern-op-item-upsert)
+		shift
+		local opContext ; AgentsToolsItemContextScan "$@"
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): syntax is <team-member> [--from-board <state> <item-filename>|--from-vault <item-filename>|--from-audit <item-filename>|--from-inbox <team-member> <item-filename>|<item-filename>] [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin] [--update-lock|--unlock-lock]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" "$MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+
+		local category="" boardState="" inboxMember="" itemName=""
+		local updateLock="false" unlockLock="false"
+		local headerOpsFile
+		headerOpsFile="$( mktemp "${TMPDIR:-/tmp}/mdat-item-upsert-headers.XXXXXX" )" || { set +e ; return 1 ; }
+		local content contentFromFile="false" bodyMode="" bodyModeCount=0
+		local headerOp headerSpec headerRest headerName headerValue
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-board|--from-vault|--from-audit|--from-inbox)
+					if [ -n "$category" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): only one item-category selector is allowed" >&2
+						rm -f "$headerOpsFile" ; set +e ; return 1
+					fi
+					case "$1" in
+						--from-board)
+							category="board" ; boardState="$2" ; itemName="$3"
+							if [ -z "$boardState" ] || [ -z "$itemName" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-board: <state> <item-filename> required" >&2
+								rm -f "$headerOpsFile" ; set +e ; return 1
+							fi
+							shift 3
+						;;
+						--from-vault)
+							category="vault" ; itemName="$2"
+							[ -z "$itemName" ] && { echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-vault: <item-filename> required" >&2 ; rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+							shift 2
+						;;
+						--from-audit)
+							category="audit" ; itemName="$2"
+							[ -z "$itemName" ] && { echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-audit: <item-filename> required" >&2 ; rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+							shift 2
+						;;
+						--from-inbox)
+							category="inbox" ; inboxMember="$2" ; itemName="$3"
+							if [ -z "$inboxMember" ] || [ -z "$itemName" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-inbox: <team-member> <item-filename> required" >&2
+								rm -f "$headerOpsFile" ; set +e ; return 1
+							fi
+							shift 3
+						;;
+					esac
+				;;
+				--update-lock)
+					updateLock="true" ; shift
+				;;
+				--unlock-lock)
+					unlockLock="true" ; shift
+				;;
+				--header:*)
+					headerSpec="${1#--header:}"
+					headerOp="${headerSpec%%:*}"
+					headerRest="${headerSpec#*:}"
+					case "$headerRest" in
+						*:*) headerName="${headerRest%%:*}" ; headerValue="${headerRest#*:}" ;;
+						*)   headerName="$headerRest" ; headerValue="" ;;
+					esac
+					if [ -z "$headerName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --header:$headerOp: field name required" >&2
+						rm -f "$headerOpsFile" ; set +e ; return 1
+					fi
+					case "$headerOp" in
+						upsert|append)
+							if [ -z "$headerValue" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --header:$headerOp:$headerName requires a value" >&2
+								rm -f "$headerOpsFile" ; set +e ; return 1
+							fi
+						;;
+						remove)
+							;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --header: unrecognized operation: $headerOp (upsert/append/remove)" >&2
+							rm -f "$headerOpsFile" ; set +e ; return 1
+						;;
+					esac
+					printf '%s\t%s\t%s\n' "$headerOp" "$headerName" "$headerValue" >> "$headerOpsFile"
+					shift
+				;;
+				--from-file)
+					if [ -z "${2:-}" ] || [ ! -f "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-file: file not found: ${2:-}" >&2
+						rm -f "$headerOpsFile" ; set +e ; return 1
+					fi
+					content="$( cat "$2" )"
+					contentFromFile="true"
+					bodyMode="file"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift 2
+				;;
+				--edit-patch-from-stdin)
+					bodyMode="patch"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift
+				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --context: value required" >&2
+						rm -f "$headerOpsFile" ; set +e ; return 1
+					fi
+					shift 2
+				;;
+				*)
+					## Legacy bare positional: <item-filename>, no selector.
+					if [ -z "$category" ] && [ -z "$itemName" ] ; then
+						category="inbox" ; inboxMember="magic-coordinator" ; itemName="$1" ; shift
+					else
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): unrecognized argument: $1" >&2
+						rm -f "$headerOpsFile" ; set +e ; return 1
+					fi
+				;;
+			esac
+		done
+		if [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): an item-category selector or a bare <item-filename> is required" >&2
+			rm -f "$headerOpsFile" ; set +e ; return 1
+		fi
+		if [ "$bodyModeCount" -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
+			rm -f "$headerOpsFile" ; set +e ; return 1
+		fi
+		if [ "$updateLock" = "true" ] && [ "$unlockLock" = "true" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --update-lock and --unlock-lock are mutually exclusive" >&2
+			rm -f "$headerOpsFile" ; set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext)" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+
+		local itemWriteDir itemLookupFolders itemLockable
+		AgentsToolsItemResolvePaths "$category" "$boardState" "$inboxMember" "$itemName"
+
+		if { [ "$updateLock" = "true" ] || [ "$unlockLock" = "true" ] ; } && [ "$itemLockable" != "true" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): LOCK_UNSUPPORTED -- --update-lock/--unlock-lock do not apply to the $category item category" >&2
+			rm -f "$headerOpsFile" ; set +e ; return 1
+		fi
+
+		mkdir -p "$itemWriteDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): can't create item directory: $itemWriteDir" >&2
+			rm -f "$headerOpsFile" ; set +e ; return 1
+		}
+		local target="$itemWriteDir/$itemName"
+
+		## --update-lock: refuse on a missing item -- a bare upsert CREATES
+		## on first write, and a refresh of a lock nobody holds must not
+		## silently succeed as one. Explicit special case, not inherited
+		## from the base op's create-on-missing behavior (design doc section
+		## 6's own real-behavioral-fork note).
+		if [ "$updateLock" = "true" ] && [ ! -f "$target" ] ; then
+			echo "NO_LOCK_HELD"
+			rm -f "$headerOpsFile" ; set +e ; return 1
+		fi
+
+		## --unlock-lock: if nothing is there, still always echo RELEASED
+		## (today's --intern-op-lock-release contract), and skip the write
+		## entirely -- there is nothing to close.
+		if [ "$unlockLock" = "true" ] && [ ! -f "$target" ] ; then
+			rm -f "$headerOpsFile"
+			echo "RELEASED"
+			return 0
+		fi
+
+		if [ "$bodyMode" = "patch" ] ; then
+			local patchJson existingContent contentFile patchFile
+			patchJson="$( cat )"
+			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
+			contentFile="$( mktemp "${TMPDIR:-/tmp}/mdat-item-upsert-patch-content.XXXXXX" )" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+			patchFile="$( mktemp "${TMPDIR:-/tmp}/mdat-item-upsert-patch-spec.XXXXXX" )" || { rm -f "$headerOpsFile" "$contentFile" ; set +e ; return 1 ; }
+			printf '%s' "$existingContent" > "$contentFile"
+			printf '%s' "$patchJson" > "$patchFile"
+			content="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" "$contentFile" "$patchFile" )" || { rm -f "$headerOpsFile" "$contentFile" "$patchFile" ; set +e ; return 1 ; }
+			rm -f "$contentFile" "$patchFile"
+		elif [ "$contentFromFile" = "true" ] ; then
+			:
+		elif [ -f "$target" ] ; then
+			content="$( cat "$target" )"
+		else
+			## First creation. Minimal skeleton -- real values only, no empty
+			## placeholder lines (see AgentsTools.InternOpStateAndLockUpsert.include's
+			## own header comment, carried unchanged, for why a pre-seeded
+			## `state:` line would break the very first upsert).
+			content="$( printf '%s\n' \
+				'---' \
+				'type: note' \
+				"from: $callingMember" \
+				"date: $( date +"%Y-%m-%d %H:%M %z" )" \
+				'owner: magic-coordinator' \
+				'---' \
+				'' \
+				'# State and lock' \
+				'' \
+				'(no session content recorded yet)' )"
+		fi
+		if [ -z "$content" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): empty content -- refusing to write an empty item" >&2
+			rm -f "$headerOpsFile" ; set +e ; return 1
+		fi
+
+		if [ -s "$headerOpsFile" ] ; then
+			local bodyTmp
+			bodyTmp="$( mktemp "${TMPDIR:-/tmp}/mdat-item-upsert-body.XXXXXX" )" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+			printf '%s\n' "$content" > "$bodyTmp"
+			content="$( LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" "$bodyTmp" )" || { rm -f "$headerOpsFile" "$bodyTmp" ; set +e ; return 1 ; }
+			rm -f "$bodyTmp"
+		fi
+		rm -f "$headerOpsFile"
+
+		printf '%s\n' "$content" > "$target"
+
+		##
+		## Git half. Everything above this point has already happened on
+		## disk and is not undone by a lock failure: the note IS the state
+		## record. Unchanged from AgentsTools.InternOpStateAndLockUpsert.include
+		## across every item category -- see this op's own header comment,
+		## design doc section 6.
+		##
+		local repoRoot="" originUrl=""
+		set +e
+		originUrl="$( DistroAgentsTools --agents-config-option magic-coordinator --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		if [ -n "$originUrl" ] ; then
+			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
+		fi
+		set -e
+		if [ -z "$originUrl" ] || [ -z "$repoRoot" ] ; then
+			## No git remote configured for the board: local-only, silently.
+			echo "# $MDSC_CMD --intern-op-item-upsert: wrote $target ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+			if [ "$updateLock" = "true" ] ; then echo "REFRESHED" ; return 0 ; fi
+			return 0
+		fi
+
+		local isClosing="false"
+		case "$( LC_ALL=C awk '/^state: /{ print substr($0, 8) ; exit ; }' "$target" )" in
+			*-finished) isClosing="true" ;;
+		esac
+		[ "$unlockLock" = "true" ] && isClosing="true"
+
+		local gitOut="" gitRc=0
+		set +e
+		gitOut="$( git -C "$repoRoot" add -- "$target" 2>&1 )"
+		gitRc=$?
+		set -e
+		if [ "$gitRc" -ne 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): git add failed for $target: $gitOut" >&2
+			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+			set +e ; return 1
+		fi
+
+		## --allow-empty is MANDATORY -- see
+		## AgentsTools.InternOpStateAndLockUpsert.include's own header
+		## comment for the measured defect this fixes (a same-minute
+		## byte-identical note produces "nothing to commit", so an early
+		## return would hand back SUCCESS having never contested the lock).
+		set +e
+		gitOut="$( git -C "$repoRoot" commit --allow-empty -m "$MDSC_CMD --intern-op-item-upsert: $itemName" -- "$target" 2>&1 )"
+		gitRc=$?
+		set -e
+		if [ "$gitRc" -ne 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): git commit failed for $target: $gitOut" >&2
+			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+			set +e ; return 1
+		fi
+
+		## PUSH, THEN PULL AGAIN -- THE READ-BACK IS THE VERDICT. Unchanged
+		## from AgentsTools.InternOpStateAndLockUpsert.include; see that
+		## file's own header comment (NETWORK FAILURE vs REJECTION) for the
+		## full reasoning this op carries forward as-is.
+		local pushAttempt=1 pushOut="" pushRc=0
+		while : ; do
+			set +e
+			pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
+			pushRc=$?
+			set -e
+			[ "$pushRc" -eq 0 ] && break
+			case "$pushOut" in
+				*"Could not resolve host"*|*"could not resolve host"*|*"unable to access"*|*"Could not read from remote repository"*|*"Connection timed out"*|*"Connection refused"*|*"Operation timed out"*|*"Network is unreachable"*|*"connection reset"*)
+					if [ "$pushAttempt" -eq 1 ] ; then
+						echo "# $MDSC_CMD --intern-op-item-upsert: push network failure, retrying once in 15s" >&2
+						sleep 15
+						pushAttempt=2
+						continue
+					fi
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): LOCK_UNCHECKABLE -- the remote was unreachable after one 15s retry, so whether this routine holds the lock is UNKNOWN, not lost; the local note is written but this routine must not continue: $pushOut" >&2
+					if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+					set +e ; return 1
+				;;
+			esac
+			break
+		done
+
+		## Step 5: pull again -- EVERYTHING, via git/cloneSync. Unchanged
+		## from AgentsTools.InternOpStateAndLockUpsert.include; see that
+		## file's own header comment for the full reasoning (why not a
+		## one-file read, why --no-push is load-bearing).
+		local localSessionId="" remoteSessionId="" syncOut="" syncRc=0 lockBranch=""
+		set +e
+		lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )"
+		set -e
+		localSessionId="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$target" )"
+		set +e
+		syncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
+		syncRc=$?
+		set -e
+		if [ "$syncRc" -ne 0 ] ; then
+			## Losing acquirer: only OUR OWN commit and OUR OWN one file are
+			## undone. Never `git reset --hard` -- see
+			## AgentsTools.InternOpStateAndLockUpsert.include's own header.
+			local relPath="${target#"$repoRoot"/}"
+			set +e
+			git -C "$repoRoot" reset --soft HEAD~1 >/dev/null 2>&1
+			git -C "$repoRoot" reset -- "$relPath" >/dev/null 2>&1
+			if git -C "$repoRoot" cat-file -e "HEAD:$relPath" 2>/dev/null ; then
+				git -C "$repoRoot" checkout -- "$relPath" >/dev/null 2>&1
+			else
+				rm -f "$target"
+			fi
+			syncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
+			syncRc=$?
+			set -e
+			if [ "$syncRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): LOCK_UNCHECKABLE -- the board could not be synced even after discarding this session's own commit, so ownership is UNKNOWN, not lost; this routine must not continue: $syncOut" >&2
+				if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+				set +e ; return 1
+			fi
+		fi
+
+		remoteSessionId="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$target" 2>/dev/null )"
+		if [ -z "$localSessionId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): LOCK_UNCHECKABLE -- no session-id on the note, so ownership cannot be read back and is UNKNOWN; pass --header:upsert:session-id:<id>; routine must not continue" >&2
+			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+			set +e ; return 1
+		fi
+		if [ "$remoteSessionId" = "$localSessionId" ] ; then
+			echo "# $MDSC_CMD --intern-op-item-upsert: wrote, pushed and read back $target -- lock held by session-id $localSessionId" >&2
+			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+			if [ "$updateLock" = "true" ] ; then echo "REFRESHED" ; return 0 ; fi
+			return 0
+		fi
+
+		if [ "$isClosing" = "true" ] ; then
+			echo "⚠️ WARNING: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): closing update did not land -- closing anyway, local note is written: $pushOut" >&2
+			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+			return 0
+		fi
+
+		echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): LOCK_LOST -- the board's item note belongs to session-id '$remoteSessionId', not '$localSessionId'; another holder has the lock; this routine must not continue: $pushOut" >&2
+		set +e ; return 1
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.InternOpItem.include's own default (*) branch, the operation group sourced by the --intern-op-item-* dispatcher route; no operation of that name is defined in this include" >&2
+		set +e ; return 1
+	;;
+esac
