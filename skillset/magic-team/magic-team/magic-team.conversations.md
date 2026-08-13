@@ -52,7 +52,8 @@ This file's own content is binding and obligatory on every team member who reads
    back what was actually received — a short summary/quote of the content, confirming understanding — before
    or alongside acting on the message's substance. Post it as a reply within the same thread/conversation the
    message arrived in (Slack thread reply, email In-Reply-To, continuing the same chat session) — never a new
-   top-level message or a separate thread, regardless of transport.
+   top-level message or a separate thread, regardless of transport. For email specifically, satisfy this by
+   passing `--in-reply-to <parent-message-id>` to `--member-comms-email-send`.
 
 3. **Assess incoming reactions actively.**
    Treat reactions on your messages as signals (confirm, confusion, correction, silence). If they expose a
