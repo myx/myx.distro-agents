@@ -44,6 +44,14 @@ Referenced from each member's `.basic.md`. Not a `routine-*` member.
 2. **React at each stage — required, not optional.**
    The moment a message is read, react with a `seen`-class emoji (e.g. 👀); when work on it genuinely starts, add a `started`-class reaction; when it's resolved, add a `done`/`noted`-class reaction. Additive stage semantics (seen → started → done/noted) — a later stage's reaction doesn't remove an earlier one. React AND reply — a reaction never replaces an owed reply, and a reply never exempts you from reacting.
 
+2a. **Acknowledgment-with-readback is the last action on any human-owner message, always posted as a threaded reply.**
+   On receiving a message from the human-owner through any transport (this chat, Slack, email, or a future
+   channel), the handling session's last action in dealing with that message is an acknowledgment that reads
+   back what was actually received — a short summary/quote of the content, confirming understanding — before
+   or alongside acting on the message's substance. Post it as a reply within the same thread/conversation the
+   message arrived in (Slack thread reply, email In-Reply-To, continuing the same chat session) — never a new
+   top-level message or a separate thread, regardless of transport.
+
 3. **Assess incoming reactions actively.**
    Treat reactions on your messages as signals (confirm, confusion, correction, silence). If they expose a
    recurring/process issue, file a `reflection-*` via `routine-process-reflections` mechanisms.
