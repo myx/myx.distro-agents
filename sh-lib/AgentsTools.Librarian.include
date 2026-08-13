@@ -335,6 +335,72 @@ case "$1" in
 			return $?
 		;;
 
+		## <team-member> <item-filename>
+		##   [--header:<upsert|append|remove>:name[:value]]...
+		##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		##
+		## Moves one item OUT of <team-member>'s own live inbox ROOT into
+		## that same inbox's processed/ -- the step neither sibling above
+		## covers, since both of them already assume processed/ as their
+		## own starting point (see AgentsTools.InternOpInboxToProcessed.include's
+		## own header for the full reasoning).
+		##
+		## No --from-inbox:<member> here, unlike both siblings above: the
+		## source and the member are the same one positional
+		## (<team-member>), because the source is that member's own inbox
+		## root -- there is no cross-member "move FROM inbox" shape to
+		## disambiguate the way --from-inbox:<member> disambiguates a
+		## processed/-sourced item from a board-state-sourced one.
+		##
+		## Same trash-relocation shape as its siblings: the original root
+		## file is NOT removed once written into processed/ -- it is
+		## relocated to trash/, survivable by hand, same "leaves it in
+		## trash/ too" fact --librarian-inbox-to-retained's own header
+		## documents for its own move.
+		--librarian-inbox-to-processed)
+			shift
+			## <team-member> captured as both the acting member and the
+			## inbox this op operates on -- same convention as the two
+			## siblings above (captured for future logging/validation).
+			local callingMember="$1"
+			shift || true
+			local itemName="$1"
+			shift || true
+			if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-processed: syntax is <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+				set +e ; return 1
+			fi
+			local passthrough=()
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--from-state:*|--from-inbox:*)
+						echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-processed: $1 is not valid here -- this op moves an item out of <team-member>'s own inbox ROOT, source and member are the same positional. Use --librarian-inbox-to-retained/--magic-board-to-*/--magic-grooming-to-* for a processed/-sourced or board-to-board move." >&2
+						set +e ; return 1
+					;;
+					--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+						passthrough+=( "$1" ) ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-processed: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			AgentsToolsAssertBareName "$callingMember" "<team-member>" "$MDSC_CMD --librarian-inbox-to-processed" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --librarian-inbox-to-processed" || { set +e ; return 1 ; }
+			case "$itemName" in
+				*.md) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-processed: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+					set +e ; return 1
+				;;
+			esac
+			DistroAgentsTools --intern-op-inbox-to-processed "$callingMember" "$itemName" \
+				--context --librarian-inbox-to-processed \
+				"${passthrough[@]}"
+			return $?
+		;;
+
 	*)
 		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.Librarian.include own default (*) branch, the operation group sourced by the --librarian-* dispatcher route; no operation of that name is defined in this include" >&2
 		set +e ; return 1

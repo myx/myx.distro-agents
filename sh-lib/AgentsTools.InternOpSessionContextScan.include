@@ -916,10 +916,20 @@ case "$1" in
 					## --comms-member-scope-only, slackSourceNames is instead the
 					## member's own configured conversations, which do need that
 					## member's own identity to be read at all, so the flag stays off.
+					## Bare "human-owner" (team-scope only) so
+					## --intern-op-slack-check's own human-owner DM fan-out guard
+					## (keyed on that literal bare word) is reachable -- passing the
+					## already-resolved "$slackChannel:" bypasses it, verified live.
+					## Member-scope-only keeps "$slackChannel:" unchanged: $slackName
+					## there is a raw configured conversation, not the alias.
+					local slackCheckTarget="$slackChannel:"
+					if [ "$commsMemberScopeOnly" != "true" ] && [ "$slackName" = "human-owner" ] ; then
+						slackCheckTarget="$slackName"
+					fi
 					slackRaw="$( if [ "$commsMemberScopeOnly" = "true" ] ; then
-						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackChannel:" --raw
+						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackCheckTarget" --raw
 					else
-						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackChannel:" --identity-bot --raw
+						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackCheckTarget" --identity-bot --raw
 					fi )" || {
 						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, --intern-op-slack-check failed"$'\n'
 						imAnySourceFailed="true"

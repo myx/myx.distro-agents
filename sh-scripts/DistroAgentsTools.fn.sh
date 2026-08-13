@@ -635,6 +635,19 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## Internal plumbing, no --help entry -- see
+		## AgentsTools.InternOpInboxToProcessed.include's own header. One
+		## primitive per file, same convention as its siblings above: moves
+		## an item OUT of a member's live inbox/ ROOT into that same
+		## member's inboxes/<member>/processed/ -- the one step neither
+		## --intern-op-board-upsert-move-edit's nor --intern-op-board-trash's
+		## own --from-inbox: source covers (both already assume processed/
+		## as their starting point).
+		--intern-op-inbox-to-processed)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpInboxToProcessed.include"
+			return $?
+		;;
+
 		## Internal plumbing, no --help entry -- the shared generic
 		## primitive underlying --member-upsert-inbox-note/
 		## --member-upsert-member-inquiry/--member-upsert-inbox-reflection.

@@ -36,6 +36,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
@@ -881,6 +882,31 @@
 			swapping the two states; this direction has no `--to-inbox:`
 			counterpart, so a call cannot be undone by tooling. Treat every
 			call as final.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Moves one item OUT of `<team-member>`'s own live inbox ROOT into
+			that same inbox's `processed/` — reads
+			`inboxes/<team-member>/<item-filename>`, writes
+			`inboxes/<team-member>/processed/<item-filename>`, and relocates
+			the original to `trash/`. `<item-filename>` must be a bare
+			filename ending in `.md`. Unlike its two siblings above, there
+			is no `--from-inbox:<member>` here — the source and the acting
+			member are the same one positional, since the source is that
+			member's own inbox root, not a cross-member processed/ item.
+			`--from-state:`/`--from-inbox:` are both rejected outright if
+			given. `--header:*` and the three body-input modes behave
+			exactly as they do on `--librarian-inbox-to-retained`/the
+			`--magic-board-to-*` family. Refuses rather than overwrites if
+			`processed/` or `trash/` already holds that basename, leaving
+			the source in place, so a refused call is safe to fix and
+			re-run.
+
+			**ONE-WAY**, same shape as `--librarian-inbox-to-retained`:
+			there is no inverse, and the original root file ends up in
+			`trash/` too (survivable by hand) once the processed/ copy is
+			written. Treat every call as final.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
