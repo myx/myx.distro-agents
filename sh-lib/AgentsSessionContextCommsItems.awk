@@ -37,6 +37,22 @@
 # newest-first), so the emission order below is the natural index order and no
 # sort step is needed.
 #
+# MULTI-DOCUMENT INPUT: a human-owner fan-out read (--intern-op-slack-check's
+# own two-DM merge, --raw mode) concatenates TWO separate conversations.history
+# responses on stdin, each preceded by its own "## dm=<id> identity=<name> ..."
+# marker line -- one already present in that data, not added by this script.
+# Same shape AgentsSlackHistoryThreadTargets.awk already handles for its own
+# thread-discovery read of this exact fan-out output; this file mirrors that
+# file's own flushDoc/resetDoc convention (named flushLeg/resetLeg here). Every
+# per-message array below is scoped to the CURRENT leg and reset at each such
+# marker, and each leg's own channel id is read out of the marker itself, so a
+# second leg's message index 0 can never silently overwrite the first's, and
+# neither leg is stamped with the other's (or a pre-fan-out static) channel
+# id. A single-leg input (every caller besides the human-owner fan-out)
+# carries no marker at all, so the whole input stays one implicit leg under
+# the externally-passed -v channel= value, exactly reproducing prior
+# behaviour.
+#
 # Parsing engine (skipws/hex2dec/utf8enc/parseString/parseValue/parseObject/
 # parseArray) is copied verbatim from AgentsSlackMessagesFormat.awk in this same
 # folder, which took it verbatim from myx.common's agentMcpJsonParseRequest.awk
@@ -47,6 +63,7 @@ BEGIN {
 	apiOk = "true"
 	apiOkSeen = 0
 	sawJsonRoot = 0
+	legChannel = channel
 	if (kind != "slack" && kind != "trello") {
 		printf("⛔ ERROR: AgentsSessionContextCommsItems.awk: -v kind= must be slack or trello, got: %s\n", kind) > "/dev/stderr"
 		## `exit` in BEGIN still runs END, so END would otherwise add a second,
@@ -146,6 +163,36 @@ function parseString(   c, out, hex, code, hex2, code2, cp) {
 function oneLine(v) {
 	gsub(/[\n\r\t]/, " ", v)
 	return v
+}
+
+## Prints the CURRENT leg's already-accumulated slack-message blocks under its
+## own legChannel, then leaves the arrays untouched -- resetLeg() below is the
+## separate, explicit reset. A safe no-op when nothing has been accumulated
+## yet (itemCount == 0), which is exactly what makes the marker rule's own
+## provenance-line hits (channel update, no message content) harmless: see
+## this file's own header note and the marker rule's comment.
+function flushLeg(   i) {
+	if (itemCount == 0) return
+	for (i = 0; i < itemCount; i++) {
+		printf("## slack-message %s:%s\n", legChannel, tsOf[i])
+		printf("source: %s\n", source)
+		printf("channel: %s\n", legChannel)
+		printf("ts: %s\n", tsOf[i])
+		printf("user: %s\n", (i in userOf) ? userOf[i] : "?")
+		if (i in threadTsOf) printf("thread-ts: %s\n", threadTsOf[i])
+		if ((i in replyCountOf) && replyCountOf[i] + 0 > 0) printf("reply-count: %s\n", replyCountOf[i])
+		printf("text: %s\n", oneLine(textOf[i]))
+		printf("\n")
+	}
+}
+
+function resetLeg() {
+	delete tsOf
+	delete userOf
+	delete textOf
+	delete threadTsOf
+	delete replyCountOf
+	itemCount = 0
 }
 
 function emitLeaf(path, raw, val,   rest, idx, after) {
@@ -258,6 +305,32 @@ function parseArray(path,   idx, c) {
 	}
 }
 
+## LEG-BOUNDARY MARKER (Slack only -- Trello's own notifications endpoint
+## never carries one). Matched BEFORE the catch-all parse rule below, same
+## ordering convention AgentsSlackHistoryThreadTargets.awk's own
+## document-boundary rule uses for this identical fan-out shape ("must
+## precede the buffering rule, so a heading closes the previous block and
+## then lands in the new one"): a marker here flushes the PREVIOUS leg's
+## already-accumulated messages under ITS OWN channel id, resets the per-leg
+## accumulator, and opens the new leg under the marker's own dm id.
+##
+## MATCHES MORE THAN ONE MARKER PER LEG, ON PURPOSE, SAME REASONING AS
+## AgentsSlackHistoryThreadTargets.awk's identical rule: --intern-op-slack-check's
+## own --raw fan-out emits a provenance summary line per leg before any blob
+## content, then the inline marker immediately before that leg's own raw
+## JSON. Both shapes share the "## dm=<id> identity=<name>" prefix this rule
+## matches; the earlier (provenance) hits are harmless no-ops -- flushLeg()'s
+## own itemCount guard makes closing an empty/not-yet-started leg a no-op, so
+## they simply update legChannel and do nothing else.
+kind == "slack" && /^## dm=/ {
+	flushLeg()
+	resetLeg()
+	legChannel = $0
+	sub(/^## dm=/, "", legChannel)
+	sub(/ .*/, "", legChannel)
+	next
+}
+
 { s = $0; n = length(s); p = 1; parseValue(""); }
 
 END {
@@ -273,17 +346,10 @@ END {
 		exit 1
 	}
 
-	for (i = 0; i < itemCount; i++) {
-		if (kind == "slack") {
-			printf("## slack-message %s:%s\n", channel, tsOf[i])
-			printf("source: %s\n", source)
-			printf("channel: %s\n", channel)
-			printf("ts: %s\n", tsOf[i])
-			printf("user: %s\n", (i in userOf) ? userOf[i] : "?")
-			if (i in threadTsOf) printf("thread-ts: %s\n", threadTsOf[i])
-			if ((i in replyCountOf) && replyCountOf[i] + 0 > 0) printf("reply-count: %s\n", replyCountOf[i])
-			printf("text: %s\n", oneLine(textOf[i]))
-		} else {
+	if (kind == "slack") {
+		flushLeg()
+	} else {
+		for (i = 0; i < itemCount; i++) {
 			printf("## trello-notification %s\n", idOf[i])
 			printf("type: %s\n", (i in typeOf) ? typeOf[i] : "?")
 			printf("date: %s\n", (i in dateOf) ? dateOf[i] : "?")
@@ -292,7 +358,7 @@ END {
 			if (i in boardOf) printf("board: %s\n", oneLine(boardOf[i]))
 			if (i in cardOf) printf("card: %s\n", oneLine(cardOf[i]))
 			if (i in textOf) printf("text: %s\n", oneLine(textOf[i]))
+			printf("\n")
 		}
-		printf("\n")
 	}
 }

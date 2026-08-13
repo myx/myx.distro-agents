@@ -942,15 +942,28 @@ case "$1" in
 					if [ "$commsMemberScopeOnly" != "true" ] && [ "$slackName" = "human-owner" ] ; then
 						slackCheckTarget="$slackName"
 					fi
+					## rc=3 is --intern-op-slack-check's own documented PARTIAL
+					## outcome for the human-owner fan-out (one of its two DMs read,
+					## one failed) -- its captured stdout already carries the DM that
+					## DID succeed, and must not be thrown away the same way a real
+					## failure (any other non-zero rc) is. Checked via a captured rc
+					## rather than folded into the `||` above, so the two outcomes
+					## stay told apart exactly as the op itself tells them apart.
+					local slackCheckRc=0
 					slackRaw="$( if [ "$commsMemberScopeOnly" = "true" ] ; then
 						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackCheckTarget" --raw
 					else
 						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackCheckTarget" --identity-bot --raw
-					fi )" || {
+					fi )" || slackCheckRc=$?
+					if [ "$slackCheckRc" != "0" ] && [ "$slackCheckRc" != "3" ] ; then
 						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, --intern-op-slack-check failed"$'\n'
 						imAnySourceFailed="true"
 						continue
-					}
+					fi
+					if [ "$slackCheckRc" = "3" ] ; then
+						imPartial="$imPartial**NOTE:** partial -- $slackName partially scanned, one of the human-owner's two DMs could not be read (--intern-op-slack-check rc=3); the other DM's content below is real, not the missing half"$'\n'
+						imAnySourceFailed="true"
+					fi
 					slackJson="$( printf '%s\n' "$slackRaw" | sed '1d' )"
 					## Feeds dmIdentityMapFile from this source's own raw text --
 					## harmless when no "## dm=" marker is present (every source but
