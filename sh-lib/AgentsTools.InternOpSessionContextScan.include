@@ -866,6 +866,22 @@ case "$1" in
 					}
 				'
 
+				## PER-CHANNEL IDENTITY MAP, for the per-thread reply fetch below.
+				## "<real-dm-channel-id> <identity>" pairs, one per line, sourced
+				## from the SAME "## dm=<id> identity=<name> ..." marker lines bug
+				## 2's fix already reads the channel out of -- the identity is
+				## right there in that same marker text, just never carried
+				## forward until now. Built by the caller directly from
+				## $slackJson, independent of AgentsSlackHistoryThreadTargets.awk's
+				## own output shape: that script's $dt contract
+				## ("<channel>:<ts>", nothing more) stays untouched, so board-
+				## discovered threads (which never carry an identity) and this
+				## map's own lookup misses both fall through to the exact
+				## existing single-identity behaviour unchanged.
+				local dmIdentityMapFile
+				dmIdentityMapFile="$( mktemp "${TMPDIR:-/tmp}/mdat-sweep-dm-identity.XXXXXX" )" || { set +e ; return 1 ; }
+				trap 'rm -f "$dmIdentityMapFile"' EXIT
+
 				local slackName slackResolved slackChannel slackRaw slackJson slackBlocks
 				for slackName in ${slackSourceNames[@]+"${slackSourceNames[@]}"} ; do
 					imSourcesTotal=$(( imSourcesTotal + 1 ))
@@ -936,6 +952,20 @@ case "$1" in
 						continue
 					}
 					slackJson="$( printf '%s\n' "$slackRaw" | sed '1d' )"
+					## Feeds dmIdentityMapFile from this source's own raw text --
+					## harmless when no "## dm=" marker is present (every source but
+					## the human-owner fan-out): the awk below then simply appends
+					## nothing. Real per-DM identity, straight from the same marker
+					## line bug 2's fix already reads the channel out of.
+					printf '%s\n' "$slackJson" | LC_ALL=C awk '
+						/^## dm=/ {
+							rest = $0
+							sub(/^## dm=/, "", rest)
+							id = rest ; sub(/ .*/, "", id)
+							idn = rest ; sub(/^[^ ]+ identity=/, "", idn) ; sub(/ .*/, "", idn)
+							if (id != "" && idn != "") print id, idn
+						}
+					' | sort -u >> "$dmIdentityMapFile"
 					slackBlocks="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v kind=slack -v source="$slackName" -v channel="$slackChannel" -f "$commsItemsAwk" )" || {
 						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, response was an API failure, not an empty channel"$'\n'
 						imAnySourceFailed="true"
@@ -1092,7 +1122,11 @@ case "$1" in
 				## 4.3+; this platform ships bash 3.2).
 				local threadFetchWorkDir
 				threadFetchWorkDir="$( mktemp -d "${TMPDIR:-/tmp}/mdat-sweep-threads.XXXXXX" )" || { set +e ; return 1 ; }
-				trap 'rm -rf "$threadFetchWorkDir"' EXIT
+				## Combined with dmIdentityMapFile's own cleanup -- a bare `trap
+				## ... EXIT` here would silently REPLACE the earlier trap set
+				## right after that file was created, losing its cleanup rather
+				## than adding to it (traps don't stack).
+				trap 'rm -rf "$threadFetchWorkDir" ; rm -f "$dmIdentityMapFile"' EXIT
 
 				## Written to a file (unlike the channel-level trim call above,
 				## untouched) so a background job passes a path, not the awk
@@ -1112,15 +1146,39 @@ case "$1" in
 				## Real function, not inline, only because a backgrounded job
 				## needs a callable unit -- single-consumer otherwise.
 				AgentsSessionContextThreadFetchOne(){
-					local memberName="$1" dt="$2" cutoffEpoch="$3" ctxBefore="$4" commsItemsAwkFile="$5" trimAwkFile="$6" workDir="$7" memberScopeOnly="$8"
+					local memberName="$1" dt="$2" cutoffEpoch="$3" ctxBefore="$4" commsItemsAwkFile="$5" trimAwkFile="$6" workDir="$7" memberScopeOnly="$8" identityMapFile="$9"
 					local dtChannel="${dt%%:*}"
 					local outBase
 					outBase="$( printf '%s' "$dt" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )"
 					local blocksFile="$workDir/blocks.$outBase" statusFile="$workDir/status.$outBase"
 					local fetchRaw fetchJson fetchBlocks
-					## Same --identity-bot branch as the watched-channel read above;
-					## the extraction into this backgroundable function dropped it.
+					## PER-THREAD IDENTITY, derived from dtChannel via the map built
+					## from the same "## dm=<id> identity=<name>" marker line bug 2's
+					## fix already reads the channel out of -- NOT the single
+					## whole-scan memberScopeOnly flag every thread used to share
+					## regardless of which real DM it came from. A DM channel belongs
+					## to exactly one identity pair, so a fixed flag applied to every
+					## thread in a two-DM source fails "channel_not_found" for
+					## whichever DM the flag didn't happen to match.
+					##
+					## Lookup miss (no marker for this channel -- every source
+					## except the human-owner fan-out, and every board-discovered
+					## dt) falls through to the exact prior behaviour unchanged: the
+					## single memberScopeOnly-based branch below.
+					local dtIdentity=""
+					if [ -n "$identityMapFile" ] && [ -f "$identityMapFile" ] ; then
+						dtIdentity="$( LC_ALL=C awk -v ch="$dtChannel" '$1 == ch { print $2 ; exit }' "$identityMapFile" )"
+					fi
 					fetchRaw="$( if [ "$memberScopeOnly" = "true" ] ; then
+						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --raw
+					elif [ "$dtIdentity" = "bot" ] ; then
+						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --identity-bot --raw
+					elif [ "$dtIdentity" != "" ] ; then
+						## A non-bot, non-empty mapped identity ("user") -- omitting
+						## --identity-bot resolves to memberName's own token, same
+						## default --member-comms-slack-send-message's own doc
+						## already states ("the member's own identity when it has
+						## one").
 						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --raw
 					else
 						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --identity-bot --raw
@@ -1151,7 +1209,7 @@ case "$1" in
 					while [ "$( jobs -pr | wc -l | tr -d '[:space:]' )" -ge "$threadFetchWorkers" ] ; do
 						sleep 0.2
 					done
-					AgentsSessionContextThreadFetchOne "$actingMember" "$dt" "$cutoffEpoch" "$sessionContextThreadContextBefore" "$commsItemsAwk" "$threadTrimAwkFile" "$threadFetchWorkDir" "$commsMemberScopeOnly" &
+					AgentsSessionContextThreadFetchOne "$actingMember" "$dt" "$cutoffEpoch" "$sessionContextThreadContextBefore" "$commsItemsAwk" "$threadTrimAwkFile" "$threadFetchWorkDir" "$commsMemberScopeOnly" "$dmIdentityMapFile" &
 				done <<- EOF
 				$uniqueThreads
 				EOF
@@ -1182,6 +1240,7 @@ case "$1" in
 				EOF
 
 				rm -rf "$threadFetchWorkDir"
+				rm -f "$dmIdentityMapFile"
 				trap - EXIT
 				unset -f AgentsSessionContextThreadFetchOne
 
