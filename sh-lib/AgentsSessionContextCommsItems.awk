@@ -64,6 +64,7 @@ BEGIN {
 	apiOkSeen = 0
 	sawJsonRoot = 0
 	legChannel = channel
+	legIdentity = ""
 	if (kind != "slack" && kind != "trello") {
 		printf("⛔ ERROR: AgentsSessionContextCommsItems.awk: -v kind= must be slack or trello, got: %s\n", kind) > "/dev/stderr"
 		## `exit` in BEGIN still runs END, so END would otherwise add a second,
@@ -177,6 +178,7 @@ function flushLeg(   i) {
 		printf("## slack-message %s:%s\n", legChannel, tsOf[i])
 		printf("source: %s\n", source)
 		printf("channel: %s\n", legChannel)
+		if (legIdentity != "") printf("identity: %s\n", legIdentity)
 		printf("ts: %s\n", tsOf[i])
 		printf("user: %s\n", (i in userOf) ? userOf[i] : "?")
 		if (i in threadTsOf) printf("thread-ts: %s\n", threadTsOf[i])
@@ -328,6 +330,18 @@ kind == "slack" && /^## dm=/ {
 	legChannel = $0
 	sub(/^## dm=/, "", legChannel)
 	sub(/ .*/, "", legChannel)
+	## `identity=<user|bot>` on the same marker line -- optional. A
+	## single-leg/non-fan-out marker (or an old-style marker with no
+	## identity= at all) leaves this "", and flushLeg()'s own
+	## `legIdentity != ""` guard is what keeps that case byte-identical to
+	## pre-existing output: no `identity:` line emitted at all.
+	legIdentity = $0
+	if (legIdentity ~ /identity=/) {
+		sub(/^.*identity=/, "", legIdentity)
+		sub(/ .*/, "", legIdentity)
+	} else {
+		legIdentity = ""
+	}
 	next
 }
 

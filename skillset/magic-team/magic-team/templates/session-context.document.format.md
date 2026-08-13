@@ -60,6 +60,9 @@ comms-cut-off: <--comms-since-* kind and value, or "none — per-service unread 
 <key>: <value>
 ...
 
+<- a slack-message item block additionally carries `identity: <user|bot>` when
+   known -- see "Rules" below.
+
 ## Incoming Email Updates
 ## Incoming Trello Updates
 
@@ -112,6 +115,13 @@ comms-cut-off: <--comms-since-* kind and value, or "none — per-service unread 
   email and Trello offer unread and take no cut-off. Stated once at the top, form 1 would be
   ambiguous across exactly the services it reports on.
 - rule: Every item block states its **type name and id** on its heading line.
+- rule: A `slack-message` item block additionally carries `identity: <user|bot>` right after
+  `channel:` — **optional**, present only when the leg it came from is known to be one identity or
+  the other (a human-owner fan-out read's own per-leg marker), absent otherwise. Not the same line
+  as a comms sub-section's own `identity:` (the account a sub-section was read *through* — see the
+  rule above); this one names which identity the message was originally found under. Diagnostic
+  only — `reply-if-warranted` never needs to read or pass it: `--member-comms-slack-send-message`
+  resolves the correct identity internally on its own.
 - rule: Caps: **128** IM conversations — a thread, a channel or a DM is **one** unit, not one
   message — **128** email, **64** Trello, **32** each inbox section. A truncated section says so on
   its own line, naming every dropped conversation and its message count, and stating the cap as a

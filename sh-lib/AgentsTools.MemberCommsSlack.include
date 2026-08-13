@@ -2601,7 +2601,13 @@ case "$1" in
 				## with this, and why the old two-valued --identity bot|user is
 				## gone from every arm a member reads. The one thing a caller
 				## can genuinely need to say is "not my own credentials for this
-				## call", and that is this flag.
+				## call", and that is this flag. There is deliberately no
+				## `--identity <user|bot>` override: a caller can never
+				## correctly know which identity a target actually needs (that
+				## is exactly the bug class this whole fix addresses) -- the op
+				## resolves it internally instead, auto-detecting and retrying
+				## once under the other identity on `channel_not_found`. Adding
+				## a way to ask for the wrong answer is not a feature.
 				--identity-bot)
 					identityAsBot="true" ; shift
 				;;
@@ -2801,7 +2807,13 @@ case "$1" in
 		esac
 
 		## IDENTITY SELECTION -- two inputs, and only two: does this member
-		## have its own USER_TOKEN, and was --identity-bot passed.
+		## have its own USER_TOKEN, and was --identity-bot passed. A caller
+		## never names an identity directly -- it cannot reliably know which
+		## one a target actually needs (that unreliability is the bug class
+		## this whole fix addresses). If the auto-detected identity turns out
+		## wrong for this specific send, the retry loop below (on
+		## channel_not_found) corrects it internally, without the caller's
+		## involvement.
 		##
 		## --identity-bot wins outright over BOTH the routine-authored default
 		## above and the USER_TOKEN auto-detect below. It is the documented path
@@ -2810,16 +2822,6 @@ case "$1" in
 		## human's own credentials. Not passed: routine-authored resolves to bot
 		## regardless of any configured USER_TOKEN; otherwise bot unless a native
 		## token is configured, in which case user.
-		##
-		## THE `--identity user` BRANCH IS GONE, AND ITS ABSENCE IS THE POINT
-		## rather than an omission. It insisted on the native account and failed
-		## loud when the member had no USER_TOKEN. But `user` is what this
-		## selection already produces whenever the token exists, so the flag only
-		## ever changed the outcome in the one case where it could not be
-		## honoured -- it turned a silent, correct fallback to bot into an error.
-		## There is no way to ask for the default any more because there is no
-		## longer anything to ask: this is the ratified two-input model, and a
-		## caller wanting the native identity simply passes nothing.
 		if [ "$identityAsBot" = "true" ] ; then
 			sendIdentity="bot"
 		elif [ "$routineAuthored" = "true" ] ; then
@@ -3015,7 +3017,7 @@ case "$1" in
 			fi
 		fi
 
-		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false"
+		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false" identitySwapped="false"
 		while [ "$attempt" -le "$maxAttempts" ] ; do
 			response="$( curl -sS -X POST "https://slack.com/api/chat.postMessage" \
 				-H @"$headerFile" \
@@ -3034,6 +3036,34 @@ case "$1" in
 					--data-urlencode "channel=$channel" 2>&1 )"
 				echo "# $MDSC_CMD --member-comms-slack-send-message: auto-join attempt for bot token on channel=$channel -- $joinResponse" >&2
 				if printf '%s' "$joinResponse" | grep -q '"ok":true' ; then
+					continue
+				fi
+			fi
+			## Auto-detected `user` identity hit channel_not_found: the target
+			## may be a DM owned by the bot identity instead (e.g.
+			## SLACK_CHANNEL_HUMAN_OWNER-shaped ids, which are
+			## per-identity-pair). Caller never has to know or ask for this --
+			## retried once, silently, from inside this op. Scoped to
+			## user->bot only: bot->user is not attempted here since the
+			## auth.test identity-verification below is keyed off the
+			## ORIGINAL sendIdentity and was only run for a "user" start.
+			if [ "$identitySwapped" = "false" ] && [ "$sendIdentity" = "user" ] && printf '%s' "$response" | grep -q '"error":"channel_not_found"' ; then
+				identitySwapped="true"
+				local botToken
+				botToken="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN )"
+				if [ -n "$botToken" ] ; then
+					sendIdentity="bot"
+					token="$botToken"
+					printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
+					if [ -n "$rawText" ] ; then
+						rawText="$( printf '*%s:*\n%s' "$memberName" "$rawText" )"
+						escapedText="$( printf '%s' "$rawText" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
+						payload="{\"channel\":\"$channel\",\"text\":\"$escapedText\""
+						[ -z "$threadTs" ] || payload="$payload,\"thread_ts\":\"$threadTs\""
+						[ -z "$blocksJson" ] || payload="$payload,\"blocks\":$blocksJson"
+						payload="$payload}"
+					fi
+					echo "# $MDSC_CMD --member-comms-slack-send-message: channel_not_found under auto-detected user identity, retrying once under bot identity" >&2
 					continue
 				fi
 			fi

@@ -144,7 +144,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--member-comms-slack-send-message` operation reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>`.
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>`. Identity (native user token vs. team bot token) is resolved internally — the caller never specifies it: auto-detected from `<team-member>`/`--identity-bot`/configured token as before, and if a send fails with `channel_not_found` under the auto-detected identity, the op retries once under the other identity on its own before giving up.
 
 ## `--member-upsert-inbox-note` operation reference
 
