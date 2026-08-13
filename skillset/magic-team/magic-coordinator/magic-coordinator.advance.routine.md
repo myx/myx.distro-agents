@@ -113,6 +113,7 @@ Continue an already-dispatched `board-running` item. Never a first-time start (s
   - nudge it with this pass's own findings/updates, every time
   - never spawn a second session for this same item
   - failed nudge → treat as if `session-id` absent, continue below
+  - nudge delivered, but `started-at` is past the same "~5 main-loop iterations or ~1 hour" staleness threshold used below, with no state change across nudges this pass or the last → treat identically to a failed nudge: `session-id` absent, continue below (eligible for `restart-session:` respawn using this item's own already-recorded participant list, if present)
 - liveness unknown and no nudge path available from this pass alone → treat as if `session-id` absent (do not convert this into a pass-level blanket defer)
 - `session-id` absent:
   - `interview-*`/`talk-*` prefix already tracking a Slack thread — `communication-channel-id` in the three-part `slack:<channel>:<ts>` shape → apply this item's `interview-*`/`talk-*` per-type rule (below), this same pass — a bounded resume-review + re-assess round over the existing Slack thread — never fall through to the `restart-session:` branch below for this case, even when `restart-session:` is also present.
