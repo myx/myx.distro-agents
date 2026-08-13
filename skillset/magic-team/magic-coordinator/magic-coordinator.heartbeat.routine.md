@@ -81,7 +81,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
          - **Active processes** — one line per active/blocked item naming it and its state (in-work/blocked/etc.), not just a number.
          - Shape: an iteration/timestamp header line, then the Board statistics section, then the Active processes section.
        - Full HTML/multipart layout redesign stays deferred (the text-vs-HTML question is still open) — this is a content/structure floor, not the eventual full design.
-       - Sent via the same sanctioned bot-credential mechanism `routine-coworking`'s Closure Steps' broadcast step already uses — never a session's own personal mail connector.
+       - Sent via the `--member-comms-email-send` magic-tooling operation — never a session's own personal mail connector.
        - Cadence check: track `last_test_email_sent` in the `heartbeat-state-note` and check "has an hour passed" the same mechanical way the day-rhythm check works — not fired every single `next-iteration` regardless of the fast-tier's 30s-2min cadence.
      - **First-today only**: a small `routine-grooming` pass plus librarian context prep, plus a batched `magic-librarian` own-inbox processing pass — collect all pending doc-fix notes, apply together in one multi-update run (`magic-librarian`'s own "Own inbox: collect and batch, don't fix ad hoc" standard).
      - **Later-today**: `routine-daily`'s flow, watching for planned work-sessions.
@@ -257,6 +257,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 - `--member-comms-slack-send-message <team-member> <target> [text...]` (**open-event-track-thread**: open the `event-track` thread)
 - `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]` (Closure steps: close the `event-track` thread with a checkmark)
+- `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (**Test email report** sub-step: send the hourly test email report)
 - `--magic-heartbeat-config-check` (**check-required-config**: check magic-coordinator config upfront, before anything else runs)
 - `--magic-heartbeat-input-scan <team-member>` (**run-one-bounded-substep**: load heartbeat iteration input)
 - `--magic-heartbeat-lock-acquire <team-member> <owner-label>` (**acquire-lock**: acquire the single-instance lock)
@@ -272,6 +273,10 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## `--member-comms-slack-send-message` operation reference
 
 `DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+
+## `--member-comms-email-send` operation reference
+
+`DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (also `-- --from-stdin` or `-- --from-file <path>`) — real, standalone SMTP send via curl. `<team-member>` comes first and is required: it is the acting identity, and the credentials the send authenticates with are that member's own, strictly — never another member's, and never a fallback to one. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; body is everything after. Exactly one body source required. This routine's own **Test email report** sub-step uses it to send the hourly test email report.
 
 ## `--member-comms-slack-react` operation reference
 
