@@ -140,6 +140,9 @@ No pass-wide blanket defer is allowed for `board-running` restart work. Apply th
 - Agent/Task-dispatch-backed work: for any `board-running` item recording an unresolved dispatch note, compute how long unresolved. Treat "unresolved past ~5 main-loop iterations or ~1 hour, whichever comes first" as the staleness signal.
   - Item's current state already prescribes a specific, safe, mechanical next step (e.g. a stale in-place testing round: dispatch a fresh `magic-tester` round): dispatch, record the new dispatch (id/time), report the redispatch once.
   - Otherwise: flag and report once. Escalate-once — don't re-flag the identical stale dispatch every pass; wait for a human/grooming response.
+- Never-dispatched work: a `board-running` item, any prefix, carrying `approved-by`/`approved-at` but none of `session-id`, `restart-session:`, an active console session, or an unresolved dispatch note — no dispatch was ever actually made, whatever moved it into `board-running`. Compute elapsed time since `started-at`; the same "~5 main-loop iterations or ~1 hour, whichever comes first" threshold applies.
+  - Past threshold: dispatch a coworking session via `spawn-one-dispatch`, naming this item's own `participants` record if present, else its `owner:` header alone (mechanically read, never inferred from prose) — same shape as dispatching a prescribed mechanical next step above. Record `session-id`/`recheck-date` via `--magic-advance-to-running --from-state:running`, outcome `respawned`, report the dispatch once.
+  - Not yet past threshold: `no-action-with-explicit-reason` (`no-action:never-dispatched-not-yet-stale`), same as ordinary dispatch-backed handling.
 - For each `board-running` item confirmed alive above: check whether anything this pass did is relevant to that item.
   - Relevant → relay via that process's own live channel: `--console-send` (command-only) for console-session-backed work, `SendMessage` for Agent/Task-dispatch-backed work.
   - Not relevant → skip.
@@ -159,11 +162,11 @@ Apply these per-`board-running`-item task rules, by filename prefix. State-only 
 Each item here is a tracking document. Where a rule below spawns or restarts work on one, it spawns the group that item's `participants` record names, and hands each member the goal, the task, the document itself, and that prefix's own rule below. A prefix may also have a routine assigned — run it in the situations that prefix calls for. A `(placeholder) not yet defined` entry is a real deferral: complete it when that type is settled, never improvise a rule per item.
 
 - `approval-*` / `approve-*`: not resolved, `recheck-date` due → re-ask into the thread its `communication-channel-id` tracks, or via the `--member-comms-slack-send-message` operation to human-owner; extend `recheck-date`. Re-ask leads with the `NEEDS REPLY:` marker; report `waiting on human-owner` only while that marker's occurrence stays unanswered.
-- `interview-*` / `talk-*`: run exactly one round — `routine-interview`'s own **resume-review** + **reassess-before-next-message** — per that routine's own explicit non-blocking design. Never attempt to run the interview to completion inline. Any re-ask leads with the `NEEDS REPLY:` marker; report `waiting on human-owner` only while that marker's occurrence stays unanswered.
+- `interview-*` / `talk-*`: run exactly one round — `routine-interview`'s own **resume-review** + **reassess-before-next-message** — per that routine's own explicit non-blocking design. Never attempt to run the interview to completion inline. Any re-ask leads with the `NEEDS REPLY:` marker; report `waiting on human-owner` only while that marker's occurrence stays unanswered. That round's own content already states every open question resolved and this pass raises no new one → flag it once via `slack-event-track` for `routine-grooming`'s own `board-processed` closure — no `board-processed`-move operation is granted to this routine, so the move itself waits for grooming; escalate-once, same as other stale-dispatch flags above, never re-flag the identical resolved item every pass.
 - `inquiry-*`: `recheck-date` due, no reply → re-ask into the thread its `communication-channel-id` tracks, or via the `--member-comms-slack-send-message` operation; extend `recheck-date`. Otherwise → no action this pass.
-- `task-*` / `project-*` / `epic-*`: apply the console-session/Agent-dispatch stale-check above.
+- `task-*` / `project-*` / `epic-*`: apply the console-session/Agent-dispatch/never-dispatched-work stale-checks above.
 - `proposal-*`: `recheck-date` due → re-ask.
-- `dispatch-*`: `session-id` set → nudge per the general mechanism above; append the report-back as a new dated log entry via `--magic-advance-to-running --from-state:running` — the item stays in `board-running`.
+- `dispatch-*`: `session-id` set → nudge per the general mechanism above; append the report-back as a new dated log entry via `--magic-advance-to-running --from-state:running` — the item stays in `board-running`. `session-id` absent → apply the never-dispatched-work stale-check above, same as any other prefix.
   - rule: every participant is written into the `dispatch-*` document at creation, before it is approved
   - rule: approval adds or removes names on that list
 - `change-*`: (placeholder) not yet defined.
@@ -269,6 +272,8 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - A `board-running` item whose own content already says it moved to `board-blocked`, but is still physically sitting in `board-running`, gets moved to match — without waiting for the next grooming pass.
 - Dependency reasoning worked out ad hoc in a chat reply gets recorded on the Item files themselves — the next pass doesn't have to redo it from scratch.
+- An approved `board-running` item carrying none of `session-id`, `restart-session:`, an active console session, or an unresolved dispatch note, sitting past the staleness threshold, gets a real dispatch this pass — never a blanket `no-action-with-explicit-reason` stamp with nothing actually tried.
+- A `session-id`-set item that keeps getting nudged with zero observed state change past the staleness threshold is treated as if the nudge failed — not renudged indefinitely as "still working."
 - A high-RICE item blocked on a low-RICE one still records the gate plainly — never silently reordered to make the numbers look consistent.
 
 ## Librarian Comments
