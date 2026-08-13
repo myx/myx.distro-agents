@@ -275,7 +275,7 @@ List of frontmatter headers with descriptions. Any date value in frontmatter is 
 - `communication-channel-id`: the one originating external message this item traces back to, written as `<service>:<rest>` — present only when such a message really exists (e.g. for an `inquiry-*` raised from one). The origin service is the value's own prefix; exactly two services exist today, `slack:` and `email:`. Slack takes two shapes: `slack:<channel>` (no thread tracked) or `slack:<channel>:<ts>` (a specific thread). Examples:
   - `communication-channel-id: slack:D0BHQ3VTLB1:1786058878.696109`
   - `communication-channel-id: slack:D0BHQ3VTLB1`
-  - `communication-channel-id: email:myx@meloscope.com:UUID:312412321412-...`
+  - `communication-channel-id: email:you@example.org:UUID:312412321412-...`
 - `status`: free-text current-state label, any type. Omit once stale rather than leaving it wrong.
 - `recheck-date`: next date to actively revisit a `board-blocked`/`board-parked` item. Omit if no date is set yet.
 - `owner-session`: session-kind currently driving an item live (e.g. `interactive`) — narrower than `status`, present only while a live session actually holds it; omit once none does.
