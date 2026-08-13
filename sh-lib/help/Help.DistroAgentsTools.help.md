@@ -8,9 +8,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [text...]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] --from-stdin [--format text|blocks]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] --from-file <path> [--format text|blocks]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --intern-op-slack-check <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--oldest <ts>] [--identity-bot] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
@@ -260,9 +260,9 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>
-		--member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin
-		--member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path>
+		--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>]
+		--member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>]
+		--member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>]
 			`<team-member>` is the member this send acts as, and it comes
 			first, ahead of the recipients. It is required, and it is strict:
 			the credentials the send authenticates with are that member's own,
@@ -287,6 +287,16 @@
 			together is an error (`⛔ ERROR: ... given alongside ... -- use one
 			or the other, not both`), not silently resolved one way or the
 			other -- exactly one body source is required.
+
+			`--in-reply-to <message-id>`: use this when the send is a reply to
+			an earlier message, so the recipient's own mail client threads it
+			under that message instead of showing it as unrelated. Pass exactly
+			the parent message's own `Message-Id` header value, angle brackets
+			included -- the same value visible on a message fetched via
+			`--member-comms-email-read`. Optional; a send with no
+			`--in-reply-to` is unchanged from before this flag existed. Single-level
+			threading only: the value is placed on both `In-Reply-To` and
+			`References`, not accumulated into a multi-message chain.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

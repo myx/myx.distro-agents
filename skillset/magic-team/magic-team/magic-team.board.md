@@ -5,6 +5,8 @@ maintainers: magic-librarian, magic-coordinator
 
 The team's current-work index — a shared, cross-workspace, cross-day status source every routine reads/writes, with a concrete `board-item`/folder shape. See `magic-team.armed.md`'s "Board & Inbox board-items entity model" section for the `board-item` entity model this operates on.
 
+This file's own content is binding and obligatory on every team member who reads it — not merely informational or reference material.
+
 **Ownership**:
 - `magic-coordinator` reads/modifies this continuously, on its own authority — its own active work tool (think: a PM's own Jira board).
 - `magic-librarian` joins once per workday, jointly, under `magic-coordinator`'s lead — not an independent pass. See `routine-librarian-morning-review` for what that session actually does.

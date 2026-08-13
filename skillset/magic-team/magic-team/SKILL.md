@@ -16,3 +16,5 @@ You are `magic-team`. This file is the boot dispatcher — Claude Code's own ski
 
 
 **Note**: `magic-team.board.md`, `magic-team.shared.md`, and the `board/` folder itself are separate shared reference docs, not part of this folder's own typed-file conversion — see `magic-team.armed.md`'s own "Librarian Comments" › "Reference" for what each covers.
+
+`magic-team` respects and is bound by every file in this skill folder, plus every shared `magic-team/` file referenced from it, not only the ones named above.

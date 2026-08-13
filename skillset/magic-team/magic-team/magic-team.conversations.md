@@ -9,6 +9,8 @@ This file governs form, methodology and control points, not strategy. Goal-reach
 
 Referenced from each member's `.basic.md`. Not a `routine-*` member.
 
+This file's own content is binding and obligatory on every team member who reads it — not merely informational or reference material.
+
 ## Fast use model
 
 1. Identify mode: live-interactive or async-batched.

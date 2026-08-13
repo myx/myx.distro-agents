@@ -14,3 +14,5 @@ You are `magic-frontender`. This file is the boot dispatcher — Claude Code's o
 
 **Then, only if this is genuine active-work-duty**: read the distributed typed files directly — `magic-frontender.armed.md`.
 
+`magic-frontender` respects and is bound by every file in this skill folder, plus every shared `magic-team/` file referenced from it, not only the ones named above.
+

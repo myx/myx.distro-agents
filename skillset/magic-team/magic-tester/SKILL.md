@@ -14,3 +14,5 @@ You are `magic-tester`. This file is the boot dispatcher — Claude Code's own s
 
 **Then, only if this is genuine active-work-duty**: read the distributed typed files directly — `magic-tester.armed.md`.
 
+`magic-tester` respects and is bound by every file in this skill folder, plus every shared `magic-team/` file referenced from it, not only the ones named above.
+

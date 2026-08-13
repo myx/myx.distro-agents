@@ -15,6 +15,8 @@ maintainers: magic-librarian, magic-coordinator, human-owner
 
 # Skill-folder model: routine-\* virtual members and the typed-suffix file scheme
 
+This file's own content is binding and obligatory on every team member who reads it — not merely informational or reference material.
+
 ## Core idea
 
 Every team routine/activity (`daily`, `grooming`, `retro`, `one-on-one`, `heartbeat`, ..., plus conversational ones like `interview`/`discuss`/`brainstorm`) is a named procedure, not its own Claude Code skill folder. Its full definition lives in one self-contained `.routine.md` file, hosted inside its owning/executing team member's own skill folder (one of `magic-coordinator`, `magic-team`, `magic-librarian`, a `partner-*`), named following that member's own typed-file convention: `<owning-member>.<short-name>.routine.md`. Only acting members (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) are real, separate Claude Code skill folders under `~/.claude/skills/`, each with its own `SKILL.md` — a routine is not, and has no `SKILL.md` of its own.

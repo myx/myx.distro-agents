@@ -26,3 +26,5 @@ Spawned/non-root sessions do not take that root-chat startup path. They still re
 
 **Then, only if this is genuine active-work-duty** (i.e. `armed-mode` was the mode selected above): read the distributed typed files directly — `magic-coordinator.armed.md`. This holds the same way for the topmost/root harness session and for any spawned instance — a root instance arming for direct ad-hoc/inline work, including the ad-hoc/inline-root case `magic-coordinator.harness.md`'s "Root-specific mechanics" documents, reads these same distributed typed files directly, no different from a spawned instance.
 
+`magic-coordinator` respects and is bound by every file in this skill folder, plus every shared `magic-team/` file referenced from it, not only the ones named above.
+

@@ -444,7 +444,7 @@ case "$1" in
 					fi
 				;;
 			esac
-			local recipients subject bodyLines state="recipients" bodyFromStdin="false" bodyFromFile="false"
+			local recipients subject bodyLines state="recipients" bodyFromStdin="false" bodyFromFile="false" inReplyTo=""
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					--)
@@ -452,6 +452,26 @@ case "$1" in
 						elif [ "$state" = "subject" ] ; then state="body"
 						fi
 						shift
+					;;
+					--in-reply-to)
+						## DRAFT/UNAPPROVED FLAG NAME -- see AgentsTools.MemberCommsEmail.include's
+						## header comment block above the --member-comms-email-send arm for the MVP
+						## threading-header scope this exists for. Recognized in any state (unlike
+						## --from-stdin/--from-file, which are only meaningful in the body state)
+						## because it is not a body-content source -- it sets a header, so it must
+						## never be swallowed as literal recipient/subject/body text. Validated and
+						## consumed directly here, at point of use, same as --from-file's own
+						## <path> argument.
+						if [ -n "$inReplyTo" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --in-reply-to given more than once" >&2
+							set +e ; return 1
+						fi
+						if [ -z "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --in-reply-to requires a <message-id> argument (the parent message's own Message-Id header value, angle brackets included)" >&2
+							set +e ; return 1
+						fi
+						inReplyTo="$2"
+						shift 2
 					;;
 					--from-stdin)
 						## Standardized stdin-content flag (same name as
@@ -591,6 +611,15 @@ $1"
 				printf 'From: %s\n' "$emailUser"
 				printf 'To: %s\n' "$( printf '%s' "$recipients" | tr ' ' ',' )"
 				printf 'Subject: %s\n' "$subject"
+				## MVP threading support: a single-level chain only -- In-Reply-To and
+				## References both carry just the immediate parent's Message-Id, not an
+				## accumulated multi-hop References history. Only emitted when the caller
+				## actually passed --in-reply-to; an ordinary non-reply send carries neither
+				## header, exactly as before this change.
+				if [ -n "$inReplyTo" ] ; then
+					printf 'In-Reply-To: %s\n' "$inReplyTo"
+					printf 'References: %s\n' "$inReplyTo"
+				fi
 				printf '\n'
 				printf '%s\n' "$bodyLines"
 			} > "$msgFile"
