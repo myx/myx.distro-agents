@@ -24,11 +24,37 @@
 # -- true workspace-wide "tagged anywhere" coverage needs a user token with
 # search:read (not currently confirmed available) and is out of this file's
 # reach regardless of the vaneId widening above.
+#
+# MULTI-DOCUMENT INPUT: a human-owner fan-out read (--intern-op-slack-check's
+# own two-DM merge, --raw mode) concatenates TWO separate conversations.history
+# responses on stdin, each preceded by its own "## dm=<id> identity=<name> ..."
+# marker line -- one already present in that data, not added by this script.
+# Every per-message array below is scoped to the CURRENT document and reset at
+# each such marker (flushDoc/resetDoc) so a second document's message index 0
+# can never silently overwrite the first's. A single-document input (every
+# caller besides the human-owner fan-out) carries no marker at all, so the
+# whole input stays one implicit document and behaves exactly as before.
 
 BEGIN {
 	msgCount = 0
 	apiOk = "true"
 	apiOkSeen = 0
+	docChannel = channel
+	linesSeen = 0
+}
+
+function resetDoc() {
+	delete tsOf
+	delete replyCountOf
+	delete latestReplyOf
+	delete userOf
+	delete botIdOf
+	delete textOf
+	delete replyUsersOf
+	msgCount = 0
+	apiOk = "true"
+	apiOkSeen = 0
+	linesSeen = 0
 }
 
 function skipws(   c) {
@@ -205,20 +231,62 @@ function parseArray(path,   idx, c) {
 	}
 }
 
-{ s = $0; n = length(s); p = 1; parseValue("") }
+# DOCUMENT-BOUNDARY MARKER. Matched BEFORE the catch-all parse rule below --
+# same ordering convention InternOpSessionContextScan.include's own
+# commsCutoffTrimAwkProgram uses for its heading rule ("must precede the
+# buffering rule, so a heading closes the PREVIOUS block and then lands in
+# the new one"): a marker here closes the PREVIOUS document (flushDoc, which
+# is a safe no-op if nothing has been accumulated yet -- see linesSeen below)
+# and opens the new one.
+#
+# MATCHES MORE THAN THE ONE MARKER PER DOCUMENT, ON PURPOSE, NOT BY ACCIDENT:
+# --intern-op-slack-check's own --raw fan-out output actually carries FOUR
+# "## dm=" lines for a two-leg read, not two -- a provenance summary line
+# per leg ("## dm=<id> ... status=ok"), printed before ANY blob content,
+# followed by the inline marker immediately before each leg's own raw JSON
+# ("## dm=<id> ... (this DM's own raw API response follows)"). Verified
+# against the real emission order in AgentsTools.InternOpSlackCheck.include.
+# Both shapes share the "## dm=<id>" prefix this rule matches, and the extra,
+# earlier (provenance) matches are harmless: flushDoc()'s own linesSeen guard
+# makes closing an empty/not-yet-started document a no-op, so the two
+# provenance-line hits before any real content simply update docChannel and
+# do nothing else, and the real flush only fires once actual message content
+# has been parsed under that channel.
+/^## dm=/ {
+	flushDoc()
+	resetDoc()
+	docChannel = $0
+	sub(/^## dm=/, "", docChannel)
+	sub(/ .*/, "", docChannel)
+	next
+}
 
-END {
+{ linesSeen++; s = $0; n = length(s); p = 1; parseValue("") }
+
+# One call per document: from END for the only/last document, and from the
+# marker rule above for every document before the last. `channel`, the
+# externally-passed -v value, is untouched here -- it is BEGIN's own initial
+# value for docChannel and stays authoritative for the entire input on any
+# single-document (no marker) call, exactly reproducing prior behaviour.
+function flushDoc(   i, ts, replyCount, latestReply, vaneHit) {
+	# Nothing accumulated since the last reset (or since start) -- a
+	# boundary marker with no real content behind it, never a document to
+	# validate or report on. See the marker rule's own comment for why this
+	# fires harmlessly on the provenance-line matches.
+	if (linesSeen == 0) return
+
 	if (apiOkSeen && apiOk == "false") {
 		printf("⛔ ERROR: Slack API call failed: ok:false%s\n", (apiError != "" ? " error=" apiError : "")) > "/dev/stderr"
 		exit 1
 	}
 	# COULD-NOT-PARSE, distinct from "parsed fine, nothing to report".
 	# Every real conversations.history response carries an `ok` key, so
-	# reaching END having seen no `ok` at all means the input was not the
-	# JSON this script parses -- a truncated body, an HTML error page, an
-	# empty read. Without this, all three returned rc 0 with no output and
-	# were indistinguishable from a channel that simply has no threads,
-	# which then propagated as a confident "no open threads" upstream.
+	# reaching this point having seen no `ok` at all for THIS document means
+	# the input was not the JSON this script parses -- a truncated body, an
+	# HTML error page, an empty read. Without this, all three returned rc 0
+	# with no output and were indistinguishable from a channel that simply
+	# has no threads, which then propagated as a confident "no open
+	# threads" upstream.
 	#
 	# `msgCount == 0` is required alongside it, not optional: the recogniser
 	# must not fire on input that clearly DID parse. A response whose
@@ -247,6 +315,10 @@ END {
 		}
 
 		if (!fresh && !vaneHit) continue
-		print channel ":" ts
+		print docChannel ":" ts
 	}
+}
+
+END {
+	flushDoc()
 }
