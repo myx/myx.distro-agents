@@ -18,7 +18,7 @@
 ## through.
 ##
 ## No --help entry: internal plumbing. The one shared implementation under
-## --magic-{heartbeat,advance,grooming,daily,retro}-lock-{acquire,refresh,release,status}
+## --magic-{heartbeat,advance,grooming,daily,retro}-lock-{acquire,refresh,close-state-and-unlock,status}
 ## -- twenty stubs, each validating and forwarding its own allowed argument
 ## set, none calling another.
 ##
