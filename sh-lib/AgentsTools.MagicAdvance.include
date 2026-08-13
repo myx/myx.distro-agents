@@ -336,6 +336,107 @@ case "$1" in
 		return $?
 	;;
 
+	## <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]
+	## Batch outcome bookkeeping for board-running items -- same header-upsert
+	## method as --magic-advance-to-running/-to-parked (--header:upsert: via
+	## --intern-op-board-upsert-move-edit, same-state running->running), just
+	## looped over several items in one call instead of one call per item.
+	## Not the lock/unlock mechanism -- unrelated, no lock touched here.
+	## No state move, no spawn: pure bookkeeping only, so no
+	## --magic-advance-sleep-run pacing needed after it (that's for
+	## side-effecting calls -- spawns/Slack posts/console sends).
+	## outcome enum: nudged/respawned/redispatched/flagged-once/
+	## no-action-with-explicit-reason (advance.routine.md's own Scope list;
+	## parked-spawn-failed excluded -- that's a state move, not bookkeeping).
+	## execution-receipt is everything after the entry's 2nd colon (so
+	## inline:<ts>/no-action:<reason>/slack:<ch>:<ts> pass through intact);
+	## must not contain a comma.
+	## One bad entry fails loud but doesn't abort the rest of the batch.
+	--magic-advance-batch-outcome)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: syntax is <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]" >&2
+			set +e ; return 1
+		fi
+		local itemsArg=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--items:*)
+					if [ -n "$itemsArg" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: --items: given more than once" >&2
+						set +e ; return 1
+					fi
+					itemsArg="${1#--items:}"
+					shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$itemsArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: --items:<item-filename>:<outcome>:<execution-receipt>[,...] is required" >&2
+			set +e ; return 1
+		fi
+
+		local itemsRemaining="$itemsArg"
+		local spec itemName rest outcome receipt itemCount=0 failCount=0
+		while [ -n "$itemsRemaining" ] ; do
+			case "$itemsRemaining" in
+				*,*) spec="${itemsRemaining%%,*}" ; itemsRemaining="${itemsRemaining#*,}" ;;
+				*)   spec="$itemsRemaining" ; itemsRemaining="" ;;
+			esac
+			[ -z "$spec" ] && continue
+			itemCount=$(( itemCount + 1 ))
+			itemName="${spec%%:*}"
+			rest="${spec#*:}"
+			if [ "$rest" = "$spec" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: malformed entry (need <item-filename>:<outcome>:<execution-receipt>): $spec" >&2
+				set +e ; return 1
+			fi
+			outcome="${rest%%:*}"
+			receipt="${rest#*:}"
+			if [ "$receipt" = "$rest" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: malformed entry (need <item-filename>:<outcome>:<execution-receipt>): $spec" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$itemName" "<item-filename> (in --items entry: $spec)" "$MDSC_CMD --magic-advance-batch-outcome" || { set +e ; return 1 ; }
+			case "$outcome" in
+				nudged|respawned|redispatched|flagged-once|no-action-with-explicit-reason) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: invalid outcome in entry $spec: $outcome" >&2
+					set +e ; return 1
+				;;
+			esac
+			if [ -z "$receipt" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: entry $spec: execution-receipt required" >&2
+				set +e ; return 1
+			fi
+			if ! DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
+				--from-state:running \
+				--header:upsert:outcome:"$outcome" \
+				--header:upsert:execution-receipt:"$receipt" \
+				--context --magic-advance-batch-outcome
+			then
+				failCount=$(( failCount + 1 ))
+			fi
+		done
+
+		if [ "$itemCount" -eq 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: --items: no item entries found" >&2
+			set +e ; return 1
+		fi
+		if [ "$failCount" -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: $failCount of $itemCount item(s) failed" >&2
+			set +e ; return 1
+		fi
+		echo "# $MDSC_CMD --magic-advance-batch-outcome: recorded outcomes for $itemCount item(s)" >&2
+		return 0
+	;;
+
 	## Fixed 5-loop countdown-then-continue signal. No options.
 	--magic-advance-sleep-run)
 		shift

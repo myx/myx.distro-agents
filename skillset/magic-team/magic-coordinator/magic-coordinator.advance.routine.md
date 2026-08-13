@@ -123,7 +123,7 @@ Continue an already-dispatched `board-running` item. Never a first-time start (s
     - set `recheck-date` to now + 7min (jittered ±2min) and `session-id` to the new session's identifier, via `--magic-advance-to-running <team-member> <item-filename> --from-state:running --header:upsert:recheck-date:<value> --header:upsert:session-id:<value>` (same-state patch, existing content preserved)
   - `restart-session:` absent, no per-type rule matches this item's prefix → post to `slack-event-track` via `--member-comms-slack-send-message` (target `event-track`) — "active `board-running` document with no handler: `<filename>`" — flag for `routine-grooming`. Never execute anything inline for an unhandled prefix.
 
-- before continuing to check-restart the next `board-running` item: execute the `--magic-advance-sleep-run` operation
+- before continuing to check-restart the next `board-running` item whose handling above actually spawned/nudged/posted (a genuinely side-effecting call): execute the `--magic-advance-sleep-run` operation. A pure bookkeeping-only outcome recorded via `--magic-advance-batch-outcome` (below) needs no sleep-run at all — pacing exists to rate-limit real side effects, not frontmatter writes.
 
 No pass-wide blanket defer is allowed for `board-running` restart work. Apply this mechanism item-by-item within the existing per-pass concurrency caps.
 
@@ -132,6 +132,7 @@ No pass-wide blanket defer is allowed for `board-running` restart work. Apply th
 - Every outcome record includes `execution-receipt`: spawn receipt id for spawn-proxy paths, dispatch/session id for redispatch/nudge paths, or explicit `inline:<timestamp>` / `no-action:<reason-code>` markers for non-spawn paths.
 - "No action" is valid only with an explicit reason tied to current signals (e.g. `recheck-date` not due, unresolved-dispatch age below stale threshold, no relevant updates this pass).
 - "Deferred" without one of these item-level outcomes is invalid.
+- **At scale** (many `board-running` items in one pass): a genuine spawn/respawn/redispatch/park still goes through its own dedicated single-item op (`--magic-advance-to-running`/`--magic-advance-to-parked`), one call each, paced by `--magic-advance-sleep-run` as above. Every item whose outcome this pass is bookkeeping-only (`nudged`, `flagged-once`, `no-action-with-explicit-reason`, or recording that a respawn/redispatch already happened via its own call) is recorded through one `--magic-advance-batch-outcome` call covering the whole set, instead of one sequential call per item.
 
 **Staleness inputs feeding the mechanism above**:
 - Console-session-backed work: for any in-scope item naming/depending on a `DistroAgentsTools` workspace console session, run `--console-list`, cross-reference. Console expected but gone → flag/report it; do not autonomously restart the console.
@@ -212,14 +213,19 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-advance-close-state-and-unlock <team-member>` (**advance-close-state-and-unlock**: release, setting `state: advance-finished`)
 - `--magic-advance-lock-status <team-member>` (ask who holds the lock; never a gate)
 - `--magic-advance-state-and-lock-upsert <team-member> [--header:...]... [--from-file <path>|--edit-patch-from-stdin]` (**advance-read-board-state**'s own session tracking document, kept current as the pass proceeds; **advance-close-state-and-unlock**'s closing content write)
-- `--magic-advance-sleep-run` (`check-restart`: executed before continuing to the next `board-running` item)
+- `--magic-advance-sleep-run` (`check-restart`: executed before continuing to the next `board-running` item, side-effecting outcomes only)
+- `--magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]` (**Per-pass completion requirement**, at scale: records bookkeeping-only outcomes for several `board-running` items in one call)
 - `--magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]` (`check-execute-board` autonomous spawn relay with execution receipt)
 - `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (per-type checks' closing human-owner DM: **Thread continuity** write-back of `human_owner_broadcast_thread_ts`/`human_owner_broadcast_thread_date`)
 - `--member-comms-slack-send-message <team-member> <target> [text...]` (**advance-report**: post the `event-track` report trace; also `check-execute-board`'s own per-type re-ask rules)
 
 ## `--magic-advance-sleep-run` operation reference
 
-`DistroAgentsTools.fn.sh --magic-advance-sleep-run` — read-only, no arguments: a fixed-duration pacing operation in `routine-advance`'s operation group.
+`DistroAgentsTools.fn.sh --magic-advance-sleep-run` — read-only, no arguments: a fixed-duration pacing operation in `routine-advance`'s operation group. Required only after a genuinely side-effecting per-item call (spawn/nudge/redispatch/park); not required after `--magic-advance-batch-outcome`.
+
+## `--magic-advance-batch-outcome` operation reference
+
+`DistroAgentsTools.fn.sh --magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]...` — records a per-pass outcome (`nudged`/`respawned`/`redispatched`/`flagged-once`/`no-action-with-explicit-reason`) plus `execution-receipt` for several `board-running` items in one call, same-state (`running`→`running`), existing content preserved. Bookkeeping only — never moves state, never spawns; a genuine spawn/respawn/redispatch/park still goes through `--magic-advance-to-running`/`--magic-advance-to-parked`. `execution-receipt` is everything after an entry's second colon, so colon-shaped values (`inline:<timestamp>`, `no-action:<reason-code>`, `slack:<channel>:<ts>`) pass through intact; must not contain a comma. One malformed/failing entry is reported inline without aborting the rest of the batch; any failures make the whole call exit non-zero.
 
 ## `--magic-advance-input-scan` operation reference
 

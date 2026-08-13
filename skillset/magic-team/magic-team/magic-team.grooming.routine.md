@@ -143,6 +143,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **`board-running` items that have stalled**: move to `board-blocked` rather than leaving it sitting there looking active
        - not the only trigger — see the board's own "at least three paths" note for the other two: live discovery during `routine-daily`; a member's own async block-report via `magic-coordinator`'s inbox, handled by `routine-process-inbox`
      - not every item needs this every pass — same "one at a time, narrated" treatment as inbox triage, skip what's genuinely unchanged
+     - A pass-level summary covering multiple items as "deferred"/"reviewed later" without a per-item outcome is invalid — every item this pass actually reaches gets its own recorded triage verb or an explicit skip-reason, same as `routine-advance`'s own no-blanket-defer rule for `board-running`.
      - mechanically: the stalled-running→blocked move is a single `--magic-grooming-to-blocked` call
    - **`board-running` in-place testing re-check** (see the board's own entry for the full state definition): same cadence as the `board-blocked`/`board-parked` re-checks below — every board-item mid its own testing round gets at least a glance each pass, landing on one of:
      - **clean, no approval needed** — moves straight to `board-processed`

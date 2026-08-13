@@ -11,6 +11,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-retained <team-m
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2

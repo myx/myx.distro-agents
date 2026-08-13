@@ -1505,6 +1505,26 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]...
+			Records a per-pass outcome (nudged/respawned/redispatched/
+			flagged-once/no-action-with-explicit-reason) plus
+			execution-receipt for several board/running/ items in one call,
+			instead of one --magic-advance-to-running call per item.
+			Same-state (running -> running) header patch only, existing
+			content preserved -- never moves state, never spawns anything;
+			a genuine spawn/respawn/redispatch/park still goes through
+			--magic-advance-to-running/--magic-advance-to-parked directly.
+			Item list is comma-joined, each entry colon-joined:
+			<item-filename>:<outcome>:<execution-receipt>. execution-receipt
+			is everything after that entry's second colon, so colon-shaped
+			receipt values (inline:<timestamp>, no-action:<reason-code>,
+			slack:<channel>:<ts>) pass through intact; a receipt must not
+			itself contain a comma. One malformed or failing entry is
+			reported inline and does not abort the rest of the batch; any
+			failures make the whole call exit non-zero.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--magic-advance-input-scan <team-member>
 			Read-only: routine-advance's own board scan, and the same scan
 			routine-update-board reads to recompute what blocks what. Scans
