@@ -28,6 +28,8 @@ The board isn't trustworthy between daily/grooming cycles — sessions die mid-w
 - extended by `check-process-board`'s **board-reassess-parked-blocked** whenever it spins off an inquiry job instead of resolving inline
 - no `recheck-date` recorded → never triggers that step, falls to `routine-grooming`'s own slower cadence
 
+**`recheck-date` computation (deterministic, not mental arithmetic)**: every `recheck-date` value this routine sets — whatever offset a step below states (`check-execute-board`'s `now + 7min (jittered ±2min)` restart-session spawn, its `now + 17 minutes` spawn-proxy-failure retry, or any other) — is computed by an actual shell `date` command, run via `mcp__myx_common__lib_execShStdin`'s `lib/execShStdin`, never worked out as LLM mental arithmetic. A step's stated offset (`now + 7min`, `now + 17 minutes`) names the target only; this is how it's actually produced. Required output shape: full `date-time` per `magic-team.armed.md`'s Terminology (`YYYY-MM-DD HH:MM ±HHMM`, e.g. `2026-08-13 15:20 +0000`) — never a bare date, never dropping the UTC offset. Where a jitter window is stated (e.g. `±2min`), the jitter itself is also produced by that same shell call — a randomized offset folded into the base minutes before formatting — not eyeballed or approximated.
+
 **Explicitly out of scope** (left to `routine-grooming`'s own cadence):
 - `board-blocked`/`board-parked`'s active-pursuit re-check — judgment-heavy, belongs to grooming's cadence. Actively resolving blockers stays excluded here. `check-execute-board`'s restart/nudge work IS in scope — not blocker-resolution, don't conflate the two.
 - RICE scoring, any of it.
