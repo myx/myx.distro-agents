@@ -3,7 +3,7 @@ executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-devops
 invitees: human-owner
 ---
-# routine-bootstrap-magic-vane - the actual procedure
+# routine-bootstrap-magic-vane — the actual procedure
 
 # Summary
 
