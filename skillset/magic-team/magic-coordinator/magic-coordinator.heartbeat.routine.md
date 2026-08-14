@@ -55,7 +55,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Between each sub-step: check for incoming console messages and messages from sub-spawned and parent sessions — same think/spawn/relay pattern `magic-coordinator.armed.md`'s shared loop-body rule uses for the outer cycle, applied here to this `next-iteration`'s own internal sub-steps.
    - Sub-steps, in order:
      - **Heartbeat iteration input** (first, every `next-iteration`): call the `--magic-heartbeat-input-scan` operation to load this routine's own prepared input for this pass — every sub-step below works from what it returns.
-     - **Comms** (every `next-iteration`, any day): one full `routine-communication-sweep` iteration, all six of its steps.
+     - **Comms** (every `next-iteration`, any day): one full `routine-communication-sweep` iteration, all of its Steps — including running every found message through its own full per-message sequence in **process-each-message**, not a partial/sampled subset.
        - Includes the mandatory `conversations.replies` check on every open thread — a `conversations.history`-only check misses replies already sitting in open threads.
      - **Inbox processing, immediately after Comms**:
        - Run `routine-process-inbox magic-coordinator` — inline execution, own identity. This loop is that routine's regular caller, not its only invocation path (see `routine-process-inbox` for standalone/ad hoc invocation and the morning self-review).

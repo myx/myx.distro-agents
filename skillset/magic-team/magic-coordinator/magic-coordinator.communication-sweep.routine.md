@@ -32,33 +32,38 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - exception: a check call errors or returns something ambiguous → go deliberate.
    - a thread the coordinator's own identity participated in — started, was replied to, or was tagged in — is followed regardless of freshness; this widening degrades gracefully to the plain freshness check alone when the coordinator's identity can't be resolved this pass.
    - incoming messages are located by enumerating **the messages' own** timestamps — every participant's in the conversation, not one identity's — and diffing them against what was already handled; never by "what came after my own last post". Own posts move such a watermark forward, so any participant's message in a thread already replied to falls below the line and stops being findable at all; the misses concentrate exactly in the threads that look most attended. Two passes, both required every sweep: top-level, then each open thread via `--member-comms-slack-read <team-member> <channel>:<parent> --thread`, whose whole-thread result is enumerated the same way over every message in it that is not the acting member's own — a top-level-only enumeration silently drops thread replies (see this file's own Verbatim-tests).
-3. **read**: pull the actual content of what's new.
-   - a message that quotes a block is read in full, never from the preview: the instruction usually sits *after* the quoted text and is exactly what a truncated read loses.
-4. **analyze**: cross-reference **check**/**read** against current state (`TodoWrite`, the board) and identify: anything unblocked and ready to dispatch, anything a keeper-*/partner-* idle pass would pick up, new-knowledge candidates for `magic-librarian`, what needs a reply and what it should say. Empty result is normal, not a failure.
-   - whether a message was handled is judged from what its own text asked for and whether that thing was actually done — the existence of a later reply of the coordinator's own is not evidence of it.
-   - Slack: apply the `slack-reaction-tracking` procedure's Analyze-stage reaction.
-5. **act**: route each candidate by size.
-   - Approved, simple, obvious → do it inline, now, standard dispatch mechanism only.
-   - Bigger/questionable, needs whole-team visibility → note for the next `routine-daily`.
-   - Bigger/questionable, concerns specific member(s) only → propose a `routine-one-on-one` session.
-   - Worth recording, no investigation needed now → into the backlog `routine-grooming` already triages.
-   - Never start a new epic/initiative unilaterally inline.
-   - Normalize every genuinely new incoming item into an Item (`note-*.md`/`inquiry-*.md`, per the team's own entity model): write it into `magic-coordinator`'s own inbox by default, or directly into the relevant member's own inbox via `--member-upsert-inbox-note` if clearly addressed to someone specific — filename shape mandatory, `note-<date>-<matter>.md` / `inquiry-<date>-<matter>.md`. Solo `magic-coordinator` work; no deep classification/enqueue-todo/triage here — that's `routine-grooming`'s job later.
-   - Slack: apply the `slack-reaction-tracking` procedure's Act-stage reaction.
-6. **reply-if-warranted**: respect each platform's own send/confirm rules.
-   - minimum floor: acknowledge every non-ignored incoming message.
-   - Slack, mandatory: target the reply at `<channel>:<ts>` of the specific message, never a bare `<channel>`.
-   - Email: get human confirmation before sending, when a human is actually present in the session; running unattended (`routine-heartbeat`), send directly, no confirmation gate — the rest of this step's send/reply discipline still applies in full.
-   - Slack/Trello comments in the coordinator's own channels: lead dialog directly, still pause before anything reading as a commitment/decision on the user's behalf.
-   - always send under the coordinator's own identity — never impersonate.
-   - send questions standalone, never bundled inside a longer status update.
-   - no message bundles multiple distinct topics — unit is topic count, not send-call count.
-   - mark read once handled, every platform (see Tooling for the per-platform mechanics).
-   - Slack, additionally: apply the `slack-reaction-tracking` procedure's Reply-stage and terminal reactions.
-   - `--format blocks` is a hard rule, no exceptions — never plain-text; every array element in a hand-built `blocks` payload needs its own block-level `"type"` wrapper.
+   - the result of this step is one combined, deduplicated set of new messages across every platform/source, sorted **ascending by the message's own timestamp** — this ordering is what step 3 below iterates over.
+3. **process-each-message**: for every message in **check**'s own ascending-time-ordered set, in that order, one message at a time — not as five separate batch passes over the whole set. Each message runs this full local sequence before moving to the next:
+   1. **read**: pull this message's actual content. A message that quotes a block is read in full, never from the preview: the instruction usually sits *after* the quoted text and is exactly what a truncated read loses.
+   2. **analyze**: cross-reference against current state (`TodoWrite`, the board) and identify what this one message needs: anything unblocked and ready to dispatch, anything a keeper-*/partner-* idle pass would pick up, a new-knowledge candidate for `magic-librarian`, whether it needs a reply and what it should say. Empty result (nothing needed) is normal, not a failure.
+      - whether a message was handled is judged from what its own text asked for and whether that thing was actually done — the existence of a later reply of the coordinator's own is not evidence of it.
+      - Slack: apply the `slack-reaction-tracking` procedure's Analyze-stage reaction (`:eyes:`) on **this message**, now — this is the visible marker that this specific message was actually seen; it happens as this message is processed, never deferred to a later batch step.
+   3. **act**: route this message's candidate(s) by size.
+      - Approved, simple, obvious → do it inline, now, standard dispatch mechanism only.
+      - Bigger/questionable, needs whole-team visibility → note for the next `routine-daily`.
+      - Bigger/questionable, concerns specific member(s) only → propose a `routine-one-on-one` session.
+      - Worth recording, no investigation needed now → into the backlog `routine-grooming` already triages.
+      - Never start a new epic/initiative unilaterally inline.
+      - Normalize a genuinely new incoming item into an Item (`note-*.md`/`inquiry-*.md`, per the team's own entity model): write it into `magic-coordinator`'s own inbox by default, or directly into the relevant member's own inbox via `--member-upsert-inbox-note` if clearly addressed to someone specific — filename shape mandatory, `note-<date>-<matter>.md` / `inquiry-<date>-<matter>.md`. Solo `magic-coordinator` work; no deep classification/enqueue-todo/triage here — that's `routine-grooming`'s job later.
+      - Slack: apply the `slack-reaction-tracking` procedure's Act-stage reaction on **this message**, now.
+   4. **reply-if-warranted**: respect each platform's own send/confirm rules, for this message specifically.
+      - minimum floor: acknowledge every non-ignored incoming message.
+      - Slack, mandatory: target the reply at `<channel>:<ts>` of this specific message, never a bare `<channel>`.
+      - Email: get human confirmation before sending, when a human is actually present in the session; running unattended (`routine-heartbeat`), send directly, no confirmation gate — the rest of this step's send/reply discipline still applies in full.
+      - Slack/Trello comments in the coordinator's own channels: lead dialog directly, still pause before anything reading as a commitment/decision on the user's behalf.
+      - always send under the coordinator's own identity — never impersonate.
+      - genuinely requires the addressee's reaction/reply before anything proceeds → explicitly `@`-mention them, per `magic-team.conversations.md` rule 4c — posting where they might see it is not enough.
+      - send questions standalone, never bundled inside a longer status update.
+      - no message bundles multiple distinct topics — unit is topic count, not send-call count: one root message naming the overall topic, then each distinct point as its own separate threaded reply under it, per `magic-team.conversations.md` rule 1/1a — never one long message covering several points, never several unthreaded top-level posts on the same topic.
+      - mark read once handled, every platform (see Tooling for the per-platform mechanics).
+      - Slack, additionally: apply the `slack-reaction-tracking` procedure's Reply-stage and terminal reactions on **this message**, now.
+      - `--format blocks` is a hard rule, no exceptions — never plain-text; every array element in a hand-built `blocks` payload needs its own block-level `"type"` wrapper.
+   5. **advance-watermark**: only now, after this message's full local sequence above is done, does this message count as swept — record its own timestamp as this pass's running high-water mark (used by **update-context** below). Move to the next message in the ordered set.
 # Closure steps
 
-1. **update-context**: fold platform mechanical-state findings (`last_swept_ts` frontmatter field, `known_comms_gaps` body list) into the `sweep-state-note` via `--magic-sweep-state-upsert` — `--edit-patch-from-stdin` for a single-field update, full-content write only for a genuine whole-record rewrite — invoked through `lib/execShStdin` only. Fold identity/routing data into the `roster-note` via `--member-upsert-inbox-note`.
+1. **update-context**: fold platform mechanical-state findings into the `sweep-state-note` via `--magic-sweep-state-upsert` — `--edit-patch-from-stdin` for a single-field update, full-content write only for a genuine whole-record rewrite — invoked through `lib/execShStdin` only. Fold identity/routing data into the `roster-note` via `--member-upsert-inbox-note`.
+   - **`last_swept_ts`, precisely**: **process-each-message**'s own running high-water mark — the timestamp of the last message that actually completed its full read→analyze→act→reply-if-warranted→react sequence this pass. Never wall-clock time at whatever moment this Closure step happens to run — this step runs after every message's own processing, which can take minutes, and writing "now" here silently advances the cutoff past any message that arrived during that processing window, permanently skipping it on every later pass (confirmed real-world failure: a human-owner reply arrived after the last message's own processing finished but before this write, and no later pass ever surfaced it). If **check** found zero messages this pass, `last_swept_ts` is left unchanged from its prior stored value, never bumped to now.
+   - A message's own `:eyes:` reaction (or lack of one) is the visible, auditable record of whether that specific message was ever actually processed — deliberately redundant with `last_swept_ts`, so a human can verify sweep coverage by looking at real Slack reactions, not just trusting the stored state note.
    - Update the own-status Trello card: a standing checklist of what `magic-coordinator` is currently doing and what it needs from the human team, legible to someone who wasn't in the conversation — surface anything blocked on the human team here.
    - Keep `slack-magic-team` current as a standing narrative broadcast: post a milestone as it happens, in plain external-facing language; post a blocker the moment it's identified. No internal dispatch mechanics, agent IDs, or RICE scores. Post as threaded replies within the session's own root message, as small separate messages as things happen — not accumulated into end-of-session summaries. Does not replace direct in-conversation reporting to the user.
    - Post completion status to `slack-event-track`.

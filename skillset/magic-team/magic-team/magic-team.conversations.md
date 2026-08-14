@@ -77,8 +77,8 @@ This file's own content is binding and obligatory on every team member who reads
    When preparing the reply, assess this:
    - If your message is your general thought, command, readback, confirmation, status update, whatever, or addressed to no-one in particular:
       - Make it clearly stated in the first line before text block. If possible, make it distinguishable from text, like a comment, a hint or somethig.
-   - If your message is a question-(alike) (does imply: reaction is expected):
-      - Make sure to explicitly tag/cc all addressee participants.
+   - If your message is a question-(alike), or otherwise genuinely requires the addressee's reaction/reply/confirmation before anything proceeds (a proposal awaiting sign-off, a blocking decision, anything else where silence isn't a safe default):
+      - Make sure to explicitly tag/cc all addressee participants. On Slack specifically, this means an actual `@`-mention of the person/team, not just posting where they might see it.
    - If your message addressed not all the participants of the conversation:
       - Make sure to explicitly tag/cc all addressee participants.
    - If your message is referencing some part of conversation:
