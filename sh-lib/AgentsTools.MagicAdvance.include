@@ -346,8 +346,11 @@ case "$1" in
 	## --magic-advance-sleep-run pacing needed after it (that's for
 	## side-effecting calls -- spawns/Slack posts/console sends).
 	## outcome enum: nudged/respawned/redispatched/flagged-once/
-	## no-action-with-explicit-reason (advance.routine.md's own Scope list;
-	## parked-spawn-failed excluded -- that's a state move, not bookkeeping).
+	## no-action (advance.routine.md's own Scope list; valid only for two
+	## reasons -- no per-type handler for this item's prefix, or a temporary
+	## error this pass -- never for "not due yet"/"below threshold", which
+	## get no record at all instead. parked-spawn-failed excluded -- that's
+	## a state move, not bookkeeping).
 	## execution-receipt is everything after the entry's 2nd colon (so
 	## inline:<ts>/no-action:<reason>/slack:<ch>:<ts> pass through intact);
 	## must not contain a comma.
@@ -405,7 +408,7 @@ case "$1" in
 			fi
 			AgentsToolsAssertBareName "$itemName" "<item-filename> (in --items entry: $spec)" "$MDSC_CMD --magic-advance-batch-outcome" || { set +e ; return 1 ; }
 			case "$outcome" in
-				nudged|respawned|redispatched|flagged-once|no-action-with-explicit-reason) ;;
+				nudged|respawned|redispatched|flagged-once|no-action) ;;
 				*)
 					echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: invalid outcome in entry $spec: $outcome" >&2
 					set +e ; return 1

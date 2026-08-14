@@ -1543,7 +1543,7 @@
 
 		--magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]...
 			Records a per-pass outcome (nudged/respawned/redispatched/
-			flagged-once/no-action-with-explicit-reason) plus
+			flagged-once/no-action) plus
 			execution-receipt for several board/running/ items in one call,
 			instead of one --magic-advance-to-running call per item.
 			Same-state (running -> running) header patch only, existing
