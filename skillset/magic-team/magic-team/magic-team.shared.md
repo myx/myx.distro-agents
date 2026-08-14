@@ -134,6 +134,9 @@ Copyable skeleton: `magic-team/templates/routine.contract.format.md`.
 - No `SKILL.md`.
 - No `.basic.md`/`.armed.md` split.
 - No separate `.access.md`/`.reference.md`/`.librarian.md`.
+- `# routine-<name> — the actual procedure`
+  - The file's own title line, before `# Summary` — every existing routine file carries one.
+  - `<name>` is the routine's own short name, matching its `routine-<name>` identity.
 - `# Summary`
   - One short sentence, names the routine.
   - `## Goals`
