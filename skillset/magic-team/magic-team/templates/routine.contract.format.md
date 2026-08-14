@@ -3,7 +3,7 @@ executors: [<team-member-or-magic-team>]
 maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>]
 invitees: [<only if this routine has genuine multi-member sessions>]
 ---
-# <owning-member>.<short-name>.routine.md — example skeleton
+# routine-<short-name> — the actual procedure
 
 Normative contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Routine. This file is a derived skeleton; where the two disagree, `magic-team.shared.md` wins.
 
