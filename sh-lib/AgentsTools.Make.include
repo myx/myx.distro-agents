@@ -233,9 +233,16 @@ case "$1" in
 
 			## --non-interactive: headless-terminal mode (interaction-channel:
 			## headless) -- one-shot, no attached TTY. Any remaining arguments are
-			## joined as the prompt; with none given, the CLI's own -p/--print
-			## reads the prompt from stdin, same "pipe stdin through" shape the
-			## sibling bash consoles use for their own --non-interactive mode.
+			## joined as the prompt; with none given, the prompt is read from this
+			## script's own stdin and passed explicitly as -p/--prompt's <text>
+			## argument. copilot's -p/--prompt is a required-argument option (see
+			## `copilot --help`: "-p, --prompt <text>") -- it does NOT fall back to
+			## reading stdin itself when given bare, so `exec "$DAGC_CLI" -p` with
+			## no argument always failed with "option '-p, --prompt <text>'
+			## argument missing" on this, the only --non-interactive-capable CLI
+			## normally installed. Reading stdin here and forwarding it as the
+			## explicit argument works uniformly across the known CLIs instead of
+			## relying on each one's own stdin-reading behavior for a bare -p.
 			##
 			## Default (no --non-interactive): harness-interactive mode
 			## (interaction-channel: harness-*) -- attaches a real interactive CLI
@@ -248,7 +255,8 @@ case "$1" in
 					## several positional tokens.
 					exec "$DAGC_CLI" -p "$*"
 				fi
-				exec "$DAGC_CLI" -p
+				DAGC_STDIN_PROMPT="$( cat )"
+				exec "$DAGC_CLI" -p "$DAGC_STDIN_PROMPT"
 			fi
 
 			exec "$DAGC_CLI" "$@"

@@ -17,6 +17,7 @@ The board isn't trustworthy between daily/grooming cycles — sessions die mid-w
 ## Scope
 
 **In scope**, every invocation:
+- All new incoming communication (email, Trello, Slack) — the full `routine-communication-sweep` pass (**check** + **process-each-message**, every found message, ascending timestamp order), not a narrow slice.
 - `board-running` — every item, every pass, including its own in-place testing round; no separate `board/testing/` folder.
 - `board-backlog` and `board-pending` — every item, every pass: mechanical `board-backlog`→`board-pending`→`board-running` moves, readiness-flagging only — not a full re-triage.
 - `board-parked` and `board-blocked`, narrowly — only items carrying a `recheck-date` whose date has arrived (or, for `board-blocked`, an early-fire per `check-process-board`'s **board-reassess-parked-blocked**).
@@ -54,9 +55,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **advance-process-inbox**: run `routine-process-inbox magic-coordinator` — the whole inbox, not `check-pending-comms-actions`'s narrow deferred-action slice: items reporting an already-decided move (a landed approval, a finished or stalled dispatch) this pass reconciles onto the board.
 3. **advance-read-board-state**: Call the `--magic-advance-input-scan` operation.
    - This routine's own `state-and-lock` note comes back with that scan, as part of this routine's own input. It is this pass's tracking document — the tactical status, and whatever the next iteration needs to continue. Reference `TEAM-DATA` rather than copying it, to keep it compact. Write it via the `--magic-advance-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close. Holding the lock across a long pass is a separate obligation: call `--magic-advance-lock-refresh` periodically — writing content does not itself hold the lock.
-4. **advance-run-process-board**: Run the `check-process-board` procedure (`magic-coordinator.armed.md`) against this pass's own read.
-5. **advance-run-execute-board**: Run the `check-execute-board` procedure (below) against this pass's own read.
-6. **advance-trigger-daily**: Trigger `routine-daily`'s later-today flow, once per workday, if due and not yet spawned.
+4. **advance-process-comms**: run `routine-communication-sweep`'s own Steps in full, inline, this same pass, against this pass's own board read from **advance-read-board-state** — messages can't be assessed without the current process-flow state, so this step never runs before the board is loaded. **check** (`--magic-sweep-input-scan`, every live platform, board-tracked threads plus every open thread) then **process-each-message** (every found message, one at a time, ascending timestamp order, cross-referenced against this pass's own board state, including the mandatory `conversations.replies` check on every open thread) — reused by reference, not duplicated logic.
+5. **advance-run-process-board**: Run the `check-process-board` procedure (`magic-coordinator.armed.md`) against this pass's own read.
+6. **advance-run-execute-board**: Run the `check-execute-board` procedure (below) against this pass's own read.
+7. **advance-trigger-daily**: Trigger `routine-daily`'s later-today flow, once per workday, if due and not yet spawned.
    - condition: `today_stage` (from the `heartbeat-state-note`) indicates weekday + first-today `routine-grooming` already done + later-today flow not yet spawned today
    - action: spawn it as its own independent co-working session — `SPAWN-REQUEST`, fire-and-forget
    - never: inline-drive it step by step across multiple `next-iteration`s

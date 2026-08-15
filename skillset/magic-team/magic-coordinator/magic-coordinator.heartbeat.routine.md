@@ -21,14 +21,15 @@ Routine-heartbeat is the team's continuous, self-driven operating rhythm — com
 ## Scope
 
 - Does:
-  - Thin orchestration layer — calls `routine-grooming`/`routine-daily`/`routine-communication-sweep`/`routine-advance` unchanged, no core-logic rewrite of any of them.
-  - Runs `routine-advance` every `next-iteration`, at the end of the loop.
+  - Decides what's due (`routine-grooming`/`routine-daily`/`routine-advance`), then dispatches each as a separate spawned session via **spawn-proxy**.
+  - Dispatches one `routine-advance` pass as a separate spawned session every `next-iteration`, at the end of the loop.
   - Triggered only by **"Magic, do main loop"**/**"Magic, start main loop"** — starts the `main-loop` iterator (`main-loop-mode`), which spawns a fresh `next-iteration` every cycle.
     - Ongoing resource commitment (30s-2min-ish cadence, potentially hours) — the iterator is never started implicitly just because this routine exists.
 - Doesn't do:
   - Self-schedule or idle-wait for anything — one bounded pass per `next-iteration`, then exits.
   - Isn't one of "the four" (daily-meeting/retro/grooming/one-on-one) — the daily meeting remains where bigger, human-supervised decisions get made.
   - Doesn't currently call `routine-retro` from any default branch (only grooming and daily-meeting are called) — `routine-retro`'s own "Autonomous invocation" addendum exists for consistency, not because the current design invokes it.
+  - Doesn't read, scan, or write any board item, and doesn't run another routine's own Steps itself — that work happens only inside the dispatched session. Its one persistent artifact is its own `heartbeat-state-note`.
 
 # Steps
 
@@ -55,9 +56,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Between each sub-step: check for incoming console messages and messages from sub-spawned and parent sessions — same think/spawn/relay pattern `magic-coordinator.armed.md`'s shared loop-body rule uses for the outer cycle, applied here to this `next-iteration`'s own internal sub-steps.
    - Sub-steps, in order:
      - **Heartbeat iteration input** (first, every `next-iteration`): call the `--magic-heartbeat-input-scan` operation to load this routine's own prepared input for this pass — every sub-step below works from what it returns.
-     - **Comms** (every `next-iteration`, any day): one full `routine-communication-sweep` iteration, all of its Steps — including running every found message through its own full per-message sequence in **process-each-message**, not a partial/sampled subset.
-       - Includes the mandatory `conversations.replies` check on every open thread — a `conversations.history`-only check misses replies already sitting in open threads.
-     - **Inbox processing, immediately after Comms**:
+     - **Inbox processing**:
        - Run `routine-process-inbox magic-coordinator` — inline execution, own identity. This loop is that routine's regular caller, not its only invocation path (see `routine-process-inbox` for standalone/ad hoc invocation and the morning self-review).
        - Items owned by a non-acting owner (human-owner, external contacts): run `routine-external-inbox-handle-loop` — their content lives inside `magic-coordinator`'s own inbox too, since they have no skill folder of their own.
        - Items owned by an acting member: leave for the next `routine-daily`/`routine-grooming` pass to fold into that member's properly-registered assignment, unless there's a specific reason to invoke `routine-process-inbox` standalone for that member right now.
@@ -83,8 +82,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - Full HTML/multipart layout redesign stays deferred (the text-vs-HTML question is still open) — this is a content/structure floor, not the eventual full design.
        - Sent via the `--member-comms-email-send` magic-tooling operation — never a session's own personal mail connector.
        - Cadence check: track `last_test_email_sent` in the `heartbeat-state-note` and check "has an hour passed" the same mechanical way the day-rhythm check works — not fired every single `next-iteration` regardless of the fast-tier's 30s-2min cadence.
-     - **First-today only**: a small `routine-grooming` pass plus librarian context prep, plus a batched `magic-librarian` own-inbox processing pass — collect all pending doc-fix notes, apply together in one multi-update run (`magic-librarian`'s own "Own inbox: collect and batch, don't fix ad hoc" standard).
-     - **Later-today**: `routine-daily`'s flow, watching for planned work-sessions.
+     - **First-today only**: dispatch `routine-grooming` as a separate spawned session via **spawn-proxy** — librarian context prep and the batched `magic-librarian` own-inbox processing pass (`magic-librarian`'s own "Own inbox: collect and batch, don't fix ad hoc" standard) happen inside that dispatched session, not inline here.
+     - **Later-today**: dispatch `routine-daily`'s flow as a separate spawned session via **spawn-proxy**, watching for planned work-sessions.
      - **`heartbeat-state-note` update**: a small, mostly-static state record, not a running history — updated every single `next-iteration`, not just narrative-notable ones.
        - The structured header block (`last_iteration_date`/`last_iteration_timestamp`/`today_stage`/`active_project`) is refreshed to this `next-iteration`'s own values each time, never left at an earlier `next-iteration`'s values — a stale header is indistinguishable from a stopped loop to anyone checking it.
        - The file's "Last iteration" section is overwritten each `next-iteration`, not appended to — one short paragraph replacing the previous one, not a growing tail.
@@ -94,7 +93,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - Action: escalate it **exactly once** — a direct, focused `slack-magic-team` post naming the specific decision needed, not another repeat of the flag — instead of continuing to silently re-flag it every subsequent iteration with no one ever actually asking.
        - Does **not** authorize deciding the flagged question itself — still `main`/the human-owner's call, unchanged. It only converts "flagged repeatedly, never asked plainly" into "asked once, clearly," consistent with the standing "batch human-hands-on items, don't drip them" posture, applied here to stale decision-flags rather than physical actions.
        - Once escalated: record `escalated: <timestamp>` alongside the flag in the `heartbeat-state-note`'s `active_project` field, and don't re-escalate the same flag on later `next-iteration`s unless the human-owner's response itself calls for a follow-up.
-     - **Board advance, end of loop, every `next-iteration`**: one `routine-advance` pass. Every pass, no first-today/later-today gate.
+     - **Board advance, end of loop, every `next-iteration`**: dispatch one `routine-advance` pass as a separate spawned session via **spawn-proxy**. Every pass, no first-today/later-today gate.
 
 # Closure steps
 
