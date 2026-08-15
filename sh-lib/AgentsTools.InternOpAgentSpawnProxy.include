@@ -287,12 +287,25 @@ case "$1" in
 				"## Brief" \
 				"" \
 				"$spawnContext" )"
-			printf '%s\n' "$dispatchBriefBody" | DistroAgentsTools --magic-board-create-running "$callerName" "$dispatchItemName" \
+			## Calls --intern-op-board-upsert-move-edit directly rather than
+			## through the --magic-board-create-running wrapper
+			## (AgentsTools.MagicBoard.include): that wrapper's own arg-parsing
+			## loop has no --context case (every --magic-board-* op in that file
+			## sets its own fixed --context literal internally instead of
+			## accepting one from its caller), so passing this op's own
+			## --context $opContext through it always failed with "invalid
+			## option: --context" -- unconditionally, regardless of
+			## $spawnContext's own content. Going straight to the shared
+			## intern-op primitive (which --magic-board-create-running itself
+			## also just wraps) avoids that mismatch instead of working around
+			## it.
+			printf '%s\n' "$dispatchBriefBody" | DistroAgentsTools --intern-op-board-upsert-move-edit running "$dispatchItemName" \
+				--create \
+				--context "$opContext" \
 				--upsert-from-stdin \
 				--header:upsert:owner:"$callerName" \
 				--header:upsert:status:dispatch-started \
-				--header:upsert:session-id:"$receiptId" \
-				--context --intern-op-agent-spawn-proxy || {
+				--header:upsert:session-id:"$receiptId" || {
 				rm -f "$contextFile"
 				echo "⛔ ERROR: $MDSC_CMD --intern-op-agent-spawn-proxy (internal operation, invoked via $opContext): could not create dispatch tracking item $dispatchItemName" >&2
 				set +e ; return 1
