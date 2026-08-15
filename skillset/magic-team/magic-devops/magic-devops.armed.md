@@ -76,6 +76,12 @@ Real, non-`DistroAgentsTools` `myx.distro-*` shell-script command syntax this sk
 - `ShellTo.fn.sh <host>`
 - `ScreenTo.fn.sh <host>`
 
+## Piping one host's console into another hides the source-side failure
+
+- `cmd | ssh A ... | ssh B ...` feeds A's stdout into B and leaves A's errors on stderr, so a source that produced **nothing** looks identical to one whose output B silently ignored. Re-running the pipe cannot tell those apart.
+- Capture the producing side to a file first, count and inspect it, then feed that file to the consumer. The extra step turns "it does nothing" into a specific, attributable error.
+- Judge the result by classifying the consumer's replies (`created`/`upsert`/`skipped, exact`/`unknown`), not by reading the tail of the stream.
+
 ## Destructive and irreversible actions — what is always Tier 2 here
 
 A floor, not a correction list: an operation below is Tier 2 even if the test reads otherwise. The test classifies everything not listed.

@@ -43,6 +43,16 @@ This file's own content is binding and obligatory on every team member who reads
      reporting success. When completeness matters, read back what was stored. Mechanics and
      measurements live in `magic-librarian`'s `reference/messaging.md`.
 
+1b. **Slack channel posts: one ask or one announcement, in plain language.**
+   A Slack post to a team channel states exactly one ask or one announcement — never a multi-sentence
+   check-in bundling several distinct points (rule 1 already covers this for messages generally; this
+   sets the actual bar for Slack specifically). Target roughly 10-20 words of real meaning: what's being
+   asked, or what's being announced — not a recap of process or reasoning.
+   - Any internal ID (thread id, item filename, routine name) or team-jargon term used must carry a
+     plain-language gloss alongside it in the same message — never a bare ID/jargon token standing alone.
+   - Supporting detail — rationale, context, transcript excerpts — still follows rule 1a: a thread reply
+     or attachment, never bloats the top-level post.
+
 2. **React at each stage — required, not optional.**
    The moment a message is read, react with a `seen`-class emoji (e.g. 👀); when work on it genuinely starts, add a `started`-class reaction; when it's resolved, add a `done`/`noted`-class reaction. Additive stage semantics (seen → started → done/noted) — a later stage's reaction doesn't remove an earlier one. React AND reply — a reaction never replaces an owed reply, and a reply never exempts you from reacting.
 
