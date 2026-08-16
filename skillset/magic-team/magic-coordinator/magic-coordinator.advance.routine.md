@@ -150,7 +150,7 @@ Continue an already-dispatched `board-running` item. Never a first-time start (s
 
 - before continuing to check-restart the next `board-running` item whose handling above actually spawned/nudged/posted (a genuinely side-effecting call): execute the `--magic-advance-sleep-run` operation. A pure bookkeeping-only outcome recorded via `--magic-advance-batch-outcome` (below) needs no sleep-run at all — pacing exists to rate-limit real side effects, not frontmatter writes.
 
-**Work order**: nearest-to-resolution items first, then by age.
+**Work order**: rank by real coverage of the item's own actual goal, not a sub-task count -- sub-task count is gameable (many trivial sub-tasks can inflate a finished-ratio while covering almost none of the real scope) and is never used as the measure. Judge coverage against what the item is actually asking for; then by age.
 
 No pass-wide blanket defer is allowed for `board-running` restart work. Apply this mechanism item-by-item within the existing per-pass concurrency caps.
 
