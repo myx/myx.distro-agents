@@ -9,7 +9,7 @@ This file's own content is binding and obligatory on every team member who reads
 
 **Ownership**:
 - `magic-coordinator` reads/modifies this continuously, on its own authority — its own active work tool (think: a PM's own Jira board).
-- `magic-librarian` joins once per workday, jointly, under `magic-coordinator`'s lead — not an independent pass. See `routine-librarian-morning-review` for what that session actually does.
+- `magic-librarian` joins once per workday, jointly, under `magic-coordinator`'s lead — not an independent pass. See `magic-librarian.morning-review.routine` for what that session actually does.
 
 **`magic-coordinator`'s write authority is exclusive over the board — full stop.** Same structural shape as the "sole mandated channel to the human-owner" rule (`magic-coordinator/magic-coordinator.armed.md`'s Local rules). Covers:
 - Creating a `board-item`.
@@ -17,30 +17,30 @@ This file's own content is binding and obligatory on every team member who reads
 - Scoring one (RICE).
 - This file itself.
 
-**A routine is not a second authority.** `routine-grooming` and `routine-advance` declaring `--magic-*-to-*` ops is `magic-coordinator` acting under that routine's overridden rules — the routine scopes what the executor does, it never grants board-write authority of its own. Nothing gains that authority by being run under a routine, and no member gains it by being dispatched into one.
+**A routine is not a second authority.** `magic-team.grooming.routine` and `magic-coordinator.advance.routine` declaring `--magic-*-to-*` ops is `magic-coordinator` acting under that routine's overridden rules — the routine scopes what the executor does, it never grants board-write authority of its own. Nothing gains that authority by being run under a routine, and no member gains it by being dispatched into one.
 
 **Every other member contributes through the session document, not the board.** `magic-coordinator` creates it, typically before spawning. Members edit it where their own routine instructions dictate — that is how work reaches tracked state without a second writer touching the board. The document is the same tracking document that carries the item's `participants` record. Which document types allow which edits, and by whom, is to be settled — not yet defined.
 
-**The board does not include inboxes.** Each member's personal inbox lives separately — not nested here. See `routine-process-inbox` for the full model (location, write-access, non-acting-owner handling, Slack visibility, the main-loop nudge, the morning self-review pattern).
+**The board does not include inboxes.** Each member's personal inbox lives separately — not nested here. See `magic-team.process-inbox.routine` for the full model (location, write-access, non-acting-owner handling, Slack visibility, the main-loop nudge, the morning self-review pattern).
 
 This file itself stays thin: a rollup pointing into `board/`'s folders, not where substance lives. Substance lives in the individual `board-item` files.
 
 ## States
 
 - **`triage` is a process, not a folder** — not board-only.
-  - Trigger: something in a member's own inbox (see `routine-process-inbox`) needs to become a real, formally-tracked `board-item`.
-  - Performed by: the three-person authority group (`magic-coordinator` + `magic-librarian` + `magic-architect`) during grooming, or by `magic-coordinator` alone via `routine-process-inbox` for smaller/faster cases.
+  - Trigger: something in a member's own inbox (see `magic-team.process-inbox.routine`) needs to become a real, formally-tracked `board-item`.
+  - Performed by: the three-person authority group (`magic-coordinator` + `magic-librarian` + `magic-architect`) during grooming, or by `magic-coordinator` alone via `magic-team.process-inbox.routine` for smaller/faster cases.
   - There is no `triage/` folder.
 - **Approval is a header fact, not a folder.** `approved-by`/`approved-at` (see `magic-team.armed.md`'s field list) record that the authority group or the human-owner approved an item, whatever state folder it's actually sitting in — there is no dedicated `approved/` state.
 - **`board-backlog`** — concurrency-safe drop point for a freshly-triaged board-item; the default landing spot for one.
-  - Who may place one here directly (without needing `magic-coordinator`'s otherwise-exclusive board-write turn): grooming, `magic-coordinator` itself, and other session-routine-mandated members (e.g. `routine-interview`'s **run-minimal-step-cycle**).
-  - An item sitting here hasn't been assessed yet — the next `routine-advance`/`routine-grooming` pass picks it up.
+  - Who may place one here directly (without needing `magic-coordinator`'s otherwise-exclusive board-write turn): grooming, `magic-coordinator` itself, and other session-routine-mandated members (e.g. `magic-team.interview.routine`'s **run-minimal-step-cycle**).
+  - An item sitting here hasn't been assessed yet — the next `magic-coordinator.advance.routine`/`magic-team.grooming.routine` pass picks it up.
 - **`board-pending`**
   - An item whose `approved-by`/`approved-at` is already recorded (the "go" decision, made by the authority group or the human-owner during grooming/triage) but that hasn't actually been dispatched (no real work-session/Agent/console spun up for it) yet.
   - A physical resting-place keyed strictly off that existing header fact, not a second/parallel approval mechanism — an item can in principle carry `approved-by`/`approved-at` while sitting in any folder; `board-pending` is simply where one rests between that fact being recorded and its actual dispatch. Does not reopen "approval is a header fact, not a folder" above.
-  - `routine-advance` moves an item `board-backlog`→`board-pending` purely mechanically, the moment it notices `approved-by`/`approved-at` already set — it never makes the "go" decision itself (see its own routine file's Scope).
+  - `magic-coordinator.advance.routine` moves an item `board-backlog`→`board-pending` purely mechanically, the moment it notices `approved-by`/`approved-at` already set — it never makes the "go" decision itself (see its own routine file's Scope).
   - Exits to `board-running` the instant real dispatch happens — dispatching work that has `approved-by`/`approved-at` recorded includes moving the board-item to `board-running` as the same action, not a separate step (see `magic-coordinator.armed.md`).
-  - **Deferred, not implemented**: a session running under `routine-heartbeat` may in principle skip `board-pending` and move a `board-backlog` item straight to `board-running` when its own restart is trivial enough not to need the intermediate rest-stop — a legitimate future refinement, not built yet. The current mechanism always rests in `board-pending` first, no bypass.
+  - **Deferred, not implemented**: a session running under `magic-coordinator.heartbeat.routine` may in principle skip `board-pending` and move a `board-backlog` item straight to `board-running` when its own restart is trivial enough not to need the intermediate rest-stop — a legitimate future refinement, not built yet. The current mechanism always rests in `board-pending` first, no bypass.
 - **A `board-backlog` board-item needing human-owner-level approval** (real doubt, not the ordinary authority-group-decides-inline case above) moves to `board-blocked` instead, under the existing "human-owner decision" reason (not a new reason category).
   - Gated by a dedicated `approval-*` board-item (see `magic-team.armed.md`'s item-type list) that runs the actual negotiation.
   - Once resolved: approved sets `approved-by`/`approved-at` and moves it to `board-pending`; denied moves it to `board-processed`/`board-archived` per the existing denial handling below.
@@ -51,7 +51,7 @@ This file itself stays thin: a rollup pointing into `board/`'s folders, not wher
   - Once a `board-running` item's implementation is claimed complete (live during a work session, or grooming's advancement review), `magic-coordinator` dispatches `magic-tester` to run its testing round against the claimed-complete work — real test-suite execution per its own methodology, plus its security/CRA-style due-diligence pass (real test-suite execution per its Goals/Scope, the due-diligence pass per its Security/CRA section — both in `magic-tester`'s own `magic-tester.armed.md`).
   - Two outcomes, item stays in `board-running` throughout:
     - **Clean** — no concerns raised.
-      - If the item's type/scope genuinely calls for human-owner sign-off before it can be considered final (per `routine-grooming`'s staged task-creation lifecycle — "any doubts, approval with human-owner"), it moves to `board-blocked`, filed under `board-blocked`'s existing "human-owner decision" reason (not a new reason category) — this is the state that "may become final" once the human-owner actually approves it, after which it moves to `board-processed`.
+      - If the item's type/scope genuinely calls for human-owner sign-off before it can be considered final (per `magic-team.grooming.routine`'s staged task-creation lifecycle — "any doubts, approval with human-owner"), it moves to `board-blocked`, filed under `board-blocked`'s existing "human-owner decision" reason (not a new reason category) — this is the state that "may become final" once the human-owner actually approves it, after which it moves to `board-processed`.
       - If no human-owner approval is genuinely warranted (small/clear, no doubt), it moves straight to `board-processed`.
     - **Concerns raised** — `magic-tester` opens an investigation subtask (a `task-*` `board-item`, `references` the parent) — the same "investigation subtask → escalate or solve" shape used elsewhere in the team's docs (see `magic-team.armed.md`'s "Duties: three kinds, plus reflection" common abstract shape, and `magic-tester`'s own `magic-tester.armed.md` Security/CRA section). Resolves to either:
       - **escalate** — needs a decision from `magic-architect`/`magic-coordinator`/the human-owner before the parent can proceed. The parent stays in `board-running`, or moves to `board-blocked` if the escalation itself becomes an external stall.
@@ -64,7 +64,7 @@ This file itself stays thin: a rollup pointing into `board/`'s folders, not wher
     - A human-owner decision (including a `board-running` item's own testing round awaiting final human-owner approval, see above).
     - An external dependency (an unlocated credential, a third party's response, a human-hands-on action).
     - Waiting on another task/project's own completion (an internal dependency — item X can't proceed until item Y ships).
-  - Outcome set at each review (see `routine-grooming`): escalate / stays blocked (only legitimate when a real attempt was actually made this pass, not a pure no-op) / becomes `board-parked` / unblocks.
+  - Outcome set at each review (see `magic-team.grooming.routine`): escalate / stays blocked (only legitimate when a real attempt was actually made this pass, not a pure no-op) / becomes `board-parked` / unblocks.
 
 **Uncommitted repo state is never itself a blocking condition.** The rule:
 - Uncommitted repo changes are normal, active working state — never a reason to pause further iteration on the same epic. Work continues freely on uncommitted files, same as any other in-progress state.
@@ -75,7 +75,7 @@ This file itself stays thin: a rollup pointing into `board/`'s folders, not wher
 **`board-running`→`board-blocked` has at least four paths in** (not exhaustive — whichever discovers it first fires this):
 - Live, during a `daily-meeting.md` work session, when a dispatched agent genuinely can't make progress.
 - Grooming's own periodic advancement review, catching what wasn't flagged live.
-- A member's own async block-report — posted any time, into `magic-coordinator`'s own personal inbox (a cross-member handoff, so it sends an immediate reply to `slack-magic-team` per [routine-process-inbox](../routine-process-inbox/)'s own **reply-on-cross-member-handoff**), acted on the next time that routine runs over it.
+- A member's own async block-report — posted any time, into `magic-coordinator`'s own personal inbox (a cross-member handoff, so it sends an immediate reply to `slack-magic-team` per [magic-team.process-inbox.routine](../magic-team.process-inbox.routine/)'s own **reply-on-cross-member-handoff**), acted on the next time that routine runs over it.
 - A `board-running` item's own testing round finishes clean but needs human-owner sign-off before it can be finalized (see `board-running` above).
 
 All four are equally valid; none is the "real" or "canonical" one. **Not the same as `board-parked`**: `board-blocked` keeps getting worked *at* even while it can't move; `board-parked` is the team consciously choosing to stop that active effort and just wait instead (see below).
@@ -115,9 +115,9 @@ All four are equally valid; none is the "real" or "canonical" one. **Not the sam
 - `:white_check_mark:` for a positive/successful resolution; an assessed negative-outcome emoji for a negative one (denied, dropped, archived without a positive outcome) — `:x:`/❌ is a sensible floor/fallback, not a fixed choice, `:-1:`/thumbsdown or another may fit a given case better.
 
 **The move and the reaction are decoupled, not one write-time action.**
-- Whichever routine resolves the `board-item` (`routine-grooming`'s triage, an inline `magic-coordinator` resolution, or any other path) does not react itself — it only needs to write a clear resolution (so positive-vs-negative can be judged later, since `board-processed` holds both outcomes and folder placement alone never distinguishes them).
-- Separately, at the moment a message's reaction first needs to stay deferred (its handling spawned/is the source of a still-open `board-item`), `routine-communication-sweep` files a lightweight `note-pending-slack-reaction-*.md` record — the `communication-channel-id` + a `references` pointer to the tied `board-item`, no deep classification — into `magic-coordinator`'s own inbox or `board-running`.
-- **`routine-advance`'s own pending-reaction-lookup step is the actual reactor** (`check-process-board`'s **board-run-pending-comms-actions**) — every `routine-heartbeat` iteration, once that pass's own board read has already loaded, it looks up all outstanding pending-reaction records, checks whether each referenced `board-item` has resolved, reacts via `DistroAgentsTools.fn.sh --member-comms-slack-react` if so, and clears the record.
+- Whichever routine resolves the `board-item` (`magic-team.grooming.routine`'s triage, an inline `magic-coordinator` resolution, or any other path) does not react itself — it only needs to write a clear resolution (so positive-vs-negative can be judged later, since `board-processed` holds both outcomes and folder placement alone never distinguishes them).
+- Separately, at the moment a message's reaction first needs to stay deferred (its handling spawned/is the source of a still-open `board-item`), `magic-coordinator.communication-sweep.routine` files a lightweight `note-pending-slack-reaction-*.md` record — the `communication-channel-id` + a `references` pointer to the tied `board-item`, no deep classification — into `magic-coordinator`'s own inbox or `board-running`.
+- **`magic-coordinator.advance.routine`'s own pending-reaction-lookup step is the actual reactor** (`check-process-board`'s **board-run-pending-comms-actions**) — every `magic-coordinator.heartbeat.routine` iteration, once that pass's own board read has already loaded, it looks up all outstanding pending-reaction records, checks whether each referenced `board-item` has resolved, reacts via `DistroAgentsTools.fn.sh --member-comms-slack-react` if so, and clears the record.
 - It never *performs the move itself* (its own Scope only ever moves items *out of* `board-processed`/`board-archived`, the narrow `check-process-board` **board-reopen-signaled-items** case) — it is the sole reactor for this mechanism, via its own independent queue-lookup, not by being the trigger for the move.
 
 `board-item`s carrying no `communication-channel-id` at all, or one whose value is not `slack:`-prefixed, have no originating Slack message to react to — this rule is silent for them, not a gap.
@@ -135,7 +135,7 @@ Any item type can arise from or relate to any routine (a `proposal-` can come ou
 The default shape for *any* item — the real flow may have many more beats once fully assessed, this is a floor, not a ceiling:
 
 - A `board-item` gets recorded (e.g. an `inquiry-*` one).
-- It's routed/delivered into whichever inbox matches it, per item-type/routine/member routing rules (see `routine-process-inbox`).
+- It's routed/delivered into whichever inbox matches it, per item-type/routine/member routing rules (see `magic-team.process-inbox.routine`).
 - The team-member holding that inbox, combined with that member's own rules, determines it should process this item now.
 - Processing it (a) moves/updates its state — likely to `board-blocked` — and (b) decomposes it into sub-tasks, each posted to its own correct inbox per the same routing rules.
 - Later, in some other loop/spawn, someone processes their own inbox and picks up a sub-task — sometimes deliberately held until a contextually-right moment (e.g. a `reflection-*` item held until right before retro or a one-on-one).
@@ -177,13 +177,13 @@ The same item's *own* ongoing back-and-forth (still-pending replies on the ident
 | `reflection-*` | 14 |
 | `note-*` | 10 |
 
-GC is not a standalone routine — it's folded into `routine-heartbeat`'s own sub-step:
-- Each run checks whether any `board-processed` items have passed their retention threshold and, if so, removes them from the board rather than deleting them directly (real deletion mechanics live outside this file — see `routine-heartbeat`'s own GC step).
+GC is not a standalone routine — it's folded into `magic-coordinator.heartbeat.routine`'s own sub-step:
+- Each run checks whether any `board-processed` items have passed their retention threshold and, if so, removes them from the board rather than deleting them directly (real deletion mechanics live outside this file — see `magic-coordinator.heartbeat.routine`'s own GC step).
 - Before removal, checked in this order:
   1. An item carrying `archive: true` diverts to `board-archived` instead (see `board-archived`'s own entry above) — checked first, always wins.
   2. Failing that, an item still referenced by another live board-item diverts to `board-retained` instead (see `board-retained`'s own entry above).
   - Both are diversions from the same default removal path; only one ever applies, `archive: true` taking precedence when both would otherwise fire.
-- **Not board-only**: the same GC sub-step covers every per-member `<member>/processed/` folder (each keeper's own converted log) the same way, on the same type-dependent-threshold/removal-or-archived mechanism — see `routine-heartbeat`'s own GC step for the generalized version.
+- **Not board-only**: the same GC sub-step covers every per-member `<member>/processed/` folder (each keeper's own converted log) the same way, on the same type-dependent-threshold/removal-or-archived mechanism — see `magic-coordinator.heartbeat.routine`'s own GC step for the generalized version.
 
 **Per-member `<member>/processed/` file shape** (each keeper's own converted log, same GC treatment as above but not board-items themselves — no `references`/`owner` fields, this isn't the board's own `board-item` model):
 - One file per dated entry, named `<board-item-type>-<date>-<short-topic>.md` — the prefix is one real, already-established board-item type, same vocabulary the board itself uses (see "Two independent dimensions" above: `task-`, `note-`, `proposal-`, `inquiry-`, `interview-`, etc.), picked per entry to fit what it actually is; never an invented word.
@@ -196,12 +196,12 @@ GC is not a standalone routine — it's folded into `routine-heartbeat`'s own su
 # Process-Flow, the board dynamics
 
 Two routines drive the board, each a distinct, non-overlapping part:
-- `routine-grooming` — decides state, once per workday or on request. Works on backlog progress:
+- `magic-team.grooming.routine` — decides state, once per workday or on request. Works on backlog progress:
   - triage
   - RICE re-score
   - `check-backlog-promote` (backlog readiness)
   - `check-reassess` (recall to backlog)
-- `routine-advance` — mechanically applies already-decided moves only, never new judgment, every main-loop iteration. Works on active non-terminal states (`board-pending`/`board-running`/`board-blocked`/`board-parked`):
+- `magic-coordinator.advance.routine` — mechanically applies already-decided moves only, never new judgment, every main-loop iteration. Works on active non-terminal states (`board-pending`/`board-running`/`board-blocked`/`board-parked`):
   - `check-process-board` — board-state work only, never a board-item's own task: mechanical moves (`board-mechanical-moves`), dependency-edge recompute (`board-recompute-dependencies`, bounded to once a day or on direct request — this procedure's own one bounded exception to "never new judgment"), parked/blocked reassessment (`board-reassess-parked-blocked`), backlog readiness flagging (`board-scan-backlog-readiness`), deferred Slack/Trello actions (`check-pending-comms-actions`)
   - `check-execute-board` — all work on a board-item's own task, spawned or inline: starting `board-pending` items, continuing already-dispatched `board-running` items
 
@@ -216,7 +216,7 @@ The board matters at three points:
 - **Daily-meeting** — the roll call narrates from it, and the coordinator's own todo-assignment step (**update-todos**) is where a relevant board item gets folded into a properly-scoped dispatch for that day's work session, same as any other assignment.
 - **On request** — any member (or the human-owner) can ask about the board's current state at any time; it's a legitimate thing to consult, just not a mandatory per-dispatch step for everyone.
 
-This board has exactly one writer, so there's no multi-writer race to solve here — that concern only applies to personal inboxes (many members writing into each other's), which is `routine-process-inbox`'s territory, not this file's.
+This board has exactly one writer, so there's no multi-writer race to solve here — that concern only applies to personal inboxes (many members writing into each other's), which is `magic-team.process-inbox.routine`'s territory, not this file's.
 
 ## Sole live status source
 
@@ -225,4 +225,4 @@ This board has exactly one writer, so there's no multi-writer race to solve here
 Two kinds of state deliberately live outside it, and are not exceptions to that rule so much as different things entirely — neither is board status:
 
 - Per-platform mechanical comms-sweep state lives as structured fields in the `heartbeat-state-note` (`last_swept_ts`/`known_comms_gaps`). The operations that read and rewrite that record are `magic-coordinator`'s own, executed by the coordinator instance present in the session — same rule as this file's opening "A routine is not a second authority" statement.
-- Open-thread status lives on the owning `board-item`s directly (`communication-channel-id`) — `routine-communication-sweep` reads/writes those, not this file.
+- Open-thread status lives on the owning `board-item`s directly (`communication-channel-id`) — `magic-coordinator.communication-sweep.routine` reads/writes those, not this file.

@@ -2,19 +2,19 @@
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
-# routine-communication-sweep — the actual procedure
+# magic-coordinator.communication-sweep.routine — the actual procedure
 
 # Summary
 
-Routine-communication-sweep is a fast, reliable check-and-act pass across every live communication platform (email, Trello, Slack), run every `routine-heartbeat` iteration.
+Routine-communication-sweep is a fast, reliable check-and-act pass across every live communication platform (email, Trello, Slack), run every `magic-coordinator.heartbeat.routine` iteration.
 
 ## Goals
 
-Give the team a real, reliable way to notice and act on incoming communication across every live platform (email, Trello, Slack) without either missing things (an unattended DM sitting unanswered for days) or manufacturing unnecessary work (chasing platforms that aren't actually live, or investigating every message as if it needed deep triage). The routine's whole shape — fast/parallel by default, deliberate/sequential only when something looks wrong — exists to make "check comms" cheap and reliable enough to run constantly (every `routine-heartbeat` iteration) without becoming its own burden.
+Give the team a real, reliable way to notice and act on incoming communication across every live platform (email, Trello, Slack) without either missing things (an unattended DM sitting unanswered for days) or manufacturing unnecessary work (chasing platforms that aren't actually live, or investigating every message as if it needed deep triage). The routine's whole shape — fast/parallel by default, deliberate/sequential only when something looks wrong — exists to make "check comms" cheap and reliable enough to run constantly (every `magic-coordinator.heartbeat.routine` iteration) without becoming its own burden.
 
 ## Scope
 
-Does: fast/parallel-by-default check-and-act, one full sweep = one pass through all 6 steps for every live platform. Invoked from `routine-daily` (both start and end), `routine-heartbeat` every iteration, or standalone on direct request any time.
+Does: fast/parallel-by-default check-and-act, one full sweep = one pass through all 6 steps for every live platform. Invoked from `magic-coordinator.daily.routine` (both start and end), `magic-coordinator.heartbeat.routine` every iteration, or standalone on direct request any time.
 - Live-platform set is tracked knowledge, not rediscovered at sweep time: **email**, **Trello**, **Slack** (Jira/Confluence known-not-live). Update only on human-reported status change, or a check-call error pointing at a credential/availability problem.
 - Credentials for every live platform are made available before check calls run, resolved by `magic-tooling` itself. Never print them into a transcript/chat/log.
 - Credentials unavailable: stop and ask the user immediately — no filesystem search, no fallback connector, no solo puzzle-solving past one failed round.
@@ -26,7 +26,7 @@ Doesn't do: Google (Drive/Sheets) — extended procedure, only when the task is 
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-1. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — items a previous sweep routed there and left unacted, read before this pass adds more.
+1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — items a previous sweep routed there and left unacted, read before this pass adds more.
 2. **check**: read the sweep-state-note via --magic-sweep-state-read. Call --magic-sweep-input-scan <team-member> --comms-since-utime <last_swept_ts> — board-tracked threads and every watched source, one pass, covering both watched targets and every open thread (see Scope).
    - default: batch every platform's credential read + API call into one script/command block, piped through `lib/execShStdin`.
    - exception: a check call errors or returns something ambiguous → go deliberate.
@@ -40,16 +40,16 @@ Exact instructions. Execute in order, every step, literally as written — not l
       - Slack: apply the `slack-reaction-tracking` procedure's Analyze-stage reaction (`:eyes:`) on **this message**, now — this is the visible marker that this specific message was actually seen; it happens as this message is processed, never deferred to a later batch step.
    3. **act**: route this message's candidate(s) by size.
       - Approved, simple, obvious → do it inline, now, standard dispatch mechanism only.
-      - Bigger/questionable, needs whole-team visibility → note for the next `routine-daily`.
-      - Bigger/questionable, concerns specific member(s) only → propose a `routine-one-on-one` session.
-      - Worth recording, no investigation needed now → into the backlog `routine-grooming` already triages.
+      - Bigger/questionable, needs whole-team visibility → note for the next `magic-coordinator.daily.routine`.
+      - Bigger/questionable, concerns specific member(s) only → propose a `magic-coordinator.one-on-one.routine` session.
+      - Worth recording, no investigation needed now → into the backlog `magic-team.grooming.routine` already triages.
       - Never start a new epic/initiative unilaterally inline.
-      - Normalize a genuinely new incoming item into an Item (`note-*.md`/`inquiry-*.md`, per the team's own entity model): write it into `magic-coordinator`'s own inbox by default, or directly into the relevant member's own inbox via `--member-upsert-inbox-note` if clearly addressed to someone specific — filename shape mandatory, `note-<date>-<matter>.md` / `inquiry-<date>-<matter>.md`. Solo `magic-coordinator` work; no deep classification/enqueue-todo/triage here — that's `routine-grooming`'s job later.
+      - Normalize a genuinely new incoming item into an Item (`note-*.md`/`inquiry-*.md`, per the team's own entity model): write it into `magic-coordinator`'s own inbox by default, or directly into the relevant member's own inbox via `--member-upsert-inbox-note` if clearly addressed to someone specific — filename shape mandatory, `note-<date>-<matter>.md` / `inquiry-<date>-<matter>.md`. Solo `magic-coordinator` work; no deep classification/enqueue-todo/triage here — that's `magic-team.grooming.routine`'s job later.
       - Slack: apply the `slack-reaction-tracking` procedure's Act-stage reaction on **this message**, now.
    4. **reply-if-warranted**: respect each platform's own send/confirm rules, for this message specifically.
       - minimum floor: acknowledge every non-ignored incoming message.
       - Slack, mandatory: target the reply at `<channel>:<ts>` of this specific message, never a bare `<channel>`.
-      - Email: get human confirmation before sending, when a human is actually present in the session; running unattended (`routine-heartbeat`), send directly, no confirmation gate — the rest of this step's send/reply discipline still applies in full.
+      - Email: get human confirmation before sending, when a human is actually present in the session; running unattended (`magic-coordinator.heartbeat.routine`), send directly, no confirmation gate — the rest of this step's send/reply discipline still applies in full.
       - Slack/Trello comments in the coordinator's own channels: lead dialog directly, still pause before anything reading as a commitment/decision on the user's behalf.
       - always send under the coordinator's own identity — never impersonate.
       - genuinely requires the addressee's reaction/reply before anything proceeds → explicitly `@`-mention them, per `magic-team.conversations.md` rule 4c — posting where they might see it is not enough.
@@ -90,7 +90,7 @@ Slack-only — email/Trello have no reaction primitive. Real, load-bearing async
 
 **Terminal-stage split:**
 - **Same-sweep resolution**: add `:white_check_mark:` right away, alongside `:ok_hand:`, in **reply-if-warranted**.
-- **Deferred resolution** — message became/already was the source of a tracked board Item staying open past this sweep: do not add the terminal reaction now, leave at `:eyes:`/`:writing_hand:`/`:ok_hand:`. File a lightweight pending-reaction record (into `magic-coordinator`'s inbox, or directly into `board-running`) carrying the `communication-channel-id` + a `references` pointer. `routine-advance`'s own pending-reaction-lookup step adds the terminal reaction later.
+- **Deferred resolution** — message became/already was the source of a tracked board Item staying open past this sweep: do not add the terminal reaction now, leave at `:eyes:`/`:writing_hand:`/`:ok_hand:`. File a lightweight pending-reaction record (into `magic-coordinator`'s inbox, or directly into `board-running`) carrying the `communication-channel-id` + a `references` pointer. `magic-coordinator.advance.routine`'s own pending-reaction-lookup step adds the terminal reaction later.
 - **Negative outcome, at that later point**: assessed per case, not one hardcoded emoji — `:x:`/❌ a sensible floor, `:-1:`/thumbsdown where it reads better.
 
 **Origin-ts lifecycle**: a Slack message normalized into an Item may move inbox-file → formal board Item → `blocked/`/`parked/` → `processed/`/`archived/`. The reaction target never changes; whichever step promotes an inbox item into a formal board Item copies `communication-channel-id` across unchanged.
@@ -196,12 +196,12 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `routine-daily` — calls this routine at both start and end.
-- `routine-heartbeat` — calls this every iteration as its "Comms" step.
-- `routine-grooming` — deep classification/triage, Google Drive/Sheets, board-coverage diffing.
-- `routine-advance` — its own pending-reaction-lookup step reacts on deferred-terminal messages later.
-- `routine-process-inbox` — own-inbox processing.
-- `routine-one-on-one` — small-group proposal destination for member-specific findings.
+- `magic-coordinator.daily.routine` — calls this routine at both start and end.
+- `magic-coordinator.heartbeat.routine` — calls this every iteration as its "Comms" step.
+- `magic-team.grooming.routine` — deep classification/triage, Google Drive/Sheets, board-coverage diffing.
+- `magic-coordinator.advance.routine` — its own pending-reaction-lookup step reacts on deferred-terminal messages later.
+- `magic-team.process-inbox.routine` — own-inbox processing.
+- `magic-coordinator.one-on-one.routine` — small-group proposal destination for member-specific findings.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, mandatory batching.
 - `magic-team/magic-team.armed.md`'s "Board & Inbox board-items entity model" section — `board-item` entity model, `communication-channel-id` frontmatter convention.
 - `magic-team/magic-team.board.md` — `processed/`/`archived/` outcome-ambiguity note.

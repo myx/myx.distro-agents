@@ -36,7 +36,7 @@ Named procedure blocks. Steps below call them by name. Not separate routines - n
 Distinct from the impersonation rule below: impersonation is about never speaking/acting *as* the human-owner; this procedure is about *communicating with* them (e.g. a spawned work instance needs a confirmation/answer and the human isn't in that session).
 
 Steps:
-1. Send via Slack to the human-owner's identity — `slack-human-owner` or `slack-magic-team`, judged by context — using the `--member-comms-slack-send-message` operation, the same send path `routine-communication-sweep` uses. Never invent a separate send path, and never reference a credential directly.
+1. Send via Slack to the human-owner's identity — `slack-human-owner` or `slack-magic-team`, judged by context — using the `--member-comms-slack-send-message` operation, the same send path `magic-coordinator.communication-sweep.routine` uses. Never invent a separate send path, and never reference a credential directly.
 2. Send promptly — the user's own framing was "send maybe straight away." Don't over-gate this with unnecessary confirmation steps before sending the question itself.
 3. Register the topic/question as a `board-item` so it doesn't disappear — this is the same "questions addressed to them tracked and not left to disappear" requirement recorded in `TEAM-ORGANIZATION-VISION.md`'s "when the human-owner is actually needed" facet. File it as an `inquiry-*`/`approval-*` item in `board-blocked`, under the existing "human-owner decision" reason, carrying `communication-channel-id` once the Slack thread opens. The existing board-item mechanism, not a new file.
 4. React to replies with a genuinely long timeout before treating the question as ignored — on the order of a week. Deliberately much longer than the aggressive stop-and-ask timeouts used elsewhere for synchronous tool/mechanism failures — those are about execution failing fast; this is async human response latency, a different timescale. Don't conflate the two.
@@ -95,7 +95,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `board-blocked` — where open reach-out threads get tracked, as `inquiry-*`/`approval-*` board-items.
 - `magic-team/magic-team.board.md` — the "human-owner decision" `board-blocked` reason category.
 - `magic-team/magic-team.armed.md` — the board-item entity model (`communication-channel-id` field shape).
-- `routine-communication-sweep` — the existing Slack mechanics `reach-human-owner` reuses rather than inventing a separate send path; also the source of the general impersonation rule this file's own boundary matches.
+- `magic-coordinator.communication-sweep.routine` — the existing Slack mechanics `reach-human-owner` reuses rather than inventing a separate send path; also the source of the general impersonation rule this file's own boundary matches.
 
 ### Conventions
 

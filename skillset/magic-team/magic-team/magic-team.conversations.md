@@ -5,7 +5,7 @@ maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
 
 Cross-routine mechanics for live exchanges (Slack threads, email threads, coworking sessions, interviews, IDE chat, team interactions, etc.).
 This file governs form, methodology and control points, not strategy. Goal-reaching strategy stays in
-`routine-interview` / `routine-discuss` / `routine-brainstorm` / related routine files.
+`magic-team.interview.routine` / `magic-team.discuss.routine` / `magic-team.brainstorm.routine` / related routine files.
 
 Referenced from each member's `.basic.md`. Not a `routine-*` member.
 
@@ -67,7 +67,7 @@ This file's own content is binding and obligatory on every team member who reads
 
 3. **Assess incoming reactions actively.**
    Treat reactions on your messages as signals (confirm, confusion, correction, silence). If they expose a
-   recurring/process issue, file a `reflection-*` via `routine-process-reflections` mechanisms.
+   recurring/process issue, file a `reflection-*` via `magic-team.process-reflections.routine` mechanisms.
 
 4. **`WTF?!`-class reactions (including replies) must create reflection evidence.**
    If a human-owner/participant gives a strong confusion/frustration/surprise signal (`WTF?!` or equivalent),

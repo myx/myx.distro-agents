@@ -46,7 +46,7 @@ Every acting member (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) ski
 - **`<name>.access.md`, `<name>.reference.md`, `<name>.librarian.md`, `<name>.tooling.md`** — none of these exist as separate files for an acting member. Their content lives inside `<name>.armed.md`, per the section shape above: who/how/limits/decision-making → `Local rules` + `Scope`; per-member reference material → `Domain knowledge`; the tooling op list → `Team-Member's (-specific) tooling`; the `Verbatim-goals`/`Verbatim-tests` pair and the folder's own knowledge index → `Maintainer Notes`.
 - **`<name>.shared.md`** — **only for a folder that hosts genuinely team-wide, broadest-readership content** (this file is the worked example) — named after its own hosting folder, same as every other typed file, not a free-form descriptive title. Hand-authored/librarian-maintained prose, cross-cutting by design — a source other folders' own files may reference directly.
 - **`<owning-member>.<short-name>.routine.md`** — zero or more, one per routine this member owns/executes. Section shape — see "Armed & Routine contracts" below.
-- **`inbox/`** — created lazily, first time something needs to land there. Same personal-inbox model for every member — reflections a team-member writes while running an activity land in *its own* personal inbox and stay there, unless raised to the board as an `inquiry-*` to `magic-coordinator` (`routine-process-inbox`'s "reflection-promotion" rule covers the mechanics).
+- **`inbox/`** — created lazily, first time something needs to land there. Same personal-inbox model for every member — reflections a team-member writes while running an activity land in *its own* personal inbox and stay there, unless raised to the board as an `inquiry-*` to `magic-coordinator` (`magic-team.process-inbox.routine`'s "reflection-promotion" rule covers the mechanics).
 
 **The core rule: every acting member's own source files (`.basic.md`/`.armed.md`, plus every `.routine.md` it owns) must be fully sufficient on their own.**
 - A folder must work correctly purely from its own source files — that's the baseline the source files are held to, not a fallback path.
@@ -422,7 +422,7 @@ Not a contract — the shape of a **generated** document, produced by tooling an
 - Each comms sub-section states its own `instrument:` — the services differ (Slack takes a cut-off and has no unread flag; email and Trello have unread and take no cut-off), so a single global cut-off line cannot describe what was actually used.
 - Every item block states its type name and id on its heading line.
 - Shell-readable, human-readable and agent-readable at once: stable headings, one item per block, `key: value` lines, blank line between blocks.
-- The inbox sections carry `note-*`/`inquiry-*`/`reflection-*` only — **by design, not omission**. Other types are technically allowed in an inbox and are not misfiled; they are simply not carried, because no step stores them there or takes them from there. The sections cover what steps store. `routine-process-inbox` is the one consumer that does not enumerate, its job being whatever actually landed.
+- The inbox sections carry `note-*`/`inquiry-*`/`reflection-*` only — **by design, not omission**. Other types are technically allowed in an inbox and are not misfiled; they are simply not carried, because no step stores them there or takes them from there. The sections cover what steps store. `magic-team.process-inbox.routine` is the one consumer that does not enumerate, its job being whatever actually landed.
 - Recorded gaps live in the skeleton file, stated rather than solved — `assignee` not existing in the entity model, and the uneven per-service cut-off support that makes lagging pointers the sanctioned mechanism.
 
 ## Nested-item grammar
@@ -452,7 +452,7 @@ Order within one nested list: goals, then rules, then steps.
 
 Same grammar at any depth. Top-level steps are not prefixed — they keep `<N>. **name-of-meaning**: …`.
 
-Nested steps are normally not named. **Name them when the parent is a named group of meaning whose children need to be addressable one at a time** — in discussion, and in the executor's own orchestration of them (`routine-coworking`'s **session-start**/**close-session** groups are the worked example). Then the parent declares the kind once with `, steps:` and each child carries its own `**name**:`. Note what this is *not*: another file referencing that work names the whole section (`routine-coworking`'s Steps / Closure Steps), never a child. The names are handles for working inside the file, not cross-file entry points.
+Nested steps are normally not named. **Name them when the parent is a named group of meaning whose children need to be addressable one at a time** — in discussion, and in the executor's own orchestration of them (`magic-team.coworking.routine`'s **session-start**/**close-session** groups are the worked example). Then the parent declares the kind once with `, steps:` and each child carries its own `**name**:`. Note what this is *not*: another file referencing that work names the whole section (`magic-team.coworking.routine`'s Steps / Closure Steps), never a child. The names are handles for working inside the file, not cross-file entry points.
 
 ### Actor phrases
 
@@ -481,7 +481,7 @@ A step with no actor phrase is the executor's own work, done directly.
 
 `.access.md` does not exist as a separate file for an acting member. The who-may-run-this / who-may-change-this / how-it's-invoked / limits / decision-making facts live inside `<name>.armed.md`:
 
-- **Who may run this** — `## Scope`'s `Does`/`Doesn't` (invocation conditions, auto-trigger behavior) and, where relevant, a plain rule bullet in `Local rules` (e.g. a keeper stating it relays to `magic-coordinator` rather than deciding independently). This also governs who may read/write files in this folder, including its `inbox/` (per-item-type, intersected with the posting member's own rules — see `routine-process-inbox`'s own Local rules).
+- **Who may run this** — `## Scope`'s `Does`/`Doesn't` (invocation conditions, auto-trigger behavior) and, where relevant, a plain rule bullet in `Local rules` (e.g. a keeper stating it relays to `magic-coordinator` rather than deciding independently). This also governs who may read/write files in this folder, including its `inbox/` (per-item-type, intersected with the posting member's own rules — see `magic-team.process-inbox.routine`'s own Local rules).
 - **Who may change this** — the `maintainers:` frontmatter field. Always a group, never a single owner (see "Executors vs. maintainers" below).
 - **How it's invoked, limits/restrictions, decision-making** — flat, present-tense bullets in `# Team-Member's (-specific) local rules`. No formal required sub-headings anymore (no dedicated "Who may run this" / "Limits" / "Decision-making" sections) — read the whole section; the relevant rule is wherever it naturally falls.
 
@@ -502,7 +502,7 @@ A folder can still declare finer-grained, folder-specific rules (rate limits, co
 - **Executors** — who may actually run/execute the folder's activity day to day. For most current structured routines this is `magic-coordinator` alone, since they're coordinator-orchestrated. A routine states this as a real `executors:` frontmatter field; an acting member states it in prose (`Scope`/`Local rules`) instead, since `.armed.md` carries no `executors:` field.
 - **Maintainers** — who may change/update the definition itself (a member's `.armed.md`, or a routine's own `.routine.md`, or anything else that defines its behavior) — always a **group**, never a single owner acting unilaterally. Reasonable default group: `magic-coordinator` + `magic-librarian` + `magic-architect` (the same three-perspective shape already used for triage/grooming authority) — adjust per folder/routine when a different group genuinely makes more sense (e.g. one deeply specific to one domain might reasonably add that domain's keeper/partner to its maintainer group), using judgment, not a rigid one-size-fits-all list.
 
-**A quorum change is run as a coworking session, not as a poll.** Spawn `routine-coworking` with the quorum group as its participants and the involved specialists as invitees — never dispatch one member to collect approvals from the others one at a time. The agreement is reached in the session, in one visible thread.
+**A quorum change is run as a coworking session, not as a poll.** Spawn `magic-team.coworking.routine` with the quorum group as its participants and the involved specialists as invitees — never dispatch one member to collect approvals from the others one at a time. The agreement is reached in the session, in one visible thread.
 
 Maintainer agreement is `quorum-all-agree` unless that definition states otherwise. **It never lands the change by itself** — the human-owner confirms it through the process flow. In a harness session the human-owner's own accept/commit is that confirmation; otherwise ask over IM or the session's own thread and wait for the reply.
 
@@ -517,7 +517,7 @@ A rule is `owner-guaranteed` when it protects the human-owner's own position aga
 ### Invitees (routines only)
 
 **A third role, distinct from executors/maintainers** — who a session under this routine pulls in alongside its executor.
-- Only routines with genuine multi-member sessions (e.g. `routine-coworking`) declare it, in that routine's own `.routine.md` frontmatter; acting members (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) never declare `invitees` — their own `.armed.md` frontmatter carries `maintainers:` only.
+- Only routines with genuine multi-member sessions (e.g. `magic-team.coworking.routine`) declare it, in that routine's own `.routine.md` frontmatter; acting members (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) never declare `invitees` — their own `.armed.md` frontmatter carries `maintainers:` only.
 - Floor, not a cap — a session may pull in others as needed beyond the declared roster.
 - Concrete roster and specifics live in each routine's own `.routine.md` file — read it directly rather than expecting a central table to summarize it.
 
@@ -576,7 +576,7 @@ Two rules, given together.
 
 "When you relay my commands, clarifications, comments, decisions - NEVER REPHRASE. RELAY VERBATIM. WHAT I SAID OR WHAT YOU READBACK AND I APPROVED."
 
-Open conflict, his to rule on, both sides deliberately left standing: `magic-team.conversations.md` rule 5 ("Rephrase-and-confirm before acting on correction") and rule 4 of its checkpoint loop, plus `magic-team.interview.routine.md`'s "Rephrase and confirm before acting, every time", all instruct the opposite move. Rule 9a reconciles it for a *relayed* message only, not for confirming his own instruction back to him. Nobody on the team resolves this one.
+Open conflict, his to rule on, both sides deliberately left standing: `magic-team.conversations.md` rule 5 ("Rephrase-and-confirm before acting on correction") and rule 4 of its checkpoint loop, plus `magic-team.interview.routine`'s "Rephrase and confirm before acting, every time", all instruct the opposite move. Rule 9a reconciles it for a *relayed* message only, not for confirming his own instruction back to him. Nobody on the team resolves this one.
 
 ## Naming goes via approval, with siblings shown
 

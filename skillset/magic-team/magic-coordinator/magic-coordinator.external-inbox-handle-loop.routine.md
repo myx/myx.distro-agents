@@ -2,7 +2,7 @@
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
-# routine-external-inbox-handle-loop — the actual procedure
+# magic-coordinator.external-inbox-handle-loop.routine — the actual procedure
 
 # Summary
 
@@ -10,19 +10,19 @@ Routine-external-inbox-handle-loop gives non-acting owners (human-owner, externa
 
 ## Goals
 
-Give non-acting owners (the human-owner, external contacts) the same real, working "mailbox" continuity that acting members get from `routine-process-inbox`, despite having no skill folder of their own to host one — so an outstanding ask/reminder/status to a non-acting owner doesn't just silently sit unaddressed because there's no natural "their own inbox" for a normal pass to check. Without this, the team's inbox model would have a structural blind spot exactly where it matters most (the human-owner's own outstanding items, or an external partner's pending response).
+Give non-acting owners (the human-owner, external contacts) the same real, working "mailbox" continuity that acting members get from `magic-team.process-inbox.routine`, despite having no skill folder of their own to host one — so an outstanding ask/reminder/status to a non-acting owner doesn't just silently sit unaddressed because there's no natural "their own inbox" for a normal pass to check. Without this, the team's inbox model would have a structural blind spot exactly where it matters most (the human-owner's own outstanding items, or an external partner's pending response).
 
 
 ## Scope
 
-Does: outstanding-ask/reminder/status tracking for non-acting owners. Invoked from `routine-heartbeat`'s own post-sweep inbox-processing step (its regular caller), or standalone any time there's reason to check on a specific non-acting owner sooner than the next regular cycle. `magic-coordinator` only — non-acting owners' content lives inside its own inbox by construction, so it is structurally the only one positioned to run this; there is no "the owner processes it themselves" path here, the way `routine-process-inbox` has for acting members.
-Doesn't do: anything `routine-process-inbox` already covers for acting members. Both its steps read `magic-coordinator`'s own inbox, but handle different content there: **process-own-inbox** handles `magic-coordinator`'s own mail; **work-the-loop** handles the non-acting-owner content that lives in that same inbox by construction (see Goals).
+Does: outstanding-ask/reminder/status tracking for non-acting owners. Invoked from `magic-coordinator.heartbeat.routine`'s own post-sweep inbox-processing step (its regular caller), or standalone any time there's reason to check on a specific non-acting owner sooner than the next regular cycle. `magic-coordinator` only — non-acting owners' content lives inside its own inbox by construction, so it is structurally the only one positioned to run this; there is no "the owner processes it themselves" path here, the way `magic-team.process-inbox.routine` has for acting members.
+Doesn't do: anything `magic-team.process-inbox.routine` already covers for acting members. Both its steps read `magic-coordinator`'s own inbox, but handle different content there: **process-own-inbox** handles `magic-coordinator`'s own mail; **work-the-loop** handles the non-acting-owner content that lives in that same inbox by construction (see Goals).
 
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-1. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — `magic-coordinator`'s own mail only; the non-acting-owner content sitting in that same inbox is **work-the-loop**'s job, not this step's.
+1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — `magic-coordinator`'s own mail only; the non-acting-owner content sitting in that same inbox is **work-the-loop**'s job, not this step's.
 2. **work-the-loop**: pick one of five actions per item, by its own real history — not a fixed rotation.
    - **Retry**: the prior attempt may not have landed — try again through the same channel.
    - **Communicate**: send a fresh status/update even without a specific blocker, to keep the item visibly alive.
@@ -33,7 +33,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-Invoked inline: nothing. Run as its own session: execute `routine-coworking`'s Closure Steps.
+Invoked inline: nothing. Run as its own session: execute `magic-team.coworking.routine`'s Closure Steps.
 
 # Routine's local procedures
 
@@ -76,7 +76,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- This routine gives non-acting owners (human-owner, external contacts) the same working mailbox continuity acting members get from `routine-process-inbox`, despite having no skill folder of their own.
+- This routine gives non-acting owners (human-owner, external contacts) the same working mailbox continuity acting members get from `magic-team.process-inbox.routine`, despite having no skill folder of their own.
 
 ## Verbatim-tests (benchmarks)
 
@@ -86,8 +86,8 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `routine-process-inbox` — the general operation this routine is the non-acting-owner variant of.
-- `routine-heartbeat` — the regular caller (post-sweep inbox-processing step).
+- `magic-team.process-inbox.routine` — the general operation this routine is the non-acting-owner variant of.
+- `magic-coordinator.heartbeat.routine` — the regular caller (post-sweep inbox-processing step).
 - `magic-coordinator` — sole-mandated-channel-to-human-owner rule; batch-human-hands-on-items standing rule.
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.
 

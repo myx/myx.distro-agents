@@ -2,16 +2,16 @@
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect
 ---
-# routine-heartbeat — the actual procedure
+# magic-coordinator.heartbeat.routine — the actual procedure
 
 # Summary
 
-Routine-heartbeat is the team's continuous, self-driven operating rhythm — deciding what's due (`routine-advance`, once-daily grooming, the daily meeting's work-session fan-out) and dispatching each as a separate spawned session — so the team acts without a human re-triggering each step.
+Routine-heartbeat is the team's continuous, self-driven operating rhythm — deciding what's due (`magic-coordinator.advance.routine`, once-daily grooming, the daily meeting's work-session fan-out) and dispatching each as a separate spawned session — so the team acts without a human re-triggering each step.
 
 ## Goals
 
 - Continuous, self-driven operating rhythm — not gated on a human re-triggering each step:
-  - `routine-advance` dispatched every pass
+  - `magic-coordinator.advance.routine` dispatched every pass
   - backlog groomed once a day
   - daily meeting's work-session fan-out actually happens
 - Self-driven via `ScheduleWakeup`/`SendMessage` nudges — the team's own operating cadence doesn't depend on continuous human observation.
@@ -20,14 +20,14 @@ Routine-heartbeat is the team's continuous, self-driven operating rhythm — dec
 ## Scope
 
 - Does:
-  - Decides what's due (`routine-grooming`/`routine-daily`/`routine-advance`), then dispatches each as a separate spawned session via **spawn-proxy**.
-  - Dispatches one `routine-advance` pass as a separate spawned session every `next-iteration`, at the end of the loop.
+  - Decides what's due (`magic-team.grooming.routine`/`magic-coordinator.daily.routine`/`magic-coordinator.advance.routine`), then dispatches each as a separate spawned session via **spawn-proxy**.
+  - Dispatches one `magic-coordinator.advance.routine` pass as a separate spawned session every `next-iteration`, at the end of the loop.
   - Triggered only by **"Magic, do main loop"**/**"Magic, start main loop"** — starts the `main-loop` iterator (`main-loop-mode`), which spawns a fresh `next-iteration` every cycle.
     - Ongoing resource commitment (30s-2min-ish cadence, potentially hours) — the iterator is never started implicitly just because this routine exists.
 - Doesn't do:
   - Self-schedule or idle-wait for anything — one bounded pass per `next-iteration`, then exits.
   - Isn't one of "the four" (daily-meeting/retro/grooming/one-on-one) — the daily meeting remains where bigger, human-supervised decisions get made.
-  - Doesn't currently call `routine-retro` from any default branch (only grooming and daily-meeting are called) — `routine-retro`'s own "Autonomous invocation" addendum exists for consistency, not because the current design invokes it.
+  - Doesn't currently call `magic-coordinator.retro.routine` from any default branch (only grooming and daily-meeting are called) — `magic-coordinator.retro.routine`'s own "Autonomous invocation" addendum exists for consistency, not because the current design invokes it.
   - Doesn't read, scan, or write any board item, and doesn't run another routine's own Steps itself — that work happens only inside the dispatched session. Its one persistent artifact is its own `heartbeat-state-note`.
 
 # Steps
@@ -56,9 +56,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Sub-steps, in order:
      - **Heartbeat iteration input** (first, every `next-iteration`): call the `--magic-heartbeat-input-scan` operation to load this routine's own prepared input for this pass — every sub-step below works from what it returns.
      - **Inbox processing**:
-       - Run `routine-process-inbox magic-coordinator` — inline execution, own identity. This loop is that routine's regular caller, not its only invocation path (see `routine-process-inbox` for standalone/ad hoc invocation and the morning self-review).
-       - Items owned by a non-acting owner (human-owner, external contacts): run `routine-external-inbox-handle-loop` — their content lives inside `magic-coordinator`'s own inbox too, since they have no skill folder of their own.
-       - Items owned by an acting member: leave for the next `routine-daily`/`routine-grooming` pass to fold into that member's properly-registered assignment, unless there's a specific reason to invoke `routine-process-inbox` standalone for that member right now.
+       - Run `magic-team.process-inbox.routine magic-coordinator` — inline execution, own identity. This loop is that routine's regular caller, not its only invocation path (see `magic-team.process-inbox.routine` for standalone/ad hoc invocation and the morning self-review).
+       - Items owned by a non-acting owner (human-owner, external contacts): run `magic-coordinator.external-inbox-handle-loop.routine` — their content lives inside `magic-coordinator`'s own inbox too, since they have no skill folder of their own.
+       - Items owned by an acting member: leave for the next `magic-coordinator.daily.routine`/`magic-team.grooming.routine` pass to fold into that member's properly-registered assignment, unless there's a specific reason to invoke `magic-team.process-inbox.routine` standalone for that member right now.
          - **Automatic nudge**: content that looks stale (age-based, same light check this sub-step already does across acting members' inboxes) gets a `warning-*` board-item in `board-blocked` instead of silently waiting — `recheck-date` set to today, `condition: <member> hasn't processed inbox item <item-filename> yet`, referencing the stale item. Already one open for this item: refresh `recheck-date` only, don't duplicate.
        - **GC**, generalized across every `processed/` folder in the tree, not just the board's own, same pass:
          - Check whether any `board-processed` item, has passed its (type-dependent) retention threshold.
@@ -81,8 +81,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - Full HTML/multipart layout redesign stays deferred (the text-vs-HTML question is still open) — this is a content/structure floor, not the eventual full design.
        - Sent via the `--member-comms-email-send` magic-tooling operation — never a session's own personal mail connector.
        - Cadence check: track `last_test_email_sent` in the `heartbeat-state-note` and check "has an hour passed" the same mechanical way the day-rhythm check works — not fired every single `next-iteration` regardless of the fast-tier's 30s-2min cadence.
-     - **First-today only**: dispatch `routine-grooming` as a separate spawned session via **spawn-proxy** — librarian context prep and the batched `magic-librarian` own-inbox processing pass (`magic-librarian`'s own "Own inbox: collect and batch, don't fix ad hoc" standard) happen inside that dispatched session, not inline here.
-     - **Later-today**: dispatch `routine-daily`'s flow as a separate spawned session via **spawn-proxy**, watching for planned work-sessions.
+     - **First-today only**: dispatch `magic-team.grooming.routine` as a separate spawned session via **spawn-proxy** — librarian context prep and the batched `magic-librarian` own-inbox processing pass (`magic-librarian`'s own "Own inbox: collect and batch, don't fix ad hoc" standard) happen inside that dispatched session, not inline here.
+     - **Later-today**: dispatch `magic-coordinator.daily.routine`'s flow as a separate spawned session via **spawn-proxy**, watching for planned work-sessions.
      - **`heartbeat-state-note` update**: a small, mostly-static state record, not a running history — updated every single `next-iteration`, not just narrative-notable ones.
        - The structured header block (`last_iteration_date`/`last_iteration_timestamp`/`today_stage`/`active_project`) is refreshed to this `next-iteration`'s own values each time, never left at an earlier `next-iteration`'s values — a stale header is indistinguishable from a stopped loop to anyone checking it.
        - The file's "Last iteration" section is overwritten each `next-iteration`, not appended to — one short paragraph replacing the previous one, not a growing tail.
@@ -92,7 +92,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - Action: escalate it **exactly once** — a direct, focused `human-owner` DM naming the specific decision needed (not `slack-magic-team`: this needs the human-owner's own personal answer, not a team-channel post nobody's individually tagged on), not another repeat of the flag — instead of continuing to silently re-flag it every subsequent iteration with no one ever actually asking.
        - Does **not** authorize deciding the flagged question itself — still `main`/the human-owner's call, unchanged. It only converts "flagged repeatedly, never asked plainly" into "asked once, clearly," consistent with the standing "batch human-hands-on items, don't drip them" posture, applied here to stale decision-flags rather than physical actions.
        - Once escalated: record `escalated: <timestamp>` alongside the flag in the `heartbeat-state-note`'s `active_project` field, and don't re-escalate the same flag on later `next-iteration`s unless the human-owner's response itself calls for a follow-up.
-     - **Board advance, end of loop, every `next-iteration`**: dispatch one `routine-advance` pass as a separate spawned session via a background `Agent` call (`Skill(magic-coordinator)` as its first action) — not **spawn-proxy**, an external-CLI launcher. Every pass, no first-today/later-today gate.
+     - **Board advance, end of loop, every `next-iteration`**: dispatch one `magic-coordinator.advance.routine` pass as a separate spawned session via a background `Agent` call (`Skill(magic-coordinator)` as its first action) — not **spawn-proxy**, an external-CLI launcher. Every pass, no first-today/later-today gate.
 
 # Closure steps
 
@@ -110,11 +110,11 @@ Named procedure blocks. Steps above call them by name. Not separate routines - n
 
 - Persistent record: the `heartbeat-state-note` — read via the `--magic-heartbeat-state-read` operation, written via `--magic-heartbeat-state-upsert`.
 - Owned/written by whichever session actually executes this routine's own `next-iteration` (in practice, `magic-coordinator`).
-- Minimum fields: `last_iteration_date`, `last_iteration_timestamp`, `today_stage` (`not_started` → `grooming_done` → `daily_done` → steady-state cycling), `last_test_email_sent` (see **run-one-bounded-substep**'s Test email report sub-step), `human_owner_broadcast_thread_ts` / `human_owner_broadcast_thread_date` (the captured `channel:ts` of today's first human-owner-facing status broadcast, e.g. `routine-advance`'s `check-execute-board` DM — treated as stale/cleared whenever `human_owner_broadcast_thread_date` != today's real date, same "recompute per real date" convention as the weekend/first-today checks above; consumed by `magic-coordinator.advance.routine.md`'s own `check-execute-board` procedure to thread same-day human-owner DMs together instead of posting each as a fresh top-level message), and a light pointer to whichever active project a dispatched work-session belongs to — just enough to satisfy the "all dispatched work sits within a project" constraint; the project schema itself stays out of scope here.
+- Minimum fields: `last_iteration_date`, `last_iteration_timestamp`, `today_stage` (`not_started` → `grooming_done` → `daily_done` → steady-state cycling), `last_test_email_sent` (see **run-one-bounded-substep**'s Test email report sub-step), `human_owner_broadcast_thread_ts` / `human_owner_broadcast_thread_date` (the captured `channel:ts` of today's first human-owner-facing status broadcast, e.g. `magic-coordinator.advance.routine`'s `check-execute-board` DM — treated as stale/cleared whenever `human_owner_broadcast_thread_date` != today's real date, same "recompute per real date" convention as the weekend/first-today checks above; consumed by `magic-coordinator.advance.routine`'s own `check-execute-board` procedure to thread same-day human-owner DMs together instead of posting each as a fresh top-level message), and a light pointer to whichever active project a dispatched work-session belongs to — just enough to satisfy the "all dispatched work sits within a project" constraint; the project schema itself stays out of scope here.
 - Created lazily on first real run.
 
 - **First-iteration-today test**: compare `last_iteration_date` to today's real date.
-  - Mismatch or file absent → this is the first `next-iteration` today: run `routine-grooming` after `magic-librarian` preps context, then move into `routine-daily`'s flow.
+  - Mismatch or file absent → this is the first `next-iteration` today: run `magic-team.grooming.routine` after `magic-librarian` preps context, then move into `magic-coordinator.daily.routine`'s flow.
   - Match → resume from `today_stage`.
 - **Weekend detection** (recompute weekday from real system date every `next-iteration`; Sat/Sun triggers this):
   - ALLOW: comms sweep. Reactive admin (todo/record updates), only in direct response to an actual incoming request.
@@ -151,9 +151,9 @@ Exact formatted example:
 
 ```text
 SPAWN-REQUEST: librarian-morning-review
-GOAL: Run routine-librarian-morning-review for board state-shape drift check
+GOAL: Run magic-librarian.morning-review.routine for board state-shape drift check
 CONTEXT: Review magic-team board files and report only actual drift findings.
-NAME: routine-librarian-morning-review
+NAME: magic-librarian.morning-review.routine
 WAIT: no
 ```
 
@@ -195,7 +195,7 @@ OUTPUT_FILE=/runtime/md/heartbeats/receipts/heartbeat-20260806T095318Z-9f3a1c2e.
 - `RECEIPT_ID` and `RECEIPT_FILE` are mandatory outputs on every call.
 - This routine's caller records receipt evidence on the related board item as `execution-receipt`.
 - `WAIT: no` is default path (async, `STATUS=started`); `WAIT: yes` is for explicit blocking cases.
-- Any spawn-required branch that cannot produce a successful proxy call in the same pass is a hard execution failure and must follow `routine-advance` parked fallback (never silent defer).
+- Any spawn-required branch that cannot produce a successful proxy call in the same pass is a hard execution failure and must follow `magic-coordinator.advance.routine` parked fallback (never silent defer).
 
 # Routine's local rules
 
@@ -203,17 +203,17 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
+- This routine is an extension of `magic-team.coworking.routine` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
 - Overrides the inherited coworking thread anchor: this routine's session thread lives in `slack-event-track`, not `slack-magic-team`. Genuinely important items still go separately to the human-owner DM and `slack-magic-team`.
 - Does not run **fold-in-learned-lessons** — that step works a small, recent, unresolved reflection set, and this loop's per-nudge cadence would grind the whole accumulated pile every iteration.
-- Not wired into `routine-coworking`'s Steps/Closure Steps as separate calls — this loop iterates far more often than the structured routines those are meant for, and its per-nudge traffic is debug-level. **open-event-track-thread** and **conclude-event-track-thread** are that inherited opening/closing obligation, discharged into a `slack-event-track` thread per `next-iteration`.
+- Not wired into `magic-team.coworking.routine`'s Steps/Closure Steps as separate calls — this loop iterates far more often than the structured routines those are meant for, and its per-nudge traffic is debug-level. **open-event-track-thread** and **conclude-event-track-thread** are that inherited opening/closing obligation, discharged into a `slack-event-track` thread per `next-iteration`.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - This routine is a scheduler tick — each `next-iteration` checks what's due against `magic-team`'s own calendar/full-sprint routine (comms cadence, once-daily grooming, the daily meeting) and acts on exactly what's due this pass, nothing more.
 - **Per-platform pacing, not one interval for everything**:
   - **Fast tier** (Slack, email, Trello's notification-stream check) — check roughly every 30s-2min, since these are where a human is most likely waiting on a timely reply.
-    - Trello belongs here, not slow tier — its `GET /1/members/me/notifications?since=...` check (`routine-communication-sweep` documents it) is exactly as cheap as an email/Slack check, so it runs on the same cadence, not a reduced one.
-  - **Slow tier** (reading/grooming/analyzing full Trello board content, plus Google Drive/Sheets, Confluence, and any similar deep-content platform that joins later) — check every few cycles of the fast tier, or only from `routine-grooming`, instead of every single one; genuinely heavier and less time-sensitive than "is there anything new."
-  - Google Drive/Sheets is out of this loop's fast tier entirely (per `routine-communication-sweep`'s Scope section) — it's an extended procedure for grooming/search, living in the slow tier above alongside deep Trello board work, not polled on its own schedule.
+    - Trello belongs here, not slow tier — its `GET /1/members/me/notifications?since=...` check (`magic-coordinator.communication-sweep.routine` documents it) is exactly as cheap as an email/Slack check, so it runs on the same cadence, not a reduced one.
+  - **Slow tier** (reading/grooming/analyzing full Trello board content, plus Google Drive/Sheets, Confluence, and any similar deep-content platform that joins later) — check every few cycles of the fast tier, or only from `magic-team.grooming.routine`, instead of every single one; genuinely heavier and less time-sensitive than "is there anything new."
+  - Google Drive/Sheets is out of this loop's fast tier entirely (per `magic-coordinator.communication-sweep.routine`'s Scope section) — it's an extended procedure for grooming/search, living in the slow tier above alongside deep Trello board work, not polled on its own schedule.
   - Exact cadence is a runtime parameter based on actual API limits and real activity levels, not fixed here.
 - **Guardrail: acting alone doesn't mean acting unsupervised in spirit.** Running unattended is exactly the situation where the existing caution rules matter most, not least — the "no unilateral epics" rule, the standing send/confirm rules per platform, and "don't manufacture work when there's nothing real to do" all apply at full strength inside every sweep and every sub-routine this routine runs, not a relaxed version of them.
 - **No inline invention during a real `next-iteration`**:
@@ -282,7 +282,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-heartbeat-sleep-run` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-sleep-run` — read-only, no arguments: a fixed-duration pacing operation in `routine-heartbeat`'s operation group.
+`DistroAgentsTools.fn.sh --magic-heartbeat-sleep-run` — read-only, no arguments: a fixed-duration pacing operation in `magic-coordinator.heartbeat.routine`'s operation group.
 
 ## `--magic-heartbeat-config-check` operation reference
 
@@ -318,7 +318,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- `routine-heartbeat` is a thin orchestration layer over `routine-grooming`/`routine-daily` — it feeds the daily meeting better material, it doesn't replace human-supervised decisions.
+- `magic-coordinator.heartbeat.routine` is a thin orchestration layer over `magic-team.grooming.routine`/`magic-coordinator.daily.routine` — it feeds the daily meeting better material, it doesn't replace human-supervised decisions.
 - New work always files into the relevant inbox or board queue first — never routed around because it's convenient in the moment.
 - Give the team a real, continuous operating rhythm instead of only ever doing work when a human happens to be present asking for it.
 
@@ -331,13 +331,13 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `routine-communication-sweep` — the Comms sub-step, every iteration.
-- `routine-advance` — the Board-advance sub-step, every iteration, end of loop.
-- `routine-process-inbox` — inbox-processing sub-step: one call per pass on `magic-coordinator`'s own inbox, this loop being that routine's regular caller.
-- `routine-external-inbox-handle-loop` — non-acting-owner inbox variant, folded into the same sub-step.
-- `routine-grooming` — first-today-only sub-step (autonomous-invocation mode).
-- `routine-daily` — later-today sub-step.
-- `routine-retro` — carries an "Autonomous invocation" addendum for consistency, not currently called by any default branch.
+- `magic-coordinator.communication-sweep.routine` — the Comms sub-step, every iteration.
+- `magic-coordinator.advance.routine` — the Board-advance sub-step, every iteration, end of loop.
+- `magic-team.process-inbox.routine` — inbox-processing sub-step: one call per pass on `magic-coordinator`'s own inbox, this loop being that routine's regular caller.
+- `magic-coordinator.external-inbox-handle-loop.routine` — non-acting-owner inbox variant, folded into the same sub-step.
+- `magic-team.grooming.routine` — first-today-only sub-step (autonomous-invocation mode).
+- `magic-coordinator.daily.routine` — later-today sub-step.
+- `magic-coordinator.retro.routine` — carries an "Autonomous invocation" addendum for consistency, not currently called by any default branch.
 - `heartbeat-state-note` — day-rhythm persistent state, librarian-owned.
 - `magic-team/magic-team.armed.md`'s "Execution mechanisms" section — the process-flow direct-tooling-call rule this routine's own **use-direct-tooling-calls** follows; its "Team-Member's (-specific) tooling" section for calling convention and the permission-prompt diagnostic.
 - `magic-team/magic-team.armed.md` — delegated-authority rule the weekend-detection branch relies on.

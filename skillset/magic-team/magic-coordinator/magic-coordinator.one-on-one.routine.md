@@ -2,7 +2,7 @@
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
-# routine-one-on-one — the actual procedure
+# magic-coordinator.one-on-one.routine — the actual procedure
 
 # Summary
 
@@ -21,20 +21,20 @@ Doesn't do: execute the activity inline in the UI/chat instance itself.
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-1. **session-start**: execute `routine-coworking`'s Steps — declare this a coworking-like/structured-multi-member session. Invoke `routine-process-reflections` for this project/workspace. Process own inbox. Post an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
+1. **session-start**: execute `magic-team.coworking.routine`'s Steps — declare this a coworking-like/structured-multi-member session. Invoke `magic-team.process-reflections.routine` for this project/workspace. Process own inbox. Post an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
 2. **pick-the-member**: if the user names one, use that. If not, ask — don't guess who they meant.
-3. **process-own-inbox**: run `routine-process-inbox magic-coordinator` — narrowed to the member picked at **pick-the-member**: anything addressed to or about them (an `inquiry-*`, a status report, a pending ask) that **prep-member-context** should carry into the conversation.
+3. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — narrowed to the member picked at **pick-the-member**: anything addressed to or about them (an `inquiry-*`, a status report, a pending ask) that **prep-member-context** should carry into the conversation.
 4. **prep-member-context**: pull any relevant board items owned by or referencing this member (including `board-processed` `note-member-status-*` for pre-2026-07-22 history), and any relevant project memory so the handoff isn't a cold start.
 5. **spawn-and-relay**: spawn a dedicated `magic-coordinator` instance from the UI/chat instance — its own background `Agent`, first action `Skill(magic-coordinator)`, own Console Session — to prepare and coordinate with the target member, invoking that member's own `Skill` inside the spawned process, never a coordinator paraphrase.
    - The target member does not separately process its own inbox here — **prep-member-context** already covers it.
    - The UI/chat instance steps back from execution: it relays the user's conversation turns to the spawned instance via `SendMessage` and surfaces what comes back, for the session's whole duration, independent of whether the UI/chat session stays open or the human stays present.
    - A `SendMessage` relay attempt gets no response within a bounded window: surface this to the user directly ("the one-on-one session appears to have died — restart it?") rather than waiting indefinitely.
-   - Open a dedicated `slack-magic-team` thread, every session, no exception by size. Floor, never skipped: post a `one-on-one session started` marker and a `one-on-one session ended` marker. Beyond the floor: live notes/resolutions and the member's own public reflection notes may also go into the thread as it progresses, gated by the same public-vs-DM content-sensitivity judgment call `routine-communication-sweep`'s Reply step uses — genuinely private phrasing goes to a DM instead.
+   - Open a dedicated `slack-magic-team` thread, every session, no exception by size. Floor, never skipped: post a `one-on-one session started` marker and a `one-on-one session ended` marker. Beyond the floor: live notes/resolutions and the member's own public reflection notes may also go into the thread as it progresses, gated by the same public-vs-DM content-sensitivity judgment call `magic-coordinator.communication-sweep.routine`'s Reply step uses — genuinely private phrasing goes to a DM instead.
    - The session ends up waiting on a reply: persist its context as a real task/board record and save it to auto-memory, so it resumes cleanly from any future session — never hold an ephemeral agent conversation open instead.
 
 # Closure steps
 
-1. **return-and-close**: once the 1:1 concludes, the spawned instance folds anything material into the board (a real Item — task/change/reflection/etc.), executes `routine-coworking`'s Closure Steps (the skill-update-discussion offer, scoped to this member), and reports a final status back to the UI/chat instance via `SendMessage`. Real follow-on work surfaced at close-out gets dispatched normally, its own fresh spawn — never continued on this same spawned instance.
+1. **return-and-close**: once the 1:1 concludes, the spawned instance folds anything material into the board (a real Item — task/change/reflection/etc.), executes `magic-team.coworking.routine`'s Closure Steps (the skill-update-discussion offer, scoped to this member), and reports a final status back to the UI/chat instance via `SendMessage`. Real follow-on work surfaced at close-out gets dispatched normally, its own fresh spawn — never continued on this same spawned instance.
 
 # Routine's local procedures
 
@@ -48,7 +48,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- This routine is an extension of `routine-coworking` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
+- This routine is an extension of `magic-team.coworking.routine` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - No "just connect them, no spawn" exception, ever — not even when it looks like a trivial quick question. Every one-on-one spawns a dedicated instance; the UI/chat instance relays, it never hands the user off to the member directly in-conversation.
 - The target member has no real open items or history (a genuinely cold start): proceed anyway — **prep-member-context** is "pull whatever exists," not a precondition that blocks the session if little exists yet.
@@ -86,11 +86,11 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `routine-coworking` — the template this routine extends; its Steps are the opening this routine executes.
-- `routine-coworking` — its Closure Steps are the closing this routine executes.
-- `routine-process-inbox` — own-inbox processing.
-- `routine-coworking` — the template this routine extends; its Steps are the opening this routine executes.
-- `routine-communication-sweep` — the DM-vs-public sensitivity judgment call this routine reuses for its `slack-magic-team` thread.
+- `magic-team.coworking.routine` — the template this routine extends; its Steps are the opening this routine executes.
+- `magic-team.coworking.routine` — its Closure Steps are the closing this routine executes.
+- `magic-team.process-inbox.routine` — own-inbox processing.
+- `magic-team.coworking.routine` — the template this routine extends; its Steps are the opening this routine executes.
+- `magic-coordinator.communication-sweep.routine` — the DM-vs-public sensitivity judgment call this routine reuses for its `slack-magic-team` thread.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics.
 - `magic-team/magic-team.board.md` — "Who actually reads/writes the board" section, the obvious-vs-non-obvious Item test.
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.

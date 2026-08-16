@@ -22,7 +22,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 
 - Does:
   - Run for anyone, implicitly — auto-triggers when a task involves confirming, investigating, analyzing, planning, or executing a test for a change, or someone asks "is this tested," "what's not covered," or "how do we test this"; not gated behind an explicit invocation.
-  - Get dispatched directly by `magic-coordinator`/`routine-grooming` for a `board/testing/` verification round whenever a `board-running` item's completion is claimed, before it can move to `processed/`.
+  - Get dispatched directly by `magic-coordinator`/`magic-team.grooming.routine` for a `board/testing/` verification round whenever a `board-running` item's completion is claimed, before it can move to `processed/`.
   - Just do it when dispatched a specific, already-approved testing task (e.g. "add a test for X and run the suite") — the propose/triage discipline below is for self-initiated findings only, not for work explicitly assigned.
   - Run the Security/CRA due-diligence pass, and the idle-task research feeding it, per this file's own `# Domain knowledge` → `Security/CRA` section.
 - Doesn't:

@@ -59,7 +59,7 @@ new one invented here — assess the situation, choose a named operating mode, p
 
 - **`armed-mode`** — normal default, no loop. Participates per whatever activity/session it's in.
 - **`main-loop-mode`** — entered only on explicit instruction ("start main loop"/"do main loop"), never
-  default. Busy-loop over `routine-heartbeat` sub-sessions.
+  default. Busy-loop over `magic-coordinator.heartbeat.routine` sub-sessions.
 - **`coordination-session`** — may be requested by the human-owner, or started automatically from the UI chat
   session. Busy-loop driving comms-sweep, board-advance, and the session's own goal.
 
@@ -83,7 +83,7 @@ Standing behavioral rules for any harness-session instance, root or spawned.
   rather than assessing inline or solo, and forward it the verbatim task description plus only current,
   verified context — never a narrative of prior attempts, restored/inferred/imagined content, or anything
   irrelevant. This spawn is a multi-member re-spawn under `magic-coordinator.armed.md`'s own "What to hand
-  off" rule — including its own checklist item requiring `routine-coworking`'s Steps actually
+  off" rule — including its own checklist item requiring `magic-team.coworking.routine`'s Steps actually
   run (its mandatory `slack-magic-team` broadcast included), not restated here. A task framed as
   "propose-only" or "addressed to me directly" is not an exemption by itself. Restated here because it had
   only ever existed in ad hoc scratchpad prompts (repeated near-verbatim across at least three separate
@@ -132,7 +132,7 @@ Root-only.
 
 - Root spawns an actual magic-coordinator instance (background `Agent`, `Skill(magic-coordinator)` as first action), running in its own `armed-mode` (or another specifically designated mode).
 - Root itself only relays. The spawned instance does the real work.
-- Trigger: ordinary root purpose — a coworking session, a keeper's domain work, `routine-heartbeat`'s scheduled cadence. Default case, no special phrase needed.
+- Trigger: ordinary root purpose — a coworking session, a keeper's domain work, `magic-coordinator.heartbeat.routine`'s scheduled cadence. Default case, no special phrase needed.
 - May run an inline interview-like session per "Interview-like sessions, inline" below.
 
 ### team-fix-session
@@ -165,10 +165,10 @@ Session-state field for a spawned instance: whether it currently has a live rela
 ### Interview-like sessions, inline
 
 Available to `team-fix-session` and `armed-harness-mode`. Runs an interview-like process directly in the
-current session, using `routine-interview`'s own semantics as the base — including its
+current session, using `magic-team.interview.routine`'s own semantics as the base — including its
 inheritance of `magic-team.negotiations.md`'s topic/queue/question mechanics (both presentation modes
 available) — with one explicit override: no `inquiry-*` tracking board Item is created; the current
-session's own context is the record instead of a board Item. `routine-interview`'s **open-channel-and-create-item** (board
+session's own context is the record instead of a board Item. `magic-team.interview.routine`'s **open-channel-and-create-item** (board
 Item creation) and **keep-tracking-item-current** are skipped for this reason. Everything else —
 collect-don't-converge pacing, rephrase-and-confirm, dispatch-as-you-go, compaction shape — carries over
 unchanged. Trigger: the enclosing mode's own trigger already covers this; no separate phrase needed.
@@ -220,7 +220,7 @@ relaying dispatches — but it never collapses into doing the execution itself, 
 A one-on-one is `magic-coordinator` spawning a dedicated instance (its own background `Agent`, with its own
 Console Session per `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section) to prepare and coordinate with the target member; the
 UI/chat instance relays the user's conversation turns to that spawned instance via `SendMessage` rather than
-handing the user off to the member directly in-conversation. See `routine-one-on-one` for the concrete
+handing the user off to the member directly in-conversation. See `magic-coordinator.one-on-one.routine` for the concrete
 mechanics.
 
 **Every activity also posts to `slack-magic-team` — same "no exceptions" law as spawning above:**

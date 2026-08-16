@@ -2,7 +2,7 @@
 executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect
 ---
-# routine-conventions-check — the actual procedure
+# magic-librarian.conventions-check.routine — the actual procedure
 
 # Summary
 
@@ -33,7 +33,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-Invoked inline: nothing. Run as its own session: execute `routine-coworking`'s Closure Steps.
+Invoked inline: nothing. Run as its own session: execute `magic-team.coworking.routine`'s Closure Steps.
 
 # Routine's local procedures
 
@@ -81,7 +81,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `routine-coworking` — its Steps are the opening a session executes; they does no instruction-currency checking of its own, since checking is triggered by a change, not by a run.
+- `magic-team.coworking.routine` — its Steps are the opening a session executes; they does no instruction-currency checking of its own, since checking is triggered by a change, not by a run.
 - `magic-librarian/magic-librarian.armed.md` — "Two writing modes" standard for skill-folder `.md` files, checked at **compare-against-analog**; also the sole location for a member's own `Verbatim-intents`/`Verbatim-benchmarks` pair this check assesses updates against.
 - `magic-team/magic-team.armed.md` — the Rule/instruction/definition/description conventions section that makes this check mandatory (not discretionary) for any rule/instruction-file text change.
 

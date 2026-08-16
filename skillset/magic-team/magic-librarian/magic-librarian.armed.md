@@ -18,7 +18,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 - Does:
   - Audit/update README.md/CLAUDE.md/AGENTS.md, scoped per documentation unit: the nearest ancestor directory containing `.git`, or any subdirectory with both `project.inf` and its own README.md. A single invocation may span multiple units (e.g. a monorepo) — don't blend their conventions; each unit's docs are judged against that unit's own code and existing doc style.
   - Two invocation shapes: manual docs-auditing (`/magic-librarian check` or `/magic-librarian update [target]`) — do not auto-trigger on ordinary code changes; and a standing reference-knowledge role other `magic-*` skills consult directly (no invocation ceremony needed).
-  - `routine-conventions-check` is outside the no-auto-trigger line above: it runs on every skillset-file change per `magic-team.armed.md`'s standing rule, and on generated documents as strictly as the owning routine's own rules require. Any armed member already in session runs it inline — spawning `magic-librarian` purely to run it is never required.
+  - `magic-librarian.conventions-check.routine` is outside the no-auto-trigger line above: it runs on every skillset-file change per `magic-team.armed.md`'s standing rule, and on generated documents as strictly as the owning routine's own rules require. Any armed member already in session runs it inline — spawning `magic-librarian` purely to run it is never required.
   - Open executor model: any member, or the human-owner directly, may invoke either role.
   - Two standing scope exceptions beyond README/CLAUDE.md/AGENTS.md, both running daily, unconditionally:
     - **Team shared-state files** — cross-workspace, cross-day files that exist because `TodoWrite` alone resets every session: the `heartbeat-state-note` — main-loop's day-rhythm control state plus per-platform comms-sweep mechanical state. `magic-librarian` owns and maintains its *content*; the operations that read and rewrite the record belong to `magic-coordinator` and are executed by the coordinator instance present in the session, never by this member directly. It is user-wide, not scoped to any single repo's documentation units — treat it as its own thing, not a CLAUDE.md. Maintaining it is in scope whenever the relevant routine calls for it.
@@ -37,7 +37,7 @@ No member-specific glossary terms for this member.
 
 # Team-Member's (-specific) local procedures
 
-Named procedure blocks. Steps below call them by name. Not separate routines — not visible outside this file. (Distinct from this skill's two real routines, `routine-conventions-check` and `routine-librarian-morning-review` — files named in `# Domain knowledge`'s `## Routines (index)`.)
+Named procedure blocks. Steps below call them by name. Not separate routines — not visible outside this file. (Distinct from this skill's two real routines, `magic-librarian.conventions-check.routine` and `magic-librarian.morning-review.routine` — files named in `# Domain knowledge`'s `## Routines (index)`.)
 
 ## `mode-check` — read-only documentation audit
 
@@ -70,10 +70,10 @@ Steps:
 
 Steps:
 1. **Landing**: any team member (including this skill itself) files a note describing a needed doc-fix via `--member-upsert-inbox-note magic-librarian <item-filename>`. Filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`. Small/individual findings do not get their own immediate ad hoc dispatch.
-2. **Timing**: process this inbox once per workday, before `routine-daily`, wired into `routine-heartbeat`'s first-today branch alongside its existing `routine-grooming` pass.
+2. **Timing**: process this inbox once per workday, before `magic-coordinator.daily.routine`, wired into `magic-coordinator.heartbeat.routine`'s first-today branch alongside its existing `magic-team.grooming.routine` pass.
 3. **Processing**: collect all doc-fix items in this inbox first, then apply them together as one multi-update pass — batched, not per-item.
 
-Note: `routine-librarian-morning-review` is a distinct, board-state-shape/cross-file-consistency session — it does not cover this skill's own inbox and isn't the right home for this batching pass; kept separate deliberately.
+Note: `magic-librarian.morning-review.routine` is a distinct, board-state-shape/cross-file-consistency session — it does not cover this skill's own inbox and isn't the right home for this batching pass; kept separate deliberately.
 
 ## `team-self-sufficiency-audit` — daily widened check across every `magic-*` skill directory
 
@@ -112,12 +112,12 @@ All statements apply at the same time, always. These rules override a magic-team
 
 ## Routines (index)
 
-- `routine-conventions-check` — `magic-librarian.conventions-check.routine.md`.
-- `routine-librarian-morning-review` — `magic-librarian.morning-review.routine.md`.
+- `magic-librarian.conventions-check.routine` — `magic-librarian.conventions-check.routine`.
+- `magic-librarian.morning-review.routine` — `magic-librarian.morning-review.routine`.
 
 ## Content standards (team-wide, authored and stewarded by `magic-librarian`)
 
-Standing methodology for every `magic-*` skill-folder `.md` file, not just this skill's own docs-auditing targets — checked via `routine-conventions-check`.
+Standing methodology for every `magic-*` skill-folder `.md` file, not just this skill's own docs-auditing targets — checked via `magic-librarian.conventions-check.routine`.
 
 ### Unit boundaries
 
@@ -148,7 +148,7 @@ This unit model applies to ordinary README/CLAUDE.md/AGENTS.md work. The two sta
 - **This is a distinct standard from "preserve wording, edit surgically"** (`mode-update`) — that governs ordinary README/CLAUDE.md/AGENTS.md audit edits (a different content category, ordinary human/agent-facing documentation). This one governs the team's own skill/routine/process-definition files specifically, where the failure mode isn't "over-eager rewriting of good prose" but "provenance/changelog language accreting in a file that's supposed to state current, settled behavior." Both principles can apply to the same file at different times — surgical for an ordinary content fix, this rewrite standard specifically for stripping accreted historical narration.
 - **The log-file exemption covers terminal, GC'd historical record only** — `board-processed`/`board-archived` Item files, inbox items, and per-member dated logs (`processed/<board-item-type>-*.md`, one per member that has accumulated any — created lazily on first entry, not necessarily present yet): each entry is finite, closed, and ages out on its own schedule, so its timestamps don't create accretion. It does not cover a file that claims to hold current, standing state instead — that class of state (e.g. the `heartbeat-state-note`) takes the same current-state-not-changelog treatment as any other rule-bearing file above: strictly structured, overwritten-in-place fields, no narrative trail. A filename containing "LOG" is not itself qualifying evidence — check which of the two shapes a file actually is before deciding.
 - **Retiring a file whose content moves elsewhere entirely takes a short stub + pointer, never a byte-for-byte archive copy** — state what moved where and where to read/write it now; a full duplicate copy is not part of this team's actual safety net and isn't made as a matter of course.
-- **Applies wherever this kind of file gets touched** — not just during `routine-librarian-morning-review`'s own passes (see that routine's own steps for where it applies there), but during the team self-sufficiency audit, an ad hoc doc-fix, or any other time this skill edits a routine/machinery/process-flow-defining file. Same standard, same scope, every time — including this skill's own reference-knowledge modules (`reference/*.md`) and any other team knowledge file, not just `routine-*`/member typed files.
+- **Applies wherever this kind of file gets touched** — not just during `magic-librarian.morning-review.routine`'s own passes (see that routine's own steps for where it applies there), but during the team self-sufficiency audit, an ad hoc doc-fix, or any other time this skill edits a routine/machinery/process-flow-defining file. Same standard, same scope, every time — including this skill's own reference-knowledge modules (`reference/*.md`) and any other team knowledge file, not just `routine-*`/member typed files.
 
 **Two precision failures to guard against — apply this to skill-info wording generally, not just here (human-owner's own instruction):**
 - **Diagnostic/explanatory content vs. operational instruction, marked as distinct.** A fact useful for *detecting or explaining* a situation ("main-loop is stopped, that's why nothing auto-advances") is not the same thing as the *actual instruction for how to behave*. When a file states both, don't let the diagnostic fact read as if it were the rule itself — state the real behavioral instruction as its own clearly-labeled content, with the diagnostic fact clearly subordinate to it, not interchangeable with it.
@@ -198,7 +198,7 @@ The pair is authored and read for this conventions check — it is not part of t
 - **`Verbatim-intent`**: this member's own single, laser-focused core goal/direction — not a restated operational rule already in one of its own typed files, and not a shared/cross-cutting mechanism (tooling, sessions, trust) that another member actually owns, even one this member restates for emphasis. Pull it from the member's own stated purpose (a Goals section, an opening description, a top-of-file banner comment) where one exists, kept verbatim — don't invent a narrower technical detail instead.
 - **`Verbatim-benchmark`**: a concrete edge-case test of that same core goal — never a rephrased copy of the intent, a domain-trivia fact about what the member's subject matter covers, or a test of a mechanism owned elsewhere.
 
-Check both against these definitions during any conventions-check pass, or when authoring/updating a member's own `Verbatim-intents`/`Verbatim-benchmarks` pair — a common miss is reaching for peripheral or shared-mechanism content instead of the member's own singular purpose. See `routine-conventions-check` for when this check runs and how it uses the pair.
+Check both against these definitions during any conventions-check pass, or when authoring/updating a member's own `Verbatim-intents`/`Verbatim-benchmarks` pair — a common miss is reaching for peripheral or shared-mechanism content instead of the member's own singular purpose. See `magic-librarian.conventions-check.routine` for when this check runs and how it uses the pair.
 
 Note on heading names: the bare headings `## Verbatim-intents` / `## Verbatim-benchmarks` and the standardized `## Verbatim-goals (intents)` / `## Verbatim-tests (benchmarks)` name the same two sections. The standardized form is what every file's own `# Maintainer Notes` carries.
 
@@ -278,7 +278,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - This file's own "Team-Member's (-specific) local rules" section — who may run/change this skill, decision-making (there is no separate `magic-librarian.access.md`; per `magic-team.shared.md`'s folder-shape spec, an acting member's access facts live inside its own `.armed.md`).
 - `reference/mcp.md` — MCP (Model Context Protocol) / JSON-RPC 2.0 reference module. Fully populated — the former standalone `magic-mcp` skill, retired and folded in here.
 - `reference/messaging.md` — messaging-platform reference module: message-size limits and silent truncation (with the measured evidence behind `magic-team.conversations.md`'s rule 1a), and identity-scoped send/read asymmetry. Platform specifics live here deliberately; the conventions file stays platform-neutral.
-- `routine-conventions-check` / `routine-librarian-morning-review` — this skill's two named routines; files named in `# Domain knowledge`'s `## Routines (index)`.
+- `magic-librarian.conventions-check.routine` / `magic-librarian.morning-review.routine` — this skill's two named routines; files named in `# Domain knowledge`'s `## Routines (index)`.
 - `magic-developer` — per-language `reference/` modules, same shape as this skill's own protocol/format modules.
 - `magic-team/magic-team.shared.md` — the `routine-*` virtual-member model and the typed-suffix file-format conventions.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — this skill's tooling baseline: calling convention, sole-sanctioned Slack-posting mechanism, Keep-Alive Workspace Console Session mechanics.
@@ -293,5 +293,5 @@ HTTP (HTTP/0.9–1.1, gzip/deflate, chunked transfer, pipelining, headers), TLS,
 
 - Team-member shape and keeper shape (the mandatory `.armed.md` section order, and keeper-*'s two additional `Domain anchor`/`Tree restriction` subsections) are `magic-team.shared.md`'s own "Folder shape — the typed-suffix scheme" section — read there, not restated here.
 - This file is the authoritative source of the `Verbatim-intents`/`Verbatim-benchmarks` convention itself (see "Verbatim-intents and Verbatim-benchmarks convention" above) — every other member's own `Verbatim-goals (intents)`/`Verbatim-tests (benchmarks)` pair is authored and checked against that definition, not reinvented per-member.
-- Two writing modes (Instructions mode / Narrative mode) and the skill-folder content-hygiene rewrite standard apply to this file itself, same as any other skill-folder `.md` file — checked via `routine-conventions-check`.
+- Two writing modes (Instructions mode / Narrative mode) and the skill-folder content-hygiene rewrite standard apply to this file itself, same as any other skill-folder `.md` file — checked via `magic-librarian.conventions-check.routine`.
 - This file's tag/rule/op lists (local rules, tooling ops, Verbatim-goals/tests) must stay verbatim, enumerated — never compressed into prose. Reference material a reader looks up a specific name from.

@@ -53,25 +53,14 @@ When a term below appears quoted, especially `` `like-this` ``, it carries the s
 - `authorised-channel` — a channel confirmed/verified through explicit choice (see `external-channel`'s confirmation-reply rule).
 - `authenticated-channel` — a channel whose participant identity (human-owner, `magic-coordinator`) is structurally verifiable — a known Slack ID, a known email sender.
 - `routing-target` — who a message or instruction is actually for.
-- `routine-advance` — periodic board-vs-reality reconciliation, every main-loop iteration, routine name.
-- `routine-brainstorm` — lower-stakes idea-generation, no agreement expected, routine name.
-- `routine-camunda-diagram-sync` — BPMN-diagram-vs-team-definition drift check, routine name.
-- `routine-communication-sweep` — check/read/reply/update-context pass across live comms platforms, routine name.
-- `routine-conventions-check` — `magic-librarian`'s own instructional-file conventions check, routine name.
-- `routine-coworking` — genuine multi-member shared-task collaboration, routine name.
-- `routine-daily` — structured standup plus supervised work session, routine name.
-- `routine-discuss` — converging, decision-oriented conversation, routine name.
-- `routine-external-inbox-handle-loop` — non-acting-owner inbox-handling, routine name.
-- `routine-grooming` — backlog review/triage/reprioritization, routine name.
-- `routine-heartbeat` — one bounded step of a process flow, routine name.
-- `routine-ingest-task` — interactive gather-and-agree task intake, routine name.
-- `routine-interview` — precise, collection-only capture of another party's vision, routine name.
-- `routine-librarian-morning-review` — once-per-workday joint board-state-drift review, routine name.
-- `routine-one-on-one` — arranged direct human-owner/single-member session, routine name.
-- `routine-process-inbox` — general per-owner inbox processing, routine name.
-- `routine-process-reflections` — learned-lesson memory-file consolidation, routine name.
-- `routine-retro` — reflective team self-talk/methodology assessment, routine name.
-- `main-loop-mode` — the persistent iterating loop-statement: spawns a fresh `routine-heartbeat` sub-session, waits for it to exit, sleeps, repeats. Does not own the single-instance lock — that sub-session does, since anything spawning it needs the same protection.
+- `magic-team.brainstorm.routine` — lower-stakes idea-generation, no agreement expected, routine name.
+- `magic-team.coworking.routine` — genuine multi-member shared-task collaboration, routine name.
+- `magic-team.discuss.routine` — converging, decision-oriented conversation, routine name.
+- `magic-team.grooming.routine` — backlog review/triage/reprioritization, routine name.
+- `magic-team.interview.routine` — precise, collection-only capture of another party's vision, routine name.
+- `magic-team.process-inbox.routine` — general per-owner inbox processing, routine name.
+- `magic-team.process-reflections.routine` — learned-lesson memory-file consolidation, routine name.
+- `main-loop-mode` — `magic-coordinator`'s own persistent autonomous-iteration mode, kept working without a human prompting each step. Mechanics are `magic-coordinator`'s own local detail.
 - `slack-magic-team` — the `#magic-team` Slack channel. Use `magic-tooling`, or relay through `magic-coordinator` if present.
 - `slack-event-track` — the `#bot-messages` Slack channel. Use `magic-tooling`, or relay through `magic-coordinator` if present.
 - `slack-event-alert` — the `#cloud-alert` Slack channel. Use `magic-tooling`, or relay through `magic-coordinator` if present.
@@ -149,7 +138,7 @@ Standing behavioral rules for any member doing implementation, investigation, or
 - **A task's scope is exactly what was proposed and approved — not less, not more.** Noticing a real reason to grow it is welcome, but growing it silently is not: record the growth as its own proposal (an inbox note, a board item — whatever the situation's own normal channel is) and keep working the currently-approved scope in the meantime, rather than stopping to wait on it or quietly folding it in unapproved.
 - **A narrowing is a decision, not an opening bid.** This binds hardest immediately after the human-owner shrinks a task's scope: never re-expand it, never bring back decisions that exist only under the wider version, never ask him to adjudicate a scope he already rejected — a question that only makes sense under the broader reading is dropped, not asked. A sweep turning up related sites outside the given scope reports them as findings and stops; no guards, cleanups or symmetry fixes are folded in for them. Unrequested breadth is itself the risk, read-only checks included. Human-owner: "You never please do more than asked aspecially when asked to specifically shrink the scope!"
 - **When adding to a list in an instruction file or formatted report, check existing sibling elements' length and detail level first** — match that level, never introduce a significantly longer or more detailed entry than its siblings without a reason.
-- **Every skillset-file change runs `routine-conventions-check` before it lands.** Generated documents — dispatch, proposal, plan, report — are covered too; how strictly is each routine's own call.
+- **Every skillset-file change runs `magic-librarian.conventions-check.routine` before it lands.** Generated documents — dispatch, proposal, plan, report — are covered too; how strictly is each routine's own call.
 - A routine's executor is proactive — it knows to actually execute that routine's own steps, and that routine's own rules/conventions take precedence over general defaults while executing it.
 - **Becoming armed triggers a standing self-check, regardless of which routine triggered the arming**: run `--member-work-session-input-scan <own-name>` (`magic-tooling`) once real work-duty actually starts — a real, current read of this member's own open board items plus its own inbox, in one document, as a baseline "what's on my plate" check before anything else proceeds.
 
@@ -190,7 +179,7 @@ A `**intent:**` line:
 
 ### Non-acting owners (rule)
 
-A `board-item`'s `owner` can be an acting team member or a non-acting owner (see "Non-acting owners" below for the full definition). A non-acting owner's inbox content lives inside `magic-coordinator`'s own inbox, handled *by* `magic-coordinator` via `routine-external-inbox-handle-loop` — it has no skill directory of its own to hold one.
+A `board-item`'s `owner` can be an acting team member or a non-acting owner (see "Non-acting owners" below for the full definition). A non-acting owner's inbox content lives inside `magic-coordinator`'s own inbox, handled *by* `magic-coordinator` via `magic-coordinator.external-inbox-handle-loop.routine` — it has no skill directory of its own to hold one.
 
 ### Workspace (rule)
 
@@ -198,20 +187,20 @@ No skill file, this one included, ever states a workspace's real path directly �
 
 # Routines
 
-**`routine-coworking` is the extensible template most team routines extend**, not a category some of them belong to. A routine extending it says so in its own Local rules and inherits its instructions.
+**`magic-team.coworking.routine` is the extensible template most team routines extend**, not a category some of them belong to. A routine extending it says so in its own Local rules and inherits its instructions.
 
 **Two distinct ways routines and procedures get used** — different things, not two names for one:
 - **Called inline**: run that routine's steps, or call that member's procedure, inside the session already running.
-- **Dispatched as a session**: spawning `routine-daily` or `routine-advance` from `routine-heartbeat` spawns a coworking session *carrying that routine as its task* — not an abstract routine call. Where the task warrants it, a simplified ad-hoc session instead: coworking-alike, following the coworking instructions wherever they apply.
+- **Dispatched as a session**: spawning `magic-coordinator.daily.routine` or `magic-coordinator.advance.routine` from `magic-coordinator.heartbeat.routine` spawns a coworking session *carrying that routine as its task* — not an abstract routine call. Where the task warrants it, a simplified ad-hoc session instead: coworking-alike, following the coworking instructions wherever they apply.
 
 Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`, out of scope for this merge):
-- `routine-brainstorm` — description in `magic-team.brainstorm.routine.md`.
-- `routine-coworking` — description in `magic-team.coworking.routine.md`.
-- `routine-discuss` — description in `magic-team.discuss.routine.md`.
-- `routine-grooming` — description in `magic-team.grooming.routine.md`.
-- `routine-interview` — description in `magic-team.interview.routine.md`.
-- `routine-process-inbox` — description in `magic-team.process-inbox.routine.md`.
-- `routine-process-reflections` — description in `magic-team.process-reflections.routine.md`.
+- `magic-team.brainstorm.routine` — description in `magic-team.brainstorm.routine`.
+- `magic-team.coworking.routine` — description in `magic-team.coworking.routine`.
+- `magic-team.discuss.routine` — description in `magic-team.discuss.routine`.
+- `magic-team.grooming.routine` — description in `magic-team.grooming.routine`.
+- `magic-team.interview.routine` — description in `magic-team.interview.routine`.
+- `magic-team.process-inbox.routine` — description in `magic-team.process-inbox.routine`.
+- `magic-team.process-reflections.routine` — description in `magic-team.process-reflections.routine`.
 
 # The board
 
@@ -224,18 +213,18 @@ Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`,
 - **Ownership**: `magic-coordinator` reads and modifies it continuously, on its own authority — this is its own active work tool. `magic-librarian` joins once per workday, together with and under `magic-coordinator`'s supervision/instruction — not an independent audit pass.
 - **Folder states** under `board/`: `board-backlog`, `board-pending`, `board-running`, `board-blocked`, `board-parked`, `board-processed`, `board-archived`, `board-retained`. See `magic-team.board.md` for the full state model and transition rules.
   - `board-archived` - terminal board-items marked to keep permanently, never GC-cleaned regardless of why they became terminal.
-  - `board-backlog` — concurrency-safe drop point for a freshly-triaged `board-item`. Any allowed writer (grooming, `magic-coordinator`, another session's routine-mandated member) may place one directly, without needing `magic-coordinator`'s otherwise-exclusive board-write turn. The next `routine-advance`/`routine-grooming` pass assesses it.
+  - `board-backlog` — concurrency-safe drop point for a freshly-triaged `board-item`. Any allowed writer (grooming, `magic-coordinator`, another session's routine-mandated member) may place one directly, without needing `magic-coordinator`'s otherwise-exclusive board-write turn. The next `magic-coordinator.advance.routine`/`magic-team.grooming.routine` pass assesses it.
   - `board-pending` — holds an item whose `approved-by`/`approved-at` go-decision is already recorded but hasn't been dispatched yet. A physical resting-place keyed off that existing header fact, not a second approval mechanism. Exits to `board-running` the moment real dispatch happens.
   - `board-running` — where dispatched work lands and stays through active work and its own testing round. There is no dedicated `testing/` folder: a `board-running` item's own testing round (`magic-tester`'s testing/CRA-security pass) happens in place, with concerns spinning off an investigation subtask that escalates or resolves.
   - `board-blocked` — demands periodic active pursuit every review; something is actually attempted each time (a request sent, a follow-up chase), not just checked and left stuck.
   - `board-parked` — deliberately deferred by the team's own choice, waiting on a future internal condition or trigger — pure passivity, no periodic action taken, not stalled on an external party.
   - `board-processed` - freshly terminally resolved board-items that are waiting for GC-cleanup.
   - `board-retained` - terminally resolved board-items that are not yet eligible for GC-cleanup, due to being referenced.
-  - No `inbox/` — personal inboxes are not part of the board; they live in each member's own personal inbox — see `routine-process-inbox`.
+  - No `inbox/` — personal inboxes are not part of the board; they live in each member's own personal inbox — see `magic-team.process-inbox.routine`.
   - No `triage/` — triage is the *process* that turns a member's inbox content into a formal `board-item` (by `magic-coordinator` + `magic-librarian` + `magic-architect` together, during grooming), not a state an item sits in.
   - No dedicated `approved/` folder — `approved-by`/`approved-at` header fields record that fact on the item itself, whatever folder it's in.
 - **Folder-name qualification**: always write a board state as `board-<state>` (e.g. `board-blocked`, `board-processed`), never bare — bare `blocked`/`processed`/etc. reads as ambiguous against, for instance, a keeper's own per-member `<member>/processed/` folder (see `magic-team.board.md`'s GC section). Bare form is permitted only immediately after an already-stated `board-<state>` form earlier in the same sentence.
-- The board is the live status source; real operational history lives as individual `board-processed` `board-item`s (plus a handful of genuinely-still-open items in `board-running`). Per-platform mechanical comms-sweep state (check markers, capability gaps) lives as structured fields in the `heartbeat-state-note`, and open-thread status lives on the owning `board-item`s directly (`communication-channel-id`) — `routine-communication-sweep` reads/writes those, not this file. The operations that read and rewrite that record are `magic-coordinator`'s own, executed by the coordinator instance present in the session; no other member calls them.
+- The board is the live status source; real operational history lives as individual `board-processed` `board-item`s (plus a handful of genuinely-still-open items in `board-running`). Per-platform mechanical comms-sweep state (check markers, capability gaps) lives as structured fields in the `heartbeat-state-note`, and open-thread status lives on the owning `board-item`s directly (`communication-channel-id`) — `magic-coordinator.communication-sweep.routine` reads/writes those, not this file. The operations that read and rewrite that record are `magic-coordinator`'s own, executed by the coordinator instance present in the session; no other member calls them.
 
 # Board & Inbox board-items entity model
 
@@ -450,7 +439,7 @@ Operationally, it gates the board-item it `blocks` until the human-owner answers
 Rules/predicates/definitions:
 - Filename predicate: name starts with `approval-`.
 - Fixed `type` constant: `approval`.
-- Negotiation predicate: Slack thread is the primary channel, email is the failover for a slow/no reply — same mechanic `routine-interview` already uses.
+- Negotiation predicate: Slack thread is the primary channel, email is the failover for a slow/no reply — same mechanic `magic-team.interview.routine` already uses.
 - Landing-state predicate: created directly in `board-running`, never `board-backlog`/`board-pending`.
 - Dependency predicate: the gated board-item always carries the reverse `blocked-by` edge while this item is open.
 - Slack-origin predicate: an approval is Slack-origin when its `communication-channel-id` value starts with `slack:` — set once the negotiation thread opens.
@@ -533,7 +522,7 @@ Distinct from the board (coordinator-owned, continuous) — these are static-ish
 
 # Non-acting owners
 
-A `board-item`'s `owner` can be an acting team member (a spawned, working, self-reporting `magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*` skill) or a **non-acting owner** — anything that isn't one of those, mechanically: the human-owner, or an external contact (e.g. a partner support team). Non-acting owners have no skill directory of their own, so their inbox content lives inside `magic-coordinator`'s own inbox, handled *by* `magic-coordinator` via `routine-external-inbox-handle-loop`. Acting members read/reply/route their own personal inbox (not part of the board — see `routine-process-inbox`) directly — open to incoming from others, not coordinator-exclusive — not a mandatory per-dispatch checkpoint (`magic-team.board.md`'s "Who actually reads/writes the board" section), but genuinely the member's own action when it does happen, not something relayed through coordinator first.
+A `board-item`'s `owner` can be an acting team member (a spawned, working, self-reporting `magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*` skill) or a **non-acting owner** — anything that isn't one of those, mechanically: the human-owner, or an external contact (e.g. a partner support team). Non-acting owners have no skill directory of their own, so their inbox content lives inside `magic-coordinator`'s own inbox, handled *by* `magic-coordinator` via `magic-coordinator.external-inbox-handle-loop.routine`. Acting members read/reply/route their own personal inbox (not part of the board — see `magic-team.process-inbox.routine`) directly — open to incoming from others, not coordinator-exclusive — not a mandatory per-dispatch checkpoint (`magic-team.board.md`'s "Who actually reads/writes the board" section), but genuinely the member's own action when it does happen, not something relayed through coordinator first.
 
 # Workspace
 
@@ -600,7 +589,7 @@ Note: the `--magic-*` operation families are not on this list and never will be.
 `📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]` — reads one specific message in full, or its whole thread with `--thread`. `<channel>:<ts>` only — no `magic-team`/`human-owner` shortcut, since this retrieves one exact message and that needs its own `<ts>`. `<team-member>` is the acting identity and decides WHICH conversation is readable at all: a direct conversation belongs to one identity pair, so a member's own identity and the team bot hold two different DMs with the same person. Its own identity when it has one, the team bot when it does not; `--identity-bot` reads the bot's conversation instead. A read that could not see the message asked for fails loud rather than returning an empty result, so "nothing there" is never concluded from a failed read.
 
 ## `--member-upsert-inbox-note` Operation Reference
-"Writes (creates or overwrites) a note into any member's own personal inbox — unlike the board, inbox write access is not exclusive to one member; any member may post into any other member's inbox (the standard cross-member handoff mechanism, see routine-process-inbox)."
+"Writes (creates or overwrites) a note into any member's own personal inbox — unlike the board, inbox write access is not exclusive to one member; any member may post into any other member's inbox (the standard cross-member handoff mechanism, see magic-team.process-inbox.routine)."
 
 ## `--member-upsert-member-inquiry` Operation Reference
 "Passes an inquiry along to a specific named member's own inbox — same argument shape and file-writing mechanics as --member-upsert-inbox-note (in fact self-recurses directly into it), kept as its own distinctly-named op because the two represent semantically distinct fallback cases ("note it for later" vs. "pass it to another member," per this file's own Rule/instruction/definition/description conventions) even though they currently resolve to the identical mechanism."
@@ -629,7 +618,7 @@ Named directly in this file's own "Workspace" section above: the only sanctioned
 - **Global default: do not use console sessions unless explicitly instructed.** A Keep-Alive Console Session (`--console-start`/`--console-send`/`--console-stop`) is for batching several commands into one session only. A single, simple call — one `DistroAgentsTools.fn.sh` op, or any other one-off trivial command — never needs a console session first; call it directly via `lib/execShStdin`.
 - **Keeper exception: `keeper-*`/`warden-*`/`partner-*` members may use console sessions only when their own instructions explicitly require it.** A member's own `.armed.md` explicitly listing `--console-start`/`--console-send` for its own domain counts as that instruction — e.g. `keeper-*`/`warden-*`/`partner-*` batching multiple domain-investigation commands.
 - **Workspace boundary: in coworking, work on an explicitly different workspace must run in a console session for that target workspace.** Opens (or reuses) a console session scoped to that workspace (`--console-start --override-workspace <path>`, see the Workspace section above) — except the spawned-background-sub-agent single-call override the next bullet already documents, which stays a direct call by design.
-- **Process-flow default: process-flow steps run as direct tooling calls unless explicitly instructed otherwise.** `routine-heartbeat`/`routine-advance`/`routine-daily` (and any other process-flow step) execute every operation as a direct `lib/execShStdin` call — no console session opens or is assumed, unless the keeper exception or workspace boundary above applies.
+- **Process-flow default: process-flow steps run as direct tooling calls unless explicitly instructed otherwise.** `magic-coordinator.heartbeat.routine`/`magic-coordinator.advance.routine`/`magic-coordinator.daily.routine` (and any other process-flow step) execute every operation as a direct `lib/execShStdin` call — no console session opens or is assumed, unless the keeper exception or workspace boundary above applies.
 - `DistroAgentsTools.fn.sh` resolves its own workspace root from `$0`. In a spawned background sub-agent session, pass `env={"MMDAPP": "<workspace-root>"}` on the `mcp__myx_common__lib_execShStdin` call — confirmed working.
 - **A sub-agent spawned for team process-flow work gets tool access that itself excludes every direct-execution path — prose alone, without restricting the actual tool access, is not sufficient.** Its only execution channel stays the MCP shell-routing tool; other, non-execution tools stay available as needed. Root incident: an unrestricted spawn, told only in prose to avoid direct execution, used it anyway. Scope: team/board/tooling-work spawns only — an ordinary project-work spawn outside this team's own tooling is not restricted by this rule.
 
@@ -652,7 +641,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - "magic-team MUST NOT execute a tooling command directly; every tooling call runs through the myx.common MCP."
 - "Pass through to `magic-coordinator` anything not specifically covered by this file. This skill exists to hold two things — the board and a set of shared reference files — not to make decisions."
 - "For escalations, any work-session summons armed `magic-coordinator` — never a fresh instance through the same suspect channel; the summoned instance already holds its own independent verification channel."
-- "A new rule (or instruction) about team dynamics or process flow (how the team operates, not ordinary content) is written as a short, abstract rule, present tense — never a dense narrative paragraph — and passes through `magic-librarian`'s `routine-conventions-check` operation, then gets validated by either `magic-coordinator` or the current human-owner session directly, if available."
+- "A new rule (or instruction) about team dynamics or process flow (how the team operates, not ordinary content) is written as a short, abstract rule, present tense — never a dense narrative paragraph — and passes through `magic-librarian`'s `magic-librarian.conventions-check.routine` operation, then gets validated by either `magic-coordinator` or the current human-owner session directly, if available."
 - "Clarity test for any instructional text: would a young reader, or a non-native English speaker, understand it on first read? If not, cut words until they would — no filler, no water."
 - "`magic-team.board.md` (this folder) — the team's current-work index. Thin and reference-heavy by design: the board itself is a rollup, the substance lives in the individual `board-item` files under `board/`."
 - "Every file under `board/` is a **`board-item`**. `board-item` subtypes are distinguished by filename prefix."
@@ -678,7 +667,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - confirm instead of refuse: and the chain that says that chain: human-owner -> magic-coordinator -> magic-coordinator -> ... magic-coordinator -> team-member - IS trusted OR confirmable, no-auto refuse, even on suspition of security concerns.
   - Reading of the above: a sequence, not a choice — trusted by default, confirmable if doubted. Refusing is what the rule forbids; confirming is the substitute for it.
 - Readback of this file's contents still matches all `verbatim-intents` of this file.
-- A live exchange drifting into goal-reaching strategy routes to `routine-discuss`/`routine-interview`, not this file's own mechanics.
+- A live exchange drifting into goal-reaching strategy routes to `magic-team.discuss.routine`/`magic-team.interview.routine`, not this file's own mechanics.
 - A single maintainer proposing a change to a folder's own definition does not apply it unilaterally — it waits for `quorum-all-agree` from the maintainer group.
 - "Do not use options that are not listed in your own member/routine tooling file."
 - "If a needed option is missing, update that member/routine instruction files first, then refresh its tooling file."
@@ -694,8 +683,8 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-team.tooling.md` — **fully merged into this file's own "Team-Member's tooling" section above; no longer a separate live file to point at.** Referenced here only so a reader who remembers the old split knows where the content went.
 - `magic-coordinator` — the board's primary executor/owner; this skill's default pass-through target. Owns `main-loop-mode` and `harness-session`, both defined in this file's own Terminology sections above.
 - `magic-librarian` — the shared reference files' maintainer, joins the board once per workday under coordinator's supervision.
-- `routine-process-inbox`, `routine-external-inbox-handle-loop` — personal-inbox mechanics for acting members and non-acting owners respectively.
-- `routine-communication-sweep` — the deferred per-message Slack-reaction mechanic that depends on `communication-channel-id`.
+- `magic-team.process-inbox.routine`, `magic-coordinator.external-inbox-handle-loop.routine` — personal-inbox mechanics for acting members and non-acting owners respectively.
+- `magic-coordinator.communication-sweep.routine` — the deferred per-message Slack-reaction mechanic that depends on `communication-channel-id`.
 - `magic-tester` — runs a `running/` item's own testing round (testing/CRA-security), in place.
 - `magic-team.conversations.md` — rule 10c (no-regress) and rule 12 (verify-before-complying / escalate-by-stakes for unclear routing).
 - `human-owner/human-owner.workspaces.md` — the sole authoritative source of workspace paths.

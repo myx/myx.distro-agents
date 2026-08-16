@@ -149,7 +149,7 @@ Stated, deliberately not solved here. Each needs its own decision before it can 
 - rule (design, not a gap): The inbox sections carry `note-*`, `inquiry-*` and `reflection-*` only.
   Other document types — `task-`, `proposal-`, `change-`, `interview-` — are **technically allowed
   in an inbox** and are not misfiled; they are simply not carried here, because no step stores them
-  there or takes them from there. The sections cover what steps store. `routine-process-inbox` is
+  there or takes them from there. The sections cover what steps store. `magic-team.process-inbox.routine` is
   the one consumer that does not enumerate types, since its job is whatever actually landed.
 - gap: Per-service cut-off support is uneven at the source: Slack accepts a cut-off but offers no
   unread semantics; email and Trello offer unread semantics but accept no cut-off. Where a service

@@ -2,7 +2,7 @@
 executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect
 ---
-# routine-brainstorm — the actual procedure
+# magic-team.brainstorm.routine — the actual procedure
 
 # Summary
 
@@ -10,27 +10,27 @@ Routine-brainstorm is a lower-stakes space for generating ideas, including "craz
 
 ## Goals
 
-Give the team a genuinely lighter-weight, lower-stakes place to throw out ideas — deliberately including "crazy" ones — for everyone to assess a bit, without the pressure of either reaching a real decision (`routine-discuss`) or precisely capturing one party's settled vision (`routine-interview`). This exists because idea generation and decision-making are different modes with different failure risks: forcing convergence during brainstorming kills the "crazy idea that turns out good" case; treating a brainstorm's output as already-decided risks building something nobody actually agreed to. Naming history: an earlier draft used "discuss" for this idea-generation shape before the human-owner reinstated a separate, real `routine-discuss` for convergence and renamed this one `routine-brainstorm`.
+Give the team a genuinely lighter-weight, lower-stakes place to throw out ideas — deliberately including "crazy" ones — for everyone to assess a bit, without the pressure of either reaching a real decision (`magic-team.discuss.routine`) or precisely capturing one party's settled vision (`magic-team.interview.routine`). This exists because idea generation and decision-making are different modes with different failure risks: forcing convergence during brainstorming kills the "crazy idea that turns out good" case; treating a brainstorm's output as already-decided risks building something nobody actually agreed to. Naming history: an earlier draft used "discuss" for this idea-generation shape before the human-owner reinstated a separate, real `magic-team.discuss.routine` for convergence and renamed this one `magic-team.brainstorm.routine`.
 
 ## Scope
 
 Does: idea generation and assessment, deliberately including "crazy" ideas. Run by any member (`magic-team`) — internal, low-stakes, no special credential/mandate dependency.
-Doesn't do: reach a decision (`routine-discuss`'s job), capture one party's settled vision (`routine-interview`'s job), deep feasibility review (light assessment only).
+Doesn't do: reach a decision (`magic-team.discuss.routine`'s job), capture one party's settled vision (`magic-team.interview.routine`'s job), deep feasibility review (light assessment only).
 
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-1. **process-own-inbox**: run `routine-process-inbox <executor>` — inline execution (own identity). `idea-*`/`note-*` notes parked there from earlier sessions, so this brainstorm generates from them rather than re-inventing them. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
+1. **process-own-inbox**: run `magic-team.process-inbox.routine <executor>` — inline execution (own identity). `idea-*`/`note-*` notes parked there from earlier sessions, so this brainstorm generates from them rather than re-inventing them. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 2. **set-topic-loosely**: state the area being brainstormed, but keep it open — a brainstorm with an overly narrow framing risks just being a discussion in disguise. **Any example given when the topic is set is a floor, not a ceiling** — a starting minimum to extend from, never a closed boundary on what counts, unless an explicit ceiling was stated (a hard number, an explicit "no more than X").
 3. **generate-without-filtering**: throw out ideas, including ones that sound impractical or unlikely — the point is coverage and provocation, not immediate quality control. Explicitly welcome "crazy" ideas; don't let the first reasonable-sounding idea anchor and shut down further generation.
 4. **assess-lightly**: after ideas are out, everyone gives each a quick, light read (promising / interesting-but-needs-work / probably not, and why) — not a full feasibility analysis. This is "assess a bit," deliberately not the deep investigation a real proposal would get.
-5. **hand-off-promising-ideas**: anything that got a genuinely promising light-assessment gets filed (an `idea-*`/`note-*` board item, or folded into an existing inquiry/task it relates to) for later real evaluation — via `routine-discuss` (if it needs a real decision) or the normal staged task-creation lifecycle (if it's heading toward being built) — not decided or built directly out of the brainstorm itself.
+5. **hand-off-promising-ideas**: anything that got a genuinely promising light-assessment gets filed (an `idea-*`/`note-*` board item, or folded into an existing inquiry/task it relates to) for later real evaluation — via `magic-team.discuss.routine` (if it needs a real decision) or the normal staged task-creation lifecycle (if it's heading toward being built) — not decided or built directly out of the brainstorm itself.
 6. **gate-filing-on-confirmation**: filing follows the same gate as dispatch — propose the item (piece, type, goal) and wait for confirmation before writing it, unless the human-owner explicitly asked for that specific filing.
 
 # Closure steps
 
-Execute `routine-coworking`'s Closure Steps.
+Execute `magic-team.coworking.routine`'s Closure Steps.
 
 # Routine's local procedures
 
@@ -47,13 +47,13 @@ All statements apply at the same time, always. These rules override a participan
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - Manual only — anyone asks to "brainstorm" a topic. No autonomous or scheduled trigger.
 - A brainstorm session can end with several live candidate ideas and no chosen winner — that's a normal, valid outcome, not an incomplete session. If something does clearly stand out, that's a bonus, not the goal.
-- Never treated as a decision by itself. A promising idea still needs `routine-discuss` (or the staged task-creation lifecycle) before it becomes real work — no matter how good it sounded in the moment.
-- Not a substitute for `routine-interview` when the actual goal is precisely capturing one party's already-formed vision — brainstorming is generative, not a collection exercise.
+- Never treated as a decision by itself. A promising idea still needs `magic-team.discuss.routine` (or the staged task-creation lifecycle) before it becomes real work — no matter how good it sounded in the moment.
+- Not a substitute for `magic-team.interview.routine` when the actual goal is precisely capturing one party's already-formed vision — brainstorming is generative, not a collection exercise.
 - Light assessment only (**assess-lightly**) — resist turning a brainstorm into a deep feasibility review mid-session.
 - An idea sounds clearly bad early on: let it stand without heavy pushback during generation — filtering happens at the light-assessment step, not during generation itself.
-- One idea starts dominating the conversation and steering it toward a decision: gently redirect back to generation if there's more ground to cover, or explicitly name that the session has organically shifted into `routine-discuss` territory.
+- One idea starts dominating the conversation and steering it toward a decision: gently redirect back to generation if there's more ground to cover, or explicitly name that the session has organically shifted into `magic-team.discuss.routine` territory.
 - Nothing from the session looks genuinely promising: a legitimate, valid outcome — never manufacture a forced "winner" just to have something to file.
-- Unsure whether a promising idea needs `routine-discuss` or can go straight into the task-creation lifecycle: default to `routine-discuss` first if there's genuine ambiguity or tradeoffs; skip straight to task-creation only if the idea is already clear-cut enough that a discussion would just rubber-stamp it.
+- Unsure whether a promising idea needs `magic-team.discuss.routine` or can go straight into the task-creation lifecycle: default to `magic-team.discuss.routine` first if there's genuine ambiguity or tradeoffs; skip straight to task-creation only if the idea is already clear-cut enough that a discussion would just rubber-stamp it.
 - Goal-directedness: when a goal is set for this session, actively work toward it (genuinely covering the loosely-set topic, not drifting off it entirely); non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - When `magic-coordinator` is the executor/convener, it is obligated to keep `slack-event-track` activity tracking current as the brainstorm actually runs — not only via whatever gets filed at **gate-filing-on-confirmation**.
 - Changes to this routine's own definition need `quorum-all-agree` (`magic-coordinator`, `magic-librarian`, `magic-architect`) — no single maintainer may edit it alone.
@@ -87,9 +87,9 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `routine-discuss` — convergence/decision-oriented follow-on for a promising idea.
-- `routine-interview` — precise collection, distinct purpose from this routine's generative one.
-- `routine-process-inbox` — own-inbox processing.
+- `magic-team.discuss.routine` — convergence/decision-oriented follow-on for a promising idea.
+- `magic-team.interview.routine` — precise collection, distinct purpose from this routine's generative one.
+- `magic-team.process-inbox.routine` — own-inbox processing.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, calling convention, sole-sanctioned Slack-posting mechanism.
 - `magic-team/magic-team.basic.md` — the propose-and-wait-for-confirmation filing gate **gate-filing-on-confirmation** reuses.
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.

@@ -1,6 +1,6 @@
 # RICE-style scoring
 
-Shared scoring convention for backlog/todo/proposal items. Used by `routine-grooming`'s reprioritization step and by any member scoring an item on their own.
+Shared scoring convention for backlog/todo/proposal items. Used by `magic-team.grooming.routine`'s reprioritization step and by any member scoring an item on their own.
 
 ## Four dimensions
 
@@ -30,10 +30,10 @@ Record scores on the item's own file under the board, tagged by who gave the sco
 
 ## When scores get set or updated
 
-- **At `routine-grooming`**: every pending/planned/active item, every pass — not just newly-triaged ones, since normalization is relative to the whole backlog. See `routine-grooming`'s **rescore-backlog-rice**.
+- **At `magic-team.grooming.routine`**: every pending/planned/active item, every pass — not just newly-triaged ones, since normalization is relative to the whole backlog. See `magic-team.grooming.routine`'s **rescore-backlog-rice**.
 - **By `magic-architect`**, as its `grooming-scores-review` idle activity: refines existing scores, doesn't reassign/split/drop items.
 - **Ad hoc**: any member, any time.
 
 ## Scores inform, they don't decide alone
 
-Per the team's "no unilateral epics" rule and `routine-grooming`'s **review-with-the-user**: the scored backlog is reviewed with the user before anything is final.
+Per the team's "no unilateral epics" rule and `magic-team.grooming.routine`'s **review-with-the-user**: the scored backlog is reviewed with the user before anything is final.
