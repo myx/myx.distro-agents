@@ -6,13 +6,12 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 
 # Summary
 
-Routine-heartbeat is the team's continuous, self-driven operating rhythm — comms, inbox processing, once-daily grooming, and the daily meeting's work-session fan-out — so the team acts without a human re-triggering each step.
+Routine-heartbeat is the team's continuous, self-driven operating rhythm — deciding what's due (`routine-advance`, once-daily grooming, the daily meeting's work-session fan-out) and dispatching each as a separate spawned session — so the team acts without a human re-triggering each step.
 
 ## Goals
 
 - Continuous, self-driven operating rhythm — not gated on a human re-triggering each step:
-  - comms checked and replied to promptly
-  - inboxes processed
+  - `routine-advance` dispatched every pass
   - backlog groomed once a day
   - daily meeting's work-session fan-out actually happens
 - Self-driven via `ScheduleWakeup`/`SendMessage` nudges — the team's own operating cadence doesn't depend on continuous human observation.

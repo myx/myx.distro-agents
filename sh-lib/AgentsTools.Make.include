@@ -249,14 +249,27 @@ case "$1" in
 			## session, same role the siblings' `bash --rcfile ... -i` plays.
 			if [ "$1" == "--non-interactive" ] ; then
 				shift
+				## copilot's own --help: "--allow-all-tools ... required for
+				## non-interactive mode" -- without it, headless -p has no TTY
+				## to answer its own tool-permission prompt, so every tool call
+				## (MCP included) comes back "Permission denied and could not
+				## request permission from user" even once the tool is
+				## correctly registered/trusted. Root-caused live (2026-08-16)
+				## via a real --magic-heartbeat-spawn-proxy dispatch. Scoped to
+				## copilot only -- claude's own non-interactive permission flag
+				## is untested here (not installed on this machine).
+				case "$DAGC_CLI" in
+					copilot) DAGC_NONINTERACTIVE_PERM_FLAGS="--allow-all-tools" ;;
+					*) DAGC_NONINTERACTIVE_PERM_FLAGS="" ;;
+				esac
 				if [ $# -gt 0 ] ; then
 					## Join remaining args into one prompt string ($*, not "$@") --
 					## claude/copilot's own -p/--print takes one prompt argument, not
 					## several positional tokens.
-					exec "$DAGC_CLI" -p "$*"
+					exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS -p "$*"
 				fi
 				DAGC_STDIN_PROMPT="$( cat )"
-				exec "$DAGC_CLI" -p "$DAGC_STDIN_PROMPT"
+				exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS -p "$DAGC_STDIN_PROMPT"
 			fi
 
 			exec "$DAGC_CLI" "$@"

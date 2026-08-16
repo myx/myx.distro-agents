@@ -58,11 +58,22 @@
 ## active process is any board-item type; no type restriction has any
 ## textual basis here).
 ##
-## NOT served from here, deliberately, and reported rather than folded in:
-## the GC sub-step's own retention check reads board-processed items, which
-## this op has never returned and still does not. Growing this scan to cover
-## it would re-create the exact defect above -- content with no consumer that
-## asked for it. GC needs its own decision, not a wider heartbeat scan.
+## NOT served from --magic-heartbeat-input-scan, deliberately: the GC
+## sub-step's own retention check reads board-processed (and, for its
+## reference check, board-archived) items, which that op has never returned
+## and still does not. Growing that scan to cover it would re-create the
+## exact defect above -- content with no consumer that asked for it.
+##
+## GC's own gap is served by a SEPARATE, dedicated wrapper instead --
+## --magic-heartbeat-processed-scan, its own case arm further down -- rather
+## than folded into --magic-heartbeat-input-scan. Same "per-consumer, not
+## per-scan-scope" convention this whole file already follows: the GC
+## sub-step's board-processed/board-archived read is a distinct need from
+## run-one-bounded-substep's own running/blocked "pulse" read, on a different
+## cadence (once per pass, inbox-processing sub-step only) and a different
+## shape (full frontmatter, no --header narrowing -- retention thresholds are
+## type-dependent and the reference check reads `references:`, neither of
+## which a fixed single-header scan could serve).
 ##
 ## Fixed, hardcoded state-list/header-list -- no caller-facing --state/
 ## --header override flags: dedicated wrappers are fixed, not flexible; a
