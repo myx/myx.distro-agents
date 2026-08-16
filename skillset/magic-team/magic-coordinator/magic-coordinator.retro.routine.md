@@ -34,7 +34,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **close-session**: execute `routine-coworking`'s Closure Steps — the skill-update-discussion offer, etc. Retro stays reflection, not action: log **discuss-with-the-user**'s approved improvement proposals into `board-running` as pending items for the *next daily meeting* to actually pick up and apply — members may reflect on a proposal here, but implementation waits for a daily.
+1. **close-session**: execute `routine-coworking`'s Closure Steps — the skill-update-discussion offer, etc. Retro stays reflection, not action, but ends with exactly **one** concrete, actionable improvement (not several vague ones) -- log it into `board-running` as a pending item for the *next daily meeting* to actually pick up and apply. That daily's **run-check-process-board**/**update-todos** steps must surface it.
 2. **close-state-and-unlock**: write the pass's closing status into the `state-and-lock` note via `--magic-retro-state-and-lock-upsert`, then release this routine's own lock via `--magic-retro-close-state-and-unlock`, setting `state: retro-finished`. That order is required: the release is what sets `state: retro-finished`, and a content write after it would put the note back to running. Last, every time: until the release lands, the next pass sees this one as still running.
 
 # Routine's local procedures

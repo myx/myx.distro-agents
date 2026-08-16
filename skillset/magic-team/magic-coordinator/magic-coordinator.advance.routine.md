@@ -52,7 +52,7 @@ The board isn't trustworthy between daily/grooming cycles — sessions die mid-w
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
 1. **advance-acquire-lock**: Acquire this routine's own lock — a single `--magic-advance-lock-acquire` call, before anything else in this routine runs. `ACQUIRED`, or a reclaim of a dead holder's lock, means go. Contention means another `routine-advance` is live: this pass does not start, and nothing below runs.
-2. **advance-process-inbox**: run `routine-process-inbox magic-coordinator` — the whole inbox, not `check-pending-comms-actions`'s narrow deferred-action slice: items reporting an already-decided move (a landed approval, a finished or stalled dispatch) this pass reconciles onto the board.
+2. **advance-process-inbox**: run `routine-process-inbox magic-coordinator` — the whole inbox, not `check-pending-comms-actions`'s narrow slice. New items get handled this pass, not only already-decided moves (a landed approval, a finished or stalled dispatch).
 3. **advance-read-board-state**: Call the `--magic-advance-input-scan` operation.
    - This routine's own `state-and-lock` note comes back with that scan, as part of this routine's own input. It is this pass's tracking document — the tactical status, and whatever the next iteration needs to continue. Reference `TEAM-DATA` rather than copying it, to keep it compact. Write it via the `--magic-advance-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close. Holding the lock across a long pass is a separate obligation: call `--magic-advance-lock-refresh` periodically — writing content does not itself hold the lock.
 4. **advance-process-comms**: run `routine-communication-sweep`'s own Steps in full, inline, this same pass, against this pass's own board read from **advance-read-board-state** — messages can't be assessed without the current process-flow state, so this step never runs before the board is loaded. **check** (`--magic-sweep-input-scan`, every live platform, board-tracked threads plus every open thread) then **process-each-message** (every found message, one at a time, ascending timestamp order, cross-referenced against this pass's own board state, including the mandatory `conversations.replies` check on every open thread) — reused by reference, not duplicated logic.
@@ -109,6 +109,25 @@ Process all `board-pending` items each pass — some, all, or none started. Not 
   and posts one `event-track` notification for this attempt. On each later recheck pass, retry once; success moves back to `board-running`, failure stays in `board-parked`, updates `recheck-date` to now + 17 minutes, and posts again.
 - Sole starter of never-started `board-pending` items: another place may call `spawn-one-dispatch` directly on its own instruction, but an unrequested pending dispatch only starts here.
 
+### How to actually work an item -- a real decision tree (the missing procedure, applies before any per-type rule below decides an outcome)
+
+Decision node: **what does this item's own gap actually require?**
+- **The gap is: nothing left to decide, just do it** (the next action is unambiguous) → branch A:
+  1. Identify the single concrete action (send a message, write a file, run a check) -- not "review it."
+  2. Execute it now, this pass, via the real tooling call it requires.
+  3. Verify it actually happened -- not assumed from having attempted it.
+  4. Record the outcome citing what was actually done, not a restatement of the goal.
+- **The gap is: a real choice between options exists** (which approach, which owner, proceed or park) → branch B:
+  1. Enumerate the actual options -- not one assumed path.
+  2. For each, state the real outcome/risk if chosen -- evaluate before choosing, not after.
+  3. Select one, with the reasoning recorded on the item, not just the pick.
+  4. Execute the selected option per branch A above.
+- **The gap is: missing information, not a missing decision** → branch C:
+  1. State exactly what's missing and where it would come from.
+  2. Get it this pass if it's a single tooling call away; otherwise flag it once, naming the specific missing fact, not a vague "needs more info."
+
+A per-type rule below that reduces to "post a status/flag it" without walking one of these branches first is not doing the work, only describing that work exists.
+
 ### Continuing already-dispatched `board-running` items
 
 Continue an already-dispatched `board-running` item. Never a first-time start (see above). Team-wide name for this mechanism: `check-restart` (see `magic-coordinator.armed.md` Terminology).
@@ -131,7 +150,11 @@ Continue an already-dispatched `board-running` item. Never a first-time start (s
 
 - before continuing to check-restart the next `board-running` item whose handling above actually spawned/nudged/posted (a genuinely side-effecting call): execute the `--magic-advance-sleep-run` operation. A pure bookkeeping-only outcome recorded via `--magic-advance-batch-outcome` (below) needs no sleep-run at all — pacing exists to rate-limit real side effects, not frontmatter writes.
 
+**Work order**: nearest-to-resolution items first, then by age.
+
 No pass-wide blanket defer is allowed for `board-running` restart work. Apply this mechanism item-by-item within the existing per-pass concurrency caps.
+
+**Definition of done (a shared, explicit standard for "complete", not left to individual judgment)**: an outcome record alone does not mean an item is done -- it is done only when the outcome reflects real, verifiable state (a message actually sent, a session actually spawned, a real per-type round actually executed). A recorded outcome with no underlying action behind it is a false completion, not a valid one.
 
 **Per-pass completion requirement**:
 - An item whose `recheck-date` is genuinely still in the future, or whose staleness clock hasn't yet passed the threshold, is skipped entirely this pass: no write, no outcome record of any kind, not touched. This is not "no action" — it's "nothing due," and gets no record at all.
@@ -176,8 +199,8 @@ Each item here is a tracking document. Where a rule below spawns or restarts wor
 - `dispatch-*`: `session-id` set → nudge per the general mechanism above; append the report-back as a new dated log entry via `--magic-advance-to-running --from-state:running` — the item stays in `board-running`. `session-id` absent → apply the never-dispatched-work stale-check above, same as any other prefix.
   - rule: every participant is written into the `dispatch-*` document at creation, before it is approved
   - rule: approval adds or removes names on that list
-- `change-*`: (placeholder) not yet defined.
-- `warning-*`: (placeholder) not yet defined.
+- `change-*`: `recheck-date` due → re-verify whether the underlying change has actually landed (the condition it was tracking); landed → move to `board-processed`, still pending → re-ask/extend `recheck-date` to now + 17min, same as `inquiry-*`.
+- `warning-*`: `recheck-date` due, condition still true → re-escalate once via `slack-event-track` (not a silent re-flag) and extend `recheck-date`; condition no longer true → move to `board-processed`. No `recheck-date` set → set one now, same as any item entering this loop without it.
 - `session-*`: the spawn includes every member the item's `participants` record names.
 - `note-*` / `reflection-*` / `transcript-*`: not expected in `board-running` → flag for `routine-grooming`.
 - **base restart**: a named participant cannot be spawned, steps:

@@ -37,7 +37,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **acquire-lock**: Acquire this routine's own lock — a single `--magic-grooming-lock-acquire` call, before anything else in this routine runs. `ACQUIRED`, or a reclaim of a dead holder's lock, means go. Contention means another `routine-grooming` is live: this pass does not start, and nothing below runs.
 2. **session-start**: execute `routine-coworking`'s Steps — grooming is coworking-like, so its coworking-gated parts apply.
-3. **gather-the-backlog**
+3. **gather-the-backlog** — opens with what changed since the last pass and today's top priority, before the full read below.
    - Read all of `the board`:
      - every permanent member's open, deferred, or "not yet done" items
      - across `running/`, `blocked/`, and `parked/`
@@ -75,12 +75,23 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **Process own inbox** (every grooming pass, not cadence-gated like the roster recheck): run `routine-process-inbox magic-coordinator` (the confirmed default executor for this joint-executor routine) — inline execution (own identity). Fresh inbox items not yet on the board, gathered here so **triage-per-item** triages them alongside the open backlog. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 4. **triage-per-item**
    - The existing backlog IS the work, regardless of whether anything new came in since the last pass -- "focus on today's new items, skip the older backlog" is not a valid scoping decision here. No new signal is not a reason to leave old backlog items untouched.
-   - For each open item, narrate its owning member deciding what happens to it. Same narrated-pass style as `routine-daily`'s roll call — this is not a full agent spawn per item. The outcome is one of:
-     - **Keep** — as-is
+   - Time-boxed per item: don't let one item consume the pass. For each open item, narrate its owning member deciding what happens to it -- via this decision tree, not a free-form pick:
+     - **Is this a duplicate/near-duplicate of another open item?** Yes → Merge. No → next.
+     - **Does it depend on something external that hasn't happened?** Yes → Block. No → next.
+     - **Was it Blocked, and has that dependency now cleared?** Yes → Unblock. No (still blocked) → stop, stays Block.
+     - **Is it stale/no longer worth doing?** Yes → Drop. No → next.
+     - **Is it too big for one work session as it stands?** Yes → Split. No → next.
+     - **Is it owned by the wrong member for what it actually needs?** Yes → Reassign. No → next.
+     - **Otherwise** → Refine (the default outcome for anything that reaches here — matches Scrum.org: refined or removed, never left unchanged).
+   Same narrated-pass style as `routine-daily`'s roll call — this is not a full agent spawn per item. The outcome is one of:
+     - **Refine** — improve the item (detail, order, or a `recheck-date`); never a no-op -- an item is refined or removed, never left unchanged.
      - **Defer**
      - **Reassign** — to a different member
      - **Split** — into smaller pieces
      - **Drop** — stale, no longer relevant
+     - **Merge** — duplicate/near-duplicate items combined into one, the rest dropped
+     - **Block** — depends on something external, moves to `board-blocked`
+     - **Unblock** — the blocker cleared, moves back to `board-running`/`board-backlog`
    - RICE scoring is its own dedicated pass (**rescore-backlog-rice**, below), not folded in here — this step decides an item's *state*, that one decides its *numbers*.
    - **State transitions and their own re-check happen atomically.** When any part of this step moves an item into a state that has its own separate re-check procedure below (for example, the `board-blocked` re-check, the `board-running` in-place testing re-check), run that re-check right away, as part of the same move — not deferred to the next grooming pass. This rule applies everywhere in this step, not just at one spot.
    - **General resume-review delegation**:
@@ -130,11 +141,15 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - since `magic-coordinator` is the board's sole writer, this covers both halves: the ask itself and this step's resulting decision
      - peer-to-peer asks made outside grooming get the same treatment at the moment coordinator acts on them, via `routine-process-inbox`, not retroactively at the next grooming pass
    - **Triage verbs mapped onto board states**: for items already living in `board-backlog`, `board-pending`, or `board-running` (not just fresh inbox items), this same keep/defer/reassign/split/drop vocabulary applies:
-     - **Keep** — stays in its current folder
+     - **Refine** — add a description, size it to one grooming pass, or set its order/`recheck-date`. At least one must genuinely change; touching an item with none of them updated isn't refining it.
+       - Mechanically: one `--magic-grooming-to-<current-state>` call, `--from-state:` set to that state, carrying the change.
      - **Defer** — moves to `board-parked` (deliberate, by the team's own choice — not `blocked/`, reserved for external stalls)
      - **Reassign** — `owner` field changes, folder doesn't
      - **Split** — child Item(s) created, referencing the parent; the parent itself moves to `board-blocked`, `blocked-by` the new child item(s) — an internal dependency, the same shape the board already recognizes ("waiting on another task/project's own completion"). If a split-off child is itself investigation/design-shaped (needs several members' judgment together, not a mechanical single-executor step), set `restart-session: <team-member> [<team-member>...]` on it at this same creation — the authority group's own call, same narrated judgment as the rest of this step.
      - **Drop** — moves to `board-archived` directly (no future intent) or is removed from the board (if it never had real substance — judgment call)
+     - **Merge** — one item's content folded into the item it duplicates, then dropped; the surviving item's `references:` records the merge.
+     - **Block** — moves to `board-blocked` with `condition`/`recheck-date` set, same as **Split**'s parent move.
+     - **Unblock** — the recorded `condition` is now met: moves back to `board-running` (work resumes) or `board-backlog` (not yet started).
      - mechanically: **Defer** is a single `--magic-grooming-to-parked` call and **Split**'s parent move is a single `--magic-grooming-to-blocked` call; **Drop** to `board-archived` is a single `--magic-grooming-to-archived` call. A verb that only changes a field (owner, etc.) with no folder change is a single call; Split's child-item creation is also a single call (a fresh file)
    - **Advancement review**: as part of this same per-item pass:
      - run the `check-backlog-promote` procedure (below) against `board-backlog`

@@ -20,7 +20,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 - **Cross-reference**: `magic-tester` owns security/CRA-style due diligence as an idle-task-driven testing duty — security-by-design has real overlap with this skill's own boundaries/tradeoffs lens, worth a light cross-check either way, not solely `magic-tester`'s job in isolation.
 - Two working modes:
   - Designing something new: propose structure and boundaries before anything else exists.
-  - Reviewing something existing: identify structural issues and their consequences, then propose alternatives — still at the macro level.
+  - Reviewing something existing: State the current state, the target state, and the gap between them explicitly -- not just "this is wrong" -- then propose alternatives that close that specific gap. Still at the macro level.
 
 ## Scope
 
@@ -48,7 +48,10 @@ Standing idle-activity, triggered when nothing else is pending — the coordinat
 Steps:
 1. Load `idle-tasks/grooming-scores.idle.md` (this skill's own idle-task file).
 2. Review open backlog items under `board-running` (and `blocked/`/`parked/`) that fall in this skill's own domain of judgment — the board is the sole live backlog source.
-3. Set or refine RICE-style scores for those items, per the scoring model in `magic-coordinator/RICE-SCORING.md`.
+3. Set or refine RICE-style scores for those items, per the scoring model in `magic-coordinator/RICE-SCORING.md`. For a structural score (risk, coupling, blast radius):
+   - Name the concrete scenario this item affects (what breaks, under what condition) -- not "this is risky," the actual failure mode.
+   - Identify the sensitivity point: which single design choice, if changed, most affects that scenario's outcome.
+   - That scenario + sensitivity point IS the one line of reasoning recorded on the item -- not the score alone.
 
 # Team-Member's (-specific) local rules
 
