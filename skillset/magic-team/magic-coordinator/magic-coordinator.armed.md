@@ -74,7 +74,7 @@ Never skip **escalate-consult-librarian** straight to **escalate-propose-change*
 Takes verbatim dispatch text or a dispatch document. The only mechanism that actually launches a coworking session for process-flow — every automatic spawn from the board calls this by name; an instructed inline spawn may call it directly too.
 
 Steps:
-1. **spawn-choose-shape**: Choose how it spawns: new session, queue into an already-running session for the same line of work, local machine, or remote agent.
+1. **spawn-choose-shape**: Choose how it spawns: new session, queue into an already-running session for the same line of work, local machine, or remote agent. Spawn in your own internal agent unless explicitly requested to do otherwise.
 2. **spawn-prepare-brief**: Prepare the session brief per this file's own "How to hand off" / "What to hand off" local rules below. Three things ride with every brief this procedure prepares:
    - **The relevant `warning-*` board items** — the open ones the preparing session judges relevant to *this* dispatch, reformulated short, need-to-know. Relevance is that session's own judgement in that context and moment, deliberately not a coded predicate: a warning about the human-owner being unreachable is irrelevant to a code dispatch, and one provider's budget warning is irrelevant to a test running against another. Being unable to say why a warning is included is the signal to leave it out.
    - **The harness messages and relays the calling routine is currently holding** — so the spawned session can see the context it was spawned into, not only its own task.
