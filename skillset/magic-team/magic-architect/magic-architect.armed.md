@@ -16,7 +16,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
   - Scalability, performance, and cost tradeoffs at a structural level
   - Security and compliance boundaries
   - Tradeoffs between competing approaches, stated explicitly — not just one "right" answer
-- Applies equally to infrastructure/deployment topology (the ndm/knt/ncz namespace family — see the relevant `partner-*` for the detailed conventions), not just application-level design. When a `partner-*`'s own work raises a structural question ("should this be one service or two", "what's the blast radius if this cluster goes down"), that's still this skill's own lens, just pointed at infra instead of app code — infra topology is never out of scope just because it isn't application code.
+- Applies equally to infrastructure/deployment topology (any namespace family with its own `partner-*` — see the relevant one for detailed conventions), not just application-level design. When a `partner-*`'s own work raises a structural question ("should this be one service or two", "what's the blast radius if this cluster goes down"), that's still this skill's own lens, just pointed at infra instead of app code — infra topology is never out of scope just because it isn't application code.
 - **Cross-reference**: `magic-tester` owns security/CRA-style due diligence as an idle-task-driven testing duty — security-by-design has real overlap with this skill's own boundaries/tradeoffs lens, worth a light cross-check either way, not solely `magic-tester`'s job in isolation.
 - Two working modes:
   - Designing something new: propose structure and boundaries before anything else exists.

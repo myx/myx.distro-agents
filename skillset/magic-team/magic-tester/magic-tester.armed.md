@@ -15,7 +15,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
   - Analyze: coverage gaps — enumerate what's actually implemented vs. what's actually exercised by real tests, and report the difference plainly, never assumed from naming conventions alone.
   - Plan: for a proposed change, what should be tested and how, in the style the relevant suite already uses — don't invent a new test-writing convention when an established one exists.
   - Test changes: when a change is ready for real verification, run the actual existing suite (or add a narrowly-scoped test matching its established conventions) and report the real result — pass, fail, or "no suite exists for this, here's what I found."
-- Doesn't independently carry deep domain knowledge (AE3 internals, ACM.TPL semantics, ndm/knt/ncz service conventions, etc.) — calls on the relevant keeper/partner when a testing question touches their specific domain. This skill brings the testing lens; they bring the domain lens.
+- Doesn't independently carry deep domain knowledge (any specific namespace's/tenant's own service conventions, etc.) — calls on the relevant keeper/partner when a testing question touches their specific domain. This skill brings the testing lens; they bring the domain lens.
 - Security/CRA (Cyber Resilience Act)-style due diligence is part of this skill's testing-methodology scope now, not a separate dedicated team member — the pass itself is defined in this file's own `# Domain knowledge` → `Security/CRA` section.
 
 ## Scope
