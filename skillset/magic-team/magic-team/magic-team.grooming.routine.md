@@ -41,15 +41,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Read all of `the board`:
      - every permanent member's open, deferred, or "not yet done" items
      - across `running/`, `blocked/`, and `parked/`
-   - Read every member's own inbox (`--member-work-session-input-scan` operation, once per member).
-     - inboxes are not part of the board (see `magic-team.process-inbox.routine`)
-     - read everything landed there since the last grooming pass; it arrives via:
-       - `magic-coordinator.communication-sweep.routine`
-       - `magic-coordinator.ingest-task.routine`
-       - a member writing directly into its own or another's inbox (a genuine write by that member itself, not routed through `magic-coordinator` first)
-   - Mechanically, this read happens as:
-     - the board half: `--magic-grooming-input-scan` operation — a fixed, read-only scan returning the open board items this step works from, each with its current state and frontmatter
-     - the inbox half: no mechanized equivalent — still a direct read
+   - No inbox reads here: each of the three participating members reads its own inbox automatically at session start (see `magic-team.process-inbox.routine`).
+   - Mechanically, this read is the `--magic-grooming-input-scan` operation — a fixed, read-only scan returning the open board items this step works from, each with its current state and frontmatter.
    - **Session tracking**: this routine's own `state-and-lock` note comes back with that scan, as part of this routine's own input. It is this pass's tracking document — the tactical status, and whatever the next pass needs to pick up from here. Reference `TEAM-DATA` rather than copying it, to keep it compact. Write it via the `--magic-grooming-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close. Holding the lock across a long pass is a separate obligation: call `--magic-grooming-lock-refresh` periodically — writing content does not itself hold the lock.
    - This is the same real backlog `magic-coordinator`'s Prioritize section already points to; grooming is where that backlog gets actively worked, not just consulted.
    - Sub-checks, also part of gathering:
