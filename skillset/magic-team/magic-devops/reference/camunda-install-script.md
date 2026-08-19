@@ -1,0 +1,10 @@
+# Install-script anti-patterns (generic, cross-project)
+
+Generic, portable lessons observed once in a real deploy script, kept here in the abstract only — `magic-devops` is a non-vendor, cross-project member and never holds customer/vendor-specific paths, filenames, or per-customer investigation findings in its own skillset. Vendor-specific specifics for any one namespace/customer belong in that namespace's own `keeper-*`/`partner-*` member instead.
+
+- **A monolithic, unconditionally-regenerated compose/config file with no per-component toggle is a known anti-pattern.** If a deploy script heredocs (or otherwise regenerates) one all-in-one compose file covering every component together, adding or removing a component becomes a script edit instead of a config choice. Prefer a base file plus optional overlays, or an equivalent per-component toggle mechanism, so component count is a deploy-time decision.
+- **A blanket "tear everything down, then bring everything up" restart on every deploy is worse than a targeted one.** `down` + `up` (or equivalent full-stack recreate) discards/restarts components that didn't actually change. Prefer an update path that only touches what changed.
+- **A hardcoded plaintext default credential fallback in a shared/base script is a known smell**, even when every real deployment already overrides it. A base script/recipe should require a real secret input with no plaintext literal fallback, rather than relying on every consumer remembering to override it.
+- **No version-pinning override mechanism (image tag, package version, etc. hardcoded as a literal with no way to override it) is a known smell.** It blocks controlled, deliberate upgrades and makes drift between a pinned component and a related component's own expected version invisible until someone reads the script directly.
+
+These are the generic pattern-level takeaways only — no file paths, no vendor names, no specific proposal/board-item reference. For the concrete, namespace-specific investigation this was drawn from, see that namespace's own `keeper-*` domain-knowledge reference.
