@@ -210,6 +210,8 @@ Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`,
 
 **Board-items do not live under this skill folder.** `board/` above is a pattern, not a location. Their actual storage location is intentionally abstracted by the tooling layer and is not something skill/routine content should name or assume — always interact with board-items through the tooling ops (`--member-read-board-item`, the `--magic-*-input-scan` family, the `--magic-*-to-*` state-move families, etc.), never through direct path/location knowledge.
 
+**Prose/report reference to a board-item uses `board://<state>/<item-filename>`** — a human/agent-readable pointer, visually distinct from a real filesystem path, never consumed directly by any tool. Resolving one for real still goes through `--member-read-board-item`/the `--magic-*-input-scan` family, same as always. Distinct from the `references`/`blocks`/`blocked-by`/`supersedes`/`spawned-by` frontmatter fields on a `board-item` itself, which stay bare names only — no `.md` extension, no state-folder path, no scheme prefix.
+
 **A same-state field update is a `--magic-*-to-<state>` call with `--from-state:` set to that same state.** The item stays where it is and its frontmatter and content are patched in the one call. This is what those operations are for; there is no separate field-update operation.
 
 - **Ownership**: `magic-coordinator` reads and modifies it continuously, on its own authority — this is its own active work tool. `magic-librarian` joins once per workday, together with and under `magic-coordinator`'s supervision/instruction — not an independent audit pass.
