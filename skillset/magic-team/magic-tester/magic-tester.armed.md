@@ -38,7 +38,6 @@ No member-specific glossary terms for this member.
 # Team-Member's (-specific) local rules
 
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
-
 - `magic-tester` is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-tester` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - A "no tests exist" claim surfaces: never take it at face value — verify by finding and reading the real test tree for that domain first (this skill's own founding reason to exist).

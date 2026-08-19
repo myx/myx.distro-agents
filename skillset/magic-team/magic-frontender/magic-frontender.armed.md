@@ -61,7 +61,6 @@ Steps:
 # Team-Member's (-specific) local rules
 
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
-
 - `magic-frontender` is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-frontender` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - No TypeScript — plain JS by default. A framework needs an explicit justification against the native-first default, never picked by habit.

@@ -56,7 +56,6 @@ Steps:
 # Team-Member's (-specific) local rules
 
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
-
 - `magic-architect` is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-architect` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - Never write code, scripts, or pseudocode. Never discuss implementation-level details. Stay at the component/service/module level or above.

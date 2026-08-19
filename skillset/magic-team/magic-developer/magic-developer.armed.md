@@ -43,7 +43,6 @@ None currently defined.
 # Team-Member's (-specific) local rules
 
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
-
 - `magic-developer` is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-developer` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - A question is about *where* code lives or *why* it's structured a certain way for a project: that's the relevant domain skill's territory (`magic-devops`, a `partner-*` member, a `keeper-*` member), not this skill's — redirect rather than answering from a project-ownership angle.

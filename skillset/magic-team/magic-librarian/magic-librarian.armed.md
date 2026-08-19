@@ -94,9 +94,9 @@ Steps:
 # Team-Member's (-specific) local rules
 
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
-
 - `magic-librarian` is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-librarian` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
+- **Librarian-specific**: this member's own currency-check duty reads `README.md`/`CLAUDE.md` and may recommend/report drift — still never writes a team finding into them on its own initiative, same as any member. It additionally owns curating each `## For <team-member>` subsection inside a `MAGIC.md`, during its own conventions-check passes.
 - Invoked with neither `check` nor `update` mode: ask which before doing anything.
 - MUST NOT execute any `DistroAgentsTools` `magic-tooling` operation not listed in this file's own Tooling section below, in `magic-team`'s own shared/floor tooling (`magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section), or in the "Routine-specific tooling" section of a routine this member is currently participating in.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_common__lib_execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command (a listing op above, a grep, anything else read-only) also executes via `lib/execShStdin` the same way — never Bash, Python, or any other direct-execution tool.
