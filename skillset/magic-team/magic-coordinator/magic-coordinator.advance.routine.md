@@ -58,11 +58,6 @@ Exact instructions. Execute in order, every step, literally as written — not l
 4. **advance-process-comms**: run `magic-coordinator.communication-sweep.routine`'s own Steps in full, inline, this same pass, against this pass's own board read from **advance-read-board-state** — messages can't be assessed without the current process-flow state, so this step never runs before the board is loaded. **check** (`--magic-sweep-input-scan`, every live platform, board-tracked threads plus every open thread) then **process-each-message** (every found message, one at a time, ascending timestamp order, cross-referenced against this pass's own board state, including the mandatory `conversations.replies` check on every open thread) — reused by reference, not duplicated logic.
 5. **advance-run-process-board**: Run the `check-process-board` procedure (`magic-coordinator.armed.md`) against this pass's own read.
 6. **advance-run-execute-board**: Run the `check-execute-board` procedure (below) against this pass's own read.
-7. **advance-trigger-daily**: Trigger `magic-coordinator.daily.routine`'s later-today flow, once per workday, if due and not yet spawned.
-   - condition: `today_stage` (from the `heartbeat-state-note`) indicates weekday + first-today `magic-team.grooming.routine` already done + later-today flow not yet spawned today
-   - action: spawn it as its own independent co-working session — `SPAWN-REQUEST`, fire-and-forget
-   - never: inline-drive it step by step across multiple `next-iteration`s
-   - never: re-spawn a duplicate for the same workday, or wait for it to report back
 
 # Closure steps
 
