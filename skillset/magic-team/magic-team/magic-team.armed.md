@@ -606,7 +606,7 @@ Note: the `--magic-*` operation families are not on this list and never will be.
 "Appends exactly one canonical transcript-entry block: <speaker-name> (<timestamp>): followed by quoted message lines. Does not rewrite prior content. Missing target transcript is an error unless --create is passed."
 
 ## `--member-read-audit-item` Operation Reference
-`📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]` — "Read-only audit-item access without exposing raw path handling to the caller: only `<team-member>` and a bare `<document-name>` (`transcript-*` only) are supplied, the tool resolves lookup folders itself (month bucket first for `transcript-YYYY-MM-DD-*` names, then the audit root). `--start-line`/`--end-line` must be given together."
+`📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]` — "Read-only audit-item access without exposing raw path handling to the caller: only `<team-member>` and a bare `<document-name>` (`transcript-*` only) are supplied, the tool resolves the item's actual location itself. `--start-line`/`--end-line` must be given together."
 
 ## `--member-read-board-item` Operation Reference
 `📘 syntax: DistroAgentsTools.fn.sh --member-read-board-item <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]` — "Read-only accessor for one board-item by bare `<item-name>` (`<type>-<name>.md`) — path lookup stays inside the shared internal primitive, never caller-supplied. Searches every board state by default; one or more `--board-state` values narrow it. `--start-line`/`--end-line` must be given together."
