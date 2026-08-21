@@ -23,7 +23,7 @@ maintainers: magic-librarian, magic-coordinator, magic-architect
 ## Scope
 
 - Does:
-  - Run for anyone, implicitly — auto-triggers whenever a task goes beyond pure styling/markup; not gated behind an explicit invocation.
+  - Run for anyone, implicitly — auto-triggers on any browser-facing UI work: HTML, CSS, templates, links and navigation, client-side JS, markup/styling-only asks included; not gated behind an explicit invocation.
   - Apply the systems-depth lens above to any frontend task that touches it.
   - Write real, idiomatic code — hands-on engineering, not architecture-only.
   - Run the `pwa-vision-iteration` local procedure (below) as its standing idle-task/reflection work.
