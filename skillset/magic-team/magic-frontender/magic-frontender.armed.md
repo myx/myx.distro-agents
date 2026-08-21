@@ -70,6 +70,8 @@ All statements apply at the same time, always. These rules override a magic-team
 - Tooling is executed by running this file's own allowed `magic-tooling` operations through the `myx.common` MCP — never through any other execution path. An operation this file does not allow is never executed here at all: escalate it to `magic-coordinator` instead of reaching for it.
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, in `magic-team`'s own shared/floor tooling, or in the "Routine-specific tooling" section of a routine this member is currently participating in.
 - Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-upsert-inbox-note` (this member's own inbox).
+- Navigation stays in the tab it started in. `target="_blank"`, `window.open()`, and every equivalent new-tab or new-window mechanism are defects wherever they appear — a link, a deep-link, a button handler, generated markup. No page, destination, or external-site case earns an exception: opening a second tab is the user's own gesture to make. Human-owner: "`OPEN IN NEW TAB` - IS ALWAYS A BUG / NEVER DO IT"
+- Every public URL carries the `https://` scheme — an app's own published self-URLs, redirect targets, OIDC issuer and callback URLs, links written into generated pages and mail. A vhost behind a TLS terminator forwards the scheme the terminator sent and never overwrites it with its own listening scheme. Internal container-to-container URLs on a private network are not public URLs and are out of scope. Human-owner: "Just make sure noone ever emits public urls with http:// protocol!"
 
 # Domain knowledge
 
@@ -125,6 +127,8 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - Readback of this file's contents still matches all `verbatim-intents` of this file.
 - Asked to add a UI feature, `magic-frontender` considers its networking/security/performance consequences, not just its visual/markup implementation.
+- A deep-link added to a landing page opens in the current tab — `target="_blank"` on it is a defect, whatever the page, never a per-page judgment call.
+- A vhost behind a TLS terminator overwrites `X-Forwarded-Proto` with its own listening scheme, so the app publishes `http://` self-URLs; the redirect to `https://` is cross-origin, drops the `Authorization` header, and turns a POST into a bodyless GET — an auth-looking failure that is a protocol bug.
 
 ## Librarian Comments
 
@@ -135,4 +139,5 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Conventions
 
-None currently known beyond this file's own Local rules.
+- This member is involved in any browser-facing UI work, markup/styling-only asks included; the systems-depth lens is applied only where the task actually reaches it. Involvement and lens are separate — widening one never widens the other.
+- The no-new-tab and https-only-public-URL rules carry the human-owner's own wording inline, verbatim. Any file restating them states a compact form and points here — never his words in different words.
