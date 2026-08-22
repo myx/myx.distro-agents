@@ -135,14 +135,10 @@ case "$1" in
 				local fanRoots fanRoot fanStatus=0
 				case "$scope" in
 					user-home)
-						fanRoots="$HOME/.agents/skills
-$HOME/.copilot/skills
-$HOME/.claude/skills"
+						fanRoots="$HOME/.agents/skills"$'\n'"$HOME/.copilot/skills"$'\n'"$HOME/.claude/skills"
 					;;
 					workspace)
-						fanRoots="$workspace/.agents/skills
-$workspace/.github/skills
-$workspace/.claude/skills"
+						fanRoots="$workspace/.agents/skills"$'\n'"$workspace/.github/skills"$'\n'"$workspace/.claude/skills"
 					;;
 				esac
 				## Newline-separated and read line-at-a-time: a space-separated
@@ -200,9 +196,6 @@ $workspace/.claude/skills"
 			while IFS= read -r memberName ; do
 				[ -n "$memberName" ] || continue
 				[ "$memberName" != "trash" ] || continue
-				case "$memberName" in
-					keeper-*|partner-*|oncall-*|expert-*|warden-*) continue ;;
-				esac
 				memberTarget="$targetRoot/$memberName"
 				memberBundled="$bundleRoot/$memberName"
 				if [ ! -e "$memberBundled" ] ; then
@@ -253,8 +246,7 @@ $workspace/.claude/skills"
 					if [ "$( readlink "$memberTarget" )" != "$memberBundled" ] ; then
 						echo "# $MDSC_CMD --install-skillset-symlinks: $memberTarget already links elsewhere, kept as-is: $( readlink "$memberTarget" ) (this workspace's own copy is $memberBundled)" >&2
 					fi
-					ownedMembers="${ownedMembers}${memberName} ${memberBundled}
-"
+					ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n'
 					continue
 				fi
 				if [ -e "$memberTarget" ] ; then
@@ -267,8 +259,7 @@ $workspace/.claude/skills"
 					hadError="true"
 					continue
 				fi
-				ownedMembers="${ownedMembers}${memberName} ${memberBundled}
-"
+				ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n'
 				echo "OK --install-skillset-symlinks linked $memberTarget -> $memberBundled" >&2
 			done <<< "$memberNames"
 
@@ -397,8 +388,7 @@ $workspace/.claude/skills"
 								hadError="true"
 								continue
 							fi
-							memberSources="${memberSources}${dMember} ${workspace}/source/${dProject}/${dSkillsetPath}
-"
+							memberSources="${memberSources}${dMember} ${workspace}/source/${dProject}/${dSkillsetPath}"$'\n'
 						done <<< "$declaredMembers"
 				fi
 			fi
@@ -543,8 +533,7 @@ $workspace/.claude/skills"
 					if [ "$( readlink "$dcSlot" )" != "$dcLinkTarget" ] ; then
 						echo "# $MDSC_CMD --install-skillset-symlinks: $dcSlot already links elsewhere, kept as-is: $( readlink "$dcSlot" ) (this workspace's declared source is $dcLinkTarget)" >&2
 					fi
-					ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}
-"
+					ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n'
 					continue
 				fi
 				if [ -e "$dcSlot" ] ; then
@@ -557,10 +546,21 @@ $workspace/.claude/skills"
 					hadError="true"
 					continue
 				fi
-				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}
-"
+				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n'
 				echo "OK --install-skillset-symlinks linked $dcSlot -> $dcLinkTarget" >&2
 			done
+
+			if [ "$removeMode" != "true" ] ; then
+				local unclaimedDir unclaimedName
+				for unclaimedDir in "$bundleRoot"/*/ ; do
+					[ -d "${unclaimedDir%/}" ] || continue
+					unclaimedName="$( basename "${unclaimedDir%/}" )"
+					[ "$unclaimedName" != "trash" ] || continue
+					if ! printf '%s\n' "$ownedMembers" | awk -v m="$unclaimedName" 'NF && $1 == m { hit = 1 } END { exit !hit }' ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundled team-member $unclaimedName was not installed into $targetRoot and will not load" >&2
+					fi
+				done
+			fi
 
 			##
 			## Phase C -- registry upsert into `.linked.magic-team.members.txt`

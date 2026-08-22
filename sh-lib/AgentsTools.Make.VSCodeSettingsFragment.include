@@ -104,14 +104,10 @@ fi
 	echo '		"chat.agentSkillsLocations": {'
 	local MDAGENTS_SKILL_KEYS="" MDAGENTS_SKILL_ROOT
 	for MDAGENTS_SKILL_ROOT in $MDAGENTS_WORKSPACE_SKILL_ROOTS ; do
-		MDAGENTS_SKILL_KEYS="$MDAGENTS_SKILL_KEYS../../$MDAGENTS_SKILL_ROOT
-../../../$MDAGENTS_SKILL_ROOT
-"
+		MDAGENTS_SKILL_KEYS="$MDAGENTS_SKILL_KEYS../../$MDAGENTS_SKILL_ROOT"$'\n'"../../../$MDAGENTS_SKILL_ROOT"$'\n'
 	done
 	if [ -n "$MDAGENTS_SKILLSET_REL" ] ; then
-		MDAGENTS_SKILL_KEYS="$MDAGENTS_SKILL_KEYS../../$MDAGENTS_SKILLSET_REL
-../../../$MDAGENTS_SKILLSET_REL
-"
+		MDAGENTS_SKILL_KEYS="$MDAGENTS_SKILL_KEYS../../$MDAGENTS_SKILLSET_REL"$'\n'"../../../$MDAGENTS_SKILLSET_REL"$'\n'
 	fi
 	## Comma placement is driven off the LAST line rather than the first, so
 	## the emitted object stays valid JSON however many keys the loop produced.

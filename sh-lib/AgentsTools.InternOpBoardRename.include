@@ -162,11 +162,7 @@ case "$1" in
 		done
 
 		if [ "$doNotTrack" = "false" ] ; then
-			if ! printf '%s\n' '---
-type: note
-superseded-by: '"$newName"' (renamed)
----
-Renamed to `'"$newName"'`.' | DistroAgentsTools --intern-op-board-upsert-move-edit processed "$oldName" --create --upsert-from-stdin --context --intern-op-board-rename >/dev/null ; then
+			if ! printf '%s\n' '---' 'type: note' "superseded-by: $newName (renamed)" '---' "Renamed to \`$newName\`." | DistroAgentsTools --intern-op-board-upsert-move-edit processed "$oldName" --create --upsert-from-stdin --context --intern-op-board-rename >/dev/null ; then
 				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-rename (internal operation, invoked via $opContext): failed to leave husk at board/processed/$oldName" >&2
 				set +e ; return 1
 			fi

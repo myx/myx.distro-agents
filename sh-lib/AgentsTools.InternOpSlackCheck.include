@@ -484,14 +484,12 @@ case "$1" in
 					## work out which of the two conversations is missing from the
 					## output below.
 					if [ -n "$legReason" ] ; then
-						legProvenance="$legProvenance## dm=${legDm:-<not resolved>} identity=$legIdentity status=FAILED reason=$legReason
-"
+						legProvenance="$legProvenance## dm=${legDm:-<not resolved>} identity=$legIdentity status=FAILED reason=$legReason"$'\n'
 						legFailReport="$legFailReport the $legIdentity identity's DM (${legDm:-not resolved}) with party $fanOutParty -- $legReason ;"
 						continue
 					fi
 					legOkCount=$(( legOkCount + 1 ))
-					legProvenance="$legProvenance## dm=$legDm identity=$legIdentity status=ok
-"
+					legProvenance="$legProvenance## dm=$legDm identity=$legIdentity status=ok"$'\n'
 				done
 
 				## Provenance header first, always both legs, then the payload.

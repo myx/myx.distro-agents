@@ -559,8 +559,7 @@ case "$1" in
 									echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-file given alongside trailing body argv -- use one or the other, not both" >&2
 									set +e ; return 1
 								fi
-								bodyLines="$bodyLines
-$1"
+								bodyLines="$bodyLines"$'\n'"$1"
 							;;
 						esac
 						shift
