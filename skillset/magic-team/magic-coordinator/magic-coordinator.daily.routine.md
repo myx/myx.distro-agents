@@ -79,7 +79,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - That candidate: a short, iterative "research the web a bit on a topic of this member's own duties, detect good proposals to assess at the next `magic-team.grooming.routine`" pass.
 10. **run-check-process-board**: run the `check-process-board` procedure (`magic-coordinator.armed.md`) directly. Never `magic-coordinator.advance.routine`.
 11. **librarian-updates-context**: today's new task details already live on the board directly (via **run-check-process-board**'s pass and **fan-out-work-sessions**' dispatched agents' own board moves) — no separate write-back step exists.
-12. **sync-camunda-diagrams**: run `partner-ndm-camunda.camunda-diagram-sync.routine` — mtime check on the `temp-magic-team` BPMN diagrams against team definition files, redeploy handoff to that routine's own owning `partner-*` if stale.
+12. **sync-camunda-diagrams**: run the owning `partner-*`'s own diagram-sync routine — mtime check on the `temp-magic-team` BPMN diagrams against team definition files, redeploy handoff to that routine's own owning `partner-*` if stale.
    - Skip silently if nothing changed — don't dispatch an agent just to find that out, the mtime comparison is cheap enough to do inline.
 13. **questions-then-conclude**: let the user (or a member, narrated) ask anything before closing the standup portion.
    - **Autonomous invocation**: doesn't block waiting for a live response — post any open questions to `slack-magic-team` via the `--member-comms-slack-send-message` operation (and, if it needs to persist as real backlog rather than just a conversational trace, a `board-running` `note-*` item) for later human review, then continue to **fan-out-work-sessions**. The next daily's **sort-incoming** step checks for a reply before treating the question as open.
@@ -113,7 +113,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Routine's local procedures
 
-None — every procedure this routine invokes belongs to another routine, referenced here by name only (`magic-team.coworking.routine`, `magic-coordinator.communication-sweep.routine`, `magic-coordinator.advance.routine`, `partner-ndm-camunda.camunda-diagram-sync.routine`, `magic-librarian.morning-review.routine`, `magic-team.process-inbox.routine`, `magic-team.interview.routine`, `magic-team.process-reflections.routine`) — see Librarian Comments → Reference.
+None — every procedure this routine invokes belongs to another routine, referenced here by name only (`magic-team.coworking.routine`, `magic-coordinator.communication-sweep.routine`, `magic-coordinator.advance.routine`, the owning `partner-*`'s own diagram-sync routine, `magic-librarian.morning-review.routine`, `magic-team.process-inbox.routine`, `magic-team.interview.routine`, `magic-team.process-reflections.routine`) — see Librarian Comments → Reference.
 
 # Routine's local rules
 
@@ -214,7 +214,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-team.coworking.routine` — its Closure Steps are the closing this routine executes.
 - `check-process-board` (`magic-coordinator.armed.md`) — dependency-ordering recompute, **run-check-process-board**; called directly, not via `magic-coordinator.advance.routine`.
 - `magic-coordinator.advance.routine` — run in full at the first closure step (**run-advance-dispatch**), as this routine's own dispatch/respawn pass; never called from the main sequence.
-- `partner-ndm-camunda.camunda-diagram-sync.routine` — BPMN diagram staleness check, **sync-camunda-diagrams**.
+- the owning `partner-*`'s own diagram-sync routine — BPMN diagram staleness check, **sync-camunda-diagrams**.
 - `magic-coordinator.communication-sweep.routine` — read half (**sweep-comms-read**) and write half (**sweep-comms-write**).
 - `magic-team.process-inbox.routine` — the sorting pass over own inbox, **sort-incoming**; see its own "Execution mode is decided by identity match" section for why this explicit call is required.
 - `magic-team/magic-team.armed.md`'s "Execution mechanisms" section — the process-flow direct-tooling-call rule this routine follows; its "Team-Member's (-specific) tooling" section for calling convention and the sole-sanctioned Slack-posting mechanism.
