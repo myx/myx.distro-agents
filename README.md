@@ -112,8 +112,7 @@ See exactly which operations one member is allowed to run:
 
 - `DistroAgentsTools.fn.sh --help` — every operation, with full syntax.
 - `DistroAgentsTools.fn.sh --member-help <member>` — only what that member may run.
-- `DistroAgentsConsole.sh --help` — console syntax and options.
-- `Agents --help` — agents-context dispatcher syntax.
+- `Agents --help` — agents-context dispatcher syntax, from inside the console.
 - Press TAB after a command name and a space for shell completion.
 
 ## Related packages
