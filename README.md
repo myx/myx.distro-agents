@@ -21,7 +21,7 @@ Three parts:
 Install the toolset into a workspace, then wire the team into every editor and
 agent client on this machine:
 
-	bash .local/myx/myx.distro-.local/sh-scripts/DistroLocalTools.fn.sh --install-distro-.local
+	bash .local/myx/myx.distro-.local/sh-scripts/DistroLocalTools.fn.sh --install-distro-agents
 	DistroAgentsTools.fn.sh --install-workspace-integrations
 
 That one command does both setup steps: it links the team's members into the
