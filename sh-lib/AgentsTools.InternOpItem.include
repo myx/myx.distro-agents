@@ -102,7 +102,7 @@
 ##       --context <caller-op>
 ##   --intern-op-item-upsert <team-member> <item-selector>
 ##       [--header:<upsert|append|remove>:name[:value]]...
-##       [--from-file <path>|--edit-patch-from-stdin]
+##       [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 ##       [--update-lock|--unlock-lock] --context <caller-op>
 ##
 ## <item-selector> is one of the five forms under ITEM-CATEGORY ADDRESSING
@@ -427,7 +427,7 @@ case "$1" in
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): syntax is <team-member> [--from-board <state> <item-filename>|--from-vault <item-filename>|--from-audit <item-filename>|--from-inbox <team-member> <item-filename>|<item-filename>] [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin] [--update-lock|--unlock-lock]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): syntax is <team-member> [--from-board <state> <item-filename>|--from-vault <item-filename>|--from-audit <item-filename>|--from-inbox <team-member> <item-filename>|<item-filename>] [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin] [--update-lock|--unlock-lock]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$callingMember" "<team-member>" "$MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
@@ -524,6 +524,11 @@ case "$1" in
 					bodyModeCount=$(( bodyModeCount + 1 ))
 					shift 2
 				;;
+				--upsert-from-stdin)
+					bodyMode="stdin"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift
+				;;
 				--edit-patch-from-stdin)
 					bodyMode="patch"
 					bodyModeCount=$(( bodyModeCount + 1 ))
@@ -552,7 +557,7 @@ case "$1" in
 			rm -f "$headerOpsFile" ; set +e ; return 1
 		fi
 		if [ "$bodyModeCount" -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-file, --upsert-from-stdin and --edit-patch-from-stdin are mutually exclusive" >&2
 			rm -f "$headerOpsFile" ; set +e ; return 1
 		fi
 		if [ "$updateLock" = "true" ] && [ "$unlockLock" = "true" ] ; then
@@ -604,6 +609,8 @@ case "$1" in
 			printf '%s' "$patchJson" > "$patchFile"
 			content="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" "$contentFile" "$patchFile" )" || { rm -f "$headerOpsFile" "$contentFile" "$patchFile" ; set +e ; return 1 ; }
 			rm -f "$contentFile" "$patchFile"
+		elif [ "$bodyMode" = "stdin" ] ; then
+			content="$( cat )"
 		elif [ "$contentFromFile" = "true" ] ; then
 			:
 		elif [ -f "$target" ] ; then
@@ -631,11 +638,7 @@ case "$1" in
 		fi
 
 		if [ -s "$headerOpsFile" ] ; then
-			local bodyTmp
-			bodyTmp="$( mktemp "${TMPDIR:-/tmp}/mdat-item-upsert-body.XXXXXX" )" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
-			printf '%s\n' "$content" > "$bodyTmp"
-			content="$( LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" "$bodyTmp" )" || { rm -f "$headerOpsFile" "$bodyTmp" ; set +e ; return 1 ; }
-			rm -f "$bodyTmp"
+			content="$( printf '%s\n' "$content" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" )" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
 		fi
 		rm -f "$headerOpsFile"
 

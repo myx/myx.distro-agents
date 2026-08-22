@@ -270,11 +270,7 @@ case "$1" in
 		fi
 
 		if [ -s "$headerOpsFile" ] ; then
-			local bodyTmp
-			bodyTmp="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-body.XXXXXX" )" || { set +e ; return 1 ; }
-			printf '%s\n' "$body" > "$bodyTmp"
-			body="$( LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" "$bodyTmp" )"
-			rm -f "$bodyTmp"
+			body="$( printf '%s\n' "$body" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" )" || { set +e ; return 1 ; }
 		fi
 
 		if [ -z "$body" ] ; then

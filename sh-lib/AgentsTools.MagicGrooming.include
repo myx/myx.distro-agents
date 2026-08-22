@@ -1036,7 +1036,7 @@ case "$1" in
 	;;
 
 	## <team-member> [--header:<upsert|append|remove>:name[:value]]...
-	##   [--from-file <path>|--edit-patch-from-stdin]
+	##   [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 	## routine-grooming's own state-and-lock note: state and lock in one
 	## document, and this routine's session tracking document between
 	## iterations (tactical status needed to continue the next iterative call
@@ -1079,13 +1079,13 @@ case "$1" in
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-state-and-lock-upsert: syntax is <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-state-and-lock-upsert: syntax is <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local passthrough=()
 		while [ $# -gt 0 ] ; do
 			case "$1" in
-				--header:*|--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
+				--header:*|--upsert-from-stdin|--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
 				--from-file)
 					if [ -z "${2:-}" ] ; then
 						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-state-and-lock-upsert: --from-file: value required" >&2
