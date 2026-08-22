@@ -48,8 +48,8 @@ already has a tracing env var before adding `set -x` or print statements.
 `myx.distro-*`'s shell codebase: `MDSC_DETAIL=full` gates verbose `>&2` tracing
 throughout — grep any `sh-scripts/*.fn.sh` for `[ -z "$MDSC_DETAIL" ] ||` to see
 the pattern live. Check the equivalent for whatever codebase is actually in
-front of you (AE3, AxiomCMS, ndm/knt/ncz services each likely have their own) —
-ask the owning keeper/partner if it's not obvious from a quick grep.
+front of you — each is likely to have its own — and ask the owning
+keeper/partner if it's not obvious from a quick grep.
 
 ## Stale background state is a false-positive class for "hang"
 
