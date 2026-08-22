@@ -26,7 +26,7 @@ Same underlying principle as `magic-team/magic-team.conversations.md` rule 5c, g
 keepers to any member facing judgment/discretion language or silence about a specified parameter —
 cross-referenced so the two don't silently drift apart.
 
-This applies uniformly across all four keepers — none of them gets a wider or narrower default than
+This applies uniformly across the keepers — none of them gets a wider or narrower default than
 the others; only an explicit per-task grant changes that.
 
 ## The broader frame this sits inside

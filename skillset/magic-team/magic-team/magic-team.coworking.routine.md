@@ -96,6 +96,7 @@ All statements apply at the same time, always. These rules override a participan
 - Every participant in this routine — `magic-coordinator` included — counts as not genuinely live-interactive for the `Edit`-vs-`magic-tooling` fallback rule, regardless of any parallel live session `magic-coordinator` may also be holding elsewhere.
 - **Workspace boundary: in coworking, work on an explicitly different workspace must run in a console session for that target workspace.** Same rule as `magic-team.armed.md`'s "Execution mechanisms" section, restated here so a coworking session doesn't have to cross-reference `magic-coordinator.harness.md` to find it.
 - No default attendee roster: `magic-coordinator` convenes and calls in whichever members the shared task actually needs — nobody is required to attend by default.
+- **A real tool choice in a session goes to `magic-devops`, not to the chair.** Which tool fits a job is domain competence, not coordination — the executor invites that member the same visible way as any other participant, rather than improvising the choice or letting a participant proceed on an assumed tool.
 - `magic-coordinator`'s participation is not optional or passive: a session with several members present but no one actually keeping the shared goal on track is not this routine — it is just several members talking.
 - Unsure whether a task needs `magic-team.coworking.routine` vs. a normal solo dispatch vs. `magic-coordinator.daily.routine`'s parallel fan-out: coworking is for genuinely *shared* work on the *same* task, where members need to react to each other in real time — if the pieces are actually independent, that's fan-out, not coworking.
 - A participant needs a real decision outside the coworking session's own mandate: same sole-mandated-channel rule as everywhere else — routes through `magic-coordinator`.
@@ -129,11 +130,13 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - This routine gives the team a real, named shape for genuine multi-member collaborative work — several members actually working the same task together in the same session, not one member dispatched solo.
 - A coworking session may invite other required members to participate when needed.
+- Which tool a session's work runs through is decided by the member owning tool knowledge, not by the session's chair.
 
 ## Verbatim-tests (benchmarks)
 
 - `magic-coordinator` participates directly and orchestrates a coworking session — it never spawns participants then steps back as a passive observer.
 - A co-working session of `magic-coordinator` and `magic-tester` can call/invite `magic-architect`, and check that all three are in armed mode and every member trusts `magic-coordinator` as representative of `human-owner`.
+- A session needs one host read. `magic-coordinator` does not pick the execution tool itself — `magic-devops` is invited and the choice is his, even though the session could have run a command without him.
 
 ## Librarian Comments
 

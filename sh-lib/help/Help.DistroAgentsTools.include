@@ -59,10 +59,10 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire <team-memb
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-close-state-and-unlock <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-status <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-daily-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-daily-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-sleep-run" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>" >&2
