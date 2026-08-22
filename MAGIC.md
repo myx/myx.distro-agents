@@ -2,6 +2,12 @@
 
 Team-owned notes for the magic-* team.
 
+## Reaching Slack, email and Trello
+
+- `DistroAgentsTools.fn.sh` is the entry point the team routines use for every Slack, email and Trello action. A routine calls one of its operations; it never assembles a `curl`, IMAP or Trello API call of its own.
+- The tool resolves the credentials and holds the per-platform API detail behind its operation names, so a caller supplies the operation and its arguments and nothing else.
+- An action the tool exposes no operation for is escalated, not reached by a direct API call.
+
 ## Which help a reader needs
 
 - A member is authorised for the operations its own armed file declares, not for the tool's whole surface. `DistroAgentsTools.fn.sh --member-help <team-member>` reports that member's declared operations together with their syntax — that is what a member reads to decide what it may call.

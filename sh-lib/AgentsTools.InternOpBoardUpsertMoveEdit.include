@@ -374,15 +374,14 @@ case "$1" in
 			rm -f "$contentFile" "$patchFile"
 		else
 			if [ "$isCreate" = "true" ] ; then
-				body='---
----'
+				body="---"$'\n'"---"
 			else
 				body="$( cat "$sourcePath" )"
 			fi
 		fi
 
 		if [ -s "$headerOpsFile" ] ; then
-			body="$( printf '%s\n' "$body" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" )" || { set +e ; return 1 ; }
+			body="$( printf '%s\n' "$body" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" )" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
 		fi
 
 		if [ -z "$body" ] ; then

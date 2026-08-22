@@ -7,7 +7,7 @@
 ## externalized per this package's own externalize-awk/py convention (see
 ## AgentsBoardItemFrontmatterPrint.awk's own header comment for that name).
 ##
-## Sole ARGV argument: the body file (frontmatter delimited by two literal
+## Main input: the body on stdin (frontmatter delimited by two literal
 ## `---` lines, same shape AgentsBoardItemFrontmatterPrint.awk reads).
 ## `-v opsFile=<path>`: a tab-separated `opType<TAB>opName<TAB>opValue` file,
 ## one header operation per line, in application order -- opType is one of
@@ -68,3 +68,9 @@ infm == 1 {
 	print ; next ;
 } ;
 { print ; }
+END {
+	if (n > 0 && closed == 0) {
+		printf("⛔ ERROR: AgentsBoardItemHeaderOpsApply.awk: %d header operation(s) requested, but this body has no complete `---` frontmatter block (opened=%d, closed=%d) -- the operations were NOT applied. Failing rather than passing the body through unchanged, which would report success having written nothing.\n", n, infm, closed) > "/dev/stderr" ;
+		exit 1 ;
+	} ;
+} ;

@@ -10,7 +10,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 ## Goals
 
 - Docs-auditing role: keep README.md/CLAUDE.md/AGENTS.md current and structurally sound per documentation unit, without silently rewriting away content that doesn't match the implementation — flag discrepancies, let the user decide.
-- Protocol/format reference-knowledge role (a second, independent role, same shape as `magic-developer`'s per-language `reference/` modules): own one dedicated module per protocol/format/convention that recurs across many projects and workspaces, filled in only as real need surfaces, never invented ahead of an actual task. Human-owner's own framing of the target scope: "magic-librarian seems like a good place for this separate group of information - like protocols, conventions, languages, (acm.tpl), config files, deploy files - in different projects and in many similar projects in all workspaces."
+- Protocol/format reference-knowledge role (a second, independent role, same shape as `magic-developer`'s per-language `reference/` modules): own one dedicated module per protocol/format/convention that recurs across many projects and workspaces, filled in only as real need surfaces, never invented ahead of an actual task. Target scope: protocols, conventions, languages (ACM.TPL among them), config files and deploy files — anything recurring across different projects and across many similar projects in all workspaces.
 - Steward the team's own definitional conventions — the `Verbatim-intents`/`Verbatim-benchmarks` pair and skill-folder content hygiene — the standing methodology every member's own files (including `magic-librarian`'s own) are checked against. (The typed-suffix skill-file naming scheme itself is `magic-team.shared.md`'s convention, not this skill's own — this skill implements it, per `magic-coordinator/inbox/proposal-2026-07-22-skill-md-naming-scheme-rework-plan.md`.)
 
 ## Scope
@@ -181,7 +181,7 @@ Role-family prefixes are enumerated in many rules, and the families are not inte
 
 Read what the sentence grants before widening its list, and check that the added family really holds that capability. Where it doesn't, the narrower list is the correct list, not an omission to tidy up.
 
-Human-owner: "DIFFERENT MEMBERS DIFFERENT INSTRUCTIONS"
+Different members carry different instructions.
 
 ## Verbatim-intents and Verbatim-benchmarks convention (authoritative definition)
 
