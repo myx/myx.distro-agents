@@ -197,16 +197,12 @@ BEGIN {
 	if (envJson != "" && !validJson(envJson, "{")) fail("env-not-a-json-object")
 }
 
-# An empty target yields no record; END covers the fresh-document case.
-{
-	if (DONE) next
-	s = $0
-	upsert()
-}
+# Rejoin the records under the default RS: a NUL RS is the empty string, which
+# selects paragraph mode and would split the document on any blank line.
+{ doc = (NR == 1) ? $0 : doc "\n" $0; }
 
 END {
 	if (FAILED) exit 1
-	if (DONE) exit 0
-	s = ""
+	s = doc
 	upsert()
 }

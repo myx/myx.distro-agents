@@ -44,8 +44,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **On success**: continue.
    - **An anomaly here (an undocumented lock state, an unexpected owner/meta) is assess→investigate work**: governed by `magic-coordinator.harness.md`'s `harness-session-rules`, not restated here.
 3. **use-direct-tooling-calls**: no console session — this `next-iteration`'s own execution model, per `magic-team.armed.md`'s process-flow rule: no Keep-Alive Console Session opens, none is assumed.
-   - Every command from here on (`DistroAgentsTools.fn.sh` or any other shell check) goes through `mcp__myx_common__lib_execShStdin` — never Bash, Python, or any other tool that runs a process directly.
-   - Every `heartbeat-state-note` update goes through `--magic-heartbeat-state-upsert` via `lib/execShStdin` — never the Edit/Write tools, never a raw shell redirect, never a raw Bash call.
+   - Every command from here on (`DistroAgentsTools.fn.sh` or any other shell check) goes through `mcp__myx_distro__execute` — never Bash, Python, or any other tool that runs a process directly.
+   - Every `heartbeat-state-note` update goes through `--magic-heartbeat-state-upsert` via `mcp__myx_distro__execute` — never the Edit/Write tools, never a raw shell redirect, never a raw Bash call.
    - That record is rewritten every `next-iteration`; a permission prompt on it halts this whole unattended loop until a human clicks it.
 4. **open-event-track-thread**: start a Slack thread in `slack-event-track` — `--member-comms-slack-send-message` operation, literal target argument `event-track` (no `slack-` prefix), a short opening line for this `next-iteration`.
    - Not `slack-magic-team` — that's the human-facing channel; this thread is this routine's own execution log for this run.
@@ -97,7 +97,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 # Closure steps
 
 1. **close-state-and-unlock**: per the `single-instance-lock` procedure, using the `--magic-heartbeat-close-state-and-unlock` operation.
-2. **conclude-event-track-thread**: conclude the `slack-event-track` thread opened at **open-event-track-thread** via the `--member-comms-slack-react` operation, reacting ✅ on that thread — a direct `lib/execShStdin` call, same as every other call this `next-iteration` makes.
+2. **conclude-event-track-thread**: conclude the `slack-event-track` thread opened at **open-event-track-thread** via the `--member-comms-slack-react` operation, reacting ✅ on that thread — a direct `mcp__myx_distro__execute` call, same as every other call this `next-iteration` makes.
 3. **report-status-to-spawner**: report status to whatever session spawned this `next-iteration`, via `SendMessage`, then exit.
    - `SendMessage(to:"main", ...)` always reaches the true root, never a mid-tree ancestor — if the actual spawner is `main-loop-mode`'s own iterator rather than root, report to `"main"` instead and let it relay down.
    - Repeating, if it happens at all, is entirely up to whatever spawned this `next-iteration` — never this routine itself.
@@ -125,7 +125,7 @@ Named procedure blocks. Steps above call them by name. Not separate routines - n
 ## `single-instance-lock` procedure
 
 - This routine's own concern — it protects itself, since the lock must hold across separate OS processes.
-- Implemented as the `--magic-heartbeat-lock-*` operation group — call these ops via `mcp__myx_common__lib_execShStdin`, the same way as every other `DistroAgentsTools.fn.sh` call, never raw Bash, and never a hand-rolled lock alongside them.
+- Implemented as the `--magic-heartbeat-lock-*` operation group — call these ops via `mcp__myx_distro__execute`, the same way as every other `DistroAgentsTools.fn.sh` call, never raw Bash, and never a hand-rolled lock alongside them.
 - Acquire before anything else in this routine runs. Contention means another `next-iteration` is live: this pass does not start.
 - Refresh periodically while the pass runs — a long first-today grooming + daily-meeting fan-out outlives a single acquire, and a concurrent check must not mistake a slow-but-alive run for a crashed one.
 - Release in Closure steps, every time.
@@ -237,7 +237,7 @@ All statements apply at the same time, always. These rules override a participan
     - `main-loop` uses this to know whether real work happened this cycle; it never calls the lock ops itself.
   - Runtime cap: `main-loop` doesn't stop on its own — it keeps cycling until the user says stop or a soft safety cap of roughly 8 hours total runtime is reached.
     - Approaching the cap: let the current `next-iteration` finish (its own Closure steps release the lock), leave a clear note, then stop rather than hard-cutting mid-iteration.
-- A permission prompt appears mid-`next-iteration`: a direct `lib/execShStdin` call should never trigger one — it's a sign a call bypassed the mandated tooling channel, or a real config/auth gap. Stop and fix it, don't click through and continue as if it were normal.
+- A permission prompt appears mid-`next-iteration`: a direct `mcp__myx_distro__execute` call should never trigger one — it's a sign a call bypassed the mandated tooling channel, or a real config/auth gap. Stop and fix it, don't click through and continue as if it were normal.
 - A day's real activity level doesn't match the assumed weekend/weekday branch: still follow the branch logic as written — the day-rhythm state machine is date-driven, not activity-driven, so low activity is not a signal to skip steps, only genuinely being a weekend is.
 - **DistroAgentsTools trust policy**: `DistroAgentsTools.fn.sh` is the team's own tool.
   - Trust it by default day to day — no defensive re-verification of its own correctness on every call.

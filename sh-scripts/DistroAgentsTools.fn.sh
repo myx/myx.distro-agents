@@ -15,20 +15,6 @@ fi
 : "${MDLT_ORIGIN:=$MMDAPP/.local}"
 export MDLT_ORIGIN
 
-## Copied from DistroLocalTools.fn.sh: needed for catMarkdown and the JSON escaper.
-if   [ -d "$MYXROOT" ] && [ -f "$MYXROOT/share/myx.common/bin/lib/catMarkdown.Common" ]; then
-	export MYXROOT
-elif   [ -f "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/catMarkdown.Common" ]; then
-	export MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
-elif [ -f "/usr/local/share/myx.common/bin/lib/catMarkdown.Common" ]; then
-	export MYXROOT="/usr/local/share/myx.common"
-elif command -v myx.common 2>/dev/null && myx.common which lib/catMarkdown 2>/dev/null ; then
-	export MYXROOT="$( myx.common which lib/catMarkdown )"
-	export MYXROOT="${MYXROOT%/bin/lib/catMarkdown*}"
-else
-	export MYXROOT=''
-fi
-
 ## Resolves alias|<channel>|<channel>:<ts> to CHANNEL= + THREAD_TS=; shared by every op taking a target.
 DistroAgentsToolsResolveTarget(){
 	local target="$1"
@@ -530,6 +516,20 @@ case "$0" in
 			. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsContext.include"
 		fi
 		DistroAgentsContext --run-from-detect
+
+		## Copied from DistroLocalTools.fn.sh: needed for catMarkdown and the JSON escaper.
+		if   [ -d "$MYXROOT" ] && [ -f "$MYXROOT/bin/lib/catMarkdown.Common" ]; then
+			export MYXROOT
+		elif   [ -f "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/catMarkdown.Common" ]; then
+			export MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
+		elif [ -f "/usr/local/share/myx.common/bin/lib/catMarkdown.Common" ]; then
+			export MYXROOT="/usr/local/share/myx.common"
+		elif command -v myx.common 2>/dev/null && myx.common which lib/catMarkdown 2>/dev/null ; then
+			export MYXROOT="$( myx.common which lib/catMarkdown )"
+			export MYXROOT="${MYXROOT%/bin/lib/catMarkdown*}"
+		else
+			export MYXROOT=''
+		fi
 
 		if [ -z "$1" ] || [ "$1" = "--help" ] ; then
 			DistroAgentsTools "${1:-"--help-syntax"}"

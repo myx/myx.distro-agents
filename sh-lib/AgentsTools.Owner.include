@@ -127,19 +127,10 @@ case "$1" in
 		echo "# $MDSC_CMD --owner-install-vscode-integrations: workspace=$workspace" >&2
 
 		local mcpRoot="" mcpRootFound=""
-		local c
-		for c in \
-			"$workspace/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common" \
-			"$workspace/myx.common/os-myx.common/host/tarball/share/myx.common" \
-			"$workspace/source/myx/myx.common/os-myx.common/host/tarball/share/myx.common" \
-		; do
-			[ -f "$c/bin/lib/agentMcpServer.Common" ] || continue
-			[ -n "$mcpRootFound" ] || mcpRootFound="$c"
-			if [ -x "$c/bin/lib/agentMcpServer.Common" ] ; then
-				mcpRoot="$c"
-				break
-			fi
-		done
+		if [ -n "$MYXROOT" ] && [ -f "$MYXROOT/bin/lib/agentMcpServer.Common" ] ; then
+			mcpRootFound="$MYXROOT"
+			[ -x "$MYXROOT/bin/lib/agentMcpServer.Common" ] && mcpRoot="$MYXROOT"
+		fi
 		if [ -z "$mcpRoot" ] && command -v myx.common >/dev/null 2>&1 ; then
 			local root
 			root="$( myx.common which lib/catMarkdown 2>/dev/null )"
@@ -187,9 +178,30 @@ case "$1" in
 			; do
 				local mcpFile="${mcpTarget%%:*}"
 				local mcpKey="${mcpTarget#*:}"
+				local mcpSource mcpTmp mcpErr mcpRc=0
 				echo "# Upserting MCP server entry in $mcpFile" >&2
-				if ! python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.py" "$mcpFile" "$serverScript" "$mcpKey" '["--run"]' "$mmdappEnvJson" ; then
-					echo "FAIL mcp-upsert $mcpFile" >&2
+				mcpSource="$mcpFile"
+				[ -f "$mcpSource" ] || mcpSource=/dev/null
+				if ! mcpTmp="$( mktemp "$mcpFile.XXXXXX" )" ; then
+					echo "FAIL mcp-tmp beside $mcpFile" >&2
+					failed=1
+					continue
+				fi
+				mcpErr="$( MYX_MCPUPSERT_TOPKEY="$mcpKey" \
+					MYX_MCPUPSERT_ENTRYKEY="myx.common" \
+					MYX_MCPUPSERT_COMMAND="$serverScript" \
+					MYX_MCPUPSERT_ARGS='["--run"]' \
+					MYX_MCPUPSERT_ENV="$mmdappEnvJson" \
+					LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.awk" "$mcpSource" 2>&1 >"$mcpTmp" )" || mcpRc=$?
+				if [ "$mcpRc" -ne 0 ] ; then
+					echo "FAIL mcp-upsert $mcpFile: $mcpErr" >&2
+					rm -f "$mcpTmp"
+					failed=1
+					continue
+				fi
+				if ! chmod 0644 "$mcpTmp" || ! mv -f "$mcpTmp" "$mcpFile" ; then
+					echo "FAIL mcp-install $mcpFile" >&2
+					rm -f "$mcpTmp"
 					failed=1
 					continue
 				fi
@@ -200,7 +212,7 @@ case "$1" in
 				fi
 				local mcpVerdict
 				mcpVerdict="$( MYX_MCPVERIFY_TOPKEY="$mcpKey" MYX_MCPVERIFY_COMMAND="$serverScript" \
-					LC_ALL=C awk -v RS='\0' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonVerify.awk" "$mcpFile" )"
+					LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonVerify.awk" "$mcpFile" )"
 				if [ "$mcpVerdict" = "OK" ] ; then
 					echo "OK mcp-check myx.common entry launches $serverScript --run ($mcpFile)" >&2
 				else
@@ -235,7 +247,7 @@ case "$1" in
 						MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
 						MYX_MCPUPSERT_COMMAND="$distroServerScript" \
 						MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
-						LC_ALL=C awk -v RS='\0' -f "$distroUpsert" "$distroFile" 2>&1 >"$distroTmp" )" || distroRc=$?
+						LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>&1 >"$distroTmp" )" || distroRc=$?
 					if [ "$distroRc" -ne 0 ] ; then
 						echo "FAIL mcp-distro-upsert $distroFile: $distroErr" >&2
 						rm -f "$distroTmp"
@@ -253,7 +265,7 @@ case "$1" in
 						MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
 						MYX_MCPUPSERT_COMMAND="$distroServerScript" \
 						MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
-						LC_ALL=C awk -v RS='\0' -f "$distroUpsert" "$distroFile" 2>/dev/null \
+						LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>/dev/null \
 						| cmp -s - "$distroFile" ; then
 						echo "OK mcp-distro-check $distroFile" >&2
 					else

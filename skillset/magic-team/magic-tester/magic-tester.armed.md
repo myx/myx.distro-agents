@@ -50,7 +50,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-upsert-inbox-note` (this member's own inbox).
 - Tooling execution is this skill's own mandate, exercised through `magic-tooling` only — but a destructive or irreversible operation is never self-authorised: it needs its own sanction before it runs. What counts as destructive here: any test or check that mutates state outside this skill's own inbox — writing into a real service, a shared workspace, or another member's files. Escalate an unsanctioned one to `magic-coordinator` rather than proceeding. The same route applies to anything this file does not allow at all: escalate it to `magic-coordinator`, never reach for it directly.
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, in `magic-team`'s own shared/floor tooling, or in the "Routine-specific tooling" section of a routine this member is currently participating in.
-- `DistroAgentsTools.fn.sh` always executes via `mcp__myx_common__lib_execShStdin` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command executes the same way.
+- `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command executes the same way.
 
 # Domain knowledge: security/CRA due diligence
 

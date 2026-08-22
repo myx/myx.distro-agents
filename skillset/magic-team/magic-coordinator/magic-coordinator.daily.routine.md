@@ -31,7 +31,7 @@ Routine-daily is the team's standing daily checkpoint: surface every member's st
   - **Invocation**:
     - Manually: the human-owner (or a member, narrated) asks for a "daily meeting"/"standup".
     - Autonomously: via `magic-coordinator.heartbeat.routine`'s day-rhythm state (see that routine's "Day-rhythm state" section).
-  - **Precondition**: none — every tool call this routine makes is its own direct `lib/execShStdin` call, per `magic-team.armed.md`'s process-flow rule.
+  - **Precondition**: none — every tool call this routine makes is its own direct `mcp__myx_distro__execute` call, per `magic-team.armed.md`'s process-flow rule.
 - Doesn't do:
   - Spawn a new dispatch — never calls `check-execute-board` (`magic-coordinator.advance.routine`, `magic-coordinator.advance.routine`-only: starts a never-yet-dispatched `board-pending` item, restarts/nudges `board-running` work). **fan-out-work-sessions**' own member fan-out is the one exception.
   - Backlog re-triage needing investigation/design — `magic-team.grooming.routine`'s job.

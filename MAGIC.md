@@ -66,12 +66,13 @@ Team-owned notes for the magic-* team.
 
 ## `sh-lib/AgentsMcpServerJsonUpsert.awk`
 
-- Upserts one MCP server entry into a JSON config, by entry key. Reads the whole file as one record (`RS='\0'` under `LC_ALL=C`), prints the new document on stdout, and never opens the target — the caller installs the output.
+- Upserts one MCP server entry into a JSON config, by entry key. Reads the whole file itself, rejoining records under the default `RS` (caller sets only `LC_ALL=C`), prints the new document on stdout, and never opens the target — the caller installs the output.
+- Never `RS='\0'` to slurp a file. awk strings are NUL-terminated, so that value collapses to the empty string, which selects paragraph mode: the document splits on any blank line and everything after the first blank line is silently dropped. Measured on one-true-awk 20200816, `awk -v RS='\0' 'BEGIN{print length(RS)}'` prints `0`.
 - Params via `ENVIRON`, never `-v`, because `-v` decodes backslashes and corrupts paths: `MYX_MCPUPSERT_TOPKEY` (`servers` or `mcpServers`), `MYX_MCPUPSERT_ENTRYKEY`, `MYX_MCPUPSERT_COMMAND` (raw, escaped internally), plus optional `MYX_MCPUPSERT_ARGS` (JSON array) and `MYX_MCPUPSERT_ENV` (JSON object).
 - Splices rather than re-serialising, so every key it was not asked to write survives byte for byte and the file keeps the layout it already had.
-- Prunes nothing. The `.py` sibling drops entries launching from its own product tree, which is safe only for the single key that sibling owns; once the key is a parameter, deleting anything the caller did not name is a defect.
+- Prunes nothing: once the key is a parameter, deleting anything the caller did not name is a defect. A stale entry under another key therefore survives registration, and removing one is a deliberate act rather than a side effect. `.vscode/mcp.json` is the exception, pruned earlier in the same pass by `myx.common`'s own writer; `.mcp.json` has no second writer.
 - Fails closed: any error exits 1 with a one-word reason on stderr and zero bytes on stdout, so a failed run cannot be installed.
-- The `.py` sibling remains the writer for its own entry. It hardcodes that key and cannot express a second one.
+- It is the writer for every entry this package registers, `myx.common` and `myx.distro` alike. The Python sibling it replaced hardcoded one key and could not express a second.
 
 ## Installing a generated config over its target
 
@@ -111,7 +112,7 @@ Team-owned notes for the magic-* team.
 ## `myx.common` commands that look reusable here and are not
 
 - `setup/agentMcp` and `remove/agentMcp` are the obvious candidates and both are wrong for this package: they act on the `myx.common` registration, and `remove/agentMcp` would delete the registration it was asked to install.
-- Public `bin/` commands are callable. `include/data/*` is `myx.common`'s internal surface — copy the idiom rather than reach across, as `AgentsMcpServerJsonUpsert.py`'s own header records for its own sibling.
+- Public `bin/` commands are callable. `include/data/*` is `myx.common`'s internal surface — copy the idiom rather than reach across.
 
 ## A bracket range is never used in a `case` pattern
 

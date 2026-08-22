@@ -1,9 +1,9 @@
 #!/usr/bin/env awk
 
 # Verifies the "myx.common" MCP server registration in one config file, as
-# written by AgentsMcpServerJsonUpsert.py. Input: whole file as one record
-# (caller sets RS to slurp-all, under LC_ALL=C). Prints "OK" and exits 0, or
-# prints a one-word reason and exits 1.
+# written by AgentsMcpServerJsonUpsert.awk. Reads the whole file itself, under
+# the default RS and LC_ALL=C. Prints "OK" and exits 0, or prints a one-word
+# reason and exits 1.
 #
 # Params, via ENVIRON rather than -v: awk's -v assignment performs its own
 # backslash-escape decoding, which corrupts values containing '\' or '"'.
@@ -172,11 +172,16 @@ function squeeze(v) {
 BEGIN {
 	topKey = ENVIRON["MYX_MCPVERIFY_TOPKEY"]
 	wantCommand = ENVIRON["MYX_MCPVERIFY_COMMAND"]
-	if (topKey == "" || wantCommand == "") { print "usage"; exit 1 }
+	if (topKey == "" || wantCommand == "") { print "usage"; BAILED = 1; exit 1; }
 }
 
-{
-	s = $0
+# Rejoin the records under the default RS: a NUL RS is the empty string, which
+# selects paragraph mode and would split the document on any blank line.
+{ doc = (NR == 1) ? $0 : doc "\n" $0; }
+
+END {
+	if (BAILED) exit 1
+	s = doc
 	n = length(s)
 	p = 1
 
