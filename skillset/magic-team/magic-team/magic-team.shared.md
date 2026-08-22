@@ -541,6 +541,8 @@ The human-owner's own standing corrections. Binding on every member, in every se
 
 They are stated here, in full, because the skillset is the only thing that carries them forward — an agent's own private memory does not. Each rule below is stated as present-tense instruction text.
 
+An instruction is approved by being committed, and committed instruction text is verbatim by that fact alone — his words written into a file and the file's own words carry identical authority. Quotation marks around instruction text in a file confer nothing and are not used to claim it: every rule is written as plain instruction text, logical and meaningful, no water and no narration, never as a quoted sentence.
+
 
 
 ## Recheck before reporting
@@ -607,11 +609,11 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- "This is the durable, cross-cutting model doc for how the team's skill folders and routines work — every acting member's own skill folder (magic-\*/keeper-\*/warden-\*/partner-\*/client-\*), plus every routine-\* virtual member hosted inside one of them: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule."
-- "This file's own content is binding and obligatory on every team member who reads it — not merely informational or reference material."
+- This file is the durable, cross-cutting model of how the team's skill folders and routines work — every acting member's own skill folder (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`), plus every `routine-*` virtual member hosted inside one of them: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule.
+- This file's own content is binding and obligatory on every team member who reads it, never merely informational or reference material.
 - A routine is a named procedure hosted inside its owning member's own folder, never a skill folder of its own — so the same procedure performed by a different member yields member-appropriate results instead of a second identity.
-- "The core rule: every acting member's own source files (`.basic.md`/`.armed.md`, plus every `.routine.md` it owns) must be fully sufficient on their own."
-- "A duty instruction says how to perform the duty. Nothing else belongs in a skill file." Tooling internals stay with the package that owns them, so a tooling refactor never forces an edit to a member-owned file.
+- Every acting member's own source files — `.basic.md`/`.armed.md`, plus every `.routine.md` it owns — are fully sufficient on their own.
+- A duty instruction says how to perform the duty; nothing else belongs in a skill file. Tooling internals stay with the package that owns them, so a tooling refactor never forces an edit to a member-owned file.
 - Each file-shape contract stated here is complete and self-contained, so a file's shape is read off the one contract matching its own kind, never reconstructed as a diff against another.
 - Changing what a folder's own definition *is* is a group decision, never one maintainer acting alone; executing the activity that definition describes stays free.
 - The human-owner's own standing corrections are stated here in full, because the skillset is the only thing that carries them forward — an agent's own private memory does not.

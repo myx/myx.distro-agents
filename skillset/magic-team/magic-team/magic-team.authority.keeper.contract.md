@@ -9,9 +9,9 @@ never a paraphrase at each call site.
 
 ## Why
 
-Directly prompted by a real incident: a keeper (`keeper-*`) invented its own fix/reduction design
-across two batches of work without that authority having been granted for the task, and both had to be
-found and reverted. See memory `feedback_keepers_are_coordination_assistants.md` for the full writeup.
+A keeper (`keeper-*`) that invents its own fix or reduction design without that authority having been
+granted for the task produces work that has to be found and reverted. This contract sets the default
+so that does not happen.
 
 ## The policy
 

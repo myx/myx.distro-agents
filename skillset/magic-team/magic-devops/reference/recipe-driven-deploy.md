@@ -1,6 +1,6 @@
 # Deploy tooling: multiple distinct, purpose-specific tools — not one universal mechanism
 
-Verified this session against real command output, not source-reading alone.
+Grounded in real command output, not source-reading alone.
 
 ## `BuildDistroFromSource.fn.sh` has no project scoping — don't reach for it to refresh one project
 
@@ -12,12 +12,12 @@ Its own `--help`: "Orchestrates the full build pipeline from source ingest to fi
 
 There is no single universal "the deploy command." Different target categories have their own dedicated tool, each with its own real, native single-target interface:
 - `DeployProjectSsh.fn.sh` — per-host/per-project deploys (install-script pipeline, `image-install:` directives).
-- `DeployRouting.fn.sh` — routing/domain/cert config (`*-structure.json`, `image-execute:deploy-l6route-config:` directives) specifically. Confirmed this session: `DeployProjectSsh.fn.sh`'s normal flow never touches `image-execute:` directives at all — running it against a routing-config-bearing project does not also push the routing config, and isn't a substitute for `DeployRouting.fn.sh`.
+- `DeployRouting.fn.sh` — routing/domain/cert config (`*-structure.json`, `image-execute:deploy-l6route-config:` directives) specifically. `DeployProjectSsh.fn.sh`'s normal flow never touches `image-execute:` directives at all — running it against a routing-config-bearing project does not also push the routing config, and isn't a substitute for `DeployRouting.fn.sh`.
 - Likely others exist for other target categories not yet encountered — the pattern to expect is "a dedicated tool per category," not "one tool that eventually handles everything if you find the right flag."
 
 **The actual skill is identifying which specific tool matches your actual target, not defaulting to whichever deploy tool is already familiar.** A `project.inf`'s own declarations (`image-install:`/`image-execute:`/`Declares:`, and any hook script a `Declares:` line points at) are one real way to discover which category a given target/config falls into and which tool owns it — worth checking before assuming — but that's a discovery aid, not evidence that "go through `project.inf` declarations" is itself the one mechanism. Once the right tool is identified, look for its own native single-target CLI form before working around it with a hand-assembled invocation.
 
-Confirmed pattern found this session: a purpose-built deploy tool for one config category wasn't registered on the console's normal command PATH (unlike the regular `myx.distro-*` tools), needed a full-path invocation, and had its own explicit single-target flag — once found, it needed no environment-variable setup at all. Real customer/namespace specifics for that example (script path, host names, the actual mechanism) belong in the owning namespace `keeper-*`'s domain knowledge or the relevant repo's own `MAGIC.md`, not here — this file stays cross-customer/generic.
+A purpose-built deploy tool for one config category is not necessarily registered on the console's normal command PATH the way the regular `myx.distro-*` tools are: it may need a full-path invocation, may carry its own explicit single-target flag, and may need no environment-variable setup at all. Real customer/namespace specifics for that example (script path, host names, the actual mechanism) belong in the owning namespace `keeper-*`'s domain knowledge or the relevant repo's own `MAGIC.md`, not here — this file stays cross-customer/generic.
 
 ## `DeployProjectSsh.fn.sh` real invocation — the pieces `--help` alone doesn't give you
 

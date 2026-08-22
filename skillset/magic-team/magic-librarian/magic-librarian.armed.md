@@ -11,7 +11,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 
 - Docs-auditing role: keep README.md/CLAUDE.md/AGENTS.md current and structurally sound per documentation unit, without silently rewriting away content that doesn't match the implementation — flag discrepancies, let the user decide.
 - Protocol/format reference-knowledge role (a second, independent role, same shape as `magic-developer`'s per-language `reference/` modules): own one dedicated module per protocol/format/convention that recurs across many projects and workspaces, filled in only as real need surfaces, never invented ahead of an actual task. Target scope: protocols, conventions, languages (ACM.TPL among them), config files and deploy files — anything recurring across different projects and across many similar projects in all workspaces.
-- Steward the team's own definitional conventions — the `Verbatim-intents`/`Verbatim-benchmarks` pair and skill-folder content hygiene — the standing methodology every member's own files (including `magic-librarian`'s own) are checked against. (The typed-suffix skill-file naming scheme itself is `magic-team.shared.md`'s convention, not this skill's own — this skill implements it, per `magic-coordinator/inbox/proposal-2026-07-22-skill-md-naming-scheme-rework-plan.md`.)
+- Steward the team's own definitional conventions — the `Verbatim-intents`/`Verbatim-benchmarks` pair and skill-folder content hygiene — the standing methodology every member's own files (including `magic-librarian`'s own) are checked against. (The typed-suffix skill-file naming scheme itself is `magic-team.shared.md`'s convention, not this skill's own — this skill implements it.)
 
 ## Scope
 
@@ -256,9 +256,9 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- "Never silently delete or rewrite away content that doesn't match the implementation."
-- "A one-line fix should produce a one-line diff, not a rewritten file."
-- "Every substantive rule, condition, carve-out, or fact the dated language was anchoring must survive into the rewrite."
+- Content that does not match the implementation is never silently deleted or rewritten away — the discrepancy is surfaced and the human decides.
+- A one-line fix produces a one-line diff, never a rewritten file.
+- Every substantive rule, condition, carve-out, or fact that dated language was anchoring survives into the rewrite.
 - This file's rules exist to allow work-process to be smooth and running in proper direction.
 - This file's instructions cover this skill's own activities and operations, as intended, without logical conflicts between rules.
 - A conventions-check finding must cite an actual file/line it's checked against — never an invented convention.
@@ -284,7 +284,6 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-team/magic-team.shared.md` — the `routine-*` virtual-member model and the typed-suffix file-format conventions.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — this skill's tooling baseline: calling convention, sole-sanctioned Slack-posting mechanism, Keep-Alive Workspace Console Session mechanics.
 - The `heartbeat-state-note` — the team shared-state file this skill's scope exception covers.
-- `magic-coordinator/inbox/proposal-2026-07-22-skill-md-naming-scheme-rework-plan.md` — the naming-scheme rework plan this skill's own typed-file conventions implement (a one-off inbox proposal record, not stable shared reference material — not a `*.shared.md` file).
 
 #### Named future candidates (not built yet)
 

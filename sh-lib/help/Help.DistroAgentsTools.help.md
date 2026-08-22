@@ -51,6 +51,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
+📘 syntax: DistroAgentsTools.fn.sh --intern-mcp-server [--run]
+📘 syntax: DistroAgentsTools.fn.sh --intern-mcp-execute
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -68,6 +70,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <item-name>...
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>
@@ -1175,6 +1179,56 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--intern-mcp-server [--run]
+			Serves this package's own MCP surface over stdio, registered
+			under the server name `myx.distro`. That server is this
+			package's own and is unrelated to `myx.common`'s: separate
+			names, separate registrations, and neither one's installer
+			touches the other's entry.
+
+			`--run` is what makes a registration work. Without it this
+			prints its syntax and exits instead of serving, so an entry
+			whose `args` omit it registers a command the host can launch
+			but that can never serve.
+
+			Registers into this workspace's own MCP config and no
+			other. The command written is this workspace's own resolved
+			`myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh`,
+			with args `["--intern-mcp-server","--run"]` and no `env`.
+			This operation establishes the workspace environment itself,
+			so a registration does not carry one and must not be given
+			one. To register another workspace's tooling, run this
+			operation from that workspace.
+
+			Exposes exactly one tool, `execute`, backed by
+			--intern-mcp-execute below.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--intern-mcp-execute
+			The operation behind the `execute` MCP tool, reached by the
+			server started with --intern-mcp-server --run when it
+			dispatches a tool call. Not an operation to invoke from a
+			shell, a routine step or a board item -- call the operation
+			you actually want instead.
+
+			Takes no arguments; passing any is an error. The script to
+			run arrives on stdin and is read whole, so it may be
+			multi-line.
+
+			Stdout carries only what the script itself emits. Anything
+			this operation reports about the environment goes to stderr,
+			keeping the protocol stream clean. The exit status is the
+			script's own, propagated unchanged: a failing script reports
+			its status rather than ending the server.
+
+			The script runs with the workspace environment already
+			established -- `MMDAPP`, `MDLT_ORIGIN`, `MDLC_INMODE`,
+			`MDLT_OPTION` and `MYXROOT` are set even when the call
+			arrives with none of them.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item to board/backlog/ and/or patches its
 			frontmatter, one call -- no full-content rewrite required
@@ -1377,8 +1431,13 @@
 			ahead of the board rows, so a pass can continue from what the
 			previous one recorded; a note that does not exist yet reports as
 			having nothing to report and is not an error. Returns content
-			only -- it never evaluates the lock. <team-member> is the only
-			argument -- no --state/--header override.
+			only -- it never evaluates the lock. The team roster cache
+			follows it as its own section, since this routine's own
+			roster/tooling recheck works from it -- also content only, and
+			also not an error when nothing is stored yet; there is no need to
+			call --magic-team-roster-read separately after this scan.
+			<team-member> is the only argument -- no --state/--header
+			override.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1430,6 +1489,24 @@
 			Reads `$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260812T231137Z-sweep-state.md`.
 			Outputs file content, or `NO_STATE` if it does not exist.
 			Read-only.
+
+		--magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
+			Writes the team's roster cache -- member/domain/posture rows plus
+			the per-member persona subsections, one record. Call it after
+			re-deriving either from the members' own live skill files, to
+			store the refreshed cache. Input source is exactly one of: stdin
+			(default), `--from-file`, or `--edit-patch-from-stdin`. Empty
+			content is rejected. If `--edit-patch-from-stdin` is used, stdin
+			must be a JSON patch array for exact-literal replace operations.
+
+		--magic-team-roster-read <team-member>
+			Reads the team's roster cache -- member/domain/posture rows plus
+			the per-member persona subsections. Call it when a roster or
+			persona fact is needed, or to diff the cache before refreshing
+			it. `--magic-grooming-input-scan` already returns this same
+			content as its own section, so a routine working from that scan
+			does not call this op as well. Outputs the record content, or
+			`NO_RECORD` if none is stored yet. Read-only.
 
 		--client-sweep-input-scan <client-*|partner-* member> [--comms-since-utime <v>|--comms-since-date-time <v>]
 			Read-only: one client-*/partner-* member's own incoming

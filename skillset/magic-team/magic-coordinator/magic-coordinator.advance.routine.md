@@ -21,7 +21,7 @@ The board isn't trustworthy between daily/grooming cycles — sessions die mid-w
 - `board-running` — every item, every pass, including its own in-place testing round; no separate `board/testing/` folder.
 - `board-backlog` and `board-pending` — every item, every pass: mechanical `board-backlog`→`board-pending`→`board-running` moves, readiness-flagging only — not a full re-triage.
 - `board-parked` and `board-blocked`, narrowly — only items carrying a `recheck-date` whose date has arrived (or, for `board-blocked`, an early-fire per `check-process-board`'s **board-reassess-parked-blocked**).
-- `magic-coordinator`'s own inbox, narrowly — only `note-2026-08-05-pending-slack-reaction.md`/`note-2026-08-05-pending-trello-update.md`-shaped records (used in `check-pending-comms-actions`).
+- `magic-coordinator`'s own inbox, narrowly — only `pending-slack-reaction` and `pending-trello-update` records (used in `check-pending-comms-actions`). One record per deferred action, not one standing record; the input-scan surfaces them, so no filename is written down or matched here.
 - Dependency-graph recomputation (`blocks:`/`blocked-by:` edges and ordering) — bounded, not every pass (`check-process-board`'s **board-recompute-dependencies**).
 
 **`recheck-date`/`condition` convention**, on any item entering `board-parked`/`board-blocked`:
@@ -306,7 +306,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-coordinator.heartbeat.routine` — the caller that invokes this routine every iteration, at the end of its loop.
-- `magic-coordinator.communication-sweep.routine` — the Comms step this routine runs right after; also the source of `note-2026-08-05-pending-slack-reaction.md` records `check-pending-comms-actions` consumes.
+- `magic-coordinator.communication-sweep.routine` — the Comms step this routine runs right after; also the source of the `pending-slack-reaction` records `check-pending-comms-actions` consumes.
 - `magic-team.grooming.routine` — deeper, once-daily, three-actor pass this routine's own findings feed into when they need real judgment; also reads `check-process-board`'s own recorded dependency ordering for its own cross-member reprioritization.
 - `magic-librarian.morning-review.routine` — the distinct, structural-drift-focused board session, not duplicated by this routine's own reconciliation pass.
 - `magic-team.process-inbox.routine` — full own-inbox read (**advance-process-inbox**), distinct from `check-pending-comms-actions`'s narrow deferred-action slice.

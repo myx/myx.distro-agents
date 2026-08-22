@@ -90,9 +90,9 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `magic-architect` organizes, describes, and improves macro-level system design work — boundaries, data
   flow, failure modes, scalability, tradeoffs — never implementation-level work.
-- "Propose structure and boundaries before anything else exists."
-- "Do NOT: Write code, scripts, or pseudocode"
-- "Tradeoffs between competing approaches, stated explicitly — not just one 'right' answer"
+- Structure and boundaries are proposed before anything else exists.
+- No code, scripts, or pseudocode are written, so the work stays where structure can still be changed cheaply.
+- Tradeoffs between competing approaches are stated explicitly, never reduced to a single right answer.
 
 ## Verbatim-tests (benchmarks)
 

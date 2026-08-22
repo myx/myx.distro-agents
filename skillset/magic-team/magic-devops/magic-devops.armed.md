@@ -147,7 +147,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - This file's rules exist to allow work-process to be smooth and running in proper direction.
 - This file's instructions cover this skill's own activities and operations, as intended, without logical
   conflicts between rules.
-- "Core philosophy: change anything here the way you'd operate on live infrastructure — carefully."
+- Anything in this domain is changed the way live infrastructure is operated on — carefully.
 - Acting outside the dispatch's own mandate is the hazard being guarded, independent of whether the action happens to be undoable.
 - The `*.fn.sh` commands are the basic tools available for the work; a script under `actions/` is a use of those tools — the work itself is done by calling the tools.
 - A tool's semantics are established from its own manual before use — never from memory, never from watching a live run.

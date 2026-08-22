@@ -37,8 +37,7 @@ Short, routine-independent definitions — each term's own meaning stands on its
 
 - `resume-review` — a content-dispatch-hygiene procedure: on reactivation, dispatch any already-settled-but-undispatched sub-pieces and shrink tracking scope to what's still open.
 - `check-restart` — the general liveness/nudge mechanism for an already-active `board-running` item: nudge if a session is alive, spawn or execute inline if not. Inlined into `check-execute-board` (`magic-coordinator.advance.routine`) — not a standalone procedure. Per-type outcomes (completion, escalation, re-ask) are `check-process-board`'s/`check-execute-board`'s own per-type rules, not part of this mechanism.
-- `roster-note` — the team's member/domain/posture roster cache, held as `magic-coordinator`'s own inbox note `note-2026-08-04-team-roster.md`; refreshed in place via `--member-upsert-inbox-note`.
-- `personas-note` — the team's per-member persona-data cache (Description/Name/Gender/Eyes/Alias/AKA/Birthday, whichever fields a member's own file states), held as `magic-coordinator`'s own inbox note `note-2026-08-04-team-personas.md`; refreshed in place via `--member-upsert-inbox-note`, source of truth is each member's own `.basic.md` "## Public Information" section, not this cache.
+- `roster-note` — the team's roster cache, one record held as `magic-coordinator`'s own inbox note: member/domain/posture rows plus the per-member persona subsections (Description/Name/Gender/Eyes/Alias/AKA/Birthday, whichever fields a member's own file states). Read via `--magic-team-roster-read`, and returned by `--magic-grooming-input-scan` as its own section; refreshed in place via `--magic-team-roster-upsert`. Source of truth stays each member's live `SKILL.md` description for the rows and each member's own `.basic.md` "## Public Information" section for the personas, never this cache.
 - `heartbeat-state-note` — `magic-coordinator.heartbeat.routine`'s own day-rhythm state record; read via `--magic-heartbeat-state-read`, rewritten in place via `--magic-heartbeat-state-upsert`.
 
 Each is its own system: any `board-item` prefix → owning-routine list a mechanism needs is declared locally, only by the routine(s) that actually implement that specific mechanism — never shared, merged, or cross-referenced with another mechanism's own list, even where both happen to list the same prefix.
@@ -168,16 +167,18 @@ Callable directly, or from `check-process-board`'s own deferred-lookup step.
 
 **Note on scope**: Board-state work, same class as `check-process-board`.
 
-**Note on Slack input**: `note-<date>-pending-slack-reaction.md` is filed by `magic-coordinator.communication-sweep.routine`, carrying `communication-channel-id`/`references`.
+**Note on Slack input**: a `pending-slack-reaction` record is filed by `magic-coordinator.communication-sweep.routine`, carrying `communication-channel-id`/`references`.
 
-**Note on Trello input**: `note-<date>-pending-trello-update.md` is filed by `magic-team.coworking.routine`'s Closure Steps' own opening inbox step. Sole Trello-write executor, team-wide — `magic-team.coworking.routine`'s Closure Steps never write Trello directly.
+**Note on Trello input**: a `pending-trello-update` record is filed by `magic-team.coworking.routine`'s Closure Steps' own opening inbox step. Sole Trello-write executor, team-wide — `magic-team.coworking.routine`'s Closure Steps never write Trello directly.
+
+Both input kinds are one record per deferred action, not one standing record. Their filenames vary per record and are resolved by the input-scan, never written down or matched literally here.
 
 Steps:
-1. **pending-read-slack**: Read every `note-<date>-pending-slack-reaction.md` item in `magic-coordinator`'s inbox.
+1. **pending-read-slack**: Read every `pending-slack-reaction` record the input-scan surfaces from `magic-coordinator`'s own inbox.
 2. **pending-resolve-slack**: Resolve each item's `references`-linked board-item against loaded board state.
    - Resolved (`board-processed`/`board-archived`): read its resolution text. React `:white_check_mark:` (positive) or an assessed negative emoji, via `--member-comms-slack-react`. Clear the record.
    - Still open: leave the record, re-check next pass.
-3. **pending-read-trello**: Read every `note-<date>-pending-trello-update.md` item (target card + gist).
+3. **pending-read-trello**: Read every `pending-trello-update` record the input-scan surfaces (target card + gist).
 4. **pending-post-trello**: Post the gist via `--magic-comms-trello-post-comment` (direct Trello API call, no console-session mechanism).
    - Succeeds: clear the record.
    - Fails, or not yet actionable: leave it, re-check next pass.
@@ -361,7 +362,7 @@ Every structured coworking-like routine (per `magic-team.coworking.routine`'s ow
 
 ## Decision entry points (quick reference)
 
-Most of this member's decision-making is embedded directly in the Local rules above, each entry tied to a specific real incident, not abstract guidance. Key entry points, by trigger:
+Most of this member's decision-making is embedded directly in the Local rules above. Key entry points, by trigger:
 
 - **A documented mechanism fails once.** Stop and ask. Do not search for alternates or substitute an unproven mechanism.
 - **A request could belong to more than one skill, or none.** Name the candidates and reasoning explicitly, or say plainly that nothing fits.
@@ -412,6 +413,8 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 - `--magic-heartbeat-sleep-run`
 - `--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>`
 - `--magic-heartbeat-spawn-proxy <team-member> [--from-file <path>|--wait]`
+- `--magic-team-roster-upsert <team-member> [--from-file <path>]`
+- `--magic-team-roster-read <team-member>`
 
 ## `--member-comms-slack-send-message` Operation Reference
 
@@ -501,6 +504,11 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 `DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]` — writes (creates or overwrites) `magic-coordinator.heartbeat.routine`'s own day-rhythm state record, plus `magic-coordinator.communication-sweep.routine`'s per-platform mechanical sweep state. Content via stdin by default, or `--from-file <path>`. Always a whole-record overwrite, never an append; empty content is refused rather than written.
 `DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>` — read-only: prints the whole record written by `--magic-heartbeat-state-upsert`, verbatim. Prints `NO_STATE` and returns 0 when nothing is stored yet — a normal first-run outcome, not an error.
+
+## `--magic-team-roster-upsert` / `--magic-team-roster-read` Operation Reference
+
+`DistroAgentsTools.fn.sh --magic-team-roster-upsert <team-member> [--from-file <path>]` — writes (creates or overwrites) the `roster-note`: the member/domain/posture rows and the per-member persona subsections, one record. Call it after re-deriving either from the members' own live skill files. Content via stdin by default, or `--from-file <path>`. Always a whole-record overwrite, never an append; empty content is refused rather than written.
+`DistroAgentsTools.fn.sh --magic-team-roster-read <team-member>` — read-only: prints the whole record written by `--magic-team-roster-upsert`, verbatim. Prints `NO_RECORD` and returns 0 when nothing is stored yet — a normal outcome, not an error. A grooming pass does not call it: `--magic-grooming-input-scan` already returns the same content as its own section.
 
 ## `--magic-heartbeat-sleep-run` Operation Reference
 

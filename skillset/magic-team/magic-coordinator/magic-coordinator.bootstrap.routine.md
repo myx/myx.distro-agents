@@ -197,8 +197,8 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- "Ensure Magic Vane operates under the intended identity (`magic-coordinator` / `Magic Vane` / `dispatchr`) rather than accidental myx/app-only impersonation."
-- "Ensure message delivery checks reflect real usable behavior (native-user expectations and attribution reality) instead of `ok:true` false confidence."
+- Magic Vane operates under the intended identity (`magic-coordinator` / `Magic Vane` / `dispatchr`), never under accidental myx or app-only impersonation.
+- Message-delivery checks reflect real usable behavior — native-user expectations and actual attribution — never the false confidence of a bare `ok:true`.
 
 ## Verbatim-tests (benchmarks)
 

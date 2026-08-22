@@ -88,8 +88,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Conventions
 
 - This file's section shape is confirmed canonical for every `routine-*/*.routine.md` file.
-  - Human-owner decision, direct, verbatim, live, 2026-08-05.
-  - Resolves `interview-20260723T2209Z-magic-librarian-conventions-check-design.md`'s "Shape mismatch".
+  - `owner-guaranteed`.
   - This file is correctly a full `routine-*`-style member, not a single self-contained file like `magic-librarian.slib-generation.operation.md`.
   - Not a draft.
 - `(draft)` markers are load-bearing provenance, not decoration. Remove one only once the human-owner confirms that specific section directly: a real chat reply in their own voice, or a real accept/reject on the file — and only that section's own label, not the others. None remain open in this file.

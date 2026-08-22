@@ -83,8 +83,8 @@ case "$1" in
 		return 0
 	;;
 	--run-from-source)
-		if [ ! -f "$MMDAPP/source/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
-			export MDLT_ORIGIN="$MMDAPP/$MDLC_INMODE"
+		if [ -f "$MMDAPP/source/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
+			export MDLT_ORIGIN="$MMDAPP/source"
 			export MDLC_INMODE="source"
 			export MDLT_OPTION="--run-from-source"
 			echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2

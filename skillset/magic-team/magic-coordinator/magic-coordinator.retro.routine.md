@@ -53,7 +53,7 @@ All statements apply at the same time, always. These rules override a participan
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - No cron or automation without explicit human-owner confirmation.
 - **discuss-with-the-user**'s discussion genuinely pauses for the human-owner's live reaction when run interactively — only the (not-yet-built) autonomous path would defer this. **If autonomous invocation is added later**: **discuss-with-the-user** would follow the same pattern already used for `magic-coordinator.daily.routine`/`magic-team.grooming.routine` — don't block waiting for a live response, record findings as provisional in a `board-running` `note-*` item (filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`) and flag for confirmation the next time a human is present.
-- Retro never implements a proposal during its own closing, however small — a standing, previously-corrected mistake. This covers a member's own **self-analyse-per-member** self-analysis proposal too, same as any other **assess-methodology-failures**/**discuss-with-the-user** finding.
+- Retro never implements a proposal during its own closing, however small. This covers a member's own **self-analyse-per-member** self-analysis proposal too, same as any other **assess-methodology-failures**/**discuss-with-the-user** finding.
 - A cross-member pattern (**surface-cross-member-patterns**) looks like it might actually be a genuine architecture or design question, not just a shared operational gripe: flag it for `magic-architect` rather than trying to resolve it as an ordinary retro finding — retro identifies patterns, it does not do structural design itself.
 - An improvement proposal from **assess-methodology-failures** looks big enough to affect how the whole team works, not a small contained fix: pause and confirm explicitly with the user that this is becoming build work — not something retro quietly escalates into a dispatch on its own.
 - Unsure whether a finding belongs in retro at all, vs. grooming/daily: retro is for reflection and methodology, not backlog triage — if it's really about re-prioritizing existing work rather than how the work has been going, note it via the `--member-upsert-inbox-note` operation and defer to `magic-team.grooming.routine`, instead of stretching retro's own scope to cover it.
@@ -120,4 +120,4 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Conventions
 
-- The "retro produces proposals, not actions" rule is a standing, previously-corrected mistake — preserve this distinction precisely, don't let a future synthesis blur it back into "retro implements its own findings."
+- The "retro produces proposals, not actions" rule is a hard distinction — preserve it precisely, don't let a future synthesis blur it back into "retro implements its own findings."

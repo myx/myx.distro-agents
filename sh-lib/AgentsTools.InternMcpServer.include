@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## The `myx.distro` MCP stdio server. Sourced from DistroAgentsTools.fn.sh's
+## `--intern-mcp-server` arm; needs $1/$@/$MDSC_CMD from dot-sourcing.
+## stdout is the JSON-RPC wire: every diagnostic goes to stderr.
+## set -e rules, portability floor and design notes: see MAGIC.md.
+##
+
+AGENTS_MCP_TOOL_EXECUTE='{"name":"execute","description":"Evaluate a shell script in this workspace with its environment already initialized: MMDAPP and MDLT_ORIGIN resolved to the tree actually in use, and the workspace consoles and tools reachable. Returns the script combined stdout and stderr, plus its exit status.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"Shell script to evaluate. May span multiple lines."}},"required":["command"]}}'
+
+AgentsMcpJsonEscape(){
+	LC_ALL=C awk -f "$AGENTS_MCP_ESCAPE_AWK"
+}
+
+## Global out-var, not $( ): avoiding the fork is the point.
+AgentsMcpReadField(){
+	AgentsMcpField=''
+	[ -f "$1" ] || return 0
+	IFS= read -r AgentsMcpField < "$1" || true
+	return 0
+}
+
+## Empty id means a notification: no response.
+AgentsMcpSendResult(){
+	[ -n "$1" ] || return 0
+	printf '{"jsonrpc":"2.0","id":%s,"result":%s}\n' "$1" "$2"
+	return 0
+}
+
+AgentsMcpSendError(){
+	local mcpErrText=''
+	[ -n "$1" ] || return 0
+	mcpErrText="$( printf '%s' "$3" | AgentsMcpJsonEscape )" || mcpErrText=''
+	printf '{"jsonrpc":"2.0","id":%s,"error":{"code":%s,"message":"%s"}}\n' "$1" "$2" "$mcpErrText"
+	return 0
+}
+
+AgentsMcpHandleToolsCall(){
+	local mcpCallId="$1"
+	local mcpToolName='' mcpScript=''
+	local mcpExitCode=0 mcpOutput='' mcpIsError='false' mcpEscaped=''
+
+	AgentsMcpReadField "$AGENTS_MCP_REQ_DIR/tool_name"
+	mcpToolName="$AgentsMcpField"
+	if [ "execute" != "$mcpToolName" ] ; then
+		AgentsMcpSendError "$mcpCallId" -32602 "Unknown tool: $mcpToolName"
+		return 0
+	fi
+
+	## $(cat) not read: a script spans lines.
+	mcpScript="$( cat "$AGENTS_MCP_REQ_DIR/arg_command" 2>/dev/null || true )"
+	if [ -z "$mcpScript" ] ; then
+		AgentsMcpSendError "$mcpCallId" -32602 "execute requires a non-empty 'command' argument"
+		return 0
+	fi
+
+	## The pipe keeps the script off the loop's stdin, which is the wire.
+	## Never `cmd ; rc=$?`: under -e that dies before reading $?.
+	mcpExitCode=0
+	mcpOutput="$( printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute 2>&1 )" || mcpExitCode=$?
+	set +e
+
+	if [ 0 -ne "$mcpExitCode" ] ; then
+		mcpIsError='true'
+		mcpOutput="$mcpOutput"$'\n'"[exit code: $mcpExitCode]"
+	fi
+	[ -n "$mcpOutput" ] || mcpOutput='(no output)'
+
+	mcpEscaped="$( printf '%s' "$mcpOutput" | AgentsMcpJsonEscape )" || mcpEscaped=''
+	AgentsMcpSendResult "$mcpCallId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":%s}' "$mcpEscaped" "$mcpIsError" )"
+	return 0
+}
+
+AgentsMcpHandleRequest(){
+	local mcpMethod='' mcpHasId='' mcpId=''
+
+	AgentsMcpReadField "$AGENTS_MCP_REQ_DIR/method"
+	mcpMethod="$AgentsMcpField"
+	AgentsMcpReadField "$AGENTS_MCP_REQ_DIR/has_id"
+	mcpHasId="$AgentsMcpField"
+	if [ -n "$mcpHasId" ] ; then
+		AgentsMcpReadField "$AGENTS_MCP_REQ_DIR/id"
+		mcpId="$AgentsMcpField"
+	fi
+
+	case "$mcpMethod" in
+		initialize)
+			AgentsMcpSendResult "$mcpId" '{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"myx.distro","version":"1.0.0"}}'
+		;;
+		notifications/*)
+			## No response ever; cancelled is a no-op while synchronous.
+			:
+		;;
+		ping)
+			AgentsMcpSendResult "$mcpId" '{}'
+		;;
+		tools/list)
+			AgentsMcpSendResult "$mcpId" "{\"tools\":[$AGENTS_MCP_TOOL_EXECUTE]}"
+		;;
+		tools/call)
+			AgentsMcpHandleToolsCall "$mcpId"
+		;;
+		'')
+			AgentsMcpSendError "$mcpId" -32700 "Parse error"
+		;;
+		*)
+			AgentsMcpSendError "$mcpId" -32601 "Method not found: $mcpMethod"
+		;;
+	esac
+	return 0
+}
+
+case "$1" in
+
+	--intern-mcp-server)
+		shift
+
+		## Never serve without --run: an accidental stdin loop hangs forever.
+		if [ "--run" != "$1" ] ; then
+			printf '%s\n' "$MDSC_CMD --intern-mcp-server -- MCP stdio server registered as 'myx.distro'." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-mcp-server --run" >&2
+			printf '%s\n' "      Speak JSON-RPC 2.0 over stdin/stdout until stdin closes." >&2
+			printf '%s\n' "      Launched by an MCP host, not by hand." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "Exposes one tool, 'execute', backed by $MDSC_CMD --intern-mcp-execute." >&2
+			set +e ; return 1
+		fi
+		shift
+
+		if [ 0 -lt $# ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-mcp-server --run: takes no further arguments: $*" >&2
+			set +e ; return 1
+		fi
+
+		AGENTS_MCP_ESCAPE_AWK="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk"
+		AGENTS_MCP_PARSE_AWK="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonParseRequest.awk"
+
+		set +e
+
+		AGENTS_MCP_BASE="$( mktemp -d "${TMPDIR:-/tmp}/myx.distro.agentMcp.XXXXXX" )"
+		if [ -z "$AGENTS_MCP_BASE" ] || [ ! -d "$AGENTS_MCP_BASE" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-mcp-server: cannot create scratch directory under ${TMPDIR:-/tmp}" >&2
+			return 1
+		fi
+		AGENTS_MCP_REQ_DIR="$AGENTS_MCP_BASE/req"
+		trap 'rm -rf "$AGENTS_MCP_BASE"' EXIT INT TERM
+
+		## Check-init witness; stderr only.
+		printf '%s\n' "# myx.distro agentMcp: pid=$$ origin=$MDLT_ORIGIN mode=${MDLC_INMODE:-?} spec=${MDLT_OPTION:-?} root=$MMDAPP scratch=$AGENTS_MCP_BASE" >&2
+
+		## `|| [ -n ... ]` keeps a final line that has no trailing newline.
+		while IFS= read -r mcpLine || [ -n "$mcpLine" ] ; do
+			## Per iteration: the dispatcher re-arms -e on every call.
+			set +e
+
+			[ -n "$mcpLine" ] || continue
+
+			rm -rf "$AGENTS_MCP_REQ_DIR"
+			if ! mkdir -p "$AGENTS_MCP_REQ_DIR" ; then
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-mcp-server: cannot create request scratch directory, skipping one message" >&2
+				continue
+			fi
+
+			printf '%s\n' "$mcpLine" | LC_ALL=C awk -v outDir="$AGENTS_MCP_REQ_DIR" -f "$AGENTS_MCP_PARSE_AWK"
+			AgentsMcpHandleRequest
+		done
+
+		rm -rf "$AGENTS_MCP_BASE"
+		trap - EXIT INT TERM
+		return 0
+	;;
+
+	*)
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- AgentsTools.InternMcpServer.include serves --intern-mcp-server only" >&2
+		set +e ; return 1
+	;;
+
+esac

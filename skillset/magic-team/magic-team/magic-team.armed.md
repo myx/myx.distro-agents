@@ -23,9 +23,9 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Define the `board-item`/inbox entity model, the team's shared terminology, escalation/chain-of-command, and the cross-cutting operating-discipline rules every member follows.
 - Doesn't:
   - Do domain work itself, or make decisions — not a domain skill.
-  - Restate the routine-\*-as-virtual-member model or the typed-suffix skill-folder file-format spec — that is `magic-team.shared.md`'s own territory, explicitly out of scope for this merge.
-  - Restate the full board-state model and transition rules — that is `magic-team.board.md`'s own territory, explicitly out of scope for this merge.
-  - Restate the per-acting-member roster/persona data — that is `roster-note` / `personas-note`'s own territory (`magic-coordinator`'s own inbox notes), explicitly out of scope for this merge.
+  - Restate the routine-\*-as-virtual-member model or the typed-suffix skill-folder file-format spec — that is `magic-team.shared.md`'s own territory.
+  - Restate the full board-state model and transition rules — that is `magic-team.board.md`'s own territory.
+  - Restate the per-acting-member roster/persona data — that is `roster-note` / `personas-note`'s own territory (`magic-coordinator`'s own inbox notes).
   - Resolve either of the two deliberately-deferred items above.
 
 # Terminology: Team terminology
@@ -112,12 +112,13 @@ Standing behavioral rules for any member doing implementation, investigation, or
 - **Before relaying any dispatched write as done, the dispatching session checks it itself against the standing conventions in force** (this section, the `Rule/instruction/definition/description conventions` section, any session-specific rule already given) — not after-the-fact cleanup once something looks wrong. Every result reaching the human-owner passes through a dispatching session first; that session is the real, achievable gate, not an excuse ("sub-agents ran independently") for skipping the check.
 - **Never edit a long-proven legacy file to satisfy a new, unrelated, or unverified feature — even a provably spec-safe edit.** If the new feature cannot work without touching it, the feature stays unfinished; the legacy file doesn't move.
 - **No external library as a default move.** Solve a gap with the platform/JDK standard library plus the codebase's own established conventions first; treat adding a dependency as high-cost, never a neutral menu option, even with isolated precedent elsewhere for vendoring one.
+- **A comment is short, or it is not a comment.** An internal comment is one line. A header comment is a few lines at most. Anything longer is documentation and belongs in the package's own `MAGIC.md` or an equivalent document, never in the script — code carries its own explanation, and prose wrapped around a self-evident line buries it rather than clarifying it. One short line is the maximum, not a target of zero — a line that stops the next maintainer breaking something silently is exactly what the rule allows. The test: a line preventing silent breakage is code wearing a comment's clothes and stays; a paragraph explaining what the code already says is what goes. The limit is not stylistic: large comment blocks in a script cost real time to read and to load. A rewrite that removes one is not damage — judge such a change by what the code still does, never by how much prose came off it.
 - **The team never commits, builds, or runs anything live on the user's behalf.** The user does all of that personally; every dispatched member's job ends at a correct, well-reasoned, uncommitted working tree — covers `git commit` itself, not only `git push`.
 - **"Finished" means user-visible effect only** — verified by actual output, not by reasoning it should work; every previously-broken thing now works, every previously-working thing stays at least as good.
 - **Check the whole project's original scope before declaring anything done or out of scope** — react to the actual original goal, not only the symptoms most recently discussed. Distinct from, and in addition to, `magic-coordinator`'s own "Operating discipline" rule (its own armed-mode file) to re-check every named part of a multi-part ask before reporting it done.
 - **A root cause found outside the literal named scope of the task is a stop-and-ask signal, not permission to keep going** — even when the fix looks small, mechanical, or safe. Same family as "a documented mechanism failing once is a stop-and-ask signal," extended to scope boundaries.
 - **Two files sharing a basename in different directories is not evidence of a bug.** Ordinary filesystem fact, not something to investigate or reconcile — especially inside a system another session or member owns.
-- **A search proves an absence only once proven on a known positive.** Before reporting nothing found, run the same search against a case that must match and confirm it fires. A search that cannot match its own target (a construct spanning line continuations, a leading `-` read as an option) returns clean and turns unexamined risk into false assurance. State the positive control alongside the negative result — a clean report without one isn't yet a result.
+- **A check you would act on is not a result until it has been shown able to fail.** Before reporting that a check came back clean, run it against a case that must trip it and confirm it does. This governs every check whose outcome you would act on, not searches alone: a search, a location probe, a coverage assertion, and the test harness itself. A check that cannot match its own target returns clean and turns unexamined risk into false assurance — a pattern that cannot match the construct it looks for (one spanning line continuations, a leading `-` read as an option), a probe run from a directory that is not the thing being asked about, an assertion whose own expression is malformed, a harness that has lost the setting that makes it fail. The converse counts too: a check that cannot pass reports a failure that is not there. State the positive control alongside the result — a clean report without one is not yet a result.
 - **A generated file is never where anything gets fixed.** Before editing a file, establish whether it is build output; if so, change the generator or its source instead — an edit to generated output is discarded by the next build and reads as fixed until then.
 - **A workspace tool's behaviour is read, never recalled.** The tool layer is `*.fn.sh`, and each tool's manual sits in its own package beside it, at `sh-lib/help/Help.<Tool>.help.md`. Read that file before using the tool — not the tool's own `--help`, which needs a live invocation to print what is already on disk, and never a remembered semantic. Still no answer after reading it: ask the member owning that tool rather than proceeding on an assumption.
 - **A clean exit is evidence about what ran, not that what ran was the intended target.** A fan-out that resolved to more than was assumed, a call whose semantics were recalled rather than read, a cached definition still running pre-edit code — each returns success, and the success is real for whatever actually executed. Where either the target set or the semantics were assumed rather than read, confirm them by a separate read, not from the exit status.
@@ -178,6 +179,8 @@ A `**intent:**` line:
 - Self-contained: no cross-references to other entries (`see test-X`, `same as test-Y`) — restates whatever it needs.
 - The yardstick a later change is checked against: does the change still serve this effect, or regress it — not decoration.
 
+**An entry is instruction text, never a quotation.** An instruction is approved by being committed, and committed instruction text is verbatim by that fact alone — quotation marks confer no authority and are not used to claim it. Every `Verbatim-*` entry is written as plain, present-tense instruction text: logical, meaningful, no water, no narration. Nothing is quoted, whether the wording originates in this file, in another file, or in the human-owner's own words.
+
 ### Non-acting owners (rule)
 
 A `board-item`'s `owner` can be an acting team member or a non-acting owner (see "Non-acting owners" below for the full definition). A non-acting owner's inbox content lives inside `magic-coordinator`'s own inbox, handled *by* `magic-coordinator` via `magic-coordinator.external-inbox-handle-loop.routine` — it has no skill directory of its own to hold one.
@@ -194,7 +197,7 @@ No skill file, this one included, ever states a workspace's real path directly �
 - **Called inline**: run that routine's steps, or call that member's procedure, inside the session already running.
 - **Dispatched as a session**: spawning `magic-coordinator.daily.routine` or `magic-coordinator.advance.routine` from `magic-coordinator.heartbeat.routine` spawns a coworking session *carrying that routine as its task* — not an abstract routine call. Where the task warrants it, a simplified ad-hoc session instead: coworking-alike, following the coworking instructions wherever they apply.
 
-Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`, out of scope for this merge):
+Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`):
 - `magic-team.brainstorm.routine` — description in `magic-team.brainstorm.routine`.
 - `magic-team.coworking.routine` — description in `magic-team.coworking.routine`.
 - `magic-team.discuss.routine` — description in `magic-team.discuss.routine`.
@@ -237,9 +240,10 @@ Every file under `board/` is a **`board-item`**. `board-item` subtypes are disti
 
 **What an inbox is**: a member's own personal area and persistent inter-session store, carrying inter-member exchange — `inquiry` documents are the one member-to-member communication type. Written via tooling (`--member-upsert-inbox-*`), read via tooling. Check the tooling actually worked rather than assuming it did.
 
-**MANDATORY FILENAME SHAPE, no exceptions, repeatedly violated in practice — read this before creating any `board-item` (`task-*`/`proposal-*`/`change-*`/etc., filed under `board/`) or personal-inbox file (`note-*`/`inquiry-*`/`reflection-*`, filed in a member's own inbox — the only three legitimate personal-inbox types):** `<type>-<date>-<matter>.md` — the type prefix comes first, immediately followed by the date, with no other words in between. This exact shape governs personal-inbox files the same as `board-item`s — it is not board-only, despite this section's own heading being about the `board-item` model specifically.
+**MANDATORY FILENAME SHAPE, no exceptions — read this before creating any `board-item` (`task-*`/`proposal-*`/`change-*`/etc., filed under `board/`) or personal-inbox file (`note-*`/`inquiry-*`/`reflection-*`, filed in a member's own inbox — the only three legitimate personal-inbox types):** `<type>-<date>-<matter>.md` — the type prefix comes first, immediately followed by the date, with no other words in between. This exact shape governs personal-inbox files the same as `board-item`s — it is not board-only, despite this section's own heading being about the `board-item` model specifically.
 
-`board-item` prefix -> meaning list:
+**Document-type prefix -> meaning list.** These prefixes name **document types**. A document's type and the store it lives in are two separate facts — the board is one store, not the category. Stores under the board root: `board/`, `inboxes/`, `audit/`, `vault/` (`vault/` exists; what it holds is not stated here). A document of any of these types filed under `board/` is a `board-item` — that is what "subtypes distinguished by filename prefix" above means. Most types occur in both `board/` and `inboxes/`; that is normal, not drift. A type restricted to one store says so in its own entry.
+
 - `project-*`: project-level container/tracker item.
 - `task-*`: concrete, ready-to-execute work.
 - `change-*`: change-oriented item (policy/process/implementation change tracking).
@@ -247,12 +251,14 @@ Every file under `board/` is a **`board-item`**. `board-item` subtypes are disti
 - `inquiry-*`: open question needing investigation/answer.
 - `warning-*`: risk/alert item.
 - `reflection-*`: reflection item whose resolution produces updates elsewhere.
+- `idea-*`: raw, un-worked-up suggestion — the first stage of the idea -> interview -> proposal -> approval pipeline, below `proposal-*`'s bar until someone works it up.
 - `proposal-*`: undecided design/build idea awaiting triage; may later promote to `task-*`/`change-*` or be dropped.
 - `interview-*`: item whose core content is a human-owner interview (active, not-yet-started, or genuinely needed).
+- `approval-*`: live negotiation seeking the human-owner's go/no-go for another document, gating the one it `blocks` until answered (full mechanic in this file's own `### `approval-*`` section below).
 - `dispatch-*`: board-tracked record of `magic-coordinator`'s verbatim task for a spawned session at dispatch time, updated in place as that session reports back.
-- `transcript-*`: log records of verbatim communication messages with date-time UTC stamps.
+- `transcript-*`: log records of verbatim communication messages with date-time UTC stamps. **`audit/` only** — a `transcript-*` is never a `board-item` and cannot be on the board.
 
-This list is "at least," not exhaustive — new subtypes are expected over time. When one appears, the routines that create it and the routines that read it must be explicitly updated to mention it (no silent/dynamic discovery).
+This list is "at least," not exhaustive — new types are expected over time. When one appears, the routines that create it and the routines that read it must be explicitly updated to mention it (no silent/dynamic discovery).
 
 List of frontmatter headers with descriptions. Any date value in frontmatter is formatted as `date-time` (see Terminology):
 - `type`: required on every `board-item`; `board-item`-kind header.
@@ -494,7 +500,7 @@ Type-specific headers:
 - `date` (as needed)
 - `owner` (as needed)
 
-**`references` entries are bare board-item names only — no state-folder path, no `.md` extension** (e.g. `change-2022-10-29-distroagentstools-ownership`, not `board/running/change-2022-10-29-distroagentstools-ownership.md`). A reference resolver looks the bare name up across all state folders; it never trusts a path segment as current. When adding or editing `references`, strip any `board/<folder>/` prefix and `.md` suffix on sight.
+**`references` entries are bare board-item names only — no state-folder path, no `.md` extension** (e.g. `change-20260101T0000Z-example-matter`, not `board/running/change-20260101T0000Z-example-matter.md`). A reference resolver looks the bare name up across all state folders; it never trusts a path segment as current. When adding or editing `references`, strip any `board/<folder>/` prefix and `.md` suffix on sight.
 
 `reflection-*` items are special: instead of just closing out, their resolution *produces* an update elsewhere (a skill file, one of the shared files below, actual code).
 
@@ -519,7 +525,7 @@ How the three item kinds relate. Extends their Terminology definitions above; do
 
 **Nothing is enforced, and no prefix is constrained.** Some documents/states (the terminal state of an important job) can logically be saved to the vault — **not implemented**, nothing to enforce yet. One firm statement: `warning-*` is definitely not a job in itself.
 
-**Known-misfiled, not being corrected now.** 14 existing `warning-*`/`change-*` items sit on the board (2 `board-backlog`, 6 `board-blocked`, 6 `board-processed`) — not a model to copy, no backfill, none being moved.
+**Known-misfiled, not being corrected.** Some `warning-*`/`change-*` items sit on the board as jobs — not a model to copy, no backfill, none being moved.
 
 # Shared reference files (librarian-owned, on-demand)
 
@@ -556,7 +562,7 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 ## `DistroAgentsTools.fn.sh`
 - Path: `<workspace-root>/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh` (prefer the `source/` tree variant if that workspace has one).
 - Canonical path — never search the filesystem for it (no `find`, `ls -R`); read it from here instead. If it looks wrong/stale, fix this line, don't go looking around it.
-- **Invoke by this full path, always — never the bare name.** A fresh spawned sub-session's shell doesn't reliably have it on `PATH`; a bare call intermittently fails `command not found` where the full path never does — the actual cause behind past intermittent "tool unreachable" failures, not a real outage, not a stop-and-ask condition.
+- **Invoke by this full path, always — never the bare name.** A fresh spawned sub-session's shell doesn't reliably have it on `PATH`; a bare call intermittently fails `command not found` where the full path never does. Such a failure is not a real outage and not a stop-and-ask condition.
 - What it is (verbatim, `--help`'s own Summary): "Automates the Keep-Alive Workspace Console Session recipe (see magic-coordinator's routines/console-sessions.md): a FIFO plus a backgrounded exec 9>fifo; sleep TTL holder process keep a DistroSourceConsole.sh/DistroDeployConsole.sh --non-interactive session's stdin open indefinitely, so multiple rounds of commands can be piped into one console without re-paying the bootstrap cost each time." (That Summary's own "routines/console-sessions.md" pointer is stale — real current location: this section's own "Execution mechanisms" subsection below.)
 - Any task/proposal board-item describing a `DistroAgentsTools.fn.sh` change carries `restart-session:` frontmatter with at least `<the owning keeper-*> magic-architect magic-developer magic-tester magic-librarian` at creation — the `quorum-all-agree` group required, set as the board-item's own header rather than re-decided each time it's picked up.
 - **Its operations validate their own arguments — delegate validation to the tool, don't duplicate it.** `magic-tooling` provides all mechanical work and security-layer separation (`board-item`/`vault-item` manipulate/upsert/append) so a caller never re-implements a format/argument check the tool already performs.
@@ -626,7 +632,7 @@ Named directly in this file's own "Workspace" section above: the only sanctioned
 - **Workspace boundary: coworking on an explicitly different workspace must run in a console session for that target workspace** — open/reuse one scoped to it (`--console-start --override-workspace <path>`, see Workspace section above), except the spawned-background-sub-agent single-call override below, which stays a direct call by design.
 - **Process-flow default: process-flow steps run as direct tooling calls unless explicitly instructed otherwise.** `magic-coordinator.heartbeat.routine`/`.advance.routine`/`.daily.routine` (and any other process-flow step) execute every operation as a direct `lib/execShStdin` call — no console session opens or is assumed, unless the keeper exception or workspace boundary above applies.
 - `DistroAgentsTools.fn.sh` resolves its own workspace root from `$0`. In a spawned background sub-agent session, pass `env={"MMDAPP": "<workspace-root>"}` on the `mcp__myx_common__lib_execShStdin` call — confirmed working.
-- **A sub-agent spawned for team process-flow work gets tool access that itself excludes every direct-execution path — prose alone is not sufficient.** Its only execution channel stays the MCP shell-routing tool; other non-execution tools stay available as needed. Root incident: an unrestricted spawn, told only in prose to avoid direct execution, used it anyway. Scope: team/board/tooling-work spawns only — an ordinary project-work spawn outside this team's own tooling isn't restricted by this rule.
+- **A sub-agent spawned for team process-flow work gets tool access that itself excludes every direct-execution path — prose alone is not sufficient.** Its only execution channel stays the MCP shell-routing tool; other non-execution tools stay available as needed. Scope: team/board/tooling-work spawns only — an ordinary project-work spawn outside this team's own tooling isn't restricted by this rule.
 
 ## Rule
 - Do not use options not listed in your own member/routine tooling file. If a needed option is missing, update that member/routine instruction file first, then refresh its tooling file.
@@ -642,22 +648,22 @@ Used to check this file's own definitions against its own goals when it is updat
 ## Verbatim-goals (intents)
 
 - Communications between participating member instances of co-working sessions are deemed over `internal-channel`.
-- "magic-team MUST execute only options allowed by this file's own tooling section."
-- "magic-team MUST NOT execute a tooling command directly; every tooling call runs through the myx.common MCP."
-- "Pass through to `magic-coordinator` anything not specifically covered by this file. This skill exists to hold two things — the board and a set of shared reference files — not to make decisions."
-- "For escalations, any work-session summons armed `magic-coordinator` — never a fresh instance through the same suspect channel; the summoned instance already holds its own independent verification channel."
-- "A new rule (or instruction) about team dynamics or process flow (how the team operates, not ordinary content) is written as a short, abstract rule, present tense — never a dense narrative paragraph — and passes through `magic-librarian`'s `magic-librarian.conventions-check.routine` operation, then gets validated by either `magic-coordinator` or the current human-owner session directly, if available."
-- "Clarity test for any instructional text: would a young reader, or a non-native English speaker, understand it on first read? If not, cut words until they would — no filler, no water."
-- "`magic-team.board.md` (this folder) — the team's current-work index. Thin and reference-heavy by design: the board itself is a rollup, the substance lives in the individual `board-item` files under `board/`."
-- "Every file under `board/` is a **`board-item`**. `board-item` subtypes are distinguished by filename prefix."
-- "This list is \"at least,\" not exhaustive — new subtypes are expected over time. When one appears, the routines that create it and the routines that read it must be explicitly updated to mention it (no silent/dynamic discovery)."
-- "A `board-item`'s `owner` can be an acting team member (a spawned, working, self-reporting `magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*` skill) or a **non-acting owner** — anything that isn't one of those, mechanically: the human-owner, or an external contact (e.g. a partner support team)."
+- `magic-team` executes only the tooling options allowed by this file's own tooling section.
+- `magic-team` never executes a tooling command directly; every tooling call runs through the `myx.common` MCP.
+- Anything not specifically covered by this file passes through to `magic-coordinator`: this skill exists to hold two things — the board and a set of shared reference files — not to make decisions.
+- An escalation summons the armed `magic-coordinator` already present in the work-session — never a fresh instance through the same suspect channel, because the present instance holds its own independent verification channel.
+- A new rule or instruction about team dynamics or process flow — how the team operates, not ordinary content — is written as a short, abstract, present-tense rule, never a dense narrative paragraph; it passes through `magic-librarian.conventions-check.routine`, then is validated by `magic-coordinator` or the current human-owner session directly, if available.
+- Clarity test for any instructional text: would a young reader, or a non-native English speaker, understand it on first read? If not, cut words until they would — no filler, no water.
+- `magic-team.board.md` is the team's current-work index, thin and reference-heavy by design: the board itself is a rollup, the substance lives in the individual `board-item` files under `board/`.
+- Every file under `board/` is a `board-item`, and `board-item` subtypes are distinguished by filename prefix.
+- The `board-item` subtype list is a floor, not an exhaustive set — new subtypes are expected over time, and when one appears the routines that create it and the routines that read it are explicitly updated to mention it. No silent or dynamic discovery.
+- A `board-item`'s `owner` is either an acting team member — a spawned, working, self-reporting `magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*` skill — or a non-acting owner, meaning anything else: the human-owner, or an external contact such as a partner support team.
 - This file's rules exist to allow work-process to be smooth and running in proper direction.
 - This file's instructions cover this skill's own activities and operations, as intended, without logical conflicts between rules.
-- "This file governs form and control points, not strategy."
-- "This is the durable, cross-cutting model doc for how the team's skill folders and routines work — every acting member's own skill folder (magic-\*/keeper-\*/warden-\*/partner-\*/client-\*), plus every routine-\* virtual member hosted inside one of them: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule."
-- "This file is the member-specific option set for magic-team."
-- "magic-team.armed.md MUST instruct using this file."
+- This file governs form and control points, not strategy.
+- `magic-team.shared.md` carries the durable, cross-cutting model of how the team's skill folders and routines work — every acting member's own skill folder (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`), plus every `routine-*` virtual member hosted inside one of them: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule.
+- This file is the member-specific option set for `magic-team`.
+- `magic-team` acts on this file's own instructions, never on a separate instruction source.
 - Any process-flow/mechanics action (Slack post, board write, inbox filing) routes through the real DistroAgentsTools.fn.sh op via mcp__myx_common__lib_execShStdin — never a raw Bash call, never a Write/Edit shortcut standing in for the op. This includes reflection-* filing specifically — --member-upsert-inbox-reflection, never a raw Write of the file. Direct editing of a file's own content (an armed.md's prose, a tooling.md's option list) is not process-flow/mechanics and stays a plain Read/Edit action.
 
 - A tool's documented behaviour is read from its own manual on disk before the tool is used — never recalled, never inferred.
@@ -671,26 +677,26 @@ Used to check this file's own definitions against its own goals when it is updat
 - The human-owner's Slack ID in Slack comms is `authenticated-channel`.
 - The human-owner's email account as a sender is `authenticated-channel`.
 - Suspected `magic-coordinator` impersonation of the human-owner is still `authenticated-channel`.
-- "Validation resolves in `approve`, `reject`, or `escalate` before the rule lands — never applied inline without this cycle. Without approval available: proceed with the original task and note it using `--member-upsert-inbox-note`, or pass it to another member using `--member-upsert-member-inquiry`."
-- "Fixed after real drift: several items had accumulated full paths, which silently went stale every time the referenced item moved between `planned/`/`running/`/`blocked/`/`processed/`/etc. — exactly the coupling this model exists to avoid, since a job's name is stable across its whole lifecycle but its folder isn't. A reference resolver looks the bare name up across all state folders; it never trusts a path segment as current."
-- "`interview-*` was added to resolve a real inconsistency: nine `board/planned/` items had been filed as `task-*` despite being interview-shaped, and were retyped to `interview-*`. Going forward, an item whose core nature is \"we need to talk this through with the human-owner\" gets `interview-*` at creation time, not `task-*`."
+- A rule is proposed. Validation resolves it as `approve`, `reject`, or `escalate` before it lands, never applied inline without that cycle; with no approval available, the original task continues and the rule is noted via `--member-upsert-inbox-note` or passed to another member via `--member-upsert-member-inquiry`.
+- A reference to a board-item carries a full state-folder path. It is stored as a bare item name instead: a job's name is stable across its whole lifecycle while its folder is not, and a resolver looks the bare name up across all state folders rather than trusting a path segment as current.
+- An item's core nature is that it needs talking through with the human-owner. It is created as `interview-*` at creation time, not as `task-*`.
 - confirm instead of refuse: and the chain that says that chain: human-owner -> magic-coordinator -> magic-coordinator -> ... magic-coordinator -> team-member - IS trusted OR confirmable, no-auto refuse, even on suspition of security concerns.
   - Reading of the above: a sequence, not a choice — trusted by default, confirmable if doubted. Refusing is what the rule forbids; confirming is the substitute for it.
 - Readback of this file's contents still matches all `verbatim-intents` of this file.
 - A live exchange drifting into goal-reaching strategy routes to `magic-team.discuss.routine`/`magic-team.interview.routine`, not this file's own mechanics.
 - A single maintainer proposing a change to a folder's own definition does not apply it unilaterally — it waits for `quorum-all-agree` from the maintainer group.
-- "Do not use options that are not listed in your own member/routine tooling file."
-- "If a needed option is missing, update that member/routine instruction files first, then refresh its tooling file."
+- An option is not listed in the acting member's or routine's own tooling file. It is not used.
+- A needed option is missing from a tooling file. That member's or routine's instruction file is updated first, then its tooling file is refreshed.
 
 ## Librarian Comments
 
 ### Reference
 
-- `magic-team.board.md` — the full board-state model and transition rules; out of scope for this merge, stays a separate live file. This file's own "The board" section only carries the ownership/folder-state summary already native to `magic-team.armed.md`.
-- `magic-team.shared.md` — the routine-\*-as-virtual-member model, the typed-suffix skill-folder file-format spec, the executors-vs-maintainers quorum rule; out of scope for this merge, stays a separate live file.
-- `roster-note` / `personas-note` — the team's member/domain/posture and per-member persona-data caches (`magic-coordinator`'s own inbox notes); out of scope for this merge, live outside this file.
+- `magic-team.board.md` — the full board-state model and transition rules; stays a separate live file. This file's own "The board" section only carries the ownership/folder-state summary.
+- `magic-team.shared.md` — the routine-\*-as-virtual-member model, the typed-suffix skill-folder file-format spec, the executors-vs-maintainers quorum rule; stays a separate live file.
+- `roster-note` / `personas-note` — the team's member/domain/posture and per-member persona-data caches (`magic-coordinator`'s own inbox notes); live outside this file.
 - `board/` — the actual `board-item` files (`backlog/`, `pending/`, `running/`, `blocked/`, `parked/`, `processed/`, `archived/`, `retained/`).
-- `magic-team.tooling.md` — **fully merged into this file's own "Team-Member's tooling" section above; no longer a separate live file to point at.** Referenced here only so a reader who remembers the old split knows where the content went.
+- `magic-team.tooling.md` — a retired filename, not a live file: its content is this file's own "Team-Member's tooling" section above.
 - `magic-coordinator` — the board's primary executor/owner; this skill's default pass-through target. Owns `main-loop-mode` and `harness-session`, both defined in this file's own Terminology sections above.
 - `magic-librarian` — the shared reference files' maintainer, joins the board once per workday under coordinator's supervision.
 - `magic-team.process-inbox.routine`, `magic-coordinator.external-inbox-handle-loop.routine` — personal-inbox mechanics for acting members and non-acting owners respectively.
@@ -702,5 +708,6 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Conventions
 
 - **Board-item file contents themselves (`board/*`) are not indexed here** — live, per-item state, not baseline knowledge about how the board works.
-- This file holds `magic-team`'s own `Verbatim-goals`/`Verbatim-tests` pair, in its "Maintainer Notes" section. Any future edit to this file must preserve every distinct rule stated in it — never merge two or more distinct rules into one vaguer summary bullet, and never rephrase a `Verbatim-goals`/`Verbatim-tests` entry away from its original wording.
+- This file holds `magic-team`'s own `Verbatim-goals`/`Verbatim-tests` pair, in its "Maintainer Notes" section. Any future edit to this file must preserve every distinct rule stated in it — never merge two or more distinct rules into one vaguer summary bullet, and never drop the meaning a distinct entry carries.
+- **Quotation marks are never used to give instruction text authority, and quoting is not reintroduced here.** An instruction is approved by being committed, and committed instruction text is verbatim by that fact alone — so a quoted sentence and the file's own sentence stand exactly equal. Every `Verbatim-goals`/`Verbatim-tests` entry is plain instruction text: logical, meaningful, no water, no narration.
 - The terminology glossary ("Team terminology") and the board-item entity model ("Board & Inbox board-items entity model") are dense, technical, verbatim-preserved reference material — every term, field, and per-type subsection stays exact, never summarized or compressed, the same standard any `keeper-*`'s own "Domain knowledge" section holds itself to.

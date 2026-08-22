@@ -6,10 +6,6 @@ touches the network or filesystem for real rather than in a sandbox. Distinct fr
 ordinary unit/integration test running: there's no fixture to reset, so the
 verification technique itself has to manage the blast radius.
 
-Confirmed live 2026-07-18, from moving `DistroImageSync.fn.sh` (+ exclusive
-includes) from `myx.distro-source` to `myx.distro-system` and then executing it
-live to pull real sources.
-
 ## Preview mode beats grepping for blast radius
 
 Before running anything that does real clone/pull/write across a workspace's

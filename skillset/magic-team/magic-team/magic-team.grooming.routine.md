@@ -63,7 +63,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
          - at **review-with-the-user**, if the user is live, or
          - proactively, once this step's gather is done —
          - whichever comes first
-       - don't write a `note-2026-08-05-human-decision-batch.md` item and assume some other routine will later notice and pick it up (no routine's Steps currently do that)
+       - don't file a batched record of the pending decisions and assume some other routine will later notice and pick it up (no routine's Steps currently do that)
        - the note is still filed in `board-processed` afterward, as the record of what was asked and when — not as the trigger mechanism itself
      - **Process own inbox** (every grooming pass, not cadence-gated like the roster recheck): run `magic-team.process-inbox.routine magic-coordinator` (the confirmed default executor for this joint-executor routine) — inline execution (own identity). Fresh inbox items not yet on the board, gathered here so **triage-per-item** triages them alongside the open backlog. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 4. **triage-per-item**

@@ -104,9 +104,9 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- "Don't take a 'no tests exist' claim at face value — verify by finding and reading the real test tree for that domain first."
-- "Only once a finding is triaged and approved does it become a real assigned task for a future session — don't self-approve and act on your own findings in the same pass you found them."
-- "Testing knowledge should be someone's actual job, not an assumption whoever's dispatched happens to get right."
+- A claim that no tests exist is never taken at face value — the real test tree for that domain is found and read first.
+- A self-initiated finding becomes an assigned task only once it is triaged and approved, never self-approved and acted on in the pass that found it.
+- Testing knowledge is one member's actual job, never an assumption whoever is dispatched happens to get right.
 
 ## Verbatim-tests (benchmarks)
 

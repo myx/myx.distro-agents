@@ -45,9 +45,9 @@ signal to catch. That is precisely why reading back is the only detection, and w
 reasonably short" is not a sufficient mitigation: there is no feedback channel that tells you when you
 crossed the line.
 
-Real incident that produced the measurement: a long consolidated review post returned success with
-rc=0 and only its **last two paragraphs** were stored. Caught by reading back, not by any returned
-status. Worked around by posting in three parts.
+Truncation keeps the tail: an over-long post is stored as its last paragraphs only, with `rc=0` and a
+success status returned. Reading back is the only detection; splitting the post into parts is the
+only fix.
 
 **Do not put the constant into the conventions file.** It is a vendor detail with a shelf life; the
 rule that survives is "platforms impose limits and may truncate silently".

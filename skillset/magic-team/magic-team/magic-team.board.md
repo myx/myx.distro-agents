@@ -73,9 +73,9 @@ This file itself stays thin: a rollup pointing into `board/`'s folders, not wher
 - This never blocks *other*, independent work either: another item that merely depends on the same uncommitted files/epic is not itself validly blocked just because that epic hasn't been committed yet. A real dependency is "the other epic's own content/design isn't finished yet," not "isn't committed yet."
 
 **`board-running`→`board-blocked` has at least four paths in** (not exhaustive — whichever discovers it first fires this):
-- Live, during a `daily-meeting.md` work session, when a dispatched agent genuinely can't make progress.
+- Live, during a `magic-coordinator.daily.routine` work session, when a dispatched agent genuinely can't make progress.
 - Grooming's own periodic advancement review, catching what wasn't flagged live.
-- A member's own async block-report — posted any time, into `magic-coordinator`'s own personal inbox (a cross-member handoff, so it sends an immediate reply to `slack-magic-team` per [magic-team.process-inbox.routine](../magic-team.process-inbox.routine/)'s own **reply-on-cross-member-handoff**), acted on the next time that routine runs over it.
+- A member's own async block-report — posted any time, into `magic-coordinator`'s own personal inbox (a cross-member handoff, so it sends an immediate reply to `slack-magic-team` per [magic-team.process-inbox.routine](magic-team.process-inbox.routine.md)'s own **reply-on-cross-member-handoff**), acted on the next time that routine runs over it.
 - A `board-running` item's own testing round finishes clean but needs human-owner sign-off before it can be finalized (see `board-running` above).
 
 All four are equally valid; none is the "real" or "canonical" one. **Not the same as `board-parked`**: `board-blocked` keeps getting worked *at* even while it can't move; `board-parked` is the team consciously choosing to stop that active effort and just wait instead (see below).
@@ -116,7 +116,7 @@ All four are equally valid; none is the "real" or "canonical" one. **Not the sam
 
 **The move and the reaction are decoupled, not one write-time action.**
 - Whichever routine resolves the `board-item` (`magic-team.grooming.routine`'s triage, an inline `magic-coordinator` resolution, or any other path) does not react itself — it only needs to write a clear resolution (so positive-vs-negative can be judged later, since `board-processed` holds both outcomes and folder placement alone never distinguishes them).
-- Separately, at the moment a message's reaction first needs to stay deferred (its handling spawned/is the source of a still-open `board-item`), `magic-coordinator.communication-sweep.routine` files a lightweight `note-pending-slack-reaction-*.md` record — the `communication-channel-id` + a `references` pointer to the tied `board-item`, no deep classification — into `magic-coordinator`'s own inbox or `board-running`.
+- Separately, at the moment a message's reaction first needs to stay deferred (its handling spawned/is the source of a still-open `board-item`), `magic-coordinator.communication-sweep.routine` files a lightweight `pending-slack-reaction` record — the `communication-channel-id` + a `references` pointer to the tied `board-item`, no deep classification — into `magic-coordinator`'s own inbox or `board-running`.
 - **`magic-coordinator.advance.routine`'s own pending-reaction-lookup step is the actual reactor** (`check-process-board`'s **board-run-pending-comms-actions**) — every `magic-coordinator.heartbeat.routine` iteration, once that pass's own board read has already loaded, it looks up all outstanding pending-reaction records, checks whether each referenced `board-item` has resolved, reacts via `DistroAgentsTools.fn.sh --member-comms-slack-react` if so, and clears the record.
 - It never *performs the move itself* (its own Scope only ever moves items *out of* `board-processed`/`board-archived`, the narrow `check-process-board` **board-reopen-signaled-items** case) — it is the sole reactor for this mechanism, via its own independent queue-lookup, not by being the trigger for the move.
 
@@ -186,10 +186,10 @@ GC is not a standalone routine — it's folded into `magic-coordinator.heartbeat
 - **Not board-only**: the same GC sub-step covers every per-member `<member>/processed/` folder (each keeper's own converted log) the same way, on the same type-dependent-threshold/removal-or-archived mechanism — see `magic-coordinator.heartbeat.routine`'s own GC step for the generalized version.
 
 **Per-member `<member>/processed/` file shape** (each keeper's own converted log, same GC treatment as above but not board-items themselves — no `references`/`owner` fields, this isn't the board's own `board-item` model):
-- One file per dated entry, named `<board-item-type>-<date>-<short-topic>.md` — the prefix is one real, already-established board-item type, same vocabulary the board itself uses (see "Two independent dimensions" above: `task-`, `note-`, `proposal-`, `inquiry-`, `interview-`, etc.), picked per entry to fit what it actually is; never an invented word.
+- One file per dated entry, named `<document-type>-<date>-<short-topic>.md` — the prefix is one real, already-established document type, same vocabulary the board itself uses (see "Two independent dimensions" above: `task-`, `note-`, `proposal-`, `inquiry-`, `interview-`, etc.), picked per entry to fit what it actually is; never an invented word.
 - Frontmatter carries:
   - `date` — the entry's own date.
-  - `type` — a separate, finer-grained genre-of-work tag describing what kind of entry this is, distinct from the filename's board-item-type — e.g. `investigation`, `proposal`, `bug-fix`, `feature`, `verification`, `audit`, `documentation`, `interview` — never a selection-mechanism label like `idle`/`assigned`/`ad-hoc`, since which idle-menu item got picked or how the work was dispatched is prose context, not the entry's actual kind.
+  - `type` — a separate, finer-grained genre-of-work tag describing what kind of entry this is, distinct from the filename's document type — e.g. `investigation`, `proposal`, `bug-fix`, `feature`, `verification`, `audit`, `documentation`, `interview` — never a selection-mechanism label like `idle`/`assigned`/`ad-hoc`, since which idle-menu item got picked or how the work was dispatched is prose context, not the entry's actual kind.
   - `topic` — short slug, matching the filename.
 - Floor, not ceiling — add a new genre `type` value when a genuinely new kind of entry shows up, don't force-fit into the existing set.
 

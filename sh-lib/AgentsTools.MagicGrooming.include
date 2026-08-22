@@ -1027,6 +1027,28 @@ case "$1" in
 		printf '%s\n\n' "## state-and-lock (routine-grooming)"
 		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154332Z-grooming-state-and-lock.md"
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
+		## The team roster cache comes back as its own section, for the same
+		## reason the state-and-lock note above does: a scan returns this
+		## routine's COMPLETE prepared input, and this routine's own
+		## roster/tooling-recheck sub-step works from that cache -- it
+		## re-derives the roster from the members' own live skill files and
+		## refreshes the cache when the two have drifted, which needs the
+		## stored cache in hand to compare against.
+		##
+		## THIS ROUTINE ONLY. routine-communication-sweep also touches the
+		## same record, but on the write side (folding identity/routing data
+		## in), and its own scan is about open comms threads -- so the record
+		## is NOT added there. What each routine's own input-scan sweeps stays
+		## split so the stubs do not intersect; content with no step of that
+		## routine asking for it is the defect that split exists to prevent.
+		##
+		## CONTENT ONLY, same as the section above -- delegated to
+		## --magic-team-roster-read so the record's filename stays stated in
+		## exactly one place in this tool. An absent record reports as a
+		## source with nothing to report (NO_RECORD) and the scan still
+		## succeeds.
+		printf '\n%s\n\n' "## team-roster (cache)"
+		DistroAgentsTools --magic-team-roster-read "$callingMember"
 		printf '\n%s\n\n' "## board digest"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--state backlog --state pending --state running --state blocked --state parked \
