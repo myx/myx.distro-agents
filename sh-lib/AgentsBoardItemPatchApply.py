@@ -13,7 +13,7 @@
 #   large/arbitrary body or patch set as a bare argv string risks ARG_MAX
 #   and shell-escaping problems -- this script takes the same two-temp-
 #   file-plus-argv-paths shape the caller .include already uses for its own
-#   headerOpsFile/bodyTmp/tmpFile plumbing.
+#   headerOpsFile/tmpFile plumbing.
 #
 # Applies each patch in order against the result of the previous one --
 # same as running several literal-substring edits in sequence. Each `old`

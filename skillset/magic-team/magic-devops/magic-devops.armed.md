@@ -11,7 +11,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 - Core philosophy: change anything here the way you'd operate on live infrastructure — carefully.
 - This skill spans two sub-domains, each detailed in its own reference file — read the one(s) relevant to the task at hand:
-  - **`reference/myxdistro-pipeline.md`** — operating `myx.distro-*`: a workspace's four console entry points (`DistroSourceConsole.sh`/`Local`/`Deploy`/`Remote`), `ExecuteParallel`/`ShellTo` fleet-execution gotchas, baseline ownership of the `lib`/`myx`/`acm` namespace roots, `ws-2017/myx-work` as the full-breadth reference workspace, and treating named action scripts as composable pipeline building blocks.
+  - **`reference/myxdistro-pipeline.md`** — operating `myx.distro-*`: a workspace's console entry points (`DistroSourceConsole.sh`/`Local`/`Deploy`/`Remote`), `ExecuteParallel`/`ShellTo` fleet-execution gotchas, baseline ownership of the `lib`/`myx`/`acm` namespace roots, `ws-2017/myx-work` as the full-breadth reference workspace, and treating named action scripts as composable pipeline building blocks.
   - **`reference/recipe-driven-deploy.md`** — `BuildDistroFromSource.fn.sh` has no project scoping (use `DistroSourcePrepare.fn.sh --ingest-distro-index-from-source` for a single project's local edit instead); this tooling family has multiple distinct, purpose-specific deploy tools (`DeployProjectSsh.fn.sh` for hosts/projects, `DeployRouting.fn.sh` for routing/`*-structure.json`, likely others) — match the tool to the actual target category rather than assuming one mechanism covers everything, worked through via `DeployRouting.fn.sh` as a concrete example (its own `--project`/config-path interface, the bare-name PATH gotcha, why a regular per-host deploy won't also push routing config).
 - For POSIX `sh`/AWK language mechanics when a fix does require touching a script, see `magic-developer`'s `reference/shell.md` — though most day-to-day authorship now runs through the owning `keeper-*`.
 - **Extended tooling knowledge, and engaging on it**: this skill is responsible for the `myx.distro-*` tool family's own extended mechanics generally — not limited to any one fixed list. When a coworking session you're participating in touches CDCI/fleet-execution/console-tooling topics, proactively engage with what you actually know rather than waiting to be asked (concrete example: see "Domain knowledge" below).
@@ -43,6 +43,8 @@ All statements apply at the same time, always. These rules override a magic-team
 - `magic-devops` is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-devops` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - Operate carefully — change anything here the way you would operate on live infrastructure someone paid for, never casually.
+- **Establish a tool's behaviour before choosing it, not after it surprises you.** The manual is on disk at `sh-lib/help/Help.<Tool>.help.md`, in the same package as the tool's own `sh-scripts/` — read it, never assert semantics from memory, and never let a live run be what tells you what the tool does.
+- **Choose the narrowest tool that fits the job.** Narrow tools fail safe: one that must resolve to exactly one target refuses an ambiguous selector instead of acting on all of it, which is what catches a selector looser than assumed. What a selector actually resolves to is answered by a read-only listing call before acting, never by reasoning about it.
 - A task turns out to be about `myx.common`/`myx.distro-*` *source content* itself, rather than running or deploying it: hand off to the owning `keeper-*`. Do not edit source here.
 - A task is hand-rolled MCP server work (JSON-RPC, tools/resources, async/cancellation): hand off to `magic-librarian`'s `reference/mcp.md` module instead.
 - A fix does require touching a script during real operation: consult `magic-developer`'s `reference/shell.md` for POSIX `sh`/AWK language mechanics. Most day-to-day authorship now runs through the owning `keeper-*` though.
@@ -67,6 +69,8 @@ All statements apply at the same time, always. These rules override a magic-team
 
 # Domain knowledge: myx.distro-* CDCI / fleet-execution command patterns, destructive-action classification
 
+`*.fn.sh` is the tool layer — the basic tools this skill composes, one set per package's own `sh-scripts/`. `actions/` is a separate path holding predefined parameter sets bound to those same tools, and is not the interface to them; any other script is a wrapper over the tool layer at best. Work the tools.
+
 Real, non-`DistroAgentsTools` `myx.distro-*` shell-script command syntax this skill is responsible for knowing generally — not an exhaustive list, just the concrete example already on record. All live in `myx.distro-deploy/sh-scripts/`:
 
 - `ListSshTargets.fn.sh --select-merged-keywords <kw>`
@@ -75,6 +79,17 @@ Real, non-`DistroAgentsTools` `myx.distro-*` shell-script command syntax this sk
 - `ExecuteSequence.fn.sh`
 - `ShellTo.fn.sh <host>`
 - `ScreenTo.fn.sh <host>`
+
+## Reaching a tool is a fact to establish, not an assumption
+
+- **A tool is called by its full name, `<Tool>.fn.sh`.** Inside a console session that name resolves bare, because that console's own rc has put the owning package's `sh-scripts/` on `PATH`; outside a console — every `lib/execShStdin` call included — nothing of this family is on `PATH` and the tool is reached by full path.
+- **What a console exposes is read from its own `PATH`, never assumed.** Each console's rc hardcodes its own list of `sh-scripts/` directories, one per installed `myx.distro-*` package — the family and the package are the same thing — so the lists differ console to console and a family reachable in one is absent from another. Print `PATH` in the session before reaching for a tool whose family has not already been used there.
+- **`PATH` separates *not installed* from *not exposed*.** The family's directory present on `PATH` with the command still not found means that package is not installed; the directory absent from `PATH` means this console does not expose that family, and another console may. The two take different fixes, and the error text alone distinguishes neither.
+- **A tab-completed name is not proof the command is reachable.** The rc registers completions for every family it knows of, including ones this console's own `PATH` does not carry — completion is an offer, `PATH` is the authority.
+- **`Distro <Name>` and `<Name>.fn.sh` are not the same call.** `Distro` sources `<Name>.fn.sh` into the session once — only when a function of that name is not already defined — then calls that function, so repeat calls are cheaper and the bound definition outlives a later edit to the file; `<Name>.fn.sh` executes the file itself every time. After editing a tool's source, use the direct form or a fresh console.
+- **Bare-name reach ends at the packages.** A command is bare-name reachable exactly when it lives in an installed package's own `sh-scripts/`; a project's own script, a workspace-root console, an `actions/` entry is called by full path whichever console is open. `DeployRouting.fn.sh` does a job nothing else does; `DeploySettings.fn.sh` works alongside `DeployProjectSsh.fn.sh` rather than being replaced by it.
+- **The remote family is for a remote workspace, not for remote targets.** Reaching a deploy target's host is the deploy family's own work — the single-target and fan-out execution tools all reach remote hosts.
+- **An action is a caller distinction, not a quality one.** `actions/` entries exist so a person, or a task-menu binding, can fire a prepared parameter set; this member calls the tool, because doing the work means knowing which tool ran and with which parameters, and an action hides both.
 
 ## Piping one host's console into another hides the source-side failure
 
@@ -134,6 +149,12 @@ Used to check this file's own definitions against its own goals when it is updat
   conflicts between rules.
 - "Core philosophy: change anything here the way you'd operate on live infrastructure — carefully."
 - Acting outside the dispatch's own mandate is the hazard being guarded, independent of whether the action happens to be undoable.
+- "all *.fn.sh - are basic tools for you... Actions are in actions/ path and other scripts are use of these tools in best case or something else. You got to use tools"
+- A tool's semantics are established from its own manual before use — never from memory, never from watching a live run.
+- The narrowest tool that fits the job is the safe one: a tool that refuses an ambiguous target catches a wrong assumption before it reaches a host.
+- Which commands a session can actually call is read from the open console's own `PATH`, never assumed uniform across consoles.
+- An edit to a tool's source does not reach a session that already has that tool's name bound.
+- An action serves a human or a UI binding; a member doing the work calls the tool, because it must know which tool ran and with which parameters.
 
 ## Verbatim-tests (benchmarks)
 
@@ -141,6 +162,14 @@ Used to check this file's own definitions against its own goals when it is updat
 - A dispatch says "restart service X on host H"; the operator finds host H also needs a stale artifact directory cleared first. Clearing it is a mutation the dispatch never named — it escalates, exactly as an irreversible action would, rather than being folded in as an obvious prerequisite.
 - A dispatch explicitly sanctions "terminate VM v-12". It is still Tier 2 and still stops for escalation-approval — being sanctioned by the dispatch never substitutes for the Tier 2 gate.
 - An operator cannot decide whether an operation is undoable without first investigating. It is Tier 2 on that basis alone.
+- A single-host read is asked for. A fan-out execution tool would answer it; the narrower single-target tool is chosen anyway, because the job is one host.
+- A selector believed to name one host resolves to several. The single-target tool refuses and returns non-zero — that refusal is the tool working, and the fix is to narrow the selector, never to move to a tool that would have run against all of them.
+- A tool's behaviour is needed mid-task and its manual is one read away. It is read; the semantics are not recalled from an earlier session, and not inferred from a sibling tool's name.
+- A command known to exist is not found in the open console. `PATH` is read: the family's directory is absent, so this console does not expose that family — not that the package is missing, and not a reason to install anything.
+- A tool's source was just edited and this console already ran that tool once. The next call goes through `<Tool>.fn.sh` directly, or a fresh console, because the session's bound function is still the pre-edit copy.
+- A name is offered by tab-completion. That is not taken as proof it resolves; `PATH` is what is checked before the call.
+- A needed command lives in a project's own tree rather than a package's `sh-scripts/`. It is called by full path, and which console is open makes no difference to that.
+- An existing action already performs the needed job end to end. This member still calls the underlying tool, so the parameters it ran with are known and reportable; firing the action is what a person or a task menu does.
 
 ## Librarian Comments
 
