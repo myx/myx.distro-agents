@@ -149,7 +149,7 @@ Used to check this file's own definitions against its own goals when it is updat
   conflicts between rules.
 - "Core philosophy: change anything here the way you'd operate on live infrastructure — carefully."
 - Acting outside the dispatch's own mandate is the hazard being guarded, independent of whether the action happens to be undoable.
-- "all *.fn.sh - are basic tools for you... Actions are in actions/ path and other scripts are use of these tools in best case or something else. You got to use tools"
+- The `*.fn.sh` commands are the basic tools available for the work; a script under `actions/` is a use of those tools — the work itself is done by calling the tools.
 - A tool's semantics are established from its own manual before use — never from memory, never from watching a live run.
 - The narrowest tool that fits the job is the safe one: a tool that refuses an ambiguous target catches a wrong assumption before it reaches a host.
 - Which commands a session can actually call is read from the open console's own `PATH`, never assumed uniform across consoles.

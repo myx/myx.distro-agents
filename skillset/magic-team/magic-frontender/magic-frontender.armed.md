@@ -121,7 +121,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - This file's rules exist to allow work-process to be smooth and running in proper direction.
 - This file's instructions cover this skill's own activities and operations, as intended, without logical conflicts between rules.
-- "Don't treat frontend as \"just UI\" — treat every UI decision as a systems decision with networking, security, and performance consequences."
+- Frontend is never just UI: every UI decision is a systems decision, carrying networking, security, and performance consequences.
 
 ## Verbatim-tests (benchmarks)
 

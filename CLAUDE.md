@@ -19,55 +19,24 @@ This file is reasoning aid + flagged issues, not a rewrite of those docs.
 
 Only `myx.distro-source` and `myx.distro-deploy` have shell-side pipeline builders; `-system`/`-remote`/`-agents` don't (kernel/tooling roles).
 
-## Command layout & help conventions
+## Where the mechanics live
 
-- `sh-scripts/<Name>.fn.sh` — entry point. Defines function `<Name>`, ends with `case "$0" in */sh-scripts/<Name>.fn.sh) ... esac`.
-- `sh-lib/help/Help.<Name>.help.md` + `sh-lib/help/Help.<Name>.include` — help pair. Standard `.include` echoes `📘 syntax: ...` lines and, on `--help`, calls `myx.common lib/catMarkdown` on the `.help.md`. Standard `.help.md` sections: `##  Summary:`, `##  Arguments:`, `##  Options:`, `##  Examples:` (optionally `Notes:`/`Environment Variables:`), tab-indented body, examples as `# comment` + backtick command.
-- `Man.<Topic>.help.md` — free-form reference doc (file formats, install guides), not paired with `.include`/`.fn.sh`. Different genre from `Help.*`.
+Each package's `MAGIC.md` carries the contributor mechanics. This file does not
+restate them.
 
-Known inconsistencies — confirmed, not resolved, ask before touching:
-- Some `Help.<Name>.include` (all `List*` in myx.distro-system; `ListSshTargets` in deploy; `DistroImageSync`/`ListProjectSequence`/`DistroSourceConsole` in source) duplicate Options/Examples as raw `echo` instead of calling `catMarkdown`. In `ListDistroDeclares` this duplicate has already drifted from its own `.help.md` (different options listed).
-- `--help` vs `--help-syntax` wiring differs per command (inline in function body vs. only in the outer `case "$0"` dispatcher vs. `JumpTo`'s split behavior).
-- `myx.distro-remote/sh-lib/Help.DistroRemoteTools.help.md` (sh-lib root) is a stale orphaned duplicate of `sh-lib/help/Help.DistroRemoteTools.help.md`; only the `help/` copy is referenced by code.
-- The console-launcher role itself has no `sh-scripts/*.fn.sh` command: `DistroAgentsConsole.sh` is a workspace-root launcher script, generated the same way the sibling `DistroXConsole.sh` scripts are, plus its own install/Command-Palette wiring. None of the four sibling launcher scripts implement `--help` either. Separately, this package also owns `sh-scripts/DistroAgentsTools.fn.sh` — see "its own notes" below — which does have its own `Help.DistroAgentsTools.help.md`/`.include` pair.
-
-Rule: follow the standard form for new/edited help. If touching a flagged exception, ask first — don't silently "fix" it or copy the divergent pattern elsewhere.
-
-## Dispatchers (`SystemContext.include`)
-
-- `Distro <CommandName> [args]` — resolves to a shell function, sourcing `<CommandName>.fn.sh` from PATH if needed, then calls it. Empty/`--*` first arg sources `SystemConsole.include` instead (interactive console).
-- `Require <name>` — same lookup, searches the package `sh-scripts/` directories in a fixed order, only sources (doesn't call).
-- `Action <name>` — unrelated third dispatcher: runs `$MMDAPP/actions/<name>` (`.sh` executed, `.url` opened).
-
-Recurring internal calling convention: `type <FunctionName> >/dev/null 2>&1 || . "$( myx.common which lib/<name> )"` — skip re-sourcing if the function is already defined in this shell, else resolve and source it. Unlike `myx.common`'s own internal convention (which hardcodes `.Common` and skips OS dispatch — see `myx.common/os-myx.common` CLAUDE.md), this one still calls `myx.common which`, so it stays OS-aware (one subprocess to resolve the path, none to run it) rather than assuming no OS variance.
-
-Bare-script invocation of a `.fn.sh` that itself calls `Distro <other-name> ...` can fail even though the target file exists:
-- `Distro`'s own lookup only tries `type` then `command -v <name>.fn.sh` on `PATH` — unlike `Require`, it does **not** search that list itself.
-- A console's bashrc (`console-*-bashrc.rc`) hardcodes its own list of package `sh-scripts/` directories on `PATH`, which is what makes such a call resolve (e.g. `myx.distro-deploy/sh-scripts/ExecuteParallel.fn.sh`, whose `--select-*` handling calls `Distro ListDistroProjects ...`). The lists differ from console to console, so read `PATH` rather than assuming what a console exposes.
-- Outside a console — plain `bash sh-scripts/Foo.fn.sh` — any `Distro <name>` call to a command not already sourced fails with `unknown command: <name>`.
-
-## Dependency/index engine
-
-`BuildSequencesFromProvidesAndRequires.awk` topologically sorts the whole `Requires`/`Provides` project graph once into a flattened **sequence** file (`<project> <transitively-required-project>` lines, deps before the project; cycle-safe via an "unflushed" counter). Every "merged" view is that sequence joined against a raw per-project index (`IndexNoCacheDistroMerged.include`) — not a live graph walk per call.
-
-Two independent axes in `system-context/IndexNoCache*.include`:
-- **Owned vs Merged**: Owned = a project's own declared values only. Merged = owned + everything inherited transitively via the sequence join.
-- **Distro vs Project scope**: Distro = all projects at once. Project = one named project (`$MDSC_PRJ_NAME`).
-
-Raw index data fallback ladder: (1) cached flat file `$MDSC_CACHED/distro-index.env.inf` (`PRJ-<KEY>-<project>=v1:v2`, rebuilt via `BuildSingleIndex.awk` only when stale), else (2) legacy Java path (`Distro DistroSourceCommand --import-from-source ...`), else (3) in-shell awk build cached in `$MDSC_MEMORY` for the session. **The Java path is fallback/legacy only** — may need a patch to stay in sync, but reason about design from the shell (awk/bash) implementation, not from Java.
-
-## Pipeline implementation notes
-
-(Stage table, folders, and variable meanings are in each repo's README.md — this is what the README doesn't say.)
-
-`MDSC_SOURCE`/`MDSC_CACHED`/`MDSC_OUTPUT` are **stage-scoped**, reassigned by each stage script to its own input/output dirs — not fixed constants:
-- Stage 1 (`BuildCachedFromSource`): `MDSC_CACHED=.local/source-cache/prepare`
-- Stage 2 (`BuildOutputFromCached`): `MDSC_CACHED=.local/output-cache/prepared`, `MDSC_OUTPUT=.local/output-cache`
-- Outside an active stage (ad-hoc commands): `MDSC_CACHED` defaults to `.local/system-index`, the published steady-state index — what most day-to-day commands see.
-
-Builder discovery (`ScanSourceBuilders.include`) isn't limited to the core repos — any project in the distro index may declare its own `builders/<stage>/<NNNN>-*.sh` and it's picked up automatically.
-
-`source-publish` (reserved stage-3 alt name, see README) is matched by the discovery glob but not wired to any runner yet: stage 3 always runs via `BuildDistroFromSource.fn.sh → AllBuilders --executables image-prepare`, and `AllBuilders.fn.sh`'s own stage filter doesn't accept `source-publish` as a value either. Don't remove or repurpose it.
+- `myx.distro-system/MAGIC.md` — calling a tool and the three dispatchers, why
+  `Distro <name>` fails outside a console, the help-file inconsistencies and the
+  ask-before-touching rule, the dependency and index engine, and DistroImageSync
+  as direction rather than spec.
+- `myx.distro-source/MAGIC.md` — ingest versus build, the change-delta gate,
+  builder discovery, and the stage-scoped `MDSC_SOURCE`/`MDSC_CACHED`/`MDSC_OUTPUT`
+  values.
+- `myx.distro-deploy/MAGIC.md` — picking the narrowest tool, `Execute*` argument
+  order, and why exit status is not a deploy result.
+- `myx.distro-agents/MAGIC.md` — reaching Slack, email and Trello, adding an
+  operation to `DistroAgentsTools.fn.sh`, and its per-operation contracts.
+- `myx.distro-remote/MAGIC.md`, `myx.distro-.local/MAGIC.md` — their own package
+  notes.
 
 ## myx.distro-agents — its own notes
 
