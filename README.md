@@ -3,16 +3,20 @@
 The `magic-team` AI agent team, the tooling it runs on, and the installation that
 wires both into a workspace.
 
-Three parts:
-
-- **The team** — `skillset/magic-team/` holds the team members themselves:
-  `magic-coordinator`, `magic-architect`, `magic-developer`, `magic-devops`,
-  `magic-frontender`, `magic-librarian`, `magic-tester` and the shared
-  `magic-team` avatar. Any workspace can add its own members on top.
+- **The team** — `skillset/magic-team/` holds the members themselves.
+	- `magic-coordinator` — dispatch and prioritisation across the team.
+	- `magic-architect` — system design and architecture review.
+	- `magic-developer` — language mechanics, idiom and portability.
+	- `magic-devops` — builds, deploys and fleet operations.
+	- `magic-frontender` — browser-facing UI work.
+	- `magic-librarian` — documentation, references, protocols and conventions.
+	- `magic-tester` — test design, coverage and verification.
+	- `magic-team` — the team avatar, plus team-level shared artifacts.
+	- Any workspace can add its own members on top. See below.
 - **The tooling** — `DistroAgentsTools.fn.sh`, the single interface the team uses
   for every stateful action: Slack, email and Trello messaging; board and inbox
-  items; per-member credentials; keep-alive console sessions; and the routine
-  state machinery the team's daily rhythm runs on.
+  items; per-member credentials; keep-alive console sessions; and the state
+  machinery the team's routines run on.
 - **The console** — `DistroAgentsConsole.sh`, which starts an agent CLI session
   against the workspace instead of a bash shell.
 
@@ -25,7 +29,7 @@ agent client on this machine:
 	DistroAgentsTools.fn.sh --install-workspace-integrations
 
 That one command does both setup steps: it links the team's members into the
-skill directories agent clients read (workspace-local and user-home), then
+skill directories agent clients read, workspace-local and user-home, then
 installs the VS Code integrations. Run the steps on their own when you need to:
 
 	DistroAgentsTools.fn.sh --install-skillset-symlinks --scope workspace
@@ -88,12 +92,15 @@ See exactly which operations one member is allowed to run:
 	echo "list the projects that changed today" | ./DistroAgentsConsole.sh --non-interactive
 
 - Known CLIs, in preference order: `copilot`, `claude`, `grok`. The default is `copilot`.
-- `--cli-auto` picks the first one that is actually installed.
-- `--non-interactive` supports `copilot` and `claude` only. Remaining arguments are joined
-  into one prompt; with none given, the prompt is read from stdin.
-- With `--cli` given explicitly, a CLI missing from `PATH` is an error — no fallback.
-- With no `--cli`, the console tries the default, then the rest of the known list, then falls
-  back to an interactive bash session. `--non-interactive` still exits with an error there.
+- `--cli-auto` — pick the first known CLI that is actually installed.
+- `--cli <name>` — start that CLI. A CLI missing from `PATH` is an error; there is no fallback.
+- No `--cli` given — try the default, then the rest of the known list, then fall back to an
+  interactive bash session.
+- `--non-interactive` — one-shot, no attached terminal.
+	- Supported for `copilot` and `claude` only.
+	- Remaining arguments are joined into one prompt.
+	- With no arguments, the prompt is read from stdin.
+	- Exits with an error rather than falling back to bash when no CLI is available.
 
 ## Commands
 
@@ -103,9 +110,10 @@ See exactly which operations one member is allowed to run:
 
 ## Getting help
 
-- `DistroAgentsTools.fn.sh --help` prints every operation with its full syntax.
-- `DistroAgentsTools.fn.sh --member-help <member>` prints only what that member may run.
-- `Agents --help` prints the agents-context dispatcher syntax.
+- `DistroAgentsTools.fn.sh --help` — every operation, with full syntax.
+- `DistroAgentsTools.fn.sh --member-help <member>` — only what that member may run.
+- `DistroAgentsConsole.sh --help` — console syntax and options.
+- `Agents --help` — agents-context dispatcher syntax.
 - Press TAB after a command name and a space for shell completion.
 
 ## Related packages
