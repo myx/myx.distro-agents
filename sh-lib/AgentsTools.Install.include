@@ -426,7 +426,7 @@ case "$1" in
 						hadError="true"
 						continue
 					fi
-					echo "✅ skillset: deregistered $rcName" >&2
+					echo "🔗 deregistered $rcName" >&2
 
 					if awk -F: -v m="$rcName" '$1 == m { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
 						continue
@@ -434,7 +434,7 @@ case "$1" in
 					rcSlot="$targetRoot/$rcName"
 					if [ -L "$rcSlot" ] ; then
 						if rm -f "$rcSlot" ; then
-							echo "✅ skillset: unlinked $rcName, no workspace registers it any more" >&2
+							echo "🔗 unlinked $rcName, no workspace registers it any more" >&2
 						else
 							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to unlink: $rcSlot" >&2
 							hadError="true"
@@ -464,7 +464,7 @@ case "$1" in
 		esac
 		[ -z "$regChanges" ] || summaryNote="$summaryNote, re-registered: ${regChanges% }"
 		[ "$keptOther" = "0" ] || summaryNote="$summaryNote, $keptOther kept as-is"
-		[ "$removeMode" = "true" ] || echo "✅ skillset $shortRoot: $( printf '%s' "$ownedMembers" | grep -c '' ) members linked$summaryNote" >&2
+		[ "$removeMode" = "true" ] || echo "🔗 $shortRoot: $( printf '%s' "$ownedMembers" | grep -c '' ) members linked$summaryNote" >&2
 
 		if [ "$hadError" = "true" ] ; then
 			set +e ; return 1
@@ -642,7 +642,7 @@ case "$1" in
 				mcpVerdict="$( MYX_MCPVERIFY_TOPKEY="$mcpKey" MYX_MCPVERIFY_COMMAND="$serverScript" \
 					LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonVerify.awk" "$mcpFile" )"
 				if [ "$mcpVerdict" = "OK" ] ; then
-					echo "✅ myx.common registered in ${mcpFile#$workspace/}" >&2
+					echo "🔌 myx.common registered in ${mcpFile#$workspace/}" >&2
 				else
 					echo "⛔ ERROR: mcp-check ${mcpFile#$workspace/}: $mcpVerdict" >&2
 					failed=1
@@ -693,7 +693,7 @@ case "$1" in
 						MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
 						LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>/dev/null \
 						| cmp -s - "$distroFile" ; then
-						echo "✅ myx.distro registered in ${distroFile#$workspace/}" >&2
+						echo "🔌 myx.distro registered in ${distroFile#$workspace/}" >&2
 					else
 						echo "⛔ ERROR: mcp-distro-check ${distroFile#$workspace/}" >&2
 						failed=1
@@ -710,7 +710,7 @@ case "$1" in
 		else
 			local wsFile="$workspace/${workspace##*/}.code-workspace"
 			if grep -q 'chat\.agentSkillsLocations' "$wsFile" 2>/dev/null ; then
-				echo "✅ code-workspace regenerated: ${wsFile#$workspace/}" >&2
+				echo "🧰 code-workspace regenerated: ${wsFile#$workspace/}" >&2
 			else
 				echo "⛔ ERROR: code-workspace-check: chat.agentSkillsLocations absent from ${wsFile#$workspace/} -- magic-team members will not be discoverable by the VS Code chat client" >&2
 				failed=1
