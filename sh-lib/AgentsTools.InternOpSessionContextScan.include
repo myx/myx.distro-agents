@@ -457,8 +457,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local boardRoot="$MDAT_DATA_ROOT/board"
-		local frontmatterPrintAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrint.awk"
 		local headersJoined="" sep=""
 		if [ ${#headers[@]} -gt 0 ] ; then
 			for h in "${headers[@]}" ; do
@@ -492,7 +490,7 @@ case "$1" in
 		local matchedFiles=() matchedStates=()
 		local state f base it tp matched ownerVal
 		for state in "${states[@]}" ; do
-			for f in "$boardRoot/$state"/*.md ; do
+			for f in "$MDAT_DATA_ROOT/board/$state"/*.md ; do
 				[ -f "$f" ] || continue
 				base="${f##*/}"
 
@@ -561,7 +559,6 @@ case "$1" in
 
 		if [ "$sessionContextEngaged" = "true" ] ; then
 			local commsItemsAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSessionContextCommsItems.awk"
-			local isoToEpochAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk"
 
 			## Caps, per the format document: 128 IM, 128 email, 64 Trello.
 			##
@@ -610,7 +607,7 @@ case "$1" in
 			if [ "$commsCutoffKind" = "--comms-since-utime" ] ; then
 				cutoffEpoch="$commsCutoffValue"
 			elif [ "$commsCutoffKind" = "--comms-since-date-time" ] ; then
-				cutoffEpoch="$( printf '%s\n' "$commsCutoffValue" | LC_ALL=C awk -f "$isoToEpochAwk" )" || {
+				cutoffEpoch="$( printf '%s\n' "$commsCutoffValue" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk" )" || {
 					echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-since-date-time: could not convert to epoch seconds: $commsCutoffValue" >&2
 					set +e ; return 1
 				}
@@ -745,7 +742,6 @@ case "$1" in
 				##   - board: a thread an open board-item already tracks via
 				##     communication-channel-id
 				local threadTargets=() dt discovered
-				local threadTargetsAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackHistoryThreadTargets.awk"
 
 				## ONE cut-off trim, used by BOTH read paths, held in a variable
 				## rather than written out twice. The channel path calls it with
@@ -879,7 +875,8 @@ case "$1" in
 				## map's own lookup misses both fall through to the exact
 				## existing single-identity behaviour unchanged.
 				local dmIdentityMapFile
-				dmIdentityMapFile="$( mktemp "${TMPDIR:-/tmp}/mdat-sweep-dm-identity.XXXXXX" )" || { set +e ; return 1 ; }
+				dmIdentityMapFile="$MMDAPP/.local/temp/mdat-sweep-dm-identity.$$"
+				mkdir -p "$MMDAPP/.local/temp" && : > "$dmIdentityMapFile" || { set +e ; return 1 ; }
 				trap 'rm -f "$dmIdentityMapFile"' EXIT
 
 				local slackName slackResolved slackChannel slackRaw slackJson slackBlocks
@@ -1028,7 +1025,7 @@ case "$1" in
 					## unreachable. Measured: rc 0, empty output, no note. Same
 					## capture-then-guard shape the --intern-op-slack-check read above
 					## already uses deliberately for exactly this reason.
-					discovered="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v channel="$slackChannel" -v oldest="${slackOldest:-}" -v vaneId="$ownSlackId" -f "$threadTargetsAwk" )" || {
+					discovered="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v channel="$slackChannel" -v oldest="${slackOldest:-}" -v vaneId="$ownSlackId" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackHistoryThreadTargets.awk" )" || {
 						imPartial="$imPartial**NOTE:** partial -- thread discovery failed for $slackName, watched-channel read above unaffected"$'\n'
 						discovered=""
 					}
@@ -1134,7 +1131,8 @@ case "$1" in
 				## empty. Capped via `jobs -pr` polling, not `wait -n` (bash
 				## 4.3+; this platform ships bash 3.2).
 				local threadFetchWorkDir
-				threadFetchWorkDir="$( mktemp -d "${TMPDIR:-/tmp}/mdat-sweep-threads.XXXXXX" )" || { set +e ; return 1 ; }
+				threadFetchWorkDir="$MMDAPP/.local/temp/mdat-sweep-threads.$$"
+				mkdir -p "$MMDAPP/.local/temp" && rm -rf "$threadFetchWorkDir" && mkdir "$threadFetchWorkDir" || { set +e ; return 1 ; }
 				## Combined with dmIdentityMapFile's own cleanup -- a bare `trap
 				## ... EXIT` here would silently REPLACE the earlier trap set
 				## right after that file was created, losing its cleanup rather
@@ -1627,7 +1625,7 @@ case "$1" in
 
 			printf '## %s/%s\n' "$state" "$base"
 			if [ ${#headers[@]} -eq 0 ] ; then
-				LC_ALL=C awk -f "$frontmatterPrintAwk" "$f"
+				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrint.awk" "$f"
 			else
 				## A FENCE-LESS ITEM MUST NOT VANISH. This printer used to enter
 				## frontmatter only on `NR == 1 && $0 == "---"`, so an item whose
@@ -1736,7 +1734,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpSessionContextScan.include's own default (*) branch, the operation group sourced by the --intern-op-session-context-scan dispatcher route; no operation of that name is defined in this include" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 (invoked via $opContext)" >&2
 		set +e ; return 1
 	;;
 esac

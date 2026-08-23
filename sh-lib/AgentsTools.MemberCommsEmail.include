@@ -130,7 +130,7 @@ case "$1" in
 			## becomes dead code. The || form is what keeps errexit off this
 			## call long enough to read its status and report it.
 			local statusRc=0
-			curl -sS --url "imaps://${imapHost}/INBOX" --netrc-file "$netrcFile" \
+			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file "$netrcFile" \
 				--request "STATUS INBOX (UNSEEN)" || statusRc=$?
 			if [ "$statusRc" -ne 0 ] ; then
 				rm -f "$netrcFile"
@@ -139,7 +139,7 @@ case "$1" in
 				set +e ; return "$statusRc"
 			fi
 			local searchRc=0
-			curl -sS --url "imaps://${imapHost}/INBOX" --netrc-file "$netrcFile" \
+			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file "$netrcFile" \
 				--request "UID SEARCH UNSEEN" || searchRc=$?
 			rm -f "$netrcFile"
 			trap - EXIT
@@ -364,7 +364,7 @@ case "$1" in
 			## Collected with "|| rc=$?" because set -e is active here -- a bare
 			## failing curl would abort before any following check could run.
 			local storeRc=0
-			curl -sS --url "imaps://${imapHost}/INBOX" --netrc-file "$netrcFile" \
+			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file "$netrcFile" \
 				--request "UID STORE ${uid} +FLAGS (\Seen)" || storeRc=$?
 			rm -f "$netrcFile"
 			trap - EXIT
@@ -652,7 +652,8 @@ case "$1" in
 			## long enough to read its status and report it -- the same fix the
 			## --member-comms-email-* arms already carry.
 			local rc=0
-			curl -sS --url "smtp://${smtpHost}:${smtpPort}" --ssl-reqd \
+			## --max-time 300, not the 120 an API call here gets: this one uploads the whole message.
+			curl -sS --connect-timeout 10 --max-time 300 --url "smtp://${smtpHost}:${smtpPort}" --ssl-reqd \
 				--netrc-file "$netrcFile" \
 				--mail-from "$emailUser" "${rcptArgs[@]}" \
 				--upload-file "$msgFile" || rc=$?
@@ -669,7 +670,7 @@ case "$1" in
 		;;
 
 		*)
-			echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MemberCommsEmail.include's own default (*) branch, the operation group sourced by the dispatcher's --member-comms-email-* route; no operation of that name is defined in this include" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 -- rejected by AgentsTools.MemberCommsEmail.include's own default (*) branch, the operation group sourced by the dispatcher's --member-comms-email-* route; no operation of that name is defined in this include" >&2
 			set +e ; return 1
 		;;
 esac

@@ -767,7 +767,7 @@ case "$1" in
 			## DM resolution under THIS identity, when the caller asked for it.
 			if [ -n "$resolveDmUser" ] ; then
 				local openResp
-				openResp="$( curl -sS -X POST https://slack.com/api/conversations.open \
+				openResp="$( curl -sS --connect-timeout 10 --max-time 120 -X POST https://slack.com/api/conversations.open \
 					-H @"$headerFile" \
 					-H "Content-type: application/x-www-form-urlencoded" \
 					--data-urlencode "users=$resolveDmUser" 2>&1 )" || {
@@ -836,7 +836,7 @@ case "$1" in
 			## the one the caller asked.
 			if [ -n "$expectCounterparty" ] ; then
 				local infoResp="" actualCounterparty=""
-				infoResp="$( curl -sS -G https://slack.com/api/conversations.info \
+				infoResp="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info \
 					-H @"$headerFile" \
 					--data-urlencode "channel=$resolveTarget" 2>&1 )" || {
 					failMsg="counterparty control: conversations.info transport failure for conversation $resolveTarget under $sendIdentity identity: $infoResp"
@@ -935,9 +935,10 @@ case "$1" in
 			## file afterwards. `--max-redirs 5` bounds the redirect chain, and
 			## curl drops the Authorization header on a cross-host redirect, so
 			## the credential cannot follow a URL off Slack.
+			## --max-time 900, not the 120 every API call here gets: this one moves a file.
 			if [ -n "$fetchUrl" ] ; then
 				local fetchOut="" fetchLine=""
-				fetchOut="$( curl -sS -L --max-redirs 5 \
+				fetchOut="$( curl -sS --connect-timeout 10 --max-time 900 -L --max-redirs 5 \
 					-H @"$headerFile" \
 					-o "$fetchTo" \
 					-w '%{http_code} %{size_download} %{content_type}' \
@@ -987,7 +988,7 @@ case "$1" in
 			fi
 
 			if [ -n "$jsonBody" ] ; then
-				response="$( curl -sS -X POST "https://slack.com/api/$apiMethod" \
+				response="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/$apiMethod" \
 					-H @"$headerFile" \
 					-H "Content-type: application/json" \
 					-d "$jsonBody" 2>&1 )" || {
@@ -995,7 +996,7 @@ case "$1" in
 					break
 				}
 			else
-				local curlArgs=( -sS -G "https://slack.com/api/$apiMethod" -H @"$headerFile" ) formPair
+				local curlArgs=( -sS --connect-timeout 10 --max-time 120 -G "https://slack.com/api/$apiMethod" -H @"$headerFile" ) formPair
 				for formPair in "${formArgs[@]}" ; do
 					curlArgs+=( --data-urlencode "$formPair" )
 				done
@@ -1058,7 +1059,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpSlackCall.include's own default (*) branch, the operation group sourced by the --intern-op-slack-call dispatcher route; no operation of that name is defined in this include" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 (invoked via $opContext)" >&2
 		set +e ; return 1
 	;;
 esac

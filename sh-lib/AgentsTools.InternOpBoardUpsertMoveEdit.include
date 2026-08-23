@@ -118,7 +118,8 @@ case "$1" in
 		local boardRoot="$MDAT_DATA_ROOT/board"
 		local fromState="" fromInbox="" isCreate="false" sourcePath="" bodyMode="" scriptLang="" bodyModeCount=0 sourceModeCount=0
 		local headerOpsFile
-		headerOpsFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-headers.XXXXXX" )" || { set +e ; return 1 ; }
+		headerOpsFile="$MMDAPP/.local/temp/mdat-intern-op-headers.$$"
+		mkdir -p "$MMDAPP/.local/temp" && : > "$headerOpsFile" || { set +e ; return 1 ; }
 		trap 'rm -f "$headerOpsFile"' EXIT
 
 		while [ $# -gt 0 ] ; do
@@ -353,7 +354,8 @@ case "$1" in
 			local scriptContent existingContent scriptFile
 			scriptContent="$( cat )"
 			if [ "$isCreate" = "true" ] ; then existingContent="" ; else existingContent="$( cat "$sourcePath" )" ; fi
-			scriptFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-script.XXXXXX" )" || { set +e ; return 1 ; }
+			scriptFile="$MMDAPP/.local/temp/mdat-intern-op-script.$$"
+			mkdir -p "$MMDAPP/.local/temp" && : > "$scriptFile" || { set +e ; return 1 ; }
 			printf '%s' "$scriptContent" > "$scriptFile"
 			case "$scriptLang" in
 				py)  body="$( printf '%s\n' "$existingContent" | python3 "$scriptFile" )" ;;
@@ -366,8 +368,10 @@ case "$1" in
 			local patchJson existingContent contentFile patchFile
 			patchJson="$( cat )"
 			if [ "$isCreate" = "true" ] ; then existingContent="" ; else existingContent="$( cat "$sourcePath" )" ; fi
-			contentFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-patch-content.XXXXXX" )" || { set +e ; return 1 ; }
-			patchFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-patch-spec.XXXXXX" )" || { set +e ; return 1 ; }
+			contentFile="$MMDAPP/.local/temp/mdat-intern-op-patch-content.$$"
+			mkdir -p "$MMDAPP/.local/temp" && : > "$contentFile" || { set +e ; return 1 ; }
+			patchFile="$MMDAPP/.local/temp/mdat-intern-op-patch-spec.$$"
+			mkdir -p "$MMDAPP/.local/temp" && : > "$patchFile" || { set +e ; return 1 ; }
 			printf '%s' "$existingContent" > "$contentFile"
 			printf '%s' "$patchJson" > "$patchFile"
 			body="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" "$contentFile" "$patchFile" )"
@@ -390,7 +394,8 @@ case "$1" in
 		fi
 
 		local tmpFile
-		tmpFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-result.XXXXXX" )" || { set +e ; return 1 ; }
+		tmpFile="$MMDAPP/.local/temp/mdat-intern-op-result.$$"
+		mkdir -p "$MMDAPP/.local/temp" && : > "$tmpFile" || { set +e ; return 1 ; }
 		printf '%s\n' "$body" > "$tmpFile"
 		mv "$tmpFile" "$targetPath"
 
@@ -419,7 +424,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpBoardUpsertMoveEdit.include's own default (*) branch, the operation group sourced by the --intern-op-board-upsert-move-edit dispatcher route; no operation of that name is defined in this include" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 (invoked via $opContext)" >&2
 		set +e ; return 1
 	;;
 esac

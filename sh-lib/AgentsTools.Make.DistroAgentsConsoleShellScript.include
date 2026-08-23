@@ -161,8 +161,7 @@ cat <<- 'DISTROCONSOLE'
 		if [ $# -gt 0 ] ; then
 			exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS -p "$*"
 		fi
-		DAGC_STDIN_PROMPT="$( cat )"
-		exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS -p "$DAGC_STDIN_PROMPT"
+		exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS -p "$( cat )"
 	fi
 
 	exec "$DAGC_CLI" "$@"

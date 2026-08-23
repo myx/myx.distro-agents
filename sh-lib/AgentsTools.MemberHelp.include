@@ -136,10 +136,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local floorFile="$skillRoot/magic-team/magic-team.armed.md"
-		local helpInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
-		local helpMd="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md"
-
 		## Extracts bare `--op-name`/`--op-prefix-*` tokens from a file's own
 		## "## DistroAgentsTools magic-tooling operations" bullet list --
 		## stops at the next "## " heading, same block a human reads. Every
@@ -201,7 +197,7 @@ case "$1" in
 		echo >&2
 
 		local floorOpNames
-		floorOpNames="$( ExtractOpNames "$floorFile" | sort -u )"
+		floorOpNames="$( ExtractOpNames "$skillRoot/magic-team/magic-team.armed.md" | sort -u )"
 
 		local allNames
 		allNames="$( { printf '%s\n' "$floorOpNames" ; printf '%s\n' "$ownOpNames" ; printf '%s\n' "${commonPrefixes[@]}" ; } | sort -u )"
@@ -253,7 +249,7 @@ case "$1" in
 				};
 				if (matched && !(msg in seen)) { print msg; seen[msg] = 1; };
 			}
-		' "$helpInclude"
+		' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
 
 		echo >&2
 
@@ -293,13 +289,13 @@ case "$1" in
 				};
 			}
 			inBlock { print; }
-		' "$helpMd"
+		' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md"
 
 		return 0
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MemberHelp.include's own default (*) branch, the operation group sourced by the --member-help arm inside AgentsTools.Member.include, which the --member-* dispatcher route reaches; no operation of that name is defined in this include" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 -- rejected by AgentsTools.MemberHelp.include's own default (*) branch, the operation group sourced by the --member-help arm inside AgentsTools.Member.include, which the --member-* dispatcher route reaches; no operation of that name is defined in this include" >&2
 		set +e ; return 1
 	;;
 esac

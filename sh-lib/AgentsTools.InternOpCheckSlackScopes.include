@@ -155,7 +155,7 @@ case "$1" in
 			local dumpFile
 			dumpFile="$( mktemp )" || { rm -f "$headerFile" ; set +e ; return 1 ; }
 
-			httpBody="$( curl -sS -D "$dumpFile" -o /dev/null https://slack.com/api/auth.test -H @"$headerFile" 2>&1 )"
+			httpBody="$( curl -sS --connect-timeout 10 --max-time 120 -D "$dumpFile" -o /dev/null https://slack.com/api/auth.test -H @"$headerFile" 2>&1 )"
 			local curlRc=$?
 			rm -f "$headerFile"
 
@@ -302,7 +302,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpCheckSlackScopes.include's own default (*) branch, the operation group sourced by the --intern-op-check-slack-scopes dispatcher route; no operation of that name is defined in this include" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 (invoked via $opContext)" >&2
 		set +e ; return 1
 	;;
 esac

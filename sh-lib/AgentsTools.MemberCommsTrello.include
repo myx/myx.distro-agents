@@ -110,7 +110,7 @@ case "$1" in
 			## set -e -- errexit aborts first, so the status is never read and a
 			## failed check is indistinguishable from an empty one.
 			local trelloRc=0
-			curl -sS -H @"$headerFile" \
+			curl -sS --connect-timeout 10 --max-time 120 -H @"$headerFile" \
 				"https://api.trello.com/1/members/me/notifications?read_filter=unread" || trelloRc=$?
 			rm -f "$headerFile"
 			trap - EXIT
@@ -223,7 +223,7 @@ case "$1" in
 			local trelloRc=0
 			printf 'header = "Authorization: OAuth oauth_consumer_key=\\"%s\\", oauth_token=\\"%s\\""\n' \
 				"$trelloKeyEsc" "$trelloTokenEsc" \
-				| curl -sS --fail-with-body -K - \
+				| curl -sS --connect-timeout 10 --max-time 120 --fail-with-body -K - \
 					"https://api.trello.com/1/notifications/${notificationId}?fields=all&member=true&memberCreator=true&card=true&card_fields=all&board=true&board_fields=all" || trelloRc=$?
 			if [ "$trelloRc" -ne 0 ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: Trello notifications/${notificationId} failed as $memberName (curl rc=$trelloRc) -- the notification content is UNKNOWN, not empty, and an HTTP error status counts as a failure here; curl's own error is on the line above" >&2
@@ -291,7 +291,7 @@ case "$1" in
 			local trelloRc=0 trelloMe=""
 			trelloMe="$( printf 'header = "Authorization: OAuth oauth_consumer_key=\\"%s\\", oauth_token=\\"%s\\""\n' \
 				"$trelloKeyEsc" "$trelloTokenEsc" \
-				| curl -sS --fail-with-body -K - \
+				| curl -sS --connect-timeout 10 --max-time 120 --fail-with-body -K - \
 					"https://api.trello.com/1/members/me?fields=id,username" )" || trelloRc=$?
 			if [ "$trelloRc" -ne 0 ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: Trello members/me failed as $memberName (curl rc=$trelloRc) -- the acting identity is UNKNOWN, not absent; curl's own error is on the line above" >&2
@@ -319,7 +319,7 @@ case "$1" in
 		;;
 
 		*)
-			echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MemberCommsTrello.include's own default (*) branch, the operation group sourced by the dispatcher's --member-comms-trello-* route; no operation of that name is defined in this include" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 -- rejected by AgentsTools.MemberCommsTrello.include's own default (*) branch, the operation group sourced by the dispatcher's --member-comms-trello-* route; no operation of that name is defined in this include" >&2
 			set +e ; return 1
 		;;
 esac

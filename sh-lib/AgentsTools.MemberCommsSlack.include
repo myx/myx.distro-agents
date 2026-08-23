@@ -2864,11 +2864,11 @@ case "$1" in
 					chmod 600 "$dynHeaderFile"
 					trap 'rm -f "$dynHeaderFile"' EXIT
 					printf 'Authorization: Bearer %s\n' "$memberUserToken" > "$dynHeaderFile"
-					dynUsersJson="$( curl -sS -G https://slack.com/api/users.list -H @"$dynHeaderFile" --data-urlencode "limit=1000" 2>/dev/null )"
+					dynUsersJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.list -H @"$dynHeaderFile" --data-urlencode "limit=1000" 2>/dev/null )"
 					dynHintUserId="$( USERS_JSON="$dynUsersJson" HINT="myx" \
 						python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveHintUserId.py" 2>/dev/null )"
 					if [ -n "$dynHintUserId" ] ; then
-						dynOpenResp="$( curl -sS -X POST https://slack.com/api/conversations.open -H @"$dynHeaderFile" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$dynHintUserId" 2>/dev/null )"
+						dynOpenResp="$( curl -sS --connect-timeout 10 --max-time 120 -X POST https://slack.com/api/conversations.open -H @"$dynHeaderFile" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$dynHintUserId" 2>/dev/null )"
 						## `ok` and `channel.id` are read out of the same body by
 						## the same key-path reader, together, rather than one of
 						## them being a leftover regex beside the other. This line
@@ -2989,7 +2989,7 @@ case "$1" in
 		local authUserId=""
 		if [ "$sendIdentity" = "user" ] ; then
 			local authResp
-			authResp="$( curl -sS https://slack.com/api/auth.test -H @"$headerFile" 2>&1 )"
+			authResp="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @"$headerFile" 2>&1 )"
 			## Structural read of the top-level `user_id`, not a pattern match.
 			## This line used to be
 			##   sed -n 's/.*"user_id":"\([^"]*\)".*/\1/p'
@@ -3019,7 +3019,7 @@ case "$1" in
 
 		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false" identitySwapped="false"
 		while [ "$attempt" -le "$maxAttempts" ] ; do
-			response="$( curl -sS -X POST "https://slack.com/api/chat.postMessage" \
+			response="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/chat.postMessage" \
 				-H @"$headerFile" \
 				-H "Content-type: application/json" \
 				-d "$payload" 2>&1 )"
@@ -3030,7 +3030,7 @@ case "$1" in
 			if [ "$sendIdentity" = "bot" ] && [ "$joinAttempted" = "false" ] && [ -z "$threadTs" ] && printf '%s' "$response" | grep -q '"error":"not_in_channel"' ; then
 				joinAttempted="true"
 				local joinResponse
-				joinResponse="$( curl -sS -X POST "https://slack.com/api/conversations.join" \
+				joinResponse="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/conversations.join" \
 					-H @"$headerFile" \
 					-H "Content-type: application/x-www-form-urlencoded" \
 					--data-urlencode "channel=$channel" 2>&1 )"
@@ -3152,7 +3152,7 @@ case "$1" in
 	;;
 
 		*)
-			echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MemberCommsSlack.include's own default (*) branch, the operation group sourced by the dispatcher's --member-comms-slack-* route; no operation of that name is defined in this include" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 -- rejected by AgentsTools.MemberCommsSlack.include's own default (*) branch, the operation group sourced by the dispatcher's --member-comms-slack-* route; no operation of that name is defined in this include" >&2
 			set +e ; return 1
 		;;
 esac

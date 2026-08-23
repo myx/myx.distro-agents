@@ -191,14 +191,11 @@ case "$1" in
 		## AgentsItemRenameSweep.awk; see that file for why .md-only was
 		## measured wrong. Values travel via ENVIRON[], never `awk -v`.
 		local sweepOldStem="${oldName%.*}"
-		local sweepNewStem="${newName%.*}"
 		export MDAT_RENAME_OLD="$oldName"
 		export MDAT_RENAME_NEW="$newName"
 		export MDAT_RENAME_OLD_STEM="$sweepOldStem"
-		export MDAT_RENAME_NEW_STEM="$sweepNewStem"
+		export MDAT_RENAME_NEW_STEM="${newName%.*}"
 
-		local sweepScript="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsItemRenameSweep.awk"
-		local skillsetRoot="$MDLT_ORIGIN/myx/myx.distro-agents/skillset"
 		local touched=0 f tmp sweepTarget
 
 		## EVERY regular file, not just *.md. The stores are not .md-only (2
@@ -206,7 +203,7 @@ case "$1" in
 		## serves is exactly how those two came to be missed in the first
 		## place. One uniform rule now: every file, every occurrence, both
 		## name forms -- no per-tree mode, no field whitelist.
-		for sweepTarget in "$MDAT_DATA_ROOT/board" "$MDAT_DATA_ROOT/inboxes" "$MDAT_DATA_ROOT/audit" "$skillsetRoot" ; do
+		for sweepTarget in "$MDAT_DATA_ROOT/board" "$MDAT_DATA_ROOT/inboxes" "$MDAT_DATA_ROOT/audit" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" ; do
 			[ -d "$sweepTarget" ] || continue
 			while IFS= read -r f ; do
 				[ -f "$f" ] || continue
@@ -214,8 +211,9 @@ case "$1" in
 				## by rename, not by substitution.
 				[ "$f" = "$sourcePath" ] && continue
 				grep -q -F -- "$sweepOldStem" "$f" || continue
-				tmp="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-item-rename.XXXXXX" )" || { unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM ; set +e ; return 1 ; }
-				if ! LC_ALL=C awk -f "$sweepScript" "$f" > "$tmp" ; then
+				tmp="$MMDAPP/.local/temp/mdat-intern-op-item-rename.$$"
+				mkdir -p "$MMDAPP/.local/temp" && : > "$tmp" || { unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM ; set +e ; return 1 ; }
+				if ! LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsItemRenameSweep.awk" "$f" > "$tmp" ; then
 					rm -f "$tmp"
 					unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM
 					echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): reference sweep failed on: $f (nothing renamed)" >&2
@@ -226,7 +224,7 @@ case "$1" in
 					continue
 				fi
 				## Content copied back rather than `mv`-ed: mv would give the
-				## file the mktemp file's own 0600 mode. A redirect keeps the
+				## file the scratch file's own mode. A redirect keeps the
 				## target's existing mode and ownership, and needs no stat(1),
 				## whose flags differ between Darwin/FreeBSD (-f) and Linux (-c).
 				cat "$tmp" > "$f"
@@ -244,7 +242,7 @@ EOF
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpItemRename.include's own default (*) branch, the operation group sourced by the --intern-op-item-rename dispatcher route; no operation of that name is defined in this include" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 (invoked via $opContext)" >&2
 		set +e ; return 1
 	;;
 esac
