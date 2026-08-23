@@ -57,7 +57,7 @@ Team-owned notes for the magic-* team.
 
 ## Registering this workspace's MCP servers
 
-- `--owner-install-vscode-integrations` registers this workspace's tooling into this workspace's own config. It never resolves another workspace's origin and never writes into another workspace's config. To register elsewhere, run the tool from there.
+- `--install-vscode-integrations` registers this workspace's tooling into this workspace's own config. It never resolves another workspace's origin and never writes into another workspace's config. To register elsewhere, run the tool from there.
 - Two workspace targets, one entry per server in each: `.vscode/mcp.json` under `servers` for VS Code/Copilot-Chat, `.mcp.json` under `mcpServers` for Claude Code project scope and Copilot CLI. Claude Code does not read `.vscode/mcp.json`.
 - `~/.claude.json`'s `projects["<cwd>"].mcpServers` is keyed by exact directory with no upward walk, so a session opened at a different depth than the registered one sees no server.
 - A registration change takes effect only once the MCP host restarts. A `.mcp.json` entry additionally waits on the human's own trust prompt.

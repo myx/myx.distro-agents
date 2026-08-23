@@ -47,7 +47,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <path>
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-current
-📘 syntax: DistroAgentsTools.fn.sh --owner-install-vscode-integrations [--workspace <path>]
+📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
@@ -1089,7 +1089,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--owner-install-vscode-integrations [--workspace <path>]
+		--install-vscode-integrations [--workspace <path>]
 			Installs/updates baseline VS Code + Claude Code integrations.
 			Installs NO extensions and never invokes the `code` CLI --
 			which chat client is installed is the user's own choice; this
@@ -1155,27 +1155,21 @@
 
 		--install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
 			Composed integration op: runs
-			`--install-skillset-symlinks` first, then
-			`--owner-install-vscode-integrations` against the same workspace.
+			`--install-vscode-integrations` first, then
+			`--install-skillset-symlinks` against the same workspace.
 			If `--scope` is provided, forwards it directly to
 			`--install-skillset-symlinks`.
 			With no `--scope`, runs the user-home step and then the workspace
 			step -- both unconditionally, since `$HOME/.claude/skills` is
 			where every VS Code panel-facing client reads the team skillset
-			from and on a machine set up from scratch it does not exist yet --
-			then runs the MCP/extension step. Fails fast if any executed step
-			fails. An empty value for `--scope` or `--workspace` is rejected
+			from and on a machine set up from scratch it does not exist yet.
+			The MCP/integration step runs before them, so a workspace is
+			registered even when the skillset step cannot complete. Fails
+			fast if any executed step fails. An empty value for `--scope` or `--workspace` is rejected
 			rather than silently treated as absent.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--install-vscode-integrations [--workspace <path>]
-			Team-facing wrapper for `--owner-install-vscode-integrations`.
-			Resolves the workspace path (default current shell directory,
-			override with `--workspace <path>`) and delegates to the owner
-			backend unchanged, so extension installation + MCP upsert behavior
-			stays centralized in one implementation. An empty value for
-			`--workspace` is rejected rather than silently treated as absent.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

@@ -1,59 +1,24 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-## NOTE ON THE WRAPPER FUNCTION NAME BELOW ("DistroAgentsTools"):
-## `myx.distro-.local/sh-lib/LocalTools.Make.include`'s `--make-workspace-
-## integration-files` loop mechanically builds a wrapper function named
-## `Distro${ITEM}Tools` for each installed subsystem ITEM ("System","Source",
-## "Deploy","Remote", now "Agents") sourcing that subsystem's own
-## `<Item>Tools.Make.include`. For ITEM="Agents" this mechanically produces
-## the name `DistroAgentsTools` -- the exact same name already used, elsewhere
-## in the tree, for the real, unrelated, heavily-used magic-tooling command
-## `myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh` (Slack/email/board/
-## console-session automation for the magic-* team). These are two genuinely
-## different things sharing one name, not a copy/typo. It is safe in practice
-## because:
-##  - The wrapper here is defined only inside a subshell `( ... )`, scoped to
-##    one `--make-console-command` call, then discarded -- it never leaks into
-##    a parent shell or an interactive console session.
-##  - It runs only during the one-off local-tools install/update step (fresh
-##    `bash '.../DistroLocalTools.fn.sh' ...` process), never inside a live
-##    console session that also has the real DistroAgentsTools.fn.sh sourced.
-## Flagged here deliberately (not silently reused) -- reviewed with
-## magic-architect/magic-developer before landing; see the myx.distro-agents
-## build session's own review notes.
-
 case "$1" in
-	--make-workspace-integration-files)
+	--make-workspace-integrations)
 		shift
 
 		if [ -z "$MDLT_ORIGIN" ] || [ "$MDLT_ORIGIN" = "$MMDAPP/.local" ] ; then
-			touch $MMDAPP/.local/MDLC.agents.settings.env
+			mkdir -p "$MMDAPP/.agents"
 		fi
 
 		DistroAgentsTools --make-console-command "$@"
+		DistroAgentsTools --install-workspace-integrations "$@"
 		return 0
 	;;
 	--make-console-command)
 		shift
 		set -e
-		## NOTE: unlike the Deploy/Remote siblings this was otherwise mirrored
-		## from (both hardcode "$MMDAPP/.local/..." here), this uses
-		## "$MDLT_ORIGIN/..." instead -- matching myx.distro-source's own
-		## SourceTools.Make.include, which already uses $MDLT_ORIGIN for this
-		## exact self-reference. Confirmed real, not cosmetic: this reference
-		## workspace runs source-origin (MDLT_CONSOLE_ORIGIN=source) with no
-		## .local/myx/myx.distro-agents mirror (out of scope this pass -- the
-		## "source/-vs-installed sync question"), so the hardcoded-.local form
-		## fails here with a real "No such file or directory". $MDLT_ORIGIN is
-		## already exported by the caller chain (DistroLocalTools.fn.sh), so
-		## this needs no new sync infrastructure to work correctly either way.
-		(
-			DistroAgentsTools(){
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Make.include"
-			}
-			DistroAgentsTools --make-console-script > "$MMDAPP/DistroAgentsConsole.sh"
-		)
+		# shortcut for: `DistroAgentsTools --make-console-script`
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Make.DistroAgentsConsoleShellScript.include" \
+		> "$MMDAPP/DistroAgentsConsole.sh"
 		chmod 770 "$MMDAPP/DistroAgentsConsole.sh"
 
 		if [ "$1" != "--quiet" ] ; then
@@ -68,217 +33,11 @@ case "$1" in
 	;;
 	--make-console-script)
 		shift
-
-		cat <<- 'DISTROCONSOLE'
-			#!/usr/bin/env bash
-
-			set -e
-
-			if [ -z "$MMDAPP" ] || [ ! -d "$MMDAPP" ] ; then
-				## Quoted, and `&&`-chained. Unquoted, $(dirname "$0") word-
-				## splits the moment the workspace path contains a space, and
-				## the way it then fails is worse than not starting: `cd` gets
-				## several arguments and fails, `;` runs `pwd` regardless, and
-				## the console comes up with MMDAPP set to whatever directory
-				## the caller happened to be in.
-				MMDAPP="$( ( cd "$( dirname "$0" )" && pwd ) )" || MMDAPP=""
-				if [ -z "$MMDAPP" ] ; then
-					echo "⛔ ERROR: cannot resolve this console's own directory from '$0'." >&2
-					exit 1
-				fi
-			fi
-
-			[ -d "$MMDAPP/.local" ] || ( echo "⛔ ERROR: expecting '$MMDAPP/.local' directory." >&2 && exit 1 )
-
-			MDLT_CONSOLE_ORIGIN="$( ( \
-				. "$MMDAPP/.local/MDLT.settings.env" ; \
-				echo "${MDLT_CONSOLE_ORIGIN:-.local}" \
-			) )"
-			MDLC_INMODE="${MDLT_CONSOLE_ORIGIN#$MMDAPP/}"
-			case "$MDLC_INMODE" in
-				.local)
-					export MDLT_ORIGIN="$MMDAPP/.local"
-				;;
-				source)
-					if [ -f "$MMDAPP/source/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
-						export MDLT_ORIGIN="$MMDAPP/$MDLC_INMODE"
-					else
-						export MDLT_ORIGIN="$MMDAPP/.local"
-					fi
-				;;
-				/*)
-					if [ -f "$MDLC_INMODE/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
-						export MDLT_ORIGIN="$MDLC_INMODE"
-					else
-						export MDLT_ORIGIN="$MMDAPP/.local"
-					fi
-				;;
-				*)
-					export MDLT_ORIGIN="$MMDAPP/.local"
-				;;
-			esac
-			if [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
-				echo "⛔ ERROR: AgentsContext.SetInputSpec: can't find/detect origin, spec: $MDLT_CONSOLE_ORIGIN, origin: $MDLT_ORIGIN" >&2
-				exit 1
-			fi
-
-			cd "$MMDAPP"
-			export MMDAPP
-
-			## Which agent CLI to run. Known CLIs are checked in preference order;
-			## --cli-auto picks the first available one, while no-flag mode uses the
-			## default then falls back through the same list before bash fallback.
-			DAGC_KNOWN_CLIS="copilot claude grok"
-			DAGC_NONINTERACTIVE_CLIS="copilot claude"
-			DAGC_CLI="copilot"
-			DAGC_CLI_GIVEN="false"
-			DAGC_CLI_AUTO="false"
-			while true ; do
-				case "$1" in
-					--cli-auto)
-						DAGC_CLI_AUTO="true"
-						shift
-					;;
-					--cli)
-						if [ -z "$2" ] ; then
-							echo "⛔ ERROR: DistroAgentsConsole: --cli requires a value (known: $DAGC_KNOWN_CLIS)" >&2
-							exit 1
-						fi
-						DAGC_CLI="$2"
-						DAGC_CLI_GIVEN="true"
-						shift 2
-					;;
-					*)
-						break
-					;;
-				esac
-			done
-			# --cli-auto checks known CLIs by preference and picks the first installed one.
-			if [ "$DAGC_CLI_AUTO" = "true" ] ; then
-				DAGC_CLI_GIVEN="false"
-				for DAGC_AUTO_CLI in $DAGC_KNOWN_CLIS ; do
-					if [ "$1" == "--non-interactive" ] ; then
-						case " $DAGC_NONINTERACTIVE_CLIS " in
-							*" $DAGC_AUTO_CLI "*) ;;
-							*)
-								continue
-							;;
-						esac
-					fi
-					if command -v "$DAGC_AUTO_CLI" >/dev/null 2>&1 ; then
-						DAGC_CLI="$DAGC_AUTO_CLI"
-						DAGC_CLI_GIVEN="true"
-						break
-					fi
-				done
-				if [ "$DAGC_CLI_GIVEN" != "true" ] && [ "$1" == "--non-interactive" ] ; then
-					echo "⛔ ERROR: DistroAgentsConsole: --cli-auto found no supported non-interactive CLI in PATH (tried: $DAGC_NONINTERACTIVE_CLIS)." >&2
-					exit 1
-				fi
-			fi
-			case "$DAGC_CLI" in
-				copilot|claude|grok) ;;
-				*)
-					echo "⛔ ERROR: DistroAgentsConsole: unsupported --cli: $DAGC_CLI (known: $DAGC_KNOWN_CLIS)" >&2
-					exit 1
-				;;
-			esac
-			if [ "$1" == "--non-interactive" ] ; then
-				case " $DAGC_NONINTERACTIVE_CLIS " in
-					*" $DAGC_CLI "*) ;;
-					*)
-						echo "⛔ ERROR: DistroAgentsConsole: --non-interactive is currently supported only for: $DAGC_NONINTERACTIVE_CLIS (got: $DAGC_CLI)." >&2
-						exit 1
-					;;
-				esac
-			fi
-			if [ "$DAGC_CLI_GIVEN" = "true" ] ; then
-				command -v "$DAGC_CLI" >/dev/null 2>&1 || {
-					echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' CLI not found in PATH -- install it first; --cli was given explicitly, so this does not fall back to a bash session." >&2
-					exit 1
-				}
-			elif ! command -v "$DAGC_CLI" >/dev/null 2>&1 ; then
-				for DAGC_FALLBACK_CLI in $DAGC_KNOWN_CLIS ; do
-					if [ "$DAGC_FALLBACK_CLI" = "$DAGC_CLI" ] ; then
-						continue
-					fi
-					if [ "$1" == "--non-interactive" ] ; then
-						case " $DAGC_NONINTERACTIVE_CLIS " in
-							*" $DAGC_FALLBACK_CLI "*) ;;
-							*)
-								continue
-							;;
-						esac
-					fi
-					if command -v "$DAGC_FALLBACK_CLI" >/dev/null 2>&1 ; then
-						DAGC_CLI="$DAGC_FALLBACK_CLI"
-						break
-					fi
-				done
-				if command -v "$DAGC_CLI" >/dev/null 2>&1 ; then
-					:
-				else
-					exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
-				fi
-			fi
-
-			## Ensure MCP registration exists for this workspace before direct CLI
-			## execution (especially headless --cli-auto spawn-proxy paths).
-			DAGC_MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
-			if [ -x "$DAGC_MYXROOT/bin/setup/agentMcp.Common" ] ; then
-				MYXROOT="$DAGC_MYXROOT" MYX_AGENTMCP_TARGET_CWD="$MMDAPP" "$DAGC_MYXROOT/bin/setup/agentMcp.Common" >/dev/null 2>&1 || :
-			elif command -v myx.common >/dev/null 2>&1 ; then
-				MYX_AGENTMCP_TARGET_CWD="$MMDAPP" myx.common setup/agentMcp >/dev/null 2>&1 || :
-			fi
-
-			## --non-interactive: headless-terminal mode (interaction-channel:
-			## headless) -- one-shot, no attached TTY. Any remaining arguments are
-			## joined as the prompt; with none given, the prompt is read from this
-			## script's own stdin and passed explicitly as -p/--prompt's <text>
-			## argument. copilot's -p/--prompt is a required-argument option (see
-			## `copilot --help`: "-p, --prompt <text>") -- it does NOT fall back to
-			## reading stdin itself when given bare, so `exec "$DAGC_CLI" -p` with
-			## no argument always failed with "option '-p, --prompt <text>'
-			## argument missing" on this, the only --non-interactive-capable CLI
-			## normally installed. Reading stdin here and forwarding it as the
-			## explicit argument works uniformly across the known CLIs instead of
-			## relying on each one's own stdin-reading behavior for a bare -p.
-			##
-			## Default (no --non-interactive): harness-interactive mode
-			## (interaction-channel: harness-*) -- attaches a real interactive CLI
-			## session, same role the siblings' `bash --rcfile ... -i` plays.
-			if [ "$1" == "--non-interactive" ] ; then
-				shift
-				## copilot's own --help: "--allow-all-tools ... required for
-				## non-interactive mode" -- without it, headless -p has no TTY
-				## to answer its own tool-permission prompt, so every tool call
-				## (MCP included) comes back "Permission denied and could not
-				## request permission from user" even once the tool is
-				## correctly registered/trusted. Root-caused live (2026-08-16)
-				## via a real --magic-heartbeat-spawn-proxy dispatch. Scoped to
-				## copilot only -- claude's own non-interactive permission flag
-				## is untested here (not installed on this machine).
-				case "$DAGC_CLI" in
-					copilot) DAGC_NONINTERACTIVE_PERM_FLAGS="--allow-all-tools" ;;
-					*) DAGC_NONINTERACTIVE_PERM_FLAGS="" ;;
-				esac
-				if [ $# -gt 0 ] ; then
-					## Join remaining args into one prompt string ($*, not "$@") --
-					## claude/copilot's own -p/--print takes one prompt argument, not
-					## several positional tokens.
-					exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS -p "$*"
-				fi
-				DAGC_STDIN_PROMPT="$( cat )"
-				exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS -p "$DAGC_STDIN_PROMPT"
-			fi
-
-			exec "$DAGC_CLI" "$@"
-		DISTROCONSOLE
-
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Make.DistroAgentsConsoleShellScript.include"
 		return 0
 	;;
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.Make.include's own default (*) branch; this include is sourced by the DistroLocalTools caller chain, not by any DistroAgentsTools.fn.sh dispatcher route, and no operation of that name is defined in it" >&2
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac

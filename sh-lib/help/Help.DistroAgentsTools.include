@@ -92,7 +92,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <mem
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --owner-install-vscode-integrations [--workspace <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-current" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list" >&2
