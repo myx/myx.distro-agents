@@ -459,6 +459,18 @@ case "$1" in
 		fi
 
 		local shortRoot="$targetRoot" reportScope="home" reportEntry reportName reportWho
+		local regLineName regLineWs regLineRest regLineTarget foreignMembers=""
+
+		## members another workspace registered into this same root: present and real, not ours to touch,
+		## but they are in the root and the count has to say so
+		if [ -f "$registryFile" ] ; then
+			while IFS=: read -r regLineName regLineWs regLineRest ; do
+				[ -n "$regLineName" ] || continue
+				[ "$regLineWs" != "$workspaceName" ] || continue
+				[ -e "$targetRoot/$regLineName" ] || continue
+				foreignMembers="${foreignMembers}${regLineName} "
+			done < "$registryFile"
+		fi
 		case "$shortRoot" in
 			"$workspace"/*) shortRoot=".${shortRoot#$workspace}" ;;
 			"$HOME"/*) shortRoot="~${shortRoot#$HOME}" ;;
@@ -483,10 +495,16 @@ case "$1" in
 					done <<< "$ownedMembers"
 					for reportName in $errorMembers ; do printf '%s\t%s\t%s\t%s\n' "$reportName" "$reportScope" "error" "🤖" ; done
 					for reportName in $deletedMembers ; do printf '%s\t%s\t%s\t%s\n' "$reportName" "$reportScope" "deleted" "🤖" ; done
+					for reportName in $foreignMembers ; do
+						reportWho="🤖"
+						regLineTarget="$( readlink "$targetRoot/$reportName" 2>/dev/null )" || regLineTarget=""
+						if [ -n "$regLineTarget" ] && grep -q '^status: reference-only' "$regLineTarget/SKILL.md" 2>/dev/null ; then reportWho="👤" ; fi
+						printf '%s\t%s\t%s\t%s\n' "$reportName" "$reportScope" "kept" "$reportWho"
+					done
 				} >> "$MDSC_SKILLSET_REPORT"
 			fi
 			## progress while the roots are worked through; the table lands once, after all of them
-			echo "🔗 $shortRoot: $( printf '%s' "$ownedMembers" | grep -c '' ) members" >&2
+			echo "🔗 $shortRoot: $(( $( printf '%s' "$ownedMembers" | grep -c '' ) + $( printf '%s' "$foreignMembers" | wc -w ) )) members" >&2
 		fi
 
 		if [ "$hadError" = "true" ] ; then
@@ -511,11 +529,11 @@ case "$1" in
 				for ( m in seen ) order[++n] = m
 				for ( i = 1 ; i < n ; i++ ) for ( j = i + 1 ; j <= n ; j++ ) if ( order[j] < order[i] ) { t = order[i] ; order[i] = order[j] ; order[j] = t ; }
 				printf "🔗 magic-team skillset: %d members\n", n
-				printf "   %-2s %-18s %-8s %5s %5s %10s\n", "", "MEMBER", "OP", "REFS", "HOME", "WORKSPACE"
+				printf "   %-2s %-20s %-8s %5s %5s %6s\n", "", "MEMBER", "OP", "REFS", "HOME", "WSPACE"
 				for ( i = 1 ; i <= n ; i++ ) {
 					m = order[i]
 					op = ( rank[m] == 4 ) ? "ERROR" : ( rank[m] == 3 ) ? "DELETED" : ( rank[m] == 2 ) ? "UPDATED" : "KEPT"
-					printf "   %-2s %-18s %-8s %5d %5s %10s\n", who[m], m, op, refs[m], \
+					printf "   %-2s %-20s %-8s %5d %5s %6s\n", who[m], m, op, refs[m], \
 						( ( m "|home" ) in scope ) ? "yes" : "-", \
 						( ( m "|workspace" ) in scope ) ? "yes" : "-"
 				}
