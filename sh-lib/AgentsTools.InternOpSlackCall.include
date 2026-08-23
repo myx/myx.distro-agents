@@ -292,7 +292,7 @@ case "$1" in
 		local callerMember="$1"
 		shift || true
 		if [ -z "$callerMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): syntax is <team-member> --api <method> [--identity bot|user] [--form <name>=<value>]... [--json-body <json>] [--resolve-dm <user-id>]" >&2
+			echo "$MDSC_CMD: slack-call: ⛔ ERROR: syntax is <team-member> --api <method> [--identity bot|user] [--form <name>=<value>]... [--json-body <json>] [--resolve-dm <user-id>]" >&2
 			AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 			set +e ; return 1
 		fi
@@ -311,7 +311,7 @@ case "$1" in
 			case "$1" in
 				--api)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --api: value required" >&2
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --api: value required" >&2
 						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 						set +e ; return 1
 					fi
@@ -324,7 +324,7 @@ case "$1" in
 				## this op does not do.
 				--fetch-url)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --fetch-url: value required (a full https URL)" >&2
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --fetch-url: value required (a full https URL)" >&2
 						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 						set +e ; return 1
 					fi
@@ -332,7 +332,7 @@ case "$1" in
 				;;
 				--fetch-to)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --fetch-to: value required (a destination file path)" >&2
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --fetch-to: value required (a destination file path)" >&2
 						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 						set +e ; return 1
 					fi
@@ -342,7 +342,7 @@ case "$1" in
 					case "${2:-}" in
 						bot|user) identityOverride="$2" ;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --identity must be 'bot' or 'user', got: ${2:-}" >&2
+							echo "$MDSC_CMD: slack-call: ⛔ ERROR: --identity must be 'bot' or 'user', got: ${2:-}" >&2
 							AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 							set +e ; return 1
 						;;
@@ -367,7 +367,7 @@ case "$1" in
 				;;
 				--form)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --form: value required (<name>=<value>)" >&2
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --form: value required (<name>=<value>)" >&2
 						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 						set +e ; return 1
 					fi
@@ -375,7 +375,7 @@ case "$1" in
 				;;
 				--json-body)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --json-body: value required" >&2
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --json-body: value required" >&2
 						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 						set +e ; return 1
 					fi
@@ -383,7 +383,7 @@ case "$1" in
 				;;
 				--resolve-dm)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --resolve-dm: value required (<user-id>)" >&2
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-dm: value required (<user-id>)" >&2
 						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 						set +e ; return 1
 					fi
@@ -391,7 +391,7 @@ case "$1" in
 				;;
 				--resolve-target)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --resolve-target: value required (<user-id>|<conversation-id>)" >&2
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-target: value required (<user-id>|<conversation-id>)" >&2
 						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 						set +e ; return 1
 					fi
@@ -399,7 +399,7 @@ case "$1" in
 				;;
 				--expect-counterparty)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --expect-counterparty: value required (<user-id>)" >&2
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --expect-counterparty: value required (<user-id>)" >&2
 						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 						set +e ; return 1
 					fi
@@ -409,7 +409,7 @@ case "$1" in
 					case "${2:-}" in
 						channel|dm) targetKind="$2" ;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --target-kind must be 'channel' or 'dm', got: ${2:-}" >&2
+							echo "$MDSC_CMD: slack-call: ⛔ ERROR: --target-kind must be 'channel' or 'dm', got: ${2:-}" >&2
 							AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 							set +e ; return 1
 						;;
@@ -418,14 +418,14 @@ case "$1" in
 				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --context: value required" >&2
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --context: value required" >&2
 						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 						set +e ; return 1
 					fi
 					shift 2
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): invalid option: $1" >&2
+					echo "$MDSC_CMD: slack-call: ⛔ ERROR: invalid option: $1" >&2
 					AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 					set +e ; return 1
 				;;
@@ -441,12 +441,12 @@ case "$1" in
 		## covering them would tell neither caller what to do.
 		if [ "$printActingIdentity" != "true" ] ; then
 			if [ -n "$apiMethod" ] && [ -n "$fetchUrl" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --api and --fetch-url cannot be combined -- they name two different things to call ('$apiMethod' and '$fetchUrl') and there is no rule for which one wins. An API method and a raw authenticated GET are separate modes; pass exactly one." >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --api and --fetch-url cannot be combined -- they name two different things to call ('$apiMethod' and '$fetchUrl') and there is no rule for which one wins. An API method and a raw authenticated GET are separate modes; pass exactly one." >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
 			if [ -z "$apiMethod" ] && [ -z "$fetchUrl" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): one of --api <method> or --fetch-url <url> is required -- this call names nothing to fetch." >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: one of --api <method> or --fetch-url <url> is required -- this call names nothing to fetch." >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
@@ -458,7 +458,7 @@ case "$1" in
 			## The destination is required and never defaulted. See the header:
 			## this op picks no location, ever.
 			if [ -z "$fetchTo" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --fetch-url requires --fetch-to <path> -- there is no default destination and none will be invented; the caller names where the bytes go." >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --fetch-url requires --fetch-to <path> -- there is no default destination and none will be invented; the caller names where the bytes go." >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
@@ -487,7 +487,7 @@ case "$1" in
 			## honour -- the trap already documented on the conversations.open
 			## ok-test below, and still live for Darwin/FreeBSD/Linux parity.
 			if ! printf '%s\n' "$fetchUrl" | LC_ALL=C grep -qE '^https://([a-z0-9-]+\.)*slack\.com/' ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --fetch-url refused: '$fetchUrl' is not an https URL on a slack.com host. Nothing was called and NO CREDENTIAL WAS SENT ANYWHERE. This op attaches the acting identity's Slack token to the request, so it will only ever address a host it has positively confirmed is Slack's; the URL to pass is the one --member-comms-slack-file-info reports as URL_PRIVATE_DOWNLOAD or URL_PRIVATE." >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --fetch-url refused: '$fetchUrl' is not an https URL on a slack.com host. Nothing was called and NO CREDENTIAL WAS SENT ANYWHERE. This op attaches the acting identity's Slack token to the request, so it will only ever address a host it has positively confirmed is Slack's; the URL to pass is the one --member-comms-slack-file-info reports as URL_PRIVATE_DOWNLOAD or URL_PRIVATE." >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
@@ -506,7 +506,7 @@ case "$1" in
 			if [ -n "$expectCounterparty" ] ; then fetchConflict="--expect-counterparty" ; fi
 			if [ -n "$targetKind" ]         ; then fetchConflict="--target-kind" ; fi
 			if [ -n "$fetchConflict" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): $fetchConflict cannot be combined with --fetch-url -- it addresses a conversation or supplies call parameters, and a raw authenticated GET has neither. It would be accepted and then silently ignored, so it is refused instead." >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: $fetchConflict cannot be combined with --fetch-url -- it addresses a conversation or supplies call parameters, and a raw authenticated GET has neither. It would be accepted and then silently ignored, so it is refused instead." >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
@@ -537,12 +537,12 @@ case "$1" in
 		## unreachable by construction rather than by habit.
 		if [ -n "$jsonBody" ] ; then
 			if [ -n "$resolveDmUser" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --resolve-dm cannot be combined with --json-body -- the resolved DM channel is delivered as a form field and would be silently ignored, sending to whatever channel the JSON body names. Put the channel in the body yourself, or use --form instead of --json-body." >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-dm cannot be combined with --json-body -- the resolved DM channel is delivered as a form field and would be silently ignored, sending to whatever channel the JSON body names. Put the channel in the body yourself, or use --form instead of --json-body." >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
 			if [ ${#formArgs[@]} -gt 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --form cannot be combined with --json-body -- form fields are not merged into a JSON body and would be silently dropped. Use one or the other." >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --form cannot be combined with --json-body -- form fields are not merged into a JSON body and would be silently dropped. Use one or the other." >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
@@ -552,7 +552,7 @@ case "$1" in
 			## reason --resolve-dm does, and is rejected here rather than being
 			## left to disagree silently with whatever channel the body names.
 			if [ -n "$resolveTarget" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --resolve-target cannot be combined with --json-body -- the classified target is delivered as a form field and would be silently ignored, sending to whatever channel the JSON body names. Put the channel in the body yourself, or use --form instead of --json-body." >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-target cannot be combined with --json-body -- the classified target is delivered as a form field and would be silently ignored, sending to whatever channel the JSON body names. Put the channel in the body yourself, or use --form instead of --json-body." >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
@@ -571,7 +571,7 @@ case "$1" in
 			## --resolve-target states "classify this for me". Passing both means
 			## the caller does not know which of its own values is the target.
 			if [ -n "$resolveDmUser" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --resolve-target cannot be combined with --resolve-dm -- both name the target of this call, and there is no rule for which one wins. Pass exactly one." >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-target cannot be combined with --resolve-dm -- both name the target of this call, and there is no rule for which one wins. Pass exactly one." >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
@@ -595,7 +595,7 @@ case "$1" in
 					targetClass="conversation-channel"
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --resolve-target: '$resolveTarget' is neither a party identifier (U/W) nor a conversation identifier (C/D/G). This op does not guess -- an id whose kind cannot be read off its own first character is a configuration defect to fix at its source, not something to fall back from." >&2
+					echo "$MDSC_CMD: slack-call: ⛔ ERROR: --resolve-target: '$resolveTarget' is neither a party identifier (U/W) nor a conversation identifier (C/D/G). This op does not guess -- an id whose kind cannot be read off its own first character is a configuration defect to fix at its source, not something to fall back from." >&2
 					AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 					set +e ; return 1
 				;;
@@ -638,14 +638,14 @@ case "$1" in
 				?*)
 					case "$resolveTarget" in
 						U*|W*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): counterparty control: NOT A CONVERSATION -- '$resolveTarget' is a party identifier, and a conversation identifier (C/D/G) is required here. A party id names a person, not a channel: the send endpoint resolves one to the caller's own DM, the read endpoints do not and answer channel_not_found. Resolve the DM for this party first (--resolve-target with no control, or --resolve-dm), then run the control against the conversation id that comes back." >&2
+							echo "$MDSC_CMD: slack-call: ⛔ ERROR: counterparty control: NOT A CONVERSATION -- '$resolveTarget' is a party identifier, and a conversation identifier (C/D/G) is required here. A party id names a person, not a channel: the send endpoint resolves one to the caller's own DM, the read endpoints do not and answer channel_not_found. Resolve the DM for this party first (--resolve-target with no control, or --resolve-dm), then run the control against the conversation id that comes back." >&2
 							AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 							set +e ; return 1
 						;;
 					esac
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --expect-counterparty requires --resolve-target -- the control is defined against the target this call classifies, and has nothing to check without one." >&2
+					echo "$MDSC_CMD: slack-call: ⛔ ERROR: --expect-counterparty requires --resolve-target -- the control is defined against the target this call classifies, and has nothing to check without one." >&2
 					AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 					set +e ; return 1
 				;;
@@ -661,7 +661,7 @@ case "$1" in
 		esac
 		if [ -n "$identityOverride" ] ; then
 			if [ "$identityOverride" = "user" ] && [ -z "$memberUserToken" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): --identity user requested for $callerMember but no SLACK_USER_TOKEN is configured for it" >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --identity user requested for $callerMember but no SLACK_USER_TOKEN is configured for it" >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
@@ -738,7 +738,7 @@ case "$1" in
 			token="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN )" || token=""
 		fi
 		if [ -z "$token" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): no usable Slack token for identity '$sendIdentity' (member SLACK_USER_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)" >&2
+			echo "$MDSC_CMD: slack-call: ⛔ ERROR: no usable Slack token for identity '$sendIdentity' (member SLACK_USER_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)" >&2
 			## Selection HAS run by this point, so the identity is a real fact
 			## even though the call never left the host -- reported as itself,
 			## not as `not-yet-selected`. No response body exists for the
@@ -1027,7 +1027,7 @@ case "$1" in
 		rm -f "$headerFile"
 		trap - EXIT
 		if [ -n "$failMsg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-call (internal operation, invoked via $opContext): $failMsg" >&2
+			echo "$MDSC_CMD: slack-call: ⛔ ERROR: $failMsg" >&2
 			## Fields after the prose, on the same failure branch -- still ONE
 			## failure branch, one cleanup, one rc. This adds emitted facts, not
 			## an exit path and not a degrade.
@@ -1059,7 +1059,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 (invoked via $opContext)" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac

@@ -247,7 +247,7 @@ case "$1" in
 		local opContext ; AgentsToolsItemContextScan "$@"
 		local callingMember="$1" ; shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): syntax is <team-member> [--from-board <state> <item-filename>|--from-vault <item-filename>|--from-audit <item-filename>|--from-inbox <team-member> <item-filename>|<item-filename>] [--acquire-lock <owner-label> [--header:...]...] --context <caller-op>" >&2
+			echo "$MDSC_CMD: item-read: ⛔ ERROR: syntax is <team-member> [--from-board <state> <item-filename>|--from-vault <item-filename>|--from-audit <item-filename>|--from-inbox <team-member> <item-filename>|<item-filename>] [--acquire-lock <owner-label> [--header:...]...] --context <caller-op>" >&2
 			set +e ; return 1
 		fi
 		local category="" boardState="" inboxMember="" itemName=""
@@ -256,32 +256,32 @@ case "$1" in
 			case "$1" in
 				--from-board|--from-vault|--from-audit|--from-inbox)
 					if [ -n "$category" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): only one item-category selector is allowed" >&2
+						echo "$MDSC_CMD: item-read: ⛔ ERROR: only one item-category selector is allowed" >&2
 						set +e ; return 1
 					fi
 					case "$1" in
 						--from-board)
 							category="board" ; boardState="$2" ; itemName="$3"
 							if [ -z "$boardState" ] || [ -z "$itemName" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): --from-board: <state> <item-filename> required" >&2
+								echo "$MDSC_CMD: item-read: ⛔ ERROR: --from-board: <state> <item-filename> required" >&2
 								set +e ; return 1
 							fi
 							shift 3
 						;;
 						--from-vault)
 							category="vault" ; itemName="$2"
-							[ -z "$itemName" ] && { echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): --from-vault: <item-filename> required" >&2 ; set +e ; return 1 ; }
+							[ -z "$itemName" ] && { echo "$MDSC_CMD: item-read: ⛔ ERROR: --from-vault: <item-filename> required" >&2 ; set +e ; return 1 ; }
 							shift 2
 						;;
 						--from-audit)
 							category="audit" ; itemName="$2"
-							[ -z "$itemName" ] && { echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): --from-audit: <item-filename> required" >&2 ; set +e ; return 1 ; }
+							[ -z "$itemName" ] && { echo "$MDSC_CMD: item-read: ⛔ ERROR: --from-audit: <item-filename> required" >&2 ; set +e ; return 1 ; }
 							shift 2
 						;;
 						--from-inbox)
 							category="inbox" ; inboxMember="$2" ; itemName="$3"
 							if [ -z "$inboxMember" ] || [ -z "$itemName" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): --from-inbox: <team-member> <item-filename> required" >&2
+								echo "$MDSC_CMD: item-read: ⛔ ERROR: --from-inbox: <team-member> <item-filename> required" >&2
 								set +e ; return 1
 							fi
 							shift 3
@@ -290,7 +290,7 @@ case "$1" in
 				;;
 				--acquire-lock)
 					acquireLock="true" ; ownerLabel="$2"
-					[ -z "$ownerLabel" ] && { echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): --acquire-lock: <owner-label> required" >&2 ; set +e ; return 1 ; }
+					[ -z "$ownerLabel" ] && { echo "$MDSC_CMD: item-read: ⛔ ERROR: --acquire-lock: <owner-label> required" >&2 ; set +e ; return 1 ; }
 					shift 2
 				;;
 				--header:*)
@@ -306,23 +306,23 @@ case "$1" in
 					if [ -z "$category" ] && [ -z "$itemName" ] ; then
 						category="inbox" ; inboxMember="magic-coordinator" ; itemName="$1" ; shift
 					else
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): invalid option: $1" >&2
+						echo "$MDSC_CMD: item-read: ⛔ ERROR: invalid option: $1" >&2
 						set +e ; return 1
 					fi
 				;;
 			esac
 		done
 		if [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): an item-category selector or a bare <item-filename> is required" >&2
+			echo "$MDSC_CMD: item-read: ⛔ ERROR: an item-category selector or a bare <item-filename> is required" >&2
 			set +e ; return 1
 		fi
 		if [ "${#headerArgs[@]}" -gt 0 ] && [ "$acquireLock" != "true" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): --header:* is only valid together with --acquire-lock" >&2
+			echo "$MDSC_CMD: item-read: ⛔ ERROR: --header:* is only valid together with --acquire-lock" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" item-read || { set +e ; return 1 ; }
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			echo "$MDSC_CMD: item-read: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 
@@ -330,7 +330,7 @@ case "$1" in
 		AgentsToolsItemResolvePaths "$category" "$boardState" "$inboxMember" "$itemName"
 
 		if [ "$acquireLock" = "true" ] && [ "$itemLockable" != "true" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-read (internal operation, invoked via $opContext): LOCK_UNSUPPORTED -- --acquire-lock does not apply to the $category item category" >&2
+			echo "$MDSC_CMD: item-read: ⛔ ERROR: LOCK_UNSUPPORTED -- --acquire-lock does not apply to the $category item category" >&2
 			set +e ; return 1
 		fi
 
@@ -427,12 +427,12 @@ case "$1" in
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): syntax is <team-member> [--from-board <state> <item-filename>|--from-vault <item-filename>|--from-audit <item-filename>|--from-inbox <team-member> <item-filename>|<item-filename>] [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin] [--update-lock|--unlock-lock]" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: syntax is <team-member> [--from-board <state> <item-filename>|--from-vault <item-filename>|--from-audit <item-filename>|--from-inbox <team-member> <item-filename>|<item-filename>] [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin] [--update-lock|--unlock-lock]" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$callingMember" "<team-member>" "$MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" item-upsert || { set +e ; return 1 ; }
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 
@@ -447,32 +447,32 @@ case "$1" in
 			case "$1" in
 				--from-board|--from-vault|--from-audit|--from-inbox)
 					if [ -n "$category" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): only one item-category selector is allowed" >&2
+						echo "$MDSC_CMD: item-upsert: ⛔ ERROR: only one item-category selector is allowed" >&2
 						rm -f "$headerOpsFile" ; set +e ; return 1
 					fi
 					case "$1" in
 						--from-board)
 							category="board" ; boardState="$2" ; itemName="$3"
 							if [ -z "$boardState" ] || [ -z "$itemName" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-board: <state> <item-filename> required" >&2
+								echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-board: <state> <item-filename> required" >&2
 								rm -f "$headerOpsFile" ; set +e ; return 1
 							fi
 							shift 3
 						;;
 						--from-vault)
 							category="vault" ; itemName="$2"
-							[ -z "$itemName" ] && { echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-vault: <item-filename> required" >&2 ; rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+							[ -z "$itemName" ] && { echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-vault: <item-filename> required" >&2 ; rm -f "$headerOpsFile" ; set +e ; return 1 ; }
 							shift 2
 						;;
 						--from-audit)
 							category="audit" ; itemName="$2"
-							[ -z "$itemName" ] && { echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-audit: <item-filename> required" >&2 ; rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+							[ -z "$itemName" ] && { echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-audit: <item-filename> required" >&2 ; rm -f "$headerOpsFile" ; set +e ; return 1 ; }
 							shift 2
 						;;
 						--from-inbox)
 							category="inbox" ; inboxMember="$2" ; itemName="$3"
 							if [ -z "$inboxMember" ] || [ -z "$itemName" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-inbox: <team-member> <item-filename> required" >&2
+								echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-inbox: <team-member> <item-filename> required" >&2
 								rm -f "$headerOpsFile" ; set +e ; return 1
 							fi
 							shift 3
@@ -494,20 +494,20 @@ case "$1" in
 						*)   headerName="$headerRest" ; headerValue="" ;;
 					esac
 					if [ -z "$headerName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --header:$headerOp: field name required" >&2
+						echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --header:$headerOp: field name required" >&2
 						rm -f "$headerOpsFile" ; set +e ; return 1
 					fi
 					case "$headerOp" in
 						upsert|append)
 							if [ -z "$headerValue" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --header:$headerOp:$headerName requires a value" >&2
+								echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --header:$headerOp:$headerName requires a value" >&2
 								rm -f "$headerOpsFile" ; set +e ; return 1
 							fi
 						;;
 						remove)
 							;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --header: unrecognized operation: $headerOp (upsert/append/remove)" >&2
+							echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --header: unrecognized operation: $headerOp (upsert/append/remove)" >&2
 							rm -f "$headerOpsFile" ; set +e ; return 1
 						;;
 					esac
@@ -516,7 +516,7 @@ case "$1" in
 				;;
 				--from-file)
 					if [ -z "${2:-}" ] || [ ! -f "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-file: file not found: ${2:-}" >&2
+						echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-file: file not found: ${2:-}" >&2
 						rm -f "$headerOpsFile" ; set +e ; return 1
 					fi
 					content="$( cat "$2" )"
@@ -537,7 +537,7 @@ case "$1" in
 				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --context: value required" >&2
+						echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --context: value required" >&2
 						rm -f "$headerOpsFile" ; set +e ; return 1
 					fi
 					shift 2
@@ -547,36 +547,36 @@ case "$1" in
 					if [ -z "$category" ] && [ -z "$itemName" ] ; then
 						category="inbox" ; inboxMember="magic-coordinator" ; itemName="$1" ; shift
 					else
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): unrecognized argument: $1" >&2
+						echo "$MDSC_CMD: item-upsert: ⛔ ERROR: unrecognized argument: $1" >&2
 						rm -f "$headerOpsFile" ; set +e ; return 1
 					fi
 				;;
 			esac
 		done
 		if [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): an item-category selector or a bare <item-filename> is required" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: an item-category selector or a bare <item-filename> is required" >&2
 			rm -f "$headerOpsFile" ; set +e ; return 1
 		fi
 		if [ "$bodyModeCount" -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --from-file, --upsert-from-stdin and --edit-patch-from-stdin are mutually exclusive" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-file, --upsert-from-stdin and --edit-patch-from-stdin are mutually exclusive" >&2
 			rm -f "$headerOpsFile" ; set +e ; return 1
 		fi
 		if [ "$updateLock" = "true" ] && [ "$unlockLock" = "true" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): --update-lock and --unlock-lock are mutually exclusive" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --update-lock and --unlock-lock are mutually exclusive" >&2
 			rm -f "$headerOpsFile" ; set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext)" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" item-upsert || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
 
 		local itemWriteDir itemLookupFolders itemLockable
 		AgentsToolsItemResolvePaths "$category" "$boardState" "$inboxMember" "$itemName"
 
 		if { [ "$updateLock" = "true" ] || [ "$unlockLock" = "true" ] ; } && [ "$itemLockable" != "true" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): LOCK_UNSUPPORTED -- --update-lock/--unlock-lock do not apply to the $category item category" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_UNSUPPORTED -- --update-lock/--unlock-lock do not apply to the $category item category" >&2
 			rm -f "$headerOpsFile" ; set +e ; return 1
 		fi
 
 		mkdir -p "$itemWriteDir" || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): can't create item directory: $itemWriteDir" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: can't create item directory: $itemWriteDir" >&2
 			rm -f "$headerOpsFile" ; set +e ; return 1
 		}
 		local target="$itemWriteDir/$itemName"
@@ -636,7 +636,7 @@ case "$1" in
 				'(no session content recorded yet)' )"
 		fi
 		if [ -z "$content" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): empty content -- refusing to write an empty item" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: empty content -- refusing to write an empty item" >&2
 			rm -f "$headerOpsFile" ; set +e ; return 1
 		fi
 
@@ -663,7 +663,7 @@ case "$1" in
 		set -e
 		if [ -z "$originUrl" ] || [ -z "$repoRoot" ] ; then
 			## No git remote configured for the board: local-only, silently.
-			echo "# $MDSC_CMD --intern-op-item-upsert: wrote $target ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+			echo "# $MDSC_CMD: item-upsert: wrote $target ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
 			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			if [ "$updateLock" = "true" ] ; then echo "REFRESHED" ; return 0 ; fi
 			return 0
@@ -681,7 +681,7 @@ case "$1" in
 		gitRc=$?
 		set -e
 		if [ "$gitRc" -ne 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): git add failed for $target: $gitOut" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: git add failed for $target: $gitOut" >&2
 			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			set +e ; return 1
 		fi
@@ -692,11 +692,11 @@ case "$1" in
 		## byte-identical note produces "nothing to commit", so an early
 		## return would hand back SUCCESS having never contested the lock).
 		set +e
-		gitOut="$( git -C "$repoRoot" commit --allow-empty -m "$MDSC_CMD --intern-op-item-upsert: $itemName" -- "$target" 2>&1 )"
+		gitOut="$( git -C "$repoRoot" commit --allow-empty -m "$MDSC_CMD: item-upsert: $itemName" -- "$target" 2>&1 )"
 		gitRc=$?
 		set -e
 		if [ "$gitRc" -ne 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): git commit failed for $target: $gitOut" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: git commit failed for $target: $gitOut" >&2
 			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			set +e ; return 1
 		fi
@@ -715,12 +715,12 @@ case "$1" in
 			case "$pushOut" in
 				*"Could not resolve host"*|*"could not resolve host"*|*"unable to access"*|*"Could not read from remote repository"*|*"Connection timed out"*|*"Connection refused"*|*"Operation timed out"*|*"Network is unreachable"*|*"connection reset"*)
 					if [ "$pushAttempt" -eq 1 ] ; then
-						echo "# $MDSC_CMD --intern-op-item-upsert: push network failure, retrying once in 15s" >&2
+						echo "# $MDSC_CMD: item-upsert: push network failure, retrying once in 15s" >&2
 						sleep 15
 						pushAttempt=2
 						continue
 					fi
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): LOCK_UNCHECKABLE -- the remote was unreachable after one 15s retry, so whether this routine holds the lock is UNKNOWN, not lost; the local note is written but this routine must not continue: $pushOut" >&2
+					echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_UNCHECKABLE -- the remote was unreachable after one 15s retry, so whether this routine holds the lock is UNKNOWN, not lost; the local note is written but this routine must not continue: $pushOut" >&2
 					if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 					set +e ; return 1
 				;;
@@ -758,7 +758,7 @@ case "$1" in
 			syncRc=$?
 			set -e
 			if [ "$syncRc" -ne 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): LOCK_UNCHECKABLE -- the board could not be synced even after discarding this session's own commit, so ownership is UNKNOWN, not lost; this routine must not continue: $syncOut" >&2
+				echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_UNCHECKABLE -- the board could not be synced even after discarding this session's own commit, so ownership is UNKNOWN, not lost; this routine must not continue: $syncOut" >&2
 				if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 				set +e ; return 1
 			fi
@@ -766,24 +766,24 @@ case "$1" in
 
 		remoteSessionId="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$target" 2>/dev/null )"
 		if [ -z "$localSessionId" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): LOCK_UNCHECKABLE -- no session-id on the note, so ownership cannot be read back and is UNKNOWN; pass --header:upsert:session-id:<id>; routine must not continue" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_UNCHECKABLE -- no session-id on the note, so ownership cannot be read back and is UNKNOWN; pass --header:upsert:session-id:<id>; routine must not continue" >&2
 			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			set +e ; return 1
 		fi
 		if [ "$remoteSessionId" = "$localSessionId" ] ; then
-			echo "# $MDSC_CMD --intern-op-item-upsert: wrote, pushed and read back $target -- lock held by session-id $localSessionId" >&2
+			echo "# $MDSC_CMD: item-upsert: wrote, pushed and read back $target -- lock held by session-id $localSessionId" >&2
 			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			if [ "$updateLock" = "true" ] ; then echo "REFRESHED" ; return 0 ; fi
 			return 0
 		fi
 
 		if [ "$isClosing" = "true" ] ; then
-			echo "⚠️ WARNING: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): closing update did not land -- closing anyway, local note is written: $pushOut" >&2
+			echo "$MDSC_CMD: item-upsert: ⚠️ WARNING: closing update did not land -- closing anyway, local note is written: $pushOut" >&2
 			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			return 0
 		fi
 
-		echo "⛔ ERROR: $MDSC_CMD --intern-op-item-upsert (internal operation, invoked via $opContext): LOCK_LOST -- the board's item note belongs to session-id '$remoteSessionId', not '$localSessionId'; another holder has the lock; this routine must not continue: $pushOut" >&2
+		echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_LOST -- the board's item note belongs to session-id '$remoteSessionId', not '$localSessionId'; another holder has the lock; this routine must not continue: $pushOut" >&2
 		set +e ; return 1
 	;;
 

@@ -135,7 +135,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: syntax is <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-append-session-transcript" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-append-session-transcript || { set +e ; return 1 ; }
 		local speakerName timestampUtc messageText transcriptName workspaceRoot
 		local messageFromStdin="false" messageFile messageArgProvided="false"
 		local allowCreate="false"
@@ -208,7 +208,7 @@ case "$1" in
 			fi
 			messageText="$(cat -- "$messageFile")"
 		fi
-		AgentsToolsAssertBareName "$transcriptName" "<transcript-file-name>" "$MDSC_CMD --member-append-session-transcript" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$transcriptName" "<transcript-file-name>" member-append-session-transcript || { set +e ; return 1 ; }
 		case "$workspaceRoot" in
 			/*)
 			;;
@@ -262,7 +262,8 @@ case "$1" in
 		fi
 
 		local tmpEntry
-		tmpEntry="$( mktemp "${TMPDIR:-/tmp}/mdat-session-transcript-entry.XXXXXX" )" || {
+		tmpEntry="$MMDAPP/.local/temp/mdat-session-transcript-entry.$$"
+		mkdir -p "$MMDAPP/.local/temp" && : > "$tmpEntry" || {
 			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: failed to create temp file" >&2
 			set +e ; return 1
 		}
@@ -300,13 +301,13 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: syntax is <team-member> <document-name> [--start-line <N> --end-line <N>]" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-read-audit-item" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-read-audit-item || { set +e ; return 1 ; }
 		local memberDir="$HOME/.claude/skills/$memberName"
 		if [ ! -d "$memberDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$documentName" "<document-name>" "$MDSC_CMD --member-read-audit-item" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$documentName" "<document-name>" member-read-audit-item || { set +e ; return 1 ; }
 		case "$documentName" in
 			transcript-*)
 			;;
@@ -381,13 +382,13 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: syntax is <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-read-board-item" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-read-board-item || { set +e ; return 1 ; }
 		local memberDir="$HOME/.claude/skills/$memberName"
 		if [ ! -d "$memberDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$itemName" "<item-name>" "$MDSC_CMD --member-read-board-item" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-name>" member-read-board-item || { set +e ; return 1 ; }
 		case "$itemName" in
 			*-*.md)
 			;;
@@ -491,7 +492,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: unrecognized argument: $1" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-work-session-input-scan" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-work-session-input-scan || { set +e ; return 1 ; }
 		local memberDir="$HOME/.claude/skills/$memberName"
 		if [ ! -d "$memberDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: no such member skill directory: $memberDir" >&2
@@ -507,12 +508,11 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local inboxDir="$MDAT_DATA_ROOT/inboxes/$memberName" f base
+		local inboxDir="$MDAT_DATA_ROOT/inboxes/$memberName" f
 		if [ -d "$inboxDir" ] ; then
 			for f in "$inboxDir"/*.md ; do
 				[ -f "$f" ] || continue
-				base="${f##*/}"
-				printf '## inbox/%s\n' "$base"
+				printf '## inbox/%s\n' "${f##*/}"
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrint.awk" "$f"
 				printf '\n'
 			done
@@ -535,7 +535,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.Member.include's own default (*) branch, the operation group sourced by the --member-* dispatcher route; no operation of that name is defined in this include" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac

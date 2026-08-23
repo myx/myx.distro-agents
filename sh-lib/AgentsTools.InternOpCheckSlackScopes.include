@@ -56,7 +56,7 @@ case "$1" in
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-check-slack-scopes (internal operation, invoked via $opContext): syntax is <team-member> [--scope-source <op-name>]..." >&2
+			echo "$MDSC_CMD: check-slack-scopes: ⛔ ERROR: syntax is <team-member> [--scope-source <op-name>]..." >&2
 			set +e ; return 1
 		fi
 
@@ -65,7 +65,7 @@ case "$1" in
 			case "$1" in
 				--scope-source)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-check-slack-scopes (internal operation, invoked via $opContext): --scope-source: value required (<op-name>)" >&2
+						echo "$MDSC_CMD: check-slack-scopes: ⛔ ERROR: --scope-source: value required (<op-name>)" >&2
 						set +e ; return 1
 					fi
 					scopeSources+=( "$2" )
@@ -73,20 +73,20 @@ case "$1" in
 				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-check-slack-scopes (internal operation, invoked via $opContext): --context: value required" >&2
+						echo "$MDSC_CMD: check-slack-scopes: ⛔ ERROR: --context: value required" >&2
 						set +e ; return 1
 					fi
 					shift 2
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-slack-scopes (internal operation, invoked via $opContext): invalid option: $1" >&2
+					echo "$MDSC_CMD: check-slack-scopes: ⛔ ERROR: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 
 		if [ ${#scopeSources[@]} -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-check-slack-scopes (internal operation, invoked via $opContext): at least one --scope-source <op-name> is required -- this op declares no scopes of its own" >&2
+			echo "$MDSC_CMD: check-slack-scopes: ⛔ ERROR: at least one --scope-source <op-name> is required -- this op declares no scopes of its own" >&2
 			set +e ; return 1
 		fi
 
@@ -100,7 +100,7 @@ case "$1" in
 		for srcOp in "${scopeSources[@]}" ; do
 			srcScopes="$( DistroAgentsTools "$srcOp" --print-required-scopes 2>/dev/null )" || srcScopes=""
 			if [ -z "$srcScopes" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-check-slack-scopes (internal operation, invoked via $opContext): declared --scope-source '$srcOp' returned no scope declaration -- it does not implement --print-required-scopes, so its requirements cannot be verified. A declared check with nothing implementing it must never pass silently." >&2
+				echo "$MDSC_CMD: check-slack-scopes: ⛔ ERROR: declared --scope-source '$srcOp' returned no scope declaration -- it does not implement --print-required-scopes, so its requirements cannot be verified. A declared check with nothing implementing it must never pass silently." >&2
 				set +e ; return 1
 			fi
 			srcNames+=( "$srcOp" )
@@ -207,7 +207,7 @@ case "$1" in
 		## would be invisible, because a checker that agrees with itself still
 		## looks clean.
 		local actingIdentity=""
-		actingIdentity="$( DistroAgentsTools --intern-op-slack-call "$callingMember" --print-acting-identity --context "$MDSC_CMD --intern-op-check-slack-scopes" 2>/dev/null )" || actingIdentity=""
+		actingIdentity="$( DistroAgentsTools --intern-op-slack-call "$callingMember" --print-acting-identity --context "$MDSC_CMD: check-slack-scopes" 2>/dev/null )" || actingIdentity=""
 		case "$actingIdentity" in
 			bot|user) ;;
 			*) actingIdentity="" ;;
@@ -302,7 +302,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 (invoked via $opContext)" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac

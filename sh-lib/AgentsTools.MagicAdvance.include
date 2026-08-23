@@ -406,7 +406,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: malformed entry (need <item-filename>:<outcome>:<execution-receipt>): $spec" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$itemName" "<item-filename> (in --items entry: $spec)" "$MDSC_CMD --magic-advance-batch-outcome" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$itemName" "<item-filename> (in --items entry: $spec)" magic-advance-batch-outcome || { set +e ; return 1 ; }
 			case "$outcome" in
 				nudged|respawned|redispatched|flagged-once|no-action) ;;
 				*)

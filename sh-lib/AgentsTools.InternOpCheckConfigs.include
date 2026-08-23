@@ -98,7 +98,7 @@ case "$1" in
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): syntax is <team-member> [--required <KEY>:<hint>]... [--optional <KEY>:<hint>]..." >&2
+			echo "$MDSC_CMD: check-configs: ⛔ ERROR: syntax is <team-member> [--required <KEY>:<hint>]... [--optional <KEY>:<hint>]..." >&2
 			set +e ; return 1
 		fi
 		local requiredMissing=0
@@ -109,7 +109,7 @@ case "$1" in
 				--optional) checkMode="optional" ;;
 				--context)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --context: value required" >&2
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: --context: value required" >&2
 						set +e ; return 1
 					fi
 					shift 2
@@ -129,7 +129,7 @@ case "$1" in
 					## malformed declaration fails loud at the call site rather
 					## than silently never matching any key.
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --expect-id-kind: value required (<KEY>:<user|channel|dm>)" >&2
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: --expect-id-kind: value required (<KEY>:<user|channel|dm>)" >&2
 						set +e ; return 1
 					fi
 					## Kinds are SINGULAR and never a union: `channel` means C...
@@ -139,7 +139,7 @@ case "$1" in
 					case "${2#*:}" in
 						user|channel|dm) ;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --expect-id-kind: unknown kind in '$2' -- expected <KEY>:user, <KEY>:channel or <KEY>:dm" >&2
+							echo "$MDSC_CMD: check-configs: ⛔ ERROR: --expect-id-kind: unknown kind in '$2' -- expected <KEY>:user, <KEY>:channel or <KEY>:dm" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -155,12 +155,12 @@ case "$1" in
 					## collected it. Bare <KEY>, no `:` tail -- there is nothing
 					## to declare about a secret beyond that it is one.
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --expect-secret: value required (<KEY>)" >&2
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: --expect-secret: value required (<KEY>)" >&2
 						set +e ; return 1
 					fi
 					case "$2" in
 						*:*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --expect-secret: expected a bare <KEY>, got: $2" >&2
+							echo "$MDSC_CMD: check-configs: ⛔ ERROR: --expect-secret: expected a bare <KEY>, got: $2" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -173,13 +173,13 @@ case "$1" in
 					## collected it. Validated at the call site so a malformed
 					## declaration fails loud rather than silently matching no key.
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --expect-path-exists: value required (<KEY>:<resolved-path>)" >&2
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: --expect-path-exists: value required (<KEY>:<resolved-path>)" >&2
 						set +e ; return 1
 					fi
 					case "$2" in
 						*:*) ;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): --expect-path-exists: expected <KEY>:<resolved-path>, got: $2" >&2
+							echo "$MDSC_CMD: check-configs: ⛔ ERROR: --expect-path-exists: expected <KEY>:<resolved-path>, got: $2" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -188,13 +188,13 @@ case "$1" in
 					continue
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): invalid option: $1" >&2
+					echo "$MDSC_CMD: check-configs: ⛔ ERROR: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 			checkSpec="$2"
 			if [ -z "$checkSpec" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): $1 needs a <KEY>:<hint> argument" >&2
+				echo "$MDSC_CMD: check-configs: ⛔ ERROR: $1 needs a <KEY>:<hint> argument" >&2
 				set +e ; return 1
 			fi
 			shift 2
@@ -321,7 +321,7 @@ case "$1" in
 					fi
 				done
 				if [ "$checkMode" = "required" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-check-configs (internal operation, invoked via $opContext): $checkKey is not configured -- set it first: $fixHint" >&2
+					echo "$MDSC_CMD: check-configs: ⛔ ERROR: $checkKey is not configured -- set it first: $fixHint" >&2
 					requiredMissing=1
 				else
 					echo "  fix: $fixHint"
@@ -335,7 +335,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 (invoked via $opContext)" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac

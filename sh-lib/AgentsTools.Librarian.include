@@ -247,8 +247,8 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-item-trash: --from-inbox:<member> is required" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "${fromInboxArg#--from-inbox:}" "--from-inbox: member name" "$MDSC_CMD --librarian-inbox-item-trash" || { set +e ; return 1 ; }
-			AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --librarian-inbox-item-trash" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "${fromInboxArg#--from-inbox:}" "--from-inbox: member name" librarian-inbox-item-trash || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$itemName" "<item-filename>" librarian-inbox-item-trash || { set +e ; return 1 ; }
 			case "$itemName" in
 				*.md) ;;
 				*)
@@ -319,8 +319,8 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-retained: --from-inbox:<member> is required" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "${fromInboxArg#--from-inbox:}" "--from-inbox: member name" "$MDSC_CMD --librarian-inbox-to-retained" || { set +e ; return 1 ; }
-			AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --librarian-inbox-to-retained" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "${fromInboxArg#--from-inbox:}" "--from-inbox: member name" librarian-inbox-to-retained || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$itemName" "<item-filename>" librarian-inbox-to-retained || { set +e ; return 1 ; }
 			case "$itemName" in
 				*.md) ;;
 				*)
@@ -386,8 +386,8 @@ case "$1" in
 					;;
 				esac
 			done
-			AgentsToolsAssertBareName "$callingMember" "<team-member>" "$MDSC_CMD --librarian-inbox-to-processed" || { set +e ; return 1 ; }
-			AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --librarian-inbox-to-processed" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$callingMember" "<team-member>" librarian-inbox-to-processed || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$itemName" "<item-filename>" librarian-inbox-to-processed || { set +e ; return 1 ; }
 			case "$itemName" in
 				*.md) ;;
 				*)

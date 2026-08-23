@@ -67,7 +67,7 @@ case "$1" in
 		shift
 
 		if [ 0 -lt $# ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-mcp-server --run: takes no further arguments: $*" >&2
+			printf '%s\n' "$MDSC_CMD: mcp-server --run: ⛔ ERROR: takes no further arguments: $*" >&2
 			set +e ; return 1
 		fi
 
@@ -80,7 +80,7 @@ case "$1" in
 		## is cleared first, so a restart never inherits a stale wire.lock.
 		rm -rf "$MMDAPP/.local/temp/agent-mcp.$$"
 		if ! mkdir -p "$MMDAPP/.local/temp/agent-mcp.$$" ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-mcp-server: cannot create scratch directory $MMDAPP/.local/temp/agent-mcp.$$" >&2
+			printf '%s\n' "$MDSC_CMD: mcp-server: ⛔ ERROR: cannot create scratch directory $MMDAPP/.local/temp/agent-mcp.$$" >&2
 			return 1
 		fi
 		AGENTS_MCP_REQ_SEQ=0
@@ -98,7 +98,7 @@ case "$1" in
 
 			rm -rf "$MMDAPP/.local/temp/agent-mcp.$$/req"
 			if ! mkdir -p "$MMDAPP/.local/temp/agent-mcp.$$/req" ; then
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-mcp-server: cannot create request scratch directory, skipping one message" >&2
+				printf '%s\n' "$MDSC_CMD: mcp-server: ⛔ ERROR: cannot create request scratch directory, skipping one message" >&2
 				continue
 			fi
 

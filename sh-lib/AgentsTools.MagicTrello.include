@@ -34,7 +34,7 @@ case "$1" in
 		## Same <team-member> validation shape as --member-comms-trello-check and
 		## --member-comms-trello-read in AgentsTools.MemberCommsTrello.include. All of it runs
 		## BEFORE the credential read and BEFORE any network call.
-		AgentsToolsAssertBareName "$callingMember" "<team-member>" "$MDSC_CMD --magic-comms-trello-post-comment" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" magic-comms-trello-post-comment || { set +e ; return 1 ; }
 		case "$callingMember" in
 			routine-*)
 				## A routine acting as caller has no skill directory and is not

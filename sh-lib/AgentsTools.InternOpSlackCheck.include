@@ -105,17 +105,17 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-check: syntax is <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--oldest <ts>] [--identity-bot] [--raw] -- the acting member is required, since a direct conversation belongs to one identity and the member decides which conversation is read" >&2
+				echo "$MDSC_CMD: slack-check: ⛔ ERROR: syntax is <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--oldest <ts>] [--identity-bot] [--raw] -- the acting member is required, since a direct conversation belongs to one identity and the member decides which conversation is read" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --intern-op-slack-check" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" slack-check || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## Same routine-* carve-out as the sibling arms.
 				;;
 				*)
 					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-check: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+						echo "$MDSC_CMD: slack-check: ⛔ ERROR: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -125,7 +125,7 @@ case "$1" in
 			shift || true
 
 			if [ -z "$target" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-check: target required (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>)" >&2
+				echo "$MDSC_CMD: slack-check: ⛔ ERROR: target required (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>)" >&2
 				set +e ; return 1
 			fi
 
@@ -154,7 +154,7 @@ case "$1" in
 						identityAsBot="true" ; shift
 					;;
 					*)
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-check: invalid option: $1" >&2
+						echo "$MDSC_CMD: slack-check: ⛔ ERROR: invalid option: $1" >&2
 						set +e ; return 1
 					;;
 				esac
@@ -175,7 +175,7 @@ case "$1" in
 					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
 				;;
 				2)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-check: unrecognized target: $target" >&2
+					echo "$MDSC_CMD: slack-check: ⛔ ERROR: unrecognized target: $target" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -202,9 +202,9 @@ case "$1" in
 						human-owner)	targetKey="SLACK_CHANNEL_HUMAN_OWNER" ;;
 					esac
 					if [ -n "$targetKey" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-check: could not resolve a channel for target '$target' -- check $targetKey in .local/.agents" >&2
+						echo "$MDSC_CMD: slack-check: ⛔ ERROR: could not resolve a channel for target '$target' -- check $targetKey in .local/.agents" >&2
 					else
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-check: could not resolve a channel for target '$target' -- it names a conversation directly, so no config key backs it; its channel part is empty" >&2
+						echo "$MDSC_CMD: slack-check: ⛔ ERROR: could not resolve a channel for target '$target' -- it names a conversation directly, so no config key backs it; its channel part is empty" >&2
 					fi
 					set +e ; return 1
 				;;
@@ -415,7 +415,7 @@ case "$1" in
 						fi
 						legOpArgs+=( --context "--intern-op-slack-check human-owner ($legIdentity identity, DM $legDm)" )
 
-						echo "# $MDSC_CMD --intern-op-slack-check: GET conversations.history channel=$legDm (human-owner DM under $legIdentity identity, counterparty asserted against $fanOutParty)${oldest:+ oldest=$oldest}" >&2
+						echo "# $MDSC_CMD: slack-check: GET conversations.history channel=$legDm (human-owner DM under $legIdentity identity, counterparty asserted against $fanOutParty)${oldest:+ oldest=$oldest}" >&2
 						legRc=0
 						legResponse="$( DistroAgentsTools --intern-op-slack-call "${legOpArgs[@]}" 2>"$legDiagFile" )" || legRc=$?
 						legDiag="$( cat "$legDiagFile" )"
@@ -536,14 +536,14 @@ case "$1" in
 				## never a negation against an empty output, which is exactly what
 				## "could not see anything" also looks like.
 				if [ "$legOkCount" = "2" ] ; then
-					echo "# $MDSC_CMD --intern-op-slack-check: BOTH human-owner DMs read (one per identity, each asserted individually against party $fanOutParty). The lines above are the two conversations merged chronologically, each carrying its own DM id." >&2
+					echo "# $MDSC_CMD: slack-check: BOTH human-owner DMs read (one per identity, each asserted individually against party $fanOutParty). The lines above are the two conversations merged chronologically, each carrying its own DM id." >&2
 					return 0
 				fi
 				if [ "$legOkCount" = "1" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-check: PARTIAL -- only ONE of the human-owner's two DMs was read. Failed:$legFailReport The output above is therefore HALF the conversation: a message the human-owner sent in the failed DM is absent from it, and nothing here supports concluding that no such message exists. Fix the named leg and read again before treating this as an answer. rc=3 means exactly this partial state, distinct from rc=4 (neither DM read) and from rc=1 (this operation failed before any fan-out)." >&2
+					echo "$MDSC_CMD: slack-check: ⛔ ERROR: PARTIAL -- only ONE of the human-owner's two DMs was read. Failed:$legFailReport The output above is therefore HALF the conversation: a message the human-owner sent in the failed DM is absent from it, and nothing here supports concluding that no such message exists. Fix the named leg and read again before treating this as an answer. rc=3 means exactly this partial state, distinct from rc=4 (neither DM read) and from rc=1 (this operation failed before any fan-out)." >&2
 					set +e ; return 3
 				fi
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-slack-check: NEITHER of the human-owner's two DMs was read. Failed:$legFailReport Nothing was read at all, so nothing whatsoever is known from this call about what the human-owner has or has not written. rc=4 means exactly this, distinct from rc=3 (one DM read, one failed)." >&2
+				echo "$MDSC_CMD: slack-check: ⛔ ERROR: NEITHER of the human-owner's two DMs was read. Failed:$legFailReport Nothing was read at all, so nothing whatsoever is known from this call about what the human-owner has or has not written. rc=4 means exactly this, distinct from rc=3 (one DM read, one failed)." >&2
 				set +e ; return 4
 			fi
 
@@ -556,7 +556,7 @@ case "$1" in
 				apiMethod="conversations.history"
 			fi
 
-			echo "# $MDSC_CMD --intern-op-slack-check: GET $apiMethod channel=$channel${threadTs:+ ts=$threadTs}${oldest:+ oldest=$oldest}" >&2
+			echo "# $MDSC_CMD: slack-check: GET $apiMethod channel=$channel${threadTs:+ ts=$threadTs}${oldest:+ oldest=$oldest}" >&2
 
 			## The Slack call itself is delegated to --intern-op-slack-call --
 			## THE one place Slack is called (see that file's own header). This

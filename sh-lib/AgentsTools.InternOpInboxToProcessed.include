@@ -75,27 +75,28 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$inboxMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): syntax is <member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: syntax is <member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$inboxMember" "<member>" "$MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
-		AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$inboxMember" "<member>" inbox-to-processed || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" inbox-to-processed || { set +e ; return 1 ; }
 		case "$itemName" in
 			*.md) ;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
 				set +e ; return 1
 			;;
 		esac
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 
 		local bodyMode="" scriptLang="" bodyModeCount=0
 		local headerOpsFile
-		headerOpsFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-headers.XXXXXX" )" || { set +e ; return 1 ; }
+		headerOpsFile="$MMDAPP/.local/temp/mdat-inbox-to-processed-headers.$$"
+		mkdir -p "$MMDAPP/.local/temp" && : > "$headerOpsFile" || { set +e ; return 1 ; }
 		trap 'rm -f "$headerOpsFile"' EXIT
 
 		while [ $# -gt 0 ] ; do
@@ -110,13 +111,13 @@ case "$1" in
 						*)   headerName="$headerRest" ; headerValue="" ;;
 					esac
 					if [ -z "$headerName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): --header:$headerOp: field name required" >&2
+						echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: --header:$headerOp: field name required" >&2
 						set +e ; return 1
 					fi
 					case "$headerOp" in
 						upsert|append)
 							if [ -z "$headerValue" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): --header:$headerOp:$headerName requires a value" >&2
+								echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: --header:$headerOp:$headerName requires a value" >&2
 								set +e ; return 1
 							fi
 							## approved-by's required shape -- same check,
@@ -126,14 +127,14 @@ case "$1" in
 							## the field itself.
 							if [ "$headerName" = "approved-by" ] ; then
 								if ! printf '%s' "$headerValue" | grep -Eq '^[A-Za-z][A-Za-z0-9_-]* \([^,()]+, [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z\)$' ; then
-									echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): --header:$headerOp:approved-by: value must match '<team-member> (<session-id>, <date-time>)' (ISO UTC date-time, suffix Z): $headerValue" >&2
+									echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: --header:$headerOp:approved-by: value must match '<team-member> (<session-id>, <date-time>)' (ISO UTC date-time, suffix Z): $headerValue" >&2
 									set +e ; return 1
 								fi
 							fi
 						;;
 						remove) : ;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): --header: unrecognized operation: $headerOp (upsert/append/remove)" >&2
+							echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: --header: unrecognized operation: $headerOp (upsert/append/remove)" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -150,7 +151,7 @@ case "$1" in
 					case "$scriptLang" in
 						py|awk) ;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): --edit-script-from-stdin must be :py or :awk: $scriptLang" >&2
+							echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: --edit-script-from-stdin must be :py or :awk: $scriptLang" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -165,13 +166,13 @@ case "$1" in
 				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): --context: value required" >&2
+						echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: --context: value required" >&2
 						set +e ; return 1
 					fi
 					shift 2
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): invalid option: $1" >&2
+					echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -182,7 +183,7 @@ case "$1" in
 		## pairwise scriptLang/bodyMode comparison only catches one of the
 		## six possible orderings across three flags.
 		if [ "$bodyModeCount" -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): --upsert-from-stdin, --edit-script-from-stdin, and --edit-patch-from-stdin are mutually exclusive" >&2
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: --upsert-from-stdin, --edit-script-from-stdin, and --edit-patch-from-stdin are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 
@@ -197,12 +198,12 @@ case "$1" in
 		local inboxBase="" inboxDirResolved=""
 		inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 		if [ -z "$inboxBase" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
 			set +e ; return 1
 		fi
 		inboxDirResolved="$( cd "$MDAT_DATA_ROOT/inboxes/$inboxMember" 2>/dev/null && pwd -P )" || inboxDirResolved=""
 		if [ -z "$inboxDirResolved" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): no such inbox: $MDAT_DATA_ROOT/inboxes/$inboxMember" >&2
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: no such inbox: $MDAT_DATA_ROOT/inboxes/$inboxMember" >&2
 			set +e ; return 1
 		fi
 		## Containment tested WITH the separator -- "$inboxBase"/* , never a
@@ -211,24 +212,24 @@ case "$1" in
 		case "$inboxDirResolved" in
 			"$inboxBase"/*) ;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): resolved inbox directory escapes the inbox root ($inboxBase): $inboxDirResolved" >&2
+				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: resolved inbox directory escapes the inbox root ($inboxBase): $inboxDirResolved" >&2
 				set +e ; return 1
 			;;
 		esac
 		local sourcePath="$inboxDirResolved/$itemName"
 		if [ ! -f "$sourcePath" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): item not found in inbox root: $sourcePath" >&2
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: item not found in inbox root: $sourcePath" >&2
 			set +e ; return 1
 		fi
 
 		local targetDir="$inboxDirResolved/processed"
 		if [ ! -d "$targetDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): no such inbox processed directory: $targetDir" >&2
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: no such inbox processed directory: $targetDir" >&2
 			set +e ; return 1
 		fi
 		local targetPath="$targetDir/$itemName"
 		if [ -e "$targetPath" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): processed target already exists, refusing to overwrite: $targetPath (source left in place: $sourcePath)" >&2
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: processed target already exists, refusing to overwrite: $targetPath (source left in place: $sourcePath)" >&2
 			set +e ; return 1
 		fi
 
@@ -237,7 +238,7 @@ case "$1" in
 		## BEFORE any write, so a collision aborts with the tree exactly as
 		## it was found rather than with the item duplicated.
 		if [ -e "$MDAT_DATA_ROOT/trash/$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (nothing written; source left in place)" >&2
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (nothing written; source left in place)" >&2
 			set +e ; return 1
 		fi
 
@@ -246,7 +247,8 @@ case "$1" in
 			local scriptContent existingContent scriptFile
 			scriptContent="$( cat )"
 			existingContent="$( cat "$sourcePath" )"
-			scriptFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-script.XXXXXX" )" || { set +e ; return 1 ; }
+			scriptFile="$MMDAPP/.local/temp/mdat-inbox-to-processed-script.$$"
+			mkdir -p "$MMDAPP/.local/temp" && : > "$scriptFile" || { set +e ; return 1 ; }
 			printf '%s' "$scriptContent" > "$scriptFile"
 			case "$scriptLang" in
 				py)  body="$( printf '%s\n' "$existingContent" | python3 "$scriptFile" )" ;;
@@ -259,8 +261,10 @@ case "$1" in
 			local patchJson existingContent contentFile patchFile
 			patchJson="$( cat )"
 			existingContent="$( cat "$sourcePath" )"
-			contentFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-patch-content.XXXXXX" )" || { set +e ; return 1 ; }
-			patchFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-patch-spec.XXXXXX" )" || { set +e ; return 1 ; }
+			contentFile="$MMDAPP/.local/temp/mdat-inbox-to-processed-patch-content.$$"
+			mkdir -p "$MMDAPP/.local/temp" && : > "$contentFile" || { set +e ; return 1 ; }
+			patchFile="$MMDAPP/.local/temp/mdat-inbox-to-processed-patch-spec.$$"
+			mkdir -p "$MMDAPP/.local/temp" && : > "$patchFile" || { set +e ; return 1 ; }
 			printf '%s' "$existingContent" > "$contentFile"
 			printf '%s' "$patchJson" > "$patchFile"
 			body="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" "$contentFile" "$patchFile" )"
@@ -274,12 +278,13 @@ case "$1" in
 		fi
 
 		if [ -z "$body" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): empty result -- refusing to write an empty inbox item" >&2
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: empty result -- refusing to write an empty inbox item" >&2
 			set +e ; return 1
 		fi
 
 		local tmpFile
-		tmpFile="$( mktemp "${TMPDIR:-/tmp}/mdat-intern-op-result.XXXXXX" )" || { set +e ; return 1 ; }
+		tmpFile="$MMDAPP/.local/temp/mdat-inbox-to-processed-result.$$"
+		mkdir -p "$MMDAPP/.local/temp" && : > "$tmpFile" || { set +e ; return 1 ; }
 		printf '%s\n' "$body" > "$tmpFile"
 		mv "$tmpFile" "$targetPath"
 
@@ -295,11 +300,11 @@ case "$1" in
 		## later edit that bypasses validation.
 		##
 		if [ -e "$MDAT_DATA_ROOT/trash/$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-inbox-to-processed (internal operation, invoked via $opContext): trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (new item already written to $targetPath; source left in place: $sourcePath)" >&2
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (new item already written to $targetPath; source left in place: $sourcePath)" >&2
 			set +e ; return 1
 		fi
 		mv -- "$sourcePath" "$MDAT_DATA_ROOT/trash/$itemName"
-		echo "# $MDSC_CMD --intern-op-inbox-to-processed: wrote $targetPath, previous $sourcePath moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
+		echo "# $MDSC_CMD: inbox-to-processed: wrote $targetPath, previous $sourcePath moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
 
 		rm -f "$headerOpsFile"
 		trap - EXIT
@@ -307,7 +312,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpInboxToProcessed.include's own default (*) branch, the operation group sourced by the --intern-op-inbox-to-processed dispatcher route; no operation of that name is defined in this include" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac

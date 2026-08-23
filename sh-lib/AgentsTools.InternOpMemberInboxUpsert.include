@@ -48,23 +48,23 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-inbox-upsert (internal operation, invoked via $opContext): syntax is <member> <item-filename> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: syntax is <member> <item-filename> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$memberName" "<member>" "$MDSC_CMD --intern-op-member-inbox-upsert (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
-		AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --intern-op-member-inbox-upsert (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-upsert || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" member-inbox-upsert || { set +e ; return 1 ; }
 		local memberDir="$HOME/.claude/skills/$memberName"
 		if [ ! -d "$memberDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-inbox-upsert (internal operation, invoked via $opContext): no such member skill directory: $memberDir" >&2
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-inbox-upsert (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		local inboxDir="$MDAT_DATA_ROOT/inboxes/$memberName"
 		mkdir -p "$inboxDir" || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-inbox-upsert (internal operation, invoked via $opContext): can't create inbox directory: $inboxDir" >&2
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: can't create inbox directory: $inboxDir" >&2
 			set +e ; return 1
 		}
 		local target="$inboxDir/$itemName"
@@ -73,7 +73,7 @@ case "$1" in
 			case "$1" in
 				--from-file)
 					if [ -z "$2" ] || [ ! -f "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-member-inbox-upsert (internal operation, invoked via $opContext): --from-file: file not found: $2" >&2
+						echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --from-file: file not found: $2" >&2
 						set +e ; return 1
 					fi
 					content="$( cat "$2" )"
@@ -89,19 +89,19 @@ case "$1" in
 				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-member-inbox-upsert (internal operation, invoked via $opContext): --context: value required" >&2
+						echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --context: value required" >&2
 						set +e ; return 1
 					fi
 					shift 2
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-member-inbox-upsert (internal operation, invoked via $opContext): unrecognized argument: $1" >&2
+					echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: unrecognized argument: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ "$bodyModeCount" -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-inbox-upsert (internal operation, invoked via $opContext): --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 		if [ "$bodyMode" = "patch" ] ; then
@@ -120,16 +120,16 @@ case "$1" in
 			[ "$contentFromFile" = "true" ] || content="$( cat )"
 		fi
 		if [ -z "$content" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-inbox-upsert (internal operation, invoked via $opContext): empty content -- refusing to write an empty inbox item" >&2
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: empty content -- refusing to write an empty inbox item" >&2
 			set +e ; return 1
 		fi
 		printf '%s\n' "$content" > "$target"
-		echo "# $MDSC_CMD --intern-op-member-inbox-upsert: wrote $target ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+		echo "# $MDSC_CMD: member-inbox-upsert: wrote $target ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
 		return 0
 	;;
 
 	*)
-		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 (invoked via $opContext)" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac

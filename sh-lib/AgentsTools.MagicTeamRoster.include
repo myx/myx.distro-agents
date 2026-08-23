@@ -112,8 +112,10 @@ case "$1" in
 			local patchJson existingContent contentFile patchFile
 			patchJson="$( cat )"
 			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
-			contentFile="$( mktemp "${TMPDIR:-/tmp}/mdat-team-roster-patch-content.XXXXXX" )" || { set +e ; return 1 ; }
-			patchFile="$( mktemp "${TMPDIR:-/tmp}/mdat-team-roster-patch-spec.XXXXXX" )" || { set +e ; return 1 ; }
+			contentFile="$MMDAPP/.local/temp/mdat-team-roster-patch-content.$$"
+			mkdir -p "$MMDAPP/.local/temp" && : > "$contentFile" || { set +e ; return 1 ; }
+			patchFile="$MMDAPP/.local/temp/mdat-team-roster-patch-spec.$$"
+			mkdir -p "$MMDAPP/.local/temp" && : > "$patchFile" || { set +e ; return 1 ; }
 			printf '%s' "$existingContent" > "$contentFile"
 			printf '%s' "$patchJson" > "$patchFile"
 			content="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" "$contentFile" "$patchFile" )" || { rm -f "$contentFile" "$patchFile" ; set +e ; return 1 ; }
@@ -167,7 +169,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.MagicTeamRoster.include's own default (*) branch, the operation group sourced by the --magic-team-roster-* dispatcher route; no operation of that name is defined in this include" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac

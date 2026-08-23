@@ -98,21 +98,21 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$toState" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): syntax is <to-state> <item-filename> (--from-state:<state>|--create) [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: syntax is <to-state> <item-filename> (--from-state:<state>|--create) [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		case "$toState" in
 			backlog|pending|running|blocked|parked|processed|archived|retained)
 			;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): invalid to-state: $toState" >&2
+				echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: invalid to-state: $toState" >&2
 				set +e ; return 1
 			;;
 		esac
-		AgentsToolsAssertBareName "$itemName" "<item-filename>" "$MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" board-upsert-move-edit || { set +e ; return 1 ; }
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		local boardRoot="$MDAT_DATA_ROOT/board"
@@ -130,13 +130,13 @@ case "$1" in
 						backlog|pending|running|blocked|parked|processed|archived|retained)
 						;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --from-state: invalid state: $fromState" >&2
+							echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --from-state: invalid state: $fromState" >&2
 							set +e ; return 1
 						;;
 					esac
 					sourcePath="$boardRoot/$fromState/$itemName"
 					if [ ! -f "$sourcePath" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): item not found: $sourcePath" >&2
+						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: item not found: $sourcePath" >&2
 						set +e ; return 1
 					fi
 					sourceModeCount=$(( sourceModeCount + 1 ))
@@ -144,11 +144,11 @@ case "$1" in
 				;;
 				--from-inbox:*)
 					fromInbox="${1#--from-inbox:}"
-					AgentsToolsAssertBareName "$fromInbox" "--from-inbox: member name" "$MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+					AgentsToolsAssertBareName "$fromInbox" "--from-inbox: member name" board-upsert-move-edit || { set +e ; return 1 ; }
 					case "$itemName" in
 						*.md) ;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --from-inbox: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+							echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --from-inbox: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -174,12 +174,12 @@ case "$1" in
 					local inboxBase="" inboxDirResolved=""
 					inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 					if [ -z "$inboxBase" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
+						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
 						set +e ; return 1
 					fi
 					inboxDirResolved="$( cd "$MDAT_DATA_ROOT/inboxes/$fromInbox/processed" 2>/dev/null && pwd -P )" || inboxDirResolved=""
 					if [ -z "$inboxDirResolved" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): no such inbox processed directory: $MDAT_DATA_ROOT/inboxes/$fromInbox/processed" >&2
+						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: no such inbox processed directory: $MDAT_DATA_ROOT/inboxes/$fromInbox/processed" >&2
 						set +e ; return 1
 					fi
 					## Containment tested WITH the separator -- "$inboxBase"/* ,
@@ -188,13 +188,13 @@ case "$1" in
 					case "$inboxDirResolved" in
 						"$inboxBase"/*) ;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): resolved inbox directory escapes the inbox root ($inboxBase): $inboxDirResolved" >&2
+							echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: resolved inbox directory escapes the inbox root ($inboxBase): $inboxDirResolved" >&2
 							set +e ; return 1
 						;;
 					esac
 					sourcePath="$inboxDirResolved/$itemName"
 					if [ ! -f "$sourcePath" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): item not found: $sourcePath" >&2
+						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: item not found: $sourcePath" >&2
 						set +e ; return 1
 					fi
 					sourceModeCount=$(( sourceModeCount + 1 ))
@@ -215,13 +215,13 @@ case "$1" in
 						*)   headerName="$headerRest" ; headerValue="" ;;
 					esac
 					if [ -z "$headerName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --header:$headerOp: field name required" >&2
+						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --header:$headerOp: field name required" >&2
 						set +e ; return 1
 					fi
 					case "$headerOp" in
 						upsert|append)
 							if [ -z "$headerValue" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --header:$headerOp:$headerName requires a value" >&2
+								echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --header:$headerOp:$headerName requires a value" >&2
 								set +e ; return 1
 							fi
 							## approved-by's required shape: `<team-member>
@@ -245,14 +245,14 @@ case "$1" in
 							## new format invented here.
 							if [ "$headerName" = "approved-by" ] ; then
 								if ! printf '%s' "$headerValue" | grep -Eq '^[A-Za-z][A-Za-z0-9_-]* \([^,()]+, [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z\)$' ; then
-									echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --header:$headerOp:approved-by: value must match '<team-member> (<session-id>, <date-time>)' (ISO UTC date-time, suffix Z): $headerValue" >&2
+									echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --header:$headerOp:approved-by: value must match '<team-member> (<session-id>, <date-time>)' (ISO UTC date-time, suffix Z): $headerValue" >&2
 									set +e ; return 1
 								fi
 							fi
 						;;
 						remove) : ;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --header: unrecognized operation: $headerOp (upsert/append/remove)" >&2
+							echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --header: unrecognized operation: $headerOp (upsert/append/remove)" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -269,7 +269,7 @@ case "$1" in
 					case "$scriptLang" in
 						py|awk) ;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --edit-script-from-stdin must be :py or :awk: $scriptLang" >&2
+							echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --edit-script-from-stdin must be :py or :awk: $scriptLang" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -284,13 +284,13 @@ case "$1" in
 				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --context: value required" >&2
+						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --context: value required" >&2
 						set +e ; return 1
 					fi
 					shift 2
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): invalid option: $1" >&2
+					echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -302,11 +302,11 @@ case "$1" in
 		## only one of the possible orderings, an asymmetric gap that widens
 		## with every source added.
 		if [ "$sourceModeCount" -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): exactly one of --from-state:<state>, --from-inbox:<member>, or --create is required" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: exactly one of --from-state:<state>, --from-inbox:<member>, or --create is required" >&2
 			set +e ; return 1
 		fi
 		if [ "$sourceModeCount" -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --from-state:, --from-inbox:, and --create are mutually exclusive" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --from-state:, --from-inbox:, and --create are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 
@@ -330,7 +330,7 @@ case "$1" in
 		## late check needs one: for the inbox source, sourcePath is under
 		## inboxes/ and targetPath under board/, so they can never be equal.
 		if [ -n "$fromInbox" ] && [ -e "$MDAT_DATA_ROOT/trash/$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (nothing written; source left in place)" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (nothing written; source left in place)" >&2
 			set +e ; return 1
 		fi
 		## Three-way check via a counter, not a pairwise scriptLang/bodyMode
@@ -338,13 +338,13 @@ case "$1" in
 		## possible orderings across three flags, an asymmetric gap that
 		## widens (not narrows) once --edit-patch-from-stdin joins the set.
 		if [ "$bodyModeCount" -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): --upsert-from-stdin, --edit-script-from-stdin, and --edit-patch-from-stdin are mutually exclusive" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --upsert-from-stdin, --edit-script-from-stdin, and --edit-patch-from-stdin are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 
 		local targetDir="$boardRoot/$toState"
 		if [ ! -d "$targetDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): no such board state directory: $targetDir" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: no such board state directory: $targetDir" >&2
 			set +e ; return 1
 		fi
 		local targetPath="$targetDir/$itemName"
@@ -389,7 +389,7 @@ case "$1" in
 		fi
 
 		if [ -z "$body" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): empty result -- refusing to write an empty board item" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: empty result -- refusing to write an empty board item" >&2
 			set +e ; return 1
 		fi
 
@@ -409,13 +409,13 @@ case "$1" in
 			## input, `--` guards a later edit that bypasses validation.
 			##
 			if [ -n "$fromInbox" ] && [ -e "$MDAT_DATA_ROOT/trash/$itemName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-upsert-move-edit (internal operation, invoked via $opContext): trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (new item already written to $targetPath; source left in place: $sourcePath)" >&2
+				echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (new item already written to $targetPath; source left in place: $sourcePath)" >&2
 				set +e ; return 1
 			fi
 			mv -- "$sourcePath" "$MDAT_DATA_ROOT/trash/$itemName"
-			echo "# $MDSC_CMD --intern-op-board-upsert-move-edit: wrote $targetPath, previous $sourcePath moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
+			echo "# $MDSC_CMD: board-upsert-move-edit: wrote $targetPath, previous $sourcePath moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
 		else
-			echo "# $MDSC_CMD --intern-op-board-upsert-move-edit: wrote $targetPath" >&2
+			echo "# $MDSC_CMD: board-upsert-move-edit: wrote $targetPath" >&2
 		fi
 
 		rm -f "$headerOpsFile"
@@ -424,7 +424,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 (invoked via $opContext)" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac

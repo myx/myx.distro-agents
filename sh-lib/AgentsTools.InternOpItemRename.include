@@ -86,38 +86,38 @@ case "$1" in
 		local newName="$1"
 		shift || true
 		if [ -z "$sourceArg" ] || [ -z "$newName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): syntax is <absolute-source-path> <new-bare-name> [--context <caller-op>]" >&2
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: syntax is <absolute-source-path> <new-bare-name> [--context <caller-op>]" >&2
 			set +e ; return 1
 		fi
 		if [ "$1" = "--context" ] ; then
 			if [ -z "${2:-}" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): --context: value required" >&2
+				echo "$MDSC_CMD: item-rename: ⛔ ERROR: --context: value required" >&2
 				set +e ; return 1
 			fi
 			shift 2
 		fi
 		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): invalid option: $1" >&2
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1
 		fi
 
 		case "$sourceArg" in
 			/*) ;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): <absolute-source-path> must be absolute: $sourceArg" >&2
+				echo "$MDSC_CMD: item-rename: ⛔ ERROR: <absolute-source-path> must be absolute: $sourceArg" >&2
 				set +e ; return 1
 			;;
 		esac
 
-		AgentsToolsAssertBareName "$newName" "<new-bare-name>" "$MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$newName" "<new-bare-name>" item-rename || { set +e ; return 1 ; }
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 
 		if [ ! -f "$sourceArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): source item not found: $sourceArg" >&2
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: source item not found: $sourceArg" >&2
 			set +e ; return 1
 		fi
 
@@ -128,7 +128,7 @@ case "$1" in
 		sourceDirArg="${sourceArg%/*}"
 		sourceDir="" ; sourceDir="$( cd "$sourceDirArg" 2>/dev/null && pwd -P )" || sourceDir=""
 		if [ -z "$sourceDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): cannot resolve source directory: $sourceDirArg" >&2
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: cannot resolve source directory: $sourceDirArg" >&2
 			set +e ; return 1
 		fi
 
@@ -143,11 +143,11 @@ case "$1" in
 		## rejected the .jsonl pair outright.
 		local oldExt="${oldName##*.}" newExt="${newName##*.}"
 		if [ "$oldName" = "$oldExt" ] || [ "$newName" = "$newExt" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): both names must carry a file extension: $oldName -> $newName" >&2
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: both names must carry a file extension: $oldName -> $newName" >&2
 			set +e ; return 1
 		fi
 		if [ "$oldExt" != "$newExt" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): rename must preserve the file extension (.$oldExt): $oldName -> $newName" >&2
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: rename must preserve the file extension (.$oldExt): $oldName -> $newName" >&2
 			set +e ; return 1
 		fi
 
@@ -156,7 +156,7 @@ case "$1" in
 			## whose new name equals its old name (note-team-roster.md,
 			## status SKIP-no-dated-name). Renaming it would be a no-op that
 			## still ran a full reference sweep replacing a name with itself.
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): <new-bare-name> is identical to the current name, nothing to do: $oldName" >&2
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: <new-bare-name> is identical to the current name, nothing to do: $oldName" >&2
 			set +e ; return 1
 		fi
 
@@ -172,14 +172,14 @@ case "$1" in
 			esac
 		done
 		if [ -z "$storeRoot" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): source is outside every known store (board/, inboxes/, audit/ under $MDAT_DATA_ROOT): $sourceDir" >&2
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: source is outside every known store (board/, inboxes/, audit/ under $MDAT_DATA_ROOT): $sourceDir" >&2
 			set +e ; return 1
 		fi
 
 		local sourcePath="$sourceDir/$oldName"
 		local targetPath="$sourceDir/$newName"
 		if [ -e "$targetPath" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): target already exists, refusing to overwrite: $targetPath" >&2
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: target already exists, refusing to overwrite: $targetPath" >&2
 			set +e ; return 1
 		fi
 
@@ -216,7 +216,7 @@ case "$1" in
 				if ! LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsItemRenameSweep.awk" "$f" > "$tmp" ; then
 					rm -f "$tmp"
 					unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-item-rename (internal operation, invoked via $opContext): reference sweep failed on: $f (nothing renamed)" >&2
+					echo "$MDSC_CMD: item-rename: ⛔ ERROR: reference sweep failed on: $f (nothing renamed)" >&2
 					set +e ; return 1
 				fi
 				if cmp -s "$tmp" "$f" ; then
@@ -237,12 +237,12 @@ EOF
 		unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM
 
 		mv -- "$sourcePath" "$targetPath"
-		echo "# $MDSC_CMD --intern-op-item-rename: $storeName/: $oldName -> $newName ($touched reference file(s) rewritten)" >&2
+		echo "# $MDSC_CMD: item-rename: $storeName/: $oldName -> $newName ($touched reference file(s) rewritten)" >&2
 		return 0
 	;;
 
 	*)
-		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 (invoked via $opContext)" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac

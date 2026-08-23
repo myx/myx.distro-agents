@@ -230,10 +230,10 @@ case "$1" in
 		local actingMember="$1"
 		shift || true
 		if [ -z "$actingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): syntax is <team-member> [options...] -- the acting member is required, since it is the identity every comms read in this scan acts as" >&2
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: syntax is <team-member> [options...] -- the acting member is required, since it is the identity every comms read in this scan acts as" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$actingMember" "<team-member>" "$MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" session-context-scan || { set +e ; return 1 ; }
 
 		local states=() headers=() typePrefixes=() items=()
 		local allTypes="false" owner=""
@@ -264,14 +264,14 @@ case "$1" in
 			case "$1" in
 				--state)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --state: value required" >&2
+						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --state: value required" >&2
 						set +e ; return 1
 					fi
 					case "$2" in
 						backlog|pending|running|blocked|parked|processed|archived|retained)
 						;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --state: invalid state: $2" >&2
+							echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --state: invalid state: $2" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -280,7 +280,7 @@ case "$1" in
 				;;
 				--header)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --header: value required" >&2
+						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --header: value required" >&2
 						set +e ; return 1
 					fi
 					headers+=( "$2" )
@@ -289,7 +289,7 @@ case "$1" in
 				--type-prefix:*)
 					local prefixVal="${1#--type-prefix:}"
 					if [ -z "$prefixVal" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --type-prefix: value required" >&2
+						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --type-prefix: value required" >&2
 						set +e ; return 1
 					fi
 					typePrefixes+=( "$prefixVal" )
@@ -306,7 +306,7 @@ case "$1" in
 				## token must not carry both across this family.
 				--filter-owner)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --filter-owner: value required" >&2
+						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --filter-owner: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2"
@@ -314,7 +314,7 @@ case "$1" in
 				;;
 				--item)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --item: value required" >&2
+						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --item: value required" >&2
 						set +e ; return 1
 					fi
 					items+=( "$2" )
@@ -334,11 +334,11 @@ case "$1" in
 				--do-board-related-all)    doBoardRelatedAll="true" ; shift ;;
 				--comms-since-date-time|--comms-since-utime)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): $1: value required" >&2
+						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: $1: value required" >&2
 						set +e ; return 1
 					fi
 					if [ -n "$commsCutoffKind" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-since-date-time and --comms-since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
+						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --comms-since-date-time and --comms-since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
 						set +e ; return 1
 					fi
 					case "$1" in
@@ -369,7 +369,7 @@ case "$1" in
 							## silently unbounded scan.
 							case "$2" in
 								''|*[!0123456789.]*|*.*.*|.*|*.)
-									echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-since-utime: must be epoch seconds, optionally with a fractional part (e.g. 1786140114 or 1786140114.450349): $2" >&2
+									echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --comms-since-utime: must be epoch seconds, optionally with a fractional part (e.g. 1786140114 or 1786140114.450349): $2" >&2
 									set +e ; return 1
 								;;
 							esac
@@ -383,7 +383,7 @@ case "$1" in
 							case "$2" in
 								[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]*) ;;
 								*)
-									echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-since-date-time: must start with YYYY-MM-DD: $2" >&2
+									echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --comms-since-date-time: must start with YYYY-MM-DD: $2" >&2
 									set +e ; return 1
 								;;
 							esac
@@ -395,24 +395,24 @@ case "$1" in
 				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --context: value required" >&2
+						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --context: value required" >&2
 						set +e ; return 1
 					fi
 					shift 2
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): invalid option: $1" >&2
+					echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 
 		if [ "$allTypes" = "true" ] && [ ${#typePrefixes[@]} -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --all-types and --type-prefix: are mutually exclusive" >&2
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --all-types and --type-prefix: are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 		if [ "$allTypes" = "false" ] && [ ${#typePrefixes[@]} -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): exactly one of --all-types or --type-prefix:<value>... is required -- no implicit type default" >&2
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: exactly one of --all-types or --type-prefix:<value>... is required -- no implicit type default" >&2
 			set +e ; return 1
 		fi
 
@@ -420,7 +420,7 @@ case "$1" in
 		## no-op: it reads like comms were requested when none were.
 		if [ -n "$commsCutoffKind" ] && [ "$commsDoAll" != "true" ] && [ "$commsDoSlack" != "true" ] \
 			&& [ "$commsDoEmail" != "true" ] && [ "$commsDoTrello" != "true" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): $commsCutoffKind given with no comms selector (--comms-do-all, --intern-op-do-slack, --comms-do-email, --comms-do-trello) -- a cut-off applies to a requested comms scan, and requesting none is never implied to mean all" >&2
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: $commsCutoffKind given with no comms selector (--comms-do-all, --intern-op-do-slack, --comms-do-email, --comms-do-trello) -- a cut-off applies to a requested comms scan, and requesting none is never implied to mean all" >&2
 			set +e ; return 1
 		fi
 		## The tag search is an IM source, so it needs the IM section to exist to
@@ -429,7 +429,7 @@ case "$1" in
 		## absence as "nothing tagged you", which is the empty-versus-not-scanned
 		## confusion this document exists to prevent.
 		if [ "$commsDoSlackTags" = "true" ] && [ "$commsDoAll" != "true" ] && [ "$commsDoSlack" != "true" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --intern-op-do-slack-tags is an additional Slack/IM source and needs the IM scan itself -- pass it alongside --intern-op-do-slack or --comms-do-all" >&2
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --intern-op-do-slack-tags is an additional Slack/IM source and needs the IM scan itself -- pass it alongside --intern-op-do-slack or --comms-do-all" >&2
 			set +e ; return 1
 		fi
 		## Refused rather than ignored, same reasoning as the cut-off guard
@@ -439,13 +439,13 @@ case "$1" in
 		## what such a document could not evidence.
 		if [ "$commsMemberScopeOnly" = "true" ] && [ "$commsDoAll" != "true" ] && [ "$commsDoSlack" != "true" ] \
 			&& [ "$commsDoEmail" != "true" ] && [ "$commsDoTrello" != "true" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-member-scope-only restricts a requested comms scan and needs one -- pass it alongside --comms-do-all, --intern-op-do-slack, --comms-do-email or --comms-do-trello" >&2
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --comms-member-scope-only restricts a requested comms scan and needs one -- pass it alongside --comms-do-all, --intern-op-do-slack, --comms-do-email or --comms-do-trello" >&2
 			set +e ; return 1
 		fi
 		## --comms-do-all is the whole set, not a shorthand to combine with
 		## part of it -- same fixed-wrapper discipline as --all-types.
 		if [ "$commsDoAll" = "true" ] && { [ "$commsDoSlack" = "true" ] || [ "$commsDoEmail" = "true" ] || [ "$commsDoTrello" = "true" ] ; } ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-do-all and the individual --intern-op-do-slack/--comms-do-email/--comms-do-trello selectors are mutually exclusive" >&2
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --comms-do-all and the individual --intern-op-do-slack/--comms-do-email/--comms-do-trello selectors are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 
@@ -454,7 +454,7 @@ case "$1" in
 		fi
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		local headersJoined="" sep=""
@@ -608,7 +608,7 @@ case "$1" in
 				cutoffEpoch="$commsCutoffValue"
 			elif [ "$commsCutoffKind" = "--comms-since-date-time" ] ; then
 				cutoffEpoch="$( printf '%s\n' "$commsCutoffValue" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk" )" || {
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-session-context-scan (internal operation, invoked via $opContext): --comms-since-date-time: could not convert to epoch seconds: $commsCutoffValue" >&2
+					echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --comms-since-date-time: could not convert to epoch seconds: $commsCutoffValue" >&2
 					set +e ; return 1
 				}
 			fi
@@ -1734,7 +1734,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 (invoked via $opContext)" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac

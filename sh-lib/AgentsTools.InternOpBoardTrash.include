@@ -66,7 +66,7 @@ case "$1" in
 			local inboxItemName="$1"
 			shift || true
 			if [ -z "$inboxMember" ] || [ -z "$inboxItemName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): syntax is --from-inbox:<member> <item-name> [--context <caller-op>]" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is --from-inbox:<member> <item-name> [--context <caller-op>]" >&2
 				set +e ; return 1
 			fi
 			##
@@ -83,26 +83,26 @@ case "$1" in
 			## refuse.
 			##
 			if [ "$1" = "--untrash" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): --untrash is not supported for an inbox-sourced item -- it restores into board/<state>, and an item trashed out of inboxes/$inboxMember/processed/ has no board state to return to. Restore it by hand, or wait for per-item trash provenance (deliberately not added with this arm)." >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash is not supported for an inbox-sourced item -- it restores into board/<state>, and an item trashed out of inboxes/$inboxMember/processed/ has no board state to return to. Restore it by hand, or wait for per-item trash provenance (deliberately not added with this arm)." >&2
 				set +e ; return 1
 			fi
 			if [ "$1" = "--context" ] ; then
 				if [ -z "${2:-}" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): --context: value required" >&2
+					echo "$MDSC_CMD: board-trash: ⛔ ERROR: --context: value required" >&2
 					set +e ; return 1
 				fi
 				shift 2
 			fi
 			if [ $# -gt 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): invalid option: $1" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: invalid option: $1" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$inboxMember" "--from-inbox: member name" "$MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
-			AgentsToolsAssertBareName "$inboxItemName" "<item-name>" "$MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$inboxMember" "--from-inbox: member name" board-trash || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$inboxItemName" "<item-name>" board-trash || { set +e ; return 1 ; }
 			case "$inboxItemName" in
 				*.md) ;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): <item-name> must end in .md -- every inbox item is a markdown document: $inboxItemName" >&2
+					echo "$MDSC_CMD: board-trash: ⛔ ERROR: <item-name> must end in .md -- every inbox item is a markdown document: $inboxItemName" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -114,7 +114,7 @@ case "$1" in
 			## operation was built to move. Do not add one.
 			##
 			[ -n "${MDAT_DATA_ROOT:-}" ] || {
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 				set +e ; return 1
 			}
 			##
@@ -131,12 +131,12 @@ case "$1" in
 			local inboxBase="" inboxDirResolved=""
 			inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 			if [ -z "$inboxBase" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
 				set +e ; return 1
 			fi
 			inboxDirResolved="$( cd "$MDAT_DATA_ROOT/inboxes/$inboxMember/processed" 2>/dev/null && pwd -P )" || inboxDirResolved=""
 			if [ -z "$inboxDirResolved" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): no such inbox processed directory: $MDAT_DATA_ROOT/inboxes/$inboxMember/processed" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: no such inbox processed directory: $MDAT_DATA_ROOT/inboxes/$inboxMember/processed" >&2
 				set +e ; return 1
 			fi
 			## Containment tested WITH the separator -- "$inboxBase"/* , never a
@@ -145,14 +145,14 @@ case "$1" in
 			case "$inboxDirResolved" in
 				"$inboxBase"/*) ;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): resolved inbox directory escapes the inbox root ($inboxBase): $inboxDirResolved" >&2
+					echo "$MDSC_CMD: board-trash: ⛔ ERROR: resolved inbox directory escapes the inbox root ($inboxBase): $inboxDirResolved" >&2
 					set +e ; return 1
 				;;
 			esac
 			local inboxSourcePath="$inboxDirResolved/$inboxItemName"
 			local inboxTargetPath="$MDAT_DATA_ROOT/trash/$inboxItemName"
 			if [ ! -f "$inboxSourcePath" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): item not found: $inboxSourcePath" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found: $inboxSourcePath" >&2
 				set +e ; return 1
 			fi
 			##
@@ -163,14 +163,14 @@ case "$1" in
 			## design. Assert, then move.
 			##
 			if [ -e "$inboxTargetPath" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): trash target already exists, refusing to overwrite: $inboxTargetPath (source left in place: $inboxSourcePath)" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: trash target already exists, refusing to overwrite: $inboxTargetPath (source left in place: $inboxSourcePath)" >&2
 				set +e ; return 1
 			fi
 			## `--` before the operands is independent of the leading-'-'
 			## rejection above: validation guards bad input, `--` guards a later
 			## edit that bypasses validation.
 			mv -- "$inboxSourcePath" "$inboxTargetPath"
-			echo "# $MDSC_CMD --intern-op-board-trash: moved $inboxSourcePath to $inboxTargetPath" >&2
+			echo "# $MDSC_CMD: board-trash: moved $inboxSourcePath to $inboxTargetPath" >&2
 			return 0
 		fi
 
@@ -179,7 +179,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$boardState" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): syntax is <board-state> <item-name> [--untrash]" >&2
+			echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is <board-state> <item-name> [--untrash]" >&2
 			set +e ; return 1
 		fi
 		local doUntrash="false"
@@ -192,27 +192,27 @@ case "$1" in
 		## and the trailing arity guard below both expect.
 		if [ "$1" = "--context" ] ; then
 			if [ -z "${2:-}" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): --context: value required" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --context: value required" >&2
 				set +e ; return 1
 			fi
 			shift 2
 		fi
 		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): invalid option: $1" >&2
+			echo "$MDSC_CMD: board-trash: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1
 		fi
 		case "$boardState" in
 			backlog|pending|running|blocked|parked|processed|archived|retained)
 			;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): invalid board-state: $boardState" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: invalid board-state: $boardState" >&2
 				set +e ; return 1
 			;;
 		esac
-		AgentsToolsAssertBareName "$itemName" "<item-name>" "$MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext)" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-name>" board-trash || { set +e ; return 1 ; }
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): MDAT_DATA_ROOT is not set" >&2
+			echo "$MDSC_CMD: board-trash: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		if [ "$doUntrash" = "true" ] ; then
@@ -220,31 +220,30 @@ case "$1" in
 			local targetDir="$MDAT_DATA_ROOT/board/$boardState"
 			local targetPath="$targetDir/$itemName"
 			if [ ! -f "$sourcePath" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): --untrash: item not found in trash/: $sourcePath" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash: item not found in trash/: $sourcePath" >&2
 				set +e ; return 1
 			fi
 			if [ ! -d "$targetDir" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): --untrash: no such board state directory: $targetDir" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash: no such board state directory: $targetDir" >&2
 				set +e ; return 1
 			fi
 			mv "$sourcePath" "$targetPath"
-			echo "# $MDSC_CMD --intern-op-board-trash: restored $sourcePath to $targetPath" >&2
+			echo "# $MDSC_CMD: board-trash: restored $sourcePath to $targetPath" >&2
 		else
-			local sourceDir="$MDAT_DATA_ROOT/board/$boardState"
-			local sourcePath="$sourceDir/$itemName"
+			local sourcePath="$MDAT_DATA_ROOT/board/$boardState/$itemName"
 			local targetPath="$MDAT_DATA_ROOT/trash/$itemName"
 			if [ ! -f "$sourcePath" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-board-trash (internal operation, invoked via $opContext): item not found: $sourcePath" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found: $sourcePath" >&2
 				set +e ; return 1
 			fi
 			mv "$sourcePath" "$targetPath"
-			echo "# $MDSC_CMD --intern-op-board-trash: moved $sourcePath to $targetPath" >&2
+			echo "# $MDSC_CMD: board-trash: moved $sourcePath to $targetPath" >&2
 		fi
 		return 0
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 (invoked via $opContext) -- rejected by AgentsTools.InternOpBoardTrash.include's own default (*) branch, the operation group sourced by the --intern-op-board-trash dispatcher route; no operation of that name is defined in this include" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac

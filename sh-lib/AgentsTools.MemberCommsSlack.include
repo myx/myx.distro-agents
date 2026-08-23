@@ -231,7 +231,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: syntax is <team-member> <channel>:<ts> [--thread] [--identity-bot] -- the acting member is required, since a direct conversation belongs to one identity and the member decides which conversation is read" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-read" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-read || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## A routine acting as caller has no skill directory and is not
@@ -501,7 +501,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: syntax is <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw] -- the acting member is required, and it is the only thing selecting which user token performs the search" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-search-messages" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-search-messages || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## Same routine-* carve-out as the sibling arms -- though a
@@ -887,7 +887,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: syntax is <team-member> <channel>:<ts> <emoji-name> [--identity-bot] -- the acting member is required, since a reaction is posted by one identity and the member decides which one posts it" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-react" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-react || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## Same routine-* carve-out as the sibling arms.
@@ -1166,7 +1166,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: syntax is <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot] -- the acting member is required, since Slack permits deleting only a message the acting identity itself authored" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-delete-message" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-delete-message || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## Same routine-* carve-out as the sibling arms.
@@ -1440,7 +1440,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: syntax is <team-member> <channel>:<ts> [--identity-bot] [text...] -- the acting member is required, since Slack permits editing only a message the acting identity itself authored" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-edit-message" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-edit-message || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## Same routine-* carve-out as the sibling arms.
@@ -1706,7 +1706,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: syntax is <team-member> <file-id> [--identity-bot] [--raw] -- the acting member is required, since a file lives in a conversation and the identity asking decides whether it is visible at all" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-file-info" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-file-info || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## Same routine-* carve-out as the sibling arms.
@@ -2085,7 +2085,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: syntax is <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite] -- the acting member is required, since a file lives in a conversation and the identity fetching decides whether its bytes are reachable at all" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-file-fetch" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-file-fetch || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## Same routine-* carve-out as the sibling arms.
@@ -2489,7 +2489,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: syntax is <team-member> <target> [--identity-bot] [text...] (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>) -- or --from-stdin / --from-file <path>" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-slack-send-message" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-send-message || { set +e ; return 1 ; }
 		local memberDir="$HOME/.claude/skills/$memberName"
 		case "$memberName" in
 			routine-*)
@@ -2718,7 +2718,7 @@ case "$1" in
 			## top of it to enforce the array-specifically requirement
 			## Slack's `blocks` field actually has.
 			if ! printf '%s' "$blocksJson" | DistroAgentsTools --intern-validate-json ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format content failed --intern-validate-json (see above)" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format content failed validate-json (see above)" >&2
 				set +e ; return 1
 			fi
 			local blocksTrimmed

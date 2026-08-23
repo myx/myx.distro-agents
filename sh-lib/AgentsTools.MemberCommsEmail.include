@@ -72,7 +72,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: syntax is <team-member> -- the acting member is required, since a mailbox belongs to one identity and the member decides which inbox is checked" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-email-check" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-check || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## A routine acting as caller has no skill directory and is not
@@ -194,7 +194,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: syntax is <team-member> <uid> [--seen] -- the acting member is required, since a UID is only meaningful inside one identity's own mailbox" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-email-read" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-read || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## A routine acting as caller has no skill directory and is not
@@ -315,7 +315,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: syntax is <team-member> <uid> -- the acting member is required, since a UID is only meaningful inside one identity's own mailbox and this operation MUTATES that mailbox" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-email-mark-seen" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-mark-seen || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## A routine acting as caller has no skill directory and is not
@@ -430,7 +430,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: syntax is <team-member> <email@address>... -- <subject> -- <body...> -- the acting member is required, since a mailbox belongs to one identity and the member decides which account the mail is sent from" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-email-send" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-send || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## A routine acting as caller has no skill directory and is not

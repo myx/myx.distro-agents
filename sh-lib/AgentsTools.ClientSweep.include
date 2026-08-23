@@ -38,7 +38,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <client-*|partner-* member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$clientMember" "<team-member>" "$MDSC_CMD --client-sweep-input-scan" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$clientMember" "<team-member>" client-sweep-input-scan || { set +e ; return 1 ; }
 
 		local clientKind=""
 		case "$clientMember" in

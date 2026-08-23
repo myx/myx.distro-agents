@@ -94,7 +94,8 @@ case "$1" in
 			--context --routine-coworking-session-input-scan )" || return 1
 
 		local relatedFile
-		relatedFile="$( mktemp "${TMPDIR:-/tmp}/mdat-routine-coworking-related.XXXXXX" )" || { set +e ; return 1 ; }
+		relatedFile="$MMDAPP/.local/temp/mdat-routine-coworking-related.$$"
+		mkdir -p "$MMDAPP/.local/temp" && : > "$relatedFile" || { set +e ; return 1 ; }
 		trap 'rm -f "$relatedFile"' EXIT
 		printf '%s\n' "$phaseAOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRoutineCoworkingReferenceNames.awk" | sort -u > "$relatedFile"
 
@@ -122,7 +123,7 @@ case "$1" in
 	;;
 
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.RoutineCoworking.include's own default (*) branch, the operation group sourced by the --routine-coworking-* dispatcher route; no operation of that name is defined in this include" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac
