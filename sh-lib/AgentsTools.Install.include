@@ -453,7 +453,7 @@ case "$1" in
 				fi
 
 				rmdir "$regLock" 2>/dev/null || true
-				echo "# $MDSC_CMD --install-skillset-symlinks: registry $registryFile now holds $( grep -c '' "$registryFile" ) line(s), $( awk -F: -v w="$workspaceName" '$2 == w' "$registryFile" | grep -c '' ) of them this workspace's" >&2
+				echo "# $MDSC_CMD --install-skillset-symlinks: registry $registryFile now holds $( grep -c '' "$registryFile" ) line(s), $( awk -F: -v w="$workspaceName" '$2 == w' "$registryFile" | grep -c '' ) of them from this workspace" >&2
 			fi
 
 			if [ "$hadError" = "true" ] ; then
@@ -464,6 +464,7 @@ case "$1" in
 
 		--install-workspace-integrations)
 			shift
+
 			local scope workspaceArg quiet="false"
 			while [ $# -gt 0 ] ; do
 				case "$1" in
@@ -515,6 +516,7 @@ case "$1" in
 
 		--install-vscode-integrations)
 			shift
+
 			local workspaceArg
 			while [ $# -gt 0 ] ; do
 				case "$1" in
