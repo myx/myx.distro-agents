@@ -4,740 +4,742 @@
 
 case "$1" in
 
-		--install-skillset-symlinks)
-			shift
+	--install-skillset-symlinks)
+		shift
 
-			local scope="workspace" workspaceArg scopeExplicit="false" removeMode="false" targetRootArg
-			while [ $# -gt 0 ] ; do
-				case "$1" in
-					--remove)
-						removeMode="true" ; shift
-					;;
-					--scope)
-						case "$2" in
-							workspace|user-home)
-							;;
-							*)
-								echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --scope must be workspace or user-home" >&2
-								set +e ; return 1
-							;;
-						esac
-						scope="$2" ; scopeExplicit="true" ; shift 2
-					;;
-					--workspace)
-						if [ -z "$2" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --workspace requires a value" >&2
-							set +e ; return 1
-						fi
-						workspaceArg="$2" ; shift 2
-					;;
-					--target-root)
-						if [ -z "$2" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --target-root requires a value" >&2
-							set +e ; return 1
-						fi
-						targetRootArg="$2" ; shift 2
-					;;
-					*)
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: invalid option: $1" >&2
-						set +e ; return 1
-					;;
-				esac
-			done
-
-			local workspace="${workspaceArg:-$MMDAPP}"
-			[ -d "$workspace" ] && workspace="$( cd "$workspace" && pwd )"
-
-			if [ ! -f "$workspace/.local/myx/myx.distro-.local/sh-lib/LocalContext.include" ] ; then
-				if [ "$scope" = "workspace" ] ; then
-					if [ "$scopeExplicit" = "true" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: not a set-up myx.distro workspace: $workspace" >&2
-						set +e ; return 1
-					fi
-					scope="user-home"
-				fi
-			fi
-
-			local bundleRoot="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"
-			if [ "$removeMode" != "true" ] && [ ! -d "$bundleRoot" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundle directory does not exist: $bundleRoot" >&2
-				set +e ; return 1
-			fi
-
-			local targetRoot
-			if [ -z "$targetRootArg" ] ; then
-				local fanRoots fanRoot fanStatus=0
-				case "$scope" in
-					user-home)
-						fanRoots="$HOME/.agents/skills"$'\n'"$HOME/.copilot/skills"$'\n'"$HOME/.claude/skills"
-					;;
-					workspace)
-						fanRoots="$workspace/.agents/skills"$'\n'"$workspace/.github/skills"$'\n'"$workspace/.claude/skills"
-					;;
-				esac
-				while IFS= read -r fanRoot ; do
-					[ -n "$fanRoot" ] || continue
-					if [ "$removeMode" = "true" ] ; then
-						DistroAgentsTools --install-skillset-symlinks --remove --scope "$scope" --workspace "$workspace" --target-root "$fanRoot" || fanStatus=1
-					else
-						DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" --target-root "$fanRoot" || fanStatus=1
-					fi
-				done <<< "$fanRoots"
-				if [ "$fanStatus" != "0" ] ; then
-					set +e ; return 1
-				fi
-				return 0
-			fi
-
-			targetRoot="$targetRootArg"
-			mkdir -p "$targetRoot" || {
-				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: can't create target directory: $targetRoot" >&2
-				set +e ; return 1
-			}
-
-			local memberNames memberDir
-			if [ "$removeMode" = "true" ] ; then
-				memberNames=""
-				echo "# $MDSC_CMD --install-skillset-symlinks --remove: removing every line owned by this workspace, linking skipped" >&2
-			else
-				memberNames="$(
-					for memberDir in "$bundleRoot"/*/ "$targetRoot"/*/ ; do
-						[ -d "${memberDir%/}" ] || continue
-						basename "${memberDir%/}"
-					done | sort -u
-				)"
-			fi
-
-			local hadError="false" memberName memberTarget memberBundled
-			local ownedMembers=""
-			while IFS= read -r memberName ; do
-				[ -n "$memberName" ] || continue
-				[ "$memberName" != "trash" ] || continue
-				memberTarget="$targetRoot/$memberName"
-				memberBundled="$bundleRoot/$memberName"
-				if [ ! -e "$memberBundled" ] ; then
-					continue
-				fi
-				if [ -L "$memberTarget" ] && [ ! -e "$memberTarget" ] ; then
-					echo "# $MDSC_CMD --install-skillset-symlinks: $memberTarget is a dangling symlink (points at $( readlink "$memberTarget" ), which does not exist) -- reclaiming the slot" >&2
-					if ! rm -f "$memberTarget" ; then
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove dangling symlink: $memberTarget" >&2
-						hadError="true"
-						continue
-					fi
-				elif [ -L "$memberTarget" ] ; then
-					if [ "$( readlink "$memberTarget" )" != "$memberBundled" ] ; then
-						echo "# $MDSC_CMD --install-skillset-symlinks: $memberTarget already links elsewhere, kept as-is: $( readlink "$memberTarget" ) (this workspace's own copy is $memberBundled)" >&2
-					fi
-					ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n'
-					continue
-				fi
-				if [ -e "$memberTarget" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: real content at $memberTarget, won't overwrite (bundle already has $memberBundled)" >&2
-					hadError="true"
-					continue
-				fi
-				if ! ln -s "$memberBundled" "$memberTarget" ; then
-					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $memberTarget" >&2
-					hadError="true"
-					continue
-				fi
-				ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n'
-				echo "OK --install-skillset-symlinks linked $memberTarget -> $memberBundled" >&2
-			done <<< "$memberNames"
-
-			local workspaceName registryFile compositeRoot
-			workspaceName="$( basename "$workspace" )"
-			registryFile="$targetRoot/.linked.magic-team.members.txt"
-			compositeRoot="$workspace/.local/agents/magic-team-composite"
-
-			local declaresTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroDeclares.fn.sh"
-			local projectsTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroProjects.fn.sh"
-			local selectedProjects selectStatus declaredMembers declaredStatus
-			local memberSources=""
-
-			local discoveryTrusted="true"
-
-			if [ "$removeMode" = "true" ] ; then
-				memberSources=""
-			elif [ ! -f "$declaresTool" ] || [ ! -f "$projectsTool" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: missing ListDistroDeclares.fn.sh ($declaresTool) or ListDistroProjects.fn.sh ($projectsTool)" >&2
-				hadError="true" ; discoveryTrusted="false"
-			else
-				selectStatus=0
-				selectedProjects="$( MMDAPP="$workspace" "$projectsTool" --all-projects 2>/dev/null )" || selectStatus=$?
-
-				declaredStatus=0
-				declaredMembers="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --filter-and-cut 'magic-team:team-member' 2>/dev/null )" || declaredStatus=$?
-
-				if [ "$selectStatus" != "0" ] || [ "$( printf '%s' "$selectedProjects" | grep -c '' )" = "0" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: no projects could be selected in workspace $workspace (ListDistroProjects --all-projects exited $selectStatus) -- without a selection --filter-and-cut answers empty for every workspace, which must never be read as 'declares nothing'" >&2
-					hadError="true" ; discoveryTrusted="false"
-				elif [ "$declaredStatus" != "0" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroDeclares --filter-and-cut (the command this op acts on) exited $declaredStatus for workspace $workspace" >&2
-					hadError="true" ; discoveryTrusted="false"
-				else
-					echo "# $MDSC_CMD --install-skillset-symlinks: $( printf '%s' "$selectedProjects" | grep -c '' ) project(s) selected, $( printf '%s' "$declaredMembers" | grep -c '' ) magic-team:team-member declare(s)" >&2
-
-						local dLine dProject dRest dSkillsetPath dHostGlob dMember dHostShort dHostFull
-						dHostShort="$( hostname -s 2>/dev/null )" || dHostShort=""
-						dHostFull="$( hostname 2>/dev/null )" || dHostFull=""
-						while IFS= read -r dLine ; do
-							[ -n "$dLine" ] || continue
-							dProject="${dLine%% *}"
-							dRest="${dLine#* }"
-							dHostGlob="${dRest##*:}"
-							dSkillsetPath="${dRest%:*}"
-							dMember="$( basename "$dSkillsetPath" )"
-							if [ -z "$dHostGlob" ] || [ "$dSkillsetPath" = "$dRest" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: malformed team-member declare in $dProject: magic-team:team-member:$dRest (expected skillset/<name>:<host-glob>)" >&2
-								hadError="true"
-								continue
-							fi
-							case "$dHostShort" in
-								$dHostGlob) ;;
-								*)
-									case "$dHostFull" in
-										$dHostGlob) ;;
-										*)
-											echo "# $MDSC_CMD --install-skillset-symlinks: skip $dMember from $dProject -- host glob '$dHostGlob' matches neither $dHostShort nor $dHostFull" >&2
-											continue
-										;;
-									esac
-								;;
-							esac
-							if [ ! -d "$workspace/source/$dProject/$dSkillsetPath" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $dProject declares team-member $dMember but its skillset directory is missing: $workspace/source/$dProject/$dSkillsetPath" >&2
-								hadError="true"
-								continue
-							fi
-							memberSources="${memberSources}${dMember} ${workspace}/source/${dProject}/${dSkillsetPath}"$'\n'
-						done <<< "$declaredMembers"
-				fi
-			fi
-
-			local dcMember dcSources dcCount dcLinkTarget dcSrc
-			for dcMember in $( printf '%s' "$memberSources" | awk 'NF { print $1 }' | sort -u ) ; do
-				dcSources="$( printf '%s\n' "$memberSources" | awk -v m="$dcMember" '$1 == m { sub(/^[^ ]+ /, ""); print }' )"
-				dcCount="$( printf '%s' "$dcSources" | grep -c '' )"
-
-				if printf '%s\n' "$ownedMembers" | awk -v m="$dcMember" 'NF && $1 == m { hit = 1 } END { exit !hit }' ; then
-					echo "# WARN $MDSC_CMD --install-skillset-symlinks: NAME COLLISION on team-member $dcMember -- it is both bundled and declared by a workspace project. The bundled copy holds the slot $targetRoot/$dcMember and stays registered; the declared source(s) below are NOT linked and NOT registered, and will be shadowed until one of the two is renamed:" >&2
-					while IFS= read -r dcSrc ; do
-						[ -n "$dcSrc" ] || continue
-						echo "#   shadowed declared source: $dcSrc" >&2
-					done <<< "$dcSources"
-					continue
-				fi
-
-				if [ "$dcCount" = "1" ] ; then
-					dcLinkTarget="$dcSources"
-				else
-					echo "# $MDSC_CMD --install-skillset-symlinks: composite team-member $dcMember from $dcCount source project(s)" >&2
-
-					local dcCollisions
-					dcCollisions="$(
-						while IFS= read -r dcSrc ; do
-							[ -n "$dcSrc" ] || continue
-							( cd "$dcSrc" && find -L . -type f -print ) | sed 's|^\./||'
-						done <<< "$dcSources" | sort | uniq -d
-					)"
-					if [ -n "$dcCollisions" ] ; then
-						echo "# WARN $MDSC_CMD --install-skillset-symlinks: composite $dcMember has $( printf '%s' "$dcCollisions" | grep -c '' ) colliding path(s) across its sources; later source wins per path:" >&2
-						while IFS= read -r dcCollision ; do
-							[ -n "$dcCollision" ] || continue
-							echo "#   collision: $dcCollision" >&2
-						done <<< "$dcCollisions"
-					else
-						echo "# $MDSC_CMD --install-skillset-symlinks: composite $dcMember has no colliding paths across its sources" >&2
-					fi
-
-					local dcTarget="$compositeRoot/$dcMember"
-					if [ -L "$dcTarget" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: composite build path is a symlink, refusing to clear it: $dcTarget" >&2
-						hadError="true"
-						continue
-					fi
-					if [ -e "$dcTarget" ] && [ ! -d "$dcTarget" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: composite build path exists and is not a directory: $dcTarget" >&2
-						hadError="true"
-						continue
-					fi
-					rm -rf "$dcTarget" 2>/dev/null || true
-					mkdir -p "$dcTarget" || {
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: can't create composite directory: $dcTarget" >&2
-						hadError="true"
-						continue
-					}
-					local dcRsyncFailed="false"
-					while IFS= read -r dcSrc ; do
-						[ -n "$dcSrc" ] || continue
-						if ! rsync -a -I "$dcSrc/" "$dcTarget/" ; then
-							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: rsync failed for composite $dcMember source: $dcSrc" >&2
-							dcRsyncFailed="true"
-						fi
-					done <<< "$dcSources"
-					if [ "$dcRsyncFailed" = "true" ] ; then
-						hadError="true"
-						continue
-					fi
-					dcLinkTarget="$dcTarget"
-				fi
-
-				local dcSlot="$targetRoot/$dcMember"
-				if [ -L "$dcSlot" ] && [ ! -e "$dcSlot" ] ; then
-					echo "# $MDSC_CMD --install-skillset-symlinks: $dcSlot is a dangling symlink (points at $( readlink "$dcSlot" ), which does not exist) -- reclaiming the slot" >&2
-					if ! rm -f "$dcSlot" ; then
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove dangling symlink: $dcSlot" >&2
-						hadError="true"
-						continue
-					fi
-				elif [ -L "$dcSlot" ] ; then
-					if [ "$( readlink "$dcSlot" )" != "$dcLinkTarget" ] ; then
-						echo "# $MDSC_CMD --install-skillset-symlinks: $dcSlot already links elsewhere, kept as-is: $( readlink "$dcSlot" ) (this workspace's declared source is $dcLinkTarget)" >&2
-					fi
-					ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n'
-					continue
-				fi
-				if [ -e "$dcSlot" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: real content at $dcSlot, won't overwrite (declared source is $dcLinkTarget)" >&2
-					hadError="true"
-					continue
-				fi
-				if ! ln -s "$dcLinkTarget" "$dcSlot" ; then
-					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $dcSlot" >&2
-					hadError="true"
-					continue
-				fi
-				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n'
-				echo "OK --install-skillset-symlinks linked $dcSlot -> $dcLinkTarget" >&2
-			done
-
-			if [ "$removeMode" != "true" ] ; then
-				local unclaimedDir unclaimedName
-				for unclaimedDir in "$bundleRoot"/*/ ; do
-					[ -d "${unclaimedDir%/}" ] || continue
-					unclaimedName="$( basename "${unclaimedDir%/}" )"
-					[ "$unclaimedName" != "trash" ] || continue
-					if ! printf '%s\n' "$ownedMembers" | awk -v m="$unclaimedName" 'NF && $1 == m { hit = 1 } END { exit !hit }' ; then
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundled team-member $unclaimedName was not installed into $targetRoot and will not load" >&2
-					fi
-				done
-			fi
-
-			local regLock="$registryFile.lock" regWait=0 regLocked="false"
-			while true ; do
-				if mkdir "$regLock" 2>/dev/null ; then
-					regLocked="true"
-					break
-				fi
-				regWait=$(( regWait + 1 ))
-				if [ "$regWait" -gt 10 ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry busy, lock not acquired after $regWait attempts: $regLock" >&2
-					hadError="true"
-					break
-				fi
-				sleep 1
-			done
-
-			if [ "$regLocked" = "true" ] ; then
-				[ -f "$registryFile" ] || : > "$registryFile"
-
-				local regEntry regName regResolved regType regRel regLine regTmp
-				while IFS= read -r regEntry ; do
-					[ -n "$regEntry" ] || continue
-					regName="${regEntry%% *}"
-					regResolved="${regEntry#* }"
-					case "$regResolved" in
-						"$compositeRoot"/*)      regType=".local-merged"   ; regRel="${regResolved#$workspace/.local/}" ;;
-						"$workspace/.local/"*)   regType=".local-symlink"  ; regRel="${regResolved#$workspace/.local/}" ;;
-						"$workspace/source/"*)   regType="source-symlink"  ; regRel="${regResolved#$workspace/source/}" ;;
+		local scope="workspace" workspaceArg scopeExplicit="false" removeMode="false" targetRootArg
+		##
+		while [ $# -gt 0 ] ; do
+			## 
+			case "$1" in
+				--remove)
+					removeMode="true" ; shift
+				;;
+				--scope)
+					case "$2" in
+						workspace|user-home)
+						;;
 						*)
-							echo "# WARN $MDSC_CMD --install-skillset-symlinks: not registered, own source outside workspace $workspace: $regName -> $regResolved" >&2
-							continue
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --scope must be workspace or user-home" >&2
+							set +e ; return 1
 						;;
 					esac
-					regLine="$regName:$workspaceName:$regType:$regRel"
-
-					if awk -F: -v m="$regName" -v w="$workspaceName" -v t="$regType" -v p="$regRel" '
-						$1 == m && $2 == w && $3 == t && substr( $0, length($1) + length($2) + length($3) + 4 ) == p { hit = 1 }
-						END { exit !hit }
-					' "$registryFile" 2>/dev/null ; then
-						continue
+					scope="$2" ; scopeExplicit="true" ; shift 2
+				;;
+				--workspace)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --workspace requires a value" >&2
+						set +e ; return 1
 					fi
-					if awk -F: -v m="$regName" -v w="$workspaceName" '$1 == m && $2 == w { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
-						regTmp="$registryFile.tmp.$$"
-						if awk -F: -v m="$regName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$regTmp" ; then
-							printf '%s\n' "$regLine" >> "$regTmp"
-							if ! mv -f "$regTmp" "$registryFile" ; then
-								echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed for $regLine" >&2
-								rm -f "$regTmp" 2>/dev/null || true
-								hadError="true"
-								continue
-							fi
-						else
-							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while rewriting $regLine -- registry left untouched" >&2
+					workspaceArg="$2" ; shift 2
+				;;
+				--target-root)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: --target-root requires a value" >&2
+						set +e ; return 1
+					fi
+					targetRootArg="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local workspace="${workspaceArg:-$MMDAPP}"
+		[ -d "$workspace" ] && workspace="$( cd "$workspace" && pwd )"
+
+		if [ ! -f "$workspace/.local/myx/myx.distro-.local/sh-lib/LocalContext.include" ] ; then
+			if [ "$scope" = "workspace" ] ; then
+				if [ "$scopeExplicit" = "true" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: not a set-up myx.distro workspace: $workspace" >&2
+					set +e ; return 1
+				fi
+				scope="user-home"
+			fi
+		fi
+
+		local bundleRoot="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"
+		if [ "$removeMode" != "true" ] && [ ! -d "$bundleRoot" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundle directory does not exist: $bundleRoot" >&2
+			set +e ; return 1
+		fi
+
+		local targetRoot
+		if [ -z "$targetRootArg" ] ; then
+			local fanRoots fanRoot fanStatus=0
+			case "$scope" in
+				user-home)
+					fanRoots="$HOME/.agents/skills"$'\n'"$HOME/.copilot/skills"$'\n'"$HOME/.claude/skills"
+				;;
+				workspace)
+					fanRoots="$workspace/.agents/skills"$'\n'"$workspace/.github/skills"$'\n'"$workspace/.claude/skills"
+				;;
+			esac
+			while IFS= read -r fanRoot ; do
+				[ -n "$fanRoot" ] || continue
+				if [ "$removeMode" = "true" ] ; then
+					DistroAgentsTools --install-skillset-symlinks --remove --scope "$scope" --workspace "$workspace" --target-root "$fanRoot" || fanStatus=1
+				else
+					DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" --target-root "$fanRoot" || fanStatus=1
+				fi
+			done <<< "$fanRoots"
+			if [ "$fanStatus" != "0" ] ; then
+				set +e ; return 1
+			fi
+			return 0
+		fi
+
+		targetRoot="$targetRootArg"
+		mkdir -p "$targetRoot" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: cannot create target directory: $targetRoot" >&2
+			set +e ; return 1
+		}
+
+		local memberNames memberDir
+		if [ "$removeMode" = "true" ] ; then
+			memberNames=""
+			echo "# $MDSC_CMD --install-skillset-symlinks --remove: removing every line owned by this workspace, linking skipped" >&2
+		else
+			memberNames="$(
+				for memberDir in "$bundleRoot"/*/ "$targetRoot"/*/ ; do
+					[ -d "${memberDir%/}" ] || continue
+					basename "${memberDir%/}"
+				done | sort -u
+			)"
+		fi
+
+		local hadError="false" memberName memberTarget memberBundled
+		local ownedMembers=""
+		while IFS= read -r memberName ; do
+			[ -n "$memberName" ] || continue
+			[ "$memberName" != "trash" ] || continue
+			memberTarget="$targetRoot/$memberName"
+			memberBundled="$bundleRoot/$memberName"
+			if [ ! -e "$memberBundled" ] ; then
+				continue
+			fi
+			if [ -L "$memberTarget" ] && [ ! -e "$memberTarget" ] ; then
+				echo "# $MDSC_CMD --install-skillset-symlinks: $memberTarget is a dangling symlink (points at $( readlink "$memberTarget" ), which does not exist) -- reclaiming the slot" >&2
+				if ! rm -f "$memberTarget" ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove dangling symlink: $memberTarget" >&2
+					hadError="true"
+					continue
+				fi
+			elif [ -L "$memberTarget" ] ; then
+				if [ "$( readlink "$memberTarget" )" != "$memberBundled" ] ; then
+					echo "# $MDSC_CMD --install-skillset-symlinks: $memberTarget already links elsewhere, kept as-is: $( readlink "$memberTarget" ) (the copy in this workspace is $memberBundled)" >&2
+				fi
+				ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n'
+				continue
+			fi
+			if [ -e "$memberTarget" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: real content at $memberTarget, will not overwrite (bundle already has $memberBundled)" >&2
+				hadError="true"
+				continue
+			fi
+			if ! ln -s "$memberBundled" "$memberTarget" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $memberTarget" >&2
+				hadError="true"
+				continue
+			fi
+			ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n'
+			echo "OK --install-skillset-symlinks linked $memberTarget -> $memberBundled" >&2
+		done <<< "$memberNames"
+
+		local workspaceName registryFile compositeRoot
+		workspaceName="$( basename "$workspace" )"
+		registryFile="$targetRoot/.linked.magic-team.members.txt"
+		compositeRoot="$workspace/.local/agents/magic-team-composite"
+
+		local declaresTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroDeclares.fn.sh"
+		local projectsTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroProjects.fn.sh"
+		local selectedProjects selectStatus declaredMembers declaredStatus
+		local memberSources=""
+
+		local discoveryTrusted="true"
+
+		if [ "$removeMode" = "true" ] ; then
+			memberSources=""
+		elif [ ! -f "$declaresTool" ] || [ ! -f "$projectsTool" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: missing ListDistroDeclares.fn.sh ($declaresTool) or ListDistroProjects.fn.sh ($projectsTool)" >&2
+			hadError="true" ; discoveryTrusted="false"
+		else
+			selectStatus=0
+			selectedProjects="$( MMDAPP="$workspace" "$projectsTool" --all-projects 2>/dev/null )" || selectStatus=$?
+
+			declaredStatus=0
+			declaredMembers="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --filter-and-cut 'magic-team:team-member' 2>/dev/null )" || declaredStatus=$?
+
+			if [ "$selectStatus" != "0" ] || [ "$( printf '%s' "$selectedProjects" | grep -c '' )" = "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: no projects could be selected in workspace $workspace (ListDistroProjects --all-projects exited $selectStatus) -- without a selection --filter-and-cut answers empty for every workspace, which must never be read as 'declares nothing'" >&2
+				hadError="true" ; discoveryTrusted="false"
+			elif [ "$declaredStatus" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroDeclares --filter-and-cut (the command this op acts on) exited $declaredStatus for workspace $workspace" >&2
+				hadError="true" ; discoveryTrusted="false"
+			else
+				echo "# $MDSC_CMD --install-skillset-symlinks: $( printf '%s' "$selectedProjects" | grep -c '' ) project(s) selected, $( printf '%s' "$declaredMembers" | grep -c '' ) magic-team:team-member declare(s)" >&2
+
+					local dLine dProject dRest dSkillsetPath dHostGlob dMember dHostShort dHostFull
+					dHostShort="$( hostname -s 2>/dev/null )" || dHostShort=""
+					dHostFull="$( hostname 2>/dev/null )" || dHostFull=""
+					while IFS= read -r dLine ; do
+						[ -n "$dLine" ] || continue
+						dProject="${dLine%% *}"
+						dRest="${dLine#* }"
+						dHostGlob="${dRest##*:}"
+						dSkillsetPath="${dRest%:*}"
+						dMember="$( basename "$dSkillsetPath" )"
+						if [ -z "$dHostGlob" ] || [ "$dSkillsetPath" = "$dRest" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: malformed team-member declare in $dProject: magic-team:team-member:$dRest (expected skillset/<name>:<host-glob>)" >&2
+							hadError="true"
+							continue
+						fi
+						case "$dHostShort" in
+							$dHostGlob) ;;
+							*)
+								case "$dHostFull" in
+									$dHostGlob) ;;
+									*)
+										echo "# $MDSC_CMD --install-skillset-symlinks: skip $dMember from $dProject -- host glob '$dHostGlob' matches neither $dHostShort nor $dHostFull" >&2
+										continue
+									;;
+								esac
+							;;
+						esac
+						if [ ! -d "$workspace/source/$dProject/$dSkillsetPath" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $dProject declares team-member $dMember but its skillset directory is missing: $workspace/source/$dProject/$dSkillsetPath" >&2
+							hadError="true"
+							continue
+						fi
+						memberSources="${memberSources}${dMember} ${workspace}/source/${dProject}/${dSkillsetPath}"$'\n'
+					done <<< "$declaredMembers"
+			fi
+		fi
+
+		local dcMember dcSources dcCount dcLinkTarget dcSrc
+		for dcMember in $( printf '%s' "$memberSources" | awk 'NF { print $1 }' | sort -u ) ; do
+			dcSources="$( printf '%s\n' "$memberSources" | awk -v m="$dcMember" '$1 == m { sub(/^[^ ]+ /, ""); print }' )"
+			dcCount="$( printf '%s' "$dcSources" | grep -c '' )"
+
+			if printf '%s\n' "$ownedMembers" | awk -v m="$dcMember" 'NF && $1 == m { hit = 1 } END { exit !hit }' ; then
+				echo "# WARN $MDSC_CMD --install-skillset-symlinks: NAME COLLISION on team-member $dcMember -- it is both bundled and declared by a workspace project. The bundled copy holds the slot $targetRoot/$dcMember and stays registered; the declared source(s) below are NOT linked and NOT registered, and will be shadowed until one of the two is renamed:" >&2
+				while IFS= read -r dcSrc ; do
+					[ -n "$dcSrc" ] || continue
+					echo "#   shadowed declared source: $dcSrc" >&2
+				done <<< "$dcSources"
+				continue
+			fi
+
+			if [ "$dcCount" = "1" ] ; then
+				dcLinkTarget="$dcSources"
+			else
+				echo "# $MDSC_CMD --install-skillset-symlinks: composite team-member $dcMember from $dcCount source project(s)" >&2
+
+				local dcCollisions
+				dcCollisions="$(
+					while IFS= read -r dcSrc ; do
+						[ -n "$dcSrc" ] || continue
+						( cd "$dcSrc" && find -L . -type f -print ) | sed 's|^\./||'
+					done <<< "$dcSources" | sort | uniq -d
+				)"
+				if [ -n "$dcCollisions" ] ; then
+					echo "# WARN $MDSC_CMD --install-skillset-symlinks: composite $dcMember has $( printf '%s' "$dcCollisions" | grep -c '' ) colliding path(s) across its sources; later source wins per path:" >&2
+					while IFS= read -r dcCollision ; do
+						[ -n "$dcCollision" ] || continue
+						echo "#   collision: $dcCollision" >&2
+					done <<< "$dcCollisions"
+				else
+					echo "# $MDSC_CMD --install-skillset-symlinks: composite $dcMember has no colliding paths across its sources" >&2
+				fi
+
+				local dcTarget="$compositeRoot/$dcMember"
+				if [ -L "$dcTarget" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: composite build path is a symlink, refusing to clear it: $dcTarget" >&2
+					hadError="true"
+					continue
+				fi
+				if [ -e "$dcTarget" ] && [ ! -d "$dcTarget" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: composite build path exists and is not a directory: $dcTarget" >&2
+					hadError="true"
+					continue
+				fi
+				rm -rf "$dcTarget" 2>/dev/null || true
+				mkdir -p "$dcTarget" || {
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: can't create composite directory: $dcTarget" >&2
+					hadError="true"
+					continue
+				}
+				local dcRsyncFailed="false"
+				while IFS= read -r dcSrc ; do
+					[ -n "$dcSrc" ] || continue
+					if ! rsync -a -I "$dcSrc/" "$dcTarget/" ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: rsync failed for composite $dcMember source: $dcSrc" >&2
+						dcRsyncFailed="true"
+					fi
+				done <<< "$dcSources"
+				if [ "$dcRsyncFailed" = "true" ] ; then
+					hadError="true"
+					continue
+				fi
+				dcLinkTarget="$dcTarget"
+			fi
+
+			local dcSlot="$targetRoot/$dcMember"
+			if [ -L "$dcSlot" ] && [ ! -e "$dcSlot" ] ; then
+				echo "# $MDSC_CMD --install-skillset-symlinks: $dcSlot is a dangling symlink (points at $( readlink "$dcSlot" ), which does not exist) -- reclaiming the slot" >&2
+				if ! rm -f "$dcSlot" ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove dangling symlink: $dcSlot" >&2
+					hadError="true"
+					continue
+				fi
+			elif [ -L "$dcSlot" ] ; then
+				if [ "$( readlink "$dcSlot" )" != "$dcLinkTarget" ] ; then
+					echo "# $MDSC_CMD --install-skillset-symlinks: $dcSlot already links elsewhere, kept as-is: $( readlink "$dcSlot" ) (this workspace's declared source is $dcLinkTarget)" >&2
+				fi
+				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n'
+				continue
+			fi
+			if [ -e "$dcSlot" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: real content at $dcSlot, won't overwrite (declared source is $dcLinkTarget)" >&2
+				hadError="true"
+				continue
+			fi
+			if ! ln -s "$dcLinkTarget" "$dcSlot" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $dcSlot" >&2
+				hadError="true"
+				continue
+			fi
+			ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n'
+			echo "OK --install-skillset-symlinks linked $dcSlot -> $dcLinkTarget" >&2
+		done
+
+		if [ "$removeMode" != "true" ] ; then
+			local unclaimedDir unclaimedName
+			for unclaimedDir in "$bundleRoot"/*/ ; do
+				[ -d "${unclaimedDir%/}" ] || continue
+				unclaimedName="$( basename "${unclaimedDir%/}" )"
+				[ "$unclaimedName" != "trash" ] || continue
+				if ! printf '%s\n' "$ownedMembers" | awk -v m="$unclaimedName" 'NF && $1 == m { hit = 1 } END { exit !hit }' ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundled team-member $unclaimedName was not installed into $targetRoot and will not load" >&2
+				fi
+			done
+		fi
+
+		local regLock="$registryFile.lock" regWait=0 regLocked="false"
+		while true ; do
+			if mkdir "$regLock" 2>/dev/null ; then
+				regLocked="true"
+				break
+			fi
+			regWait=$(( regWait + 1 ))
+			if [ "$regWait" -gt 10 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry busy, lock not acquired after $regWait attempts: $regLock" >&2
+				hadError="true"
+				break
+			fi
+			sleep 1
+		done
+
+		if [ "$regLocked" = "true" ] ; then
+			[ -f "$registryFile" ] || : > "$registryFile"
+
+			local regEntry regName regResolved regType regRel regLine regTmp
+			while IFS= read -r regEntry ; do
+				[ -n "$regEntry" ] || continue
+				regName="${regEntry%% *}"
+				regResolved="${regEntry#* }"
+				case "$regResolved" in
+					"$compositeRoot"/*)      regType=".local-merged"   ; regRel="${regResolved#$workspace/.local/}" ;;
+					"$workspace/.local/"*)   regType=".local-symlink"  ; regRel="${regResolved#$workspace/.local/}" ;;
+					"$workspace/source/"*)   regType="source-symlink"  ; regRel="${regResolved#$workspace/source/}" ;;
+					*)
+						echo "# WARN $MDSC_CMD --install-skillset-symlinks: not registered, own source outside workspace $workspace: $regName -> $regResolved" >&2
+						continue
+					;;
+				esac
+				regLine="$regName:$workspaceName:$regType:$regRel"
+
+				if awk -F: -v m="$regName" -v w="$workspaceName" -v t="$regType" -v p="$regRel" '
+					$1 == m && $2 == w && $3 == t && substr( $0, length($1) + length($2) + length($3) + 4 ) == p { hit = 1 }
+					END { exit !hit }
+				' "$registryFile" 2>/dev/null ; then
+					continue
+				fi
+				if awk -F: -v m="$regName" -v w="$workspaceName" '$1 == m && $2 == w { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
+					regTmp="$registryFile.tmp.$$"
+					if awk -F: -v m="$regName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$regTmp" ; then
+						printf '%s\n' "$regLine" >> "$regTmp"
+						if ! mv -f "$regTmp" "$registryFile" ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed for $regLine" >&2
 							rm -f "$regTmp" 2>/dev/null || true
 							hadError="true"
 							continue
 						fi
 					else
-						printf '%s\n' "$regLine" >> "$registryFile"
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while rewriting $regLine -- registry left untouched" >&2
+						rm -f "$regTmp" 2>/dev/null || true
+						hadError="true"
+						continue
 					fi
-					echo "OK --install-skillset-symlinks registered $regLine" >&2
-				done <<< "$ownedMembers"
-
-				if [ "$discoveryTrusted" != "true" ] ; then
-					echo "# WARN $MDSC_CMD --install-skillset-symlinks: discovery could not be trusted this run -- removing NOTHING. An unreadable or empty member list is never read as 'every member disappeared'." >&2
-				elif [ "$hadError" = "true" ] ; then
-					echo "# WARN $MDSC_CMD --install-skillset-symlinks: errors earlier this run -- removing NOTHING, this run's member list is not a complete picture of the workspace." >&2
 				else
-					local rcOwned rcEntry rcName rcType rcRel rcPath rcSlot rcTmp
-					rcOwned="$(
-						awk -F: -v w="$workspaceName" '
-							$2 == w {
-								rest = substr( $0, length($1) + length($2) + length($3) + 4 )
-								printf "%s\t%s\t%s\n", $1, $3, rest
-							}
-						' "$registryFile"
-					)"
-					while IFS="$( printf '\t' )" read -r rcName rcType rcRel ; do
-						[ -n "$rcName" ] || continue
-						if printf '%s\n' "$ownedMembers" | awk -v m="$rcName" 'NF && $1 == m { hit = 1 } END { exit !hit }' ; then
-							continue
-						fi
-
-						case "$rcType" in
-							source-symlink) rcPath="$workspace/source/$rcRel" ;;
-							*)              rcPath="$workspace/.local/$rcRel" ;;
-						esac
-						if [ "$removeMode" != "true" ] && [ -e "$rcPath" ] ; then
-							echo "# $MDSC_CMD --install-skillset-symlinks: $rcName absent from this run's member list, but its recorded source still exists -- keeping line and symlink: $rcPath" >&2
-							continue
-						fi
-
-						rcTmp="$registryFile.tmp.$$"
-						if ! awk -F: -v m="$rcName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$rcTmp" ; then
-							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while removing $rcName:$workspaceName -- registry left untouched" >&2
-							rm -f "$rcTmp" 2>/dev/null || true
-							hadError="true"
-							continue
-						fi
-						if ! mv -f "$rcTmp" "$registryFile" ; then
-							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed removing $rcName:$workspaceName" >&2
-							rm -f "$rcTmp" 2>/dev/null || true
-							hadError="true"
-							continue
-						fi
-						echo "OK --install-skillset-symlinks deregistered $rcName:$workspaceName" >&2
-
-						if awk -F: -v m="$rcName" '$1 == m { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
-							echo "# $MDSC_CMD --install-skillset-symlinks: $rcName still registered by another workspace, symlink kept" >&2
-							continue
-						fi
-						rcSlot="$targetRoot/$rcName"
-						if [ -L "$rcSlot" ] ; then
-							if rm -f "$rcSlot" ; then
-								echo "OK --install-skillset-symlinks unlinked $rcSlot (last registered workspace removed)" >&2
-							else
-								echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to unlink: $rcSlot" >&2
-								hadError="true"
-							fi
-						elif [ -e "$rcSlot" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $rcSlot is not a symlink, refusing to remove real content" >&2
-							hadError="true"
-						else
-							echo "# $MDSC_CMD --install-skillset-symlinks: nothing to unlink, already absent: $rcSlot" >&2
-						fi
-					done <<< "$rcOwned"
+					printf '%s\n' "$regLine" >> "$registryFile"
 				fi
+				echo "OK --install-skillset-symlinks registered $regLine" >&2
+			done <<< "$ownedMembers"
 
-				rmdir "$regLock" 2>/dev/null || true
-				echo "# $MDSC_CMD --install-skillset-symlinks: registry $registryFile now holds $( grep -c '' "$registryFile" ) line(s), $( awk -F: -v w="$workspaceName" '$2 == w' "$registryFile" | grep -c '' ) of them from this workspace" >&2
-			fi
-
-			if [ "$hadError" = "true" ] ; then
-				set +e ; return 1
-			fi
-			return 0
-		;;
-
-		--install-workspace-integrations)
-			shift
-
-			local scope workspaceArg quiet="false"
-			while [ $# -gt 0 ] ; do
-				case "$1" in
-					--quiet)
-						quiet="true" ; shift
-					;;
-					--scope)
-						if [ -z "$2" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: --scope requires a value" >&2
-							set +e ; return 1
-						fi
-						scope="$2" ; shift 2
-					;;
-					--workspace)
-						if [ -z "$2" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: --workspace requires a value" >&2
-							set +e ; return 1
-						fi
-						workspaceArg="$2" ; shift 2
-					;;
-					*)
-						echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: invalid option: $1" >&2
-						set +e ; return 1
-					;;
-				esac
-			done
-
-			local workspace="${workspaceArg:-$MMDAPP}"
-			if [ ! -d "$workspace" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: workspace not found: $workspace" >&2
-				set +e ; return 1
-			fi
-			workspace="$( cd "$workspace" && pwd )"
-
-			[ "$quiet" = "true" ] || echo "# $MDSC_CMD --install-workspace-integrations: step 1/2 vscode + mcp integrations" >&2
-			DistroAgentsTools --install-vscode-integrations --workspace "$workspace" || { set +e ; return 1 ; }
-
-			[ "$quiet" = "true" ] || echo "# $MDSC_CMD --install-workspace-integrations: step 2/2 skillset symlinks" >&2
-			if [ -n "$scope" ] ; then
-				DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" || { set +e ; return 1 ; }
+			if [ "$discoveryTrusted" != "true" ] ; then
+				echo "# WARN $MDSC_CMD --install-skillset-symlinks: discovery could not be trusted this run -- removing NOTHING. An unreadable or empty member list is never read as 'every member disappeared'." >&2
+			elif [ "$hadError" = "true" ] ; then
+				echo "# WARN $MDSC_CMD --install-skillset-symlinks: errors earlier this run -- removing NOTHING, this run's member list is not a complete picture of the workspace." >&2
 			else
-				DistroAgentsTools --install-skillset-symlinks --scope user-home --workspace "$workspace" || { set +e ; return 1 ; }
-				DistroAgentsTools --install-skillset-symlinks --scope workspace --workspace "$workspace" || { set +e ; return 1 ; }
+				local rcOwned rcEntry rcName rcType rcRel rcPath rcSlot rcTmp
+				rcOwned="$(
+					awk -F: -v w="$workspaceName" '
+						$2 == w {
+							rest = substr( $0, length($1) + length($2) + length($3) + 4 )
+							printf "%s\t%s\t%s\n", $1, $3, rest
+						}
+					' "$registryFile"
+				)"
+				while IFS="$( printf '\t' )" read -r rcName rcType rcRel ; do
+					[ -n "$rcName" ] || continue
+					if printf '%s\n' "$ownedMembers" | awk -v m="$rcName" 'NF && $1 == m { hit = 1 } END { exit !hit }' ; then
+						continue
+					fi
+
+					case "$rcType" in
+						source-symlink) rcPath="$workspace/source/$rcRel" ;;
+						*)              rcPath="$workspace/.local/$rcRel" ;;
+					esac
+					if [ "$removeMode" != "true" ] && [ -e "$rcPath" ] ; then
+						echo "# $MDSC_CMD --install-skillset-symlinks: $rcName absent from this run's member list, but its recorded source still exists -- keeping line and symlink: $rcPath" >&2
+						continue
+					fi
+
+					rcTmp="$registryFile.tmp.$$"
+					if ! awk -F: -v m="$rcName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$rcTmp" ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while removing $rcName:$workspaceName -- registry left untouched" >&2
+						rm -f "$rcTmp" 2>/dev/null || true
+						hadError="true"
+						continue
+					fi
+					if ! mv -f "$rcTmp" "$registryFile" ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed removing $rcName:$workspaceName" >&2
+						rm -f "$rcTmp" 2>/dev/null || true
+						hadError="true"
+						continue
+					fi
+					echo "OK --install-skillset-symlinks deregistered $rcName:$workspaceName" >&2
+
+					if awk -F: -v m="$rcName" '$1 == m { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
+						echo "# $MDSC_CMD --install-skillset-symlinks: $rcName still registered by another workspace, symlink kept" >&2
+						continue
+					fi
+					rcSlot="$targetRoot/$rcName"
+					if [ -L "$rcSlot" ] ; then
+						if rm -f "$rcSlot" ; then
+							echo "OK --install-skillset-symlinks unlinked $rcSlot (last registered workspace removed)" >&2
+						else
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to unlink: $rcSlot" >&2
+							hadError="true"
+						fi
+					elif [ -e "$rcSlot" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $rcSlot is not a symlink, refusing to remove real content" >&2
+						hadError="true"
+					else
+						echo "# $MDSC_CMD --install-skillset-symlinks: nothing to unlink, already absent: $rcSlot" >&2
+					fi
+				done <<< "$rcOwned"
 			fi
 
-			echo "OK --install-workspace-integrations" >&2
-			return 0
-		;;
+			rmdir "$regLock" 2>/dev/null || true
+			echo "# $MDSC_CMD --install-skillset-symlinks: registry $registryFile now holds $( grep -c '' "$registryFile" ) line(s), $( awk -F: -v w="$workspaceName" '$2 == w' "$registryFile" | grep -c '' ) of them from this workspace" >&2
+		fi
 
-		--install-vscode-integrations)
-			shift
+		if [ "$hadError" = "true" ] ; then
+			set +e ; return 1
+		fi
+		return 0
+	;;
 
-			local workspaceArg
-			while [ $# -gt 0 ] ; do
-				case "$1" in
-					--workspace)
-						workspaceArg="$2" ; shift 2
-					;;
-					*)
-						echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: invalid option: $1" >&2
+	--install-workspace-integrations)
+		shift
+
+		local scope workspaceArg quiet="false"
+		while [ "$#" -gt 0 ] ; do
+			case "$1" in
+				--quiet)
+					quiet="true" ; shift
+				;;
+				--scope)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: --scope requires a value" >&2
 						set +e ; return 1
-					;;
-				esac
+					fi
+					scope="$2" ; shift 2
+				;;
+				--workspace)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: --workspace requires a value" >&2
+						set +e ; return 1
+					fi
+					workspaceArg="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local workspace="${workspaceArg:-$MMDAPP}"
+		if [ ! -d "$workspace" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: workspace not found: $workspace" >&2
+			set +e ; return 1
+		fi
+		workspace="$( cd "$workspace" && pwd )"
+
+		[ "$quiet" = "true" ] || echo "# $MDSC_CMD --install-workspace-integrations: step 1/2 vscode + mcp integrations" >&2
+		DistroAgentsTools --install-vscode-integrations --workspace "$workspace" || { set +e ; return 1 ; }
+
+		[ "$quiet" = "true" ] || echo "# $MDSC_CMD --install-workspace-integrations: step 2/2 skillset symlinks" >&2
+		if [ -n "$scope" ] ; then
+			DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" || { set +e ; return 1 ; }
+		else
+			DistroAgentsTools --install-skillset-symlinks --scope user-home --workspace "$workspace" || { set +e ; return 1 ; }
+			DistroAgentsTools --install-skillset-symlinks --scope workspace --workspace "$workspace" || { set +e ; return 1 ; }
+		fi
+
+		echo "OK --install-workspace-integrations" >&2
+		return 0
+	;;
+
+	--install-vscode-integrations)
+		shift
+
+		local workspaceArg
+		while [ "$#" -gt 0 ] ; do
+			case "$1" in
+				--workspace)
+					workspaceArg="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local workspace
+		workspace="${workspaceArg:-$MMDAPP}"
+		if [ ! -d "$workspace" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: workspace not found: $workspace" >&2
+			set +e ; return 1
+		fi
+		workspace="$( cd "$workspace" && pwd )"
+
+		local localContextMarker="$workspace/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
+		if [ ! -f "$localContextMarker" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: not a set-up myx.distro workspace (missing $localContextMarker)" >&2
+			set +e ; return 1
+		fi
+
+		local failed=0
+
+		echo "# $MDSC_CMD --install-vscode-integrations: workspace=$workspace" >&2
+
+		local mcpRoot="" mcpRootFound=""
+		if [ -n "$MYXROOT" ] && [ -f "$MYXROOT/bin/lib/agentMcpServer.Common" ] ; then
+			mcpRootFound="$MYXROOT"
+			[ -x "$MYXROOT/bin/lib/agentMcpServer.Common" ] && mcpRoot="$MYXROOT"
+		fi
+		if [ -z "$mcpRoot" ] && command -v myx.common >/dev/null 2>&1 ; then
+			local root
+			root="$( myx.common which lib/catMarkdown 2>/dev/null )"
+			root="${root%/bin/lib/catMarkdown*}"
+			if [ -n "$root" ] && [ -f "$root/bin/lib/agentMcpServer.Common" ] ; then
+				[ -n "$mcpRootFound" ] || mcpRootFound="$root"
+				[ -x "$root/bin/lib/agentMcpServer.Common" ] && mcpRoot="$root"
+			fi
+		fi
+
+		local serverScript=""
+		[ -z "$mcpRoot" ] || serverScript="$mcpRoot/bin/lib/agentMcpServer.Common"
+
+		local vscodeMcpDir="$workspace/.vscode"
+		mkdir -p "$vscodeMcpDir"
+
+		if [ -z "$serverScript" ] ; then
+			if [ -n "$mcpRootFound" ] ; then
+				echo "FAIL mcp-server-path found but not executable: $mcpRootFound/bin/lib/agentMcpServer.Common" >&2
+				echo "   fix with: chmod +x $mcpRootFound/bin/lib/agentMcpServer.Common" >&2
+			else
+				echo "FAIL mcp-server-path unresolved (bin/lib/agentMcpServer.Common not found under workspace/.local, workspace source, or a globally installed myx.common)" >&2
+			fi
+			failed=1
+		else
+			local homeSetup="$mcpRoot/bin/setup/agentMcp.Common"
+			if [ ! -x "$homeSetup" ] ; then
+				echo "FAIL mcp-home not present/executable, ~/.claude.json local scope NOT registered: $homeSetup" >&2
+				failed=1
+			elif MYXROOT="$mcpRoot" MYX_AGENTMCP_TARGET_CWD="$workspace" "$homeSetup" ; then
+				echo "OK mcp-home ~/.claude.json local scope registered for $workspace" >&2
+			else
+				echo "FAIL mcp-home ~/.claude.json local-scope registration did not complete (see above)" >&2
+				failed=1
+			fi
+
+			local escapedWorkspace
+			escapedWorkspace="$( printf '%s' "$workspace" | LC_ALL=C awk -f "$mcpRoot/include/data/agentMcpJsonEscape.awk" )"
+			local mmdappEnvJson="{\"MMDAPP\":\"$escapedWorkspace\"}"
+
+			local mcpTarget
+			for mcpTarget in \
+				"$vscodeMcpDir/mcp.json:servers" \
+				"$workspace/.mcp.json:mcpServers" \
+			; do
+				local mcpFile="${mcpTarget%%:*}"
+				local mcpKey="${mcpTarget#*:}"
+				local mcpSource mcpTmp mcpErr mcpRc=0
+				echo "# Upserting MCP server entry in $mcpFile" >&2
+				mcpSource="$mcpFile"
+				[ -f "$mcpSource" ] || mcpSource=/dev/null
+				if ! mcpTmp="$( mktemp "$mcpFile.XXXXXX" )" ; then
+					echo "FAIL mcp-tmp beside $mcpFile" >&2
+					failed=1
+					continue
+				fi
+				mcpErr="$( MYX_MCPUPSERT_TOPKEY="$mcpKey" \
+					MYX_MCPUPSERT_ENTRYKEY="myx.common" \
+					MYX_MCPUPSERT_COMMAND="$serverScript" \
+					MYX_MCPUPSERT_ARGS='["--run"]' \
+					MYX_MCPUPSERT_ENV="$mmdappEnvJson" \
+					LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.awk" "$mcpSource" 2>&1 >"$mcpTmp" )" || mcpRc=$?
+				if [ "$mcpRc" -ne 0 ] ; then
+					echo "FAIL mcp-upsert $mcpFile: $mcpErr" >&2
+					rm -f "$mcpTmp"
+					failed=1
+					continue
+				fi
+				if ! chmod 0644 "$mcpTmp" || ! mv -f "$mcpTmp" "$mcpFile" ; then
+					echo "FAIL mcp-install $mcpFile" >&2
+					rm -f "$mcpTmp"
+					failed=1
+					continue
+				fi
+				echo "OK mcp-upsert $mcpFile" >&2
+				if ! chmod 0644 "$mcpFile" ; then
+					echo "FAIL mcp-chmod $mcpFile" >&2
+					failed=1
+				fi
+				local mcpVerdict
+				mcpVerdict="$( MYX_MCPVERIFY_TOPKEY="$mcpKey" MYX_MCPVERIFY_COMMAND="$serverScript" \
+					LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonVerify.awk" "$mcpFile" )"
+				if [ "$mcpVerdict" = "OK" ] ; then
+					echo "OK mcp-check myx.common entry launches $serverScript --run ($mcpFile)" >&2
+				else
+					echo "FAIL mcp-check $mcpFile: $mcpVerdict" >&2
+					failed=1
+				fi
 			done
 
-			local workspace
-			workspace="${workspaceArg:-$MMDAPP}"
-			if [ ! -d "$workspace" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: workspace not found: $workspace" >&2
-				set +e ; return 1
-			fi
-			workspace="$( cd "$workspace" && pwd )"
-
-			local localContextMarker="$workspace/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
-			if [ ! -f "$localContextMarker" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: not a set-up myx.distro workspace (missing $localContextMarker)" >&2
-				set +e ; return 1
-			fi
-
-			local failed=0
-
-			echo "# $MDSC_CMD --install-vscode-integrations: workspace=$workspace" >&2
-
-			local mcpRoot="" mcpRootFound=""
-			if [ -n "$MYXROOT" ] && [ -f "$MYXROOT/bin/lib/agentMcpServer.Common" ] ; then
-				mcpRootFound="$MYXROOT"
-				[ -x "$MYXROOT/bin/lib/agentMcpServer.Common" ] && mcpRoot="$MYXROOT"
-			fi
-			if [ -z "$mcpRoot" ] && command -v myx.common >/dev/null 2>&1 ; then
-				local root
-				root="$( myx.common which lib/catMarkdown 2>/dev/null )"
-				root="${root%/bin/lib/catMarkdown*}"
-				if [ -n "$root" ] && [ -f "$root/bin/lib/agentMcpServer.Common" ] ; then
-					[ -n "$mcpRootFound" ] || mcpRootFound="$root"
-					[ -x "$root/bin/lib/agentMcpServer.Common" ] && mcpRoot="$root"
-				fi
-			fi
-
-			local serverScript=""
-			[ -z "$mcpRoot" ] || serverScript="$mcpRoot/bin/lib/agentMcpServer.Common"
-
-			local vscodeMcpDir="$workspace/.vscode"
-			mkdir -p "$vscodeMcpDir"
-
-			if [ -z "$serverScript" ] ; then
-				if [ -n "$mcpRootFound" ] ; then
-					echo "FAIL mcp-server-path found but not executable: $mcpRootFound/bin/lib/agentMcpServer.Common" >&2
-					echo "   fix with: chmod +x $mcpRootFound/bin/lib/agentMcpServer.Common" >&2
-				else
-					echo "FAIL mcp-server-path unresolved (bin/lib/agentMcpServer.Common not found under workspace/.local, workspace source, or a globally installed myx.common)" >&2
-				fi
+			local distroServerScript="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			local distroUpsert="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.awk"
+			if [ "$workspace" != "$MMDAPP" ] ; then
+				echo "SKIP mcp-distro is current-workspace-only -- run this op from $workspace to register its own myx.distro" >&2
+			elif [ ! -x "$distroServerScript" ] ; then
+				echo "FAIL mcp-distro-path missing or not executable: $distroServerScript" >&2
 				failed=1
 			else
-				local homeSetup="$mcpRoot/bin/setup/agentMcp.Common"
-				if [ ! -x "$homeSetup" ] ; then
-					echo "FAIL mcp-home not present/executable, ~/.claude.json local scope NOT registered: $homeSetup" >&2
-					failed=1
-				elif MYXROOT="$mcpRoot" MYX_AGENTMCP_TARGET_CWD="$workspace" "$homeSetup" ; then
-					echo "OK mcp-home ~/.claude.json local scope registered for $workspace" >&2
-				else
-					echo "FAIL mcp-home ~/.claude.json local-scope registration did not complete (see above)" >&2
-					failed=1
-				fi
-
-				local escapedWorkspace
-				escapedWorkspace="$( printf '%s' "$workspace" | LC_ALL=C awk -f "$mcpRoot/include/data/agentMcpJsonEscape.awk" )"
-				local mmdappEnvJson="{\"MMDAPP\":\"$escapedWorkspace\"}"
-
-				local mcpTarget
-				for mcpTarget in \
+				local distroTarget
+				for distroTarget in \
 					"$vscodeMcpDir/mcp.json:servers" \
 					"$workspace/.mcp.json:mcpServers" \
 				; do
-					local mcpFile="${mcpTarget%%:*}"
-					local mcpKey="${mcpTarget#*:}"
-					local mcpSource mcpTmp mcpErr mcpRc=0
-					echo "# Upserting MCP server entry in $mcpFile" >&2
-					mcpSource="$mcpFile"
-					[ -f "$mcpSource" ] || mcpSource=/dev/null
-					if ! mcpTmp="$( mktemp "$mcpFile.XXXXXX" )" ; then
-						echo "FAIL mcp-tmp beside $mcpFile" >&2
+					local distroFile="${distroTarget%%:*}"
+					local distroKey="${distroTarget#*:}"
+					local distroTmp distroErr distroRc=0
+					echo "# Upserting myx.distro MCP server entry in $distroFile" >&2
+					if ! distroTmp="$( mktemp "$distroFile.XXXXXX" )" ; then
+						echo "FAIL mcp-distro-tmp beside $distroFile" >&2
 						failed=1
 						continue
 					fi
-					mcpErr="$( MYX_MCPUPSERT_TOPKEY="$mcpKey" \
-						MYX_MCPUPSERT_ENTRYKEY="myx.common" \
-						MYX_MCPUPSERT_COMMAND="$serverScript" \
-						MYX_MCPUPSERT_ARGS='["--run"]' \
-						MYX_MCPUPSERT_ENV="$mmdappEnvJson" \
-						LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.awk" "$mcpSource" 2>&1 >"$mcpTmp" )" || mcpRc=$?
-					if [ "$mcpRc" -ne 0 ] ; then
-						echo "FAIL mcp-upsert $mcpFile: $mcpErr" >&2
-						rm -f "$mcpTmp"
+					distroErr="$( MYX_MCPUPSERT_TOPKEY="$distroKey" \
+						MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
+						MYX_MCPUPSERT_COMMAND="$distroServerScript" \
+						MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
+						LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>&1 >"$distroTmp" )" || distroRc=$?
+					if [ "$distroRc" -ne 0 ] ; then
+						echo "FAIL mcp-distro-upsert $distroFile: $distroErr" >&2
+						rm -f "$distroTmp"
 						failed=1
 						continue
 					fi
-					if ! chmod 0644 "$mcpTmp" || ! mv -f "$mcpTmp" "$mcpFile" ; then
-						echo "FAIL mcp-install $mcpFile" >&2
-						rm -f "$mcpTmp"
+					if ! chmod 0644 "$distroTmp" || ! mv -f "$distroTmp" "$distroFile" ; then
+						echo "FAIL mcp-distro-install $distroFile" >&2
+						rm -f "$distroTmp"
 						failed=1
 						continue
 					fi
-					echo "OK mcp-upsert $mcpFile" >&2
-					if ! chmod 0644 "$mcpFile" ; then
-						echo "FAIL mcp-chmod $mcpFile" >&2
-						failed=1
-					fi
-					local mcpVerdict
-					mcpVerdict="$( MYX_MCPVERIFY_TOPKEY="$mcpKey" MYX_MCPVERIFY_COMMAND="$serverScript" \
-						LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonVerify.awk" "$mcpFile" )"
-					if [ "$mcpVerdict" = "OK" ] ; then
-						echo "OK mcp-check myx.common entry launches $serverScript --run ($mcpFile)" >&2
+					echo "OK mcp-distro-upsert $distroFile" >&2
+					if MYX_MCPUPSERT_TOPKEY="$distroKey" \
+						MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
+						MYX_MCPUPSERT_COMMAND="$distroServerScript" \
+						MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
+						LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>/dev/null \
+						| cmp -s - "$distroFile" ; then
+						echo "OK mcp-distro-check $distroFile" >&2
 					else
-						echo "FAIL mcp-check $mcpFile: $mcpVerdict" >&2
+						echo "FAIL mcp-distro-check $distroFile" >&2
 						failed=1
 					fi
 				done
-
-				local distroServerScript="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-				local distroUpsert="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.awk"
-				if [ "$workspace" != "$MMDAPP" ] ; then
-					echo "SKIP mcp-distro is current-workspace-only -- run this op from $workspace to register its own myx.distro" >&2
-				elif [ ! -x "$distroServerScript" ] ; then
-					echo "FAIL mcp-distro-path missing or not executable: $distroServerScript" >&2
-					failed=1
-				else
-					local distroTarget
-					for distroTarget in \
-						"$vscodeMcpDir/mcp.json:servers" \
-						"$workspace/.mcp.json:mcpServers" \
-					; do
-						local distroFile="${distroTarget%%:*}"
-						local distroKey="${distroTarget#*:}"
-						local distroTmp distroErr distroRc=0
-						echo "# Upserting myx.distro MCP server entry in $distroFile" >&2
-						if ! distroTmp="$( mktemp "$distroFile.XXXXXX" )" ; then
-							echo "FAIL mcp-distro-tmp beside $distroFile" >&2
-							failed=1
-							continue
-						fi
-						distroErr="$( MYX_MCPUPSERT_TOPKEY="$distroKey" \
-							MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
-							MYX_MCPUPSERT_COMMAND="$distroServerScript" \
-							MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
-							LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>&1 >"$distroTmp" )" || distroRc=$?
-						if [ "$distroRc" -ne 0 ] ; then
-							echo "FAIL mcp-distro-upsert $distroFile: $distroErr" >&2
-							rm -f "$distroTmp"
-							failed=1
-							continue
-						fi
-						if ! chmod 0644 "$distroTmp" || ! mv -f "$distroTmp" "$distroFile" ; then
-							echo "FAIL mcp-distro-install $distroFile" >&2
-							rm -f "$distroTmp"
-							failed=1
-							continue
-						fi
-						echo "OK mcp-distro-upsert $distroFile" >&2
-						if MYX_MCPUPSERT_TOPKEY="$distroKey" \
-							MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
-							MYX_MCPUPSERT_COMMAND="$distroServerScript" \
-							MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
-							LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>/dev/null \
-							| cmp -s - "$distroFile" ; then
-							echo "OK mcp-distro-check $distroFile" >&2
-						else
-							echo "FAIL mcp-distro-check $distroFile" >&2
-							failed=1
-						fi
-					done
-				fi
 			fi
+		fi
 
-			if [ ! -x "$workspace/DistroSourceConsole.sh" ] ; then
-				echo "WARN code-workspace regeneration skipped: no executable $workspace/DistroSourceConsole.sh -- chat.agentSkillsLocations stays absent until this workspace's source tools are installed" >&2
-			elif ! echo 'DistroSourceTools.fn.sh --make-code-workspace --quiet' | "$workspace/DistroSourceConsole.sh" --non-interactive >&2 ; then
-				echo "FAIL code-workspace regeneration (DistroSourceTools --make-code-workspace) failed for $workspace" >&2
-				failed=1
+		if [ ! -x "$workspace/DistroSourceConsole.sh" ] ; then
+			echo "WARN code-workspace regeneration skipped: no executable $workspace/DistroSourceConsole.sh -- chat.agentSkillsLocations stays absent until this workspace's source tools are installed" >&2
+		elif ! echo 'DistroSourceTools.fn.sh --make-code-workspace --quiet' | "$workspace/DistroSourceConsole.sh" --non-interactive >&2 ; then
+			echo "FAIL code-workspace regeneration (DistroSourceTools --make-code-workspace) failed for $workspace" >&2
+			failed=1
+		else
+			echo "OK code-workspace regenerated via $workspace/DistroSourceConsole.sh" >&2
+			local wsFile="$workspace/${workspace##*/}.code-workspace"
+			if grep -q 'chat\.agentSkillsLocations' "$wsFile" 2>/dev/null ; then
+				echo "OK code-workspace-check chat.agentSkillsLocations present in $wsFile" >&2
 			else
-				echo "OK code-workspace regenerated via $workspace/DistroSourceConsole.sh" >&2
-				local wsFile="$workspace/${workspace##*/}.code-workspace"
-				if grep -q 'chat\.agentSkillsLocations' "$wsFile" 2>/dev/null ; then
-					echo "OK code-workspace-check chat.agentSkillsLocations present in $wsFile" >&2
-				else
-					echo "FAIL code-workspace-check chat.agentSkillsLocations absent from $wsFile -- magic-team members will not be discoverable by the VS Code chat client" >&2
-					failed=1
-				fi
+				echo "FAIL code-workspace-check chat.agentSkillsLocations absent from $wsFile -- magic-team members will not be discoverable by the VS Code chat client" >&2
+				failed=1
 			fi
+		fi
 
-			echo "# Command Palette checklist:" >&2
-			echo "# 1) MCP (VS Code/Copilot-Chat): MCP: List Servers -> expect 'myx.common' and 'myx.distro' visible" >&2
-			echo "# 2) MCP (Claude Code): run 'claude mcp list' in $workspace -> expect both visible" >&2
-			echo "# 3) Chat: Open Chat -> tools list includes both servers' tools once trusted/started" >&2
-			echo "#    'myx.distro' is this workspace's own tooling and registers only in the workspace it belongs to -- a SKIP line above means it was not written here." >&2
-			echo "# 4) Members (Copilot Chat): Chat -> expect the magic-team skills listed; this workspace's" >&2
-			echo "#    .code-workspace registers them via chat.agentSkillsLocations, which this op has just" >&2
-			echo "#    regenerated (see the code-workspace lines above); VS Code picks that up live -- no window reload needed." >&2
-			echo "#    But chat.agentSkillsLocations is a trust-restricted setting: an untrusted workspace drops it" >&2
-			echo "#    entirely and NO members appear -- grant workspace trust first (a fresh machine starts untrusted)." >&2
-			echo "# 5) Extensions are NOT installed by this op, by instruction -- install whichever chat" >&2
-			echo "#    client you want yourself; the settings written here are ready for it either way." >&2
-			echo "# Trust/Restart note: after mcp.json/.mcp.json changes, trust/start the server if prompted; reload VS Code window if tools are not visible." >&2
+		echo "# Command Palette checklist:" >&2
+		echo "# 1) MCP (VS Code/Copilot-Chat): MCP: List Servers -> expect 'myx.common' and 'myx.distro' visible" >&2
+		echo "# 2) MCP (Claude Code): run 'claude mcp list' in $workspace -> expect both visible" >&2
+		echo "# 3) Chat: Open Chat -> tools list includes both servers' tools once trusted/started" >&2
+		echo "#    'myx.distro' is this workspace's own tooling and registers only in the workspace it belongs to -- a SKIP line above means it was not written here." >&2
+		echo "# 4) Members (Copilot Chat): Chat -> expect the magic-team skills listed; this workspace's" >&2
+		echo "#    .code-workspace registers them via chat.agentSkillsLocations, which this op has just" >&2
+		echo "#    regenerated (see the code-workspace lines above); VS Code picks that up live -- no window reload needed." >&2
+		echo "#    But chat.agentSkillsLocations is a trust-restricted setting: an untrusted workspace drops it" >&2
+		echo "#    entirely and NO members appear -- grant workspace trust first (a fresh machine starts untrusted)." >&2
+		echo "# 5) Extensions are NOT installed by this op, by instruction -- install whichever chat" >&2
+		echo "#    client you want yourself; the settings written here are ready for it either way." >&2
+		echo "# Trust/Restart note: after mcp.json/.mcp.json changes, trust/start the server if prompted; reload VS Code window if tools are not visible." >&2
 
-			if [ "$failed" -eq 0 ] ; then
-				echo "OK --install-vscode-integrations" >&2
-				return 0
-			fi
+		if [ "$failed" -eq 0 ] ; then
+			echo "OK --install-vscode-integrations" >&2
+			return 0
+		fi
 
-			echo "PARTIAL --install-vscode-integrations (see FAIL lines above)" >&2
-			set +e ; return 1
-		;;
-		*)
-			echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.Install.include's own default (*) branch, the operation group sourced by the dispatcher's --install-* route; no operation of that name is defined in this include" >&2
-			set +e ; return 1
-		;;
+		echo "PARTIAL --install-vscode-integrations (see FAIL lines above)" >&2
+		set +e ; return 1
+	;;
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by the default (*) branch of AgentsTools.Install.include, the operation group sourced by the dispatcher's --install-* route; no operation of that name is defined in this include" >&2
+		set +e ; return 1
+	;;
 esac
