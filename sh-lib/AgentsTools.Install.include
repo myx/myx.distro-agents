@@ -173,10 +173,10 @@ case "$1" in
 			declaredMembers="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --filter-and-cut 'magic-team:team-member' 2>/dev/null )" || declaredStatus=$?
 
 			if [ "$selectStatus" != "0" ] || [ "$( printf '%s' "$selectedProjects" | grep -c '' )" = "0" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: no projects could be selected in workspace $workspace (ListDistroProjects --all-projects exited $selectStatus) -- without a selection --filter-and-cut answers empty for every workspace, which must never be read as 'declares nothing'" >&2
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: no projects could be selected in workspace $workspace (ListDistroProjects --all-projects exited $selectStatus)" >&2
 				hadError="true" ; discoveryTrusted="false"
 			elif [ "$declaredStatus" != "0" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroDeclares --filter-and-cut (the command this op acts on) exited $declaredStatus for workspace $workspace" >&2
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroDeclares --filter-and-cut exited $declaredStatus for workspace $workspace" >&2
 				hadError="true" ; discoveryTrusted="false"
 			else
 				echo "# $MDSC_CMD --install-skillset-symlinks: $( printf '%s' "$selectedProjects" | grep -c '' ) project(s) selected, $( printf '%s' "$declaredMembers" | grep -c '' ) magic-team:team-member declare(s)" >&2
@@ -739,7 +739,7 @@ case "$1" in
 		set +e ; return 1
 	;;
 	*)
-		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by the default (*) branch of AgentsTools.Install.include, the operation group sourced by the dispatcher's --install-* route; no operation of that name is defined in this include" >&2
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 esac
