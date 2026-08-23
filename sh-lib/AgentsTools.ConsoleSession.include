@@ -19,7 +19,7 @@
 ##   --console-start   --console-send   --console-stop   --console-list
 ##
 
-## Channel dirs live at $TMPDIR (or /tmp)/$MDAT_CHANNEL_PREFIX.<workspace-slug>.<console> —
+## Channel dirs live at $MMDAPP/.local/temp/$MDAT_CHANNEL_PREFIX.<workspace-slug>.<console> —
 ## a DETERMINISTIC id (workspace absolute path + console name, hashed with
 ## `cksum`), NOT a `mktemp -d` random suffix: the same (workspace, console)
 ## pair always resolves to the same channel dir/log path across restarts, so
@@ -58,11 +58,11 @@ DistroAgentsToolsResolveChannelDir(){
 			if [ -d "$ref" ] ; then echo "$ref" ; return 0 ; fi
 		;;
 	esac
-	local candidate="${TMPDIR:-/tmp}/$ref"
+	local candidate="$MMDAPP/.local/temp/$ref"
 	if [ -d "$candidate" ] ; then echo "$candidate" ; return 0 ; fi
-	candidate="${TMPDIR:-/tmp}/${MDAT_CHANNEL_PREFIX}.$ref"
+	candidate="$MMDAPP/.local/temp/${MDAT_CHANNEL_PREFIX}.$ref"
 	if [ -d "$candidate" ] ; then echo "$candidate" ; return 0 ; fi
-	echo "⛔ ERROR: DistroAgentsTools: channel not found: $ref -- raised by the shared helper DistroAgentsToolsResolveChannelDir after trying the reference as an absolute path, as \${TMPDIR:-/tmp}/$ref, and as \${TMPDIR:-/tmp}/${MDAT_CHANNEL_PREFIX}.$ref" >&2
+	echo "⛔ ERROR: DistroAgentsTools: channel not found: $ref -- raised by the shared helper DistroAgentsToolsResolveChannelDir after trying the reference as an absolute path, as \$MMDAPP/.local/temp/$ref, and as \$MMDAPP/.local/temp/${MDAT_CHANNEL_PREFIX}.$ref" >&2
 	return 1
 }
 
@@ -150,7 +150,7 @@ case "$1" in
 			## macOS and Linux, so this needs no extra tooling.
 			local slug ; slug="$( printf '%s' "$workspace" | cksum | awk '{print $1}' )"
 			local channelId="${MDAT_CHANNEL_PREFIX}.${slug}.${consoleShortName}"
-			local channelDir="${TMPDIR:-/tmp}/$channelId"
+			local channelDir="$MMDAPP/.local/temp/$channelId"
 			local fifo="$channelDir/fifo"
 			local log="$channelDir/console.log"
 
@@ -380,28 +380,26 @@ case "$1" in
 			local workspace
 			workspace="$( DistroAgentsToolsResolveWorkspace "$workspaceArg" )" || { set +e ; return 1 ; }
 
-			local base="${TMPDIR:-/tmp}"
 			local dir found
 			found=0
-			for dir in "$base/${MDAT_CHANNEL_PREFIX}."* ; do
+			for dir in "$MMDAPP/.local/temp/${MDAT_CHANNEL_PREFIX}."* ; do
 				[ -d "$dir" ] || continue
 				local ws cons consoleAlive holderAlive
 				ws="$( sed -n 's/^MDAT_WORKSPACE=//p' "$dir/meta.env" 2>/dev/null )"
 				[ "$ws" = "$workspace" ] || continue
 				found=1
-				local id ; id="${dir##*/}"
 				cons="$( sed -n 's/^MDAT_CONSOLE=//p' "$dir/meta.env" 2>/dev/null )"
 				consoleAlive="dead"
 				holderAlive="dead"
 				[ -f "$dir/console.pid" ] && kill -0 "$( cat "$dir/console.pid" )" 2>/dev/null && consoleAlive="alive"
 				[ -f "$dir/holder.pid" ] && kill -0 "$( cat "$dir/holder.pid" )" 2>/dev/null && holderAlive="alive"
-				echo "$id  console=$consoleAlive holder=$holderAlive workspace=${ws:-?} console-script=${cons:-?}"
+				echo "${dir##*/}  console=$consoleAlive holder=$holderAlive workspace=${ws:-?} console-script=${cons:-?}"
 			done
 			[ "$found" = "1" ] || echo "(no active channels for workspace: $workspace)"
 			return 0
 		;;
 		*)
-			echo "⛔ ERROR: $MDSC_CMD: invalid option: $1 -- rejected by AgentsTools.ConsoleSession.include's own default (*) branch, the operation group sourced by the dispatcher's --console-* route; no operation of that name is defined in this include" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1
 		;;
 esac

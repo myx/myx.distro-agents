@@ -43,6 +43,7 @@ Team-owned notes for the magic-* team.
 - `--agents-config-option` resolves configuration under `$MMDAPP/.local/.agents/`, one file per key.
 - `.local` is the installed release, not a tree a session maintains. It can lag `source` after a source-side rename, and a lookup against a lagging release returns empty rather than failing — an empty result is not evidence that the configuration is missing.
 - Closing that gap is a release step. A session does not sync, copy or hand-edit anything under `.local`.
+- Every other piece of state local to this machine — its config, allowlists, caches, settings — is the same case: it reaches no client, so changing it is not a fix and not the work.
 
 ## Comments in scripts
 
@@ -85,7 +86,19 @@ Team-owned notes for the magic-* team.
 ## Writing new code here
 
 - Prefer `awk` or POSIX shell for anything new in `sh-lib/`. Reach for Python only when the job genuinely needs it, and say why at the call site.
-- `myx.distro-.local/sh-lib/LocalTools.Make.include` generates a wrapper function named `Distro<ITEM>Tools` per subsystem, which for `Agents` is literally `DistroAgentsTools` — the same name as this package's own unrelated tool. The generated wrapper is install-time and subshell-scoped, and never coexists at runtime with the real tool.
+- `myx.distro-.local` generates a wrapper function named `Distro<ITEM>Tools` per subsystem, which for `Agents` is literally `DistroAgentsTools` — the same name as this package's own unrelated tool. The generated wrapper is install-time and subshell-scoped, and never coexists at runtime with the real tool.
+
+## Conventions come from the sibling `myx.distro-*` packages
+
+- `myx.distro-source` and `myx.distro-deploy` are the family's convention authority. Both are used daily, so their shape reflects decisions that were actually made and held.
+- This package is the drifted one: it was written broadly against `myx.common` idioms and against whatever code sat nearest. A pattern found here is evidence of that drift until a daily-used sibling confirms it, and is never cited as precedent for anything else.
+- `myx.common` is a separate project. Copying the nearest available example, from there or from this package's own recent code, is how the drift happened; grep the family before assuming a form is the house form.
+
+## Scratch and temp paths
+
+- A scratch location is either `mktemp -d -t "<prefix>-XXXXXXXX"`, the form `myx.distro-deploy` and `myx.distro-source` use, or a literal workspace path under `$MMDAPP/.local/temp/<name>` written out at each use site.
+- `mktemp -d "${TMPDIR:-/tmp}/..."` is `myx.common`'s own form. A hand-derived `${TMPDIR:-/tmp}` scratch path appears nowhere in this family and is not written here.
+- The MCP server's scratch root is `$MMDAPP/.local/temp/agent-mcp.$$/`, holding `wire.lock`, `req/<field>` and `out.<seq>`. The pid keeps concurrent servers apart, and the path is spelled out in full at every use so the location is on the line itself.
 
 ## Environment init in `DistroAgentsTools.fn.sh`
 
@@ -104,6 +117,22 @@ Team-owned notes for the magic-* team.
 - The worse case is quiet. Where the pinned tree does hold the include, the stale copy runs and returns a confident answer. Identical output today is a property of the two copies currently matching, not a guarantee.
 - Pre-existing, not introduced by the MCP work. It is reachable at a new front door, which is what makes it worth stating.
 
+## The `myx.distro` MCP server: wire and request handling
+
+- stdout is the JSON-RPC wire and carries nothing else. Every diagnostic, the startup witness included, goes to stderr.
+- Response bytes are written by the `printf` builtin only. stdout is fully buffered when it is a pipe, which is how an MCP host runs it, so the wire is never handed to a separate process whose flushing this server does not control. awk is forked for escaping, into a variable, before the lock is taken.
+- The whole request handler forks — one background job per request, stdin from `/dev/null` — so no handler can eat the wire and a slow request delays only its own response.
+- Per-request fields are read into variables before the fork. The next message wipes `req/`, and the fork carries whatever the variables already hold.
+- Responses are serialised by a `mkdir` test-and-set on `wire.lock`, held for the one `printf` and nothing else. `mkdir` is the atomic test-and-set every POSIX filesystem has; `flock` is not guaranteed on a bare FreeBSD or Darwin.
+- A message with no id is a notification and is never answered: the `notifications/*` arm does nothing, and both send helpers return on an empty id.
+- A bare `wait` after the read loop drains the in-flight handlers before the scratch root is removed. Without it, end of stdin deletes `out.<seq>` under a handler still writing its response, and that request is answered never. A child the executed script itself left running is a grandchild, not a job of this shell, so it is never waited on and cannot hold shutdown.
+
+## Capturing an arbitrary command's output
+
+- `$( ... )` returns when its capture pipe has no writers left, not when the command exits. Any background child the command leaves behind holds that pipe open and blocks the caller indefinitely.
+- Never capture a caller-supplied or otherwise arbitrary command that way. Redirect its output to a file and read the file back; where the command runs in the background, `wait "$pid"` for it.
+- `$( ... )` remains fine for a known, self-contained command of this package's own.
+
 ## `set -e` containment around an executed script
 
 - `--intern-mcp-execute` runs its script as `( set -e ; eval "$( cat )" )`. Three parts, all required: the subshell's own `set -e` so the script stops at its first failure; `|| execStatus=$?` so the function's `set -e` treats the subshell as tested rather than aborting; `set +e` before returning non-zero so the caller's `set -e` does not trip on the return.
@@ -112,7 +141,7 @@ Team-owned notes for the magic-* team.
 ## `myx.common` commands that look reusable here and are not
 
 - `setup/agentMcp` and `remove/agentMcp` are the obvious candidates and both are wrong for this package: they act on the `myx.common` registration, and `remove/agentMcp` would delete the registration it was asked to install.
-- Public `bin/` commands are callable. `include/data/*` is `myx.common`'s internal surface — copy the idiom rather than reach across.
+- Its public commands are callable. Its internal surface is not — copy the idiom rather than reach across.
 
 ## A bracket range is never used in a `case` pattern
 

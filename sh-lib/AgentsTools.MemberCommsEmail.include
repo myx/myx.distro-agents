@@ -670,7 +670,7 @@ case "$1" in
 		;;
 
 		*)
-			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 -- rejected by AgentsTools.MemberCommsEmail.include's own default (*) branch, the operation group sourced by the dispatcher's --member-comms-email-* route; no operation of that name is defined in this include" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1
 		;;
 esac

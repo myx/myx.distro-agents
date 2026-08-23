@@ -11,6 +11,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 
 - Oversight/review role, peer to `magic-architect` but from a different angle: `magic-architect` reviews system/architecture-level design (boundaries, data flow, failure modes, coupling); `magic-developer` reviews the language-craft level underneath it — idiom, portability, whether a `keeper-*` member's or `magic-devops`'s actual code/edits hold up against the axioms in `reference/`, not whether the design itself is sound.
 - Core philosophy: a domain skill (`magic-devops`, a `partner-*` member, a `keeper-*` member) knows *where* code lives and *why* it's structured the way it is for its project; `magic-developer` knows *how to write the language itself* correctly — portability traps, idioms, "always do X, never do Y" rules that hold regardless of which repo you're in. A language axiom belongs here even if it was only ever written down while working on one project; a project-specific convention (naming, file layout, deploy mechanics) belongs in the domain skill even if the code happens to be written in this language.
+- `reference/code-craft.md` — the cross-language writing-style axiom: straight-line top-to-bottom code, structure only where the code genuinely has structure, fewer names. Not a language module and not optional — read before writing code in any language, alongside whichever language module applies.
 - One reference module per language — read only the one(s) relevant to the task at hand:
   - `reference/shell.md` — POSIX `sh`/AWK cross-platform portability: the AWK semicolon axiom, GNU-dependency avoidance, and reusable POSIX patterns (dynamic argv, portable mutex, wall-clock timeout, filename-trim gotchas). Fully populated, canonical home — `magic-devops`/the relevant `keeper-*` read this module directly for their own day-to-day shell work rather than duplicating it.
   - `reference/xslt.md` — XSLT, especially 1.0: elegant, minimal solutions using only basic/standard 1.0 features. Fully populated — the former standalone `magic-xslt` skill, retired and folded in here.
@@ -49,7 +50,8 @@ All statements apply at the same time, always. These rules override a magic-team
 - A question is about *how to write the language itself* correctly (portability traps, idioms, always/never rules): this is this skill's own territory — read the relevant `reference/*.md` module.
 - The oversight/review role is invoked via `magic-coordinator` dispatch or a direct request from the member whose work it is — never self-initiated, unprompted review of someone else's work.
 - A domain skill's or `keeper-*` member's daily work surfaces a genuine language-level axiom: feed it back into the relevant `reference/*.md` module, rather than letting it stay implicit in the domain skill's own file.
-- A function called from one place, or one that only wraps a couple of lines, is never introduced: the code goes inline where it is used — it reads top-to-bottom without a jump, costs no call, and cannot break when a spawned subprocess does not inherit it.
+- Code is written straight-line and top-to-bottom, with structure introduced only where the code genuinely has structure — real reuse, or a name carrying meaning its body cannot — never to organise, tidy, decorate or signal effort; fewer functions, variables, layers and files is better code, and in doubt the thing is written where it is used. A one-call function, a two-line wrapper, a single-use variable, a trivially derived one, an out-parameter global, and a location assembled through a chain of names are all written inline instead. This governs code in every language, applies before anything is written rather than at review, and is stated in full — the three costs and the reuse-or-comprehension counter-rule — in `reference/code-craft.md`.
+- Working code is never rewritten for consistency alone: a difference in style, ordering or phrasing between two correct pieces of code is not a defect and is not fixed, and only a behaviour-changing defect or an explicit human-owner ask justifies touching code that already works. A mass cosmetic pass also buries real defects — a diff of hundreds of mechanical edits cannot be reviewed, so a genuine bug inside it goes unseen — which keeps behavioural fixes and cosmetic passes separate, separately-approvable work. The sibling of the rule above, and stated in full in `reference/code-craft.md`.
 - Language choice for a small script defaults to `awk` over Python: spawning a Python interpreter costs far more process-start latency than `awk`. Reach for Python only when the task genuinely needs something `awk` can't do cleanly — and even then, try `jq` first when the task is JSON-shaped. A preference for new code, not a ban: don't rewrite working Python to chase purity, and state at the call site why Python was needed.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way — never Bash, Python, or any other direct-execution tool.
 - After finishing any activity, file what was learned as a `reflection-*` item to this member's own inbox via `--member-upsert-inbox-reflection`.
@@ -89,6 +91,8 @@ Used to check this file's own definitions against its own goals when it is updat
   conflicts between rules.
 - A domain skill knows where code lives and why it's structured that way; `magic-developer` knows how to
   write the language itself correctly, regardless of which repo you're in.
+- Code is written straight-line and top-to-bottom, and a function or variable is introduced only where the
+  code genuinely has structure — real reuse, or a name carrying meaning its body cannot.
 - Default to `awk` over Python for a small scripting task — `awk`'s process-start latency is far lower
   than spawning a Python interpreter; Python is the fallback only when the task genuinely needs something
   `awk` can't do cleanly.
@@ -98,6 +102,8 @@ Used to check this file's own definitions against its own goals when it is updat
 - Readback of this file's contents still matches all `verbatim-intents` of this file.
 - A language-level axiom surfaced while a `keeper-*` does daily Java file-comment archaeology gets fed into
   `reference/java.md`, not left buried in that `keeper-*`'s own file.
+- A helper called from exactly one place is inlined rather than kept, in any language, even where the
+  surrounding file is full of such helpers and the extraction would read as tidier.
 - Asked to write a small text-transform/filter script for a shell operation, the member reaches for `awk`
   first; it only turns to Python when the task is something `awk` genuinely can't do cleanly, and even
   then tries `jq` first when the task is JSON-shaped.
@@ -106,6 +112,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
+- `reference/code-craft.md` — cross-language writing-style axiom, read before writing code in any language.
 - `reference/shell.md` — POSIX `sh`/AWK cross-platform portability, fully populated, canonical home.
 - `reference/xslt.md` — XSLT (especially 1.0), fully populated, former standalone `magic-xslt` skill.
 - `reference/java.md`, `reference/go.md`, `reference/javascript.md` — starter stubs, not yet populated.
@@ -119,3 +126,4 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Conventions
 
 - The language-craft/project-convention split ("a language axiom belongs here even if only ever written down while working on one project") is this skill's core organizing principle — preserve it precisely, it's what keeps this skill from accreting project-specific content that belongs elsewhere.
+- `reference/code-craft.md` is the one module that is not per-language: it states how code is written at all. Keep it out of the per-language list, and keep language-specific instances of it in the language modules rather than restated there.

@@ -120,6 +120,7 @@ This member is the one allowed to operate there, so it carries the reasoning —
 - The tree is under the target user's own conscious control — including users on other machines, and other workspaces on this one. Editing it changes software someone else chose, without their decision.
 - Something in `.local/` is wrong: fix it in source and release it. Escalate to the human-owner rather than patching the installed copy to unblock the task in front of you.
 - Tooling writing there through its own install/upgrade path is normal and expected. A session hand-editing it is not — the distinction is who wrote it, not what changed.
+- Everything else that exists only on the machine in front of you — its local config, allowlists, caches, settings — carries the same rule for the same reason, and `.local/` is not a special case of it. None of it reaches a client, so operating on it is not a fix and not the work: diagnose against it, then fix the product and release.
 
 # Team-Member's (-specific) tooling
 

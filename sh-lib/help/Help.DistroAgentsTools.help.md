@@ -48,9 +48,11 @@
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-current
 📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
-📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
+📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]
+📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]
+📘 syntax: DistroAgentsTools.fn.sh --make-console-script
 📘 syntax: DistroAgentsTools.fn.sh --intern-mcp-server [--run]
 📘 syntax: DistroAgentsTools.fn.sh --intern-mcp-execute
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -1170,6 +1172,28 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--make-workspace-integrations [--quiet]
+			Runs all relevant `--make-*` commands (--make-console-command),
+			then --install-workspace-integrations against the same workspace,
+			thus (re-)creating all agents workspace integration files and exits.
+
+			Won't output helpful information on files created and how to use
+			those files, when `--quiet` option specified.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--make-console-command [--quiet]
+			Re-Creates DistroAgentsConsole.sh script to be used as a command to
+			quickly enter workspace console and exits.
+
+			Won't output helpful information on files created and how to use
+			those files, when `--quiet` option specified.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--make-console-script
+			Prints agents console script body (used by --make-console-command)
+			and exits.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

@@ -6,6 +6,9 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-check <team-mem
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-script" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --intern-mcp-server [--run]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --intern-mcp-execute" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>" >&2
@@ -92,7 +95,6 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <mem
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-current" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list" >&2

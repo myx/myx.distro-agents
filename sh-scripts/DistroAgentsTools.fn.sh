@@ -506,7 +506,7 @@ DistroAgentsTools(){
 		;;
 
 		*)
-			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 -- rejected by DistroAgentsTools.fn.sh's own top-level dispatcher default (*) branch: no route matched this operation name, so no operation include was sourced at all" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1
 		;;
 	esac
