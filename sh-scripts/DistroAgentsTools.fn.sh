@@ -79,7 +79,7 @@ AgentsToolsAssertBareName(){
 	local nameContext="$3"
 	case "$nameValue" in
 		''|.|..|-*|*/*)
-			echo "⛔ ERROR: $nameContext: $nameLabel must be a bare name -- one path segment of letters, digits, '.', '_' or '-', not '.'/'..', no leading '-', no '/': $nameValue" >&2
+			echo "$MDSC_CMD: $nameContext: ❗ ASSERT: $nameLabel must be a bare name -- one path segment of letters, digits, '.', '_' or '-', not '.'/'..', no leading '-', no '/': $nameValue" >&2
 			return 1
 		;;
 	esac
@@ -93,7 +93,7 @@ AgentsToolsAssertBareName(){
 			0|1|2|3|4|5|6|7|8|9) ;;
 			-|_|.) ;;
 			*)
-				echo "⛔ ERROR: $nameContext: $nameLabel contains a character outside the allowed set (letters, digits, '.', '_', '-'): $nameValue" >&2
+				echo "$MDSC_CMD: $nameContext: ❗ ASSERT: $nameLabel contains a character outside the allowed set (letters, digits, '.', '_', '-'): $nameValue" >&2
 				return 1
 			;;
 		esac
@@ -286,22 +286,22 @@ DistroAgentsTools(){
 			local jsonPath="$1"
 			if [ -n "$jsonPath" ] ; then
 				if [ ! -f "$jsonPath" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --intern-validate-json: file not found: $jsonPath" >&2
+					echo "$MDSC_CMD: validate-json: ⛔ ERROR: file not found: $jsonPath" >&2
 					set +e ; return 1
 				fi
 				if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$jsonPath" >/dev/null 2>&1 ; then
-					echo "# $MDSC_CMD --intern-validate-json: valid JSON: $jsonPath" >&2
+					echo "# $MDSC_CMD: validate-json: valid JSON: $jsonPath" >&2
 					return 0
 				else
-					echo "⛔ ERROR: $MDSC_CMD --intern-validate-json: invalid JSON: $jsonPath" >&2
+					echo "$MDSC_CMD: validate-json: ⛔ ERROR: invalid JSON: $jsonPath" >&2
 					set +e ; return 1
 				fi
 			else
 				if python3 -c "import json,sys; json.load(sys.stdin)" >/dev/null 2>&1 ; then
-					echo "# $MDSC_CMD --intern-validate-json: valid JSON (stdin)" >&2
+					echo "# $MDSC_CMD: validate-json: valid JSON (stdin)" >&2
 					return 0
 				else
-					echo "⛔ ERROR: $MDSC_CMD --intern-validate-json: invalid JSON (stdin)" >&2
+					echo "$MDSC_CMD: validate-json: ⛔ ERROR: invalid JSON (stdin)" >&2
 					set +e ; return 1
 				fi
 			fi
@@ -417,7 +417,7 @@ DistroAgentsTools(){
 		--intern-mcp-execute)
 			shift
 			if [ $# -gt 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-mcp-execute: takes no arguments -- the script to execute arrives on stdin" >&2
+				echo "$MDSC_CMD: mcp-execute: ⛔ ERROR: takes no arguments" >&2
 				set +e ; return 1
 			fi
 			local execStatus=0
@@ -432,11 +432,11 @@ DistroAgentsTools(){
 		--intern-config-board-location)
 			shift
 			if [ $# -gt 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-config-board-location: takes no arguments" >&2
+				echo "$MDSC_CMD: config-board-location: ⛔ ERROR: takes no arguments" >&2
 				set +e ; return 1
 			fi
 			if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --intern-config-board-location: TEAM_DATA_DIRECTORY is not configured -- set it first: DistroAgentsTools.fn.sh --agents-config-option magic-coordinator --upsert TEAM_DATA_DIRECTORY <path>" >&2
+				echo "$MDSC_CMD: config-board-location: ⛔ ERROR: TEAM_DATA_DIRECTORY is not configured" >&2
 				set +e ; return 1
 			fi
 			printf '%s\n' "$MDAT_DATA_ROOT"

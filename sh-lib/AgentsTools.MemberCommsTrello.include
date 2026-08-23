@@ -58,7 +58,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-check: syntax is <team-member> -- the acting member is required, since a Trello notification feed belongs to one identity and the member decides whose unread list is read" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-trello-check" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-trello-check || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## A routine acting as caller has no skill directory and is not
@@ -138,7 +138,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: syntax is <team-member> <notification-id> -- the acting member is required, since a notification is visible only to the identity it was raised for" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-trello-read" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-trello-read || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## A routine acting as caller has no skill directory and is not
@@ -248,7 +248,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: syntax is <team-member> -- the acting member is required, since members/me resolves against whichever token is presented" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" "$MDSC_CMD --member-comms-trello-whoami" || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-trello-whoami || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 					## Same carve-out, same reason, as the two arms above.
