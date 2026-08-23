@@ -77,6 +77,11 @@ case "$1" in
 					fanRoots="$workspace/.agents/skills"$'\n'"$workspace/.github/skills"$'\n'"$workspace/.claude/skills"
 				;;
 			esac
+			local ownsReport="false"
+			if [ -z "$MDSC_SKILLSET_REPORT" ] ; then
+				MDSC_SKILLSET_REPORT="$( mktemp "${TMPDIR:-/tmp}/magic-skillset.XXXXXX" )" || { set +e ; return 1 ; }
+				export MDSC_SKILLSET_REPORT ; ownsReport="true"
+			fi
 			while IFS= read -r fanRoot ; do
 				[ -n "$fanRoot" ] || continue
 				if [ "$removeMode" = "true" ] ; then
@@ -85,6 +90,10 @@ case "$1" in
 					DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" --target-root "$fanRoot" || fanStatus=1
 				fi
 			done <<< "$fanRoots"
+			if [ "$ownsReport" = "true" ] ; then
+				DistroAgentsTools --install-skillset-report-render
+				rm -f "$MDSC_SKILLSET_REPORT" ; unset MDSC_SKILLSET_REPORT
+			fi
 			if [ "$fanStatus" != "0" ] ; then
 				set +e ; return 1
 			fi
@@ -111,7 +120,7 @@ case "$1" in
 		fi
 
 		local hadError="false" memberName memberTarget memberBundled
-		local ownedMembers="" newLinks="" regChanges="" keptOther=0
+		local ownedMembers="" newLinks="" regChanges="" keptMembers=""
 		while IFS= read -r memberName ; do
 			[ -n "$memberName" ] || continue
 			[ "$memberName" != "trash" ] || continue
@@ -129,7 +138,7 @@ case "$1" in
 				fi
 			elif [ -L "$memberTarget" ] ; then
 				if [ "$( readlink "$memberTarget" )" != "$memberBundled" ] ; then
-					keptOther=$(( keptOther + 1 ))
+					keptMembers="${keptMembers}${memberName} "
 				fi
 				ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n'
 				continue
@@ -292,7 +301,7 @@ case "$1" in
 				fi
 			elif [ -L "$dcSlot" ] ; then
 				if [ "$( readlink "$dcSlot" )" != "$dcLinkTarget" ] ; then
-					keptOther=$(( keptOther + 1 ))
+					keptMembers="${keptMembers}${dcMember} "
 				fi
 				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n'
 				continue
@@ -449,26 +458,61 @@ case "$1" in
 			rmdir "$regLock" 2>/dev/null || true
 		fi
 
-		local shortRoot="$targetRoot" summaryNote="" newCount
+		local shortRoot="$targetRoot" reportScope="home" reportEntry reportName
 		case "$shortRoot" in
 			"$workspace"/*) shortRoot=".${shortRoot#$workspace}" ;;
 			"$HOME"/*) shortRoot="~${shortRoot#$HOME}" ;;
 		esac
-		## registration follows linking -- only worth naming when it did not
-		[ "$newLinks" != "$regChanges" ] || regChanges=""
-		newCount="$( printf '%s' "$newLinks" | wc -w | tr -d ' ' )"
-		case "$newCount" in
-			0) ;;
-			1|2|3|4) summaryNote=", new: ${newLinks% }" ;;
-			*) summaryNote=", $newCount new" ;;
-		esac
-		[ -z "$regChanges" ] || summaryNote="$summaryNote, re-registered: ${regChanges% }"
-		[ "$keptOther" = "0" ] || summaryNote="$summaryNote, $keptOther kept as-is"
-		[ "$removeMode" = "true" ] || echo "🔗 $shortRoot: $( printf '%s' "$ownedMembers" | grep -c '' ) members linked$summaryNote" >&2
+		[ "$scope" != "workspace" ] || reportScope="workspace"
+
+		if [ "$removeMode" != "true" ] ; then
+			## one record per member; the caller owning the report renders them as a single table at the end
+			if [ -n "$MDSC_SKILLSET_REPORT" ] ; then
+				while IFS= read -r reportEntry ; do
+					[ -n "$reportEntry" ] || continue
+					reportName="${reportEntry%% *}"
+					case " $newLinks $regChanges " in
+						*" $reportName "*) printf '%s\t%s\t%s\n' "$reportName" "$reportScope" "updated" ;;
+						*)
+							case " $keptMembers " in
+								*" $reportName "*) printf '%s\t%s\t%s\n' "$reportName" "$reportScope" "kept" ;;
+								*) printf '%s\t%s\t%s\n' "$reportName" "$reportScope" "ok" ;;
+							esac
+						;;
+					esac
+				done <<< "$ownedMembers" >> "$MDSC_SKILLSET_REPORT"
+			fi
+			## progress while the roots are worked through; the table lands once, after all of them
+			echo "🔗 $shortRoot: $( printf '%s' "$ownedMembers" | grep -c '' ) members" >&2
+		fi
 
 		if [ "$hadError" = "true" ] ; then
 			set +e ; return 1
 		fi
+		return 0
+	;;
+
+	--install-skillset-report-render)
+		shift
+		[ -s "$MDSC_SKILLSET_REPORT" ] || return 0
+		LC_ALL=C awk -F'\t' '
+			{ seen[$1] = 1 ; scope[$1 "|" $2] = 1 ; if ( $3 == "updated" ) upd[$1]++ ; else if ( $3 == "kept" ) kept[$1]++ ; }
+			END {
+				n = 0
+				for ( m in seen ) order[++n] = m
+				for ( i = 1 ; i < n ; i++ ) for ( j = i + 1 ; j <= n ; j++ ) if ( order[j] < order[i] ) { t = order[i] ; order[i] = order[j] ; order[j] = t ; }
+				printf "🔗 magic-team skillset: %d members\n", n
+				printf "   %-18s %8s %6s %6s %10s\n", "MEMBER", "UPDATED", "KEPT", "HOME", "WORKSPACE"
+				for ( i = 1 ; i <= n ; i++ ) {
+					m = order[i]
+					printf "   %-18s %8s %6s %6s %10s\n", m, \
+						( m in upd ) ? upd[m] : "-", \
+						( m in kept ) ? kept[m] : "-", \
+						( ( m "|home" ) in scope ) ? "yes" : "-", \
+						( ( m "|workspace" ) in scope ) ? "yes" : "-"
+				}
+			}
+		' "$MDSC_SKILLSET_REPORT" >&2
 		return 0
 	;;
 
@@ -511,11 +555,20 @@ case "$1" in
 
 		DistroAgentsTools --install-vscode-integrations --workspace "$workspace" || { set +e ; return 1 ; }
 
+		local ownsReport="false"
+		if [ -z "$MDSC_SKILLSET_REPORT" ] ; then
+			MDSC_SKILLSET_REPORT="$( mktemp "${TMPDIR:-/tmp}/magic-skillset.XXXXXX" )" || { set +e ; return 1 ; }
+			export MDSC_SKILLSET_REPORT ; ownsReport="true"
+		fi
 		if [ -n "$scope" ] ; then
 			DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" || { set +e ; return 1 ; }
 		else
 			DistroAgentsTools --install-skillset-symlinks --scope user-home --workspace "$workspace" || { set +e ; return 1 ; }
 			DistroAgentsTools --install-skillset-symlinks --scope workspace --workspace "$workspace" || { set +e ; return 1 ; }
+		fi
+		if [ "$ownsReport" = "true" ] ; then
+			DistroAgentsTools --install-skillset-report-render
+			rm -f "$MDSC_SKILLSET_REPORT" ; unset MDSC_SKILLSET_REPORT
 		fi
 
 		## --quiet used to drop the step narration that is now gone; the op's one outcome line always prints
