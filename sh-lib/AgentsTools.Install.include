@@ -518,7 +518,8 @@ case "$1" in
 			DistroAgentsTools --install-skillset-symlinks --scope workspace --workspace "$workspace" || { set +e ; return 1 ; }
 		fi
 
-		[ "$quiet" = "true" ] || echo "✅ workspace integrations installed" >&2
+		## --quiet used to drop the step narration that is now gone; the op's one outcome line always prints
+		echo "✅ workspace integrations installed" >&2
 		return 0
 	;;
 
@@ -641,7 +642,7 @@ case "$1" in
 				mcpVerdict="$( MYX_MCPVERIFY_TOPKEY="$mcpKey" MYX_MCPVERIFY_COMMAND="$serverScript" \
 					LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonVerify.awk" "$mcpFile" )"
 				if [ "$mcpVerdict" = "OK" ] ; then
-					echo "✅ myx.common → ${mcpFile#$workspace/}" >&2
+					echo "✅ myx.common registered in ${mcpFile#$workspace/}" >&2
 				else
 					echo "⛔ ERROR: mcp-check ${mcpFile#$workspace/}: $mcpVerdict" >&2
 					failed=1
@@ -692,7 +693,7 @@ case "$1" in
 						MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
 						LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>/dev/null \
 						| cmp -s - "$distroFile" ; then
-						echo "✅ myx.distro → ${distroFile#$workspace/}" >&2
+						echo "✅ myx.distro registered in ${distroFile#$workspace/}" >&2
 					else
 						echo "⛔ ERROR: mcp-distro-check ${distroFile#$workspace/}" >&2
 						failed=1
@@ -709,7 +710,7 @@ case "$1" in
 		else
 			local wsFile="$workspace/${workspace##*/}.code-workspace"
 			if grep -q 'chat\.agentSkillsLocations' "$wsFile" 2>/dev/null ; then
-				echo "✅ code-workspace → ${wsFile#$workspace/}" >&2
+				echo "✅ code-workspace regenerated: ${wsFile#$workspace/}" >&2
 			else
 				echo "⛔ ERROR: code-workspace-check: chat.agentSkillsLocations absent from ${wsFile#$workspace/} -- magic-team members will not be discoverable by the VS Code chat client" >&2
 				failed=1
