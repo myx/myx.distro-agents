@@ -323,6 +323,11 @@ DistroAgentsTools(){
 			return 0
 		;;
 
+		--make-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Make.include"
+			return $?
+		;;
+
 		--install-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Install.include"
 			return $?
