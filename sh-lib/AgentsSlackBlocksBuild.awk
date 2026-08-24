@@ -19,6 +19,22 @@
 # fall through and are treated as plain paragraph text, same as any other
 # non-blank, non-bullet, non-header line.
 #
+# Recognized inline, within a paragraph or bullet-item line's own text (never
+# inside a "# " header line -- Slack's `header` block is `plain_text`, which
+# has no rich-text/style support at all):
+#   "**text**" / "*text*" -> bold (any run of one-or-more "*" on both sides;
+#                            "**" and "*" are interchangeable, not two
+#                            separate levels)
+#   "_text_"               -> italic (single "_" only, and only where it
+#                            sits at a word boundary -- an "_" with a
+#                            letter/digit immediately on its outward side,
+#                            e.g. "some_var_name", never opens or closes a
+#                            span, so identifier-shaped text stays literal)
+# An unmatched delimiter, or a delimiter pair with nothing between (e.g.
+# "****"), is never consumed as a span -- it passes through as literal text.
+# No nesting (bold-inside-italic or vice versa) and no escaping ("\*") --
+# same "restricted, not general" floor as the per-line syntax above.
+#
 # Consecutive lines of the same kind merge into ONE run, same "paragraph/
 # list run" concept the help text uses: consecutive plain lines join
 # (JSON-escaped, "\n"-joined -- same convention as agentMcpJsonEscape.awk's
@@ -38,16 +54,16 @@
 # (same control-char table, same backslash/quote handling; see
 # DistroAgentsTools.fn.sh:75-76's own comment on reusing that escaper) --
 # this script follows the same convention rather than inventing a second
-# escaper, just applied per-line here since bullet/header text and
-# paragraph-line-joining all need it independently rather than once over the
-# whole input.
+# escaper, applied per-segment (each plain/bold/italic span gets its own
+# pass) since bullet/header text, inline-style spans, and paragraph-line-
+# joining all need it independently rather than once over the whole input.
 
 BEGIN {
 	for (i = 1; i <= 31; i++) esc[sprintf("%c", i)] = sprintf("\\u%04x", i)
 	blockCount = 0
 	out = "["
 	runKind = ""    # "" | "para" | "list"
-	paraText = ""
+	paraLineCount = 0
 	listIndent = -1
 	listItems = ""  # rich_text_section elements accumulated for the current indent run
 	listRun = ""    # rich_text_list elements accumulated for the whole current list run
@@ -64,6 +80,88 @@ function jsonEscapeLine(line,   i, c, ln, res) {
 		else res = res c
 	}
 	return res
+}
+
+function isAlnum(c) {
+	return (c ~ /^[A-Za-z0-9]$/)
+}
+
+function plainElem(text) {
+	return "{\"type\":\"text\",\"text\":\"" jsonEscapeLine(text) "\"}"
+}
+
+function styledElem(text, style) {
+	return "{\"type\":\"text\",\"text\":\"" jsonEscapeLine(text) "\",\"style\":{\"" style "\":true}}"
+}
+
+function appendElem(list, elem) {
+	return (list == "") ? elem : list "," elem
+}
+
+## Splits one raw (not yet JSON-escaped) line of text into a comma-joined
+## list of rich_text "text" element objects -- one per plain/bold/italic
+## span, in left-to-right order -- ready to be spliced directly into a
+## rich_text_section's own "elements" array. Single left-to-right scan, no
+## nesting, no recursion: see this file's own header comment for the exact
+## bold/italic rules this implements.
+function parseInlineStyles(line,    n, i, j, k, c, closeIdx, closeEnd, spanText, plain, out, leftOk, rightOk, found) {
+	n = length(line)
+	out = ""
+	plain = ""
+	i = 1
+	while (i <= n) {
+		c = substr(line, i, 1)
+		if (c == "*") {
+			j = i
+			while (j <= n && substr(line, j, 1) == "*") j++
+			closeIdx = 0
+			k = j
+			while (k <= n) {
+				if (substr(line, k, 1) == "*") { closeIdx = k; break }
+				k++
+			}
+			spanText = (closeIdx > 0) ? substr(line, j, closeIdx - j) : ""
+			if (spanText != "") {
+				if (plain != "") { out = appendElem(out, plainElem(plain)); plain = "" }
+				out = appendElem(out, styledElem(spanText, "bold"))
+				closeEnd = closeIdx
+				while (closeEnd <= n && substr(line, closeEnd, 1) == "*") closeEnd++
+				i = closeEnd
+			} else {
+				plain = plain substr(line, i, j - i)
+				i = j
+			}
+			continue
+		}
+		if (c == "_") {
+			leftOk = (i == 1) || !isAlnum(substr(line, i - 1, 1))
+			found = 0
+			if (leftOk) {
+				k = i + 1
+				while (k <= n) {
+					if (substr(line, k, 1) == "_") {
+						rightOk = (k == n) || !isAlnum(substr(line, k + 1, 1))
+						if (rightOk) { found = 1; break }
+					}
+					k++
+				}
+			}
+			spanText = found ? substr(line, i + 1, k - i - 1) : ""
+			if (spanText != "") {
+				if (plain != "") { out = appendElem(out, plainElem(plain)); plain = "" }
+				out = appendElem(out, styledElem(spanText, "italic"))
+				i = k + 1
+				continue
+			}
+			plain = plain c
+			i++
+			continue
+		}
+		plain = plain c
+		i++
+	}
+	if (plain != "") out = appendElem(out, plainElem(plain))
+	return out
 }
 
 function emitBlock(json) {
@@ -90,10 +188,21 @@ function flushList() {
 	listIndent = -1
 }
 
-function flushPara() {
-	if (paraText == "") return
-	emitBlock("{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[{\"type\":\"text\",\"text\":\"" paraText "\"}]}]}")
-	paraText = ""
+## Emits the current paragraph run as one rich_text_section -- one or more
+## raw lines, each independently inline-style-parsed via parseInlineStyles(),
+## joined by a literal "\n" text element between lines (same join convention
+## the pre-inline-styles version used, now as its own element instead of a
+## character glued inside one big string).
+function flushPara(    i, elems) {
+	if (paraLineCount == 0) return
+	elems = ""
+	for (i = 1; i <= paraLineCount; i++) {
+		if (i > 1) elems = elems ",{\"type\":\"text\",\"text\":\"\\n\"}"
+		elems = appendElem(elems, parseInlineStyles(paraLines[i]))
+		delete paraLines[i]
+	}
+	emitBlock("{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[" elems "]}]}")
+	paraLineCount = 0
 }
 
 function flushRun() {
@@ -138,16 +247,16 @@ function emitHeader(text) {
 			listIndent = indent
 		}
 		if (listItems != "") listItems = listItems ","
-		listItems = listItems "{\"type\":\"rich_text_section\",\"elements\":[{\"type\":\"text\",\"text\":\"" jsonEscapeLine(text) "\"}]}"
+		listItems = listItems "{\"type\":\"rich_text_section\",\"elements\":[" parseInlineStyles(text) "]}"
 		next
 	}
 
-	## Plain paragraph line -- joins onto any already-accumulating paragraph
-	## run with a literal "\n" (two-char JSON escape, matching
-	## agentMcpJsonEscape.awk's own between-line join), not a real newline.
+	## Plain paragraph line -- accumulated raw (not yet JSON-escaped) so
+	## parseInlineStyles() can scan the real characters; flushPara() joins
+	## the accumulated lines' own parsed elements with a literal "\n" text
+	## element between them.
 	if (runKind != "para") { flushRun(); runKind = "para" }
-	if (paraText != "") paraText = paraText "\\n"
-	paraText = paraText jsonEscapeLine(line)
+	paraLines[++paraLineCount] = line
 }
 
 END {
