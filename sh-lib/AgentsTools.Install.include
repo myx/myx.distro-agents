@@ -464,10 +464,18 @@ case "$1" in
 		## members another workspace registered into this same root: present and real, not ours to touch,
 		## but they are in the root and the count has to say so
 		if [ -f "$registryFile" ] ; then
+			## the same root is often shared by several workspaces (e.g. two workspaces both
+			## registering into ~/.claude/skills under their own workspace name) -- one registry
+			## line per registering workspace, but it is still one real slot: dedupe by name
 			while IFS=: read -r regLineName regLineWs regLineRest ; do
 				[ -n "$regLineName" ] || continue
 				[ "$regLineWs" != "$workspaceName" ] || continue
 				[ -e "$targetRoot/$regLineName" ] || continue
+				case " $foreignMembers " in *" $regLineName "*) continue ;; esac
+				## already reported via ownedMembers -- this workspace registers it too,
+				## a second (foreign) registry line for the same name is not a second slot.
+				## ownedMembers is "name path" pairs, one per line -- match the name field, not a substring.
+				printf '%s\n' "$ownedMembers" | awk -v m="$regLineName" 'NF && $1 == m { hit = 1 } END { exit !hit }' && continue
 				foreignMembers="${foreignMembers}${regLineName} "
 			done < "$registryFile"
 		fi
