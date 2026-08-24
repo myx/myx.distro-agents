@@ -175,17 +175,23 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: missing ListDistroDeclares.fn.sh ($declaresTool) or ListDistroProjects.fn.sh ($projectsTool)" >&2
 			hadError="true" ; discoveryTrusted="false"
 		else
+			local selectErrFile declaredErrFile
+			selectErrFile="$( mktemp "${TMPDIR:-/tmp}/agents-install-select.XXXXXX" )" || selectErrFile=""
+			declaredErrFile="$( mktemp "${TMPDIR:-/tmp}/agents-install-declared.XXXXXX" )" || declaredErrFile=""
+
 			selectStatus=0
-			selectedProjects="$( MMDAPP="$workspace" "$projectsTool" --distro-source-only --select-all 2>/dev/null )" || selectStatus=$?
+			selectedProjects="$( MMDAPP="$workspace" "$projectsTool" --distro-source-only --select-all 2>"${selectErrFile:-/dev/null}" )" || selectStatus=$?
 
 			declaredStatus=0
-			declaredMembers="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --distro-source-only --select-from-env --filter-and-cut 'magic-team:team-member' 2>/dev/null )" || declaredStatus=$?
+			declaredMembers="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --distro-source-only --select-from-env --filter-and-cut 'magic-team:team-member' 2>"${declaredErrFile:-/dev/null}" )" || declaredStatus=$?
 
 			if [ "$selectStatus" != "0" ] || [ "$( printf '%s' "$selectedProjects" | grep -c '' )" = "0" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: no projects could be selected in workspace $workspace (ListDistroProjects --distro-source-only --select-all exited $selectStatus)" >&2
+				[ -z "$selectErrFile" ] || [ ! -s "$selectErrFile" ] || sed 's/^/#   ListDistroProjects: /' "$selectErrFile" >&2
 				hadError="true" ; discoveryTrusted="false"
 			elif [ "$declaredStatus" != "0" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroDeclares --filter-and-cut exited $declaredStatus for workspace $workspace" >&2
+				[ -z "$declaredErrFile" ] || [ ! -s "$declaredErrFile" ] || sed 's/^/#   ListDistroDeclares: /' "$declaredErrFile" >&2
 				hadError="true" ; discoveryTrusted="false"
 			else
 
@@ -223,6 +229,7 @@ case "$1" in
 						memberSources="${memberSources}${dMember} ${workspace}/source/${dProject}/${dSkillsetPath}"$'\n'
 					done <<< "$declaredMembers"
 			fi
+			rm -f "$selectErrFile" "$declaredErrFile" 2>/dev/null || true
 		fi
 
 		local dcMember dcSources dcCount dcLinkTarget dcSrc
