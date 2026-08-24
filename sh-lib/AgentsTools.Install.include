@@ -715,15 +715,19 @@ case "$1" in
 					failed=1
 					continue
 				fi
-				if ! chmod 0644 "$mcpTmp" || ! mv -f "$mcpTmp" "$mcpFile" ; then
-					echo "⛔ ERROR: mcp-install $mcpFile" >&2
+				if [ "$mcpSource" != /dev/null ] && cmp -s "$mcpTmp" "$mcpSource" ; then
 					rm -f "$mcpTmp"
-					failed=1
-					continue
-				fi
-				if ! chmod 0644 "$mcpFile" ; then
-					echo "⛔ ERROR: mcp-chmod $mcpFile" >&2
-					failed=1
+				else
+					if ! chmod 0644 "$mcpTmp" || ! mv -f "$mcpTmp" "$mcpFile" ; then
+						echo "⛔ ERROR: mcp-install $mcpFile" >&2
+						rm -f "$mcpTmp"
+						failed=1
+						continue
+					fi
+					if ! chmod 0644 "$mcpFile" ; then
+						echo "⛔ ERROR: mcp-chmod $mcpFile" >&2
+						failed=1
+					fi
 				fi
 				local mcpVerdict
 				mcpVerdict="$( MYX_MCPVERIFY_TOPKEY="$mcpKey" MYX_MCPVERIFY_COMMAND="$serverScript" \
@@ -768,11 +772,15 @@ case "$1" in
 						failed=1
 						continue
 					fi
-					if ! chmod 0644 "$distroTmp" || ! mv -f "$distroTmp" "$distroFile" ; then
-						echo "⛔ ERROR: mcp-distro-install $distroFile" >&2
+					if cmp -s "$distroTmp" "$distroFile" ; then
 						rm -f "$distroTmp"
-						failed=1
-						continue
+					else
+						if ! chmod 0644 "$distroTmp" || ! mv -f "$distroTmp" "$distroFile" ; then
+							echo "⛔ ERROR: mcp-distro-install $distroFile" >&2
+							rm -f "$distroTmp"
+							failed=1
+							continue
+						fi
 					fi
 					if MYX_MCPUPSERT_TOPKEY="$distroKey" \
 						MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
