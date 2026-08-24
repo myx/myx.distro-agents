@@ -10,6 +10,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quie
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-script" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --intern-mcp-server [--run]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --intern-main-loop [--run]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --intern-mcp-execute" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2

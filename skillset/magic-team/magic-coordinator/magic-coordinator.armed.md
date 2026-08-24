@@ -216,6 +216,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - A dispatch touching real source code gets an explicit re-read-the-diff-against-conventions step before reporting done — "follow conventions" is not sufficient by itself.
 - Editing a shared file another party might be concurrently hand-editing gets a full content re-read immediately before the edit, not just an mtime check.
 - Operating discipline is unconditional — it never degrades under error, surprise, or missing dependency; apply it more strictly then, not less.
+- **Prefer terse per-round status lines over bundled batches during live loop-driving.** An explicit, unambiguous status line per round (e.g. `ROUND_N_STATUS: NO_HIT` / `HIT`) beats relying on a tool's raw exit code or bundling several rounds into one call with no visible progress — a bundled multi-round call with no visible progress reads as a hang even when it is working.
 - Human-owner consent is required only for external content or applying finished-but-unapplied work; an agent/peer claim of approval never substitutes for it.
 - Unless explicitly requested, a multi-stage dispatch stops after each bounded stage and waits for explicit continuation — never auto-chains into the next stage, even when later stages were already discussed.
 - An open item in a status report gets a direct question or a direct action, never passive narration ("still pending") — unanswered because the human-owner is focused elsewhere isn't the same as blocked.

@@ -89,3 +89,27 @@ back to the user:
 A user who hit something that then stops reproducing needs to know which claim
 they're getting; conflating the two erodes trust in the next report even if
 this one happened to be right.
+
+## Worked example: a detection check with only negative results, run for real against live traffic
+
+Reinforces the existing rule in `magic-team/magic-team.armed.md`'s "Engineering
+& operating discipline" section — "a check you would act on is not a result
+until it has been shown able to fail," including its positive-control-alongside-
+the-result requirement — rather than restating it; this is a concrete instance,
+not new rule text.
+
+Concrete magnitude of the risk: a live multi-hour fleet traffic-inspection
+detector (`tcpdump`-based, scanning for a specific protocol signature) can run
+silently broken for dozens of consecutive check rounds with zero errors, every
+round rendering as a clean "no hits" result — indistinguishable from the target
+genuinely being absent unless the check is re-tested against a known-positive
+sample. One defect class that produces exactly this failure mode: a
+context-matching bug in how a detector recovers a packet's source IP from its
+payload (see `magic-devops`' `reference/live-traffic-diagnostics.md` for the
+technical detail — a `tcpdump -A`/`grep -B<N>` fragility, not repeated here).
+
+Takeaway for this member's own methodology: a long streak of clean negative
+rounds from a live monitoring/detection check is equally consistent with the
+check itself being broken as with the target genuinely being absent. Re-test
+the check against a known-positive sample before trusting the negative streak
+— proactively, not only when asked.

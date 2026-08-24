@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## Caller-less daemon loop: spawns magic-coordinator.heartbeat.routine's own
+## next-iteration pass, sleeps, repeats forever, no cap. Sourced from
+## DistroAgentsTools.fn.sh's `--intern-main-loop` arm; needs $1/$@/$MDSC_CMD
+## from dot-sourcing. Mirrors --intern-mcp-server's own shape: usage blurb
+## on no flag, set +e/set -e discipline.
+##
+
+case "$1" in
+
+	--intern-main-loop)
+		shift
+
+		## Never loop without --run: an accidental invocation hangs forever.
+		if [ "--run" != "$1" ] ; then
+			printf '%s\n' "$MDSC_CMD --intern-main-loop -- spawns and keeps magic-coordinator.heartbeat.routine's own next-iteration cycle running forever, normal daemon/respawn-loop, no cap." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-main-loop --run" >&2
+			printf '%s\n' "      Spawn one heartbeat next-iteration, sleep, repeat -- forever, until killed." >&2
+			printf '%s\n' "      This is the basement layer that RUNS own-service mode, not merely gated behind it already being up." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "Requires own-service mode already configured -- fails loud on --magic-heartbeat-config-check, re-checked at the top of every iteration." >&2
+			set +e ; return 1
+		fi
+		shift
+
+		if [ 0 -lt $# ] ; then
+			printf '%s\n' "$MDSC_CMD: main-loop --run: ⛔ ERROR: takes no further arguments: $*" >&2
+			set +e ; return 1
+		fi
+
+		## No background job forked here, unlike --intern-mcp-server's
+		## `{...} &`, so -e state is never reset mid-loop: one set +e covers
+		## the loop's whole life, no per-iteration re-arm needed.
+		set +e
+
+		while true ; do
+			## Fail-fast-hard gate, per iteration: loop runs set +e, so failure must propagate explicitly.
+			DistroAgentsTools --magic-heartbeat-config-check || { set +e ; return 1 ; }
+
+			local promptFile
+			promptFile="$MMDAPP/.local/temp/mdat-main-loop-prompt.$$"
+			mkdir -p "$MMDAPP/.local/temp"
+			printf '%s\n' \
+				"SPAWN-REQUEST: main-loop-next-iteration" \
+				"GOAL: Run magic-coordinator.heartbeat.routine's own next-iteration pass" \
+				"CONTEXT: Skill(magic-coordinator) first, then execute magic-coordinator.heartbeat.routine's own Steps end-to-end as one next-iteration pass." \
+				"WAIT: yes" \
+				> "$promptFile"
+
+			## Log-and-continue regardless of exit code -- no retry backoff,
+			## no cap, no judgment. A failed cycle just means the next sleep
+			## and iteration happen anyway.
+			DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait --from-file "$promptFile"
+			rm -f "$promptFile"
+
+			## Read fresh each iteration; empty/non-numeric/zero falls back to 29 -- sleep failing under set +e is a hot loop.
+			local sleepSeconds
+			sleepSeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
+			case "$sleepSeconds" in
+				*[!0123456789]*|''|0)
+					sleepSeconds=29
+				;;
+			esac
+			sleep "$sleepSeconds"
+		done
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

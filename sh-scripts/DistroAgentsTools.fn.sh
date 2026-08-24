@@ -414,6 +414,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--intern-main-loop)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternMainLoop.include"
+			return $?
+		;;
+
 		--intern-mcp-execute)
 			shift
 			if [ $# -gt 0 ] ; then

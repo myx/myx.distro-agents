@@ -1223,6 +1223,29 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--intern-main-loop [--run]
+			Spawns and keeps magic-coordinator.heartbeat.routine's own
+			next-iteration cycle running forever -- the basement layer
+			that RUNS own-service mode, not merely gated behind it
+			already being up. Caller-less, same shape as
+			--intern-mcp-server: no `<team-member>` argument.
+
+			`--run` is what makes it loop. Without it this prints its
+			syntax and exits instead of looping.
+
+			At the top of every iteration, calls
+			--magic-heartbeat-config-check and lets its real exit code
+			propagate -- a failed config check fails this operation
+			loud. Each iteration then
+			spawns one heartbeat next-iteration via
+			--magic-heartbeat-spawn-proxy magic-coordinator --wait,
+			sleeps MAIN_LOOP_RESTART_DELAY_SECONDS
+			(magic-coordinator config scope, default 29), and repeats
+			-- log-and-continue regardless of that spawn's own exit
+			code, no retry backoff, no cap.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--intern-mcp-execute
 			The operation behind the `execute` MCP tool, reached by the
 			server started with --intern-mcp-server --run when it
