@@ -2589,7 +2589,7 @@ case "$1" in
 			;;
 		esac
 
-		local format="text" fromStdin="false" identityAsBot="false"
+		local format="markdown" fromStdin="false" identityAsBot="false"
 		local textArgs stdinContent
 		while [ $# -gt 0 ] ; do
 			case "$1" in
