@@ -30,10 +30,17 @@
 #                            letter/digit immediately on its outward side,
 #                            e.g. "some_var_name", never opens or closes a
 #                            span, so identifier-shaped text stays literal)
+#   "`text`"               -> code (single "`" only, no word-boundary rule --
+#                            unlike "_", a bare "`" isn't part of ordinary
+#                            word-shaped text, so it's always delimiter-
+#                            significant; its content is taken verbatim, not
+#                            re-scanned for bold/italic, same as any other
+#                            span's content below)
 # An unmatched delimiter, or a delimiter pair with nothing between (e.g.
 # "****"), is never consumed as a span -- it passes through as literal text.
-# No nesting (bold-inside-italic or vice versa) and no escaping ("\*") --
-# same "restricted, not general" floor as the per-line syntax above.
+# No nesting (bold-inside-italic, code-inside-either, or vice versa) and no
+# escaping ("\*") -- same "restricted, not general" floor as the per-line
+# syntax above.
 #
 # Consecutive lines of the same kind merge into ONE run, same "paragraph/
 # list run" concept the help text uses: consecutive plain lines join
@@ -155,6 +162,24 @@ function parseInlineStyles(line,    n, i, j, k, c, closeIdx, closeEnd, spanText,
 			}
 			plain = plain c
 			i++
+			continue
+		}
+		if (c == "`") {
+			closeIdx = 0
+			k = i + 1
+			while (k <= n) {
+				if (substr(line, k, 1) == "`") { closeIdx = k; break }
+				k++
+			}
+			spanText = (closeIdx > 0) ? substr(line, i + 1, closeIdx - i - 1) : ""
+			if (spanText != "") {
+				if (plain != "") { out = appendElem(out, plainElem(plain)); plain = "" }
+				out = appendElem(out, styledElem(spanText, "code"))
+				i = closeIdx + 1
+			} else {
+				plain = plain c
+				i++
+			}
 			continue
 		}
 		plain = plain c
