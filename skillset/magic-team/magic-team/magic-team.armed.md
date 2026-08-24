@@ -155,6 +155,8 @@ Standing behavioral rules for any member doing implementation, investigation, or
 - **Every skillset-file change runs `magic-librarian.conventions-check.routine` before it lands.** Generated documents — dispatch, proposal, plan, report — are covered too; how strictly is each routine's own call.
 - A routine's executor is proactive — it knows to actually execute that routine's own steps, and that routine's own rules/conventions take precedence over general defaults while executing it.
 - **Becoming armed triggers a standing self-check, regardless of which routine triggered the arming**: run `--member-work-session-input-scan <own-name>` (`magic-tooling`) once real work-duty actually starts — a real, current read of this member's own open board items plus its own inbox, in one document, as a baseline "what's on my plate" check before anything else proceeds.
+- **A dispatch moving from an existing investigation, proposal, or design note into actual implementation re-verifies the current state of whatever that investigation was about first** — approval or prior verification is not evidence it still holds, since the underlying situation may have changed in the meantime. A stale investigation trusted without re-checking is the same failure whether it produces the original bug or the fix for it.
+- **A board or inbox item found stale, already resolved, or superseded during any dispatch is routed for closure through the normal grooming/advance channel within that same pass, not just flagged and left open.**
 
 ### Duties: three kinds, plus reflection
 
