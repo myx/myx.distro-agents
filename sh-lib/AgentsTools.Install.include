@@ -176,13 +176,13 @@ case "$1" in
 			hadError="true" ; discoveryTrusted="false"
 		else
 			selectStatus=0
-			selectedProjects="$( MMDAPP="$workspace" "$projectsTool" --all-projects 2>/dev/null )" || selectStatus=$?
+			selectedProjects="$( MMDAPP="$workspace" "$projectsTool" --distro-source-only --select-all 2>/dev/null )" || selectStatus=$?
 
 			declaredStatus=0
-			declaredMembers="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --filter-and-cut 'magic-team:team-member' 2>/dev/null )" || declaredStatus=$?
+			declaredMembers="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --distro-source-only --select-from-env --filter-and-cut 'magic-team:team-member' 2>/dev/null )" || declaredStatus=$?
 
 			if [ "$selectStatus" != "0" ] || [ "$( printf '%s' "$selectedProjects" | grep -c '' )" = "0" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: no projects could be selected in workspace $workspace (ListDistroProjects --all-projects exited $selectStatus)" >&2
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: no projects could be selected in workspace $workspace (ListDistroProjects --distro-source-only --select-all exited $selectStatus)" >&2
 				hadError="true" ; discoveryTrusted="false"
 			elif [ "$declaredStatus" != "0" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroDeclares --filter-and-cut exited $declaredStatus for workspace $workspace" >&2
