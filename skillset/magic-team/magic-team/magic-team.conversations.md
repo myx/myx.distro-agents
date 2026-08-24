@@ -336,6 +336,7 @@ Checkpoint mode is required when any of these are true:
 2. A policy-bearing or constraint-bearing step is about to be applied.
 3. The other party explicitly asks for assess/confirm before proceeding.
 4. A relay carries wording where semantic drift would alter authority/safety intent.
+5. An explicit, live human-owner command is about to execute a high-stakes action.
 
 ### When this mode is optional
 
