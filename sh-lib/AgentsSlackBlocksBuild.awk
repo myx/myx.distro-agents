@@ -36,11 +36,25 @@
 #                            significant; its content is taken verbatim, not
 #                            re-scanned for bold/italic, same as any other
 #                            span's content below)
+#   "**_text_**"            -> bold+italic combined (one specific pattern,
+#                            not general nesting): EXACTLY a "**" run (not 1,
+#                            not 3+) immediately wrapping a word-boundary-
+#                            respecting "_..._" span, closed by EXACTLY "**"
+#                            right after the closing "_". A single "*"
+#                            wrapping "_text_" (e.g. "*_text_*") does NOT
+#                            combine -- it stays today's plain-bold-with-
+#                            literal-underscores behavior, since only the
+#                            exact double-asterisk shape is recognized here.
+#                            Because the "_" always sits immediately against
+#                            an asterisk on its outward side in this shape,
+#                            italic's own word-boundary rule is trivially
+#                            satisfied by construction and never rejects it.
 # An unmatched delimiter, or a delimiter pair with nothing between (e.g.
 # "****"), is never consumed as a span -- it passes through as literal text.
-# No nesting (bold-inside-italic, code-inside-either, or vice versa) and no
-# escaping ("\*") -- same "restricted, not general" floor as the per-line
-# syntax above.
+# No nesting beyond the one "**_text_**" combined case above (bold-inside-
+# italic any other way, code-inside-either, or vice versa) and no escaping
+# ("\*") -- same "restricted, not general" floor as the per-line syntax
+# above.
 #
 # Consecutive lines of the same kind merge into ONE run, same "paragraph/
 # list run" concept the help text uses: consecutive plain lines join
@@ -101,6 +115,10 @@ function styledElem(text, style) {
 	return "{\"type\":\"text\",\"text\":\"" jsonEscapeLine(text) "\",\"style\":{\"" style "\":true}}"
 }
 
+function styledElemBoldItalic(text) {
+	return "{\"type\":\"text\",\"text\":\"" jsonEscapeLine(text) "\",\"style\":{\"bold\":true,\"italic\":true}}"
+}
+
 function appendElem(list, elem) {
 	return (list == "") ? elem : list "," elem
 }
@@ -121,6 +139,30 @@ function parseInlineStyles(line,    n, i, j, k, c, closeIdx, closeEnd, spanText,
 		if (c == "*") {
 			j = i
 			while (j <= n && substr(line, j, 1) == "*") j++
+			## Combined bold+italic case -- see this file's own header
+			## comment for the exact "**_text_**" shape. Only ever
+			## preempts the generic bold scan below when the run is
+			## EXACTLY 2 asterisks and a "_" sits immediately after it;
+			## anything else (single "*", a 3+ run, no "_" right there,
+			## or no matching close) falls straight through unchanged.
+			if (j - i == 2 && substr(line, j, 1) == "_") {
+				k = j + 1
+				found = 0
+				while (k <= n) {
+					if (substr(line, k, 1) == "_" && substr(line, k + 1, 2) == "**" && substr(line, k + 3, 1) != "*") {
+						found = 1
+						break
+					}
+					k++
+				}
+				if (found && k > j + 1) {
+					spanText = substr(line, j + 1, k - j - 1)
+					if (plain != "") { out = appendElem(out, plainElem(plain)); plain = "" }
+					out = appendElem(out, styledElemBoldItalic(spanText))
+					i = k + 3
+					continue
+				}
+			}
 			closeIdx = 0
 			k = j
 			while (k <= n) {
