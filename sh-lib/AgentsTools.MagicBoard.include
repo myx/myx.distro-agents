@@ -77,6 +77,22 @@ case "$1" in
 	## (board-running, fresh create) is a separate --magic-board-create-running
 	## call, defined further down this same file -- not this op's concern.
 	## That's a create, not a move, so it has its own one-call path.
+	##
+	## EXECUTION-RECEIPT AUTO-STAMP, unlike every plain-stampless sibling in
+	## this file: board-running->board-blocked is exactly the transition
+	## magic-coordinator.advance.routine's own continuation outcomes already
+	## mandate an execution-receipt for (spawn-receipt-id/dispatch-session-id/
+	## inline:<timestamp>/no-action:<reason-code>) -- leaving this one move
+	## unstamped would let a pass close an item into board-blocked with zero
+	## evidence of what was actually done, the same silent-close-over failure
+	## that convention exists to prevent. Human-owner design: "both" -- a
+	## meaningful auto-default stamp set here UNLESS the caller already
+	## supplied one via --header:upsert:execution-receipt:*/--header:append:
+	## execution-receipt:* among its own passthrough, in which case the
+	## caller's value stands, untouched. Default shape is blocked:<timestamp>
+	## -- new and distinct from the four already-exhaustive continuation-
+	## outcome shapes above (never collides), same colon-prefixed-marker
+	## family as inline:/no-action:.
 	--magic-board-to-blocked)
 		shift
 		local callingMember="$1"
@@ -104,6 +120,18 @@ case "$1" in
 		if [ -z "$fromStateArg" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-blocked: --from-state:<state> is required" >&2
 			set +e ; return 1
+		fi
+		local hasExecutionReceipt="false" passthroughEntry
+		for passthroughEntry in "${passthrough[@]}" ; do
+			case "$passthroughEntry" in
+				--header:upsert:execution-receipt:*|--header:append:execution-receipt:*)
+					hasExecutionReceipt="true"
+				;;
+			esac
+		done
+		if [ "$hasExecutionReceipt" = "false" ] ; then
+			local blockedAt ; blockedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+			passthrough+=( "--header:upsert:execution-receipt:blocked:$blockedAt" )
 		fi
 		DistroAgentsTools --intern-op-board-upsert-move-edit blocked "$itemName" \
 			"$fromStateArg" \

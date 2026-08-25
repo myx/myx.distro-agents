@@ -317,6 +317,15 @@ case "$1" in
 	## recheck-date/condition, the fields a blocked item needs, stay
 	## caller-supplied via --header:* -- they are triage judgments this op
 	## cannot compute.
+	##
+	## EXECUTION-RECEIPT AUTO-STAMP, same rule as --magic-board-to-blocked's
+	## own copy in AgentsTools.MagicBoard.include -- board-running->
+	## board-blocked always carries an execution-receipt now, auto-stamped
+	## blocked:<timestamp> here UNLESS the caller already supplied one via
+	## --header:upsert:execution-receipt:*/--header:append:execution-receipt:*,
+	## in which case the caller's value stands. Independent case arm, own
+	## copy of the check, per this file's own standing "each op owns its own
+	## validation" rule.
 	--magic-grooming-to-blocked)
 		shift
 		## <team-member> captured for future logging/validation, unused today --
@@ -360,6 +369,18 @@ case "$1" in
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		local hasExecutionReceipt="false" passthroughEntry
+		for passthroughEntry in "${passthrough[@]}" ; do
+			case "$passthroughEntry" in
+				--header:upsert:execution-receipt:*|--header:append:execution-receipt:*)
+					hasExecutionReceipt="true"
+				;;
+			esac
+		done
+		if [ "$hasExecutionReceipt" = "false" ] ; then
+			local blockedAt ; blockedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+			passthrough+=( "--header:upsert:execution-receipt:blocked:$blockedAt" )
+		fi
 		DistroAgentsTools --intern-op-board-upsert-move-edit blocked "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \

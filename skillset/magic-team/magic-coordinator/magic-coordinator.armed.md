@@ -494,6 +494,8 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 `DistroAgentsTools.fn.sh --magic-board-to-<target> <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into that target state in one call, and/or patches its frontmatter. These are `check-process-board`'s own **board-mechanical-moves** ops. The whole `--magic-board-*` family stamps nothing — no `owner`, no `groomed-*`, no `track`: those are the grooming family's, and stamping them here would assert a grooming pass that never happened. Every field rides `--header:*` on the call, including the `recheck-date`/`condition` pair a parked item needs.
 
+`-to-blocked` only, not the other three targets in this shared reference: it auto-stamps `execution-receipt: blocked:<timestamp>` unless the caller already supplied one via `--header:upsert:execution-receipt:*`/`--header:append:execution-receipt:*`, in which case the caller's value stands. `-to-pending`/`-to-backlog`/`-to-parked` are unaffected — still stamp nothing.
+
 ## `--magic-advance-to-running` Operation Reference
 
 `DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-running` in one call, auto-stamping `started-at` (date-time). `--from-state:<state>` is required. `--header:*`/`--upsert-from-stdin`/`--edit-script-from-stdin`/`--edit-patch-from-stdin` pass straight through for whatever else the move also needs.

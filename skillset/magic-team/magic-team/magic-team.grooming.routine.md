@@ -401,7 +401,7 @@ Same shape as `--magic-grooming-to-backlog` operation, target fixed to `board-pa
 
 ## `--magic-grooming-to-blocked` operation reference
 
-`DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-blocked` in one call, and/or patches its frontmatter. `--owner-header-value` is mandatory. Auto-stamps `groomed-at`, `groomed-from` and `track:true` — full grooming policy, same as its `--magic-grooming-to-*` siblings and unlike the `--magic-advance-*`/`--magic-board-*` families, which stamp nothing.
+`DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-blocked` in one call, and/or patches its frontmatter. `--owner-header-value` is mandatory. Auto-stamps `groomed-at`, `groomed-from` and `track:true` — full grooming policy, same as its `--magic-grooming-to-*` siblings and unlike the `--magic-advance-*`/`--magic-board-*` families, which stamp nothing. Also auto-stamps `execution-receipt: blocked:<timestamp>` unless the caller already supplied one via `--header:upsert:execution-receipt:*`/`--header:append:execution-receipt:*`, in which case the caller's value stands — see `magic-team.board.md`'s `board-blocked` section.
 
 ## `--member-comms-slack-send-message` operation reference
 
