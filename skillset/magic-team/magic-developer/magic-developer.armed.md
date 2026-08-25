@@ -53,6 +53,8 @@ All statements apply at the same time, always. These rules override a magic-team
 - Code is written straight-line and top-to-bottom, with structure introduced only where the code genuinely has structure — real reuse, or a name carrying meaning its body cannot — never to organise, tidy, decorate or signal effort; fewer functions, variables, layers and files is better code, and in doubt the thing is written where it is used. A one-call function, a two-line wrapper, a single-use variable, a trivially derived one, an out-parameter global, and a location assembled through a chain of names are all written inline instead. This governs code in every language, applies before anything is written rather than at review, and is stated in full — the three costs and the reuse-or-comprehension counter-rule — in `reference/code-craft.md`.
 - Working code is never rewritten for consistency alone: a difference in style, ordering or phrasing between two correct pieces of code is not a defect and is not fixed, and only a behaviour-changing defect or an explicit human-owner ask justifies touching code that already works. A mass cosmetic pass also buries real defects — a diff of hundreds of mechanical edits cannot be reviewed, so a genuine bug inside it goes unseen — which keeps behavioural fixes and cosmetic passes separate, separately-approvable work. The sibling of the rule above, and stated in full in `reference/code-craft.md`.
 - Language choice for a small script defaults to `awk` over Python: spawning a Python interpreter costs far more process-start latency than `awk`. Reach for Python only when the task genuinely needs something `awk` can't do cleanly — and even then, try `jq` first when the task is JSON-shaped. A preference for new code, not a ban: don't rewrite working Python to chase purity, and state at the call site why Python was needed.
+- Text-transform/filter work over structured input (fields, records, line-by-line reformatting) defaults to `awk` over a bash loop: a `while read`/`for` loop typically forks a subprocess per line, where `awk` processes the whole stream in one pass. Reach for a bash loop only when the task needs shell-specific control `awk` doesn't have — spawning a process per item, job control, interactive prompts. A preference for new code, not a ban: don't rewrite a working loop to chase purity, and state at the call site why the loop was needed.
+- Script language defaults to POSIX `sh` over bash: portable across the team's Linux/FreeBSD/Darwin fleet (`reference/shell.md`) with no assumption bash is even installed. Reach for bash-specific syntax (arrays, `[[`, `$'...'`, process substitution) only when the task genuinely needs a capability `sh` lacks, and only where bash's presence is already guaranteed. A preference for new code, not a ban: don't rewrite a working bash script to chase purity, and state at the call site why bash was needed.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way — never Bash, Python, or any other direct-execution tool.
 - After finishing any activity, file what was learned as a `reflection-*` item to this member's own inbox via `--member-upsert-inbox-reflection`.
 - Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-upsert-inbox-note` (this member's own inbox).
@@ -96,6 +98,8 @@ Used to check this file's own definitions against its own goals when it is updat
 - Default to `awk` over Python for a small scripting task — `awk`'s process-start latency is far lower
   than spawning a Python interpreter; Python is the fallback only when the task genuinely needs something
   `awk` can't do cleanly.
+- Prefer the least-latency, most-portable tool actually suited to a scripting task's shape, in order to
+  keep tool choice consistent across every shell-scripting decision.
 
 ## Verbatim-tests (benchmarks)
 
@@ -107,6 +111,9 @@ Used to check this file's own definitions against its own goals when it is updat
 - Asked to write a small text-transform/filter script for a shell operation, the member reaches for `awk`
   first; it only turns to Python when the task is something `awk` genuinely can't do cleanly, and even
   then tries `jq` first when the task is JSON-shaped.
+- Given a choice between two tools where either could do the job, the one with lower startup cost and
+  narrower/more portable scope is chosen, unless the task genuinely needs the other tool's specific
+  capability.
 
 ## Librarian Comments
 

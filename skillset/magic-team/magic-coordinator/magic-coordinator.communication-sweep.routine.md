@@ -171,13 +171,13 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 `DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]` — reads one specific message in full, or the whole thread it belongs to with `--thread`. `<channel>:<ts>` only: unlike the scan ops it takes no `magic-team`/`human-owner` shortcut, since it retrieves one exact message and that needs its own `<ts>`. `<team-member>` is the acting identity, and it decides WHICH conversation is read at all — a direct conversation belongs to one identity pair, so the member's own identity and the team bot hold two different DMs with the same person. Its own identity when it has one, the team bot when it does not; `--identity-bot` reads the bot's conversation instead. A call that could not see the message asked for fails loud — an empty result is never reported as an outcome, so "nothing there" can never be concluded from a failed read.
 
-## `--magic-heartbeat-state-read` operation reference
+## `--magic-sweep-state-read` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>` — read-only: prints the whole `heartbeat-state-note` on stdout, verbatim, this routine's source for `last_swept_ts` ahead of the **check** step. Prints `NO_STATE` and returns 0 when nothing is stored yet — a normal first-run outcome, not an error. `<team-member>` is the only argument.
+`DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>` — read-only: prints the whole `sweep-state-note` on stdout, verbatim, this routine's source for `last_swept_ts` ahead of the **check** step. Prints `NO_STATE` and returns 0 when nothing is stored yet — a normal first-run outcome, not an error. `<team-member>` is the only argument.
 
-## `--magic-heartbeat-state-upsert` operation reference
+## `--magic-sweep-state-upsert` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]` — writes (creates or overwrites) the `heartbeat-state-note`. Content comes via stdin by default, or via `--from-file <path>` (never a bare `--file`). Every call replaces the whole record and never appends, so the **update-context** step folds its own fields into the full current record rather than writing them alone. Empty content is refused rather than written. Takes no filename or path argument — storage is the operation's own concern.
+`DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) the `sweep-state-note`. Content via stdin by default; `--from-file <path>` for a full-content write, `--edit-patch-from-stdin` for a single-field update — per **update-context**, the patch form is used for a single-field update, full-content write only for a genuine whole-record rewrite. Empty content is refused rather than written. Takes no filename or path argument — storage is the operation's own concern.
 
 # Maintainer Notes
 

@@ -165,6 +165,36 @@ This file's own content is binding and obligatory on every team member who reads
    Distinct from rule 5c (a parameter nobody addressed) and checkpoint loop's rule 8 (replacing an approved
    point): this is about stretching an already-decided point's reach, not filling a gap or contradicting it.
 
+5e. **Concrete trigger: two-or-more-reasonable-interpretations with a material effect on outcome — an objective condition, not a feeling to notice.**
+   Rule 5a's "probable assumption gap is suspected" is too easy to reason past under task-completion pressure —
+   "suspected" leaves room to simply not suspect it. The actual trigger is objective: before proceeding past a
+   sub-decision where (a) two or more reasonable interpretations or approaches exist, and (b) picking one over
+   another would materially change the outcome, deliverable shape, or scope — that fork is itself the trigger,
+   whether or not it was subjectively "suspected" as ambiguous. Applies during solo task execution exactly as
+   much as during a live exchange with another party — a task with no interlocutor present is not exempt from
+   checking itself against this condition at each such fork. Exempt: a genuinely trivial, non-policy style/
+   wording choice with no outcome-changing effect (same carve-out as rule 5c's bounding benchmark).
+   verbatim-intent: `objective outcome-changing ambiguity is a stop condition, not a subjective one`.
+   verbatim-benchmark: `a task must choose between two structurally different but both-plausible ways to carry
+   out a requested change, with nothing in the instructions favoring either — hitting that fork is itself the
+   trigger, whether or not the session felt it was "suspicious," and it must stop that sub-decision rather than
+   pick one and continue`.
+
+5f. **For a dispatched/background session with no live reply channel, "ask" means stop-and-flag, not wait.**
+   Rule 5a/5c and the checkpoint loop's "wait for explicit approval" describe a live-interactive channel where
+   a reply can actually arrive mid-task. A dispatched background session (e.g. an Agent-tool sub-dispatch) has
+   no such channel — it cannot literally pause execution for a human-owner reply the way a live root session
+   can. For that context, "ask" means: stop advancing that specific sub-decision, state the fork and the
+   reasonable readings plainly as UNRESOLVED in the final report, and do not proceed past it on a guess. Work
+   not gated by that sub-decision may continue; the sub-decision itself is never silently resolved by picking
+   one reading and presenting the result as if it were already settled. This is not an exemption from rule
+   5a/5c/5e — it is the same obligation translated to a channel that cannot literally block.
+   verbatim-intent: `a background dispatch cannot wait, so it stops and flags the sub-decision instead of
+   guessing`.
+   verbatim-benchmark: `a background dispatch mid-task hits a design choice the instructions never specified,
+   with no live human-owner to ask — it does not pick one and present the result as settled; it stops that
+   sub-decision, marks it unresolved in its report, and continues only the parts of the task not gated by it`.
+
 6. **When clarification stalls, switch to single-hypothesis closed-form questions.**
    Keep one falsifiable guess per round (`is it X?`), retire exactly one guess each round, never bundle gaps.
 
@@ -337,6 +367,9 @@ Checkpoint mode is required when any of these are true:
 3. The other party explicitly asks for assess/confirm before proceeding.
 4. A relay carries wording where semantic drift would alter authority/safety intent.
 5. An explicit, live human-owner command is about to execute a high-stakes action.
+6. A solo task-execution step — live or background-dispatched — is about to proceed past a fork meeting
+   rule 5e's trigger condition (two or more reasonable interpretations, material effect on outcome). See
+   rule 5f for what "checkpoint" means when the session has no live reply channel to wait on.
 
 ### When this mode is optional
 
@@ -347,7 +380,9 @@ explicitly specified parameter (e.g. a required participant/quorum list).
 ### Checkpoint loop (operational form)
 
 1. **Readback -> approval -> next step.**
-   Before action, send a short readback of the immediate next step and wait for explicit approval.
+   Before action, send a short readback of the immediate next step and wait for explicit approval. For a
+   dispatched/background session with no live reply channel, "wait for explicit approval" means what rule 5f
+   says instead: stop that sub-decision, flag it unresolved in the report, do not guess past it.
 
 2. **Read back current scope in present tense.**
    Keep readback on current decision only (not a broad plan). Phrase in present tense and current scope.
@@ -387,4 +422,3 @@ explicitly specified parameter (e.g. a required participant/quorum list).
 Proposal-first, approval-before-apply is mandatory for policy-bearing changes.
 If proposed wording changes authority, obligation, scope, or safety semantics, pause and request approval
 before applying the change.
-

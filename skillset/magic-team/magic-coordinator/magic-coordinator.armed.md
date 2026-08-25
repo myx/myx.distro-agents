@@ -124,6 +124,12 @@ Callable by any routine: `magic-coordinator.advance.routine`, `magic-coordinator
 
 **Note on parked/blocked reassessment**: A lightweight check plus inquiry-spinoff only — `magic-team.grooming.routine` does the deeper execution.
 
+**Note on archived reassessment**: Scoped to the one `board-archived` population `archive: true` actually governs.
+- Eligible: an item that passed through `board-processed` before landing here — signaled by `processed-at` (stamped only by the `--magic-grooming-to-processed`/`--magic-grooming-create-processed` family, never re-stamped or cleared by any later move).
+- Not eligible: grooming's own direct Drop outcome (`--magic-grooming-to-archived` straight from `board-backlog`/`board-parked`/`board-blocked`) — never passes through `board-processed`, so never carries `processed-at`, and never carried `archive: true` either. Missing the flag there is normal, not a gap.
+- `groomed-from` was tried and rejected as the marker: `--magic-grooming-to-archived` unconditionally re-stamps `groomed-from` to the caller's `--from-state:` on every call, including a same-state header-only edit — verified live: removing `archive: true` via `--from-state:archived --header:remove:archive` silently overwrote `groomed-from: processed` to `groomed-from: archived` in the same motion. `processed-at` has no such hazard.
+- The move back to `board-processed` is grooming-authority-only — same restriction `magic-coordinator.advance.routine` already states for entering `board-processed` outside grooming's own session.
+
 **Note on backlog readiness flagging**: The "go" decision, and spawning a work session, both belong to `check-execute-board`/the authority group.
 
 **Note on reporting**: Never repeats `check-execute-board`'s own findings (redispatches, interview threads) — that's the calling routine's own report.
@@ -164,9 +170,16 @@ Steps:
    - Any external check needed, however trivial: spin off an inquiry job, reference it on the item, extend `recheck-date` to now + 17min (jittered ±2min), per `magic-coordinator.advance.routine`'s own **`recheck-date` computation**.
    - `condition` not met yet: leave the item in its current state, renew `recheck-date` to now + 17min (jittered ±2min), same computation, note why. The ordinary `board-parked` outcome — a parked item's recheck asks only whether its trigger has arrived, and "not yet" is never a demotion.
    - `condition` met, resolves from already-loaded context alone: move `board-parked`→`board-backlog` via `--magic-board-to-backlog`, or `board-blocked`→`board-backlog` (`--magic-board-to-backlog`)/`board-pending` (`--magic-board-to-pending`)/`board-running` (`--magic-advance-to-running`), note why.
-8. **board-scan-backlog-readiness**: Scan `board-backlog` for readiness. Flag dependency-clear, ready-looking items. Do not decide "go." Do not dispatch.
-9. **board-run-pending-comms-actions**: Run the `check-pending-comms-actions` procedure.
-10. **board-report**: Report. Post a compact `slack-event-track` trace via `--member-comms-slack-send-message` (target `event-track`). Cover: mechanical moves, reopens, Slack pending-reactions resolved/still-pending, Trello updates posted/still-pending, what's flagged for next grooming/daily. Post every run, even "nothing to actualise."
+8. **board-reassess-archived-missing-flag**: Reassess `board-archived` items missing `archive: true`, narrowly scoped to the population that flag actually governs.
+   - Trigger: `processed-at` present **and** `archive: true` absent from current frontmatter (removed since, or never present despite the `processed-at` provenance).
+   - An item without `processed-at` — the direct-Drop population, never having passed through `board-processed` — never matches this trigger, and missing `archive: true` there is its normal, correct state, not a gap. See "Note on archived reassessment" above for the full population split.
+   - Evaluate from this pass's already-loaded data only.
+   - Grooming-context (`magic-team.grooming.routine`'s own session): move it back to `board-processed` via `--magic-grooming-to-processed <team-member> <item-filename> --from-state:archived --owner-header-value <value>`, note the reversal when reporting.
+   - Any other calling routine (`magic-coordinator.advance.routine`/`magic-coordinator.daily.routine`): no `board-processed`-move operation is granted here — same restriction `magic-coordinator.advance.routine` already states for entering `board-processed` — flag it once via `slack-event-track` for `magic-team.grooming.routine`'s own next pass to perform the move, escalate-once, never re-flag the identical item every pass.
+   - No signal this pass (no `board-archived` item currently carries `processed-at`): do nothing — this is the expected, correct outcome for every currently-real `board-archived` item (all three reached here via the direct-Drop path, confirmed by direct read — none carry `processed-at`), and activates automatically once the `archive: true` GC diversion itself starts moving items here from `board-processed`.
+9. **board-scan-backlog-readiness**: Scan `board-backlog` for readiness. Flag dependency-clear, ready-looking items. Do not decide "go." Do not dispatch.
+10. **board-run-pending-comms-actions**: Run the `check-pending-comms-actions` procedure.
+11. **board-report**: Report. Post a compact `slack-event-track` trace via `--member-comms-slack-send-message` (target `event-track`). Cover: mechanical moves, reopens, archived-reversals, Slack pending-reactions resolved/still-pending, Trello updates posted/still-pending, what's flagged for next grooming/daily. Post every run, even "nothing to actualise."
 
 ## `check-pending-comms-actions` - deferred Slack/Trello queued-action lookup
 
@@ -367,7 +380,7 @@ Four of these are structured routines: `magic-coordinator.daily.routine`, `magic
 
 The board is the sole live backlog/status source (folder-state model — `board-backlog`/`board-pending`/`board-running`/`board-blocked`/`board-parked`/`board-processed`/`board-archived`/`board-retained` — defined in `magic-team.board.md`, not restated here).
 
-Per-platform sweep state (check markers, capability gaps) lives as structured fields in the `heartbeat-state-note`, read via the `--magic-heartbeat-state-read` operation and rewritten via `--magic-heartbeat-state-upsert`; open/closed thread tracking lives on the owning `board-item`s directly (`communication-channel-id`). `magic-coordinator.communication-sweep.routine` reads/writes those, same ownership (`magic-librarian`).
+Per-platform sweep state (check markers, capability gaps) lives as structured fields in the `sweep-state-note`, read via the `--magic-sweep-state-read` operation and rewritten via `--magic-sweep-state-upsert`; open/closed thread tracking lives on the owning `board-item`s directly (`communication-channel-id`). `magic-coordinator.communication-sweep.routine` reads/writes those, same ownership (`magic-librarian`).
 
 Every structured coworking-like routine (per `magic-team.coworking.routine`'s own taxonomy) opens by executing that template's Steps and closes with its Closure Steps. Every routine, coworking-like or not, has its own `# Steps` and `# Closure steps` — the executor runs exactly what each section says, in order.
 
@@ -588,7 +601,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-librarian` — README/CLAUDE.md/board-item writing, the shared reference files' maintainer.
 - `magic-architect` — design-consistency dispatch target for doc-drift signals, joint grooming authority.
 - `magic-tester` — testing/verification dispatch target for a `board-running` item's own in-place testing round.
-- Every `keeper-*`/`warden-*`/`partner-*`/`client-*` member — domain grounding, coordinator's assistants per `magic-team.authority.keeper.contract.md`'s policy.
+- Every `keeper-*`/`warden-*` member — domain grounding, coordinator's assistants per `magic-team.authority.keeper.contract.md`'s policy.
 - `magic-team` — the board (`board/`) and shared reference files (`magic-team.board.md`, `magic-team.armed.md`'s tooling section, `magic-team.shared.md`) this member reads/writes continuously.
 
 ### Conventions
