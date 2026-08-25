@@ -10,7 +10,7 @@ Routine-interview is the dedicated place to precisely understand another party's
 
 ## Goals
 
-Give the team a real, dedicated place to precisely understand another party's vision or inquiry — the human-owner's own design thinking, an external contact's actual need — *before* trying to converge on anything. This is deliberately not about reaching agreement (that's `magic-team.discuss.routine`'s job) — it exists because collection and convergence are genuinely different modes: rushing to agree before the other party's actual intent is fully captured risks building the wrong thing precisely, or worse, quietly deciding things on their behalf that were never actually settled.
+Give the team a real, dedicated place to precisely understand another party's vision or inquiry — the human-owner's own design thinking, an external contact's actual need — *before* trying to converge on anything. This is deliberately not about reaching agreement (that's `magic-team.discuss.routine`'s job) — it exists because collection and convergence are genuinely different modes: rushing to agree before the other party's actual intent is fully captured risks building the wrong thing precisely, or worse, quietly deciding things on their behalf that were never actually settled. Reach for it in a topic's initial stages — when the job is converging the tracking Item toward an accurate account of what the other party wants, not yet a shared vision to build from.
 
 ## Scope
 

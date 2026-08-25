@@ -120,6 +120,8 @@ Callable by any routine: `magic-coordinator.advance.routine`, `magic-coordinator
 
 **Note on interview items**: `interview-*`/`talk-*` board-running items get no state-only action here — `magic-team.interview.routine` owns all their state changes; see `check-execute-board`.
 
+**Note on proposal items**: `proposal-*` board-running items get no state-only action here — `magic-team.discuss.routine` owns all their state changes; see `check-execute-board`.
+
 **Note on parked/blocked reassessment**: A lightweight check plus inquiry-spinoff only — `magic-team.grooming.routine` does the deeper execution.
 
 **Note on backlog readiness flagging**: The "go" decision, and spawning a work session, both belong to `check-execute-board`/the authority group.
@@ -148,7 +150,7 @@ Steps:
    - `approval-*` / `approve-*`: approved (`approved-by`/`approved-at`, or explicit "go") → `board-processed`; each `blocks:` item in `board-blocked` with all `blocked-by:` resolved → `board-pending`.
    - `inquiry-*`: reply present in body → `board-processed`.
    - `task-*` / `project-*` / `epic-*`: content records completion → `board-processed`.
-   - `proposal-*`: approved → `board-processed` + same unblock sweep; rejected → `board-archived`.
+   - `proposal-*`: no action here — `magic-team.discuss.routine` owns all state changes for this item; see the Note on proposal items above.
    - `dispatch-*`: `session-id` absent → flag for `magic-team.grooming.routine`.
    - `note-*` / `change-*` / `transcript-*` / `reflection-*`: not expected in `board-running` → flag for `magic-team.grooming.routine`.
    - `interview-*` / `talk-*`: no action here.

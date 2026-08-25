@@ -435,6 +435,7 @@ Rules/predicates/definitions:
 - Filename predicate: name starts with `proposal-`.
 - Fixed `type` constant: `proposal`.
 - Triage predicate: remains non-executable until grooming resolves it into a concrete next state.
+- Owning-routine predicate: `magic-team.discuss.routine` owns this item's own state changes while it is `board-running` — see `magic-coordinator.armed.md`'s `check-process-board` Note on proposal items, and `magic-coordinator.advance.routine`'s `check-execute-board` per-type rule.
 
 Type-specific headers:
 - `type: proposal` (fixed constant)
