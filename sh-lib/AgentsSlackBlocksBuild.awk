@@ -10,6 +10,10 @@
 #
 # Recognized per line:
 #   "# text"      -> a `header` block (plain_text)
+#   "## text"     -> a bold paragraph line (Slack's `header` block has no H2/
+#                    H3 distinction, so a deeper heading level renders bold
+#                    instead of a raw, unconverted "##" prefix); "###", etc.
+#                    all collapse to the same bold treatment as "##"
 #   "- text"      -> a top-level (indent 0) bullet list item
 #   "  - text"    -> an indent-1 nested bullet item (exactly 2 leading spaces)
 #   "    - text"  -> an indent-2 nested bullet item (exactly 4 leading spaces)
@@ -294,6 +298,17 @@ function emitHeader(text) {
 		flushRun()
 		emitHeader(substr(line, 3))
 		next
+	}
+
+	## "## text" / "### text" (two or more "#"s) -- Slack's Block Kit
+	## `header` block has exactly one flat style, no H2/H3 distinction, so a
+	## deeper heading level has no native block to become; render it as a
+	## bold paragraph line instead of falling through unconverted (the raw
+	## "##" prefix would otherwise show up literally in Slack). Reuses the
+	## existing "**text**" -> bold path below rather than adding a second
+	## bold mechanism.
+	if (match(line, /^##+ /)) {
+		line = "**" substr(line, RSTART + RLENGTH) "**"
 	}
 
 	## Bullet detection: exact leading-space counts only (0/2/4 -- the
