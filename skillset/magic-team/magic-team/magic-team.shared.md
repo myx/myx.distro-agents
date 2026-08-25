@@ -428,6 +428,23 @@ Not a contract — the shape of a **generated** document, produced by tooling an
 
 How a nested list under an instruction declares what each of its lines *is*. Applies to any nested instruction list in a skillset file — a routine's `# Steps`/`# Closure steps`, and the `Steps:` lists inside any member's or routine's own local-procedures blocks — not only `.routine.md`.
 
+### When conversion is required
+
+A line's own text converts to this grammar the moment it bundles **two or more distinct, separately-executable obligations** in one sentence or run-on clause — "separately-executable" meaning each has its own action verb and its own object/target, such that dropping any one of them still leaves the others meaningful and independently checkable as done/not-done.
+
+Qualifies, any one of:
+- Sequential actions joined by "then"/"before"/"after"/"once …, …", each naming a distinct action (e.g. "check X then process Y").
+- Parallel obligations packed into one sentence via "and"/comma-listing/semicolons, each governing its own distinct verb and object (e.g. "reference X instead of copying it, write it via upsert, and call refresh periodically").
+- A `goal:`, a `rule:`, and a `step:` folded together into the same sentence instead of stated as separate lines.
+
+Does not qualify — stays flat prose, no nested list required:
+- A single action with a subordinate conditional/qualifying clause attached ("if X, do Y" / "do Y, unless Z") — one obligation, one action verb, one object.
+- A single action elaborated with descriptive detail, rationale, or a parenthetical aside that names no separate action verb of its own.
+- A single action naming several parameters/arguments to one call (e.g. "call X with A, B, C") — one obligation, one verb.
+- A second clause that only restates, negates, or states the consequence of the first, naming no new action ("X, not Y" / "X — never Z").
+
+**Mechanical test**: count the distinct action verbs in the line's own sentence(s) that each govern their own separate object and are independently completable. Two or more → convert, using the notation below. Exactly one, however many conditions/qualifiers are attached to it → leave as prose.
+
 Three item kinds:
 
 - `goal:` — intent, not an instruction. What this branch is trying to achieve. Goes first; may be several; never executed.
