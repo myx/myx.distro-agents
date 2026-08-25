@@ -205,6 +205,12 @@ Two routines drive the board, each a distinct, non-overlapping part:
   - `check-process-board` — board-state work only, never a board-item's own task: mechanical moves (`board-mechanical-moves`), dependency-edge recompute (`board-recompute-dependencies`, bounded to once a day or on direct request — this procedure's own one bounded exception to "never new judgment"), parked/blocked reassessment (`board-reassess-parked-blocked`), backlog readiness flagging (`board-scan-backlog-readiness`), deferred Slack/Trello actions (`check-pending-comms-actions`)
   - `check-execute-board` — all work on a board-item's own task, spawned or inline: starting `board-pending` items, continuing already-dispatched `board-running` items
 
+## What counts as process-flow
+
+- A `board-item` is a process-flow job — it moves through the lifecycle/states this file defines.
+- A `vault-item`/`audit-item` is not a job, even carrying task text — carrying task text never makes a document a job, being on the board does (full definition: `magic-team.armed.md`'s "Vault-items, audit-items, referencing and enveloping" section).
+- Process-flow items may reference either kind; the reverse never happens.
+
 ## Who actually reads/writes the board
 
 `magic-coordinator` — exclusively, per the write-authority note at the top of this file.
