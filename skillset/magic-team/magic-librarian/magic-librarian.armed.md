@@ -45,15 +45,21 @@ Steps:
 1. Resolve documentation units in scope (nearest `.git` ancestor; `project.inf` subdirectory with its own README.md).
 2. Default depth is **structural**: README.md/CLAUDE.md/AGENTS.md exist where expected; files, commands, and paths referenced in the docs still exist in the repo; internal links resolve; CLAUDE.md and AGENTS.md, where both exist, haven't substantively diverged.
 3. Only go deeper — cross-checking documented behavior against actual implementation — if the user asks for a deep/thorough check, or the structural pass alone can't resolve something.
-4. Never silently delete or rewrite away content that doesn't match the implementation. Flag it in the report as a discrepancy and let the user decide.
+4. Content that doesn't match the implementation:
+   - rule: never silently delete or rewrite it away.
+   - step: flag it in the report as a discrepancy, and let the user decide.
 5. Report findings as a flat list grouped by unit/file: stale, missing, diverged, broken-link. Don't pad it with things that are fine.
 
 ## `mode-update` — make changes
 
 Steps:
 1. If given a specific, scoped target (e.g. "add a section on the new auth flow", "fix the stale install command"), do that edit directly without a full repo audit first.
-2. If no specific target was given (a bare "update the docs"), run `mode-check` first, then fix what it found.
-3. Creating a missing file: if a unit has a README.md but no CLAUDE.md/AGENTS.md, create one. Do not create a README.md that didn't already exist unless explicitly asked.
+2. If no specific target was given (a bare "update the docs"), steps:
+   - run `mode-check` first
+   - fix what it found
+3. Creating a missing file:
+   - rule: do not create a README.md that didn't already exist unless explicitly asked.
+   - step: if a unit has a README.md but no CLAUDE.md/AGENTS.md, create one.
 4. Fixing a reported discrepancy: only after the user has seen it in a check report (or explicitly names the fix) — don't fix-on-sight during a check pass.
 5. CLAUDE.md/AGENTS.md drift: if both exist and diverge, don't silently pick a winner — surface the diff and ask which is canonical.
 6. Editing existing content — preserve wording, edit surgically: do not regenerate wholesale. Keep phrasing, structure, and tone that's still accurate; only touch parts that are actually stale, missing, or wrong. A one-line fix should produce a one-line diff, not a rewritten file. Prefer the smallest edit that resolves the finding over restyling surrounding text not asked to be touched. Only do a full rewrite when: the file is empty/newly created, the user explicitly asks for a rewrite, or the existing content is so structurally broken that patching it would be less faithful than starting over — and even then, say so before doing it. When filling in genuinely missing content, write it grounded in what was actually found in the code — no generic filler.
@@ -71,7 +77,9 @@ Steps:
 Steps:
 1. **Landing**: any team member (including this skill itself) files a note describing a needed doc-fix via `--member-upsert-inbox-note magic-librarian <item-filename>`. Filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`. Small/individual findings do not get their own immediate ad hoc dispatch.
 2. **Timing**: process this inbox once per workday, before `magic-coordinator.daily.routine`, wired into `magic-coordinator.heartbeat.routine`'s first-today branch alongside its existing `magic-team.grooming.routine` pass.
-3. **Processing**: collect all doc-fix items in this inbox first, then apply them together as one multi-update pass — batched, not per-item.
+3. **Processing**, steps:
+   - collect all doc-fix items in this inbox first
+   - apply them together as one multi-update pass — batched, not per-item
 
 Note: `magic-librarian.morning-review.routine` is a distinct, board-state-shape/cross-file-consistency session — it does not cover this skill's own inbox and isn't the right home for this batching pass; kept separate deliberately.
 
@@ -89,7 +97,10 @@ Steps:
    - **Grant-surface check**: an operation a member uses is granted on any one of three surfaces — `magic-team`'s own shared/floor tooling list, that member's own `.armed.md` tooling list, and the `# Routine-specific tooling` section of a routine that member takes part in (the three its own tooling rule names). A missing-grant finding is only real once all three have been read; a partial sweep reports grants that exist as missing.
 4. Check **self-sufficiency, the real target** — if only `~/.claude/skills/*` were copied to a fresh, clean instance with no memory, could the team still pick up and do correct teamwork from these files alone?
 5. Check **clarity/compactness** — rephrase where a doc has gotten bloated, using `mode-update`'s "preserve wording, edit surgically" step; don't wholesale-rewrite.
-6. Shape: find gap candidates → investigate a bit → log a todo/triage entry as a `board-backlog` board-item (or this skill's own inbox) for approval, or fix directly if small and clear — confirming with `magic-architect`/`magic-coordinator` when in doubt, or resolving it solo when it's squarely a docs judgment call.
+6. Shape, steps:
+   - find gap candidates
+   - investigate a bit
+   - log a todo/triage entry as a `board-backlog` board-item (or this skill's own inbox) for approval, or fix directly if small and clear — confirming with `magic-architect`/`magic-coordinator` when in doubt, or resolving it solo when it's squarely a docs judgment call
 
 # Team-Member's (-specific) local rules
 

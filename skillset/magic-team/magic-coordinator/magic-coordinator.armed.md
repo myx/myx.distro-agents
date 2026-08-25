@@ -83,7 +83,9 @@ Steps:
    - **The harness messages and relays the calling routine is currently holding** — so the spawned session can see the context it was spawned into, not only its own task.
    - **A statement of what this brief actually did on both points above**: which warnings crossed, or that the open ones were read and none were relevant, or that there were none — and likewise for the held messages and relays. A brief that included nothing must be distinguishable from a brief that never looked.
 3. **spawn-launch**: Launch: background `Agent`, that member's own `Skill` as its first action.
-4. **spawn-record-dispatch**: If this is board-tracked process-flow work: write/update the `dispatch-*` board-item, move it to `board-running`.
+4. **spawn-record-dispatch**: If this is board-tracked process-flow work, steps:
+   - write/update the `dispatch-*` board-item
+   - move it to `board-running`
 
 Execution discipline (explicit):
 - If the caller requested a spawn, this procedure performs one real launch in this same pass or returns a loud error; it must not silently downgrade to "defer".

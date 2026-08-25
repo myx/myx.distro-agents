@@ -68,13 +68,21 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Fold anything relevant into the roll call narration in **roll-call**.
    - Don't act on it unilaterally.
 8. **roll-call**: not a status meeting -- narrating status without adapting the plan is the failure mode this step must avoid; **update-todos** immediately after must actually change the plan, not just record what was said. random order — pick a random order over the permanent members (every skill except `magic-coordinator` itself).
-   - Fixed question order: what happened since last time, what's planned next, what's blocking -- in that order, for each member. Call the `--member-work-session-input-scan` operation and use its board-items section only — the inbox section stays unread, each member reads its own inbox itself at session start — then narrate that member's status/blocks/ideas/leftovers for today from it plus whatever's visible in `TodoWrite`/project memory.
+   - Fixed question order: what happened since last time, what's planned next, what's blocking -- in that order, for each member, steps:
+     - call the `--member-work-session-input-scan` operation
+     - use its board-items section only — the inbox section stays unread, each member reads its own inbox itself at session start
+     - narrate that member's status/blocks/ideas/leftovers for today from it plus whatever's visible in `TodoWrite`/project memory
    - All invitees (including `partner-*`s) still get a turn — most days that's "nothing to report," but they can flag a recommendation if another member's item touches infra/CDCI/service code.
    - A narrated pass, not a full agent spawn per member — that comes later.
-   - **Compact that member's reflections, same round, limited scope**: recap the `reflection-*` items accumulated in its own inbox since the last daily, and where several say the same thing, replace them with one or two current ones — retire what is resolved, promote what has formed into an `inquiry-*`/proposal. Not a retro-scale proposal pass; this is what keeps **fold-in-learned-lessons**' input a small, recent, unresolved set.
+   - **Compact that member's reflections, same round, limited scope**:
+     - rule: not a retro-scale proposal pass; this is what keeps **fold-in-learned-lessons**' input a small, recent, unresolved set.
+     - step: recap the `reflection-*` items accumulated in its own inbox since the last daily.
+     - step: where several say the same thing, replace them with one or two current ones — retire what is resolved, promote what has formed into an `inquiry-*`/proposal.
    - Anything a member's status raises that needs real discussion doesn't get resolved inline here — flag it for **questions-then-conclude** or the backlog instead.
 9. **update-todos**: reflect what the roll call surfaced in the current session's `TodoWrite` (today's working list) for the members about to get a work session.
-   - Member with nothing assigned but an idle-task menu of more than one file: randomly pick one `idle-tasks/*.idle.md` file now and put *that specific file* in the todo — don't leave "run the idle menu" as a vague item.
+   - Member with nothing assigned but an idle-task menu of more than one file, steps:
+     - randomly pick one `idle-tasks/*.idle.md` file now
+     - put *that specific file* in the todo — don't leave "run the idle menu" as a vague item
    - Every member — acting members and `routine-*` virtual members alike — always has one more idle-task candidate available beyond whatever `idle-tasks/*.idle.md` files it happens to have.
      - That candidate: a short, iterative "research the web a bit on a topic of this member's own duties, detect good proposals to assess at the next `magic-team.grooming.routine`" pass.
 10. **run-check-process-board**: run the `check-process-board` procedure (`magic-coordinator.armed.md`) directly. Never `magic-coordinator.advance.routine`.
@@ -109,7 +117,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - rule: this does not re-dispatch **fan-out-work-sessions**' own work sessions — `check-execute-board`'s standing "`magic-coordinator.daily.routine`'s standing work-sessions take continuous task feed as each finishes" exception already excludes them.
    - rule: `magic-coordinator.advance.routine`'s **advance-run-process-board** repeats the `check-process-board` pass **run-check-process-board** already ran. That is a deliberate second reconciliation over a board the main sequence has since changed, not an accident — `check-process-board` executes only already-decided moves, so re-running it is safe.
 2. **close-out**: once agents finish (or are wrapped up at the timebox), compact what happened into a short summary for the user. Execute `magic-team.coworking.routine`'s Closure Steps in full — this is a coworking-like session, so its continuity step, `slack-magic-team`/status-card broadcast, and skill-update-discussion offer all apply; context compaction does not. `magic-team.process-reflections.routine` already ran at **fold-in-learned-lessons**, not here. Meeting finished.
-3. **close-state-and-unlock**: write the pass's closing status into the `state-and-lock` note via `--magic-daily-state-and-lock-upsert`, then release this routine's own lock via `--magic-daily-close-state-and-unlock`, setting `state: daily-finished`. That order is required: the release is what sets `state: daily-finished`, and a content write after it would put the note back to running. Last, every time: until the release lands, the next pass sees this one as still running.
+3. **close-state-and-unlock**:
+   - rule: that order is required — the release is what sets `state: daily-finished`, and a content write after it would put the note back to running; last, every time — until the release lands, the next pass sees this one as still running.
+   - step: write the pass's closing status into the `state-and-lock` note via `--magic-daily-state-and-lock-upsert`.
+   - step: release this routine's own lock via `--magic-daily-close-state-and-unlock`, setting `state: daily-finished`.
 
 # Routine's local procedures
 

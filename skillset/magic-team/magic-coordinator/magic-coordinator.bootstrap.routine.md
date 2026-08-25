@@ -83,7 +83,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
   - `message.user` equals authenticated `user_id` from **check-auth-identity**
   - target is expected and reachable for that alias
 - Presence of `app_id`/`bot_id`/`bot_profile` is a policy warning, not a standalone transport failure.
-- If local code currently hard-fails on marker presence alone, record as tooling-rule mismatch and queue fix.
+- If local code currently hard-fails on marker presence alone, steps:
+  - record as tooling-rule mismatch
+  - queue fix
 
 7. **check-alias-target-validity**: `human-owner`
 - If `human-owner` send fails with `channel_not_found`:
@@ -115,8 +117,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
 - Ask the human-owner for exactly the next missing action, one question at a time.
 - Preferred path: AskUserQuestion in-session (single focused question, explicit expected answer format).
 - Failover path: if AskUserQuestion is unavailable, unanswered, or the session is unattended, send the same question to Slack IM target (`human-owner`) via `--member-comms-slack-send-message`.
-- Slack IM failover failure (`channel_not_found` or equivalent): immediately fall back to posting the question in `magic-team` plus a short `event-alert` blocker note.
-- After each answer, apply only the directly affected fix and re-run only the impacted bootstrap step(s).
+- Slack IM failover failure (`channel_not_found` or equivalent): immediately fall back, steps:
+  - post the question in `magic-team`
+  - post a short blocker note in `event-alert`
+- After each answer, steps:
+  - apply only the directly affected fix
+  - re-run only the impacted bootstrap step(s)
 
 11. **wait-for-reply**: required after **checkpoint-ask-user**
 - Do not continue as if answered; explicitly wait for a reply.

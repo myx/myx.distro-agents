@@ -21,7 +21,11 @@ Doesn't do: execute the activity inline in the UI/chat instance itself.
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
-1. **session-start**: execute `magic-team.coworking.routine`'s Steps — declare this a coworking-like/structured-multi-member session. Invoke `magic-team.process-reflections.routine` for this project/workspace. Process own inbox. Post an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
+1. **session-start**, steps:
+   - execute `magic-team.coworking.routine`'s Steps — declare this a coworking-like/structured-multi-member session
+   - invoke `magic-team.process-reflections.routine` for this project/workspace
+   - process own inbox
+   - post an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here)
 2. **pick-the-member**: if the user names one, use that. If not, ask — don't guess who they meant.
 3. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — narrowed to the member picked at **pick-the-member**: anything addressed to or about them (an `inquiry-*`, a status report, a pending ask) that **prep-member-context** should carry into the conversation.
 4. **prep-member-context**: pull any relevant board items owned by or referencing this member (including `board-processed` `note-member-status-*` for pre-2026-07-22 history), and any relevant project memory so the handoff isn't a cold start.
@@ -30,11 +34,18 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - The UI/chat instance steps back from execution: it relays the user's conversation turns to the spawned instance via `SendMessage` and surfaces what comes back, for the session's whole duration, independent of whether the UI/chat session stays open or the human stays present.
    - A `SendMessage` relay attempt gets no response within a bounded window: surface this to the user directly ("the one-on-one session appears to have died — restart it?") rather than waiting indefinitely.
    - Open a dedicated `slack-magic-team` thread, every session, no exception by size. Floor, never skipped: post a `one-on-one session started` marker and a `one-on-one session ended` marker. Beyond the floor: live notes/resolutions and the member's own public reflection notes may also go into the thread as it progresses, gated by the same public-vs-DM content-sensitivity judgment call `magic-coordinator.communication-sweep.routine`'s Reply step uses — genuinely private phrasing goes to a DM instead.
-   - The session ends up waiting on a reply: persist its context as a real task/board record and save it to auto-memory, so it resumes cleanly from any future session — never hold an ephemeral agent conversation open instead.
+   - The session ends up waiting on a reply, so it resumes cleanly from any future session (never hold an ephemeral agent conversation open instead), steps:
+     - persist its context as a real task/board record
+     - save it to auto-memory
 
 # Closure steps
 
-1. **return-and-close**: once the 1:1 concludes, the spawned instance folds anything material into the board (a real Item — task/change/reflection/etc.), executes `magic-team.coworking.routine`'s Closure Steps (the skill-update-discussion offer, scoped to this member), and reports a final status back to the UI/chat instance via `SendMessage`. Real follow-on work surfaced at close-out gets dispatched normally, its own fresh spawn — never continued on this same spawned instance.
+1. **return-and-close**: once the 1:1 concludes, the spawned instance, steps:
+   - folds anything material into the board (a real Item — task/change/reflection/etc.)
+   - executes `magic-team.coworking.routine`'s Closure Steps (the skill-update-discussion offer, scoped to this member)
+   - reports a final status back to the UI/chat instance via `SendMessage`
+
+   Real follow-on work surfaced at close-out gets dispatched normally, its own fresh spawn — never continued on this same spawned instance.
 
 # Routine's local procedures
 

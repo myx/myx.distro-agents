@@ -22,11 +22,24 @@ Doesn't do: report what's outstanding (`magic-coordinator.daily.routine`'s job).
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
 1. **acquire-lock**: Acquire this routine's own lock — a single `--magic-retro-lock-acquire` call, before anything else in this routine runs. `ACQUIRED`, or a reclaim of a dead holder's lock, means go. Contention means another `magic-coordinator.retro.routine` is live: this pass does not start, and nothing below runs.
-2. **session-start**: execute `magic-team.coworking.routine`'s Steps — declares this as a coworking-like/structured-multi-member session, invokes `magic-team.process-reflections.routine` for this project/workspace, processes own inbox, and posts an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
+2. **session-start**: execute `magic-team.coworking.routine`'s Steps, steps:
+   - declares this as a coworking-like/structured-multi-member session
+   - invokes `magic-team.process-reflections.routine` for this project/workspace
+   - processes own inbox
+   - posts an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here)
    - **Session tracking**: this routine's own `state-and-lock` note is this pass's tracking document — the tactical status, and whatever the next pass needs to pick up from here. Reference `TEAM-DATA` rather than copying it, to keep it compact. Write it via the `--magic-retro-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close. Holding the lock across a long pass is a separate obligation: call `--magic-retro-lock-refresh` periodically — writing content does not itself hold the lock.
-3. **gather-recent-history**: read `board-processed` `reflection-*` items and any other recent board Items, and recall the last several daily meetings' worth of entries (results, recurring blockers, anything flagged more than once) — raw material for reflection, not something to re-narrate verbatim. The `roster-note` gets its real re-check at grooming cadence, not here.
+3. **gather-recent-history**, steps:
+   - read `board-processed` `reflection-*` items and any other recent board Items
+   - recall the last several daily meetings' worth of entries (results, recurring blockers, anything flagged more than once) — raw material for reflection, not something to re-narrate verbatim
+
+   The `roster-note` gets its real re-check at grooming cadence, not here.
 4. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — inline execution (own identity). The `reflection-*` notes retained in the inbox rather than promoted to the board (`magic-team.process-inbox.routine`'s own reflection-promotion rule): **gather-recent-history**'s `board-processed` sweep does not see them, and retro is where they are due for discussion. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
-5. **self-analyse-per-member**: for each permanent member with enough recent history to reflect on, narrate that member doing a real self-analysis before speaking, grounded in four things — its own `.basic.md`/`.armed.md` behavioral descriptions (including whether they still match what it's actually being asked to do lately), relevant past incidents (its own log/inbox reflections, board history), the team's standing rules that apply to it, and its own stated goals — then narrate its first-person self-talk from that grounding: what's felt slow, what's been satisfying to close out, what keeps recurring. From this analysis each member formulates a real improvement proposal of its own — carried into **assess-methodology-failures** (which collects it alongside the coordinator's cross-team assessment) and **discuss-with-the-user** (same discussion/review as any other retro finding), not a separate deliverable. Introspective and analytical, not status-reporting — skip members with nothing meaningful to reflect on (same escape valve covers a thin self-analysis, not just a thin self-talk).
+5. **self-analyse-per-member**: for each permanent member with enough recent history to reflect on, steps:
+   - narrate that member doing a real self-analysis before speaking, grounded in four things — its own `.basic.md`/`.armed.md` behavioral descriptions (including whether they still match what it's actually being asked to do lately), relevant past incidents (its own log/inbox reflections, board history), the team's standing rules that apply to it, and its own stated goals
+   - narrate its first-person self-talk from that grounding: what's felt slow, what's been satisfying to close out, what keeps recurring
+   - from this analysis, formulate a real improvement proposal of its own — carried into **assess-methodology-failures** (which collects it alongside the coordinator's cross-team assessment) and **discuss-with-the-user** (same discussion/review as any other retro finding), not a separate deliverable
+
+   Introspective and analytical, not status-reporting — skip members with nothing meaningful to reflect on (same escape valve covers a thin self-analysis, not just a thin self-talk).
 6. **surface-cross-member-patterns**: after the individual reflections, note anything that showed up in more than one member's self-talk — this is where the coordinator's cross-team view adds something no single member's reflection could.
 7. **assess-methodology-failures**: methodology itself — where did a routine, a convention, or a way of working actually fail or fall short this period, and why. Turn real findings into concrete improvement proposals, not vague sentiment. This step also collects each participating member's own **self-analyse-per-member** improvement proposal alongside the coordinator's cross-team methodology assessment — both feed the same **discuss-with-the-user** discussion, not two separate tracks. An empty result here is fine. Includes retro's own recurring problems, same standard: a concrete proposal, not vague sentiment.
 8. **discuss-with-the-user**: a conversation, not a report — pause and let the user react, add their own read, or push back before concluding. This is also where **assess-methodology-failures**' improvement proposals get reviewed — the user and `magic-librarian` decide together which ones are worth adopting, not something retro finalizes unilaterally.
@@ -35,7 +48,11 @@ Exact instructions. Execute in order, every step, literally as written — not l
 # Closure steps
 
 1. **close-session**: execute `magic-team.coworking.routine`'s Closure Steps — the skill-update-discussion offer, etc. Retro stays reflection, not action, but ends with exactly **one** concrete, actionable improvement (not several vague ones) -- log it into `board-running` as a pending item for the *next daily meeting* to actually pick up and apply. That daily's **run-check-process-board**/**update-todos** steps must surface it.
-2. **close-state-and-unlock**: write the pass's closing status into the `state-and-lock` note via `--magic-retro-state-and-lock-upsert`, then release this routine's own lock via `--magic-retro-close-state-and-unlock`, setting `state: retro-finished`. That order is required: the release is what sets `state: retro-finished`, and a content write after it would put the note back to running. Last, every time: until the release lands, the next pass sees this one as still running.
+2. **close-state-and-unlock**, steps:
+   - write the pass's closing status into the `state-and-lock` note via `--magic-retro-state-and-lock-upsert`
+   - release this routine's own lock via `--magic-retro-close-state-and-unlock`, setting `state: retro-finished`
+
+   That order is required: the release is what sets `state: retro-finished`, and a content write after it would put the note back to running. Last, every time: until the release lands, the next pass sees this one as still running.
 
 # Routine's local procedures
 

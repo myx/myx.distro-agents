@@ -91,7 +91,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - Trigger: the same open decision-point already flagged in a prior `next-iteration`'s `active_project` field or `slack-magic-team` trace (matched by its own recorded wording, not a brand-new occurrence), still carried forward unresolved across roughly 5+ consecutive `next-iteration`s or ~1 hour of elapsed time, whichever comes first.
        - Action: escalate it **exactly once** — a direct, focused `human-owner` DM naming the specific decision needed (not `slack-magic-team`: this needs the human-owner's own personal answer, not a team-channel post nobody's individually tagged on), not another repeat of the flag — instead of continuing to silently re-flag it every subsequent iteration with no one ever actually asking.
        - Does **not** authorize deciding the flagged question itself — still `main`/the human-owner's call, unchanged. It only converts "flagged repeatedly, never asked plainly" into "asked once, clearly," consistent with the standing "batch human-hands-on items, don't drip them" posture, applied here to stale decision-flags rather than physical actions.
-       - Once escalated: record `escalated: <timestamp>` alongside the flag in the `heartbeat-state-note`'s `active_project` field, and don't re-escalate the same flag on later `next-iteration`s unless the human-owner's response itself calls for a follow-up.
+       - **Once escalated**:
+         - rule: don't re-escalate the same flag on later `next-iteration`s unless the human-owner's response itself calls for a follow-up
+         - step: record `escalated: <timestamp>` alongside the flag in the `heartbeat-state-note`'s `active_project` field
      - **Board advance, end of loop, every `next-iteration`**: dispatch one `magic-coordinator.advance.routine` pass as a separate spawned session via a background `Agent` call (`Skill(magic-coordinator)` as its first action) — not **spawn-proxy**, an external-CLI launcher. Every pass, no first-today/later-today gate.
 
 # Closure steps

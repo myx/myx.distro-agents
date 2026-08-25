@@ -43,7 +43,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - across `running/`, `blocked/`, and `parked/`
    - No inbox reads here: each of the three participating members reads its own inbox automatically at session start (see `magic-team.process-inbox.routine`).
    - Mechanically, this read is the `--magic-grooming-input-scan` operation — a fixed, read-only scan returning the open board items this step works from, each with its current state and frontmatter.
-   - **Session tracking**: this routine's own `state-and-lock` note comes back with that scan, as part of this routine's own input. It is this pass's tracking document — the tactical status, and whatever the next pass needs to pick up from here. Reference `TEAM-DATA` rather than copying it, to keep it compact. Write it via the `--magic-grooming-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close. Holding the lock across a long pass is a separate obligation: call `--magic-grooming-lock-refresh` periodically — writing content does not itself hold the lock.
+   - **Session tracking**: this routine's own `state-and-lock` note comes back with that scan, as part of this routine's own input; it is this pass's tracking document — the tactical status, and whatever the next pass needs to pick up from here. Steps:
+     - reference `TEAM-DATA` rather than copying it, to keep it compact.
+     - write it via the `--magic-grooming-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close.
+     - call `--magic-grooming-lock-refresh` periodically to hold the lock across a long pass, a separate obligation — writing content does not itself hold the lock.
    - This is the same real backlog `magic-coordinator`'s Prioritize section already points to; grooming is where that backlog gets actively worked, not just consulted.
    - Sub-checks, also part of gathering:
      - **Roster/tooling recheck** (grooming-cadence, not every routine):
@@ -56,7 +59,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - auto-subscribe (`PUT /1/boards/{id}/subscribed?value=true`) anything new
      - **Google Drive/Sheets check** (grooming-cadence, not every sweep):
        - `magic-coordinator.communication-sweep.routine` deliberately skips Google in its routine Check step — it's heavier and only worth it when actually searching or grooming
-       - run it here instead: refresh the OAuth token, then `files.list` ordered by `modifiedTime desc`
+       - run it here instead, steps:
+         - refresh the OAuth token
+         - `files.list` ordered by `modifiedTime desc`
      - **Human-action-required items**:
        - collect items that are generally approved but need the human-owner's own hands-on action (Slack app config, OAuth scope grants, and similar) as they accumulate; consolidate into one batch
        - **send this batch, don't just file it**: fire it directly via `--member-comms-slack-send-message` operation, as part of this same pass:
@@ -102,7 +107,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - where Promoted/Denied items land:
        - promoted or denied items land in `board-processed` with the resolution text attached, via `--magic-grooming-create-processed`; a promoted item lands in `board-backlog` by default, via `--magic-grooming-create-backlog`
        - when this authority group's combined context during grooming already warrants treating it as approved, `approved-by`/`approved-at` gets set directly at creation via `--magic-grooming-create-pending` with `--header:upsert:approved-by:<value>` and `--header:upsert:approved-at:<value>`, and the item lands in `board-pending` in that same action (the same mechanical `board-backlog`→`board-pending` trigger `check-process-board` also acts on, done here in the same breath since grooming already has the context)
-       - when it instead genuinely needs human-owner-level approval, the authority group makes two calls: `--magic-grooming-create-pending` for the `approval-*` item that runs the negotiation, which `magic-coordinator.advance.routine` then promotes, and `--magic-grooming-create-blocked` for the promoted item (see the board's own `board-backlog` entry for the full mechanic)
+       - when it instead genuinely needs human-owner-level approval, the authority group makes two calls (see the board's own `board-backlog` entry for the full mechanic), steps:
+         - `--magic-grooming-create-pending` for the `approval-*` item that runs the negotiation, which `magic-coordinator.advance.routine` then promotes
+         - `--magic-grooming-create-blocked` for the promoted item
        - each of these is the item's first write, not a move of an existing file: a `--magic-grooming-create-<state>` call, which takes a body-input mode and rejects `--from-state:`
        - `owner`, `groomed-at` and `track:true` are stamped; `groomed-from` is not
    - **Attach `communication-channel-id` at promotion time, when the item genuinely traces to one originating Slack message**:
@@ -234,7 +241,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - All apply here — grooming is coworking-like.
    - No status-file GC step exists in `magic-team.coworking.routine`'s Closure Steps; this routine's own triage pass (**triage-per-item**) is where drop/split decisions actually happen.
 2. **close-state-and-unlock**
-   - Write the pass's closing status into the `state-and-lock` note via `--magic-grooming-state-and-lock-upsert`, then release the lock via `--magic-grooming-close-state-and-unlock`. That order is required: the release is what sets `state: grooming-finished`, and a content write after it would put the note back to running. Until the release lands, the next pass sees this one as still running.
+   - rule: that order is required — the release is what sets `state: grooming-finished`, and a content write after it would put the note back to running; until the release lands, the next pass sees this one as still running.
+   - step: write the pass's closing status into the `state-and-lock` note via `--magic-grooming-state-and-lock-upsert`.
+   - step: release the lock via `--magic-grooming-close-state-and-unlock`.
 
 # Routine's local procedures
 
@@ -259,8 +268,9 @@ Each item is a tracking document. Where a rule below opens or resumes work on on
     - Nobody dissents → `--magic-grooming-to-pending` operation, `approved-by`/`approved-at` set, moves the item to `board-pending`.
   - Dependency still open, confirmed this pass:
     - `--magic-grooming-to-blocked` operation, with a note. No `approval-*` — not a human decision.
-  - Real doubt remains (priority, or whether a dependency still blocks):
-    - Creates `approval-*` in `board-pending` via `--magic-grooming-create-pending`, which `magic-coordinator.advance.routine` then promotes, then moves the original to `board-blocked` via `--magic-grooming-to-blocked`.
+  - Real doubt remains (priority, or whether a dependency still blocks), steps:
+    - creates `approval-*` in `board-pending` via `--magic-grooming-create-pending`, which `magic-coordinator.advance.routine` then promotes
+    - moves the original to `board-blocked` via `--magic-grooming-to-blocked`
   - Not yet assessed:
     - Stays in `board-backlog`.
 
@@ -273,7 +283,10 @@ Quorum: `magic-coordinator` + `magic-librarian` + `magic-architect`, jointly —
 - Item's own scope or assumptions have shifted enough that its current triage state no longer reflects reality — not just "still blocked"/"still parked," the framing itself is stale:
   - Quorum agrees → `--magic-grooming-to-backlog` operation, `--from-state:<state>` set to the item's actual current state, with a note explaining what triggered the recall.
     - Item carries `approved-by`/`approved-at` → clear both in the same call; re-earned via `check-backlog-promote` on its next pass, not carried over.
-  - Quorum disagrees → resolve through real discussion, same as the rest of **triage-per-item**; never a silent default; escalate to the human-owner if genuinely unresolved.
+  - Quorum disagrees:
+    - rule: never a silent default.
+    - step: resolve through real discussion, same as the rest of **triage-per-item**.
+    - step: escalate to the human-owner if genuinely unresolved.
 - Framing still holds:
   - Quorum agrees → no state move; update frontmatter only if something narrower changed (owner, `recheck-date`, a note).
 
