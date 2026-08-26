@@ -78,10 +78,11 @@ Takes verbatim dispatch text or a dispatch document. The only mechanism that act
 
 Steps:
 1. **spawn-choose-shape**: Choose how it spawns: new session, queue into an already-running session for the same line of work, local machine, or remote agent. Spawn in your own internal agent unless explicitly requested to do otherwise.
-2. **spawn-prepare-brief**: Prepare the session brief per this file's own "How to hand off" / "What to hand off" local rules below. Three things ride with every brief this procedure prepares:
+2. **spawn-prepare-brief**: Prepare the session brief per this file's own "How to hand off" / "What to hand off" local rules below. Four things ride with every brief this procedure prepares:
    - **The relevant `warning-*` board items** — the open ones the preparing session judges relevant to *this* dispatch, reformulated short, need-to-know. Relevance is that session's own judgement in that context and moment, deliberately not a coded predicate: a warning about the human-owner being unreachable is irrelevant to a code dispatch, and one provider's budget warning is irrelevant to a test running against another. Being unable to say why a warning is included is the signal to leave it out.
    - **The harness messages and relays the calling routine is currently holding** — so the spawned session can see the context it was spawned into, not only its own task.
    - **A statement of what this brief actually did on both points above**: which warnings crossed, or that the open ones were read and none were relevant, or that there were none — and likewise for the held messages and relays. A brief that included nothing must be distinguishable from a brief that never looked.
+   - **Any execution gate the receiving member's own `.armed.md` puts on the work itself** — e.g. a mutating source edit that member's own rules require to go through a co-working partner or explicit human-owner confirmation before it can land. Name that partner directly in the brief, or state that human-owner confirmation already happened — don't leave the receiving member to notice the gate and reconstruct it from its own file on every occurrence.
 3. **spawn-launch**: Launch: background `Agent`, that member's own `Skill` as its first action.
 4. **spawn-record-dispatch**: If this is board-tracked process-flow work, steps:
    - write/update the `dispatch-*` board-item

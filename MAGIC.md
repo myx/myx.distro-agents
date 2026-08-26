@@ -226,6 +226,7 @@ Team-owned notes for the magic-* team.
 
 - `--run` is required to actually serve; without it, prints syntax and exits — so a registration whose `args` omit it registers a command that can never serve.
 - Registers into this workspace's own MCP config only, command resolved to this workspace's own `DistroAgentsTools.fn.sh`, args `["--intern-mcp-server","--run"]`, no `env` (the operation establishes the workspace environment itself). To register another workspace's tooling, run this operation from that workspace. Exposes exactly one tool, `execute`, backed by `--intern-mcp-execute`.
+- The `execute` tool's `command` runs against this server's own `MMDAPP` by default. Its optional `workspace` argument overrides that for one call only: the given absolute path must already be a set up `myx.distro` workspace (its own `.local` present) or the call errors before running anything. Under a `workspace` override, the script runs via a real subprocess re-exec of `DistroAgentsTools.fn.sh --intern-mcp-execute` with `MDLT_ORIGIN`/`MDLT_OPTION`/`MDLC_INMODE` unset and `MMDAPP` set to the override path, so that workspace's own origin/option are re-resolved fresh exactly as a standalone invocation there would — not the server's own resolved values forced onto a different tree. Use it to run a one-off command against a sibling workspace without standing up a second MCP server registration; leave it unset for everything else.
 
 ### `--intern-mcp-execute` call contract
 
