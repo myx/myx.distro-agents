@@ -98,7 +98,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **Board consultation is a coordinator-level concern, not each agent's own**: **update-todos** is where any relevant board item already gets folded into a properly-scoped assignment before this fan-out happens.
      - The spawned agent just works its assigned item normally — no separate "check the board" behavior needed.
    - **`board-running`→`board-blocked` trigger**: per the board's own refined state-model definition, a `board-running` item is one the next work-session iteration is expected to pick up and continue — so if an agent gets here and genuinely can't make progress, that's exactly when the item was "supposed to be running" and wasn't.
-     - Move it to `board-blocked` as part of this same work session (note *why*, including a dependency reference via `references` if it's blocked on another item), rather than leaving it sitting in `board-running` looking active, or silently deferring the discovery to the next grooming pass.
+     - Move it to `board-blocked` as part of this same work session (note *why*, including a `blocked-by` pointer if it's blocked on another item), rather than leaving it sitting in `board-running` looking active, or silently deferring the discovery to the next grooming pass.
    - **Claimed-completion trigger**: if instead an agent finishes its assigned `board-running` item's implementation this session — nothing left to do, not stuck — that's a claimed completion, not a finished item yet.
      - Note the claim in place (item stays `board-running`); the actual verification happens per the board's own `board-running` entry, dispatching `magic-tester`, not inline in this same work session unless `magic-tester` itself is one of today's dispatched agents.
    - If the assigned item is the randomly-picked idle-task file from **update-todos**, tell the agent explicitly which `idle-tasks/*.idle.md` file to load and execute.
@@ -106,7 +106,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Call `--magic-daily-lock-refresh` at each check-in — a fan-out this long outlives a single acquire, and a concurrent check must not mistake a slow-but-alive pass for a crashed one.
    - While these run, stay in the main conversation talking with the user about live progress — that's supervision, not silence.
    - A milestone landing or a new blocker surfacing mid-session gets posted to `slack-magic-team` right then, not batched until the close-out.
-   - If a working agent surfaces or receives a new, unrelated ask mid-session, it notes it (its own inbox, or a `references`-linked board note) for the next communication sweep / grooming triage rather than switching focus.
+   - If a working agent surfaces or receives a new, unrelated ask mid-session, it notes it (its own inbox, or a board note naming the item it concerns in body prose) for the next communication sweep / grooming triage rather than switching focus.
 15. **sweep-comms-write**: run the write half of `magic-coordinator.communication-sweep.routine` — update the own-status card to reflect today's actual state, and reply/comment anywhere else warranted across whatever platforms are live.
 
 # Closure steps
@@ -191,7 +191,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--member-comms-slack-send-message` operation reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
 ## `--member-work-session-input-scan` operation reference
 

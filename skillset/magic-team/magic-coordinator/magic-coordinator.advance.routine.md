@@ -300,7 +300,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-advance-batch-outcome` operation reference
 
-`DistroAgentsTools.fn.sh --magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]...` — records a per-pass outcome (`nudged`/`respawned`/`redispatched`/`flagged-once`/`no-action`) plus `execution-receipt` for several `board-running` items in one call, same-state (`running`→`running`), existing content preserved. Bookkeeping only — never moves state, never spawns; a genuine spawn/respawn/redispatch/park still goes through `--magic-advance-to-running`/`--magic-advance-to-parked`. `execution-receipt` is everything after an entry's second colon, so colon-shaped values (`inline:<timestamp>`, `no-action:<reason-code>`) pass through intact; must not contain a comma. Never `slack:<channel>:<ts>` — that shape is an item's own `communication-channel-id` header value, not an `execution-receipt`; `interview-*`/`talk-*` outcomes are recorded directly, never via this call (see **Per-pass completion requirement**'s pooling exclusion), and still use the same exhaustive four `execution-receipt` shapes as everything else. One malformed/failing entry is reported inline without aborting the rest of the batch; any failures make the whole call exit non-zero.
+`DistroAgentsTools.fn.sh --magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]...` — records a per-pass outcome (`nudged`/`respawned`/`redispatched`/`flagged-once`/`no-action`) plus `execution-receipt` for several `board-running` items in one call, same-state (`running`→`running`), existing content preserved. Bookkeeping only — never moves state, never spawns; a genuine spawn/respawn/redispatch/park still goes through `--magic-advance-to-running`/`--magic-advance-to-parked`. The `execution-receipt` portion may itself contain colons (`inline:<timestamp>`, `no-action:<reason-code>` both pass through intact); must not contain a comma. Never `slack:<channel>:<ts>` — that shape is an item's own `communication-channel-id` header value, not an `execution-receipt`; `interview-*`/`talk-*` outcomes are recorded directly, never via this call (see **Per-pass completion requirement**'s pooling exclusion), and still use the same exhaustive four `execution-receipt` shapes as everything else. One malformed/failing entry is reported inline without aborting the rest of the batch; any failures make the whole call exit non-zero.
 
 ## `--magic-advance-input-scan` operation reference
 
@@ -328,7 +328,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--member-comms-slack-send-message` operation reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
 # Maintainer Notes
 

@@ -137,7 +137,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - the merged item's `superseded-by` + `board-processed` landing: a single `--magic-grooming-to-processed` call
        - an item never filed on the board, landing in `board-processed` for the first time: a fresh create, not a move
    - **Cross-member handoff → immediate reply**:
-     - whenever this step's outcome creates or updates a cross-member item (one member's item now owned by/assigned to another, not a self-write), that's the trigger point for `magic-team.process-inbox.routine`'s own **reply-on-cross-member-handoff** — send the compact who+`references` reply to `slack-magic-team` as part of closing out that item's triage, not as a separate deferred step
+     - whenever this step's outcome creates or updates a cross-member item (one member's item now owned by/assigned to another, not a self-write), that's the trigger point for `magic-team.process-inbox.routine`'s own **reply-on-cross-member-handoff** — send the compact who+item-name reply to `slack-magic-team` as part of closing out that item's triage, not as a separate deferred step
      - since `magic-coordinator` is the board's sole writer, this covers both halves: the ask itself and this step's resulting decision
      - peer-to-peer asks made outside grooming get the same treatment at the moment coordinator acts on them, via `magic-team.process-inbox.routine`, not retroactively at the next grooming pass
    - **Triage verbs mapped onto board states**: for items already living in `board-backlog`, `board-pending`, or `board-running` (not just fresh inbox items), this same keep/defer/reassign/split/drop vocabulary applies:
@@ -147,7 +147,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **Reassign** — `owner` field changes, folder doesn't
      - **Split** — child Item(s) created, referencing the parent; the parent itself moves to `board-blocked`, `blocked-by` the new child item(s) — an internal dependency, the same shape the board already recognizes ("waiting on another task/project's own completion"). If a split-off child is itself investigation/design-shaped (needs several members' judgment together, not a mechanical single-executor step), set `restart-session: <team-member> [<team-member>...]` on it at this same creation — the authority group's own call, same narrated judgment as the rest of this step.
      - **Drop** — moves to `board-archived` directly (no future intent) or is removed from the board (if it never had real substance — judgment call)
-     - **Merge** — one item's content folded into the item it duplicates, then dropped; the surviving item's `references:` records the merge.
+     - **Merge** — one item's content folded into the item it duplicates, then dropped; the surviving item's `supersedes` (and the merged item's `superseded-by`) records the merge.
      - **Block** — moves to `board-blocked` with `condition`/`recheck-date` set, same as **Split**'s parent move.
      - **Unblock** — the recorded `condition` is now met: moves back to `board-running` (work resumes) or `board-backlog` (not yet started).
      - mechanically: **Defer** is a single `--magic-grooming-to-parked` call and **Split**'s parent move is a single `--magic-grooming-to-blocked` call; **Drop** to `board-archived` is a single `--magic-grooming-to-archived` call. A verb that only changes a field (owner, etc.) with no folder change is a single call; Split's child-item creation is also a single call (a fresh file)
@@ -164,12 +164,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **`board-running` in-place testing re-check** (see the board's own entry for the full state definition): same cadence as the `board-blocked`/`board-parked` re-checks below — every board-item mid its own testing round gets at least a glance each pass, landing on one of:
      - **clean, no approval needed** — moves straight to `board-processed`
      - **clean, needs human-owner sign-off** — moves to `board-blocked`, filed under its "human-owner decision" reason
-     - **concerns raised** — an investigation subtask exists or is created now (`references` the parent), which itself resolves to:
+     - **concerns raised** — an investigation subtask exists or is created now (`spawned-by` the parent), which itself resolves to:
        - **escalate** — parent stays `board-running`, or moves to `board-blocked` if the escalation is itself now an external stall
        - **solve** — a solution/implementation subtask is created, parent stays `board-running` until it lands, then another round runs
      - same discipline as `board-blocked`'s own re-check: a board-item mid-testing should show a real attempt or a real subtask each pass, not a silent no-op
      - the move to `board-processed` is a single `--magic-grooming-to-processed` call; the move to `board-blocked` is a single `--magic-grooming-to-blocked` call
-     - a new investigation or solution subtask is a fresh file with `references` pointing at the parent. Its landing state is decided by readiness alone — not by which of the two outcomes above created it, and not by the subtask's own item type:
+     - a new investigation or solution subtask is a fresh file with `spawned-by` pointing at the parent. Its landing state is decided by readiness alone — not by which of the two outcomes above created it, and not by the subtask's own item type:
        - ready to be run as it stands → `board-pending`, via `--magic-grooming-create-pending`, and `magic-coordinator.advance.routine` picks it up from there
        - still needs re-investigation or re-assessment before anyone can run it → `board-backlog`, via `--magic-grooming-create-backlog`
        - nothing this routine creates or moves lands in `board-running` — the rule holds for every item grooming writes, not only subtasks: readiness means ready for `magic-coordinator.advance.routine` to start it, not already started
@@ -389,7 +389,7 @@ Same shape as `--magic-grooming-to-backlog` operation, target fixed to `board-pa
 
 ## `--magic-grooming-create-*` operation reference
 
-`DistroAgentsTools.fn.sh --magic-grooming-create-<state> <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` — writes a new board-item into `board-<state>`. A body-input mode is required. `--from-state:` is rejected: a created item has no source state, and a move uses `--magic-grooming-to-<state>` instead. `owner`, `groomed-at` and `track:true` are stamped; `groomed-from` is not. Everything else the creating step sets — `approved-by`/`approved-at`, `blocks`/`blocked-by`, `references`, `communication-channel-id` — rides `--header:*` on the same call.
+`DistroAgentsTools.fn.sh --magic-grooming-create-<state> <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` — writes a new board-item into `board-<state>`. A body-input mode is required. `--from-state:` is rejected: a created item has no source state, and a move uses `--magic-grooming-to-<state>` instead. `owner`, `groomed-at` and `track:true` are stamped; `groomed-from` is not. Everything else the creating step sets — `approved-by`/`approved-at`, `blocks`/`blocked-by`/`supersedes`/`superseded-by`/`spawns`/`spawned-by`, `communication-channel-id` — rides `--header:*` on the same call.
 
 ## `--magic-grooming-to-retained` operation reference
 
@@ -405,7 +405,7 @@ Same shape as `--magic-grooming-to-backlog` operation, target fixed to `board-pa
 
 ## `--member-comms-slack-send-message` operation reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
 ## `--member-work-session-input-scan` operation reference
 

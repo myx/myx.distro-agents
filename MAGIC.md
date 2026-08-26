@@ -191,6 +191,21 @@ Team-owned notes for the magic-* team.
 - `--verify-permissions` walks `.local/.agents/*` and flags anything not 700 for dirs, 600 for files. It guards one specific bug class: an upsert once landed a file at 644 by chmod-ing the touched file instead of the temp that `mv` replaces it with. That root cause is already fixed; this is the standing guard.
 - `--self-test` exercises that chain under a deliberately permissive `umask 022` rather than the caller's ambient umask, because a coincidentally restrictive ambient umask hides a chmod regression — confirmed once against the real secrets migration. It uses a disposable probe key, never a real credential, and cleans the probe up pass or fail.
 
+## Board-item list-shaped header fields are comma-separated, no brackets
+
+- `blocks`/`blocked-by`/`supersedes`/`superseded-by`/`spawns`/`spawned-by` (and any other list-shaped board-item header) serialise as `a, b, c` — a single value is the bare value, never `[a, b, c]`. The writer is `sh-lib/AgentsBoardItemHeaderOpsApply.awk`'s `--header:append` accumulation; it joins with `, ` and does not wrap the result.
+- `references` no longer exists as a field. It was the untyped catch-all relation; every real relationship a board-item carries now uses one of the six typed fields above, chosen for what the relationship actually is, not left generic.
+- `participants`/`restart-session` are a separate, pre-existing space-separated convention, unrelated to this one — already bracket-free, untouched.
+
+## `--magic-board-to-blocked`/`--magic-grooming-to-blocked` auto-stamp `execution-receipt`
+
+- Both ops append `--header:upsert:execution-receipt:blocked:<timestamp>` to the caller's own header set unless the caller already supplied an `execution-receipt` header itself, in which case the caller's value stands untouched. Every sibling `-to-*` op in both files (`-to-pending`/`-to-backlog`/`-to-parked`/`-to-running`) stamps nothing — this pair is the one exception, and only for this one field.
+- The check is a plain scan of the collected `passthrough[]` array for an existing `--header:upsert:execution-receipt:*`/`--header:append:execution-receipt:*` entry before appending the default — duplicated independently in both files' own case arms, matching this package's own per-call-site validation convention rather than centralising into the shared `--intern-op-board-upsert-move-edit`.
+
+## `sh-lib/AgentsSlackBlocksBuild.awk` — `##`/`###` render bold, not header
+
+- Only a line starting with exactly `"# "` becomes a Slack `header` block; the check is `substr(line, 1, 2) == "# "`, so `"## text"` never matches it. Slack's Block Kit `header` block has one flat style with no H2/H3 distinction to map to, so a deeper heading (`##`, `###`, any count of `#`) instead becomes a bold paragraph line, reusing the same `**text**` bold path the script already has for inline styles — not left as unconverted raw markdown.
+
 ## Deprecated operation names
 
 - A superseded name stays as a working shim: removed from help output, kept in the dispatcher, indefinitely. Any existing caller keeps working unchanged unless a real removal is separately proposed and approved.

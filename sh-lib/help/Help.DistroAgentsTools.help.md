@@ -277,8 +277,8 @@
 			someone else's address.
 
 			Real, standalone SMTP send. Uses that member's configured email
-			credentials, not just an internal fallback -- --member-comms-slack-send-message's exhausted-retry
-			path calls this same op via self-recursion. Multiple recipients
+			credentials, not just an internal fallback -- a --member-comms-slack-send-message
+			call that exhausts its retries falls back to sending a real email through this same operation. Multiple recipients
 			accepted before the first `--`; subject is everything between the
 			two `--` separators; everything after the second `--` becomes the
 			body, one line per remaining argument -- OR
@@ -369,11 +369,7 @@
 			One attempt, fails clean if it fails.
 
 			**Output is pretty-formatted by default** ("ts | user | text"
-			one line per message, via myx.distro-agents's own
-			`sh-lib/AgentsSlackMessagesFormat.awk` -- reuses the same
-			recursive-descent JSON-parsing engine as myx.common's
-			`agentMcpJsonParseRequest.awk`, copied verbatim, only the
-			leaf-emission logic differs) instead of raw JSON -- every real
+			one line per message) instead of raw JSON -- every real
 			caller ended up hand-parsing the JSON anyway, so raw is no longer
 			the default. `--raw` opts back into the full API response
 			(needed for fields the pretty formatter doesn't surface, e.g.
@@ -757,7 +753,7 @@
 			message, or none at all.
 
 			Marks one specific email (by IMAP UID, same identifier
-			--member-comms-email-read takes) as \Seen via IMAP UID STORE -- otherwise every
+			--member-comms-email-read takes) as \Seen -- otherwise every
 			comms-sweep pass keeps re-seeing the same UIDs as unseen.
 			Same EMAIL_* config as --member-comms-email-check/
 			--member-comms-email-send.
@@ -1020,10 +1016,9 @@
 			Read-only accessor for one audit document by logical identity,
 			not by caller-provided filesystem path. The caller provides only
 			<team-member> and a bare <document-name> filename. The operation
-			validates member existence, rejects path-like names, computes ordered
-			lookup folders under the shared audit tree (month bucket first for
-			transcript-YYYY-MM-DD-* names, then audit root), and resolves via
-			the shared internal lookup primitive. Fails loud if missing or
+			validates member existence, rejects path-like names, and resolves
+			the document's actual location itself -- lookup order is the
+			operation's own concern, not caller-supplied. Fails loud if missing or
 			ambiguous. It currently permits only transcript-* file names,
 			enforcing the type policy directly from the filename.
 			Optional line range is supported via --start-line/--end-line and
@@ -1035,9 +1030,9 @@
 			Read-only accessor for one board item by bare <item-name> filename.
 			<item-name> must match <type>-<name>.md. Optional repeatable
 			--board-state narrows lookup folders; when omitted, all board
-			states are searched in canonical order. Resolution and low-level
-			read validation are delegated to the shared internal
-			--intern-op-data-read lookup primitive. Optional line range is
+			states are searched in canonical order. Resolution and read
+			validation are the operation's own concern, not caller-supplied.
+			Optional line range is
 			supported via --start-line/--end-line and must be provided as a
 			pair.
 
@@ -1519,16 +1514,17 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
-			Writes routine-communication-sweep state to
-			`$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260812T231137Z-sweep-state.md`.
+			Writes (creates or overwrites) routine-communication-sweep's own
+			state record. Takes no filename or path argument -- storage is
+			the operation's own concern.
 			Input source is exactly one of: stdin (default), `--from-file`, or
 			`--edit-patch-from-stdin`. Empty content is rejected. If
 			`--edit-patch-from-stdin` is used, stdin must be a JSON patch array
 			for exact-literal replace operations.
 
 		--magic-sweep-state-read <team-member>
-			Reads `$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260812T231137Z-sweep-state.md`.
-			Outputs file content, or `NO_STATE` if it does not exist.
+			Reads back the whole record written by --magic-sweep-state-upsert,
+			verbatim. Outputs `NO_STATE` if nothing is stored yet.
 			Read-only.
 
 		--magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
@@ -1669,11 +1665,10 @@
 			a genuine spawn/respawn/redispatch/park still goes through
 			--magic-advance-to-running/--magic-advance-to-parked directly.
 			Item list is comma-joined, each entry colon-joined:
-			<item-filename>:<outcome>:<execution-receipt>. execution-receipt
-			is everything after that entry's second colon, so colon-shaped
-			receipt values (inline:<timestamp>, no-action:<reason-code>,
-			slack:<channel>:<ts>) pass through intact; a receipt must not
-			itself contain a comma. One malformed or failing entry is
+			<item-filename>:<outcome>:<execution-receipt>. The receipt
+			portion may itself contain colons (inline:<timestamp>,
+			no-action:<reason-code>, slack:<channel>:<ts> all pass through
+			intact) but must not contain a comma. One malformed or failing entry is
 			reported inline and does not abort the rest of the batch; any
 			failures make the whole call exit non-zero.
 
@@ -1933,8 +1928,9 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
-			Writes routine-heartbeat state to
-			`$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260812T231137Z-heartbeat-state.md`.
+			Writes (creates or overwrites) routine-heartbeat's own state
+			record. Takes no filename or path argument -- storage is
+			the operation's own concern.
 			Input source is exactly one of: stdin (default), `--from-file`, or
 			`--edit-patch-from-stdin`. Empty content is rejected. If
 			`--edit-patch-from-stdin` is used, stdin must be a JSON patch array
@@ -1977,8 +1973,8 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-heartbeat-state-read <team-member>
-			Reads `$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260812T231137Z-heartbeat-state.md`.
-			Outputs file content, or `NO_STATE` if it does not exist.
+			Reads back the whole record written by --magic-heartbeat-state-upsert,
+			verbatim. Outputs `NO_STATE` if nothing is stored yet.
 			Read-only.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
@@ -2074,12 +2070,7 @@
 			--seen marks the message \Seen after a successful read, for the
 			case where a caller reads and immediately concludes. It runs only
 			once the read has succeeded -- a failed read leaves the message
-			untouched -- and it delegates to --member-comms-email-mark-seen rather
-			than doing its own STORE, so there is one mechanism for the
-			mutation and this op owns only the choice to invoke it. That
-			ordering is also what keeps a later "mark seen everything matching
-			<pattern>" selector reachable: it is the same decision applied to
-			a set, calling the same mark step.
+			untouched.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

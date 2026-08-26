@@ -149,7 +149,7 @@ Steps:
    - Scope: every `board-running`/`board-blocked` item from this pass's read.
    - Classify each edge: **Blocks** — other item(s) that can't proceed until this resolves. **Blocked by** — the reverse edge, or a real external dependency. **Independent** — blocks nothing, blocked by nothing.
    - Record as `blocks:`/`blocked-by:` fields on the item file.
-   - Edge genuinely unclear: leave as `references`, don't force it.
+   - Edge genuinely unclear: don't force a `blocks`/`blocked-by` field onto it — leave it unrecorded in frontmatter and describe the ambiguity in the item's own body prose instead.
    - Real cycle (mutual blocking): flag to `magic-architect`/`magic-coordinator`.
    - Output: what must happen first, what's independent (RICE/importance-vs-eager order), what's blocked externally.
    - High-RICE item blocked on low-RICE: record it plainly, never reorder.
@@ -189,7 +189,7 @@ Callable directly, or from `check-process-board`'s own deferred-lookup step.
 
 **Note on scope**: Board-state work, same class as `check-process-board`.
 
-**Note on Slack input**: a `pending-slack-reaction` record is filed by `magic-coordinator.communication-sweep.routine`, carrying `communication-channel-id`/`references`.
+**Note on Slack input**: a `pending-slack-reaction` record is filed by `magic-coordinator.communication-sweep.routine`, carrying `communication-channel-id` plus the tied board-item's bare name in the record's own body prose (no typed frontmatter field fits this plain pointer).
 
 **Note on Trello input**: a `pending-trello-update` record is filed by `magic-team.coworking.routine`'s Closure Steps' own opening inbox step. Sole Trello-write executor, team-wide — `magic-team.coworking.routine`'s Closure Steps never write Trello directly.
 
@@ -197,7 +197,7 @@ Both input kinds are one record per deferred action, not one standing record. Th
 
 Steps:
 1. **pending-read-slack**: Read every `pending-slack-reaction` record the input-scan surfaces from `magic-coordinator`'s own inbox.
-2. **pending-resolve-slack**: Resolve each item's `references`-linked board-item against loaded board state.
+2. **pending-resolve-slack**: Resolve each item's body-prose-named board-item against loaded board state.
    - Resolved (`board-processed`/`board-archived`): read its resolution text. React `:white_check_mark:` (positive) or an assessed negative emoji, via `--member-comms-slack-react`. Clear the record.
    - Still open: leave the record, re-check next pass.
 3. **pending-read-trello**: Read every `pending-trello-update` record the input-scan surfaces (target card + gist).
@@ -459,7 +459,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## `--member-comms-email-send` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (also `-- --from-stdin` or `-- --from-file <path>`) — real, standalone SMTP send via curl, not just an internal fallback (`--member-comms-slack-send-message`'s exhausted-retry path calls this same op via self-recursion). `<team-member>` comes first and is required: it is the acting identity, and the credentials the send authenticates with are that member's own, strictly — never another member's, and never a fallback to one. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; body is everything after. Exactly one body source required.
+`DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (also `-- --from-stdin` or `-- --from-file <path>`) — real, standalone SMTP send, not just an internal fallback (a `--member-comms-slack-send-message` call that exhausts its retries falls back to sending a real email through this same operation). `<team-member>` comes first and is required: it is the acting identity, and the credentials the send authenticates with are that member's own, strictly — never another member's, and never a fallback to one. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; body is everything after. Exactly one body source required.
 
 ## `--member-comms-email-check` Operation Reference
 
@@ -467,7 +467,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## `--member-comms-email-mark-seen` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>` — marks one specific email (by IMAP UID) as `\Seen` via IMAP UID STORE, otherwise every comms-sweep pass keeps re-seeing the same UIDs as unseen. `<team-member>` comes first and is required: the mailbox written to is that member's own, strictly — and a UID only means anything inside one mailbox, so the same `<uid>` under a different member names a different message, or none.
+`DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>` — marks one specific email (by IMAP UID) as `\Seen`, otherwise every comms-sweep pass keeps re-seeing the same UIDs as unseen. `<team-member>` comes first and is required: the mailbox written to is that member's own, strictly — and a UID only means anything inside one mailbox, so the same `<uid>` under a different member names a different message, or none.
 
 ## `--member-comms-trello-check` Operation Reference
 
@@ -513,7 +513,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## `--member-upsert-member-inquiry` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]` — passes an inquiry along to a specific named member's own inbox — same mechanics as `--member-upsert-inbox-note` (self-recurses into it), kept as its own distinctly-named op for the semantically distinct "pass it to another member" case.
+`DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]` — passes an inquiry along to a specific named member's own inbox — same mechanics as `--member-upsert-inbox-note`, kept as its own distinctly-named op for the semantically distinct "pass it to another member" case.
 
 ## `--owner-workspace-list` Operation Reference
 

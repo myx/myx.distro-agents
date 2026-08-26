@@ -90,7 +90,7 @@ Slack-only — email/Trello have no reaction primitive. Real, load-bearing async
 
 **Terminal-stage split:**
 - **Same-sweep resolution**: add `:white_check_mark:` right away, alongside `:ok_hand:`, in **reply-if-warranted**.
-- **Deferred resolution** — message became/already was the source of a tracked board Item staying open past this sweep: do not add the terminal reaction now, leave at `:eyes:`/`:writing_hand:`/`:ok_hand:`. File a lightweight pending-reaction record (into `magic-coordinator`'s inbox, or directly into `board-running`) carrying the `communication-channel-id` + a `references` pointer. `magic-coordinator.advance.routine`'s own pending-reaction-lookup step adds the terminal reaction later.
+- **Deferred resolution** — message became/already was the source of a tracked board Item staying open past this sweep: do not add the terminal reaction now, leave at `:eyes:`/`:writing_hand:`/`:ok_hand:`. File a lightweight pending-reaction record (into `magic-coordinator`'s inbox, or directly into `board-running`) carrying the `communication-channel-id` plus the tied board-item's bare name stated in the record's own body prose. `magic-coordinator.advance.routine`'s own pending-reaction-lookup step adds the terminal reaction later.
 - **Negative outcome, at that later point**: assessed per case, not one hardcoded emoji — `:x:`/❌ a sensible floor, `:-1:`/thumbsdown where it reads better.
 
 **Origin-ts lifecycle**: a Slack message normalized into an Item may move inbox-file → formal board Item → `blocked/`/`parked/` → `processed/`/`archived/`. The reaction target never changes; whichever step promotes an inbox item into a formal board Item copies `communication-channel-id` across unchanged.
@@ -149,7 +149,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--member-comms-slack-send-message` operation reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>`. Identity (native user token vs. team bot token) is resolved internally — the caller never specifies it: auto-detected from `<team-member>`/`--identity-bot`/configured token as before, and if a send fails with `channel_not_found` under the auto-detected identity, the op retries once under the other identity on its own before giving up.
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>`. Identity (native user token vs. team bot token) is resolved internally — the caller never specifies it: auto-detected from `<team-member>`/`--identity-bot`/configured token as before, and if a send fails with `channel_not_found` under the auto-detected identity, the op retries once under the other identity on its own before giving up.
 
 ## `--member-upsert-inbox-note` operation reference
 
@@ -157,15 +157,15 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--member-comms-email-send` operation reference
 
-`DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (or `-- --from-stdin` / `-- --from-file <path>` in place of the trailing body) — real standalone SMTP send via curl. `<team-member>` comes first and is required: it is the acting identity, and the credentials the send authenticates with are that member's own, strictly — never another member's, and never a fallback to one. This routine passes `magic-coordinator`, its sole executor, the same member its check step used. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; everything after the second becomes the body. Exactly one body source required — giving more than one of trailing-body-argv/`--from-stdin`/`--from-file` together is an error.
+`DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (or `-- --from-stdin` / `-- --from-file <path>` in place of the trailing body) — real standalone SMTP send. `<team-member>` comes first and is required: it is the acting identity, and the credentials the send authenticates with are that member's own, strictly — never another member's, and never a fallback to one. This routine passes `magic-coordinator`, its sole executor, the same member its check step used. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; everything after the second becomes the body. Exactly one body source required — giving more than one of trailing-body-argv/`--from-stdin`/`--from-file` together is an error.
 
 ## `--member-comms-email-mark-seen` operation reference
 
-`DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>` — marks one email (by IMAP UID) as `\Seen` via IMAP UID STORE — otherwise every sweep re-sees the same UIDs as unseen. `<team-member>` comes first and is required: the mailbox written to is that member's own, strictly, and a UID only means anything inside one mailbox — the same `<uid>` under a different member names a different message, or none. This routine passes `magic-coordinator`, its sole executor, the same member its check step used.
+`DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>` — marks one email (by IMAP UID) as `\Seen` — otherwise every sweep re-sees the same UIDs as unseen. `<team-member>` comes first and is required: the mailbox written to is that member's own, strictly, and a UID only means anything inside one mailbox — the same `<uid>` under a different member names a different message, or none. This routine passes `magic-coordinator`, its sole executor, the same member its check step used.
 
 ## `--member-comms-slack-react` operation reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]` — posts one Slack reaction (`reactions.add`) to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). An `already_reacted` error is treated as a harmless no-op, not a failure. `<team-member>` is the acting identity — the reaction is posted BY that member, under its own identity when it has one and the team bot when it does not; `--identity-bot` reacts as the team bot instead.
+`DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]` — posts one Slack reaction to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). An `already_reacted` error is treated as a harmless no-op, not a failure. `<team-member>` is the acting identity — the reaction is posted BY that member, under its own identity when it has one and the team bot when it does not; `--identity-bot` reacts as the team bot instead.
 
 ## `--member-comms-slack-read` operation reference
 

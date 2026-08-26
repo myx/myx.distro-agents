@@ -72,8 +72,8 @@
 ## run-one-bounded-substep's own running/blocked "pulse" read, on a different
 ## cadence (once per pass, inbox-processing sub-step only) and a different
 ## shape (full frontmatter, no --header narrowing -- retention thresholds are
-## type-dependent and the reference check reads `references:`, neither of
-## which a fixed single-header scan could serve).
+## type-dependent and the still-depended-on check reads `blocked-by:`/
+## `spawned-by:`, neither of which a fixed single-header scan could serve).
 ##
 ## Fixed, hardcoded state-list/header-list -- no caller-facing --state/
 ## --header override flags: dedicated wrappers are fixed, not flexible; a

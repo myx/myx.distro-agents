@@ -229,7 +229,7 @@ Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`)
 
 **Board-items do not live under this skill folder.** `board/` above is a pattern, not a location — actual storage is intentionally abstracted by the tooling layer, not something skill/routine content should name or assume. Always interact with board-items through the tooling layer, never through direct path/location knowledge. Reading one item directly is `--member-read-board-item` — any member. Scanning across items or moving one between states is `--magic-*`-family — `magic-coordinator`-exclusive (see "the `--magic-*` operation families... belong to `magic-coordinator` alone" above); a member needing either routes the request through the armed `magic-coordinator` present in the session rather than calling the op directly.
 
-**Prose/report reference to a board-item uses `board://<state>/<item-filename>`** — a human/agent-readable pointer, visually distinct from a real filesystem path, never consumed directly by any tool; resolving one for real still goes through `--member-read-board-item` (any member) or, for a scan across many items, `magic-coordinator`'s own `--magic-*-input-scan` family. Distinct from the `references`/`blocks`/`blocked-by`/`supersedes`/`spawned-by` frontmatter fields, which stay bare names only — no `.md` extension, no state-folder path, no scheme prefix.
+**Prose/report reference to a board-item uses `board://<state>/<item-filename>`** — a human/agent-readable pointer, visually distinct from a real filesystem path, never consumed directly by any tool; resolving one for real still goes through `--member-read-board-item` (any member) or, for a scan across many items, `magic-coordinator`'s own `--magic-*-input-scan` family. Distinct from the `blocks`/`blocked-by`/`supersedes`/`superseded-by`/`spawns`/`spawned-by` frontmatter fields, which stay bare names only — no `.md` extension, no state-folder path, no scheme prefix.
 
 **A same-state field update is a `--magic-*-to-<state>` call with `--from-state:` set to that same state** — the item stays where it is, frontmatter and content patched in the one call. There is no separate field-update operation.
 
@@ -282,10 +282,9 @@ List of frontmatter headers with descriptions. Any date value in frontmatter is 
 - `from`: who authored or posted the `board-item`.
 - `date`: creation/post timestamp, any type — supersedes the older `posted_at` name (same concept, kept as one field going forward; existing items still carrying `posted_at` are read the same way, not an error).
 - `owner`: current assignee.
-- `references`: flat list of related board-item names (bare names only), untyped/informational. No reciprocal `referenced-by` stored — derive "what points at me" via lookup, not a maintained field. For typed relationships, use the pairs below instead.
-- `blocks` / `blocked-by`: hard dependency edge (soft/related-only stays in `references`). Bare item names, same list convention as `references`. `check-process-board`'s own dependency-recompute step (owned by `magic-coordinator`) computes and maintains both directions — don't hand-edit one side without the other.
-- `supersedes` / `superseded-by`: this item has replaced / was replaced by another (design folded in, content merged, decision revised). Bare item names, same list convention as `references`.
-- `spawns` / `spawned-by`: parent/subtask — follow-on work this item spawned, or the parent item this one was spawned from. Bare item names, same list convention as `references`.
+- `blocks` / `blocked-by`: hard dependency edge. Bare item names, comma-separated when more than one (`a, b, c`, no brackets — a single value is just the bare name). `check-process-board`'s own dependency-recompute step (owned by `magic-coordinator`) computes and maintains both directions — don't hand-edit one side without the other.
+- `supersedes` / `superseded-by`: this item has replaced / was replaced by another (design folded in, content merged, decision revised). Bare item names, same comma-separated-no-brackets convention as `blocks`/`blocked-by`.
+- `spawns` / `spawned-by`: parent/subtask — follow-on work this item spawned, or the parent item this one was spawned from. Bare item names, same comma-separated-no-brackets convention as `blocks`/`blocked-by`.
 - `author`: task-creation author metadata (used for `task-*` as applicable).
 - `approved-by`: who approved the item — authority group or human-owner. Pairs with `approved-at`.
 - `approved-at`: date `approved-by` was recorded. Meaningless without `approved-by`; omit with it.
@@ -313,7 +312,7 @@ Section for each TYPE:
 
 ### `project-*`
 Project-level container/tracker item for work that spans multiple related units.
-Operationally, it acts as an umbrella record used during grooming and status rollups to keep related streams coherent over time. Related items are linked via the global `references` header using bare board-item names.
+Operationally, it acts as an umbrella record used during grooming and status rollups to keep related streams coherent over time. A sub-item the project's own epic produced is linked via `spawns`/`spawned-by` (bare board-item names); a genuinely soft/related-only mention that fits none of the typed relation fields is not tracked in frontmatter at all — describe it in the item's own body prose instead.
 
 Rules/predicates/definitions:
 - Filename predicate: name starts with `project-`.
@@ -497,7 +496,6 @@ Type-specific headers:
 - `owner` (the spawned session's own team-member name)
 - `session-id` (the spawned session's own identifier; global header, see list above)
 - `owner-session` / `owner-session-since` (as applicable; global headers, see list above)
-- `references` (as applicable)
 
 ### `transcript-*`
 Verbatim communication log record with date-time-stamped messages.
@@ -518,7 +516,7 @@ Type-specific headers:
 - `date` (as needed)
 - `owner` (as needed)
 
-**`references` entries are bare board-item names only — no state-folder path, no `.md` extension** (e.g. `change-20260101T0000Z-example-matter`, not `board/running/change-20260101T0000Z-example-matter.md`). A reference resolver looks the bare name up across all state folders; it never trusts a path segment as current. When adding or editing `references`, strip any `board/<folder>/` prefix and `.md` suffix on sight.
+**`blocks`/`blocked-by`/`supersedes`/`superseded-by`/`spawns`/`spawned-by` entries are bare board-item names only — no state-folder path, no `.md` extension** (e.g. `change-20260101T0000Z-example-matter`, not `board/running/change-20260101T0000Z-example-matter.md`). A lookup resolves the bare name across all state folders; it never trusts a path segment as current. When adding or editing any of these fields, strip any `board/<folder>/` prefix and `.md` suffix on sight.
 
 `reflection-*` items are special: instead of just closing out, their resolution *produces* an update elsewhere (a skill file, one of the shared files below, actual code).
 
@@ -623,7 +621,7 @@ Note: the `--magic-*` operation families are not on this list and never will be.
 "Writes (creates or overwrites) a note into any member's own personal inbox — unlike the board, inbox write access is not exclusive to one member; any member may post into any other member's inbox (the standard cross-member handoff mechanism, see magic-team.process-inbox.routine)."
 
 ## `--member-upsert-member-inquiry` Operation Reference
-"Passes an inquiry along to a specific named member's own inbox — same argument shape and file-writing mechanics as --member-upsert-inbox-note (in fact self-recurses directly into it), kept as its own distinctly-named op because the two represent semantically distinct fallback cases ("note it for later" vs. "pass it to another member," per this file's own Rule/instruction/definition/description conventions) even though they currently resolve to the identical mechanism."
+"Passes an inquiry along to a specific named member's own inbox — same argument shape and file-writing mechanics as --member-upsert-inbox-note, kept as its own distinctly-named op because the two represent semantically distinct fallback cases ("note it for later" vs. "pass it to another member," per this file's own Rule/instruction/definition/description conventions)."
 
 ## `--member-upsert-inbox-reflection` Operation Reference
 `📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`

@@ -77,11 +77,11 @@ Note: **read-board-shape**'s `heartbeat-state-note` read is not on this list, be
 
 ## `--member-comms-slack-send-message` operation reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack via `chat.postMessage`, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
 ## `--member-upsert-member-inquiry` operation reference
 
-Passes an inquiry along to a specific named member's own inbox — same argument shape and file-writing mechanics as the `--member-upsert-inbox-note` operation (in fact self-recurses directly into it), kept as its own distinctly-named op because the two represent semantically distinct fallback cases ("note it for later" vs. "pass it to another member") even though they currently resolve to the identical mechanism.
+Passes an inquiry along to a specific named member's own inbox — same argument shape and file-writing mechanics as the `--member-upsert-inbox-note` operation, kept as its own distinctly-named op because the two represent semantically distinct fallback cases ("note it for later" vs. "pass it to another member").
 
 # Maintainer Notes
 

@@ -13,7 +13,8 @@
 ## one header operation per line, in application order -- opType is one of
 ## upsert/append/remove. Repeat upserts/removes on the same field: last
 ## wins. Repeat appends on the same field: cumulative, joined into one
-## `[a, b, c]`-shaped list value, in order. A field with no operations
+## `a, b, c`-shaped comma-separated list value, in order (no brackets --
+## a single-value list is just the bare value). A field with no operations
 ## targeting it, and every non-frontmatter body line, passes through
 ## unchanged. Prints the resulting body to stdout.
 ##
@@ -45,7 +46,7 @@ BEGIN {
 		if (finalAction[nm] == "set" && listCount[nm] > 0) {
 			v = "" ;
 			for (k = 1 ; k <= listCount[nm] ; k++) { v = (v == "" ? pendingList[nm SUBSEP k] : v ", " pendingList[nm SUBSEP k]) ; } ;
-			finalValue[nm] = "[" v "]" ;
+			finalValue[nm] = v ;
 		} ;
 	} ;
 	infm = 0 ; closed = 0 ;

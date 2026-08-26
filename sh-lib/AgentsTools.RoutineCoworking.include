@@ -39,15 +39,17 @@ case "$1" in
 	##
 	## Two-call pattern, same shape --magic-sweep-input-scan uses (see
 	## AgentsTools.MagicSweep.include): phase 1 asks the primitive for
-	## references/blocks/blocked-by only, across every real state,
+	## blocks/blocked-by only, across every real state,
 	## --all-types, --item restricted to exactly the given names (a
 	## targeted lookup, not a whole-folder scan) -- this op's own real
 	## purpose per the routine text: "the given item(s) plus anything
-	## references/blocks/blocked-by them". AgentsRoutineCoworkingReferenceNames
+	## blocks/blocked-by them" (the retired untyped `references:` field this
+	## scan also used to request is gone -- no real item carries it anymore).
+	## AgentsRoutineCoworkingReferenceNames
 	## .awk (external, per this package's own externalize-awk/py convention)
-	## reads that document and prints every name mentioned in any of those
-	## three fields, across every given item, handling both plain scalar
-	## values and the bracketed-list encoding
+	## reads that document and prints every name mentioned in either of those
+	## two fields, across every given item, handling both plain scalar
+	## values and the comma-separated list encoding
 	## AgentsTools.InternOpBoardUpsertMoveEdit.include's own --header:append
 	## produces. Phase 2 re-calls the primitive restricted via --item to the
 	## union of the originally-given names plus every discovered related
@@ -90,7 +92,7 @@ case "$1" in
 
 		local phaseAOutput
 		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseAArgs[@]}" \
-			--header references --header blocks --header blocked-by --all-types \
+			--header blocks --header blocked-by --all-types \
 			--context --routine-coworking-session-input-scan )" || return 1
 
 		local relatedFile

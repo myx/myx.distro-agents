@@ -242,7 +242,7 @@ Note: `--librarian-inbox-item-trash`/`--librarian-inbox-to-retained` (below) are
 
 ## `--librarian-list-team-files` Operation Reference
 
-`DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]` — find-based (not a hand-rolled directory walk) read-only path listing of skill-folder files — no per-file stat call, so this stays fast even across the whole skill-root (measured: the `-dates` variant took ~3s over 678 files; this one is the no-stat fast path, sub-second). Default choice for existence/listing checks. Prints one skill-root-relative path per matched file, sorted alphabetically.
+`DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]` — read-only path listing of skill-folder files — no per-file stat call, so this stays fast even across the whole skill-root (measured: the `-dates` variant took ~3s over 678 files; this one is the no-stat fast path, sub-second). Default choice for existence/listing checks. Prints one skill-root-relative path per matched file, sorted alphabetically.
 
 ## `--librarian-list-team-files-dates` Operation Reference
 
