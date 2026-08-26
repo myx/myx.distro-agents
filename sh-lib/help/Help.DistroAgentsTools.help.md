@@ -11,7 +11,6 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>]
-📘 syntax: DistroAgentsTools.fn.sh --intern-op-slack-check <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--oldest <ts>] [--identity-bot] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]
@@ -40,7 +39,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
+📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
 📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-read-board-item <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path>
@@ -53,8 +52,6 @@
 📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]
 📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]
 📘 syntax: DistroAgentsTools.fn.sh --make-console-script
-📘 syntax: DistroAgentsTools.fn.sh --intern-mcp-server [--run]
-📘 syntax: DistroAgentsTools.fn.sh --intern-mcp-execute
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -306,77 +303,6 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--intern-op-slack-check <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--oldest <ts>] [--identity-bot] [--raw]
-			`<team-member>` is the member this read acts as, and it comes
-			first, ahead of the target. It is required: a direct conversation
-			belongs to one identity, so the acting member decides which
-			conversation this call can see at all, and a read performed under
-			the wrong member returns that other member's conversations while
-			reporting them as this one's.
-
-			Reads Slack activity for ONE specific, caller-chosen target --
-			target is required, this is a general-purpose single-target
-			reader, not the comms-sweep op (see --magic-sweep-input-scan
-			below; conflating the two into one op that accepted an optional
-			target would be a real design bug). Target grammar is the same
-			widened grammar --member-comms-slack-send-message takes, and this op
-			accepts every one of its forms:
-			`magic-team`/`human-owner`/`event-track`/`event-alert` reads that
-			watched target's channel history; a bare `<conversation-id>`
-			reads THAT conversation's history, exactly as a bare alias does
-			-- a new accepted spelling, not a new behaviour, and the form to
-			reach a conversation no alias is configured for;
-			`<channel>:<ts>` fetches that
-			specific thread's replies instead (same
-			addressing --member-comms-slack-send-message already uses for threaded replies).
-			A target matching none of these forms is rejected and no read is
-			performed.
-			`--oldest <ts>` is passed through to the Slack API call as-is,
-			letting the caller pass its own last-check marker for an
-			incremental read. Uses the same credential resolution as
-			--member-comms-slack-send-message; `--identity-bot` acts as the team
-			bot instead of this member's own identity. A direct
-			conversation belongs to one identity, so the identity this
-			call acts as decides WHICH conversation it can see: the bot's
-			direct conversation with a person and a member's own are two
-			different conversations, and neither can read the other.
-			Channels are unaffected by it.
-
-			**`human-owner` alone reads BOTH of the human-owner's direct
-			conversations with the team**, one per team identity, and reports
-			them as one merged result -- the human-owner writes in either, so
-			reading only one would report the other's messages as absent.
-			Every message line carries the conversation it came from as its
-			first column, and the merged lines are ordered chronologically, so
-			an absent message is never ambiguous between "not there" and "in
-			the other conversation". Each conversation is checked individually
-			against the expected counterparty before it is read; the two are
-			never checked as a pair. `--raw` returns both API responses, each
-			labelled with its own conversation, never glued into one body.
-			`human-owner:<ts>` is unaffected -- a `<ts>` names one exact
-			message in one conversation -- as are `magic-team`, `event-track`,
-			`event-alert` and any explicit `<channel>:<ts>`.
-
-			Exit code (this target only; every other target keeps 0/1):
-			0 when both conversations were read,
-			3 when only one was (the failed one is named, with its reason, in
-			the output header -- the result is half the conversation and must
-			not be read as a complete answer),
-			4 when neither was,
-			1 when the operation failed before reaching either.
-
-			**No retry logic** -- applies to the whole --check-* family.
-			One attempt, fails clean if it fails.
-
-			**Output is pretty-formatted by default** ("ts | user | text"
-			one line per message) instead of raw JSON -- every real
-			caller ended up hand-parsing the JSON anyway, so raw is no longer
-			the default. `--raw` opts back into the full API response
-			(needed for fields the pretty formatter doesn't surface, e.g.
-			`reply_count`/`thread_ts` metadata).
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
 		--member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
 			`<team-member>` is the member this search acts as, and it comes
 			first, ahead of the target. It matters more here than on the
@@ -386,17 +312,17 @@
 			Finds messages in ONE conversation since a cut-off, including
 			**thread replies whose parent message is older than that
 			cut-off**. That last part is the whole reason to reach for this
-			op instead of --intern-op-slack-check: a bounded --intern-op-slack-check
-			read reports a thread by its PARENT, so a long-running thread
-			whose parent predates the cut-off is invisible in that read no
-			matter how recently it was replied to. Measured on this
-			workspace: three threads in `magic-team` whose parents predated
-			a cut-off carried 41, 18 and 6 replies after it, and none of the
-			three appeared in the bounded read. Use --intern-op-slack-check for
-			"what is new at the top level of this conversation", and this op
-			for "what has been said anywhere in this conversation, threads
-			included". They answer different questions and neither replaces
-			the other.
+			op instead of a single-target conversation read: a bounded
+			single-target read reports a thread by its PARENT, so a
+			long-running thread whose parent predates the cut-off is
+			invisible in that read no matter how recently it was replied to.
+			Measured on this workspace: three threads in `magic-team` whose
+			parents predated a cut-off carried 41, 18 and 6 replies after it,
+			and none of the three appeared in the bounded read. This op
+			answers "what has been said anywhere in this conversation,
+			threads included" -- a different question from "what is new at
+			the top level of this conversation", and neither replaces the
+			other.
 
 			Target grammar is the same vocabulary the rest of the
 			family takes -- `magic-team`/`human-owner`/`event-track`/
@@ -457,7 +383,7 @@
 
 			**Output is pretty-formatted by default**, oldest first, one
 			line per message in the same `ts | user | text` shape
-			--intern-op-slack-check prints, with ` [thread-reply of <parent-ts>]`
+			a single-target conversation read prints, with ` [thread-reply of <parent-ts>]`
 			appended to a message that sits inside a thread -- that parent ts
 			is what a follow-up `--member-comms-slack-read <team-member> <channel>:<ts> --thread`
 			needs. A message's own line breaks are flattened to spaces to
@@ -471,15 +397,15 @@
 			come from an index, not from the live conversation, so a very
 			recent message may not be findable yet -- a lag of about five
 			minutes has been observed here, and the upper bound is not known.
-			For anything just posted, --intern-op-slack-check reads the
-			conversation directly and this op does not. Two further
+			For anything just posted, a direct single-target conversation
+			read sees it and this op does not. Two further
 			behaviours are unverified in this workspace and may affect
 			completeness: messages posted by bots are reported elsewhere as
 			sometimes missing from search results, and search may honour
 			search-preference settings configured in the Slack UI for the
 			acting identity. Neither has been confirmed or ruled out here, so
 			a zero-match result on a conversation known to be busy is worth
-			cross-checking with --intern-op-slack-check.
+			cross-checking with a direct single-target conversation read.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -605,7 +531,7 @@
 			<channel>:<ts> target grammar as --member-comms-slack-delete-message. The
 			replacement text comes from the same three input forms
 			--member-comms-slack-send-message accepts: trailing argv,
-			`--from-stdin` (alias `--message-from-stdin`), or
+			`--from-stdin`, or
 			`--from-file <path>`. `--format` is not offered here: this op
 			edits plain text only. Empty replacement text is refused rather
 			than applied, since that would blank the message. Re-running the
@@ -988,7 +914,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
+		--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
 			Appends exactly one canonical transcript-entry block:
 			<speaker-name> (<timestamp>): followed by quoted message lines.
 			Transcripts save under the team's shared audit tree -- not a
@@ -1006,7 +932,7 @@
 			does not determine the target path. Does not rewrite prior content.
 			Missing target transcript is an error unless --create is passed.
 			Payload must be provided by exactly one source: --message,
-			--message-from-stdin/--from-stdin, or --message-file <path>.
+			--from-stdin, or --from-file <path>.
 			Returns append audit details: target path plus added line and byte
 			counts.
 
@@ -1189,79 +1115,6 @@
 		--make-console-script
 			Prints agents console script body (used by --make-console-command)
 			and exits.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
-		--intern-mcp-server [--run]
-			Serves this package's own MCP surface over stdio, registered
-			under the server name `myx.distro`. That server is this
-			package's own and is unrelated to `myx.common`'s: separate
-			names, separate registrations, and neither one's installer
-			touches the other's entry.
-
-			`--run` is what makes a registration work. Without it this
-			prints its syntax and exits instead of serving, so an entry
-			whose `args` omit it registers a command the host can launch
-			but that can never serve.
-
-			Registers into this workspace's own MCP config and no
-			other. The command written is this workspace's own resolved
-			`myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh`,
-			with args `["--intern-mcp-server","--run"]` and no `env`.
-			This operation establishes the workspace environment itself,
-			so a registration does not carry one and must not be given
-			one. To register another workspace's tooling, run this
-			operation from that workspace.
-
-			Exposes exactly one tool, `execute`, backed by
-			--intern-mcp-execute below.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
-		--intern-main-loop [--run]
-			Spawns and keeps magic-coordinator.heartbeat.routine's own
-			next-iteration cycle running forever -- the basement layer
-			that RUNS own-service mode, not merely gated behind it
-			already being up. Caller-less, same shape as
-			--intern-mcp-server: no `<team-member>` argument.
-
-			`--run` is what makes it loop. Without it this prints its
-			syntax and exits instead of looping.
-
-			At the top of every iteration, calls
-			--magic-heartbeat-config-check and lets its real exit code
-			propagate -- a failed config check fails this operation
-			loud. Each iteration then
-			spawns one heartbeat next-iteration via
-			--magic-heartbeat-spawn-proxy magic-coordinator --wait,
-			sleeps MAIN_LOOP_RESTART_DELAY_SECONDS
-			(magic-coordinator config scope, default 29), and repeats
-			-- log-and-continue regardless of that spawn's own exit
-			code, no retry backoff, no cap.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
-		--intern-mcp-execute
-			The operation behind the `execute` MCP tool, reached by the
-			server started with --intern-mcp-server --run when it
-			dispatches a tool call. Not an operation to invoke from a
-			shell, a routine step or a board item -- call the operation
-			you actually want instead.
-
-			Takes no arguments; passing any is an error. The script to
-			run arrives on stdin and is read whole, so it may be
-			multi-line.
-
-			Stdout carries only what the script itself emits. Anything
-			this operation reports about the environment goes to stderr,
-			keeping the protocol stream clean. The exit status is the
-			script's own, propagated unchanged: a failing script reports
-			its status rather than ending the server.
-
-			The script runs with the workspace environment already
-			established -- `MMDAPP`, `MDLT_ORIGIN`, `MDLC_INMODE`,
-			`MDLT_OPTION` and `MYXROOT` are set even when the call
-			arrives with none of them.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -2006,11 +1859,10 @@
 
 			Full detail for one specific message (default) or its whole
 			thread (--thread) -- all meta-info, reactions, formatting,
-			files/attachments, exactly as Slack's own API returns them.
-			Complement to --intern-op-slack-check: that one is a lightweight,
-			pretty-formatted scan; this one is the deep read for actually
-			processing one specific item. Always returns full raw JSON,
-			never pretty-formatted -- "full" is the entire point.
+			files/attachments, exactly as Slack's own API returns them. This
+			is the deep read for actually processing one specific item, not a
+			lightweight scan. Always returns full raw JSON, never
+			pretty-formatted -- "full" is the entire point.
 
 			Thread replies are covered: a `<ts>` naming a reply inside a
 			thread reads back that reply, exactly as a thread parent or a
@@ -2144,8 +1996,7 @@
 		`DistroAgentsTools.fn.sh --member-comms-slack-send-message keeper-myx magic-team Build finished OK.`
 
 		# Send a threaded reply with rich Block Kit formatting from stdin -- heredoc,
-		# not a piping command in front; --from-stdin is the standardized name
-		# (--message-from-stdin still works too, same flag)
+		# not a piping command in front
 		```
 		DistroAgentsTools.fn.sh --member-comms-slack-send-message keeper-myx C0123ABCD:1700000000.000100 --from-stdin --format blocks <<'EOF'
 		[{"type":"section","text":{"type":"mrkdwn","text":"*done*"}}]
@@ -2229,24 +2080,8 @@
 		# Sweep all watched targets, incrementally since a prior check marker
 		`DistroAgentsTools.fn.sh --magic-sweep-input-scan magic-coordinator --comms-since-utime 1786140114.450349`
 
-		# Read one specific target/thread instead -- use --intern-op-slack-check, not --magic-sweep-input-scan
-		`DistroAgentsTools.fn.sh --intern-op-slack-check magic-coordinator magic-team --oldest 1700000000.000000`
-		`DistroAgentsTools.fn.sh --intern-op-slack-check magic-coordinator C0123ABCD:1700000000.000100`
-
 		# Regression-test permission hardening under a deliberately permissive umask
 		`DistroAgentsTools.fn.sh --self-test`
 
 		# Audit .local/.agents for anything not chmod 700/600
 		`DistroAgentsTools.fn.sh --verify-permissions`
-
-		# Ad hoc: check a JSON file someone produced, independent of any op --
-		# NOT a required pre-step before --member-comms-slack-send-message --format blocks (that op
-		# already validates its own stdin internally, see --member-comms-slack-send-message above)
-		`DistroAgentsTools.fn.sh --intern-validate-json /path/to/payload.json`
-
-		# Ad hoc: check JSON from stdin the same way -- heredoc, not a piping command in front
-		```
-		DistroAgentsTools.fn.sh --intern-validate-json <<'EOF'
-		[{"type":"section","text":{"type":"mrkdwn","text":"*ok*"}}]
-		EOF
-		```

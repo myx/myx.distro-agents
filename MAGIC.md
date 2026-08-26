@@ -206,6 +206,31 @@ Team-owned notes for the magic-* team.
 
 - Only a line starting with exactly `"# "` becomes a Slack `header` block; the check is `substr(line, 1, 2) == "# "`, so `"## text"` never matches it. Slack's Block Kit `header` block has one flat style with no H2/H3 distinction to map to, so a deeper heading (`##`, `###`, any count of `#`) instead becomes a bold paragraph line, reusing the same `**text**` bold path the script already has for inline styles — not left as unconverted raw markdown.
 
+## `--intern-*` operations are excluded from customer-facing help
+
+- Every `--intern-*` operation — the `--intern-op-*` primitives and the caller-less `--intern-mcp-server`/`--intern-main-loop`/`--intern-mcp-execute`/`--intern-validate-json` utilities alike — is left out of `Help.DistroAgentsTools.include`'s syntax lines and out of `Help.DistroAgentsTools.help.md`'s Operation Reference and Examples. A member never calls one directly, so a reader of `--help` has no use for its syntax or a worked example of it; its contract belongs to whoever is developing or maintaining the tool, which is what this file and the operation's own header comment are for.
+- A public operation's own help entry may still need to contrast itself with an internal op it complements (e.g. `--member-comms-slack-search-messages` vs. a bounded single-target Slack read). State that contrast in behavioural terms, never by naming the internal op — a caller does not need that name to choose between the two.
+
+### `--intern-op-slack-check` call contract
+
+- Reads exactly one target: `magic-team`/`human-owner`/`event-track`/`event-alert`, a bare `<conversation-id>`, or `<channel>:<ts>` for one thread. `human-owner` alone reads both of the human-owner's direct conversations and merges them chronologically, each line tagged with its own conversation.
+- Exit codes (`human-owner` target only; every other target keeps plain 0/1): 0 both conversations read, 3 only one (named, with reason, in the output header), 4 neither, 1 failed before reaching either.
+- Pretty-formatted (`ts | user | text`) by default; `--raw` returns the full API response(s).
+
+### `--intern-main-loop` call contract
+
+- No `<team-member>` argument, same shape as `--intern-mcp-server`. `--run` is required to actually loop; without it, prints syntax and exits.
+- Each iteration: `--magic-heartbeat-config-check` first (its real exit code propagates, so a failed config check fails the operation loud), then one `--magic-heartbeat-spawn-proxy magic-coordinator --wait`, then sleeps `MAIN_LOOP_RESTART_DELAY_SECONDS` (magic-coordinator config scope, default 29). Log-and-continue regardless of the spawn's own exit code — no retry backoff, no cap.
+
+### `--intern-mcp-server` call contract
+
+- `--run` is required to actually serve; without it, prints syntax and exits — so a registration whose `args` omit it registers a command that can never serve.
+- Registers into this workspace's own MCP config only, command resolved to this workspace's own `DistroAgentsTools.fn.sh`, args `["--intern-mcp-server","--run"]`, no `env` (the operation establishes the workspace environment itself). To register another workspace's tooling, run this operation from that workspace. Exposes exactly one tool, `execute`, backed by `--intern-mcp-execute`.
+
+### `--intern-mcp-execute` call contract
+
+- Not an operation to invoke from a shell, a routine step or a board item — call the operation actually wanted instead. Takes no arguments; the script to run arrives whole on stdin. Stdout carries only what the script itself emits (keeping the JSON-RPC wire clean); the exit status is the script's own, propagated unchanged. Runs with the workspace environment already established — `MMDAPP`, `MDLT_ORIGIN`, `MDLC_INMODE`, `MDLT_OPTION` and `MYXROOT` are all set even when the call arrives with none of them.
+
 ## Deprecated operation names
 
 - A superseded name stays as a working shim: removed from help output, kept in the dispatcher, indefinitely. Any existing caller keeps working unchanged unless a real removal is separately proposed and approved.

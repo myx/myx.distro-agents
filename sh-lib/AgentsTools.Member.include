@@ -132,7 +132,7 @@ case "$1" in
 		local memberName="$1"
 		shift || true
 		if [ -z "$memberName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: syntax is <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: syntax is <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" member-append-session-transcript || { set +e ; return 1 ; }
@@ -154,11 +154,14 @@ case "$1" in
 					messageArgProvided="true"
 					shift 2
 				;;
+				## --message-from-stdin/--message-file are the superseded spellings,
+				## kept as working shims per MAGIC.md's "Deprecated operation names" --
+				## removed from help output, --from-stdin/--from-file are what's shown.
 				--message-from-stdin|--from-stdin)
 					messageFromStdin="true"
 					shift
 				;;
-				--message-file)
+				--message-file|--from-file)
 					messageFile="$2"
 					shift 2
 				;;
@@ -196,7 +199,7 @@ case "$1" in
 			payloadSources=$((payloadSources + 1))
 		fi
 		if [ "$payloadSources" -ne 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: provide exactly one payload source: --message, --message-from-stdin/--from-stdin, or --message-file" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: provide exactly one payload source: --message, --from-stdin, or --from-file" >&2
 			set +e ; return 1
 		fi
 		if [ "$messageFromStdin" = "true" ] ; then

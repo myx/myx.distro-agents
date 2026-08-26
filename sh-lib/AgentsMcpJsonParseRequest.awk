@@ -103,6 +103,7 @@ function emitLeaf(path, raw, val,   f, idx) {
 	else if (path == "params.clientInfo.name") { f = outDir "/client_name"; print val > f; close(f); }
 	else if (path == "params.clientInfo.version") { f = outDir "/client_version"; print val > f; close(f); }
 	else if (path == "params.arguments.command") { f = outDir "/arg_command"; print val > f; close(f); }
+	else if (path == "params.arguments.workspace") { f = outDir "/arg_workspace"; print val > f; close(f); }
 	else if (path == "params.arguments.uname") { f = outDir "/arg_uname"; print val > f; close(f); }
 	else if (path == "params.arguments.stdin") { f = outDir "/arg_stdin"; print val > f; close(f); }
 	else if (path == "params.arguments.timeout") { f = outDir "/arg_timeout"; print val > f; close(f); }

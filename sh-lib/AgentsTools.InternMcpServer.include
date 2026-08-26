@@ -117,6 +117,8 @@ case "$1" in
 			[ ! -f "$MMDAPP/.local/temp/agent-mcp.$$/req/has_id" ] || IFS= read -r mcpId < "$MMDAPP/.local/temp/agent-mcp.$$/req/id" || true
 			## $(cat) not read: a script spans lines.
 			mcpScript="$( cat "$MMDAPP/.local/temp/agent-mcp.$$/req/arg_command" 2>/dev/null || true )"
+			## Optional per-call workspace override; empty means "this server's own MMDAPP", unchanged.
+			mcpWorkspace="$( cat "$MMDAPP/.local/temp/agent-mcp.$$/req/arg_workspace" 2>/dev/null || true )"
 
 			## The whole handler forks, not just the command: this loop then
 			## waits on nothing a script can influence, and a slow request
@@ -136,13 +138,15 @@ case "$1" in
 						AgentsMcpSendResult "$mcpId" '{}'
 					;;
 					tools/list)
-						AgentsMcpSendResult "$mcpId" '{"tools":[{"name":"execute","description":"Evaluate a shell script in this workspace with its environment already initialized: MMDAPP and MDLT_ORIGIN resolved to the tree actually in use, and the workspace consoles and tools reachable. Returns the script combined stdout and stderr, plus its exit status.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"Shell script to evaluate. May span multiple lines."}},"required":["command"]}}]}'
+						AgentsMcpSendResult "$mcpId" '{"tools":[{"name":"execute","description":"Evaluate a shell script with its environment already initialized: MMDAPP and MDLT_ORIGIN resolved to the tree actually in use, and the workspace consoles and tools reachable. Defaults to this server'"'"'s own workspace; pass '"'"'workspace'"'"' to run against a different one instead, re-resolved fresh exactly as a standalone invocation there would be. Returns the script combined stdout and stderr, plus its exit status.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"Shell script to evaluate. May span multiple lines."},"workspace":{"type":"string","description":"Optional: absolute path of a different myx.distro workspace (one with its own .local) to run this one call against, overriding this server'"'"'s own default MMDAPP for this call only. Leave unset to use this server'"'"'s own workspace."}},"required":["command"]}}]}'
 					;;
 					tools/call)
 						if [ "execute" != "$mcpToolName" ] ; then
 							AgentsMcpSendError "$mcpId" -32602 "Unknown tool: $mcpToolName"
 						elif [ -z "$mcpScript" ] ; then
 							AgentsMcpSendError "$mcpId" -32602 "execute requires a non-empty 'command' argument"
+						elif [ -n "$mcpWorkspace" ] && [ ! -d "$mcpWorkspace/.local" ] ; then
+							AgentsMcpSendError "$mcpId" -32602 "workspace has no .local, not a set-up myx.distro workspace: $mcpWorkspace"
 						else
 							## Redirected to a file, never captured by $( ): a command substitution
 							## returns only once its pipe has no writers left, so any child the script
@@ -151,7 +155,17 @@ case "$1" in
 							## The seq counter keeps two concurrent jobs off each other's output file.
 							## Never `cmd ; rc=$?`: under -e that dies before reading $?.
 							mcpExitCode=0
-							printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute > "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ" 2>&1 || mcpExitCode=$?
+							if [ -n "$mcpWorkspace" ] ; then
+								## Fresh subprocess, real $0: re-triggers this same file's own
+								## `case "$0"` bootstrap (DistroAgentsContext --run-from-detect),
+								## so MDLT_ORIGIN/MDLT_OPTION re-resolve properly for the target
+								## workspace instead of inheriting this server's own values --
+								## the target may vendor its own copy, or consume a different
+								## sibling's, and only the real resolver knows which.
+								printf '%s\n' "$mcpScript" | ( unset MDLT_ORIGIN MDLT_OPTION MDLC_INMODE ; export MMDAPP="$mcpWorkspace" ; exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute ) > "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ" 2>&1 || mcpExitCode=$?
+							else
+								printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute > "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ" 2>&1 || mcpExitCode=$?
+							fi
 							set +e
 
 							mcpOutput="$( < "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ" )"

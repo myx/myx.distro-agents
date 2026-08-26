@@ -1,6 +1,5 @@
 echo "📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --intern-op-slack-check <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--oldest <ts>] [--identity-bot] [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-check <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]" >&2
@@ -9,9 +8,6 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--s
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-script" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --intern-mcp-server [--run]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --intern-main-loop [--run]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --intern-mcp-execute" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]" >&2
@@ -83,7 +79,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <te
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-stdin" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> <operation>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]" >&2

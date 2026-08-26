@@ -787,6 +787,7 @@ case "$1" in
 						MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
 						MYX_MCPUPSERT_COMMAND="$distroServerScript" \
 						MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
+						MYX_MCPUPSERT_ENV="$mmdappEnvJson" \
 						LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>&1 >"$distroTmp" )" || distroRc=$?
 					if [ "$distroRc" -ne 0 ] ; then
 						echo "⛔ ERROR: mcp-distro-upsert $distroFile: $distroErr" >&2
@@ -808,6 +809,7 @@ case "$1" in
 						MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
 						MYX_MCPUPSERT_COMMAND="$distroServerScript" \
 						MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
+						MYX_MCPUPSERT_ENV="$mmdappEnvJson" \
 						LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>/dev/null \
 						| cmp -s - "$distroFile" ; then
 						echo "🔌 myx.distro registered in ${distroFile#$workspace/}" >&2

@@ -230,7 +230,7 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 - `--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>`
 - `--librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]`
+- `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]`
 
 Note: `--librarian-list-team-files`/`-dates` (below) are this skill's dedicated replacement for raw `Bash`/`stat`/`find` when listing/verifying skill files — same optional scope args on both (zero or more: a bare path relative to the skill-root, or an absolute path resolving inside it; no args means the whole skill-root; a missing/outside-root arg is skipped and reported, not a hard abort).
 
@@ -262,7 +262,7 @@ Note: `--librarian-inbox-item-trash`/`--librarian-inbox-to-retained` (below) are
 
 ## `--member-append-session-transcript` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--message-from-stdin|--from-stdin|--message-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]` — appends exactly one canonical transcript-entry block (`<speaker-name> (<timestamp>): followed by quoted message lines`) to the team's shared audit tree. Missing target transcript is an error unless `--create` is passed. Payload must be provided by exactly one source among `--message`, `--message-from-stdin`/`--from-stdin`, or `--message-file <path>`.
+`DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]` — appends exactly one canonical transcript-entry block (`<speaker-name> (<timestamp>): followed by quoted message lines`) to the team's shared audit tree. Missing target transcript is an error unless `--create` is passed. Payload must be provided by exactly one source among `--message`, `--from-stdin`, or `--from-file <path>`.
 
 # Maintainer Notes
 
