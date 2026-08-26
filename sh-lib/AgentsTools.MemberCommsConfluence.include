@@ -1,0 +1,318 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberCommsConfluence.include -- the raw per-member Confluence
+## Cloud comms operations (identity, page read, CQL search, comment read).
+## Read side only today; see "SCOPE" below for what is deliberately absent and
+## why.
+##
+## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced
+## for $1/$@/$MDSC_CMD.
+##
+## EVERY OP HERE TAKES <team-member> FIRST, and that member IS the acting
+## identity -- which is why `comms` is a namespace layer UNDER the member
+## prefix, --member-comms-<service>-<verb>. An Atlassian API token belongs to
+## exactly one account, so the member decides whose Confluence this is read as
+## and, just as importantly, whose name appears against anything written later.
+##
+## THE DISPATCHER REACHES THIS FILE BY THE --member-comms-confluence-* GLOB, and
+## that route is only correct because every op of that name lives here.
+##
+## NAMING: RESOURCE-FIRST, same rule and same reason as the Google family --
+## --member-comms-confluence-<resource>-<verb>. A service with ONE primary
+## resource names ops verb-first (--member-comms-slack-delete-message,
+## --member-comms-email-mark-seen); a service with co-equal resources groups
+## them under a resource prefix (--member-comms-slack-file-fetch,
+## --intern-op-board-rename). Confluence has page and comment as co-equal
+## resources, so resource-first is correct here.
+##
+## AUTH IS DELIBERATELY MUCH SMALLER THAN THE GOOGLE FAMILY'S. Atlassian Cloud
+## REST uses HTTP Basic with <email>:<api-token>. There is no OAuth client, no
+## consent URL, no refresh-token exchange, no access token and no scopes --
+## none of the machinery AgentsGoogleApiCall.py needs. Do not port that
+## machinery here on the assumption the two are alike; they are not.
+##
+## WHY CONFLUENCE AND JIRA KEEP SEPARATE KEY SETS EVEN THOUGH ONE TOKEN SERVES
+## BOTH. One Atlassian account authenticates every product on a site, so
+## CONFLUENCE_USER/CONFLUENCE_API_TOKEN and JIRA_USER/JIRA_API_TOKEN will
+## legitimately hold IDENTICAL VALUES for the same member. That is not
+## redundancy waiting to be optimised away, and collapsing them into one shared
+## ATLASSIAN_* set would be a real loss: the separate sets are what allow one
+## service's credential to be rotated, revoked, scoped to a different site, or
+## pointed at a different account without disturbing the other. The human-owner
+## settled this directly. Identical values today is an observation about this
+## deployment, not an argument about the design.
+##
+## SCOPE -- WHAT THIS FAMILY DELIBERATELY DOES NOT HAVE:
+##
+## There is NO --member-comms-confluence-check op, and the reason is different
+## from the Google family's, so it is worth stating rather than assuming the
+## same one. Google simply has no unread concept. Confluence DOES have
+## notifications in its own UI -- but Confluence CLOUD exposes no REST resource
+## for them: the in-app notification/workbox API is a Server/Data Center API,
+## and the Cloud v2 API's resource groups (Page, Blog Post, Comment, Space,
+## Task, User, Version, Label, Attachment and the rest) include no
+## notification, inbox, watch or subscription group at all.
+##
+## CQL can answer "what changed recently" (`order by lastmodified desc`), and
+## that is a genuinely useful query -- but it carries NO PER-IDENTITY READ
+## STATE. A sweep built on it would re-report the same pages every pass unless
+## this package invented and stored its own read watermark. That is exactly the
+## dedup/watermarking approach already rejected once in this estate, and it is
+## why the email family relies on IMAP's server-side \Seen flag and the Trello
+## family on read_filter=unread: the SERVER owns the read state in both. With
+## no server-side read state to lean on, a `-check` here would be a watermark
+## store wearing a check's name. So page-search is offered as a deliberate,
+## task-driven query instead, in the same posture the Google family takes.
+##
+## WRITE OPS ARE NOT BUILT YET, and that is a sequencing decision rather than
+## an omission. A Confluence page update is a read-modify-write: it requires
+## the page's current version number plus one, and a stale number is rejected.
+## That makes it an optimistic-locking problem with a real conflict window, and
+## how a conflict should behave -- refuse and report, or re-read and retry --
+## is a decision to take deliberately rather than to discover in the first
+## collision. Read side lands first, exactly as it did for the Google family.
+##
+## THE API'S STATUS CODE IS NOT THE ANSWER TO THE QUESTION THE CALLER ASKED.
+## Note one Confluence-specific trap the worker handles explicitly: a 404 here
+## means EITHER the content does not exist OR this account cannot see it, and
+## the two are indistinguishable from outside. It is never reported as "no such
+## page".
+##
+## Supported operations:
+##   --member-comms-confluence-whoami       --member-comms-confluence-page-read
+##   --member-comms-confluence-page-search  --member-comms-confluence-comment-read
+##
+
+## Shared member-and-credential resolution, same shape and same reasoning as
+## AgentsTools.MemberCommsGoogle.include's own helper -- see that file's header
+## for the full note on why this file factors the block the email/Trello arms
+## repeat inline. The op name is an argument so every error message stays as
+## specific as an inline one would be.
+##
+## Assigns into the CALLER's already-declared locals:
+##   confluenceSite  confluenceUser  confluenceToken
+AgentsToolsConfluenceResolveMember() {
+	local opName="$1"
+	local memberName="$2"
+
+	AgentsToolsAssertBareName "$memberName" "<team-member>" "$opName" || return 1
+	case "$memberName" in
+		routine-*)
+			## A routine acting as caller has no skill directory and is not
+			## expected to grow one -- same carve-out, same reason, as
+			## --member-comms-slack-read's.
+		;;
+		*)
+			if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --$opName: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+				return 1
+			fi
+		;;
+	esac
+
+	## STRICTLY THE ACTING MEMBER'S OWN SCOPE -- no fallback, for the reason
+	## --member-comms-email-check states in full. It matters as much here as it
+	## does for Google: an Atlassian API token IS an identity, and acting under
+	## the wrong one is not a degraded result but impersonation that raises no
+	## error at all. Note this is the credential that would sign a page edit or
+	## a comment once write ops exist.
+	confluenceSite="$( DistroAgentsTools --agents-config-option "$memberName" --select CONFLUENCE_SITE )"
+	confluenceUser="$( DistroAgentsTools --agents-config-option "$memberName" --select CONFLUENCE_USER )"
+	confluenceToken="$( DistroAgentsTools --agents-config-option "$memberName" --select CONFLUENCE_API_TOKEN )"
+	if [ -z "$confluenceSite" ] || [ -z "$confluenceUser" ] || [ -z "$confluenceToken" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --$opName: CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
+		return 1
+	fi
+
+	## An embedded newline means the stored config is corrupted, and it is
+	## refused rather than stripped -- same refuse-don't-repair stance as the
+	## Trello and Google arms. A mangled token here comes back as a plain 401,
+	## which reads as "wrong or revoked credential" and would send someone to
+	## mint a replacement token when the real fault was a stray newline.
+	local confluenceNewline=$'\n'
+	case "$confluenceSite$confluenceUser$confluenceToken" in
+		*"$confluenceNewline"*)
+			echo "⛔ ERROR: $MDSC_CMD --$opName: CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- none of them ever legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting 401 would be misread as a revoked credential" >&2
+			return 1
+		;;
+	esac
+	return 0
+}
+
+## One invocation of the Confluence worker, credentials passed ONLY through the
+## environment -- never argv, never a file. Atlassian's own documented example
+## is `curl -u email:api_token`, which would publish the token to `ps`; this
+## package does not follow it.
+AgentsToolsConfluenceCall() {
+	AGENTS_CONFLUENCE_SITE="$confluenceSite" \
+	AGENTS_CONFLUENCE_USER="$confluenceUser" \
+	AGENTS_CONFLUENCE_API_TOKEN="$confluenceToken" \
+	AGENTS_CONFLUENCE_OP="$1" \
+	AGENTS_CONFLUENCE_PAGE_ID="${confluencePageId:-}" \
+	AGENTS_CONFLUENCE_CQL="${confluenceCql:-}" \
+	AGENTS_CONFLUENCE_LIMIT="${confluenceLimit:-}" \
+	AGENTS_CONFLUENCE_FORMAT="${confluenceFormat:-}" \
+	python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConfluenceApiCall.py"
+}
+
+case "$1" in
+
+		## WHICH ATLASSIAN ACCOUNT DOES THIS MEMBER'S CREDENTIAL RESOLVE TO.
+		## First thing to run after a token is filed, for the same reason the
+		## Google and Trello families carry the same op: the credential IS the
+		## identity, and one filed against the wrong account produces no error
+		## anywhere -- only somebody else's name on the work.
+		--member-comms-confluence-whoami)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-whoami: syntax is <team-member> -- the acting member is required, since an API token resolves to exactly one Atlassian account and this operation exists to say which one" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-whoami: takes exactly one argument" >&2
+				set +e ; return 1
+			fi
+			local confluenceSite confluenceUser confluenceToken
+			AgentsToolsConfluenceResolveMember member-comms-confluence-whoami "$memberName" || { set +e ; return 1 ; }
+			local confluenceRc=0
+			AgentsToolsConfluenceCall whoami || confluenceRc=$?
+			if [ "$confluenceRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-whoami: COULD NOT DETERMINE which Atlassian account ${memberName}'s credential resolves to (worker rc=$confluenceRc) -- the acting identity is UNKNOWN, which is NOT the same as anonymous; the worker's own diagnostic is above" >&2
+				set +e ; return "$confluenceRc"
+			fi
+			return 0
+		;;
+
+		## One page's body to stdout, its metadata to stderr.
+		##
+		## FORMAT IS `storage` BY DEFAULT, AND THAT IS THE ROUND-TRIP DECISION.
+		## Confluence can hand back a page several ways and they are not
+		## equivalent: `storage` is the XHTML-ish form that can be written back
+		## through the same API unchanged; `atlas_doc_format` is ADF, also
+		## writable but JSON, which would push JSON parsing onto every shell
+		## caller -- the boundary mistake the Google family's TSV rule exists to
+		## avoid. Rendered HTML (view/export_view) is NOT offered: it cannot be
+		## written back, and REST v2 does not provide it at all.
+		--member-comms-confluence-page-read)
+			shift
+			local memberName="$1"
+			shift || true
+			local confluencePageId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$confluencePageId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-read: syntax is <team-member> <page-id> [--format storage|atlas_doc_format] -- the acting member is required, since a page is readable only by identities it is shared with" >&2
+				set +e ; return 1
+			fi
+			local confluenceFormat=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--format)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-read: --format requires a value: storage or atlas_doc_format" >&2
+							set +e ; return 1
+						fi
+						confluenceFormat="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-read: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			local confluenceSite confluenceUser confluenceToken
+			AgentsToolsConfluenceResolveMember member-comms-confluence-page-read "$memberName" || { set +e ; return 1 ; }
+			local confluenceRc=0
+			AgentsToolsConfluenceCall page-read || confluenceRc=$?
+			if [ "$confluenceRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-read: COULD NOT READ page $confluencePageId as $memberName (worker rc=$confluenceRc) -- the content is UNKNOWN, not empty. Note a 404 from Confluence does NOT establish that the page is absent: it returns 404 both for missing content and for content this account cannot see. The worker's own diagnostic is above" >&2
+				set +e ; return "$confluenceRc"
+			fi
+			return 0
+		;;
+
+		## CQL search -- the discovery entry point, since the page ops need a
+		## page id.
+		##
+		## CQL IS PASSED THROUGH AS GIVEN, unlike the Drive query in the Google
+		## family which is wrapped. The difference is real rather than an
+		## inconsistency: a bare word in Drive's `q` is a syntax ERROR, so it
+		## must be wrapped to mean anything, whereas CQL is the documented
+		## surface a caller is expected to write and has no single safe general
+		## wrapping -- `text ~ "x"`, `title ~ "x"`, `space = X` and
+		## `lastmodified >= "..."` are all ordinary and mean different things.
+		## For a plain text search a caller writes: text ~ "term"
+		--member-comms-confluence-page-search)
+			shift
+			local memberName="$1"
+			shift || true
+			local confluenceCql="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$confluenceCql" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-search: syntax is <team-member> <cql> [--limit <n>] -- the acting member is required, since a search returns only what that identity can see. For a plain text search the CQL is: text ~ \"term\"" >&2
+				set +e ; return 1
+			fi
+			local confluenceLimit=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--limit)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-search: --limit requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceLimit="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-search: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			local confluenceSite confluenceUser confluenceToken
+			AgentsToolsConfluenceResolveMember member-comms-confluence-page-search "$memberName" || { set +e ; return 1 ; }
+			local confluenceRc=0
+			AgentsToolsConfluenceCall page-search || confluenceRc=$?
+			if [ "$confluenceRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-search: COULD NOT SEARCH as $memberName (worker rc=$confluenceRc) -- the result set is UNKNOWN, not empty; nothing is known from this call about whether any content matches. The worker's own diagnostic is above" >&2
+				set +e ; return "$confluenceRc"
+			fi
+			return 0
+		;;
+
+		## Footer comments on one page, as TSV with its own header row.
+		--member-comms-confluence-comment-read)
+			shift
+			local memberName="$1"
+			shift || true
+			local confluencePageId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$confluencePageId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-read: syntax is <team-member> <page-id> -- the acting member is required, since comments are visible only to identities the page is shared with" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-read: invalid option: $1" >&2
+				set +e ; return 1
+			fi
+			local confluenceSite confluenceUser confluenceToken
+			AgentsToolsConfluenceResolveMember member-comms-confluence-comment-read "$memberName" || { set +e ; return 1 ; }
+			local confluenceRc=0
+			AgentsToolsConfluenceCall comment-read || confluenceRc=$?
+			if [ "$confluenceRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-read: COULD NOT READ comments on page $confluencePageId as $memberName (worker rc=$confluenceRc) -- the comment list is UNKNOWN, not empty; the worker's own diagnostic is above" >&2
+				set +e ; return "$confluenceRc"
+			fi
+			return 0
+		;;
+
+		*)
+			echo "⛔ ERROR: $MDSC_CMD: unknown --member-comms-confluence-* operation: $1 -- this family is read-only today; the supported operations are --member-comms-confluence-whoami, --member-comms-confluence-page-read, --member-comms-confluence-page-search and --member-comms-confluence-comment-read" >&2
+			set +e ; return 1
+		;;
+
+esac

@@ -712,6 +712,240 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--member-comms-google-whoami <team-member>
+			`<team-member>` is the member this lookup acts as, and it is
+			required: the identity returned is whoever that member's own
+			`GOOGLE_REFRESH_TOKEN` resolves to, with no fallback to another
+			member's scope.
+
+			Call it whenever the acting identity matters, and always
+			immediately after filing a new refresh token. A Google refresh
+			token IS an identity: one minted by consenting as the wrong
+			account leaves the member acting as that other person on every
+			call, with correct code and no error anywhere to notice it by.
+			This operation is what turns that from undetectable into one
+			command. It needs no scope beyond the Drive scope the family
+			already requires.
+
+			Prints `GOOGLE_ACCOUNT_EMAIL=`, `GOOGLE_ACCOUNT_NAME=` and
+			`GOOGLE_ACCOUNT_ID=`, one per line, and returns non-zero when the
+			identity could not be established — an unknown identity is never
+			reported as an empty one.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-google-file-find <team-member> <search-term> [--full-text] [--include-trashed] [--limit <n>]
+		--member-comms-google-file-find <team-member> <drive-query> --raw-query [--limit <n>]
+			`<team-member>` is the member this search acts as, and it comes
+			first. It is required and strict: the results are what that
+			member's own identity can see in Drive, never another member's,
+			and there is no fallback to another member's scope.
+
+			The entry point for this family, since every other Google
+			operation needs a file id and this is what produces one.
+
+			**`<search-term>` is a plain term, not a query.** Drive's own `q`
+			parameter is a structured query language rather than a search
+			box — a bare word such as `ADR` is a syntax error there, not a
+			match-anything — so this operation builds the query around the
+			term for you: `name contains '<term>' and trashed=false`. An
+			apostrophe in the term (`Bob's notes` is an ordinary filename) is
+			escaped before it reaches the API rather than breaking the query.
+			An empty term is refused rather than silently listing the whole
+			Drive.
+
+			`--full-text` also matches text inside document bodies, not just
+			names. Off by default: it is markedly slower and returns hits
+			from inside unrelated files, which is not what a search by name
+			expects.
+
+			`--include-trashed` keeps deleted files in the results. By
+			default they are excluded, because a trashed file is otherwise
+			indistinguishable from a live one and a caller may act on
+			something already in the bin.
+
+			`--raw-query` forwards the argument verbatim as a complete Drive
+			query instead, for structured searches such as
+			`mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`.
+			It cannot be combined with `--full-text` or `--include-trashed`:
+			with `--raw-query` the argument is the whole query and those
+			flags would have nothing to shape, so the combination is refused
+			rather than silently ignored.
+
+			`--limit` defaults to 50 and must be a positive whole number.
+
+			Emits one TSV row per file: id, name, mimeType, modifiedTime.
+			A search that completed and matched nothing prints no rows and
+			returns zero; a search that could not be performed returns
+			non-zero and says so — those are different outcomes and are never
+			rendered the same way.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-google-sheet-info <team-member> <sheet-id>
+			`<team-member>` is the member this read acts as, and it is
+			required: a spreadsheet is readable only by identities it is
+			shared with, read strictly from that member's own scope with no
+			fallback.
+
+			Tab names and grid dimensions — what a caller needs before it can
+			build a range for `--member-comms-google-sheet-read`. Prints
+			`SPREADSHEET_TITLE=<title>` first, then a TSV table of tabs with
+			its own header row: `TAB_TITLE`, `TAB_ID`, `TAB_INDEX`, `ROWS`,
+			`COLUMNS`.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-google-sheet-read <team-member> <sheet-id> <a1-range> [--unformatted]
+			`<team-member>` is the member this read acts as, and it is
+			required: a spreadsheet is readable only by identities it is
+			shared with, read strictly from that member's own scope with no
+			fallback.
+
+			Cell values for one A1 range, emitted as TSV rather than the
+			API's own JSON `values` arrays — a range is tabular, and every
+			other operation in this tool is shell-consumable.
+
+			Two conversion rules the caller can rely on:
+
+			- **Rows are padded to the width of the requested range.** Sheets
+			  omits trailing empty cells, so `A1:D10` would otherwise return
+			  two fields for a row whose last two are blank, and every
+			  positional consumer (`awk -F'\t' '{print $4}'`) would read the
+			  wrong column with no error at all. Where the range does not fix
+			  a width (a bare tab name), the widest row returned is used.
+			- **Tab, newline, carriage return and backslash inside a cell are
+			  escaped** as `\t`, `\n`, `\r` and `\\`. A cell may legitimately
+			  contain any of them, and emitted raw a tab becomes a new column
+			  and a newline a new row. The escape is reversible — undo `\\`
+			  last.
+
+			Values render as `FORMATTED_VALUE` by default: what a human
+			reading the sheet sees. `--unformatted` returns the underlying
+			value instead, so a date becomes its serial number.
+
+			A range that is genuinely empty prints no rows and returns zero.
+			A range that could not be read returns non-zero and says the
+			values are UNKNOWN — never the same rendering as empty. A range
+			outside the sheet's grid limits is an error, not an empty result.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-google-sheet-write <team-member> <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>)
+			`<team-member>` is the member this write acts as, and it comes
+			first: the credentials the write authenticates with are that
+			member's own, strictly, with no fallback to another member's
+			scope.
+
+			Writes TSV into one A1 range. **The input format is exactly what
+			`--member-comms-google-sheet-read` emits**, so a range can be
+			read, edited in a shell pipeline, and written straight back — the
+			round trip is byte-exact, including cells that contain tabs,
+			newlines or backslashes (written as `\t`, `\n`, `\r`, `\\`).
+
+			Content comes from `--from-stdin` or `--from-file` and never from
+			trailing text arguments, because a range is tabular and a shell
+			word is not. Exactly one source is required; giving both is an
+			error rather than a silent precedence.
+
+			`--append` adds rows after the existing data instead of
+			overwriting the range.
+
+			**Values are stored RAW by default, and that is a safety
+			decision.** Under `--user-entered` Google parses each value as
+			though a person had typed it, so any caller-supplied cell
+			beginning with `=` becomes a live formula in a document real
+			people will open. RAW stores exactly what was given. Use
+			`--user-entered` only where a formula or a locale-parsed date is
+			genuinely intended.
+
+			On failure, whether anything was changed is UNKNOWN and must not
+			be assumed to be nothing.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-google-sheet-clear <team-member> <sheet-id> <a1-range>
+			`<team-member>` is the member this write acts as, and it comes
+			first, read strictly from that member's own scope with no
+			fallback.
+
+			Clears the values in one A1 range. **Its own operation rather
+			than a flag on `--member-comms-google-sheet-write`**, because it
+			destroys data and takes no content — the same reason
+			`--member-comms-slack-delete-message` and `--intern-op-board-trash`
+			carry their own names. A destructive mode hidden behind a flag on
+			a constructive verb reads as safer at the call site than it is.
+
+			The range is required and is never defaulted: there is no
+			whole-sheet shorthand, because a mistyped default would erase a
+			spreadsheet.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-google-doc-read <team-member> <doc-id>
+			`<team-member>` is the member this read acts as, and it is
+			required: a document is readable only by identities it is shared
+			with, read strictly from that member's own scope with no
+			fallback.
+
+			Prints the document's plain text. **Paragraph text runs only** —
+			tables, embedded objects and footnotes are not rendered. Stated
+			here rather than left to be inferred, because output that
+			silently omits a table looks complete.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-google-doc-write <team-member> <doc-id> (<text...>|--from-stdin|--from-file <path>)
+			`<team-member>` is the member this write acts as, and it comes
+			first, ahead of the document: the credentials are that member's
+			own, strictly, with no fallback.
+
+			**Appends** text to the end of the document. Append-only,
+			deliberately: replacing a document's whole body means computing
+			and deleting its existing content range first, which is
+			destructive and structural, and if it is ever wanted it belongs
+			in its own operation — the same reasoning that gave
+			`--member-comms-google-sheet-clear` its own name instead of a
+			flag.
+
+			Exactly one content source: trailing text, `--from-stdin`, or
+			`--from-file`. Giving more than one is an error, and giving none
+			refuses rather than appending nothing and reporting success.
+
+			On failure, whether anything was written is UNKNOWN and must not
+			be assumed to be nothing.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-google-comment-read <team-member> <file-id>
+			`<team-member>` is the member this read acts as, and it is
+			required: comments are visible only to identities the file is
+			shared with, read strictly from that member's own scope with no
+			fallback.
+
+			Comments on one Drive file — a Doc and a Sheet alike, since
+			comments are a Drive resource rather than a per-type one. Emits
+			TSV with its own header row: `COMMENT_ID`, `AUTHOR`, `CREATED`,
+			`RESOLVED`, `CONTENT`.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-google-comment-post <team-member> <file-id> (<text...>|--from-stdin|--from-file <path>)
+			`<team-member>` is the member this write acts as, and it comes
+			first, ahead of the file: a comment is authored by one identity,
+			so the acting member decides which account signs it, read
+			strictly from that member's own scope with no fallback.
+
+			Posts one comment onto one Drive file. Exactly one content
+			source: trailing text, `--from-stdin`, or `--from-file`.
+
+			Prints `COMMENT_ID=` and `COMMENT_CREATED=` on success. A
+			response carrying no id is reported as UNKNOWN rather than
+			success — a positive test on what is present, not an assumption
+			drawn from a 2xx status.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--magic-comms-trello-post-comment <team-member> <card-id> [text...]
 		--magic-comms-trello-post-comment <team-member> <card-id> --from-stdin
 		--magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>

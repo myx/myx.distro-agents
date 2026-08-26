@@ -1,0 +1,743 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberCommsGoogle.include -- the raw per-member Google comms
+## operations across Drive, Sheets and Docs: identity, search, spreadsheet
+## read/write/clear, document read/append, and comments on either file type.
+##
+## READ AND WRITE OPERATIONS SIT IN ONE FILE, so note which are which. The
+## mutating ones are sheet-write, sheet-clear, doc-write and comment-post.
+## Every one of them reports a failure as "whether anything changed is
+## UNKNOWN", never as "nothing happened": a write that failed partway is
+## indistinguishable from one that never started, and only one of those is safe
+## to retry blindly.
+##
+## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced
+## for $1/$@/$MDSC_CMD.
+##
+## EVERY OP HERE TAKES <team-member> FIRST, and that member IS the acting
+## identity -- which is why `comms` is a namespace layer UNDER the member
+## prefix, --member-comms-<service>-<verb>, rather than a prefix of its own.
+## A Google refresh token belongs to exactly one account, so the member decides
+## whose Drive is searched and whose Sheets are read.
+##
+## THE DISPATCHER REACHES THIS FILE BY THE --member-comms-google-* GLOB, and
+## that route is only correct because every op of that name lives here. Adding
+## a --member-comms-google-* op therefore costs no dispatcher line; moving one
+## out to another include would silently break the glob's one precondition.
+##
+## NAMING: RESOURCE-FIRST, DELIBERATELY, AND HERE IS THE RULE.
+## This family is --member-comms-google-<resource>-<verb>, one segment deeper
+## than --member-comms-email-<verb>. The tree uses BOTH orders and the split is
+## not arbitrary: a service with ONE primary resource names its ops verb-first
+## (--member-comms-slack-delete-message, -edit-message, -search-messages,
+## --member-comms-email-mark-seen), while secondary or co-equal resources group
+## under a resource prefix (--member-comms-slack-file-fetch, -file-info,
+## --intern-op-board-rename, --librarian-inbox-item-trash). Google has no
+## primary resource -- sheet, file and comment are co-equal -- so resource-first
+## is the correct form here and matches the slack-file-* precedent exactly.
+## THIS IS WRITTEN DOWN BECAUSE IT LOOKS LIKE AN INCONSISTENCY AND IS NOT:
+## --member-comms-google-sheet-read sits beside --magic-comms-trello-post-comment
+## in the same tree, and without this note someone will eventually "fix" one of
+## them in the wrong direction.
+##
+## SCOPE -- WHAT THIS FAMILY DELIBERATELY DOES NOT HAVE:
+## There is NO --member-comms-google-check op, and its absence is a design
+## decision rather than a gap. Slack, email and Trello each expose a cheap
+## `-check` unread poll that the comms sweep calls every iteration. Google has
+## no unread queue to poll; the nearest equivalents are change feeds, not an
+## inbox, and a `-check` here would end up listing files on every heartbeat.
+## magic-coordinator.communication-sweep.routine.md says so directly in its own
+## Scope section: "Doesn't do: Google (Drive/Sheets) -- extended procedure, only
+## when the task is actually searching/grooming, not a default **check** call."
+## The real caller is named in that same file: magic-team.grooming.routine,
+## which owns "deep classification/triage, Google Drive/Sheets, board-coverage
+## diffing". Build against that caller, not against a sweep.
+##
+## THE API'S STATUS CODE IS NOT THE ANSWER TO THE QUESTION THE CALLER ASKED.
+## An empty result must not read as success: a failed token exchange means the
+## answer is UNKNOWN, not empty, and a failed API call means the rows are
+## UNKNOWN, not zero. The worker distinguishes these by exit status (2 exchange
+## failed, 3 call failed, 4 credential is dead and needs a human) and each arm
+## below reports the outcome of the QUESTION its caller asked.
+##
+## DELIBERATE DIVERGENCE FROM THE OTHER COMMS INCLUDES -- READ BEFORE
+## "FIXING" IT. The email, Slack and Trello includes repeat their member-
+## validation-and-credential-resolution block inline in every arm. THIS FILE
+## DOES NOT: it calls one AgentsToolsGoogleResolveMember helper instead. That
+## is a decision, not drift, and it was reviewed and approved as one.
+## The reason is arm count, not taste: those files carry two or three arms,
+## this one carries four today and grows with the write side, and the repeated
+## block is ~25 lines whose only per-arm variation is the op name in its error
+## text. The helper takes that op name as an argument, so every message stays
+## exactly as specific as the inline form; the ordering is unchanged; and all
+## of it still runs before any network call. Nothing is centralised that was
+## not already character-for-character identical. The inline pattern in the
+## other three files reads as a consequence of their arm count rather than a
+## principle those files defend -- but if that ever becomes wrong, change this
+## deliberately too, rather than by symmetry with a neighbour. Full rationale
+## sits above the helper's own definition below.
+##
+## CREDENTIALS REACH THE WORKER THROUGH THE ENVIRONMENT, NEVER argv AND NEVER
+## A FILE. This is AgentsImapFetchMessage.py's already-established spelling,
+## matched rather than reinvented -- see AgentsToolsGoogleCall below. One
+## consequence is worth stating at the top: NO TEMP FILE EXISTS ANYWHERE IN
+## THIS FAMILY, so there is no cleanup path to get wrong. That is the failure
+## that once left netrc files holding a live SMTP password in $TMPDIR for ~14
+## hours; a mechanism with nothing to clean up cannot repeat it.
+##
+## Supported operations:
+##   --member-comms-google-whoami        --member-comms-google-file-find
+##   --member-comms-google-sheet-read    --member-comms-google-sheet-info
+##   --member-comms-google-sheet-write   --member-comms-google-sheet-clear
+##   --member-comms-google-doc-read      --member-comms-google-doc-write
+##   --member-comms-google-comment-read  --member-comms-google-comment-post
+##
+## STRUCTURAL OPERATIONS ARE OUT OF SCOPE, deliberately. spreadsheets.batchUpdate
+## is a union of some forty structural request types (add/delete tab, merge,
+## formatting, conditional rules, filters) and is NOT modelled here; neither is
+## whole-body document replacement. If either is ever genuinely needed, one raw
+## JSON passthrough operation is the right shape rather than a modelled surface
+## that must track Google's own schema forever.
+##
+
+## Shared member-and-credential resolution for every arm in this file.
+##
+## DELIBERATE, REASONED DIVERGENCE FROM THE email/Trello INCLUDES, which repeat
+## this block inline in each arm. Those files carry two or three arms; this one
+## carries four and will carry more once the write side lands, and the repeated
+## block is ~25 lines of validation whose ONLY per-arm variation is the op name
+## in its error text. Taking the op name as an argument keeps every one of those
+## messages exactly as specific as the inline form while removing the copies.
+## Nothing is centralised that was not already identical, the ordering is
+## unchanged, and all of it still runs BEFORE any network call so a bad name
+## never reaches a server.
+##
+## Assigns, by design, into the CALLER's already-declared locals:
+##   googleClientId  googleClientSecret  googleRefreshToken
+AgentsToolsGoogleResolveMember() {
+	local opName="$1"
+	local memberName="$2"
+
+	AgentsToolsAssertBareName "$memberName" "<team-member>" "$opName" || return 1
+	case "$memberName" in
+		routine-*)
+			## A routine acting as caller has no skill directory and is not
+			## expected to grow one -- same treatment, same reason, as
+			## --member-comms-slack-read's own carve-out.
+		;;
+		*)
+			if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --$opName: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+				return 1
+			fi
+		;;
+	esac
+
+	## STRICTLY THE ACTING MEMBER'S OWN SCOPE -- no fallback to another
+	## member's credentials, for the reason --member-comms-email-check states
+	## in full: a fallback makes the <team-member> argument observably
+	## meaningless for any member holding no keys of its own, which is exactly
+	## the accepted-and-ignored defect that argument exists to end. It matters
+	## more here than anywhere else in the package, because a Google refresh
+	## token IS an identity: acting under the wrong one is not a degraded
+	## result, it is impersonation that produces no error at all.
+	##
+	## NOTE the two kinds of value are NOT interchangeable. CLIENT_ID and
+	## CLIENT_SECRET identify the APPLICATION and may legitimately match across
+	## members; REFRESH_TOKEN identifies the USER and never may. Do not
+	## "optimise" this into a shared lookup -- in this estate even the app
+	## values differ per member, because each member's OAuth client lives in
+	## its own organisation.
+	googleClientId="$( DistroAgentsTools --agents-config-option "$memberName" --select GOOGLE_CLIENT_ID )"
+	googleClientSecret="$( DistroAgentsTools --agents-config-option "$memberName" --select GOOGLE_CLIENT_SECRET )"
+	googleRefreshToken="$( DistroAgentsTools --agents-config-option "$memberName" --select GOOGLE_REFRESH_TOKEN )"
+	if [ -z "$googleClientId" ] || [ -z "$googleClientSecret" ] || [ -z "$googleRefreshToken" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --$opName: GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
+		return 1
+	fi
+
+	## An embedded newline means the stored config is corrupted, and it is
+	## refused rather than stripped -- same refuse-don't-repair stance as the
+	## Trello arms. The specific cost of repairing it silently is worse here:
+	## a mangled refresh token comes back from Google as `invalid_grant`, which
+	## this family reports as "the credential is dead, a human must perform the
+	## consent again". That sends someone to redo an OAuth consent flow when
+	## the real fault was a stray newline in a config file.
+	local googleNewline=$'\n'
+	case "$googleClientId$googleClientSecret$googleRefreshToken" in
+		*"$googleNewline"*)
+			echo "⛔ ERROR: $MDSC_CMD --$opName: GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- a Google credential never legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting failure would surface as invalid_grant and be misread as a revoked credential needing a fresh human consent" >&2
+			return 1
+		;;
+	esac
+	return 0
+}
+
+## Exactly one content source, for the arms that take written content.
+##
+## The same rule --member-comms-email-send already enforces, and for the same
+## reason: given two sources, any silent precedence order means the caller's
+## other source was accepted and ignored, and they have no way to tell which
+## one actually landed. Given none, an empty write is refused rather than
+## quietly appending nothing and reporting success.
+AgentsToolsGoogleAssertOneContentSource() {
+	local opName="$1"
+	local textArg="$2"
+	local fromStdin="$3"
+	local fromFile="$4"
+
+	local sourceCount=0
+	[ -n "$textArg" ] && sourceCount=$(( sourceCount + 1 ))
+	[ -n "$fromStdin" ] && sourceCount=$(( sourceCount + 1 ))
+	[ -n "$fromFile" ] && sourceCount=$(( sourceCount + 1 ))
+
+	if [ "$sourceCount" -eq 0 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --$opName: a content source is required -- give trailing text, --from-stdin, or --from-file <path>. Nothing was written" >&2
+		return 1
+	fi
+	if [ "$sourceCount" -gt 1 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --$opName: more than one content source given -- use exactly one of trailing text, --from-stdin, or --from-file <path>. Nothing was written, because any precedence chosen here would silently discard the others" >&2
+		return 1
+	fi
+	if [ -n "$fromFile" ] && [ ! -f "$fromFile" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --$opName: no such file: $fromFile -- nothing was written" >&2
+		return 1
+	fi
+	return 0
+}
+
+## One invocation of the Google worker, with the credentials passed ONLY through
+## the environment.
+##
+## CREDENTIALS NEVER APPEAR ON A COMMAND LINE. argv is world-readable through
+## `ps`, so a secret in an argument is published to every process on the box for
+## the call's lifetime. The environment is the mechanism AgentsImapFetchMessage.py
+## already established in this package for exactly this, and this is the same
+## one rather than a second spelling of it. No temp file is involved either, so
+## there is nothing to leak through an interrupt window and nothing to forget to
+## remove -- the failure mode that once left netrc files holding a live SMTP
+## password in $TMPDIR for ~14 hours.
+AgentsToolsGoogleCall() {
+	AGENTS_GOOGLE_CLIENT_ID="$googleClientId" \
+	AGENTS_GOOGLE_CLIENT_SECRET="$googleClientSecret" \
+	AGENTS_GOOGLE_REFRESH_TOKEN="$googleRefreshToken" \
+	AGENTS_GOOGLE_OP="$1" \
+	AGENTS_GOOGLE_QUERY="${googleQuery:-}" \
+	AGENTS_GOOGLE_LIMIT="${googleLimit:-}" \
+	AGENTS_GOOGLE_SHEET_ID="${googleSheetId:-}" \
+	AGENTS_GOOGLE_RANGE="${googleRange:-}" \
+	AGENTS_GOOGLE_RENDER="${googleRender:-}" \
+	AGENTS_GOOGLE_FULLTEXT="${googleFullText:-}" \
+	AGENTS_GOOGLE_INCLUDE_TRASHED="${googleIncludeTrashed:-}" \
+	AGENTS_GOOGLE_RAW_QUERY="${googleRawQuery:-}" \
+	AGENTS_GOOGLE_DOC_ID="${googleDocId:-}" \
+	AGENTS_GOOGLE_FILE_ID="${googleFileId:-}" \
+	AGENTS_GOOGLE_APPEND="${googleAppend:-}" \
+	AGENTS_GOOGLE_USER_ENTERED="${googleUserEntered:-}" \
+	python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsGoogleApiCall.py"
+}
+
+case "$1" in
+
+		## WHICH ACCOUNT DOES THIS MEMBER'S CREDENTIAL ACTUALLY RESOLVE TO.
+		## The Trello side already carries this question as
+		## --member-comms-trello-whoami; this is the Google answer to it, in the
+		## same KEY=VALUE consumable shape.
+		##
+		## THIS OP EXISTS BECAUSE THE FAILURE IT CATCHES IS OTHERWISE SILENT.
+		## A refresh token minted by consenting as the wrong account leaves the
+		## member acting as that other person on every single call, with correct
+		## code, no error, and nothing in any output to notice it by. Run this
+		## immediately after filing a token, and any time the acting identity
+		## matters. It needs no scope beyond the Drive scope the family already
+		## requires, so it costs nothing extra to grant.
+		--member-comms-google-whoami)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-whoami: syntax is <team-member> -- the acting member is required, since a refresh token resolves to exactly one account and this operation exists to say which one" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-whoami: takes exactly one argument" >&2
+				set +e ; return 1
+			fi
+			local googleClientId googleClientSecret googleRefreshToken
+			AgentsToolsGoogleResolveMember member-comms-google-whoami "$memberName" || { set +e ; return 1 ; }
+			local googleRc=0
+			AgentsToolsGoogleCall whoami || googleRc=$?
+			if [ "$googleRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-whoami: COULD NOT DETERMINE which Google account ${memberName}'s credential resolves to (worker rc=$googleRc) -- the acting identity is UNKNOWN, which is NOT the same as anonymous; the worker's own diagnostic is above" >&2
+				set +e ; return "$googleRc"
+			fi
+			return 0
+		;;
+
+		## Drive search -- the entry point for this family, since every other op
+		## needs a file id and this is what produces one. Emits TSV:
+		## id, name, mimeType, modifiedTime.
+		##
+		## TAKES A PLAIN SEARCH TERM AND WRAPS IT. Drive's `q` is a structured
+		## query language, NOT a search box: a bare word like `ADR` is a syntax
+		## error there rather than a match-anything, and forwarding one returns
+		## HTTP 400. This op therefore builds the query around the term the
+		## caller gave -- `name contains '<term>' and trashed=false` -- which is
+		## what "find me this file" actually means. Confirmed the hard way: the
+		## first two real invocations of this op, by a caller who reasonably
+		## typed a bare name, both failed with `Invalid Value` on `q`.
+		##
+		## --full-text also matches document body content. Off by default
+		## because it is markedly slower and returns hits from inside unrelated
+		## files, which is not what someone searching by name expects.
+		## --include-trashed keeps deleted files in the result; by default they
+		## are excluded, since a trashed file is otherwise indistinguishable
+		## from a live one and a caller may act on something already binned.
+		## --raw-query forwards the argument verbatim as a full Drive query, for
+		## structured searches such as
+		## "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false".
+		## That was this op's original contract, so it stays reachable: making
+		## the default safer must not quietly remove what already worked.
+		--member-comms-google-file-find)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-file-find: syntax is <team-member> <search-term> [--full-text] [--include-trashed] [--raw-query] [--limit <n>] -- the acting member is required, since a Drive search returns only what that identity can see" >&2
+				set +e ; return 1
+			fi
+			local googleQuery="$1"
+			shift || true
+			if [ -z "$googleQuery" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-file-find: a search term is required -- an empty term is refused rather than silently listing the whole Drive" >&2
+				set +e ; return 1
+			fi
+			local googleLimit="" googleFullText="" googleIncludeTrashed="" googleRawQuery=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--limit)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-google-file-find: --limit requires a value" >&2
+							set +e ; return 1
+						fi
+						googleLimit="$1" ; shift
+					;;
+					--full-text)
+						googleFullText="true" ; shift
+					;;
+					--include-trashed)
+						googleIncludeTrashed="true" ; shift
+					;;
+					--raw-query)
+						googleRawQuery="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-google-file-find: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			## Rejected rather than accepted-and-ignored: --raw-query means the
+			## argument IS the whole query, so the flags that shape a wrapped
+			## one have nothing to act on. Silently dropping them would let a
+			## caller believe a filter applied when it never did.
+			if [ -n "$googleRawQuery" ] && { [ -n "$googleFullText" ] || [ -n "$googleIncludeTrashed" ] ; } ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-file-find: --raw-query cannot be combined with --full-text or --include-trashed -- with --raw-query the argument is the complete Drive query and those flags would have nothing to shape. Put the condition in the query itself instead" >&2
+				set +e ; return 1
+			fi
+			local googleClientId googleClientSecret googleRefreshToken
+			AgentsToolsGoogleResolveMember member-comms-google-file-find "$memberName" || { set +e ; return 1 ; }
+			local googleRc=0
+			AgentsToolsGoogleCall file-find || googleRc=$?
+			if [ "$googleRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-file-find: COULD NOT SEARCH Drive as $memberName (worker rc=$googleRc) -- the result set is UNKNOWN, not empty; nothing is known from this call about whether any file matches. The worker's own diagnostic is above" >&2
+				set +e ; return "$googleRc"
+			fi
+			return 0
+		;;
+
+		## Cell values for one A1 range, as TSV.
+		##
+		## TSV, NOT JSON, AT THE BOUNDARY -- the API speaks JSON `values`
+		## arrays, but a range IS tabular and every other op in this tree is
+		## shell-consumable. Making a caller parse JSON to read three cells
+		## would make this the only op family in the package that demands it.
+		##
+		## TWO CONVERSION RULES THE CALLER CAN RELY ON, both stated because
+		## leaving either implicit corrupts data silently:
+		##  - ROWS ARE PADDED to the width of the requested range. Sheets omits
+		##    trailing empty cells, so A1:D10 returns two fields for a row whose
+		##    last two are blank; emitted short, every positional consumer
+		##    (`awk -F'\t' '{print $4}'`) reads the wrong column with no error.
+		##    Where the range does not fix a width (a bare tab name), the widest
+		##    row returned is used instead.
+		##  - TAB, NEWLINE, CARRIAGE RETURN AND BACKSLASH inside a cell are
+		##    escaped as \t, \n, \r and \\ respectively. A cell may legitimately
+		##    contain any of them, and emitted raw a tab becomes a new column
+		##    and a newline becomes a new row. The escape is reversible: undo \\
+		##    last.
+		##
+		## Values render as FORMATTED_VALUE by default -- what a human reading
+		## the sheet sees. --unformatted returns the underlying value instead
+		## (a date becomes its serial number). Neither is wrong, which is
+		## exactly why the default is stated rather than inherited silently.
+		--member-comms-google-sheet-read)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-read: syntax is <team-member> <sheet-id> <a1-range> [--unformatted] -- the acting member is required, since a spreadsheet is readable only by identities it is shared with" >&2
+				set +e ; return 1
+			fi
+			local googleSheetId="$1"
+			shift || true
+			local googleRange="$1"
+			shift || true
+			if [ -z "$googleSheetId" ] || [ -z "$googleRange" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-read: syntax is <team-member> <sheet-id> <a1-range> [--unformatted] -- both the spreadsheet id and an A1 range are required; a range is what fixes the column width the output is padded to" >&2
+				set +e ; return 1
+			fi
+			local googleRender=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--unformatted)
+						googleRender="UNFORMATTED_VALUE" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-read: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			local googleClientId googleClientSecret googleRefreshToken
+			AgentsToolsGoogleResolveMember member-comms-google-sheet-read "$memberName" || { set +e ; return 1 ; }
+			local googleRc=0
+			AgentsToolsGoogleCall sheet-read || googleRc=$?
+			if [ "$googleRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-read: COULD NOT READ $googleRange as $memberName (worker rc=$googleRc) -- the cell values are UNKNOWN, not empty. A range that is genuinely empty succeeds and prints no rows, which is a DIFFERENT outcome from this one. The worker's own diagnostic is above" >&2
+				set +e ; return "$googleRc"
+			fi
+			return 0
+		;;
+
+		## Tab names and grid dimensions for one spreadsheet -- what a caller
+		## needs before it can build a range for --member-comms-google-sheet-read.
+		## Prints SPREADSHEET_TITLE=<title> first, then a TSV table of tabs with
+		## its own header row: TAB_TITLE, TAB_ID, TAB_INDEX, ROWS, COLUMNS.
+		--member-comms-google-sheet-info)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-info: syntax is <team-member> <sheet-id> -- the acting member is required, since a spreadsheet is readable only by identities it is shared with" >&2
+				set +e ; return 1
+			fi
+			local googleSheetId="$1"
+			shift || true
+			if [ -z "$googleSheetId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-info: a spreadsheet id is required" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-info: invalid option: $1" >&2
+				set +e ; return 1
+			fi
+			local googleClientId googleClientSecret googleRefreshToken
+			AgentsToolsGoogleResolveMember member-comms-google-sheet-info "$memberName" || { set +e ; return 1 ; }
+			local googleRc=0
+			AgentsToolsGoogleCall sheet-info || googleRc=$?
+			if [ "$googleRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-info: COULD NOT READ spreadsheet metadata as $memberName (worker rc=$googleRc) -- the tab list is UNKNOWN, not empty; the worker's own diagnostic is above" >&2
+				set +e ; return "$googleRc"
+			fi
+			return 0
+		;;
+
+		## Write TSV into one A1 range. Content arrives on stdin or from a
+		## file -- never as trailing text arguments, because a spreadsheet
+		## range is tabular and a shell word is not.
+		##
+		## THE INPUT IS THE EXACT FORMAT --member-comms-google-sheet-read
+		## EMITS, so a range can be read, edited in a pipeline, and written
+		## straight back. Tab, newline, carriage return and backslash inside a
+		## cell are written as \t, \n, \r and \\ and are un-escaped here; the
+		## round trip is byte-exact.
+		##
+		## VALUES ARE STORED RAW BY DEFAULT, AND THAT IS A SAFETY DECISION.
+		## Under --user-entered Google parses each value as though typed by a
+		## person, so any cell beginning `=` becomes a live formula in a
+		## document real people open. RAW stores exactly what was given.
+		--member-comms-google-sheet-write)
+			shift
+			local memberName="$1"
+			shift || true
+			local googleSheetId="$1"
+			shift || true
+			local googleRange="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$googleSheetId" ] || [ -z "$googleRange" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-write: syntax is <team-member> <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>) -- the acting member, the spreadsheet and the range are all required" >&2
+				set +e ; return 1
+			fi
+			local googleAppend="" googleUserEntered="" googleFromFile="" googleFromStdin=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--append)			googleAppend="true" ; shift ;;
+					--user-entered)		googleUserEntered="true" ; shift ;;
+					--from-stdin)		googleFromStdin="true" ; shift ;;
+					--from-file)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-write: --from-file requires a path" >&2
+							set +e ; return 1
+						fi
+						googleFromFile="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-write: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			## Exactly one content source, the same rule --member-comms-email-send
+			## enforces: more than one is an error rather than a silent priority.
+			if [ -n "$googleFromFile" ] && [ -n "$googleFromStdin" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-write: --from-stdin and --from-file given together -- use one or the other" >&2
+				set +e ; return 1
+			fi
+			if [ -z "$googleFromFile" ] && [ -z "$googleFromStdin" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-write: a content source is required -- give --from-stdin or --from-file <path>. TSV rows only; trailing text arguments are not accepted, since a range is tabular" >&2
+				set +e ; return 1
+			fi
+			if [ -n "$googleFromFile" ] && [ ! -f "$googleFromFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-write: no such file: $googleFromFile -- nothing was written" >&2
+				set +e ; return 1
+			fi
+			local googleClientId googleClientSecret googleRefreshToken
+			AgentsToolsGoogleResolveMember member-comms-google-sheet-write "$memberName" || { set +e ; return 1 ; }
+			local googleRc=0
+			if [ -n "$googleFromFile" ] ; then
+				AgentsToolsGoogleCall sheet-write < "$googleFromFile" || googleRc=$?
+			else
+				AgentsToolsGoogleCall sheet-write || googleRc=$?
+			fi
+			if [ "$googleRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-write: COULD NOT WRITE $googleRange as $memberName (worker rc=$googleRc) -- whether anything was changed is UNKNOWN, and it must NOT be assumed nothing was; the worker's own diagnostic is above" >&2
+				set +e ; return "$googleRc"
+			fi
+			return 0
+		;;
+
+		## Clear the values in one A1 range.
+		##
+		## ITS OWN OPERATION RATHER THAN A FLAG ON sheet-write, deliberately:
+		## it destroys data, it takes no content, and this package names
+		## destructive operations separately for exactly that reason --
+		## --member-comms-slack-delete-message, --intern-op-board-trash,
+		## --librarian-inbox-item-trash. A destructive mode hidden behind a
+		## flag on a constructive verb reads as safer at the call site than it
+		## is.
+		--member-comms-google-sheet-clear)
+			shift
+			local memberName="$1"
+			shift || true
+			local googleSheetId="$1"
+			shift || true
+			local googleRange="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$googleSheetId" ] || [ -z "$googleRange" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-clear: syntax is <team-member> <sheet-id> <a1-range> -- the acting member, the spreadsheet and the range are all required. The range is required and is never defaulted: there is no whole-sheet shorthand here, because a mistyped default would erase a spreadsheet" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-clear: invalid option: $1" >&2
+				set +e ; return 1
+			fi
+			local googleClientId googleClientSecret googleRefreshToken
+			AgentsToolsGoogleResolveMember member-comms-google-sheet-clear "$memberName" || { set +e ; return 1 ; }
+			local googleRc=0
+			AgentsToolsGoogleCall sheet-clear || googleRc=$?
+			if [ "$googleRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-clear: COULD NOT CLEAR $googleRange as $memberName (worker rc=$googleRc) -- whether anything was cleared is UNKNOWN; the worker's own diagnostic is above" >&2
+				set +e ; return "$googleRc"
+			fi
+			return 0
+		;;
+
+		## Plain text of one Google Doc.
+		##
+		## Paragraph text runs only: tables, embedded objects and footnotes are
+		## NOT rendered. Stated here and in the help rather than left to be
+		## inferred, because output that silently omits a table looks complete.
+		--member-comms-google-doc-read)
+			shift
+			local memberName="$1"
+			shift || true
+			local googleDocId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$googleDocId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-doc-read: syntax is <team-member> <doc-id> -- the acting member is required, since a document is readable only by identities it is shared with" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-doc-read: invalid option: $1" >&2
+				set +e ; return 1
+			fi
+			local googleClientId googleClientSecret googleRefreshToken
+			AgentsToolsGoogleResolveMember member-comms-google-doc-read "$memberName" || { set +e ; return 1 ; }
+			local googleRc=0
+			AgentsToolsGoogleCall doc-read || googleRc=$?
+			if [ "$googleRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-doc-read: COULD NOT READ document $googleDocId as $memberName (worker rc=$googleRc) -- the content is UNKNOWN, not empty; the worker's own diagnostic is above" >&2
+				set +e ; return "$googleRc"
+			fi
+			return 0
+		;;
+
+		## Append text to the end of one Google Doc.
+		##
+		## APPEND ONLY, DELIBERATELY. Replacing a document's whole body means
+		## computing and deleting its existing content range first, which is
+		## destructive and structural. If that is ever wanted it belongs in its
+		## own operation, on the same reasoning that gave sheet-clear its own
+		## name instead of a flag.
+		--member-comms-google-doc-write)
+			shift
+			local memberName="$1"
+			shift || true
+			local googleDocId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$googleDocId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-doc-write: syntax is <team-member> <doc-id> (<text...>|--from-stdin|--from-file <path>) -- the acting member and the document are both required" >&2
+				set +e ; return 1
+			fi
+			local googleFromFile="" googleFromStdin="" googleText=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--from-stdin)		googleFromStdin="true" ; shift ;;
+					--from-file)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-google-doc-write: --from-file requires a path" >&2
+							set +e ; return 1
+						fi
+						googleFromFile="$1" ; shift
+					;;
+					*)
+						if [ -n "$googleText" ] ; then
+							googleText="$googleText $1"
+						else
+							googleText="$1"
+						fi
+						shift
+					;;
+				esac
+			done
+			AgentsToolsGoogleAssertOneContentSource member-comms-google-doc-write "$googleText" "$googleFromStdin" "$googleFromFile" || { set +e ; return 1 ; }
+			local googleClientId googleClientSecret googleRefreshToken
+			AgentsToolsGoogleResolveMember member-comms-google-doc-write "$memberName" || { set +e ; return 1 ; }
+			local googleRc=0
+			if [ -n "$googleFromFile" ] ; then
+				AgentsToolsGoogleCall doc-write < "$googleFromFile" || googleRc=$?
+			elif [ -n "$googleFromStdin" ] ; then
+				AgentsToolsGoogleCall doc-write || googleRc=$?
+			else
+				printf '%s\n' "$googleText" | AgentsToolsGoogleCall doc-write || googleRc=$?
+			fi
+			if [ "$googleRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-doc-write: COULD NOT APPEND to document $googleDocId as $memberName (worker rc=$googleRc) -- whether anything was written is UNKNOWN, and it must NOT be assumed nothing was; the worker's own diagnostic is above" >&2
+				set +e ; return "$googleRc"
+			fi
+			return 0
+		;;
+
+		## Comments on one Drive file -- works for a Doc and a Sheet alike,
+		## since comments are a Drive resource rather than a per-type one.
+		## Emits TSV with its own header row.
+		--member-comms-google-comment-read)
+			shift
+			local memberName="$1"
+			shift || true
+			local googleFileId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$googleFileId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-comment-read: syntax is <team-member> <file-id> -- the acting member is required, since comments are visible only to identities the file is shared with" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-comment-read: invalid option: $1" >&2
+				set +e ; return 1
+			fi
+			local googleClientId googleClientSecret googleRefreshToken
+			AgentsToolsGoogleResolveMember member-comms-google-comment-read "$memberName" || { set +e ; return 1 ; }
+			local googleRc=0
+			AgentsToolsGoogleCall comment-read || googleRc=$?
+			if [ "$googleRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-comment-read: COULD NOT READ comments on $googleFileId as $memberName (worker rc=$googleRc) -- the comment list is UNKNOWN, not empty; the worker's own diagnostic is above" >&2
+				set +e ; return "$googleRc"
+			fi
+			return 0
+		;;
+
+		## Post one comment onto one Drive file, authored by <team-member>'s own
+		## identity. Prints COMMENT_ID= and COMMENT_CREATED= on success, and
+		## treats a response carrying no id as UNKNOWN rather than success.
+		--member-comms-google-comment-post)
+			shift
+			local memberName="$1"
+			shift || true
+			local googleFileId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$googleFileId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-comment-post: syntax is <team-member> <file-id> (<text...>|--from-stdin|--from-file <path>) -- the acting member is required, since a comment is authored by one identity and that member decides which account signs it" >&2
+				set +e ; return 1
+			fi
+			local googleFromFile="" googleFromStdin="" googleText=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--from-stdin)		googleFromStdin="true" ; shift ;;
+					--from-file)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-google-comment-post: --from-file requires a path" >&2
+							set +e ; return 1
+						fi
+						googleFromFile="$1" ; shift
+					;;
+					*)
+						if [ -n "$googleText" ] ; then
+							googleText="$googleText $1"
+						else
+							googleText="$1"
+						fi
+						shift
+					;;
+				esac
+			done
+			AgentsToolsGoogleAssertOneContentSource member-comms-google-comment-post "$googleText" "$googleFromStdin" "$googleFromFile" || { set +e ; return 1 ; }
+			local googleClientId googleClientSecret googleRefreshToken
+			AgentsToolsGoogleResolveMember member-comms-google-comment-post "$memberName" || { set +e ; return 1 ; }
+			local googleRc=0
+			if [ -n "$googleFromFile" ] ; then
+				AgentsToolsGoogleCall comment-post < "$googleFromFile" || googleRc=$?
+			elif [ -n "$googleFromStdin" ] ; then
+				AgentsToolsGoogleCall comment-post || googleRc=$?
+			else
+				printf '%s\n' "$googleText" | AgentsToolsGoogleCall comment-post || googleRc=$?
+			fi
+			if [ "$googleRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-comment-post: COULD NOT POST a comment on $googleFileId as $memberName (worker rc=$googleRc) -- whether the comment was posted is UNKNOWN; the worker's own diagnostic is above" >&2
+				set +e ; return "$googleRc"
+			fi
+			return 0
+		;;
+
+		*)
+			echo "⛔ ERROR: $MDSC_CMD: unknown --member-comms-google-* operation: $1 -- the supported operations are --member-comms-google-whoami, --member-comms-google-file-find, --member-comms-google-sheet-read, --member-comms-google-sheet-info, --member-comms-google-sheet-write, --member-comms-google-sheet-clear, --member-comms-google-doc-read, --member-comms-google-doc-write, --member-comms-google-comment-read and --member-comms-google-comment-post" >&2
+			set +e ; return 1
+		;;
+
+esac

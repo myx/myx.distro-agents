@@ -184,6 +184,16 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--member-comms-google-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsGoogle.include"
+			return $?
+		;;
+
+		--member-comms-confluence-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsConfluence.include"
+			return $?
+		;;
+
 		--magic-comms-slack-resolve-ids)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
 			return $?

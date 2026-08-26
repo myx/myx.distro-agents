@@ -80,12 +80,27 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-script" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-comment-read <team-member> <page-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-search <team-member> <cql> [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-whoami <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-read <team-member> <uid> [--seen]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-file-find <team-member> <search-term> [--full-text] [--include-trashed] [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-file-find <team-member> <drive-query> --raw-query [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-comment-post <team-member> <file-id> (<text...>|--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-comment-read <team-member> <file-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-doc-read <team-member> <doc-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-doc-write <team-member> <doc-id> (<text...>|--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-clear <team-member> <sheet-id> <a1-range>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-info <team-member> <sheet-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-read <team-member> <sheet-id> <a1-range> [--unformatted]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-write <team-member> <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-whoami <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] --from-file <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] --from-stdin" >&2
