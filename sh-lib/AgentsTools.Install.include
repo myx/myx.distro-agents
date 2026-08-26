@@ -119,7 +119,7 @@ case "$1" in
 			)"
 		fi
 
-		local hadError="false" memberName memberTarget memberBundled
+		local hadError="false" memberName memberTarget memberBundled memberActual
 		local ownedMembers="" newLinks="" regChanges="" keptMembers="" deletedMembers="" errorMembers=""
 		while IFS= read -r memberName ; do
 			[ -n "$memberName" ] || continue
@@ -137,10 +137,14 @@ case "$1" in
 					continue
 				fi
 			elif [ -L "$memberTarget" ] ; then
-				if [ "$( readlink "$memberTarget" )" != "$memberBundled" ] ; then
+				memberActual="$( readlink "$memberTarget" )"
+				if [ "$memberActual" != "$memberBundled" ] ; then
 					keptMembers="${keptMembers}${memberName} "
 				fi
-				ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n'
+				## register where the link actually points, not where it would have been
+				## pointed: a kept link we did not create is not ours to claim, and a later
+				## --remove pass must not act on a stale claim to the bundled path.
+				ownedMembers="${ownedMembers}${memberName} ${memberActual}"$'\n'
 				continue
 			fi
 			if [ -e "$memberTarget" ] ; then
@@ -157,10 +161,18 @@ case "$1" in
 			newLinks="${newLinks}${memberName} "
 		done <<< "$memberNames"
 
-		local workspaceName registryFile compositeRoot
+		local workspaceName registryFile compositeRoot originRoot
 		workspaceName="$( basename "$workspace" )"
 		registryFile="$targetRoot/.linked.magic-team.members.txt"
 		compositeRoot="$workspace/.local/agents/magic-team-composite"
+		## $bundleRoot is itself rooted in MDLT_ORIGIN, so a link into MDLT_ORIGIN is the
+		## intended install -- classified below rather than left to the catch-all. A workspace
+		## that does not vendor its own myx.distro-* copy resolves MDLT_ORIGIN to a sibling
+		## workspace, which is normal and not a conflict. Fall back to $compositeRoot when
+		## MDLT_ORIGIN is empty: that duplicates an existing arm (harmless) instead of
+		## degrading the pattern to "/*", which would swallow every path.
+		originRoot="${MDLT_ORIGIN:-}"
+		[ -n "$originRoot" ] || originRoot="$compositeRoot"
 
 		local declaresTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroDeclares.fn.sh"
 		local projectsTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroProjects.fn.sh"
@@ -366,8 +378,11 @@ case "$1" in
 					"$compositeRoot"/*)      regType=".local-merged"   ; regRel="${regResolved#$workspace/.local/}" ;;
 					"$workspace/.local/"*)   regType=".local-symlink"  ; regRel="${regResolved#$workspace/.local/}" ;;
 					"$workspace/source/"*)   regType="source-symlink"  ; regRel="${regResolved#$workspace/source/}" ;;
+					## last of the known-good arms: a vendored copy matches one of the three
+					## above first, so this one only speaks for an origin outside $workspace.
+					"$originRoot"/*)         regType="origin-symlink"  ; regRel="${regResolved#$originRoot/}" ;;
 					*)
-						echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: not registered, own source outside workspace $workspace: $regName -> $regResolved" >&2
+						echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: not registered, points outside both workspace $workspace and origin $originRoot (pre-existing link kept, not ours to claim): $regName -> $regResolved" >&2
 						continue
 					;;
 				esac

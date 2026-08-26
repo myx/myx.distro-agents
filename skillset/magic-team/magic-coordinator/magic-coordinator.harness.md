@@ -167,9 +167,9 @@ Session-state field for a spawned instance: whether it currently has a live rela
 Available to `team-fix-session` and `armed-harness-mode`. Runs an interview-like process directly in the
 current session, using `magic-team.interview.routine`'s own semantics as the base — including its
 inheritance of `magic-team.negotiations.md`'s topic/queue/question mechanics (both presentation modes
-available) — with one explicit override: no `inquiry-*` tracking board Item is created; the current
-session's own context is the record instead of a board Item. `magic-team.interview.routine`'s **open-channel-and-create-item** (board
-Item creation) and **keep-tracking-item-current** are skipped for this reason. Everything else —
+available) — with one explicit override: no `inquiry-*` tracking board-item is created; the current
+session's own context is the record instead of a board-item. `magic-team.interview.routine`'s **open-channel-and-create-item** (board-item
+creation) and **keep-tracking-item-current** are skipped for this reason. Everything else —
 collect-don't-converge pacing, rephrase-and-confirm, dispatch-as-you-go, compaction shape — carries over
 unchanged. Trigger: the enclosing mode's own trigger already covers this; no separate phrase needed.
 

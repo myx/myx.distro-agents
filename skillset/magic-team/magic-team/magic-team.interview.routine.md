@@ -10,7 +10,7 @@ Routine-interview is the dedicated place to precisely understand another party's
 
 ## Goals
 
-Give the team a real, dedicated place to precisely understand another party's vision or inquiry — the human-owner's own design thinking, an external contact's actual need — *before* trying to converge on anything. This is deliberately not about reaching agreement (that's `magic-team.discuss.routine`'s job) — it exists because collection and convergence are genuinely different modes: rushing to agree before the other party's actual intent is fully captured risks building the wrong thing precisely, or worse, quietly deciding things on their behalf that were never actually settled. Reach for it in a topic's initial stages — when the job is converging the tracking Item toward an accurate account of what the other party wants, not yet a shared vision to build from.
+Give the team a real, dedicated place to precisely understand another party's vision or inquiry — the human-owner's own design thinking, an external contact's actual need — *before* trying to converge on anything. This is deliberately not about reaching agreement (that's `magic-team.discuss.routine`'s job) — it exists because collection and convergence are genuinely different modes: rushing to agree before the other party's actual intent is fully captured risks building the wrong thing precisely, or worse, quietly deciding things on their behalf that were never actually settled. Reach for it in a topic's initial stages — when the job is converging the tracking board-item toward an accurate account of what the other party wants, not yet a shared vision to build from.
 
 ## Scope
 
@@ -25,9 +25,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **open-channel-and-create-item**:
    - rule: one topic, one thread — fork, don't absorb. If an unrelated topic surfaces mid-interview, don't let it bleed into the current thread: fork it into its own new Slack thread and keep the original thread strictly on its own subject.
    - step: establish the channel — Slack thread (via the `--member-comms-slack-send-message` operation) is the primary channel for an interview session; email (via the `--member-comms-email-send` operation) is the failover for slow-moving or unusually complex matters where a thread's back-and-forth pace doesn't fit.
-   - step: create the tracking `inquiry-*` board Item right here, at channel-open time (see **keep-tracking-item-current**) — not deferred to "eventually" or to whenever that step gets reached. This step is never deferrable.
-   - step: when the interview is being opened or resumed by a genuinely live-interactive session, set `owner-session: interactive` and `owner-session-since: <now>` on the tracking Item's frontmatter at this same moment — refreshed as a heartbeat each time **resume-review** runs under that same live session, so a long-running real conversation never drifts into looking stale mid-way through.
-3. **name-the-interview-on-resume**: when more than one interview's tracking Item is open at once, name the specific one when resuming
+   - step: create the tracking `inquiry-*` board-item right here, at channel-open time (see **keep-tracking-item-current**) — not deferred to "eventually" or to whenever that step gets reached. This step is never deferrable.
+   - step: when the interview is being opened or resumed by a genuinely live-interactive session, set `owner-session: interactive` and `owner-session-since: <now>` on the tracking board-item's frontmatter at this same moment — refreshed as a heartbeat each time **resume-review** runs under that same live session, so a long-running real conversation never drifts into looking stale mid-way through.
+3. **name-the-interview-on-resume**: when more than one interview's tracking board-item is open at once, name the specific one when resuming
    it.** A bare "continue"/"next round" with no name is ambiguous and must be treated as a genuine
    assumption gap (conversation-mechanics rule 5a) — ask which interview, propose options, don't guess.
 
@@ -39,9 +39,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - execute it
      - shrink remaining scope to what's still open
    - Runs regardless of what triggered the pickup: this routine's own resumption, a `magic-team.grooming.routine` pass, `magic-coordinator`'s `coordination-session` closing its `goal-gap-toward-empty`, or an in-progress `magic-coordinator.advance.routine` pass reaching this item. Never blocks the triggering pass — Slack is the async channel, pickup is round-based.
-   - **Concurrency**: whichever entry point picks it up first marks the tracking Item ("resume-review in progress this pass") so a second entry point doesn't collide.
+   - **Concurrency**: whichever entry point picks it up first marks the tracking board-item ("resume-review in progress this pass") so a second entry point doesn't collide.
 5. **reassess-before-next-message**: re-assess, on every pickup, before writing the next message.
-   - Stick to this interview's own tracking Item only — don't mix in another interview's content.
+   - Stick to this interview's own tracking board-item only — don't mix in another interview's content.
    - Re-check board/session state fresh each round; never assume last round's read is still current —
      staleness risk scales with how many parallel sessions are active.
    - Steps, before writing the next message:
@@ -95,7 +95,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - step: apply **dispatch-settled-points**' context-compaction.
 10. **run-bigger-mechanism-cycle**: for something bigger than **run-minimal-step-cycle** — a real mechanism/design, not a one-line change — the cycle is dispatch → test → apply → queue, still driven by this same interviewing session, not handed off and forgotten.**
     - goal: same completion test as **run-minimal-step-cycle** — keep cycling until there's nothing left to focus on.
-    - rule: the spawned sub-session doesn't report back within a bounded window: this isn't silently dropped — log it as a still-open piece on the interview's own tracking board Item (not compacted away), and if the interview itself wraps up before it resolves, flag it explicitly in the closing-reflection closure step. **resume-review** picks it back up automatically the next time this interview is continued, same as any other genuinely-settled-but-not-yet-dispatched piece.
+    - rule: the spawned sub-session doesn't report back within a bounded window: this isn't silently dropped — log it as a still-open piece on the interview's own tracking board-item (not compacted away), and if the interview itself wraps up before it resolves, flag it explicitly in the closing-reflection closure step. **resume-review** picks it back up automatically the next time this interview is continued, same as any other genuinely-settled-but-not-yet-dispatched piece.
     - step: once the interview settles a mechanism's actual shape, spawn a dedicated multi-member sub-session (a `magic-team.coworking.routine`-style dispatch — e.g. `magic-librarian` + `magic-architect` + `magic-tester` together, not `magic-architect` alone as in **run-minimal-step-cycle**'s lighter cycle) to produce a concrete, **tested** work-plan grounded in real files, not assumptions.
     - step: the *same* interviewing session collects that plan — it doesn't hand off to yet another separate session to apply it.
     - step: apply the plan's own concrete pieces directly, continuing the interview's own established discipline — small, minimal-assumption questions where something is genuinely still ambiguous; otherwise keep applying and refocusing on the next open bit without pausing for confirmation between every piece.
@@ -105,7 +105,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **Verbatim-intents**: structural/purpose statements and architectural invariants ("this exists so that...", "the point is to keep X thin/relay-only"). Collect separately from benchmarks — these describe *why*/*what shape*, not a scenario/outcome pair, and don't belong folded into the same checklist. Keep them verbatim, no re-phrasing.
    - **Default framing for both kinds**: what's given is a floor, not a ceiling — a minimum the solution must satisfy, extensible, never a closed/limiting set — unless the other party states an explicit ceiling (a hard number, an explicit "no more than X"). Use bullet points for either list, never a bare numbered list.
    - **A session's own rephrasing of either kind is always a clearly-labeled derivative**, tagged as such wherever recorded — it never overwrites or gets confused with the human-owner's own original verbatim wording, which stays the permanent controlling record for that point. When **dispatch-settled-points**' compaction folds a settled piece into a present-tense block, the original verbatim benchmark/intent text it derived from stays retrievable (session transcript or original message), not discarded once the compacted rephrase exists.
-12. **keep-tracking-item-current**: keep the tracking board Item current while the interview stays active (created at **open-channel-and-create-item**, not here) — update its "settled so far" / "still open" sections as **dispatch-settled-points**' compaction narrows the remaining scope, so the Item itself stays an accurate live snapshot rather than a stale artifact from the moment it was created.
+12. **keep-tracking-item-current**: keep the tracking board-item current while the interview stays active (created at **open-channel-and-create-item**, not here) — update its "settled so far" / "still open" sections as **dispatch-settled-points**' compaction narrows the remaining scope, so the board-item itself stays an accurate live snapshot rather than a stale artifact from the moment it was created.
 
 # Closure steps
 
@@ -137,7 +137,7 @@ All statements apply at the same time, always. These rules override a participan
   - `detour:` — places the topic at the TOP of this interview's own plan (highest priority, handled next).
   - `later:` — places the topic at the END of this interview's own plan (lowest priority).
   - `next:` — inserts the topic as the CURRENTLY RUNNING item (immediate focus, ahead of whatever was already in progress).
-  - `fork:` — same readback-and-confirm step, but the topic does not join this interview's own scope: file it as its own new `interview-*` board Item instead, then add the topic to that new Item's own scope/goals at the top of its plan once confirmed.
+  - `fork:` — same readback-and-confirm step, but the topic does not join this interview's own scope: file it as its own new `interview-*` board-item instead, then add the topic to that new board-item's own scope/goals at the top of its plan once confirmed.
 - **Inherits the team's own topic/queue/question mechanics.** Both presentation modes (next-question and topics-to-choose) are available; use whichever fits the round.
 - A member with a genuine domain-specific interview need routes that request through `magic-coordinator`, rather than running this routine independently — unless, and until, a real case justifies widening this.
 - One documented mechanism failing once is a stop-and-ask signal, not a puzzle to solve alone.
@@ -176,7 +176,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-tests (benchmarks)
 
-- A bare "continue"/"next round" with no interview named, when more than one interview's tracking Item is open, is treated as a genuine assumption gap — it asks which interview rather than guessing.
+- A bare "continue"/"next round" with no interview named, when more than one interview's tracking board-item is open, is treated as a genuine assumption gap — it asks which interview rather than guessing.
 
 ## Librarian Comments
 

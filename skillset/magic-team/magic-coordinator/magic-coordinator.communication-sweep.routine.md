@@ -44,7 +44,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
       - Bigger/questionable, concerns specific member(s) only → propose a `magic-coordinator.one-on-one.routine` session.
       - Worth recording, no investigation needed now → into the backlog `magic-team.grooming.routine` already triages.
       - Never start a new epic/initiative unilaterally inline.
-      - Normalize a genuinely new incoming item into an Item (`note-*.md`/`inquiry-*.md`, per the team's own entity model): write it into `magic-coordinator`'s own inbox by default, or directly into the relevant member's own inbox via `--member-upsert-inbox-note` if clearly addressed to someone specific — filename shape mandatory, `note-<date>-<matter>.md` / `inquiry-<date>-<matter>.md`. Solo `magic-coordinator` work; no deep classification/enqueue-todo/triage here — that's `magic-team.grooming.routine`'s job later.
+      - Normalize a genuinely new incoming item into a board-item (`note-*.md`/`inquiry-*.md`, per the team's own entity model): write it into `magic-coordinator`'s own inbox by default, or directly into the relevant member's own inbox via `--member-upsert-inbox-note` if clearly addressed to someone specific — filename shape mandatory, `note-<date>-<matter>.md` / `inquiry-<date>-<matter>.md`. Solo `magic-coordinator` work; no deep classification/enqueue-todo/triage here — that's `magic-team.grooming.routine`'s job later.
       - Slack: apply the `slack-reaction-tracking` procedure's Act-stage reaction on **this message**, now.
    4. **reply-if-warranted**: respect each platform's own send/confirm rules, for this message specifically.
       - minimum floor: acknowledge every non-ignored incoming message.
@@ -90,12 +90,12 @@ Slack-only — email/Trello have no reaction primitive. Real, load-bearing async
 
 **Terminal-stage split:**
 - **Same-sweep resolution**: add `:white_check_mark:` right away, alongside `:ok_hand:`, in **reply-if-warranted**.
-- **Deferred resolution** — message became/already was the source of a tracked board Item staying open past this sweep: do not add the terminal reaction now, leave at `:eyes:`/`:writing_hand:`/`:ok_hand:`. File a lightweight pending-reaction record (into `magic-coordinator`'s inbox, or directly into `board-running`) carrying the `communication-channel-id` plus the tied board-item's bare name stated in the record's own body prose. `magic-coordinator.advance.routine`'s own pending-reaction-lookup step adds the terminal reaction later.
+- **Deferred resolution** — message became/already was the source of a tracked board-item staying open past this sweep: do not add the terminal reaction now, leave at `:eyes:`/`:writing_hand:`/`:ok_hand:`. File a lightweight pending-reaction record (into `magic-coordinator`'s inbox, or directly into `board-running`) carrying the `communication-channel-id` plus the tied board-item's bare name stated in the record's own body prose. `magic-coordinator.advance.routine`'s own pending-reaction-lookup step adds the terminal reaction later.
 - **Negative outcome, at that later point**: assessed per case, not one hardcoded emoji — `:x:`/❌ a sensible floor, `:-1:`/thumbsdown where it reads better.
 
-**Origin-ts lifecycle**: a Slack message normalized into an Item may move inbox-file → formal board Item → `blocked/`/`parked/` → `processed/`/`archived/`. The reaction target never changes; whichever step promotes an inbox item into a formal board Item copies `communication-channel-id` across unchanged.
+**Origin-ts lifecycle**: a Slack message normalized into a board-item may move inbox-file → formal board-item → `blocked/`/`parked/` → `processed/`/`archived/`. The reaction target never changes; whichever step promotes an inbox item into a formal board-item copies `communication-channel-id` across unchanged.
 
-**Boundary**: only applies where a real Slack message exists — an Item created directly as a file carries no `communication-channel-id` at all, and has no reaction step anywhere in its lifecycle.
+**Boundary**: only applies where a real Slack message exists — a board-item created directly as a file carries no `communication-channel-id` at all, and has no reaction step anywhere in its lifecycle.
 
 **Out of scope**: a one-time backfill of `:eyes:` reactions onto already-handled-but-unreacted historical messages — this mechanism only applies to messages read from here forward.
 

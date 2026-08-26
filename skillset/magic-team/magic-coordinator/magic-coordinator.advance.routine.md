@@ -191,7 +191,7 @@ No pass-wide blanket defer is allowed for `board-running` restart work. Apply th
 **Staleness inputs feeding the mechanism above**:
 - Console-session-backed work: for any in-scope item naming/depending on a `DistroAgentsTools` workspace console session, run `--console-list`, cross-reference. Console expected but gone → flag/report it; do not autonomously restart the console.
 - Agent/Task-dispatch-backed work: for any `board-running` item recording an unresolved dispatch note, compute how long unresolved. Treat "unresolved past ~5 main-loop iterations or ~1 hour, whichever comes first" as the staleness signal.
-  - Item's current state already prescribes a specific, safe, mechanical next step (e.g. a stale in-place testing round: dispatch a fresh `magic-tester` round): dispatch, record the new dispatch (id/time), report the redispatch once.
+  - The board-item's current state already prescribes a specific, safe, mechanical next step (e.g. a stale in-place testing round: dispatch a fresh `magic-tester` round): dispatch, record the new dispatch (id/time), report the redispatch once.
   - Otherwise: flag and report once. Escalate-once — don't re-flag the identical stale dispatch every pass; wait for a human/grooming response.
 - Never-dispatched work: a `board-running` item, any prefix, carrying `approved-by`/`approved-at` but none of `session-id`, `restart-session:`, an active console session, or an unresolved dispatch note — no dispatch was ever actually made, whatever moved it into `board-running`. Compute elapsed time since `started-at`; the same "~5 main-loop iterations or ~1 hour, whichever comes first" threshold applies.
   - Past threshold: dispatch a coworking session via `spawn-one-dispatch`, naming this item's own `participants` record if present, else its `owner:` header alone (mechanically read, never inferred from prose) — same shape as dispatching a prescribed mechanical next step above. Record `session-id`/`recheck-date` via `--magic-advance-to-running --from-state:running`, outcome `respawned`, report the dispatch once.
@@ -342,7 +342,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ## Verbatim-tests (benchmarks)
 
 - A `board-running` item whose own content already says it moved to `board-blocked`, but is still physically sitting in `board-running`, gets moved to match — without waiting for the next grooming pass.
-- Dependency reasoning worked out ad hoc in a chat reply gets recorded on the Item files themselves — the next pass doesn't have to redo it from scratch.
+- Dependency reasoning worked out ad hoc in a chat reply gets recorded on the board-item files themselves — the next pass doesn't have to redo it from scratch.
 - An approved `board-running` item carrying none of `session-id`, `restart-session:`, an active console session, or an unresolved dispatch note, sitting past the staleness threshold, gets a real dispatch this pass — never a blanket `no-action` stamp with nothing actually tried.
 - A `session-id`-set item that keeps getting nudged with zero observed state change past the staleness threshold is treated as if the nudge failed — not renudged indefinitely as "still working."
 - A high-RICE item blocked on a low-RICE one still records the gate plainly — never silently reordered to make the numbers look consistent.

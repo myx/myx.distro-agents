@@ -113,7 +113,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - each of these is the item's first write, not a move of an existing file: a `--magic-grooming-create-<state>` call, which takes a body-input mode and rejects `--from-state:`
        - `owner`, `groomed-at` and `track:true` are stamped; `groomed-from` is not
    - **Attach `communication-channel-id` at promotion time, when the item genuinely traces to one originating Slack message**:
-     - when promoting an inbox item (or any item created directly during this pass) that started life as a specific Slack DM/channel message — not a migration artifact, not an indirect mention — record that message as one composed `slack:<channel>:<ts>` value in the new Item's frontmatter right then, at creation/promotion, not as a deferred cleanup
+     - when promoting an inbox item (or any item created directly during this pass) that started life as a specific Slack DM/channel message — not a migration artifact, not an indirect mention — record that message as one composed `slack:<channel>:<ts>` value in the new board-item's frontmatter right then, at creation/promotion, not as a deferred cleanup
      - this is what makes the board's own Slack-reaction-on-resolution mechanism (and `magic-coordinator`'s `check-pending-comms-actions` procedure) actually able to find the right message later — a promoted item with no `communication-channel-id` is invisible to that mechanism even when a real originating message exists
      - `--header:upsert:communication-channel-id:<value>` on that same create call — one header, not a separate write
    - **Duplicate-check, before settling on one of the outcomes above**:
@@ -145,7 +145,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - Mechanically: one `--magic-grooming-to-<current-state>` call, `--from-state:` set to that state, carrying the change.
      - **Defer** — moves to `board-parked` (deliberate, by the team's own choice — not `blocked/`, reserved for external stalls)
      - **Reassign** — `owner` field changes, folder doesn't
-     - **Split** — child Item(s) created, referencing the parent; the parent itself moves to `board-blocked`, `blocked-by` the new child item(s) — an internal dependency, the same shape the board already recognizes ("waiting on another task/project's own completion"). If a split-off child is itself investigation/design-shaped (needs several members' judgment together, not a mechanical single-executor step), set `restart-session: <team-member> [<team-member>...]` on it at this same creation — the authority group's own call, same narrated judgment as the rest of this step.
+     - **Split** — child board-item(s) created, referencing the parent; the parent itself moves to `board-blocked`, `blocked-by` the new child item(s) — an internal dependency, the same shape the board already recognizes ("waiting on another task/project's own completion"). If a split-off child is itself investigation/design-shaped (needs several members' judgment together, not a mechanical single-executor step), set `restart-session: <team-member> [<team-member>...]` on it at this same creation — the authority group's own call, same narrated judgment as the rest of this step.
      - **Drop** — moves to `board-archived` directly (no future intent) or is removed from the board (if it never had real substance — judgment call)
      - **Merge** — one item's content folded into the item it duplicates, then dropped; the surviving item's `supersedes` (and the merged item's `superseded-by`) records the merge.
      - **Block** — moves to `board-blocked` with `condition`/`recheck-date` set, same as **Split**'s parent move.
@@ -176,7 +176,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **Slack-reaction closeout**:
      - this step does not react to Slack messages on promotion/move
      - the reaction mechanism: execute `magic-coordinator`'s `check-pending-comms-actions` procedure
-     - this step's only obligation on `communication-channel-id` (see the team's own Item entity model): carry the field unchanged across any promotion/move — never react to the message itself, never drop or re-derive the field
+     - this step's only obligation on `communication-channel-id` (see the team's own board-item entity model): carry the field unchanged across any promotion/move — never react to the message itself, never drop or re-derive the field
        - concretely: whenever a move re-assembles the item's content into the new state, this field must be copied over verbatim, not omitted or regenerated
      - full mechanic and rationale: `magic-coordinator`'s `check-pending-comms-actions` procedure, and the board's own `processed/`/`archived/` cross-cutting entry
    - **`board-blocked` re-check — four real outcomes, not just "still blocked or not"**: grooming is where `blocked/` items get periodically revisited — not every pass needs to resolve every one, but each should at least get a quick "has anything changed" glance. For each, the authority group's assessment lands on one of:
@@ -280,9 +280,9 @@ Decides whether a `board-pending`, `board-parked`, `board-blocked`, or `board-ru
 
 Quorum: `magic-coordinator` + `magic-librarian` + `magic-architect`, jointly — this routine's own standing authority group (see this file's own Local rules: "Run by `magic-coordinator` + `magic-librarian` + `magic-architect`, jointly — not by any one of the three alone").
 
-- Item's own scope or assumptions have shifted enough that its current triage state no longer reflects reality — not just "still blocked"/"still parked," the framing itself is stale:
+- The board-item's own scope or assumptions have shifted enough that its current triage state no longer reflects reality — not just "still blocked"/"still parked," the framing itself is stale:
   - Quorum agrees → `--magic-grooming-to-backlog` operation, `--from-state:<state>` set to the item's actual current state, with a note explaining what triggered the recall.
-    - Item carries `approved-by`/`approved-at` → clear both in the same call; re-earned via `check-backlog-promote` on its next pass, not carried over.
+    - The board-item carries `approved-by`/`approved-at` → clear both in the same call; re-earned via `check-backlog-promote` on its next pass, not carried over.
   - Quorum disagrees:
     - rule: never a silent default.
     - step: resolve through real discussion, same as the rest of **triage-per-item**.

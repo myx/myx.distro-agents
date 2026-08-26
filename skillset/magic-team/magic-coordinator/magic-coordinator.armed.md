@@ -168,7 +168,7 @@ Steps:
 7. **board-reassess-parked-blocked**: Reassess `board-parked`/`board-blocked` items whose `recheck-date` has arrived. Requires `recheck-date` + `condition` on the item.
    - Trigger: `recheck-date` arrived, or (`board-blocked` only) a listed blocker completed this pass.
    - Evaluate from this pass's already-loaded data only.
-   - Item carries `handoff-action:`: no state-only action here — `check-execute-board` owns this item's own retry and its `recheck-date`. Skip it.
+   - The board-item carries `handoff-action:`: no state-only action here — `check-execute-board` owns this item's own retry and its `recheck-date`. Skip it.
    - Any external check needed, however trivial: spin off an inquiry job, reference it on the item, extend `recheck-date` to now + 17min (jittered ±2min), per `magic-coordinator.advance.routine`'s own **`recheck-date` computation**.
    - `condition` not met yet: leave the item in its current state, renew `recheck-date` to now + 17min (jittered ±2min), same computation, note why. The ordinary `board-parked` outcome — a parked item's recheck asks only whether its trigger has arrived, and "not yet" is never a demotion.
    - `condition` met, resolves from already-loaded context alone: move `board-parked`→`board-backlog` via `--magic-board-to-backlog`, or `board-blocked`→`board-backlog` (`--magic-board-to-backlog`)/`board-pending` (`--magic-board-to-pending`)/`board-running` (`--magic-advance-to-running`), note why.

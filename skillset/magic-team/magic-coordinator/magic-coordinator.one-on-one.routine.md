@@ -41,7 +41,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 # Closure steps
 
 1. **return-and-close**: once the 1:1 concludes, the spawned instance, steps:
-   - folds anything material into the board (a real Item — task/change/reflection/etc.)
+   - folds anything material into the board (a real board-item — task/change/reflection/etc.)
    - executes `magic-team.coworking.routine`'s Closure Steps (the skill-update-discussion offer, scoped to this member)
    - reports a final status back to the UI/chat instance via `SendMessage`
 
@@ -64,7 +64,7 @@ All statements apply at the same time, always. These rules override a participan
 - No "just connect them, no spawn" exception, ever — not even when it looks like a trivial quick question. Every one-on-one spawns a dedicated instance; the UI/chat instance relays, it never hands the user off to the member directly in-conversation.
 - The target member has no real open items or history (a genuinely cold start): proceed anyway — **prep-member-context** is "pull whatever exists," not a precondition that blocks the session if little exists yet.
 - The conversation drifts into something needing a decision outside this one member's own mandate: same sole-mandated-channel rule as everywhere else — route it through `magic-coordinator`. Do not let the spawned member seek the human-owner's approval independently, just because it's already in a direct conversation with them.
-- Unsure whether something the target member raises needs a full board Item or just a status-file note: default to a real Item if it's substantive enough that a future session would need to find it independently — a status-file line alone risks getting GC'd away with no independent trace.
+- Unsure whether something the target member raises needs a full board-item or just a status-file note: default to a real board-item if it's substantive enough that a future session would need to find it independently — a status-file line alone risks getting GC'd away with no independent trace.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as the routine actually runs — proactive, as-it-happens posts, not only a summary batched into close-out.
 - `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
@@ -103,7 +103,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-team.coworking.routine` — the template this routine extends; its Steps are the opening this routine executes.
 - `magic-coordinator.communication-sweep.routine` — the DM-vs-public sensitivity judgment call this routine reuses for its `slack-magic-team` thread.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics.
-- `magic-team/magic-team.board.md` — "Who actually reads/writes the board" section, the obvious-vs-non-obvious Item test.
+- `magic-team/magic-team.board.md` — "Who actually reads/writes the board" section, the obvious-vs-non-obvious board-item test.
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.
 
 ### Conventions
