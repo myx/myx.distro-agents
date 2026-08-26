@@ -21,10 +21,10 @@ sessions, and holds no credentials of ours into the external organisation's own 
 belongs to `client-*` alone (`magic-team.authority.client.contract.md`), the opposite-facing counterpart —
 the two types are not interchangeable variants of one shape.
 
-**Open, unresolved**: at least one real `partner-*` instance (`partner-ndm-infra`) currently reads as an
-internal domain specialist rather than an external organisation's own contact — whether that instance is
-miscategorized under this shape, or whether the `partner-*` type itself needs redefinition, is not settled
-here; it needs the human-owner's own ruling, not a default assumed by this file.
+A `partner-*` is that organisation's own **specialist in a particular topic**, handed to us as a contact to
+work with and supervise — not only a generic liaison. A member whose own Goals/Scope read as deep domain
+expertise (infra topology, service code, a specific product) is therefore fully in shape, not
+miscategorized: that expertise is exactly what the external organisation is providing us access to.
 
 What we owe a `partner-*` member: real context about what's being asked of it.
 
