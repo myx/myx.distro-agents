@@ -572,6 +572,100 @@ case "$1" in
 		return 0
 	;;
 
+	--install-claude-permissions)
+		shift
+		if [ "$#" -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+
+		## $HOME-scoped: Claude Code's own global settings file, same scope as
+		## --install-vscode-integrations' ~/.claude.json write above. The Slack
+		## deny below must hold in every workspace, which only this file gives.
+		local settingsFile="$HOME/.claude/settings.json"
+		if [ ! -f "$settingsFile" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: not found: $settingsFile" >&2
+			set +e ; return 1
+		fi
+
+		## $MDAT_DATA_ROOT is already resolved by DistroAgentsTools() at entry
+		## (from TEAM_DATA_DIRECTORY) -- reused as-is, never re-derived.
+		if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: MDAT_DATA_ROOT could not be resolved (TEAM_DATA_DIRECTORY not configured) -- refusing to write $settingsFile without a real board path" >&2
+			set +e ; return 1
+		fi
+		local boardRoot="$MDAT_DATA_ROOT/board"
+
+		## Every acting (non reference-only) member's real skillset directory,
+		## enumerated fresh from $HOME/.claude/skills -- same reference-only
+		## test --install-skillset-symlinks uses, same cd+pwd -P resolution
+		## idiom used elsewhere in this file.
+		local skillsRoot="$HOME/.claude/skills"
+		local memberPathsFile
+		memberPathsFile="$( mktemp "${TMPDIR:-/tmp}/agents-claude-permissions-members.XXXXXX" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: mktemp failed" >&2
+			set +e ; return 1
+		}
+		local memberEntry memberName memberReal
+		for memberEntry in "$skillsRoot"/*/ ; do
+			[ -d "${memberEntry%/}" ] || continue
+			memberName="$( basename "${memberEntry%/}" )"
+			[ "$memberName" != "trash" ] || continue
+			memberReal="$( cd "${memberEntry%/}" 2>/dev/null && pwd -P )" || continue
+			[ -n "$memberReal" ] || continue
+			if [ -f "$memberReal/SKILL.md" ] && grep -q '^status: reference-only' "$memberReal/SKILL.md" 2>/dev/null ; then
+				continue
+			fi
+			printf '%s\n' "$memberReal" >> "$memberPathsFile"
+		done
+		sort -u -o "$memberPathsFile" "$memberPathsFile"
+		local memberCount
+		memberCount="$( grep -c '' "$memberPathsFile" )"
+
+		local settingsTmp
+		settingsTmp="$( mktemp "$settingsFile.XXXXXX" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: mktemp failed beside $settingsFile" >&2
+			rm -f "$memberPathsFile"
+			set +e ; return 1
+		}
+
+		## mcp__myx_distro__execute: mandated by this workspace's own CLAUDE.md.
+		## Agent/Task: coordinator dispatch/fan-out. No Bash grant: nothing here
+		## needs one; a future pass adding one should prefer scoped prefixes
+		## (e.g. `Bash(git status:*)`) over a bare `Bash` grant.
+		local staticAllowJson='["mcp__myx_distro__execute", "Agent", "Task"]'
+		## Native Slack MCP tool, hard-blocked -- separate path from the team's
+		## own sanctioned --member-comms-slack-* Bash ops, which this cannot reach.
+		local denyAddJson='["mcp__claude_ai_Slack"]'
+
+		if ! MYX_CLAUDEPERMS_BOARD_ROOT="$boardRoot" \
+			MYX_CLAUDEPERMS_STATIC_ALLOW_JSON="$staticAllowJson" \
+			MYX_CLAUDEPERMS_DENY_ADD_JSON="$denyAddJson" \
+			MYX_CLAUDEPERMS_MEMBERS_FILE="$memberPathsFile" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeSettingsPermissionsUpsert.awk" \
+			"$settingsFile" > "$settingsTmp" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions merge failed, $settingsFile left untouched" >&2
+			rm -f "$settingsTmp" "$memberPathsFile"
+			set +e ; return 1
+		fi
+		rm -f "$memberPathsFile"
+
+		if cmp -s "$settingsTmp" "$settingsFile" ; then
+			rm -f "$settingsTmp"
+			echo "✅ claude permissions already current: $settingsFile (board: $boardRoot, $memberCount member grant(s))" >&2
+			return 0
+		fi
+
+		if ! chmod 0644 "$settingsTmp" || ! mv -f "$settingsTmp" "$settingsFile" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: could not install $settingsFile" >&2
+			rm -f "$settingsTmp"
+			set +e ; return 1
+		fi
+
+		echo "✅ claude permissions installed: $settingsFile (board: $boardRoot, $memberCount member grant(s))" >&2
+		return 0
+	;;
+
 	--install-workspace-integrations)
 		shift
 
@@ -626,6 +720,8 @@ case "$1" in
 			DistroAgentsTools --install-skillset-report-render
 			rm -f "$MDSC_SKILLSET_REPORT" ; unset MDSC_SKILLSET_REPORT
 		fi
+
+		DistroAgentsTools --install-claude-permissions || { set +e ; return 1 ; }
 
 		## --quiet used to drop the step narration that is now gone; the op's one outcome line always prints
 		echo "✅ workspace integrations installed" >&2

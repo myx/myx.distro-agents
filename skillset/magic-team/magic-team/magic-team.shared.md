@@ -230,7 +230,9 @@ Copyable skeleton: `magic-team/templates/team-member.contract.format.md`.
 
 ### Keeper / Warden (`keeper-*`/`warden-*`)
 
-Which side a member sits on: the keeper side is that organisation's own — non-private, knowing their assets and conventions. The client side is ours and private — it holds our credentials for work with them. Same distinction restated under Partner / Client below.
+Relationship shape — internal domain-knowledge stewardship, not restated here: see
+`magic-team.authority.keeper.contract.md`/`magic-team.authority.warden.contract.md`'s own "Relationship
+shape".
 
 Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
 
@@ -263,7 +265,7 @@ Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - "`DistroAgentsTools.fn.sh` always executes via the `myx.distro` MCP tool `mcp__myx_distro__execute` (argument `command`, the shell script itself) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
     - "Console-session requirement: doing an actual task with this role-family's own workspace/workspace tooling requires a `--console-start`/`--console-send` session, regardless of command count. Just answering a question or looking at files (not a task) may skip it."
-    - Decision authority: this keeper relays between `magic-coordinator` and the task, never deciding design/approach independently unless explicitly granted — cross-references `magic-team.authority.keeper.contract.md`, never restated in full.
+    - Decision authority: this member relays between `magic-coordinator` and the task, never deciding design/approach independently unless explicitly granted — cross-references its own `magic-team.authority.<type>.contract.md` (`keeper` or `warden`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
@@ -279,7 +281,11 @@ Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
 
 ### Partner / Client (`partner-*`/`client-*`)
 
-Which side a member sits on: the client side is ours and private — it holds our credentials for work with that organisation. The keeper side is that organisation's own — non-private, knowing their assets and conventions. Same distinction restated under Keeper / Warden above.
+Relationship shape — the asymmetric external-organisation relationship (`client-*` faces one direction,
+`partner-*` the opposite), not restated here: see `magic-team.authority.partner.contract.md`/
+`magic-team.authority.client.contract.md`'s own "Relationship shape".
+
+Comms-sweep for any `client-*` member reads via `--client-sweep-input-scan <member> [--comms-since-utime <v>|--comms-since-date-time <v>]` — already generic, already per-member-credentialed. No wrapping check→analyze→act→reply-if-warranted routine around it exists yet for any member of this shape.
 
 Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
 
@@ -293,8 +299,10 @@ Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
     - What it deliberately doesn't do.
     - Invocation conditions and auto-trigger behavior stated here.
     - `### External representation` — present even if N/A.
-      - Represents the external party inside our own coworking sessions.
-      - Represents our own team inside the external party's own corporate systems, at the same time.
+      - Which direction this member represents, and whether it holds our credentials into the external
+        organisation's own systems — never asserted generically here, `partner-*` and `client-*` face
+        opposite directions: see `magic-team.authority.partner.contract.md`/
+        `magic-team.authority.client.contract.md`'s own "Relationship shape".
       - Communication with the external entity: this member's own dedicated account/email if configured; else routes through `magic-coordinator` — an explicit ask, `magic-coordinator`'s own conscious assessment, escalated to human-owner confirmation when warranted.
       - Generic role operations run through the shared `magic-tooling` baseline; any external-system tooling specific to this particular partner/client (their own Jira/Slack/Google, etc.) is this member's own addition, documented in its own `Team-Member's (-specific) tooling` section.
 - `# Terminology: <topic>`
@@ -311,6 +319,7 @@ Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - "`DistroAgentsTools.fn.sh` always executes via the `myx.distro` MCP tool `mcp__myx_distro__execute` (argument `command`, the shell script itself) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
     - `partner-*` only: "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement." Not part of the `client-*` shape — a `client-*` member is a representative, normally with no workspace or console of its own, so it gets no console grant by default. A specific client that genuinely needs one states it explicitly in its own file, which is what the `magic-team.armed.md` console rules require anyway.
+    - Decision authority: this member relays between `magic-coordinator` and the task, never deciding design/approach independently unless explicitly granted — cross-references its own `magic-team.authority.<type>.contract.md` (`partner` or `client`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
@@ -354,6 +363,7 @@ Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
+    - Decision authority: this member relays between `magic-coordinator` and the task, never deciding design/approach independently unless explicitly granted — cross-references its own `magic-team.authority.<type>.contract.md` (`oncall` or `expert`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.

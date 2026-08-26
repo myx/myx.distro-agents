@@ -46,8 +46,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <path>
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-current
-📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
+📘 syntax: DistroAgentsTools.fn.sh --install-claude-permissions
 📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
+📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]
 📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]
@@ -1012,6 +1013,97 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--install-claude-permissions
+			Merges myx.distro-agents' own mandatory Claude Code permission
+			grants into `$HOME/.claude/settings.json`'s `permissions.allow`/
+			`permissions.deny` -- a JSON-safe merge (awk, the same
+			structural walker `AgentsMcpServerJsonUpsert.awk` uses; no jq
+			dependency), never a blind overwrite: every entry already
+			present that this op did not itself add is kept. Takes no
+			arguments.
+			Resolves `$MDAT_DATA_ROOT/board` (already resolved by
+			`DistroAgentsTools()` at entry from the `TEAM_DATA_DIRECTORY`
+			config key, never re-derived here) and upserts
+			`Edit(<board>/**)`/`Write(<board>/**)` into `allow` -- any
+			prior board grant (any root) is dropped first, so a moved
+			board path replaces rather than accumulates alongside the new
+			one. Also upserts the fixed static grants
+			`mcp__myx_distro__execute`, `Agent`, `Task`, plus one
+			`Edit(<path>/**)`/`Write(<path>/**)` pair per acting team
+			member's real skillset directory -- enumerated fresh every run
+			from `$HOME/.claude/skills` (symlink or real directory, real
+			path resolved via `cd` + `pwd -P`), skipping `trash` and
+			skipping any member whose `SKILL.md` marks it
+			`status: reference-only` (the human-owner's own non-acting
+			record), so a member added or removed there is picked up
+			automatically, never hand-maintained. Upserts the native Slack
+			MCP server (`mcp__claude_ai_Slack`) into `deny`, unconditionally
+			-- a different, separate path from the team's own sanctioned
+			`--member-comms-slack-*` Bash ops, which this cannot reach.
+			Both generated arrays are written fully sorted (not
+			merge-order) for reviewability.
+			Deliberately `$HOME`-scoped, not workspace-scoped: the Slack
+			deny must hold in every workspace/session, which only the
+			user-global settings file provides.
+			Fails loud and leaves the target file untouched if
+			`$MDAT_DATA_ROOT` cannot be resolved (`TEAM_DATA_DIRECTORY` not
+			configured) or the merge itself fails. A run that changes
+			nothing (already current) is reported as such, not silently
+			treated the same as a write.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
+			Installs skillset-link integration. `$MDLT_ORIGIN/myx/
+			myx.distro-agents/skillset/magic-team` is the operation's source
+			skillset directory used for link targets.
+			Target roots are every hidden skills directory a popular AI chat
+			client reads, all created if missing:
+			`<workspace>/.agents/skills`, `<workspace>/.github/skills` and
+			`<workspace>/.claude/skills` for `--scope workspace`, at the
+			WORKSPACE ROOT; `$HOME/.agents/skills`, `$HOME/.copilot/skills` and
+			`$HOME/.claude/skills` for `--scope user-home`. Every root gets the
+			same members and its own registry file.
+			Two distinct mechanisms populate `target/`, not one:
+			(1) **Bundle members**: for each member name seen in either
+			target root or bundle root (skipping `trash`), ensures
+			target/member is a symlink to bundle/member — only when that
+			member actually exists under the bundle root
+			(`myx.distro-agents/skillset/magic-team`); a member with no
+			matching bundle directory is silently skipped here, regardless
+			of its name.
+			(2) **Declared team-members**: separately, every workspace
+			project that declares `magic-team:team-member:skillset/<name>:
+			<host-glob>` in its own `project.inf` (matched against this
+			host's `hostname -s`/`hostname`) gets `<name>` symlinked at
+			`target/<name>`, pointing at that project's own
+			`skillset/<name>` directory — real, live code path
+			(`AgentsTools.Install.include`'s declared-team-member loop),
+			not dead/reserved. This is the actual mechanism behind
+			`keeper-ndm`, `keeper-ae3`, `keeper-mel`, `partner-ndm-camunda`,
+			and any other `keeper-*`/`warden-*`/`partner-*`/`client-*`/
+			`oncall-*`/`expert-*` member whose owning project declares it —
+			each lives in its own separate owning repo, outside the single
+			shared bundle, and reaches `target/` through this second path
+			instead. A member declared by more than one project becomes a
+			composite (`rsync`'d union into `$workspace/.local/agents/
+			magic-team-composite/<name>`, later collisions logged, last
+			source wins per colliding path); a name declared by a project
+			AND present in the bundle is a collision — the bundled copy
+			keeps the slot, the declared source(s) are shadowed with a
+			warning, neither silently overwritten.
+			In both mechanisms: already-correct symlinks are kept; a
+			symlink to another target, existing real content at target, or
+			link-creation failure is an error (never overwritten).
+			With no `--scope`, default is workspace; if the resolved workspace
+			is not a set-up myx.distro workspace and scope was not explicitly
+			provided, falls back to user-home. If `--scope workspace` was
+			explicitly requested for a non-set-up workspace, this is an error.
+			Default workspace is current shell directory; `--workspace <path>`
+			overrides it.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--install-vscode-integrations [--workspace <path>]
 			Installs/updates baseline VS Code + Claude Code integrations.
 			Installs NO extensions and never invokes the `code` CLI --
@@ -1049,37 +1141,14 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
-			Installs skillset-link integration. `$MDLT_ORIGIN/myx/
-			myx.distro-agents/skillset/magic-team` is the operation's source
-			skillset directory used for link targets.
-			Target roots are every hidden skills directory a popular AI chat
-			client reads, all created if missing:
-			`<workspace>/.agents/skills`, `<workspace>/.github/skills` and
-			`<workspace>/.claude/skills` for `--scope workspace`, at the
-			WORKSPACE ROOT; `$HOME/.agents/skills`, `$HOME/.copilot/skills` and
-			`$HOME/.claude/skills` for `--scope user-home`. Every root gets the
-			same members and its own registry file.
-			For each member name seen in either target root or bundle root
-			(skipping `trash` and skipping names matching
-			`keeper-*|partner-*|oncall-*|expert-*|warden-*`), ensures
-			target/member is a symlink to bundle/member. Already-correct
-			symlinks are kept; a symlink to another target, missing bundle
-			content, existing real content at target, or link-creation failure
-			is an error (never overwritten).
-			With no `--scope`, default is workspace; if the resolved workspace
-			is not a set-up myx.distro workspace and scope was not explicitly
-			provided, falls back to user-home. If `--scope workspace` was
-			explicitly requested for a non-set-up workspace, this is an error.
-			Default workspace is current shell directory; `--workspace <path>`
-			overrides it.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
 		--install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
 			Composed integration op: runs
 			`--install-vscode-integrations` first, then
-			`--install-skillset-symlinks` against the same workspace.
+			`--install-skillset-symlinks` against the same workspace, then
+			`--install-claude-permissions` (this last step takes no
+			arguments and is unaffected by `--scope`/`--workspace`, since
+			it merges into the user-global `$HOME/.claude/settings.json`,
+			not a workspace-local file).
 			If `--scope` is provided, forwards it directly to
 			`--install-skillset-symlinks`.
 			With no `--scope`, runs the user-home step and then the workspace

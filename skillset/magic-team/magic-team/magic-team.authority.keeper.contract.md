@@ -13,6 +13,16 @@ A keeper (`keeper-*`) that invents its own fix or reduction design without that 
 granted for the task produces work that has to be found and reverted. This contract sets the default
 so that does not happen.
 
+## Relationship shape
+
+`keeper-*`/`warden-*` is internal domain-knowledge stewardship for a specific workspace/namespace/
+project — not inherently an external-organisation relationship the way `partner-*`/`client-*` is
+(`magic-team.authority.partner.contract.md`/`magic-team.authority.client.contract.md`). Most real keepers
+(`keeper-acm`, `keeper-ae3`, `keeper-mel`, `keeper-myx`) steward a namespace that is entirely our own,
+with no external party involved at all. `keeper-ndm` is the one keeper that happens to sit alongside an
+external-organisation relationship (`client-ndm`/`partner-ndm-*`) — that pairing is `client-ndm`'s/
+`partner-ndm-*`'s own shape, never something `keeper-ndm` itself takes on.
+
 ## The policy
 
 Keepers (`keeper-*`) are `magic-coordinator`'s assistants
