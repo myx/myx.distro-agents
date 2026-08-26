@@ -53,11 +53,16 @@ Exact instructions. Execute in order, every step, literally as written — not l
 3. **reload-active-duty-context**: (re-)load this routine's own active-duty context now, in full — reading the distributed typed files directly.
    - Deliberately *after* **spawn-morning-review**'s spawn-and-wait, so this session picks up anything the morning-review session may have changed in this member's own instruction files or inbox state.
    - Skip only if this exact session has already loaded it earlier in the same continuous run.
-4. **session-start**: this routine's own `state-and-lock` note is this pass's tracking document — the tactical status, and whatever the next pass needs to pick up from here. Reference `TEAM-DATA` rather than copying it, to keep it compact. Write it via the `--magic-daily-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close. Holding the lock across a long pass is a separate obligation: call `--magic-daily-lock-refresh` periodically — writing content does not itself hold the lock. Also execute `magic-team.coworking.routine`'s **session-start** group:
-   - **declare-session-type**: declares this as a coworking-like/structured-multi-member session.
-   - **fold-in-learned-lessons**: invokes `magic-team.process-reflections.routine` for this project/workspace.
-   - **collect-reflections-output**: processes own inbox.
-   - **post-opening-broadcast**: posts an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
+4. **session-start**:
+   - goal: this routine's own `state-and-lock` note is this pass's tracking document — the tactical status, and whatever the next pass needs to pick up from here.
+   - rule: reference `TEAM-DATA` rather than copying it, to keep it compact.
+   - rule: holding the lock across a long pass is a separate obligation — call `--magic-daily-lock-refresh` periodically; writing content does not itself hold the lock.
+   - step: write it via the `--magic-daily-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close.
+   - step: execute `magic-team.coworking.routine`'s **session-start** group:
+     - **declare-session-type**: declares this as a coworking-like/structured-multi-member session.
+     - **fold-in-learned-lessons**: invokes `magic-team.process-reflections.routine` for this project/workspace.
+     - **collect-reflections-output**: processes own inbox.
+     - **post-opening-broadcast**: posts an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
 5. **librarian-confirms-roster**, in parallel with **sweep-comms-read**: dispatch `magic-librarian` to confirm the `roster-note` and `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section are current (roster/domain and workspace/tooling facts, read as trusted day-to-day, not re-derived here).
    - Refresh the `roster-note` via the `--member-upsert-inbox-note` operation if it drifted.
    - Per-member backlog itself lives on the board (coordinator-exclusive write authority).
