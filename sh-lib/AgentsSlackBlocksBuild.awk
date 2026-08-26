@@ -17,6 +17,16 @@
 #   "- text"      -> a top-level (indent 0) bullet list item
 #   "  - text"    -> an indent-1 nested bullet item (exactly 2 leading spaces)
 #   "    - text"  -> an indent-2 nested bullet item (exactly 4 leading spaces)
+#   "```"         -> toggles a fenced code block on/off (GitHub-style triple-
+#                    backtick fence). The opening fence may carry a language
+#                    tag right after the backticks (e.g. "```bash") -- it's
+#                    discarded, since Slack's `rich_text_preformatted` has no
+#                    language concept. Every line between an opening and
+#                    closing fence is captured VERBATIM (no inline-style
+#                    parsing -- same "content taken verbatim, not re-scanned
+#                    for bold/italic" treatment the inline "`text`" code span
+#                    already gets below) and flushed as one real Slack
+#                    `rich_text_preformatted` block on close.
 #   ""            -> ends the current paragraph/list run
 #   anything else -> a plain-paragraph line
 # Deeper indents (6+ leading spaces) aren't a supported bullet shape -- they
@@ -71,9 +81,10 @@
 # rich_text_list element at the new indent within the same block (that's how
 # Slack's own rich_text schema represents nesting -- a list is not nested
 # inside a single item, it's a sequence of indent-tagged list elements). A
-# run ends on a blank line, a header line, or a line-kind change
-# (paragraph<->list); a header line always closes whatever run is open and
-# emits its own standalone `header` block.
+# run ends on a blank line, a header line, a fence toggle, or a line-kind
+# change (paragraph<->list); a header line always closes whatever run is
+# open and emits its own standalone `header` block, and a fence opening does
+# the same before it starts accumulating verbatim code lines.
 #
 # JSON string escaping mirrors myx.common's agentMcpJsonEscape.awk exactly
 # (same control-char table, same backslash/quote handling; see
@@ -92,6 +103,8 @@ BEGIN {
 	listIndent = -1
 	listItems = ""  # rich_text_section elements accumulated for the current indent run
 	listRun = ""    # rich_text_list elements accumulated for the whole current list run
+	inFence = 0     # 0 | 1 -- inside a ``` ... ``` fenced code block
+	fenceLineCount = 0
 }
 
 function jsonEscapeLine(line,   i, c, ln, res) {
@@ -276,6 +289,27 @@ function flushPara(    i, elems) {
 	paraLineCount = 0
 }
 
+## Closes off the currently-accumulating fenced-code-block run into one
+## rich_text_preformatted block. Lines are taken verbatim (jsonEscapeLine
+## only, no parseInlineStyles) -- same "content taken verbatim, not
+## re-scanned for bold/italic" treatment the existing inline "`code`" span
+## already gets. Multi-line join mirrors flushPara(): one plainElem() per
+## line, joined by a literal {"type":"text","text":"\n"} separator element
+## between lines, never an embedded "\n" inside one JSON string. An empty
+## fence (opened and immediately closed) emits nothing -- same empty-run
+## guard flushPara()/flushList() already have.
+function flushFence(    i, elems) {
+	if (fenceLineCount == 0) return
+	elems = ""
+	for (i = 1; i <= fenceLineCount; i++) {
+		if (i > 1) elems = elems ",{\"type\":\"text\",\"text\":\"\\n\"}"
+		elems = appendElem(elems, plainElem(fenceLines[i]))
+		delete fenceLines[i]
+	}
+	emitBlock("{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_preformatted\",\"elements\":[" elems "]}]}")
+	fenceLineCount = 0
+}
+
 function flushRun() {
 	if (runKind == "para") flushPara()
 	else if (runKind == "list") flushList()
@@ -288,6 +322,23 @@ function emitHeader(text) {
 
 {
 	line = $0
+
+	## Fenced code block: any line starting with three backticks toggles
+	## fence state. Opening: flush whatever run was open, same as a header
+	## line does, then start capturing verbatim lines. Closing: flush the
+	## accumulated lines as one rich_text_preformatted block. This check
+	## sits before the blank-line check below on purpose -- a blank line
+	## inside a fence is code content to preserve, not a run-ending blank.
+	if (substr(line, 1, 3) == "```") {
+		if (inFence) { flushFence(); inFence = 0; }
+		else { flushRun(); inFence = 1; fenceLineCount = 0; }
+		next
+	}
+
+	if (inFence) {
+		fenceLines[++fenceLineCount] = line
+		next
+	}
 
 	if (line == "") {
 		flushRun()
@@ -342,6 +393,9 @@ function emitHeader(text) {
 }
 
 END {
+	## Unterminated fence at EOF -- don't silently lose the accumulated
+	## verbatim lines just because the closing ``` never arrived.
+	if (inFence) { flushFence(); inFence = 0; }
 	flushRun()
 	out = out "]"
 	print out
