@@ -18,6 +18,34 @@ Reliable signals instead:
 - **Protocol-specific content**, when the protocol is identifiable unencrypted even if the main transfer is encrypted — e.g. BitTorrent DHT's bencoded `find_node`/`get_peers`/`announce_peer` strings.
 - **Destination port pattern** — well-known service ports suggest legitimate traffic; many distinct residential/hosting IPs on essentially random ports, especially UDP, suggests P2P.
 
+## IPv4 packet loss on a dual-stack host says nothing about that host's IPv6 health, or vice versa
+
+Reachability and loss on one address family is independent of the other, even on the exact same physical interface. A host that looks unreachable/lossy over IPv4 can be fully healthy and usable over IPv6 (or vice versa) — concluding "host down/degraded" from one family alone risks a wrong diagnosis, and the still-healthy family is itself a usable diagnostic channel while the other is down.
+
+- Always test both families independently (e.g. `ping`/`ssh` over IPv4, then again over IPv6) before concluding anything about the host as a whole.
+- If one family is healthy, use it as the working channel to keep diagnosing the other, rather than treating the host as fully unreachable.
+
+## A firewall's own rule comments can reveal an allowed port beyond the one documented
+
+A host's live firewall ruleset (e.g. `ipfw -a list`, `iptables -L -n -v`) sometimes allows more than the one documented/expected port for a service — a rule's own inline comment can name a second working port that isn't written down anywhere else. Treating the documented port as the sole truth, without reading the ruleset that actually governs the box, risks a false "host unreachable" conclusion when a working alternate port was sitting in the rule comment the whole time.
+
+- When a documented port fails, read the actual ruleset's comments on the box before escalating to "host down."
+- A rule covering multiple ports together, with one shared comment, is itself worth noting as a possible deliberate convention — don't assume it's an accident without checking whether the same pattern exists elsewhere in the fleet.
+
+## A reachable guest VM on the same hypervisor as an unreachable host is a free second vantage point
+
+Reachability from a guest sharing the target's physical hypervisor (or rack/location) distinguishes a host-level problem (the target host itself, or its own interface/ruleset) from a location-wide or upstream problem (the physical link, the location's router, the ISP) — the same distinction any second independent vantage point buys, at effectively no cost when one is already sitting right there.
+
+- Guest reachable, target host not: problem is local to the target host (its own NIC, its own ruleset, its own OS).
+- Guest also unreachable: problem is likely location-wide or upstream, not specific to the target host.
+
+## A software bridge/VLAN interface's healthy state doesn't describe the physical NIC underneath it
+
+`ifconfig <bridge-or-vlan-iface>` reports the software interface's own state, which can look fully healthy while the physical NIC underneath it is degraded, or vice versa — the two layers are worth checking as separate steps, not inferred from each other.
+
+- Check the physical interface on its own: `ifconfig <physical-iface>` for negotiated link speed/duplex, `netstat -i` for interface error/drop counters.
+- A qualitative condition worth naming ("this interface accumulates errors/drops under load") stays useful over time; an exact counter snapshot doesn't — it will already be a different number by the time anyone reads it.
+
 ## Cross-reference
 
 - Fleet-execution/parallelism/console mechanics for the SSH plumbing around a sweep like this: `reference/myxdistro-pipeline.md`, "`ShellTo` for remote diagnosis" section.
