@@ -1092,9 +1092,13 @@
 			AND present in the bundle is a collision — the bundled copy
 			keeps the slot, the declared source(s) are shadowed with a
 			warning, neither silently overwritten.
-			In both mechanisms: already-correct symlinks are kept; a
-			symlink to another target, existing real content at target, or
-			link-creation failure is an error (never overwritten).
+			In both mechanisms: an already-correct symlink is kept; a
+			symlink pointing at a different target is also kept as-is and
+			registered at the target it actually points to, not the one it
+			would have been given; a dangling symlink is reclaimed and
+			relinked. Only real (non-symlink) content at the target, or a
+			link-creation failure, is an error — nothing is ever
+			overwritten.
 			With no `--scope`, default is workspace; if the resolved workspace
 			is not a set-up myx.distro workspace and scope was not explicitly
 			provided, falls back to user-home. If `--scope workspace` was
