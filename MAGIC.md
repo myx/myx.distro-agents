@@ -232,6 +232,21 @@ Team-owned notes for the magic-* team.
 
 - Not an operation to invoke from a shell, a routine step or a board item — call the operation actually wanted instead. Takes no arguments; the script to run arrives whole on stdin. Stdout carries only what the script itself emits (keeping the JSON-RPC wire clean); the exit status is the script's own, propagated unchanged. Runs with the workspace environment already established — `MMDAPP`, `MDLT_ORIGIN`, `MDLC_INMODE`, `MDLT_OPTION` and `MYXROOT` are all set even when the call arrives with none of them.
 
+### `--member-comms-slack-presence-*` call contract
+
+- `--member-comms-slack-presence-keep <team-member> [--ttl <seconds>]`, `--member-comms-slack-presence-status <team-member>`, `--member-comms-slack-presence-stop <team-member>`. Default TTL 300s. Declares `rtm:stream users:read`.
+- Presence is held, never set. `users.setPresence` accepts only `auto|away` and has no `active` value; Slack marks a user active only while a client holds a connection. A clean close reads away within seconds, so the ten-minute idle transition applies to a connection left open and never to one that ended.
+- User identity only. `rtm.connect` answers `not_allowed_token_type` for a bot token, so a member with no `SLACK_USER_TOKEN` errors rather than silently falling back to the shared bot.
+- Keyed on `<team_id>:<user_id>` from `auth.test`, not on the member name: one Slack account can back several members (`magic-coordinator` and `client-ndm` are the same account), and one holder per account is the invariant. Per-workspace user ids keep separate workspaces on separate holders automatically.
+- The holder is found by argv match, not a pidfile — no stale state to reconcile after a crash, and a reused pid cannot false-match. Argv carries the identity key alone; the socket url arrives by environment and the token never reaches the holder at all, the url carrying its own authorisation.
+- `keep` is idempotent: no holder starts one, a live holder gets `SIGUSR1` and extends in place. `SIGHUP` is not used for this — `nohup` sets it to `SIG_IGN` in the child. Start is guarded by an atomic `mkdir` lock, since two callers reaching the probe together would otherwise both start and contend over one account's presence.
+- TTL expiry is what stops an abandoned caller leaving a persona falsely active indefinitely.
+
+## The shared bot token lives in the team's own config scope
+
+- `SLACK_BOT_TOKEN` is read from the `magic-team` scope alone, never from the acting member's own. A member's scope holds `SLACK_USER_TOKEN` and its own per-service keys; the shared bot token is the team's, and the config check treats it separately for that reason.
+- A copy placed in a member's own scope is read by nothing. Every send then reports `no usable Slack token configured`, which reads as an unconfigured workspace rather than a key sitting one scope away.
+
 ## Deprecated operation names
 
 - A superseded name stays as a working shim: removed from help output, kept in the dispatcher, indefinitely. Any existing caller keeps working unchanged unless a real removal is separately proposed and approved.

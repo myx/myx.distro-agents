@@ -90,6 +90,20 @@ conversation at read time** over persisting a resolved DM id, since the derived 
 whichever identity is doing the reading. Where DM ids are already persisted, they are only valid for
 the identity that recorded them.
 
+### Appearance is a bot capability, not a reason for a user token
+
+A bot holding `chat:write.customize` overrides `username` and `icon_url` per message. A persona
+therefore posts under its own display name and avatar through the shared team bot, into any channel
+the bot is in, with no user token of its own and without that persona's account being a member of
+the channel.
+
+Weigh this before pursuing a user token for appearance alone. A user token buys what a bot genuinely
+cannot do — holding presence is one such thing — and never merely the name on the message.
+
+`users.setActive` is scope-gated on `users:write` and documented as retired, a no-op. Unverified
+either way, and not a way around the fact that presence is held by a live connection rather than
+set by a call.
+
 ## Required permissions — the settled list, and how to re-derive it
 
 Concrete scope names live here, in the reference layer, deliberately. They do not belong in routine or

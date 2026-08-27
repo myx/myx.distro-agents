@@ -108,6 +108,12 @@ AgentsToolsCommsSlackFileInfoEmitField(){
 
 case "$1" in
 
+		## Own file for size only; the service keeps one dispatcher arm.
+		--member-comms-slack-presence-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlackPresence.include"
+			return $?
+		;;
+
 		--member-comms-slack-read)
 			shift
 			if [ "$1" = "--print-required-scopes" ] ; then

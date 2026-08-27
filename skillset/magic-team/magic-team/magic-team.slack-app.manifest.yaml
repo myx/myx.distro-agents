@@ -1,0 +1,51 @@
+display_information:
+  name: Magic-Team
+  description: Shared team bot for the magic-* team. One token for every member, read from the magic-team config scope.
+  background_color: "#2b2b2b"
+features:
+  bot_user:
+    display_name: Magic-Team
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read
+      - chat:write
+      - chat:write.customize
+      - chat:write.public
+      - users:read
+      - users:read.email
+      - users.profile:read
+      - users:write
+      - dnd:read
+      - channels:read
+      - channels:history
+      - channels:join
+      - channels:manage
+      - groups:read
+      - groups:history
+      - groups:write
+      - im:read
+      - im:history
+      - im:write
+      - mpim:read
+      - mpim:history
+      - mpim:write
+      - reactions:read
+      - reactions:write
+      - files:read
+      - files:write
+      - pins:read
+      - pins:write
+      - bookmarks:read
+      - bookmarks:write
+      - emoji:read
+      - team:read
+      - usergroups:read
+      - links:read
+      - calls:read
+      - calls:write
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

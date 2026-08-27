@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberCommsSlackPresence.include -- --member-comms-slack-presence-*.
+## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced
+## for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
+##
+## Supported operations:
+##   --member-comms-slack-presence-keep    --member-comms-slack-presence-status
+##   --member-comms-slack-presence-stop
+##
+
+case "$1" in
+
+	--member-comms-slack-presence-keep|--member-comms-slack-presence-status|--member-comms-slack-presence-stop)
+		local presenceOp="${1#--member-comms-slack-presence-}"
+		shift
+
+		if [ "${1:-}" = "--print-required-scopes" ] ; then
+			printf '%s\n' rtm:stream users:read
+			return 0
+		fi
+
+		local memberName="$1"
+		shift || true
+		if [ -z "$memberName" ] ; then
+			echo "$MDSC_CMD: presence-$presenceOp: ⛔ ERROR: syntax is <team-member> [--ttl <seconds>]" >&2
+			set +e ; return 1
+		fi
+
+		local presenceTtl="300"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--ttl)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: presence-$presenceOp: ⛔ ERROR: --ttl: value required (seconds)" >&2
+						set +e ; return 1
+					fi
+					presenceTtl="$2" ; shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: presence-$presenceOp: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local presenceToken
+		presenceToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null )" || presenceToken=""
+		if [ -z "$presenceToken" ] ; then
+			echo "$MDSC_CMD: presence-$presenceOp: ⛔ ERROR: no SLACK_USER_TOKEN for $memberName -- presence is held by a user identity and the shared bot cannot hold it (rtm.connect answers not_allowed_token_type for a bot token)" >&2
+			set +e ; return 1
+		fi
+
+		local presenceHeaderFile
+		presenceHeaderFile="$( mktemp )" || { set +e ; return 1 ; }
+		chmod 600 "$presenceHeaderFile"
+		printf 'Authorization: Bearer %s\n' "$presenceToken" > "$presenceHeaderFile"
+
+		## The identity key, not the member name: one Slack account may back
+		## several members, and one holder per account is the invariant.
+		local presenceAuth presenceKey
+		presenceAuth="$( curl -sS --connect-timeout 10 --max-time 60 https://slack.com/api/auth.test -H @"$presenceHeaderFile" 2>&1 )"
+		presenceKey="$( printf '%s' "$presenceAuth" | python3 -c 'import sys,json
+try: d = json.load(sys.stdin)
+except Exception: raise SystemExit(0)
+if d.get("ok"): print("%s:%s" % (d.get("team_id",""), d.get("user_id","")))' )"
+		if [ -z "$presenceKey" ] || [ "$presenceKey" = ":" ] ; then
+			rm -f "$presenceHeaderFile"
+			echo "$MDSC_CMD: presence-$presenceOp: ⛔ ERROR: auth.test did not resolve an identity for $memberName -- the acting account is UNKNOWN, which is not the same as absent" >&2
+			set +e ; return 1
+		fi
+
+		local presenceMatch presencePids
+		presenceMatch="AgentsSlackWebsocketPresence.py $presenceKey"
+		presencePids="$( pgrep -f "$presenceMatch" 2>/dev/null | tr '\n' ' ' )"
+
+		case "$presenceOp" in
+			status)
+				rm -f "$presenceHeaderFile"
+				if [ -n "$presencePids" ] ; then
+					echo "presence[$memberName] key=$presenceKey holder=alive pids=${presencePids% }"
+					return 0
+				fi
+				echo "presence[$memberName] key=$presenceKey holder=none"
+				return 0
+			;;
+			stop)
+				rm -f "$presenceHeaderFile"
+				if [ -z "$presencePids" ] ; then
+					echo "presence[$memberName] key=$presenceKey holder=none, nothing to stop"
+					return 0
+				fi
+				pkill -TERM -f "$presenceMatch" 2>/dev/null || true
+				echo "presence[$memberName] key=$presenceKey stopped pids=${presencePids% }"
+				return 0
+			;;
+		esac
+
+		## Already held: extend in place. SIGUSR1 and not SIGHUP -- nohup sets
+		## SIGHUP to SIG_IGN in the child.
+		if [ -n "$presencePids" ] ; then
+			rm -f "$presenceHeaderFile"
+			pkill -USR1 -f "$presenceMatch" 2>/dev/null || true
+			echo "presence[$memberName] key=$presenceKey extended ttl=${presenceTtl}s pids=${presencePids% }"
+			return 0
+		fi
+
+		## Atomic guard: two sweeps reaching the probe together would otherwise
+		## both start, and two sockets for one account contend over presence.
+		local presenceLockDir="${TMPDIR:-/tmp}/myx-slack-presence.$presenceKey.lock"
+		if ! mkdir "$presenceLockDir" 2>/dev/null ; then
+			rm -f "$presenceHeaderFile"
+			echo "presence[$memberName] key=$presenceKey start already in progress, held elsewhere"
+			return 0
+		fi
+
+		local presenceRtm presenceUrl
+		presenceRtm="$( curl -sS --connect-timeout 10 --max-time 60 https://slack.com/api/rtm.connect -H @"$presenceHeaderFile" 2>&1 )"
+		rm -f "$presenceHeaderFile"
+		presenceUrl="$( printf '%s' "$presenceRtm" | python3 -c 'import sys,json
+try: d = json.load(sys.stdin)
+except Exception: raise SystemExit(0)
+if d.get("ok"): print(d.get("url",""))' )"
+
+		if [ -z "$presenceUrl" ] ; then
+			rmdir "$presenceLockDir" 2>/dev/null || true
+			echo "$MDSC_CMD: presence-$presenceOp: ⛔ ERROR: rtm.connect gave no socket url for $memberName -- Slack answered: $( printf '%s' "$presenceRtm" | head -c 300 )" >&2
+			set +e ; return 4
+		fi
+
+		## The url carries its own authorisation, so the holder needs no token
+		## and none is passed to it. Argv carries the identity key only; ps is
+		## world-readable.
+		PRESENCE_TTL="$presenceTtl" PRESENCE_WSS_URL="$presenceUrl" \
+			nohup python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackWebsocketPresence.py" "$presenceKey" \
+			>/dev/null 2>&1 &
+		disown 2>/dev/null || true
+		sleep 1
+		rmdir "$presenceLockDir" 2>/dev/null || true
+
+		presencePids="$( pgrep -f "$presenceMatch" 2>/dev/null | tr '\n' ' ' )"
+		if [ -z "$presencePids" ] ; then
+			echo "$MDSC_CMD: presence-$presenceOp: ⛔ ERROR: holder for $presenceKey did not stay up" >&2
+			set +e ; return 4
+		fi
+		echo "presence[$memberName] key=$presenceKey started ttl=${presenceTtl}s pids=${presencePids% }"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

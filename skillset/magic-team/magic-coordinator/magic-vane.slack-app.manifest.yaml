@@ -1,0 +1,44 @@
+display_information:
+  name: Magic Vane
+  description: Persona token for the Magic Vane team member, acting as magic-coordinator
+  background_color: "#3d2a54"
+oauth_config:
+  scopes:
+    user:
+      - chat:write
+      - search:read
+      - users:read
+      - users:read.email
+      - users.profile:read
+      - users.profile:write
+      - users:write
+      - dnd:read
+      - dnd:write
+      - channels:read
+      - channels:history
+      - channels:write
+      - groups:read
+      - groups:history
+      - groups:write
+      - im:read
+      - im:history
+      - im:write
+      - mpim:read
+      - mpim:history
+      - mpim:write
+      - reactions:read
+      - reactions:write
+      - files:read
+      - files:write
+      - pins:read
+      - pins:write
+      - bookmarks:read
+      - bookmarks:write
+      - emoji:read
+      - team:read
+      - usergroups:read
+      - links:read
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
