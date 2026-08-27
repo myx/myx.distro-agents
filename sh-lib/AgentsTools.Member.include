@@ -56,19 +56,11 @@ case "$1" in
 	## later," which --member-upsert-inbox-note backs). Thin wrapper over
 	## the shared --intern-op-member-inbox-upsert primitive, same as
 	## --member-upsert-inbox-note -- does not call that sibling op directly.
-	## --edit-patch-from-stdin is not part of this op's own contract (its
-	## fallback case has no established patch use yet) -- rejected here,
-	## before it would otherwise reach the shared primitive.
+	## --edit-patch-from-stdin passes straight through to the shared
+	## primitive, same as every other option -- no special-case rejection
+	## (human-owner decision 2026-08-27, reversing the earlier carve-out).
 	--member-upsert-member-inquiry)
 		shift
-		for arg in "$@" ; do
-			case "$arg" in
-				--edit-patch-from-stdin)
-					echo "⛔ ERROR: $MDSC_CMD --member-upsert-member-inquiry: --edit-patch-from-stdin is not supported here" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-upsert-member-inquiry || return 1
 		return 0
 	;;
