@@ -75,6 +75,10 @@ What each tree is:
 
 **The per-target publish commands are not implemented.** Nothing carries a prepared export target to the location its prefix names, and no mechanism selects a publish command by target type. How that mechanism should work is an open question, held as a blocked board item pending a decision. On a machine carrying both source and deploy, the `export/` folder source produces is already exactly what a pure deploy machine would pull, so deploy uses it directly — which is why publish has never been finished: the combined case never needs it.
 
+**A published output tree under git is still build output.** Where a publish target is a git checkout, its history, remote and README make it read as hand-maintained; it is not. Every file in it is emitted by `image-prepare`, and a file restored there by hand is overwritten or re-deleted by the next build touching that target. A missing or wrong file in a published tree is fixed in the source project, in its own `project.inf` `deploy-export:` declaration, or in the builder that emits it — never in the published tree.
+
+**Its history is a read source, though.** A published tree records what was exported, not what was deployed, and it can hold content the source repo never tracked — an artifact assembled from the cached tier, or an export whose declaration has since been removed. Recovering such content from that history is legitimate; the recovered content goes back into the source project, and the published tree is left to the next build.
+
 ### Three open design questions
 
 The sketch marks three stages with a `?` against a submode alternative. All three are open questions, recorded here as questions:

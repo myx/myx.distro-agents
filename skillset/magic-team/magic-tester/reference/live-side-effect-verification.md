@@ -90,6 +90,26 @@ A user who hit something that then stops reproducing needs to know which claim
 they're getting; conflating the two erodes trust in the next report even if
 this one happened to be right.
 
+## Two checkouts of one repository are not divergence
+
+Differing HEADs across two working trees normally mean one is unpulled, not that
+work was lost. Measure it instead of reading the layout:
+
+- `git remote get-url origin` in each tree. The same upstream means these are two
+  checkouts of one repository, not two repositories that have diverged.
+- `git rev-list --count HEAD..origin/<branch>` in each, for how far behind each one
+  actually is.
+
+**"Behind by N commits" is not "missing work".** Work is missing only when it exists
+in no reachable place. A commit present upstream and absent from one checkout is a
+`git pull` away; reporting that as missing landed work produces alarm and an
+investigation with nothing at the end of it.
+
+**Whether two paths are one directory or two is a measurement, not a judgement.**
+`readlink` each path component, then compare `stat -f '%d:%i'` — the same device and
+inode means one file, different means two. Reasoning about how the layout must be set
+up does not substitute for those two commands.
+
 ## Worked example: a detection check with only negative results, run for real against live traffic
 
 Reinforces the existing rule in `magic-team/magic-team.armed.md`'s "Engineering

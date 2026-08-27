@@ -90,20 +90,6 @@ conversation at read time** over persisting a resolved DM id, since the derived 
 whichever identity is doing the reading. Where DM ids are already persisted, they are only valid for
 the identity that recorded them.
 
-### Appearance is a bot capability, not a reason for a user token
-
-A bot holding `chat:write.customize` overrides `username` and `icon_url` per message. A persona
-therefore posts under its own display name and avatar through the shared team bot, into any channel
-the bot is in, with no user token of its own and without that persona's account being a member of
-the channel.
-
-Weigh this before pursuing a user token for appearance alone. A user token buys what a bot genuinely
-cannot do — holding presence is one such thing — and never merely the name on the message.
-
-`users.setActive` is scope-gated on `users:write` and documented as retired, a no-op. Unverified
-either way, and not a way around the fact that presence is held by a live connection rather than
-set by a call.
-
 ## Required permissions — the settled list, and how to re-derive it
 
 Concrete scope names live here, in the reference layer, deliberately. They do not belong in routine or
@@ -115,18 +101,39 @@ inheriting this vendor's vocabulary.
 **Derive from endpoints, not from incidents.** Grep the source for the API endpoints actually called,
 union them into the scopes those endpoints require, and grant that set.
 
+**One grep is not the derivation.** An endpoint reaches the wire in two forms — written as a literal
+URL, or passed by name as an argument to a shared caller — and a pattern matching only the first
+misses the second silently. Union both:
+
 ```
-grep -Rhho "slack\.com/api/[a-zA-Z.]*" sh-lib sh-scripts | sed 's|slack.com/api/||' | sort -u
+grep -Rhho "slack\.com/api/[a-zA-Z.]*" sh-lib sh-scripts | sed 's|slack.com/api/||'
+grep -Rhho -- "--api [a-zA-Z]*\.[a-zA-Z.]*" sh-lib sh-scripts | sed 's|^--api ||'
 ```
+
+Sort and unique the two together. The literal-URL grep alone returns 8 of the 15 endpoints in use, and
+`conversations.history`, `conversations.replies` and `reactions.add` are among the ones it cannot see.
+
+**A scope with no endpoint of its own is invisible to this method.** `chat:write.customize` modifies
+`chat.postMessage` rather than adding an endpoint, so no endpoint grep can find it and an
+endpoint-derived list omits it by construction. Read the app's own declared scopes alongside the
+derived list before concluding a capability is missing.
 
 **Re-run this whenever an endpoint is added.** A list produced any other way is a snapshot that starts
-drifting immediately; a list with a re-derivation command attached stays true.
+drifting immediately; a list with a re-derivation command attached stays true — but only while the
+command still matches every call form the code actually uses. The derivation command is itself
+something to re-check, never a standing guarantee.
 
-### Endpoints actually called (10, re-derived 2026-08-10)
+### Endpoints actually called (15)
 
-`auth.test`, `chat.postMessage`, `conversations.history`, `conversations.info`, `conversations.join`,
-`conversations.list`, `conversations.open`, `conversations.replies`, `reactions.add`, `users.list` —
-all in `AgentsTools.MemberCommsSlack.include` and `AgentsTools.MagicComms.include`.
+Literal-URL form: `auth.test`, `chat.postMessage`, `conversations.info`, `conversations.join`,
+`conversations.list`, `conversations.open`, `rtm.connect`, `users.list`.
+
+Argument form: `chat.delete`, `chat.update`, `conversations.history`, `conversations.info`,
+`conversations.replies`, `files.info`, `reactions.add`, `search.messages`.
+
+`rtm.connect` is the exception to the list below: it is the presence path, it takes a user token only
+(a bot token answers `not_allowed_token_type`), and its scope `rtm:stream` is therefore required on
+the user identity alone.
 
 ### Required scopes (16) — needed on BOTH identities
 

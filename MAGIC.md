@@ -245,7 +245,8 @@ Team-owned notes for the magic-* team.
 ## The shared bot token lives in the team's own config scope
 
 - `SLACK_BOT_TOKEN` is read from the `magic-team` scope alone, never from the acting member's own. A member's scope holds `SLACK_USER_TOKEN` and its own per-service keys; the shared bot token is the team's, and the config check treats it separately for that reason.
-- A copy placed in a member's own scope is read by nothing. Every send then reports `no usable Slack token configured`, which reads as an unconfigured workspace rather than a key sitting one scope away.
+- A copy placed in a member's own scope is read by nothing. Each send path then reports its own "no usable Slack token" variant — `no usable Slack token configured for <member>` from the member send op — and that reads as an unconfigured workspace rather than as a key sitting one scope away.
+- A member needs no user token to post under its own name. The app declares `chat:write.customize`, which overrides `username` and `icon_url` per message, so a persona can post with its own display name and avatar into any channel the bot is in, without that persona's account being a member of that channel. No operation sends those overrides today. A user token buys what the bot genuinely cannot do — holding presence is the real case — never the name on the message.
 
 ## Deprecated operation names
 
