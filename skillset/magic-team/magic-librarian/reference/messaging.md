@@ -110,8 +110,8 @@ grep -Rhho "slack\.com/api/[a-zA-Z.]*" sh-lib sh-scripts | sed 's|slack.com/api/
 grep -Rhho -- "--api [a-zA-Z]*\.[a-zA-Z.]*" sh-lib sh-scripts | sed 's|^--api ||'
 ```
 
-Sort and unique the two together. The literal-URL grep alone returns 8 of the 15 endpoints in use, and
-`conversations.history`, `conversations.replies` and `reactions.add` are among the ones it cannot see.
+Sort and unique the two together. The literal-URL grep alone misses every endpoint passed by name â€”
+`conversations.history`, `conversations.replies` and `reactions.add` among them.
 
 **A scope with no endpoint of its own is invisible to this method.** `chat:write.customize` modifies
 `chat.postMessage` rather than adding an endpoint, so no endpoint grep can find it and an
@@ -123,7 +123,7 @@ drifting immediately; a list with a re-derivation command attached stays true â€
 command still matches every call form the code actually uses. The derivation command is itself
 something to re-check, never a standing guarantee.
 
-### Endpoints actually called (15)
+### Endpoints actually called
 
 Literal-URL form: `auth.test`, `chat.postMessage`, `conversations.info`, `conversations.join`,
 `conversations.list`, `conversations.open`, `rtm.connect`, `users.list`.

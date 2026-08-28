@@ -196,7 +196,7 @@ Two layers, per `magic-team/magic-team.armed.md`'s own `skillset file` term. Eac
 
 **Language level and style.** Simple language, one reading rather than two. Rejected: rhetorical construction, emphasis for effect, a clever formulation where a plain one exists, a sentence needing a second read to parse, a clause whose force depends on tone.
 
-**English UK.** US spelling is acceptable; landed text is not rewritten for spelling, and only an explicit request changes that.
+**English UK.** Instruction-layer text is written in English UK. US spelling already landed is not a defect and is not rewritten for; only an explicit request changes that.
 
 ### Member-addressed files
 

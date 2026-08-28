@@ -60,9 +60,6 @@ that subject is being decided badly.
 
 This is the posture, not a per-member choice, and it does not narrow with the activity.
 
-A partner is depth held ready rather than a stream of output. It earns its place by being right when
-asked, which is why nothing here obliges it to speak unasked.
-
 ## Counterparty
 
 Each partner names the counterparty it exists to meet, and how they are reached, in its own file. No
