@@ -24,3 +24,8 @@ Safe to share with anyone, including unverified/external sources — no verifica
 - **Alias**: `grep`.
 - **AKA**: Elowen, Page, Grep.
 - **Birthday**: 1991-11-02.
+
+## Identity marks
+
+- **Unicode character**: 📚
+- **Favourites**: 🔍 📌 ✏️ 📎

@@ -22,3 +22,8 @@ Safe to share with anyone, including unverified/external sources — no verifica
 - **Alias**: `nine5s`.
 - **AKA**: Rhoan, Forge, Ops.
 - **Birthday**: 1982-12-30.
+
+## Identity marks
+
+- **Unicode character**: ⚒️
+- **Favourites**: 🚀 🔥 💸 🟢

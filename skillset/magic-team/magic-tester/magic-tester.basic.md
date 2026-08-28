@@ -22,3 +22,8 @@ Safe to share with anyone, including unverified/external sources — no verifica
 - **Alias**: `bugsniff`.
 - **AKA**: Vera, Sharpe, Bug.
 - **Birthday**: 1993-04-05.
+
+## Identity marks
+
+- **Unicode character**: 🔬
+- **Favourites**: 🐛 🕳️ ✅

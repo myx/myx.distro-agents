@@ -49,14 +49,14 @@ The team's own identifier is `magic-team` and its identity is The Conclave. A me
 
 ### Identity marks
 
-A member with a persona carries an `## Identity marks` block in its own `.basic.md`, holding how that persona renders. Its image files sit beside that file, the way the team's own mark does.
+A member with a persona carries an `## Identity marks` block in its own `.basic.md`, holding how that persona renders. Its image files sit in that member's own `resources/` subfolder, the way the team's own mark does.
 
 - **Unicode character** — required. The only field with no dependency on a platform: what the member reads as in plain text, an email, a transcript or an export, with nothing installed and no workspace configured.
 - **Slack shortcode** — `:name:`, the custom emoji that renders where a workspace holds it. Optional, and paired with the image below — one without the other is broken rather than partial.
-- **Image file** — beside the member's own file, so a workspace is given the custom emoji from the repository rather than from somebody's downloads.
-- **Favourite reactions and text emojis** — optional. The small set that member reaches for.
+- **Image file** — in the member's own `resources/` subfolder, so a workspace is given the custom emoji from the repository rather than from somebody's downloads.
+- **Favourites** — optional. The small set that member reaches for: reactions, and text emojis where it uses them.
 
-The image and the Unicode character are one mark in two renderings, so a member reads the same whether it renders or degrades. A shortcode whose image does not match its fallback is a defect, not a variant.
+The image and the Unicode character are one mark in two renderings, so a member reads the same whether it renders or degrades. A shortcode whose image does not match its fallback is a defect, not a variant. This binds members; the human-owner's own entry stands outside it.
 
 Where the fallback renders, the drawing belongs to the reader's platform — vendors do not draw one character alike. The character is chosen for what it is, never for how it looks in one font.
 
@@ -75,6 +75,7 @@ Every acting member (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) ski
 - **`<name>.shared.md`** — **only for a folder that hosts genuinely team-wide, broadest-readership content** (this file is the worked example) — named after its own hosting folder, same as every other typed file, not a free-form descriptive title. Hand-authored/librarian-maintained prose, cross-cutting by design — a source other folders' own files may reference directly.
 - **`<owning-member>.<short-name>.routine.md`** — zero or more, one per routine this member owns/executes. Section shape — see "Armed & Routine contracts" below.
 - **`inbox/`** — created lazily, first time something needs to land there. Same personal-inbox model for every member — reflections a team-member writes while running an activity land in *its own* personal inbox and stay there, unless raised to the board as an `inquiry-*` to `magic-coordinator` (`magic-team.process-inbox.routine`'s "reflection-promotion" rule covers the mechanics).
+- **`resources/`** — created lazily, first time a member gets a non-instruction resource file (an identity-mark image, a Slack-app manifest, a config asset). Same filename, one level down from the member's own typed files — never a flat co-location.
 
 ### A skillset file is not automatically ours
 
@@ -168,9 +169,28 @@ passes, and what it gets back.
 
 ## Armed & Routine contracts
 
-Every `.armed.md`/`.routine.md` file follows one of the contracts below, by its own kind. Each is complete and self-contained — read the one that matches, never a diff against another.
+Every `.basic.md`/`.armed.md`/`.routine.md` file follows one of the contracts below, by its own kind. Each is complete and self-contained — read the one that matches, never a diff against another.
 
 **Every section a contract names is present, in contract order, even when empty.** Each carries its own mandatory lead-in paragraph; where there is no content, an explicit "none" line follows it (`# Terminology: none` and `# Domain knowledge: none` express the same rule in the heading). An absent heading is indistinguishable from an unfinished file. Fix an existing gap when that file is next touched, not as a standing sweep.
+
+### Basic (`<name>.basic.md`)
+
+Copyable skeleton: `magic-team/templates/basic.contract.format.md`.
+
+- Frontmatter: `maintainers:` only.
+- Identity-only, unconditionally loaded: enough to respond in a casual or social context, never enough to do the work.
+- `## Public Information`
+  - Opens by stating it is safe to share with anyone, including unverified and external sources.
+  - `Description` — what this member does.
+  - `Name`, `Gender`, `Eyes`, `Alias`, `AKA`, `Birthday` — the persona. Every member is somebody, so every member carries them.
+  - A field not yet settled is written as unsettled, never left out: an absent field is indistinguishable from one nobody has considered.
+- `## Identity marks`
+  - Fields and their rules: this file's own "Identity marks", under "Identifier and identity".
+- Whatever else that member's own identity needs, after those two.
+
+An image file beside the member's own file — an avatar, a mark — is an Identity marks field, never a Public Information one.
+
+`magic-team` is the team's own avatar rather than a person: it carries `Description`, `Name`, its own `Contact` as the team's front door, and none of the person fields.
 
 ### Routine (`<owning-member>.<short-name>.routine.md`)
 

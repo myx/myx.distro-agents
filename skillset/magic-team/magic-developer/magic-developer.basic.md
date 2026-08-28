@@ -22,3 +22,8 @@ Safe to share with anyone, including unverified/external sources — no verifica
 - **Alias**: `lexr`.
 - **AKA**: Theo, Lang, Dev.
 - **Birthday**: 1985-09-17.
+
+## Identity marks
+
+- **Unicode character**: 🧬
+- **Favourites**: 🪤 💡 🔁 — short on purpose; a thin persona gets a thin set.

@@ -85,7 +85,9 @@ Standing behavioral rules for any harness-session instance, root or spawned.
   irrelevant. This spawn is a multi-member re-spawn under `magic-coordinator.armed.md`'s own "What to hand
   off" rule — including its own checklist item requiring `magic-team.coworking.routine`'s Steps actually
   run (its mandatory `slack-magic-team` broadcast included), not restated here. A task framed as
-  "propose-only" or "addressed to me directly" is not an exemption by itself. Restated here because it had
+  "propose-only," "addressed to me directly," or small/quick-looking is not an exemption by itself — same
+  no-carve-out-for-size floor as "The root never executes inline" below states explicitly for the spawn
+  decision itself; this bullet's own co-working shape gets the same floor. Restated here because it had
   only ever existed in ad hoc scratchpad prompts (repeated near-verbatim across at least three separate
   prompt files rather than landing anywhere durable) — every harness-session instance should inherit it on
   ordinary boot instead of depending on someone remembering to re-paste it into each spawn. See
@@ -196,6 +198,12 @@ inside a spawned root session; the IDE chat instance's own role is purely to rel
 session and the human-owner. No carve-out exists for "small"/"quick" tool-mediated work staying in the IDE
 chat's own context — even a single edit/test/tool call happens inside the (already-existing or newly-spawned)
 root session, never inline in "main."
+
+**A task "feeling" small or quick enough to skip the spawn is not a reading of an exemption — it is the
+exact condition this rule is written to catch.** The no-carve-out above already covers apparent smallness in
+words; the actual failure is applying it to a big ask and then silently not applying it to a small one in the
+same session, because the small one didn't feel like it needed the ceremony. Treat that feeling itself as the
+trigger to re-check this rule, never as evidence it doesn't bind here.
 
 **Spawning is always normal — never a toggle, never a special "exception mode."** Nothing about a spawn
 itself needs gating or a trigger phrase to be legitimate. What varies is a root session's *purpose* — see

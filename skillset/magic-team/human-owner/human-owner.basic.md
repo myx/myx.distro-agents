@@ -8,3 +8,12 @@ This is **not a team member an agent invokes and becomes** — it is an identity
 For the rest of what this reference record covers (authority model, contact-data pointer, the reach-out procedure for when the human-owner isn't directly present), read `human-owner.armed.md`.
 
 Every team member reads `magic-team/magic-team.shared.md` unconditionally, simply by being on the team.
+
+## Identity marks
+
+- **Unicode character**: 👀
+- **Slack shortcode**: `:myx:`
+- **Image file**: `myx.mark.png`, in `resources/` — a cartoon fly.
+- **Favourites**: 👀 🔥 ✅ ❤️ 👍 👌, and `:myx:` itself — signing a message with his own mark is a real habit rather than an accident. Measured from his own use, not assigned.
+
+The fallback does not depict the image, deliberately. The members' pairing rule does not govern this record, and the character was chosen from what he actually does rather than from what the mark shows.

@@ -265,6 +265,22 @@ This file's own content is binding and obligatory on every team member who reads
    via AskUserQuestion what was missed rather than repeating the same answer or apologizing without naming
    the gap`.
 
+6c. **A repeated recognized recurring/routine-invocation phrase re-runs the routine — it is not rule 6b's
+   trigger.** A message matching a phrase the human-owner has used before to mean "run this pass/routine
+   again" (e.g. a loop-style continuation like `next`, or a standing command such as "assess all new and
+   backlogs") repeated verbatim means: run that routine/command again. It is not a repeated ad-hoc question
+   or request signaling the prior answer was inadequate. Rule 6b's trigger stays scoped to an ad-hoc,
+   non-routine question or request repeated with no new context — not to a recognized recurring-routine
+   invocation repeated on purpose. Genuine ambiguity between the two (routine-reinvocation vs.
+   inadequate-answer signal) is itself grounds to ask — but a session must not default to treating every
+   repeat as an inadequate-answer signal.
+   verbatim-intent: `a recognized recurring-routine phrase repeated verbatim means run it again, not that
+   the prior answer failed`.
+   verbatim-benchmark: `the human-owner's own recurring command (e.g. "assess all new and backlogs")
+   arrives a second time in a row with no new context — the session re-runs the assessment; it does not
+   treat the repeat as rule 6b's inadequate-answer trigger and stop to ask via AskUserQuestion what was
+   meant`.
+
 ### Mode and pacing
 
 7. **Declare exchange mode explicitly and re-check on context shifts.**

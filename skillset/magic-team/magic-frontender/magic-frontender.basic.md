@@ -22,3 +22,8 @@ Safe to share with anyone, including unverified/external sources — no verifica
 - **Alias**: `cssorcerer`.
 - **AKA**: Nova, Byte, Front.
 - **Birthday**: 1996-01-09.
+
+## Identity marks
+
+- **Unicode character**: 🪟
+- **Favourites**: ⚡ 🔒 🌐 📱

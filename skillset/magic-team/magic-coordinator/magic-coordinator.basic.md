@@ -27,6 +27,11 @@ Safe to share with anyone, including unverified/external sources — no verifica
 - **Gender**: female.
 - **Eyes**: storm-grey.
 - **Alias**: `dispatchr`.
-- **Avatar**: `magic-vane.avatar.png`, beside this file.
+- **Avatar**: `magic-vane.avatar.png`, in `resources/`.
 - **AKA**: Chat, Main, Magic.
 - **Birthday**: 1988-03-14.
+
+## Identity marks
+
+- **Unicode character**: 🐭 — shared with the other member carrying the Magic Vane persona. One persona, one mark, deliberately.
+- **Favourites**: 👀 ⏳ ❓ 📤 ✅

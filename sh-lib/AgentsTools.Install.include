@@ -775,7 +775,7 @@ echo '{
 	"hookSpecificOutput": {
 		"hookEventName": "PreToolUse",
 		"permissionDecision": "deny",
-		"permissionDecisionReason": "always use MCP TOOLING to properly execute shell commands"
+		"permissionDecisionReason": "see CLAUDE.md Working rules for this workspace -- always use the myx.distro MCP for shell commands, never Bash directly"
 	}
 }'
 exit 0

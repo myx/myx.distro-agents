@@ -22,3 +22,8 @@ Safe to share with anyone, including unverified/external sources — no verifica
 - **Alias**: `archspec`.
 - **AKA**: Cassius, Stone, Arch.
 - **Birthday**: 1979-06-21.
+
+## Identity marks
+
+- **Unicode character**: 🏛️
+- **Favourites**: ⚖️ 🔗 ⚠️ 🤔

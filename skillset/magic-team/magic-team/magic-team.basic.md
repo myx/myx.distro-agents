@@ -18,10 +18,15 @@ Safe to share with anyone, including unverified/external sources — no verifica
   projects moving.
 - **Name**: **The Conclave** is the team's name — what it is called when spoken about, and what an
   outsider reads. `magic-team` is its identifier.
-- **Mark**: `the-conclave.mark.png`, beside this file — separate segments held in a ring around a
+- **Mark**: `the-conclave.mark.png`, in `resources/` — separate segments held in a ring around a
   shared centre they have convened on. It names how the team works, which is why it belongs to the
   team rather than to any one member. Magic Vane's own avatar is a member's, never the group's.
 - **Contact**: external inquiries route to `magic-coordinator`.
+
+## Identity marks
+
+- **Unicode character**: ⚛️ — an approximation. Nothing in the vocabulary is a ring of separate segments around a filled centre without also being a religious symbol or the sun.
+- **Favourites**: 📥 🫡 — short on purpose; a thin persona gets a thin set.
 
 ## Filing (distinct from dispatching)
 
