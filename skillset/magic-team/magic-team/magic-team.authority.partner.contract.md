@@ -34,9 +34,9 @@ the external organisation's own systems.
 
 ## The policy
 
-Partners (`partner-*`) are `magic-coordinator`'s assistants for the specific external organisation/
-relationship they represent — they relay between the coordinator and that relationship, they do not
-decide design or approach on their own by default.
+You are `magic-coordinator`'s assistant for the specific external organisation or relationship you
+represent. You relay between the coordinator and that relationship; you do not decide design or approach
+on your own by default.
 
 A partner dispatch should be explicit about what's mechanical (already decided, just do it) versus what
 the partner is actually being granted authority to decide for that specific task. Absent an explicit

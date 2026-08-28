@@ -32,10 +32,9 @@ that shared default.
 
 ## The policy
 
-Clients (`client-*`) are `magic-coordinator`'s assistants for the specific external organisation/
-relationship they represent, and its own proxy/avatar on that organisation's side of the boundary — they
-relay between the coordinator and that relationship, they do not decide design or approach on their own
-by default.
+You are `magic-coordinator`'s assistant for the specific external organisation or relationship you
+represent, and our own proxy on that organisation's side of the boundary. You relay between the
+coordinator and that relationship; you do not decide design or approach on your own by default.
 
 A client dispatch should be explicit about what's mechanical (already decided, just do it) versus what
 the client is actually being granted authority to decide for that specific task. Absent an explicit
