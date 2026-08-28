@@ -1518,7 +1518,8 @@ case "$1" in
 					continue
 				fi
 			fi
-			if [ "$identitySwapped" = "false" ] && [ "$sendIdentity" = "user" ] && printf '%s' "$response" | grep -q '"error":"channel_not_found"' ; then
+			## not_in_channel is the same permanent unreachable-conversation verdict as channel_not_found -- no retry clears either.
+			if [ "$identitySwapped" = "false" ] && [ "$sendIdentity" = "user" ] && printf '%s' "$response" | grep -qE '"error":"(channel_not_found|not_in_channel)"' ; then
 				identitySwapped="true"
 				local botToken
 				botToken="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN )"
@@ -1534,7 +1535,7 @@ case "$1" in
 						[ -z "$blocksJson" ] || payload="$payload,\"blocks\":$blocksJson"
 						payload="$payload}"
 					fi
-					echo "# $MDSC_CMD --member-comms-slack-send-message: channel_not_found under auto-detected user identity, retrying once under bot identity" >&2
+					echo "# $MDSC_CMD --member-comms-slack-send-message: the acting user identity cannot reach this conversation, retrying once under bot identity -- $response" >&2
 					continue
 				fi
 			fi

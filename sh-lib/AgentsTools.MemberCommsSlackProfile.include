@@ -264,6 +264,15 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		## Slack refuses an emptied status field unless its partner travels with it; hoisted to parse time like --avatar above.
+		local profileClearing=""
+		if [ "$profileStatusTextGiven" = "true" ] && [ -z "$profileStatusText" ] && [ "$profileStatusEmojiGiven" != "true" ] ; then profileClearing="--status-text ''" ; fi
+		if [ "$profileStatusEmojiGiven" = "true" ] && [ -z "$profileStatusEmoji" ] && [ "$profileStatusTextGiven" != "true" ] ; then profileClearing="--status-emoji ''" ; fi
+		if [ -n "$profileClearing" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: $profileClearing empties one of the two status fields while the other is not passed at all, and Slack refuses that outright -- users.profile.set answers must_clear_both_status_text_and_status_emoji unless status_text and status_emoji travel in the same request. Measured: a request carrying BOTH is accepted whatever the two values are, so pass --status-text and --status-emoji together here, both empty to clear the status. Checked at parse time and not left to the API call: this operation writes four facets, and a refusal raised by Slack would surface only after the rest of the profile had already been written, leaving the persona half-configured. Nothing was changed." >&2
+			set +e ; return 1
+		fi
+
 		## Every field parsed and validated before the first request leaves the
 		## host: with three calls in one operation, a bad value found after
 		## users.profile.set already landed leaves the persona half-written.
@@ -398,7 +407,7 @@ case "$1" in
 		local profileMember="$1"
 		shift || true
 		if [ -z "$profileMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: syntax is <team-member> -- the acting member is required, and it is the account being read: a profile, a presence and a do-not-disturb state each belong to one Slack account" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: syntax is <team-member> [--raw] -- the acting member is required, and it is the account being read: a profile, a presence and a do-not-disturb state each belong to one Slack account" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$profileMember" "<team-member>" member-comms-slack-profile-get || { set +e ; return 1 ; }
@@ -415,11 +424,16 @@ case "$1" in
 			;;
 		esac
 
+		local profileRawOutput="false"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--identity-bot)
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: --identity-bot is REFUSED by this operation -- users.profile:read, users:read and dnd:read are read here as the ACCOUNT'S OWN state, and a bot has no persona whose profile, presence or do-not-disturb state this could be. The bot would answer for the app, not for the member, which is a different account's answer wearing this member's name. The flag is rejected rather than accepted-and-ignored on purpose, because reading under the member's user identity while the caller asked for the bot would be a silent identity substitution. Every other --member-comms-slack-* operation does accept --identity-bot; this one and --member-comms-slack-profile-set are the exceptions. Re-run without the flag." >&2
 					set +e ; return 1
+				;;
+				## Same spelling and same meaning as --member-comms-slack-file-info's own --raw: the body replaces the parsed fields.
+				--raw)
+					profileRawOutput="true" ; shift
 				;;
 				*)
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: invalid option: $1" >&2
@@ -456,6 +470,8 @@ case "$1" in
 				"PROFILE_LAST_NAME profile.last_name" \
 				"PROFILE_PHONE profile.phone" \
 			; do
+				## --raw hands back this facet's own body instead of its parsed fields, as file-info's --raw does.
+				if [ "$profileRawOutput" = "true" ] ; then printf '%s\n' "$profileResponse" ; break ; fi
 				AgentsToolsCommsSlackProfileEmitField $profileFieldSpec "$profileResponse" || { profileFieldRc=$? ; break ; }
 			done
 			if [ "$profileFieldRc" != "0" ] ; then
@@ -483,6 +499,8 @@ case "$1" in
 				"PRESENCE_MANUAL_AWAY manual_away" \
 				"PRESENCE_CONNECTION_COUNT connection_count" \
 			; do
+				## --raw hands back this facet's own body instead of its parsed fields, as file-info's --raw does.
+				if [ "$profileRawOutput" = "true" ] ; then printf '%s\n' "$profileResponse" ; break ; fi
 				AgentsToolsCommsSlackProfileEmitField $profileFieldSpec "$profileResponse" || { profileFieldRc=$? ; break ; }
 			done
 			if [ "$profileFieldRc" != "0" ] ; then
@@ -511,6 +529,8 @@ case "$1" in
 				"DND_SNOOZE_ENABLED snooze_enabled" \
 				"DND_SNOOZE_ENDTIME snooze_endtime" \
 			; do
+				## --raw hands back this facet's own body instead of its parsed fields, as file-info's --raw does.
+				if [ "$profileRawOutput" = "true" ] ; then printf '%s\n' "$profileResponse" ; break ; fi
 				AgentsToolsCommsSlackProfileEmitField $profileFieldSpec "$profileResponse" || { profileFieldRc=$? ; break ; }
 			done
 			if [ "$profileFieldRc" != "0" ] ; then

@@ -674,19 +674,37 @@
 			rather than for the member, which is a different account's
 			answer wearing this member's name.
 
-			Three facets, one API call each: display name and custom status,
-			presence, and do-not-disturb. Each reports
-			`PROFILE_GET_FACET=profile|presence|dnd` then
+			Three facets, one API call each: the account's own profile
+			fields, its presence, and its do-not-disturb state. Each
+			reports `PROFILE_GET_FACET=profile|presence|dnd` then
 			`PROFILE_GET_STATE=read|failed`, and every read facet's fields
 			follow as line-anchored `KEY=value` with a `KEY_STATE=`
 			companion -- `present`, `absent`, or `present-multiline` for a
 			value carrying a newline, which is reported rather than printed
 			so the `KEY=value` read-back contract still holds.
 
+			The profile facet's standard-field set is emitted in this
+			order: `PROFILE_DISPLAY_NAME`, `PROFILE_REAL_NAME`,
+			`PROFILE_TITLE`, `PROFILE_STATUS_TEXT`, `PROFILE_STATUS_EMOJI`,
+			`PROFILE_STATUS_EXPIRATION`, `PROFILE_AVATAR_URL`,
+			`PROFILE_AVATAR_ORIGINAL_URL`, `PROFILE_AVATAR_HASH`,
+			`PROFILE_AVATAR_IS_CUSTOM`, `PROFILE_EMAIL`,
+			`PROFILE_FIRST_NAME`, `PROFILE_LAST_NAME`, `PROFILE_PHONE`.
+			The presence facet emits `PRESENCE`, `PRESENCE_AUTO_AWAY`,
+			`PRESENCE_MANUAL_AWAY` and `PRESENCE_CONNECTION_COUNT`; the
+			do-not-disturb facet `DND_ENABLED`, `DND_NEXT_START_TS`,
+			`DND_NEXT_END_TS`, `DND_SNOOZE_ENABLED` and
+			`DND_SNOOZE_ENDTIME`. A facet's own emitted lines are the
+			authority on what it carried: this names the standard set, not a
+			promise that a facet carries nothing besides it.
+
 			Four exit codes. **0**: all three facets read. **3**: some read,
 			the rest named with their own reason. **4**: none read, though
-			the operation itself ran. **1**: failed before any facet was
-			reached. A failed facet is UNKNOWN, never a report that the
+			the operation itself ran. **1**: the call was refused before any
+			facet was reached, or a facet's response could not be parsed --
+			that facet's field set is then incomplete and the facets after
+			it were not attempted, so the lines already printed are not a
+			full report. A failed facet is UNKNOWN, never a report that the
 			field is unset.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
@@ -704,14 +722,20 @@
 			loud rather than silently writing under the shared bot.
 
 			At least one field is required. An empty string is a value here,
-			not an absence: `--status-text ''` clears the status and counts
-			as a field, and so do empty `--display-name` and
-			`--status-emoji`. Those three therefore accept an empty value;
-			`--status-expiry` (epoch seconds, 0 for no expiry), `--avatar`
-			(a path), `--presence` (`auto` or `away`, the only two values
-			Slack has) and `--snooze` (a positive whole number of minutes)
-			do not. `--snooze` and `--snooze-end` are mutually exclusive,
-			and no field flag is repeatable.
+			not an absence: empty `--display-name`, `--status-text` and
+			`--status-emoji` each count as a field. Those three therefore
+			accept an empty value; `--status-expiry` (epoch seconds, 0 for
+			no expiry), `--avatar` (a path), `--presence` (`auto` or `away`,
+			the only two values Slack has) and `--snooze` (a positive whole
+			number of minutes) do not. `--snooze` and `--snooze-end` are
+			mutually exclusive, and no field flag is repeatable.
+
+			**A custom status is cleared by both status flags together.**
+			Slack refuses an empty `--status-text` on its own with
+			`must_clear_both_status_text_and_status_emoji`: the empty text
+			and the empty emoji are one clear, not two independent fields.
+			Pass `--status-text '' --status-emoji ''`. This is Slack's own
+			rule about that pair, not a restriction added here.
 
 			`--avatar <path>` replaces the account's photo. Slack has no
 			"clear the photo" call, so a photo is replaced and never unset.
