@@ -62,8 +62,11 @@ This is the posture, not a per-member choice, and it does not narrow with the ac
 
 ## Counterparty
 
-Each partner names the counterparty it exists to meet, and how they are reached, in its own file. No
-other member can hold that fact for it.
+Each partner has a counterparty recorded — who it exists to meet, and how they are reached. The
+obligation is that the record exists and is reachable from the partner; where it is held follows from
+where that partner's own files live. In a repository we own, the partner's own file holds it. In the
+counterparty's own repository, the record is held on our side and the partner's file points at it,
+carrying no person, address or account identifier itself.
 
 A partner is a subject, not a channel. Reaching the counterparty is never the partner's own act: it goes
 through the `client-*` member for that organisation, under the client contract.

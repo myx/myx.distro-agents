@@ -33,7 +33,7 @@ Any member writing or editing code — in any language, including a shell script
 
 ## Human-owner conversations: two identities
 
-- The team bot and a member's own IM account are two separate conversations with the human-owner. A member with no account of its own reaches the human-owner in the bot's conversation — today only `magic-coordinator` has its own.
+- The team bot and a member's own IM account are two separate conversations with the human-owner. A member with no account of its own reaches the human-owner in the bot's conversation.
 - Identity defaults to the member's own where it exists, the team bot otherwise; `--identity-bot` is the only modifier, and it selects the bot's conversation on reads, checks and reactions as well as sends — that is how a member with its own account works in the bot's conversation. There is no opposite flag. One exception: message search runs under the member's own identity only and refuses `--identity-bot` outright.
 
 ## Folder shape — the typed-suffix scheme
@@ -51,6 +51,12 @@ Every acting member (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) ski
 - **`<name>.shared.md`** — **only for a folder that hosts genuinely team-wide, broadest-readership content** (this file is the worked example) — named after its own hosting folder, same as every other typed file, not a free-form descriptive title. Hand-authored/librarian-maintained prose, cross-cutting by design — a source other folders' own files may reference directly.
 - **`<owning-member>.<short-name>.routine.md`** — zero or more, one per routine this member owns/executes. Section shape — see "Armed & Routine contracts" below.
 - **`inbox/`** — created lazily, first time something needs to land there. Same personal-inbox model for every member — reflections a team-member writes while running an activity land in *its own* personal inbox and stay there, unless raised to the board as an `inquiry-*` to `magic-coordinator` (`magic-team.process-inbox.routine`'s "reflection-promotion" rule covers the mechanics).
+
+### A skillset file is not automatically ours
+
+A member's folder lives in whatever repository its own domain lives in, and several sit in a client's or a counterparty's. Resolving the real path is not the whole of it — resolve which repository owns the destination before writing anything into a member's files.
+
+What is safe to write follows from that. A fact about an organisation, in that organisation's own repository, is already theirs. Our own internal record about them — an assessment of a person, how we intend to handle them, what we have not told them — is ours, and in their repository it is one commit from being handed to them. That content is held in a repository we own, and the member's own file points at it.
 
 **The core rule: every acting member's own source files (`.basic.md`/`.armed.md`, plus every `.routine.md` it owns) must be fully sufficient on their own.**
 - A folder must work correctly purely from its own source files — that's the baseline the source files are held to, not a fallback path.
@@ -500,6 +506,8 @@ Nested steps are normally not named. **Name them when the parent is a named grou
 ### Actor phrases
 
 **Every step is the executor's.** A step naming other members is a script for the executor: it orchestrates and commands the work, and announces it in the session transcript so the orchestration is visible. There is no second actor running steps of its own.
+
+**A send a step instructs is the executor's too, and goes under the executor's own identity** — an opening or closing post, a status update, a reaction. The bot carries it only where that member has no identity of its own; being unable to reach the destination is not that case. A step naming a different actor overrides this, and nothing else does. It governs instructed sends only: what a participant says on its own account, in its own voice, is not a step and is not constrained here.
 
 An actor phrase says *whom the executor commands*, in plain language. Two forms:
 
