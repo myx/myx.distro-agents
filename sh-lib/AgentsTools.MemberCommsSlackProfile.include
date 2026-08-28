@@ -444,6 +444,9 @@ case "$1" in
 
 		local profileRead=0 profileFailed=0 profileFieldRc=0
 		local profileResponse="" profileRc=0 profileFieldSpec=""
+		## Kept because the custom-fields facet joins this body against the
+		## workspace's own definitions; empty means that facet has no values to read.
+		local profileBodyProfile=""
 
 		profileRc=0
 		profileResponse="$( AgentsToolsCommsSlackProfileCall --member-comms-slack-profile-get profile \
@@ -452,6 +455,7 @@ case "$1" in
 			--identity user --context "--member-comms-slack-profile-get" )" || profileRc=$?
 		printf '%s\n' PROFILE_GET_FACET=profile
 		if [ "$profileRc" = "0" ] ; then
+			profileBodyProfile="$profileResponse"
 			printf '%s\n' PROFILE_GET_STATE=read
 			profileFieldRc=0
 			for profileFieldSpec in \
@@ -543,15 +547,69 @@ case "$1" in
 			profileFailed=$(( profileFailed + 1 ))
 		fi
 
-		echo "# $MDSC_CMD --member-comms-slack-profile-get: $profileRead of 3 facet(s) read, $profileFailed not read (acting member $profileMember)" >&2
+		## Custom fields need BOTH bodies: the workspace's definitions carry the
+		## labels, the account's own profile carries the values. Ids are workspace-
+		## defined, so neither body alone answers "which fields exist and what does
+		## this account hold in them".
+		local profileTeamResponse=""
+		profileRc=0
+		profileTeamResponse="$( AgentsToolsCommsSlackProfileCall --member-comms-slack-profile-get custom-fields \
+			"GET team.profile.get (acting member $profileMember)" \
+			"$profileMember" --api team.profile.get \
+			--identity user --context "--member-comms-slack-profile-get" )" || profileRc=$?
+		printf '%s\n' PROFILE_GET_FACET=custom-fields
+		if [ "$profileRc" != "0" ] ; then
+			printf '%s\n' PROFILE_GET_STATE=failed
+			profileFailed=$(( profileFailed + 1 ))
+		elif [ -z "$profileBodyProfile" ] ; then
+			## The profile facet failed earlier, so there are no values to join.
+			printf '%s\n' PROFILE_GET_STATE=failed
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: the custom-fields facet needs the profile facet's own response body to read this account's values, and that facet did not complete. The definitions were fetched; the values are UNKNOWN, not empty." >&2
+			profileFailed=$(( profileFailed + 1 ))
+		elif [ "$profileRawOutput" = "true" ] ; then
+			printf '%s\n' PROFILE_GET_STATE=read
+			printf '%s\n' "$profileTeamResponse"
+			profileRead=$(( profileRead + 1 ))
+		else
+			local profileCfFile="" profileCfRc=0 profileCfIndex=0
+			profileCfFile="$( mktemp )" || { set +e ; return 1 ; }
+			printf '%s\n' "$profileTeamResponse" > "$profileCfFile.defs"
+			printf '%s\n' "$profileBodyProfile" > "$profileCfFile.vals"
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackProfileCustomFields.awk" \
+				"$profileCfFile.defs" "$profileCfFile.vals" > "$profileCfFile" || profileCfRc=$?
+			if [ "$profileCfRc" != "0" ] ; then
+				rm -f "$profileCfFile" "$profileCfFile.defs" "$profileCfFile.vals"
+				printf '%s\n' PROFILE_GET_STATE=failed
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: the custom-field reader could not scan one of the two response bodies (see its own error above). This account's custom fields are UNKNOWN from this call, which is NOT a report that it has none." >&2
+				profileFailed=$(( profileFailed + 1 ))
+			else
+				printf '%s\n' PROFILE_GET_STATE=read
+				## A count line, then one ordinal group per field. Zero is a real
+				## answer: an account may legitimately have filled none, and a
+				## workspace may define none.
+				printf 'PROFILE_FIELDS_COUNT=%s\n' "$( grep -c . "$profileCfFile" )"
+				while IFS=$'\t' read -r profileCfId profileCfLabel profileCfValue profileCfAlt ; do
+					[ -n "$profileCfId" ] || continue
+					profileCfIndex=$(( profileCfIndex + 1 ))
+					printf 'PROFILE_FIELD_%s_KEY=%s\n' "$profileCfIndex" "$profileCfId"
+					printf 'PROFILE_FIELD_%s_LABEL=%s\n' "$profileCfIndex" "$profileCfLabel"
+					printf 'PROFILE_FIELD_%s_VALUE=%s\n' "$profileCfIndex" "$profileCfValue"
+					printf 'PROFILE_FIELD_%s_ALT=%s\n' "$profileCfIndex" "$profileCfAlt"
+				done < "$profileCfFile"
+				rm -f "$profileCfFile" "$profileCfFile.defs" "$profileCfFile.vals"
+				profileRead=$(( profileRead + 1 ))
+			fi
+		fi
+
+		echo "# $MDSC_CMD --member-comms-slack-profile-get: $profileRead facet(s) read, $profileFailed not read (acting member $profileMember)" >&2
 		if [ "$profileFailed" = "0" ] ; then
 			return 0
 		fi
 		if [ "$profileRead" = "0" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: NONE of the three facets could be read for $profileMember -- each is named with its own reason above. Nothing is known from this call about this account's profile, presence or do-not-disturb state; this is not a report that they are unset." >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: NONE of the facets could be read for $profileMember -- each is named with its own reason above. Nothing is known from this call about this account's state; this is not a report that it is unset." >&2
 			set +e ; return 4
 		fi
-		echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: $profileFailed of 3 facet(s) could NOT be read for $profileMember -- read the per-facet PROFILE_GET_STATE lines above. The facets reported read really were read; the ones reported failed are UNKNOWN, not absent and not unset." >&2
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: $profileFailed facet(s) could NOT be read for $profileMember -- read the per-facet PROFILE_GET_STATE lines above. The facets reported read really were read; the ones reported failed are UNKNOWN, not absent and not unset." >&2
 		set +e ; return 3
 	;;
 

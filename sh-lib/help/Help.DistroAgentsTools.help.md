@@ -659,7 +659,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-slack-profile-get <team-member>
+		--member-comms-slack-profile-get <team-member> [--raw]
 			`<team-member>` is both the acting identity and the account
 			read: a profile, a presence and a do-not-disturb state each
 			belong to one Slack account, so the member is the subject here,
@@ -674,9 +674,10 @@
 			rather than for the member, which is a different account's
 			answer wearing this member's name.
 
-			Three facets, one API call each: the account's own profile
-			fields, its presence, and its do-not-disturb state. Each
-			reports `PROFILE_GET_FACET=profile|presence|dnd` then
+			Four facets, one API call each: the account's own profile
+			fields, its presence, its do-not-disturb state, and the
+			workspace's custom profile fields. Each
+			reports `PROFILE_GET_FACET=profile|presence|dnd|custom-fields` then
 			`PROFILE_GET_STATE=read|failed`, and every read facet's fields
 			follow as line-anchored `KEY=value` with a `KEY_STATE=`
 			companion -- `present`, `absent`, or `present-multiline` for a
@@ -697,6 +698,34 @@
 			`DND_SNOOZE_ENDTIME`. A facet's own emitted lines are the
 			authority on what it carried: this names the standard set, not a
 			promise that a facet carries nothing besides it.
+
+			The custom-fields facet emits `PROFILE_FIELDS_COUNT` then one
+			ordinal group per field: `PROFILE_FIELD_<n>_KEY`, `_LABEL`,
+			`_VALUE` and `_ALT`. It joins the workspace's own field
+			DEFINITIONS with this account's VALUES in them, because a field
+			id is workspace-defined -- the same "Title" label is a different
+			id in each workspace -- so neither body alone answers which
+			fields exist and what this account holds in them. Ids from both
+			sides are unioned: a definition with no value is a field left
+			empty, a value with no definition is one defined after the
+			definitions were read or one this identity cannot see, and both
+			are real states. A count of zero is a real answer, never an
+			error -- an account may have filled none, and a workspace may
+			define none.
+
+			`--raw` REPLACES the parsed field lines with each facet's own
+			API response body, and keeps the `PROFILE_GET_FACET=` and
+			`PROFILE_GET_STATE=` markers -- unlike the single-body raw modes
+			on --member-comms-slack-file-info and
+			--member-comms-slack-search-messages, this operation makes three
+			calls, so three unlabelled bodies could not be told apart and a
+			failed facet would contribute nothing rather than saying so.
+			Use it to audit the operation against its own source data: the
+			field set above is the standard set, and the body carries more
+			besides -- measured, twenty-eight top-level profile keys against
+			the fourteen named here. A field this operation does not surface
+			is a field a set cannot be verified against, which is not
+			knowable from the parsed output alone.
 
 			Four exit codes. **0**: all three facets read. **3**: some read,
 			the rest named with their own reason. **4**: none read, though

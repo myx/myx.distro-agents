@@ -586,7 +586,7 @@ case "$1" in
 						return 0
 					;;
 					*)
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: COULD NOT REACT to $channel:$threadTs with :$emoji: -- the call did not complete under $actingIdentityText (see the op's own diagnostic above, which carries Slack's own error code). The reaction was NOT added, and this is NOT an already-present result: nothing is known from this call about which reactions that message already carries. channel_not_found here means this identity cannot see that conversation at all, not that the message is gone." >&2
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: COULD NOT REACT to $channel:$threadTs with :$emoji: -- the call did not complete under $actingIdentityText (see the op's own diagnostic above, which carries Slack's own error code). The reaction was NOT added, and this is NOT an already-present result: nothing is known from this call about which reactions that message already carries. channel_not_found or not_in_channel here means this identity cannot reach that conversation at all, not that the message is gone -- and the right identity is a property of the METHOD, not of the member or the channel: one channel has been measured answering a read under user, a post under bot, and a reaction under user. Retry under the other identity before concluding anything about the message." >&2
 						set +e ; return 1
 					;;
 				esac
@@ -1539,6 +1539,16 @@ case "$1" in
 					continue
 				fi
 			fi
+			## Reached only once every recovery arm above has declined this
+			## response. A permanent verdict is not retried: no number of
+			## attempts clears an unreachable or archived conversation, and the
+			## ~30s ladder hides the cause behind a generic timeout-shaped wait.
+			case "$response" in
+				*'"error":"not_in_channel"'*|*'"error":"channel_not_found"'*|*'"error":"is_archived"'*)
+					echo "# $MDSC_CMD --member-comms-slack-send-message: permanent verdict under $sendIdentity identity and no recovery applies -- not retried -- $response" >&2
+					break
+				;;
+			esac
 			echo "# $MDSC_CMD --member-comms-slack-send-message: attempt $attempt/$maxAttempts did not confirm ok:true, retrying in ${backoff}s -- $response" >&2
 			sleep "$backoff"
 			attempt=$(( attempt + 1 ))

@@ -10,6 +10,8 @@ Read this before writing code in any language — it is not a per-language modul
 - In doubt, write it where it is used.
 - A path, filename, or other location is written literally at the site that uses it — never assembled through a chain of names the reader has to walk backwards to resolve.
 - Banned outright: a function called from one place; a function that wraps a couple of lines; a variable holding a value used once; a variable trivially derived from another; a global used as an out-parameter; a wrapper that only renames an existing call.
+- A name that earns its place is at least two words in camelCase — `doClose`, `needsClose`, `openChar`, `nestDepth`, `fieldCount`. Never a bare `close`, `depth`, `key`, `value`, `data`, `i`, `n`. Applies to every language and to every kind of name: parameter, local, field, function.
+- The rule is mechanical, not aesthetic. A bare word is the one shape that collides with a language's own vocabulary, and the diagnostic rarely says so: `close`, `index`, `length`, `split`, `sub` and `system` are AWK built-ins, and a parameter named after one is a parse error rather than a shadowing warning — `function f(s, i, open, close)` reports "4 missing }'s" and points at an unrelated construct, so the real cause is invisible in the message. Two words cannot collide. The same holds for a shell variable one `readonly` or one sourced file away from a clash it will never announce.
 
 ## The habit this exists to break
 

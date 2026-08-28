@@ -27,6 +27,10 @@ A routine is executed by whichever member actually runs it — most often its ow
 
 Read `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section before doing any shell commands.
 
+## Writing code
+
+Any member writing or editing code — in any language, including a shell script, an awk program or a one-off harness — reads `magic-developer/reference/code-craft.md` first, and `magic-developer/reference/shell.md` on top of it for shell and awk. These are the team's general coding style, not `magic-developer`'s private notes: the member who happens to be on duty writes the code, so the style has to reach whoever that is. `magic-developer` owns and maintains them; everyone else reads them.
+
 ## Human-owner conversations: two identities
 
 - The team bot and a member's own IM account are two separate conversations with the human-owner. A member with no account of its own reaches the human-owner in the bot's conversation — today only `magic-coordinator` has its own.

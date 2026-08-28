@@ -143,6 +143,12 @@ Team-owned notes for the magic-* team.
 - `setup/agentMcp` and `remove/agentMcp` are the obvious candidates and both are wrong for this package: they act on the `myx.common` registration, and `remove/agentMcp` would delete the registration it was asked to install.
 - Its public commands are callable. Its internal surface is not — copy the idiom rather than reach across.
 
+## Variable names are two-word camelCase, never a bare word
+
+- Every name here — shell local, awk parameter, awk local — is at least two words in camelCase: `openChar`, `nestDepth`, `fieldCount`. Never a bare `close`, `depth`, `key`, `value`, `i`, `n`.
+- Mechanical, not aesthetic. `close`, `index`, `length`, `split`, `sub` and `system` are awk built-ins, and a parameter named after one is a parse error rather than a shadowing warning — measured here: `function f(s, i, open, close)` reports "4 missing }'s" and points at an unrelated construct, so the message never names the real cause. Two words cannot collide.
+- General coding style, not a rule of this package: the canonical statement is `magic-developer/reference/code-craft.md`, restated here because this package is written by whoever is on duty, not only by `magic-developer`.
+
 ## A bracket range is never used in a `case` pattern
 
 - Measured on this platform: under `en_US.UTF-8`, `case "A" in [a-z])` **matches**; under `LC_ALL=C` it does not. Bracket ranges are collation-dependent, so a range-based whitelist is not a whitelist at all.
