@@ -443,9 +443,18 @@ case "$1" in
 			for profileFieldSpec in \
 				"PROFILE_DISPLAY_NAME profile.display_name" \
 				"PROFILE_REAL_NAME profile.real_name" \
+				"PROFILE_TITLE profile.title" \
 				"PROFILE_STATUS_TEXT profile.status_text" \
 				"PROFILE_STATUS_EMOJI profile.status_emoji" \
 				"PROFILE_STATUS_EXPIRATION profile.status_expiration" \
+				"PROFILE_AVATAR_URL profile.image_512" \
+				"PROFILE_AVATAR_ORIGINAL_URL profile.image_original" \
+				"PROFILE_AVATAR_HASH profile.avatar_hash" \
+				"PROFILE_AVATAR_IS_CUSTOM profile.is_custom_image" \
+				"PROFILE_EMAIL profile.email" \
+				"PROFILE_FIRST_NAME profile.first_name" \
+				"PROFILE_LAST_NAME profile.last_name" \
+				"PROFILE_PHONE profile.phone" \
 			; do
 				AgentsToolsCommsSlackProfileEmitField $profileFieldSpec "$profileResponse" || { profileFieldRc=$? ; break ; }
 			done

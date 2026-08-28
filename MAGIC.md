@@ -262,6 +262,16 @@ Team-owned notes for the magic-* team.
 - Partial application is reported, never hidden. One `PROFILE_SET_FACET=` plus `PROFILE_SET_STATE=applied|failed|not-requested` pair per facet, exit 1 if any facet failed, and the facets reported applied really were applied. Nothing is rolled back and nothing is retried under another identity.
 - `profile-get` is a three-facet read and takes the same exit-code shape `--intern-op-slack-check` uses: 0 all three read, 3 some read with the rest named, 4 none read though the operation ran, 1 failed before any facet was reached. A failed facet is unknown, never a report that the field is unset.
 - Neither op is named in `--intern-op-check-slack-scopes`'s polled list. That list is declared by its caller in `AgentsTools.MagicHeartbeat.include`, and adding these two would make every heartbeat warn on any coordinator token that lacks the three write scopes.
+- `profile-get` reports every named field `users.profile.get` returns, including the avatar. It emitted five before and could see neither `title` nor the photo — so the op whose stated purpose is making a set verifiable could not verify two of the things a set writes, and comparing two personas meant reaching past the tooling to raw `curl`. A field this op cannot see is a field a set cannot be verified against.
+- Custom profile fields (`fields.*`) are still not emitted. Their keys are workspace-defined, not a fixed path the field extractor can be pointed at, so enumerating them needs a different reader.
+
+## A profile is per workspace, and a rendered name is not profile data
+
+- One Slack account can back several members, and a profile belongs to one workspace: setting it in one changes nothing in another. Bringing a persona into line across workspaces is a real per-workspace operation, done through `profile-get`/`profile-set` for each, never once.
+- A name that reads differently in two workspaces is not necessarily different data. Which of `display_name` and `real_name` gets rendered is a per-workspace **viewer preference** (Preferences → Messages & media → "Display people's names as"), so identical profiles show two different names and no profile write can reconcile them. Never diagnose a name difference from the rendered string alone — read both fields first.
+- `display_name` IS the `@mention` handle. Do not change it to fix how a name renders: setting it to the persona's full name makes the rendered name agree and silently destroys `@handle`, which then matches nothing in the message composer. Keep `display_name` identical across workspaces as the handle, let `real_name` carry the full name, and treat the rendered difference as the viewer setting it is.
+- `title` is not writable everywhere. Where a workspace defines no custom profile fields, `users.profile.set` answers `"ok":true` and leaves it empty, in both the `{"profile":{…}}` and the `{"name":…,"value":…}` forms. That silent accept-and-discard is the expected outcome there, not a defect to chase.
+- `color` and `huddle_state` are Slack-assigned and not settable; they differ between workspaces for the same account and mean nothing. `users.info` standing fields — `is_admin`, `is_owner`, `is_restricted`, `tz` — are the ones that would signal a real difference in the account itself.
 
 ## The shared bot token lives in the team's own config scope
 
