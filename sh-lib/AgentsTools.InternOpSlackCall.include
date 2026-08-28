@@ -294,7 +294,7 @@ case "$1" in
 		local callerMember="$1"
 		shift || true
 		if [ -z "$callerMember" ] ; then
-			echo "$MDSC_CMD: slack-call: ⛔ ERROR: syntax is <team-member> --api <method> [--identity bot|user] [--form <name>=<value>]... [--json-body <json>] [--resolve-dm <user-id>]" >&2
+			echo "$MDSC_CMD: slack-call: ⛔ ERROR: syntax is <team-member> --api <method> [--identity bot|user] [--form <name>=<value>]... [--json-body <json>] [--upload-file <name>=<path>] [--resolve-dm <user-id>]" >&2
 			AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 			set +e ; return 1
 		fi
@@ -790,6 +790,12 @@ case "$1" in
 		trap 'rm -f "$headerFile"' EXIT
 		printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
 
+		## Upload response body; created here so the one trap already covers it.
+		local uploadBodyFile=""
+		uploadBodyFile="$( mktemp )" || { rm -f "$headerFile" ; trap - EXIT ; AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" none ; set +e ; return 1 ; }
+		chmod 600 "$uploadBodyFile"
+		trap 'rm -f "$headerFile" "$uploadBodyFile"' EXIT
+
 		## `responseBodyState` starts at the state that is true right now and is
 		## only ever moved forward by the arm that actually makes it true: no
 		## body for the requested method exists yet, and most failure arms below
@@ -1024,15 +1030,41 @@ case "$1" in
 			if [ -n "$uploadFile" ] ; then
 				## curl sets the multipart Content-Type and boundary itself; do not
 				## supply one, or the boundary will not match the body it writes.
+				## `-o` keeps the body out of the capture, so `-w` is all that is split.
 				local uploadArgs=( -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/$apiMethod" -H @"$headerFile" ) uploadPair
+				uploadArgs+=( -o "$uploadBodyFile" -w '%{http_code} %{size_upload}' )
 				uploadArgs+=( --form "${uploadFile%%=*}=@${uploadFile#*=}" )
 				for uploadPair in "${formArgs[@]}" ; do
 					uploadArgs+=( --form "$uploadPair" )
 				done
-				response="$( curl "${uploadArgs[@]}" 2>&1 )" || {
-					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
+
+				## `||`, not `;` -- under set -e the shell leaves before an
+				## assignment on the next line is ever reached.
+				local uploadOut="" uploadRc=0
+				uploadOut="$( curl "${uploadArgs[@]}" 2>&1 )" || uploadRc=$?
+
+				## `not-reported` is a real state: curl writes no -w line at all when
+				## it fails before the transfer, and empty could not be told from 0.
+				local uploadStatus="not-reported" uploadBytes="not-reported"
+				local uploadLine=""
+				uploadLine="$( printf '%s\n' "$uploadOut" | tail -1 )"
+				## Digits enumerated, never a bracket range -- see MAGIC.md.
+				case "$uploadLine" in
+					[0123456789]*" "[0123456789]*)
+						read -r uploadStatus uploadBytes <<< "$uploadLine"
+					;;
+				esac
+
+				## Before the rc test, so they survive the failure path too.
+				printf 'UPLOAD_HTTP_STATUS=%s\n' "$uploadStatus" >&2
+				printf 'UPLOAD_BYTES=%s\n' "$uploadBytes" >&2
+
+				if [ "$uploadRc" -ne 0 ] ; then
+					failMsg="$apiMethod transport failure under $sendIdentity identity: $uploadOut"
 					break
-				}
+				fi
+
+				response="$( cat "$uploadBodyFile" )"
 			elif [ -n "$jsonBody" ] ; then
 				response="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/$apiMethod" \
 					-H @"$headerFile" \
@@ -1070,7 +1102,7 @@ case "$1" in
 		done
 
 		## THE single exit path -- one cleanup, one failure branch, no degrade.
-		rm -f "$headerFile"
+		rm -f "$headerFile" "$uploadBodyFile"
 		trap - EXIT
 		if [ -n "$failMsg" ] ; then
 			echo "$MDSC_CMD: slack-call: ⛔ ERROR: $failMsg" >&2

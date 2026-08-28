@@ -217,6 +217,14 @@ Team-owned notes for the magic-* team.
 - Exit codes (`human-owner` target only; every other target keeps plain 0/1): 0 both conversations read, 3 only one (named, with reason, in the output header), 4 neither, 1 failed before reaching either.
 - Pretty-formatted (`ts | user | text`) by default; `--raw` returns the full API response(s).
 
+### `--intern-op-slack-call` upload mode (`--upload-file <name>=<path>`)
+
+- Multipart POST, the one request shape neither the urlencoded GET nor the JSON POST can carry, because the payload is a file part. curl sets the Content-Type and boundary itself; supplying one makes the boundary disagree with the body curl writes. Not combinable with `--json-body` (two different request bodies — only the upload would be sent, dropping the JSON silently) nor with `--fetch-url`; both are refused at parse.
+- Reports two line-anchored stderr fields, emitted whether the upload passed or failed: `UPLOAD_HTTP_STATUS=<code>` and `UPLOAD_BYTES=<n>`. Both read `not-reported` when curl failed before the transfer began and wrote no `-w` line at all — a positive state, because an empty value could not be told apart from a real zero.
+- **`UPLOAD_BYTES` is bytes SENT**, and the direction differs from `FETCH_BYTES` deliberately. Both name the payload of their own operation — what the call moved — which resolves to received for a download and sent for an upload. Literal direction-symmetry would be the false symmetry. The received body on an upload is a small JSON response the caller already holds in full; bytes sent, compared against the file's size on disk, is the only signal separating a truncated or timed-out send from a refusal. Measured live: a 389440-byte PNG reports 389651, the ~211-byte excess being multipart framing.
+- **There is deliberately no `UPLOAD_CONTENT_TYPE`.** `FETCH_CONTENT_TYPE` is load-bearing, not decoration: it is what lets a caller catch Slack answering HTTP 200 with an HTML sign-in page, the false success the fetch path states it cannot judge for itself. The upload path has no such false success — its verdict comes from the shared `"ok":true` test against a body Slack always sends as JSON — so the field would be a constant no caller could branch on, and a second copy of a fact the caller already has.
+- The response body goes to its own temp file via `-o`, so the `-w` line is the only thing left in the capture. That inverts the fetch branch's arrangement for the fetch branch's own stated reason: `tail -1` is exact against curl's fixed single-line format and is not exact against a JSON body whose layout Slack controls.
+
 ### `--intern-main-loop` call contract
 
 - No `<team-member>` argument, same shape as `--intern-mcp-server`. `--run` is required to actually loop; without it, prints syntax and exits.

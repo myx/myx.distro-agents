@@ -27,5 +27,6 @@ Safe to share with anyone, including unverified/external sources — no verifica
 - **Gender**: female.
 - **Eyes**: storm-grey.
 - **Alias**: `dispatchr`.
+- **Avatar**: `magic-vane.avatar.png`, beside this file.
 - **AKA**: Chat, Main, Magic.
 - **Birthday**: 1988-03-14.
