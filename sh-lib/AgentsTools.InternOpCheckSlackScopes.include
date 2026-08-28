@@ -124,16 +124,10 @@ case "$1" in
 		for identity in bot user ; do
 			token=""
 			if [ "$identity" = "bot" ] ; then
-				## THE TEAM'S SCOPE, NOT THE CALLING MEMBER'S -- and this site was
-				## wrong in a way that could not show: it asked each member for a
-				## token that lived in one specific member's settings, so for every
-				## member except that one it read nothing and reported
-				## `could-not-check`, a state indistinguishable from a genuinely
-				## unconfigured workspace. The bot identity is the team's, one
-				## token for everyone, so it is read from the team's own scope and
-				## the answer is now the same for every caller -- which is what
-				## "the granted scopes of the bot identity" always meant.
-				token="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN 2>/dev/null )" || token=""
+				## Reports the credential the member would actually send under.
+				local scopeTokenLine="" scopeTokenSource=""
+				scopeTokenLine="$( AgentsToolsResolveSlackBotToken "$callingMember" )" || scopeTokenLine=""
+				read -r scopeTokenSource token <<< "$scopeTokenLine"
 			else
 				token="$( DistroAgentsTools --member-config-option "$callingMember" --select SLACK_USER_TOKEN 2>/dev/null )" || token=""
 			fi

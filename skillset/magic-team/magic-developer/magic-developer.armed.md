@@ -15,7 +15,8 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 - One reference module per language — read only the one(s) relevant to the task at hand:
   - `reference/shell.md` — POSIX `sh`/AWK cross-platform portability: the AWK semicolon axiom, GNU-dependency avoidance, and reusable POSIX patterns (dynamic argv, portable mutex, wall-clock timeout, filename-trim gotchas). Fully populated, canonical home — `magic-devops`/the relevant `keeper-*` read this module directly for their own day-to-day shell work rather than duplicating it.
   - `reference/xslt.md` — XSLT, especially 1.0: elegant, minimal solutions using only basic/standard 1.0 features. Fully populated — the former standalone `magic-xslt` skill, retired and folded in here.
-  - `reference/java.md`, `reference/go.md`, `reference/javascript.md` — starter stubs, not yet populated from real estate knowledge.
+  - `reference/java.md` — seeded with a first real axiom (allocation: hoist an immutable literal to `static final`, never allocate one inline per call), otherwise still thin.
+  - `reference/go.md`, `reference/javascript.md` — starter stubs, not yet populated from real estate knowledge.
   - `reference/css.md` — starter stub, tentative — confirm this module belongs here before relying on it.
 - Growing this library: most modules start thin. Whenever a domain skill's or a `keeper-*` member's daily work surfaces a genuine language-level axiom (not a project-specific convention), it belongs appended to the relevant module here — e.g. `magic-architect` doing daily file-comment archaeology on a legacy language is exactly the kind of work likely to surface real reference-module material over time.
 
@@ -122,7 +123,8 @@ Used to check this file's own definitions against its own goals when it is updat
 - `reference/code-craft.md` — cross-language writing-style axiom, read before writing code in any language.
 - `reference/shell.md` — POSIX `sh`/AWK cross-platform portability, fully populated, canonical home.
 - `reference/xslt.md` — XSLT (especially 1.0), fully populated, former standalone `magic-xslt` skill.
-- `reference/java.md`, `reference/go.md`, `reference/javascript.md` — starter stubs, not yet populated.
+- `reference/java.md` — seeded with a first real axiom, otherwise still thin.
+- `reference/go.md`, `reference/javascript.md` — starter stubs, not yet populated.
 - `reference/css.md` — starter stub, tentative placement.
 - `magic-architect` — the peer system-design review role this skill mirrors at the language-craft level.
 - `magic-devops`, the relevant `keeper-*` — heavy day-to-day readers of `reference/shell.md`.

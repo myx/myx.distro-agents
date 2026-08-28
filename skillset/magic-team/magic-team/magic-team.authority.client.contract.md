@@ -19,9 +19,9 @@ reverted — same failure shape `magic-team.authority.keeper.contract.md` exists
 them. It holds our credentials for that organisation's own systems, acts with our own team's authority
 when operating inside those systems, and stays private: never publicly shared, never an instance the
 external organisation itself holds or sees. This is the opposite direction from `partner-*`
-(`magic-team.authority.partner.contract.md`): a `partner-*` is the external organisation's own person or
-contact interfacing into our team, not ours interfacing into them — the two types are not interchangeable
-variants of one shape.
+(`magic-team.authority.partner.contract.md`): both are ours and differ only in which way the agent faces —
+a `partner-*` holds the subject its counterpart works in, a `client-*` holds the channel into that
+organisation's own systems. The two are not interchangeable variants of one shape.
 
 What we owe a `client-*` member: real, current credentials for the relationship it holds, held nowhere
 else — no other member or skillset file carries a copy.

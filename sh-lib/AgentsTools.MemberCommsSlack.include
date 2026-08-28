@@ -1464,14 +1464,16 @@ case "$1" in
 
 		echo "# $MDSC_CMD --member-comms-slack-send-message: POST https://slack.com/api/chat.postMessage using ${sendIdentity} token for $memberName -H 'Authorization: Bearer \$$tokenLabel' -H 'Content-type: application/json' -d '$payload'" >&2
 
-		local token
+		local token botTokenSource=""
 		if [ "$sendIdentity" = "user" ] ; then
 			token="$memberUserToken"
 		else
-			token="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN )"
+			local botTokenLine=""
+			botTokenLine="$( AgentsToolsResolveSlackBotToken "$memberName" )" || botTokenLine=""
+			read -r botTokenSource token <<< "$botTokenLine"
 		fi
 		if [ -z "$token" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no usable Slack token configured for $memberName (member SLACK_USER_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no usable Slack token configured for $memberName (member SLACK_USER_TOKEN, the member's own SLACK_BOT_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)" >&2
 			set +e ; return 1
 		fi
 
@@ -1521,13 +1523,16 @@ case "$1" in
 			## not_in_channel is the same permanent unreachable-conversation verdict as channel_not_found -- no retry clears either.
 			if [ "$identitySwapped" = "false" ] && [ "$sendIdentity" = "user" ] && printf '%s' "$response" | grep -qE '"error":"(channel_not_found|not_in_channel)"' ; then
 				identitySwapped="true"
-				local botToken
-				botToken="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN )"
+				local botToken="" swapTokenLine="" swapTokenSource=""
+				swapTokenLine="$( AgentsToolsResolveSlackBotToken "$memberName" )" || swapTokenLine=""
+				read -r swapTokenSource botToken <<< "$swapTokenLine"
 				if [ -n "$botToken" ] ; then
+					botTokenSource="$swapTokenSource"
 					sendIdentity="bot"
 					token="$botToken"
 					printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
-					if [ -n "$rawText" ] ; then
+					## Attribution only under the shared bot -- a member's own bot is already itself.
+					if [ -n "$rawText" ] && [ "$swapTokenSource" = "shared-bot-token" ] ; then
 						rawText="$( printf '@%s:\n%s' "$memberName" "$rawText" )"
 						escapedText="$( printf '%s' "$rawText" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
 						payload="{\"channel\":\"$channel\",\"text\":\"$escapedText\""

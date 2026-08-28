@@ -756,23 +756,18 @@ case "$1" in
 		## same discipline: it tests presence of the override and presence of the
 		## member's own token, never a negation against empty.
 
-		local token=""
+		local token="" botTokenSource=""
 		if [ "$sendIdentity" = "user" ] ; then
 			token="$memberUserToken"
 		else
-			## THE BOT TOKEN IS THE TEAM'S, AND IT IS READ FROM THE TEAM'S OWN
-			## SCOPE. It is not any member's credential -- it is the shared
-			## fallback every member without a USER_TOKEN of its own acts under --
-			## so keeping it in one member's settings made the whole team's
-			## identity a property of that member's config. That is the same
-			## category error as naming a member literally at a call site, one
-			## level down: this op already resolves the USER token from the acting
-			## member, and now the pair reads exactly as the rule states it --
-			## the member's own token when it has one, the team's when it does not.
-			token="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN )" || token=""
+			## Resolved here and never re-read later -- an identity that shifts
+			## between selection and send is the defect this op exists to avoid.
+			local botTokenLine=""
+			botTokenLine="$( AgentsToolsResolveSlackBotToken "$callerMember" )" || botTokenLine=""
+			read -r botTokenSource token <<< "$botTokenLine"
 		fi
 		if [ -z "$token" ] ; then
-			echo "$MDSC_CMD: slack-call: ⛔ ERROR: no usable Slack token for identity '$sendIdentity' (member SLACK_USER_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)" >&2
+			echo "$MDSC_CMD: slack-call: ⛔ ERROR: no usable Slack token for identity '$sendIdentity' (member SLACK_USER_TOKEN, the member's own SLACK_BOT_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)" >&2
 			## Selection HAS run by this point, so the identity is a real fact
 			## even though the call never left the host -- reported as itself,
 			## not as `not-yet-selected`. No response body exists for the
@@ -802,7 +797,7 @@ case "$1" in
 		## (transport, DM resolution, the counterparty control) never produce
 		## one, so `none` is their correct answer and not a default standing in
 		## for an unknown.
-		local failMsg="" response="" dmChannel="" responseBodyState="none"
+		local failMsg="" response="" dmChannel="" responseBodyState="none" joinAttempted="false"
 		while true ; do
 			## DM resolution under THIS identity, when the caller asked for it.
 			if [ -n "$resolveDmUser" ] ; then
@@ -1087,6 +1082,30 @@ case "$1" in
 			## Slack answers HTTP 200 with ok:false for most real failures, so the
 			## body decides the outcome, not curl's exit status.
 			if ! printf '%s' "$response" | grep -q '"ok":true' ; then
+				## A bot outside the conversation is recoverable, not a verdict.
+				## Once, then the ordinary failure branch. `--resolve-dm` is
+				## excluded on both counts: a DM cannot be joined, and re-entering
+				## the loop would open it a second time and append another channel=.
+				if [ "$sendIdentity" = "bot" ] && [ "$joinAttempted" = "false" ] && [ -z "$resolveDmUser" ] \
+					&& printf '%s' "$response" | grep -q '"error":"not_in_channel"' ; then
+					joinAttempted="true"
+					local joinChannel="" joinPair joinResp=""
+					for joinPair in "${formArgs[@]}" ; do
+						case "$joinPair" in
+							channel=*) joinChannel="${joinPair#channel=}" ;;
+						esac
+					done
+					if [ -n "$joinChannel" ] ; then
+						joinResp="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/conversations.join" \
+							-H @"$headerFile" \
+							-H "Content-type: application/x-www-form-urlencoded" \
+							--data-urlencode "channel=$joinChannel" 2>&1 )" || joinResp=""
+						echo "$MDSC_CMD: slack-call: auto-join under bot identity on channel=$joinChannel -- $joinResp" >&2
+						if printf '%s' "$joinResp" | grep -q '"ok":true' ; then
+							continue
+						fi
+					fi
+				fi
 				## The method answered, and what it answered with is a real API
 				## body -- just a failing one. That body is a caller-visible
 				## fact (--member-comms-slack-react's already-present outcome replays

@@ -84,6 +84,12 @@ case "$1" in
 		printf 'member-kind: %s\n' "$clientKind"
 		printf 'scope: this member'"'"'s own external accounts only -- its own credentials, its own configured sources; no team-scoped source and no team credential is read here\n\n'
 
+		## Configuration verdict ahead of content: a member with nothing configured
+		## to read produces a correct, empty report, and this is where that shows.
+		## Non-gating -- the scan's own sources-scanned already lands in the status.
+		DistroAgentsTools --client-sweep-config-check "$clientMember" || true
+		printf '\n'
+
 		## Board items are scoped to this member's own by --filter-owner, for the
 		## same reason the header exists: an item owned by somebody else is not
 		## part of what this document claims to be.
@@ -92,6 +98,46 @@ case "$1" in
 			--all-types --filter-owner "$clientMember" \
 			--comms-do-all --comms-member-scope-only "${commsCutoffArgs[@]}" \
 			--context --client-sweep-input-scan
+		return $?
+	;;
+
+	## What an external member must hold for its own sweep to mean anything.
+	## Declared here by the stub; the intern-op infers nothing from key names.
+	--client-sweep-config-check)
+		shift
+		local checkMember="$1"
+		shift || true
+		if [ -z "$checkMember" ] || [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: syntax is <client-*|partner-* member>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$checkMember" "<team-member>" client-sweep-config-check || { set +e ; return 1 ; }
+
+		## Required for a client, which sweeps a conversation; not for a partner,
+		## which is a subject rather than a channel the team reads.
+		local conversationsMode="--optional"
+		case "$checkMember" in
+			client-*)  conversationsMode="--required" ;;
+			partner-*) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: runs only as a client-* or partner-* member: $checkMember" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		DistroAgentsTools --intern-op-check-configs "$checkMember" \
+			"$conversationsMode" "SLACK_CONVERSATIONS:<conversation-id>[,<conversation-id>]..." \
+			--optional "SLACK_USER_TOKEN:<token>" \
+			--optional "EMAIL_IMAP_HOST:<host>" \
+			--optional "EMAIL_USER:<email-address>" \
+			--optional "EMAIL_APP_PASSWORD:<app-password>" \
+			--optional "TRELLO_KEY:<key>" \
+			--optional "TRELLO_TOKEN:<token>" \
+			--expect-secret SLACK_USER_TOKEN \
+			--expect-secret EMAIL_APP_PASSWORD \
+			--expect-secret TRELLO_KEY \
+			--expect-secret TRELLO_TOKEN \
+			--context --client-sweep-config-check
 		return $?
 	;;
 

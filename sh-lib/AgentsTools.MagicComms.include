@@ -72,14 +72,13 @@ case "$1" in
 		if [ -n "$token" ] ; then
 			tokenSource="member-user-token"
 		else
-			## The team's own bot token, read from the team's own scope -- see
-			## AgentsTools.InternOpSlackCall.include's own copy of this fallback
-			## for why it does not live in any single member's settings.
-			token="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN )"
-			tokenSource="shared-bot-token"
+			## Names its own source, so `token_source=` below stays truthful.
+			local botTokenLine=""
+			botTokenLine="$( AgentsToolsResolveSlackBotToken "$memberName" )" || botTokenLine=""
+			read -r tokenSource token <<< "$botTokenLine"
 		fi
 		if [ -z "$token" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: no usable Slack token found (member SLACK_USER_TOKEN or shared SLACK_BOT_TOKEN)" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: no usable Slack token found (member SLACK_USER_TOKEN, member SLACK_BOT_TOKEN, or the team's shared SLACK_BOT_TOKEN)" >&2
 			set +e ; return 1
 		fi
 

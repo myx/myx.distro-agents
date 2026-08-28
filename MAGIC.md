@@ -45,6 +45,11 @@ Team-owned notes for the magic-* team.
 - Closing that gap is a release step. A session does not sync, copy or hand-edit anything under `.local`.
 - Every other piece of state local to this machine — its config, allowlists, caches, settings — is the same case: it reaches no client, so changing it is not a fix and not the work.
 
+## A helper shared by one op family lives in that family's own arm
+
+- `DistroAgentsTools.fn.sh` routes every Slack op through one arm, which defines the helpers those includes share before routing to the right include. File scope would load them for every unrelated op; a separate include cannot work at all, because sourcing an op include dispatches on `$1` and runs an operation as a side effect.
+- The arm is the reorganisation. Reaching for a new file instead is what to catch yourself doing.
+
 ## Comments in scripts
 
 - Internal comment: one short line. Header comment: several lines at most.
@@ -288,10 +293,12 @@ Team-owned notes for the magic-* team.
 - Custom field ids are per workspace and carry no stable meaning: the same "Title" label is a different `Xf…` id in each. Resolve the id from `team.profile.get` for that workspace; never carry one across.
 - `color` and `huddle_state` are Slack-assigned and not settable; they differ between workspaces for the same account and mean nothing. `users.info` standing fields — `is_admin`, `is_owner`, `is_restricted`, `tz` — are the ones that would signal a real difference in the account itself.
 
-## The shared bot token lives in the team's own config scope
+## A member's own bot token, then the team's
 
-- `SLACK_BOT_TOKEN` is read from the `magic-team` scope alone, never from the acting member's own. A member's scope holds `SLACK_USER_TOKEN` and its own per-service keys; the shared bot token is the team's, and the config check treats it separately for that reason.
-- A copy placed in a member's own scope is read by nothing. Each send path then reports its own "no usable Slack token" variant — `no usable Slack token configured for <member>` from the member send op — and that reads as an unconfigured workspace rather than as a key sitting one scope away.
+- `SLACK_BOT_TOKEN` resolves in two steps: the acting member's own scope first, the `magic-team` scope after it. `AgentsToolsResolveSlackBotToken`, defined in the dispatcher's own Slack arm, is the only implementation; every send, scope check and id resolve calls it rather than reading either scope directly.
+- The two keys are different credentials, not one key in two places. A member's own token is that member's bot identity; the team's is the shared fallback for members that hold none. What remains forbidden is the original defect — keeping the *team's* token in some member's scope, which made the whole team's identity a property of one member's config.
+- It prints `<source> <token>`, `member-bot-token` or `shared-bot-token`, so a caller reporting which identity it acted under does not resolve the question twice. `magic-team` itself is never labelled `member-bot-token`: its own scope *is* the shared scope.
+- The `@member:` attribution prefix the send op stamps on an identity swap applies under the shared token only. A member sending under its own bot is already itself on the wire.
 - A member needs no user token to post under its own name. The app declares `chat:write.customize`, which overrides `username` and `icon_url` per message, so a persona can post with its own display name and avatar into any channel the bot is in, without that persona's account being a member of that channel. No operation sends those overrides today. A user token buys what the bot genuinely cannot do — holding presence is the real case — never the name on the message.
 
 ## The `--member-comms-jira-*` family

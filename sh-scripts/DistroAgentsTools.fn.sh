@@ -15,62 +15,6 @@ fi
 : "${MDLT_ORIGIN:=$MMDAPP/.local}"
 export MDLT_ORIGIN
 
-## Resolves alias|<channel>|<channel>:<ts> to CHANNEL= + THREAD_TS=; shared by every op taking a target.
-DistroAgentsToolsResolveTarget(){
-	local target="$1"
-	local channel threadTs
-	case "$target" in
-		event-track|event-track:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_TRACK )"
-			case "$target" in *:*) threadTs="${target#*:}" ;; esac
-		;;
-		event-alert|event-alert:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_ALERT )"
-			case "$target" in *:*) threadTs="${target#*:}" ;; esac
-		;;
-		magic-team|magic-team:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_MAGIC_TEAM )"
-			case "$target" in *:*) threadTs="${target#*:}" ;; esac
-		;;
-		human-owner|human-owner:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_HUMAN_OWNER )"
-			case "$target" in *:*) threadTs="${target#*:}" ;; esac
-		;;
-		*:*)
-			channel="${target%%:*}"
-			threadTs="${target#*:}"
-		;;
-		## Bare uppercase id: a whole conversation, so THREAD_TS stays empty and the send posts at top level.
-		## Must stay after `*:*`, and never a [A-Z] range -- bracket ranges are collation-dependent.
-		?????????*)
-			local bareRest="$target" bareChar bareFirst="true"
-			while [ -n "$bareRest" ] ; do
-				bareChar="${bareRest%"${bareRest#?}"}"
-				bareRest="${bareRest#?}"
-				case "$bareChar" in
-					A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
-					0|1|2|3|4|5|6|7|8|9)
-						[ "$bareFirst" = "false" ] || return 2
-					;;
-					*)
-						return 2
-					;;
-				esac
-				bareFirst="false"
-			done
-			channel="$target"
-		;;
-		*)
-			return 2
-		;;
-	esac
-	if [ -z "$channel" ] ; then
-		return 1
-	fi
-	printf 'CHANNEL=%s\nTHREAD_TS=%s\n' "$channel" "$threadTs"
-	return 0
-}
-
 ## The bare-name gate for the whole family: one path segment of letters, digits, '.', '_', '-'.
 ## Reports and returns 1, never exits. Never a [a-z] range -- bracket ranges are collation-dependent.
 AgentsToolsAssertBareName(){
@@ -167,10 +111,114 @@ DistroAgentsTools(){
 			esac
 		;;
 
-		## These globs are safe only while every --member-comms-<service>-* op lives in its own platform include.
-		## Must stay ahead of the --member-* route below, which would otherwise take every op they match.
-		--member-comms-slack-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlack.include"
+		## EVERY OP THAT NEEDS THE SLACK HELPERS ENTERS HERE, AND ONLY THESE DO.
+		## The two helpers shared by more than one Slack include are defined in the
+		## arm that shares them -- not at file scope, where they would load for
+		## every unrelated op, and not in an include of their own, which an op
+		## include cannot source anyway (sourcing one dispatches on $1).
+		##
+		## Stays ahead of the --member-* route below, which would otherwise take
+		## every --member-comms-* op. The inner case is the real routing.
+		--member-comms-slack-*|--magic-comms-slack-*|--intern-op-slack-*|--intern-op-check-slack-scopes|--intern-op-session-context-scan)
+
+			## Resolves alias|<channel>|<channel>:<ts> to CHANNEL= + THREAD_TS=; shared by every op taking a target.
+			DistroAgentsToolsResolveTarget(){
+				local target="$1"
+				local channel threadTs
+				case "$target" in
+					event-track|event-track:*)
+						channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_TRACK )"
+						case "$target" in *:*) threadTs="${target#*:}" ;; esac
+					;;
+					event-alert|event-alert:*)
+						channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_ALERT )"
+						case "$target" in *:*) threadTs="${target#*:}" ;; esac
+					;;
+					magic-team|magic-team:*)
+						channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_MAGIC_TEAM )"
+						case "$target" in *:*) threadTs="${target#*:}" ;; esac
+					;;
+					human-owner|human-owner:*)
+						channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_HUMAN_OWNER )"
+						case "$target" in *:*) threadTs="${target#*:}" ;; esac
+					;;
+					*:*)
+						channel="${target%%:*}"
+						threadTs="${target#*:}"
+					;;
+					## Bare uppercase id: a whole conversation, so THREAD_TS stays empty and the send posts at top level.
+					## Must stay after `*:*`, and never a [A-Z] range -- bracket ranges are collation-dependent.
+					?????????*)
+						local bareRest="$target" bareChar bareFirst="true"
+						while [ -n "$bareRest" ] ; do
+							bareChar="${bareRest%"${bareRest#?}"}"
+							bareRest="${bareRest#?}"
+							case "$bareChar" in
+								A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+								0|1|2|3|4|5|6|7|8|9)
+									[ "$bareFirst" = "false" ] || return 2
+								;;
+								*)
+									return 2
+								;;
+							esac
+							bareFirst="false"
+						done
+						channel="$target"
+					;;
+					*)
+						return 2
+					;;
+				esac
+				if [ -z "$channel" ] ; then
+					return 1
+				fi
+				printf 'CHANNEL=%s\nTHREAD_TS=%s\n' "$channel" "$threadTs"
+				return 0
+			}
+
+			## The member's own SLACK_BOT_TOKEN when it has one, magic-team's shared token
+			## when it does not. See MAGIC.md.
+			## Prints `<source> <token>`; returns 1 with nothing printed when neither holds one.
+			AgentsToolsResolveSlackBotToken(){
+				local memberName="$1"
+				local resolvedToken=""
+				## magic-team's own scope IS the shared scope -- labelling it `member` would lie.
+				if [ -n "$memberName" ] && [ "$memberName" != "magic-team" ] ; then
+					resolvedToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_BOT_TOKEN 2>/dev/null )" || resolvedToken=""
+					if [ -n "$resolvedToken" ] ; then
+						printf 'member-bot-token %s\n' "$resolvedToken"
+						return 0
+					fi
+				fi
+				resolvedToken="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN 2>/dev/null )" || resolvedToken=""
+				if [ -z "$resolvedToken" ] ; then
+					return 1
+				fi
+				printf 'shared-bot-token %s\n' "$resolvedToken"
+				return 0
+			}
+
+			case "$1" in
+				--member-comms-slack-*)
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlack.include"
+				;;
+				--magic-comms-slack-*)
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
+				;;
+				--intern-op-slack-call)
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSlackCall.include"
+				;;
+				--intern-op-slack-check)
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSlackCheck.include"
+				;;
+				--intern-op-check-slack-scopes)
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpCheckSlackScopes.include"
+				;;
+				--intern-op-session-context-scan)
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSessionContextScan.include"
+				;;
+			esac
 			return $?
 		;;
 
@@ -196,11 +244,6 @@ DistroAgentsTools(){
 
 		--member-comms-jira-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsJira.include"
-			return $?
-		;;
-
-		--magic-comms-slack-resolve-ids)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
 			return $?
 		;;
 
@@ -369,11 +412,6 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--intern-op-session-context-scan)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSessionContextScan.include"
-			return $?
-		;;
-
 		--intern-op-board-trash)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpBoardTrash.include"
 			return $?
@@ -391,21 +429,6 @@ DistroAgentsTools(){
 
 		--intern-op-item-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpItem.include"
-			return $?
-		;;
-
-		--intern-op-slack-call)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSlackCall.include"
-			return $?
-		;;
-
-		--intern-op-slack-check)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSlackCheck.include"
-			return $?
-		;;
-
-		--intern-op-check-slack-scopes)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpCheckSlackScopes.include"
 			return $?
 		;;
 
