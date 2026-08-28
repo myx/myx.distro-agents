@@ -1,0 +1,533 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberCommsSlackProfile.include -- --member-comms-slack-profile-*.
+## Sourced lazily from AgentsTools.MemberCommsSlack.include's own case; relies
+## on being dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism:
+## myx.distro-agents/MAGIC.md.
+##
+## Supported operations:
+##   --member-comms-slack-profile-set    --member-comms-slack-profile-get
+##
+
+## One field emitter for both ops. Own copy rather than the file-info one:
+## that emitter names files.info in its own failure message.
+AgentsToolsCommsSlackProfileEmitField(){
+	local profileEmitKey="$1" profileEmitPath="$2" profileEmitPayload="$3"
+	local profileEmitNewline=$'\n'
+	local profileEmitValue="" profileEmitRc=0
+	profileEmitValue="$( printf '%s\n' "$profileEmitPayload" | LC_ALL=C awk -v path="$profileEmitPath" -v optional=1 -v sentinel=1 \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || profileEmitRc=$?
+	if [ "$profileEmitRc" = "0" ] ; then
+		profileEmitValue="${profileEmitValue%X}"
+	fi
+	case "$profileEmitRc" in
+		0)
+			case "$profileEmitValue" in
+				*"$profileEmitNewline"*)
+					printf '%s_STATE=present-multiline\n' "$profileEmitKey"
+				;;
+				*)
+					printf '%s_STATE=present\n' "$profileEmitKey"
+					printf '%s=%s\n' "$profileEmitKey" "$profileEmitValue"
+				;;
+			esac
+			return 0
+		;;
+		3)
+			printf '%s_STATE=absent\n' "$profileEmitKey"
+			return 0
+		;;
+	esac
+	echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: the field reader could not parse the response body while reading '$profileEmitPath' (rc=$profileEmitRc -- 1: the body is not a parseable Slack API response, 2: no key path was given). Nothing about this facet is known from this call, and the fields printed before this line are NOT a complete set." >&2
+	return 1
+}
+
+## One call site for all four Slack methods these two ops reach. Response on
+## stdout, the op's own diagnostic passed through on stderr.
+AgentsToolsCommsSlackProfileCall(){
+	local profileCallOp="$1" profileCallFacet="$2" profileCallLabel="$3"
+	shift 3
+
+	local profileCallDiagFile=""
+	profileCallDiagFile="$( mktemp )" || { set +e ; return 1 ; }
+	chmod 600 "$profileCallDiagFile"
+	trap 'rm -f "$profileCallDiagFile"' EXIT
+
+	echo "# $MDSC_CMD $profileCallOp: $profileCallLabel" >&2
+	local profileCallResponse="" profileCallRc=0
+	profileCallResponse="$( DistroAgentsTools --intern-op-slack-call "$@" 2>"$profileCallDiagFile" )" || profileCallRc=$?
+
+	local profileCallDiag=""
+	profileCallDiag="$( cat "$profileCallDiagFile" )"
+	rm -f "$profileCallDiagFile"
+	trap - EXIT
+	[ -z "$profileCallDiag" ] || printf '%s\n' "$profileCallDiag" >&2
+
+	if [ "$profileCallRc" != "0" ] ; then
+		local profileCallIdentity=""
+		profileCallIdentity="$( printf '%s\n' "$profileCallDiag" | LC_ALL=C sed -n 's/^ACTING_IDENTITY=//p' | head -1 )"
+		local profileCallIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
+		case "$profileCallIdentity" in
+			bot|user)
+				profileCallIdentityText="the $profileCallIdentity identity"
+			;;
+			not-yet-selected)
+				profileCallIdentityText="no identity at all -- the call failed before one was selected"
+			;;
+		esac
+		echo "⛔ ERROR: $MDSC_CMD $profileCallOp: the '$profileCallFacet' facet did NOT complete under $profileCallIdentityText (see the op's own diagnostic above, which carries Slack's own error code). This facet's state is UNKNOWN from this call, not known-unchanged. Nothing was rolled back and no retry under another identity was attempted; any other facet reported applied really was applied." >&2
+		set +e ; return 1
+	fi
+
+	printf '%s\n' "$profileCallResponse"
+	return 0
+}
+
+case "$1" in
+
+	--member-comms-slack-profile-set)
+		shift
+		if [ "$1" = "--print-required-scopes" ] ; then
+			printf '%s\n' users.profile:read users.profile:write users:read users:write dnd:read dnd:write
+			return 0
+		fi
+		local profileMember="$1"
+		shift || true
+		if [ -z "$profileMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: syntax is <team-member> [--display-name <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end] -- the acting member is required, and it is the account whose own profile is written: this operation has no other way to know whose persona it is setting" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$profileMember" "<team-member>" member-comms-slack-profile-set || { set +e ; return 1 ; }
+		case "$profileMember" in
+			routine-*)
+				## Inverted carve-out: the sibling arms exempt routine-* from the
+				## skill-directory check, this one refuses it outright.
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: a routine-* caller is REFUSED by this operation -- a routine is bot-authored by the one identity rule every Slack op here shares, and it owns no Slack account, so it has no profile, presence or do-not-disturb state to write. Nothing was changed. Name the team-member whose own account should carry this persona instead. Refused here, and with its own message, so the cause is not misreported as a missing user token." >&2
+				set +e ; return 1
+			;;
+			*)
+				if [ ! -d "$HOME/.claude/skills/$profileMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: no such member skill directory: $HOME/.claude/skills/$profileMember" >&2
+					set +e ; return 1
+				fi
+			;;
+		esac
+
+		## A counter, never a test on the values: an empty string is a legitimate
+		## clear for display-name, status-text and status-emoji, so emptiness
+		## cannot stand in for absence anywhere in this arm.
+		local profileFieldCount=0
+		local profileDisplayNameGiven="false" profileDisplayName=""
+		local profileStatusTextGiven="false" profileStatusText=""
+		local profileStatusEmojiGiven="false" profileStatusEmoji=""
+		local profileStatusExpiryGiven="false" profileStatusExpiry=""
+		local profileAvatarGiven="false" profileAvatarPath=""
+		local profilePresence=""
+		local profileSnoozeMode="" profileSnoozeMinutes=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--display-name|--status-text|--status-emoji)
+					## Positional presence, not a non-empty test: `--status-text ""`
+					## is how a status is cleared.
+					if [ $# -lt 2 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: $1: a value is required (pass an empty string to clear the field)" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--display-name)
+							if [ "$profileDisplayNameGiven" = "true" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --display-name is not repeatable -- one value, one field" >&2
+								set +e ; return 1
+							fi
+							profileDisplayNameGiven="true" ; profileDisplayName="$2"
+						;;
+						--status-text)
+							if [ "$profileStatusTextGiven" = "true" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --status-text is not repeatable -- one value, one field" >&2
+								set +e ; return 1
+							fi
+							profileStatusTextGiven="true" ; profileStatusText="$2"
+						;;
+						--status-emoji)
+							if [ "$profileStatusEmojiGiven" = "true" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --status-emoji is not repeatable -- one value, one field" >&2
+								set +e ; return 1
+							fi
+							profileStatusEmojiGiven="true" ; profileStatusEmoji="$2"
+						;;
+					esac
+					profileFieldCount=$(( profileFieldCount + 1 ))
+					shift 2
+				;;
+				--status-expiry)
+					if [ "$profileStatusExpiryGiven" = "true" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --status-expiry is not repeatable -- one value, one field" >&2
+						set +e ; return 1
+					fi
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --status-expiry: value required (epoch seconds, or 0 for no expiry)" >&2
+						set +e ; return 1
+					fi
+					if ! printf '%s\n' "$2" | LC_ALL=C grep -qE '^[0-9][0-9]*$' ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --status-expiry: not epoch seconds: $2" >&2
+						set +e ; return 1
+					fi
+					profileStatusExpiryGiven="true" ; profileStatusExpiry="$2"
+					profileFieldCount=$(( profileFieldCount + 1 ))
+					shift 2
+				;;
+				--presence)
+					if [ -n "$profilePresence" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --presence is not repeatable -- one presence decision" >&2
+						set +e ; return 1
+					fi
+					case "${2:-}" in
+						auto|away)
+							profilePresence="$2"
+						;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --presence must be 'auto' or 'away', got: ${2:-}. Slack's users.setPresence accepts those two values and no others; there is no 'active' to set, because a user reads active only while a client holds a connection." >&2
+							set +e ; return 1
+						;;
+					esac
+					profileFieldCount=$(( profileFieldCount + 1 ))
+					shift 2
+				;;
+				--snooze)
+					if [ -n "$profileSnoozeMode" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --snooze and --snooze-end are mutually exclusive, and neither is repeatable -- one snooze decision, one spelling" >&2
+						set +e ; return 1
+					fi
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --snooze: value required (a positive whole number of minutes)" >&2
+						set +e ; return 1
+					fi
+					if ! printf '%s\n' "$2" | LC_ALL=C grep -qE '^[0-9][0-9]*$' || [ "$2" = "0" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --snooze requires a positive whole number of minutes, got: $2. To end a snooze instead of starting one, pass --snooze-end." >&2
+						set +e ; return 1
+					fi
+					profileSnoozeMode="set" ; profileSnoozeMinutes="$2"
+					profileFieldCount=$(( profileFieldCount + 1 ))
+					shift 2
+				;;
+				--snooze-end)
+					if [ -n "$profileSnoozeMode" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --snooze and --snooze-end are mutually exclusive, and neither is repeatable -- one snooze decision, one spelling" >&2
+						set +e ; return 1
+					fi
+					profileSnoozeMode="end"
+					profileFieldCount=$(( profileFieldCount + 1 ))
+					shift
+				;;
+				--avatar)
+					if [ "$profileAvatarGiven" = "true" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --avatar is not repeatable -- one image, one account" >&2
+						set +e ; return 1
+					fi
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --avatar: value required (a path to an image file). There is no empty value here: Slack has no 'clear the photo' form of this call, so an avatar is replaced, never unset." >&2
+						set +e ; return 1
+					fi
+					## Both checks are HOISTED from the upload call to parse time,
+					## not duplicated: this operation writes four facets, and a path
+					## fault found at call time surfaces only after the profile
+					## fields have already landed.
+					case "$2" in
+						*';'*|*','*)
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --avatar: the path must not contain ';' or ',': $2. Those two characters are not this tool's restriction and not Slack's -- curl's own multipart value syntax reads ';' as the start of part metadata and ',' as a multi-file separator, so such a path is consumed as syntax instead of as a filename and the upload fails at transport as a generic error naming nothing. Refused here, where the cause is still visible. Nothing was changed." >&2
+							set +e ; return 1
+						;;
+					esac
+					if [ ! -f "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --avatar: no such file: $2. Checked at parse time and not left to the upload call: with four facets in this operation, a path that does not resolve would otherwise surface only after the profile fields had already been written, leaving the persona half-configured. Nothing was changed. A directory, or a path that is not a regular file, fails here too." >&2
+						set +e ; return 1
+					fi
+					profileAvatarGiven="true" ; profileAvatarPath="$2"
+					profileFieldCount=$(( profileFieldCount + 1 ))
+					shift 2
+				;;
+				--identity-bot)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --identity-bot is REFUSED by this operation -- users.profile:write, users:write and dnd:write are user-token scopes, and a bot owns no persona whose display name, status, presence or do-not-disturb state this could set: the call would either fail outright or write some other account's state. This is not a permission that could be granted. The flag is rejected rather than accepted-and-ignored on purpose, because acting under the member's own user identity while the caller asked for the bot would be a silent identity substitution. Every other --member-comms-slack-* operation does accept --identity-bot; this one and --member-comms-slack-profile-get are the exceptions. Nothing was changed. Re-run without the flag to act under the member's own user identity." >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		if [ "$profileFieldCount" -eq 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: at least one field is required -- pass one or more of --display-name, --status-text, --status-emoji, --status-expiry, --avatar, --presence, --snooze or --snooze-end. Nothing was changed. An empty string IS a value here: --status-text '' clears the status and counts as a field." >&2
+			set +e ; return 1
+		fi
+
+		## Every field parsed and validated before the first request leaves the
+		## host: with three calls in one operation, a bad value found after
+		## users.profile.set already landed leaves the persona half-written.
+		local profileFieldsJson="" profileEscaped=""
+		if [ "$profileDisplayNameGiven" = "true" ] ; then
+			profileEscaped="$( printf '%s' "$profileDisplayName" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			profileFieldsJson="$profileFieldsJson,\"display_name\":\"$profileEscaped\""
+		fi
+		if [ "$profileStatusTextGiven" = "true" ] ; then
+			profileEscaped="$( printf '%s' "$profileStatusText" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			profileFieldsJson="$profileFieldsJson,\"status_text\":\"$profileEscaped\""
+		fi
+		if [ "$profileStatusEmojiGiven" = "true" ] ; then
+			profileEscaped="$( printf '%s' "$profileStatusEmoji" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			profileFieldsJson="$profileFieldsJson,\"status_emoji\":\"$profileEscaped\""
+		fi
+		if [ "$profileStatusExpiryGiven" = "true" ] ; then
+			profileFieldsJson="$profileFieldsJson,\"status_expiration\":$profileStatusExpiry"
+		fi
+		if [ -n "$profileFieldsJson" ] ; then
+			profileFieldsJson="{\"profile\":{${profileFieldsJson#,}}}"
+		fi
+
+		local profileFailed=0 profileApplied=0
+		local profileResponse="" profileRc=0
+
+		if [ -n "$profileFieldsJson" ] ; then
+			profileRc=0
+			profileResponse="$( AgentsToolsCommsSlackProfileCall --member-comms-slack-profile-set profile \
+				"POST users.profile.set (acting member $profileMember)" \
+				"$profileMember" --api users.profile.set --json-body "$profileFieldsJson" \
+				--identity user --context "--member-comms-slack-profile-set" )" || profileRc=$?
+			printf '%s\n' PROFILE_SET_FACET=profile
+			if [ "$profileRc" = "0" ] ; then
+				printf '%s\n' PROFILE_SET_STATE=applied
+				printf '%s\n' "$profileResponse"
+				profileApplied=$(( profileApplied + 1 ))
+			else
+				printf '%s\n' PROFILE_SET_STATE=failed
+				profileFailed=$(( profileFailed + 1 ))
+			fi
+		else
+			printf '%s\n' PROFILE_SET_FACET=profile
+			printf '%s\n' PROFILE_SET_STATE=not-requested
+		fi
+
+		## Its own call, never folded into the profile facet above: upload wins at
+		## the transport, so a users.setPhoto carrying the profile's --json-body
+		## would discard every profile field and still answer ok:true.
+		if [ "$profileAvatarGiven" = "true" ] ; then
+			profileRc=0
+			profileResponse="$( AgentsToolsCommsSlackProfileCall --member-comms-slack-profile-set avatar \
+				"POST users.setPhoto image=$profileAvatarPath (acting member $profileMember)" \
+				"$profileMember" --api users.setPhoto --upload-file "image=$profileAvatarPath" \
+				--identity user --context "--member-comms-slack-profile-set" )" || profileRc=$?
+			printf '%s\n' PROFILE_SET_FACET=avatar
+			if [ "$profileRc" = "0" ] ; then
+				printf '%s\n' PROFILE_SET_STATE=applied
+				printf '%s\n' "$profileResponse"
+				profileApplied=$(( profileApplied + 1 ))
+			else
+				printf '%s\n' PROFILE_SET_STATE=failed
+				profileFailed=$(( profileFailed + 1 ))
+			fi
+		else
+			printf '%s\n' PROFILE_SET_FACET=avatar
+			printf '%s\n' PROFILE_SET_STATE=not-requested
+		fi
+
+		if [ -n "$profilePresence" ] ; then
+			profileRc=0
+			profileResponse="$( AgentsToolsCommsSlackProfileCall --member-comms-slack-profile-set presence \
+				"POST users.setPresence presence=$profilePresence (acting member $profileMember)" \
+				"$profileMember" --api users.setPresence --form "presence=$profilePresence" \
+				--identity user --context "--member-comms-slack-profile-set" )" || profileRc=$?
+			printf '%s\n' PROFILE_SET_FACET=presence
+			if [ "$profileRc" = "0" ] ; then
+				printf '%s\n' PROFILE_SET_STATE=applied
+				printf '%s\n' "$profileResponse"
+				profileApplied=$(( profileApplied + 1 ))
+			else
+				printf '%s\n' PROFILE_SET_STATE=failed
+				profileFailed=$(( profileFailed + 1 ))
+			fi
+		else
+			printf '%s\n' PROFILE_SET_FACET=presence
+			printf '%s\n' PROFILE_SET_STATE=not-requested
+		fi
+
+		case "$profileSnoozeMode" in
+			set)
+				profileRc=0
+				profileResponse="$( AgentsToolsCommsSlackProfileCall --member-comms-slack-profile-set dnd \
+					"POST dnd.setSnooze num_minutes=$profileSnoozeMinutes (acting member $profileMember)" \
+					"$profileMember" --api dnd.setSnooze --form "num_minutes=$profileSnoozeMinutes" \
+					--identity user --context "--member-comms-slack-profile-set" )" || profileRc=$?
+			;;
+			end)
+				profileRc=0
+				profileResponse="$( AgentsToolsCommsSlackProfileCall --member-comms-slack-profile-set dnd \
+					"POST dnd.endSnooze (acting member $profileMember)" \
+					"$profileMember" --api dnd.endSnooze \
+					--identity user --context "--member-comms-slack-profile-set" )" || profileRc=$?
+			;;
+		esac
+		printf '%s\n' PROFILE_SET_FACET=dnd
+		if [ -z "$profileSnoozeMode" ] ; then
+			printf '%s\n' PROFILE_SET_STATE=not-requested
+		elif [ "$profileRc" = "0" ] ; then
+			printf '%s\n' PROFILE_SET_STATE=applied
+			printf '%s\n' "$profileResponse"
+			profileApplied=$(( profileApplied + 1 ))
+		else
+			printf '%s\n' PROFILE_SET_STATE=failed
+			profileFailed=$(( profileFailed + 1 ))
+		fi
+
+		echo "# $MDSC_CMD --member-comms-slack-profile-set: $profileApplied facet(s) applied, $profileFailed not applied (acting member $profileMember)" >&2
+		if [ "$profileFailed" != "0" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: $profileFailed facet(s) were NOT applied -- read the per-facet PROFILE_SET_STATE lines above. A non-zero exit here never means the whole call failed: the facets reported applied really were applied, nothing was rolled back, and nothing was retried under another identity." >&2
+			set +e ; return 1
+		fi
+		return 0
+	;;
+
+	--member-comms-slack-profile-get)
+		shift
+		if [ "$1" = "--print-required-scopes" ] ; then
+			printf '%s\n' users.profile:read users.profile:write users:read users:write dnd:read dnd:write
+			return 0
+		fi
+		local profileMember="$1"
+		shift || true
+		if [ -z "$profileMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: syntax is <team-member> -- the acting member is required, and it is the account being read: a profile, a presence and a do-not-disturb state each belong to one Slack account" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$profileMember" "<team-member>" member-comms-slack-profile-get || { set +e ; return 1 ; }
+		case "$profileMember" in
+			routine-*)
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: a routine-* caller is REFUSED by this operation -- a routine is bot-authored by the one identity rule every Slack op here shares, and it owns no Slack account, so it has no profile, presence or do-not-disturb state to read. Name the team-member whose own account should be read instead. Refused here, and with its own message, so the cause is not misreported as a missing user token." >&2
+				set +e ; return 1
+			;;
+			*)
+				if [ ! -d "$HOME/.claude/skills/$profileMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: no such member skill directory: $HOME/.claude/skills/$profileMember" >&2
+					set +e ; return 1
+				fi
+			;;
+		esac
+
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--identity-bot)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: --identity-bot is REFUSED by this operation -- users.profile:read, users:read and dnd:read are read here as the ACCOUNT'S OWN state, and a bot has no persona whose profile, presence or do-not-disturb state this could be. The bot would answer for the app, not for the member, which is a different account's answer wearing this member's name. The flag is rejected rather than accepted-and-ignored on purpose, because reading under the member's user identity while the caller asked for the bot would be a silent identity substitution. Every other --member-comms-slack-* operation does accept --identity-bot; this one and --member-comms-slack-profile-set are the exceptions. Re-run without the flag." >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local profileRead=0 profileFailed=0 profileFieldRc=0
+		local profileResponse="" profileRc=0 profileFieldSpec=""
+
+		profileRc=0
+		profileResponse="$( AgentsToolsCommsSlackProfileCall --member-comms-slack-profile-get profile \
+			"GET users.profile.get (acting member $profileMember)" \
+			"$profileMember" --api users.profile.get \
+			--identity user --context "--member-comms-slack-profile-get" )" || profileRc=$?
+		printf '%s\n' PROFILE_GET_FACET=profile
+		if [ "$profileRc" = "0" ] ; then
+			printf '%s\n' PROFILE_GET_STATE=read
+			profileFieldRc=0
+			for profileFieldSpec in \
+				"PROFILE_DISPLAY_NAME profile.display_name" \
+				"PROFILE_REAL_NAME profile.real_name" \
+				"PROFILE_STATUS_TEXT profile.status_text" \
+				"PROFILE_STATUS_EMOJI profile.status_emoji" \
+				"PROFILE_STATUS_EXPIRATION profile.status_expiration" \
+			; do
+				AgentsToolsCommsSlackProfileEmitField $profileFieldSpec "$profileResponse" || { profileFieldRc=$? ; break ; }
+			done
+			if [ "$profileFieldRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: the profile field set above for $profileMember is INCOMPLETE -- a field could not be read out of the users.profile.get response (see the emitter's own error above) and the remaining profile fields were not attempted. Do not treat the lines already printed as a full profile." >&2
+				set +e ; return 1
+			fi
+			profileRead=$(( profileRead + 1 ))
+		else
+			printf '%s\n' PROFILE_GET_STATE=failed
+			profileFailed=$(( profileFailed + 1 ))
+		fi
+
+		profileRc=0
+		profileResponse="$( AgentsToolsCommsSlackProfileCall --member-comms-slack-profile-get presence \
+			"GET users.getPresence (acting member $profileMember)" \
+			"$profileMember" --api users.getPresence \
+			--identity user --context "--member-comms-slack-profile-get" )" || profileRc=$?
+		printf '%s\n' PROFILE_GET_FACET=presence
+		if [ "$profileRc" = "0" ] ; then
+			printf '%s\n' PROFILE_GET_STATE=read
+			profileFieldRc=0
+			for profileFieldSpec in \
+				"PRESENCE presence" \
+				"PRESENCE_AUTO_AWAY auto_away" \
+				"PRESENCE_MANUAL_AWAY manual_away" \
+				"PRESENCE_CONNECTION_COUNT connection_count" \
+			; do
+				AgentsToolsCommsSlackProfileEmitField $profileFieldSpec "$profileResponse" || { profileFieldRc=$? ; break ; }
+			done
+			if [ "$profileFieldRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: the presence field set above for $profileMember is INCOMPLETE -- a field could not be read out of the users.getPresence response (see the emitter's own error above) and the remaining presence fields were not attempted. Do not treat the lines already printed as a full presence report." >&2
+				set +e ; return 1
+			fi
+			profileRead=$(( profileRead + 1 ))
+		else
+			printf '%s\n' PROFILE_GET_STATE=failed
+			profileFailed=$(( profileFailed + 1 ))
+		fi
+
+		profileRc=0
+		profileResponse="$( AgentsToolsCommsSlackProfileCall --member-comms-slack-profile-get dnd \
+			"GET dnd.info (acting member $profileMember)" \
+			"$profileMember" --api dnd.info \
+			--identity user --context "--member-comms-slack-profile-get" )" || profileRc=$?
+		printf '%s\n' PROFILE_GET_FACET=dnd
+		if [ "$profileRc" = "0" ] ; then
+			printf '%s\n' PROFILE_GET_STATE=read
+			profileFieldRc=0
+			for profileFieldSpec in \
+				"DND_ENABLED dnd_enabled" \
+				"DND_NEXT_START_TS next_dnd_start_ts" \
+				"DND_NEXT_END_TS next_dnd_end_ts" \
+				"DND_SNOOZE_ENABLED snooze_enabled" \
+				"DND_SNOOZE_ENDTIME snooze_endtime" \
+			; do
+				AgentsToolsCommsSlackProfileEmitField $profileFieldSpec "$profileResponse" || { profileFieldRc=$? ; break ; }
+			done
+			if [ "$profileFieldRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: the do-not-disturb field set above for $profileMember is INCOMPLETE -- a field could not be read out of the dnd.info response (see the emitter's own error above) and the remaining fields were not attempted. Do not treat the lines already printed as a full do-not-disturb report." >&2
+				set +e ; return 1
+			fi
+			profileRead=$(( profileRead + 1 ))
+		else
+			printf '%s\n' PROFILE_GET_STATE=failed
+			profileFailed=$(( profileFailed + 1 ))
+		fi
+
+		echo "# $MDSC_CMD --member-comms-slack-profile-get: $profileRead of 3 facet(s) read, $profileFailed not read (acting member $profileMember)" >&2
+		if [ "$profileFailed" = "0" ] ; then
+			return 0
+		fi
+		if [ "$profileRead" = "0" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: NONE of the three facets could be read for $profileMember -- each is named with its own reason above. Nothing is known from this call about this account's profile, presence or do-not-disturb state; this is not a report that they are unset." >&2
+			set +e ; return 4
+		fi
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: $profileFailed of 3 facet(s) could NOT be read for $profileMember -- read the per-facet PROFILE_GET_STATE lines above. The facets reported read really were read; the ones reported failed are UNKNOWN, not absent and not unset." >&2
+		set +e ; return 3
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

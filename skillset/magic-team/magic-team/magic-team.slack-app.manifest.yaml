@@ -1,6 +1,6 @@
 display_information:
   name: Magic-Team
-  description: Shared team bot for the magic-* team. One token for every member, read from the magic-team config scope.
+  description: Shared team bot for the Meloscope Magic-Team.
   background_color: "#2b2b2b"
 features:
   bot_user:

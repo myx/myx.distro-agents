@@ -19,6 +19,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] --from-file <path>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-info <team-member> <file-id> [--identity-bot] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-fetch <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-get <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set <team-member> [--display-name <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>
@@ -654,6 +656,83 @@
 			**1**: the fetch did not complete, or it completed and the
 			result was not the file. For every non-zero code the
 			destination is left exactly as it was.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-slack-profile-get <team-member>
+			`<team-member>` is both the acting identity and the account
+			read: a profile, a presence and a do-not-disturb state each
+			belong to one Slack account, so the member is the subject here,
+			not a credential selector. The read-only counterpart to
+			--member-comms-slack-profile-set, so a set can be verified
+			rather than assumed.
+
+			Persona identity only, on the same terms as
+			--member-comms-slack-profile-set: `--identity-bot` is REFUSED
+			rather than accepted-and-ignored, and a `routine-*` name is
+			refused with its own message. A bot would answer for the app
+			rather than for the member, which is a different account's
+			answer wearing this member's name.
+
+			Three facets, one API call each: display name and custom status,
+			presence, and do-not-disturb. Each reports
+			`PROFILE_GET_FACET=profile|presence|dnd` then
+			`PROFILE_GET_STATE=read|failed`, and every read facet's fields
+			follow as line-anchored `KEY=value` with a `KEY_STATE=`
+			companion -- `present`, `absent`, or `present-multiline` for a
+			value carrying a newline, which is reported rather than printed
+			so the `KEY=value` read-back contract still holds.
+
+			Four exit codes. **0**: all three facets read. **3**: some read,
+			the rest named with their own reason. **4**: none read, though
+			the operation itself ran. **1**: failed before any facet was
+			reached. A failed facet is UNKNOWN, never a report that the
+			field is unset.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-slack-profile-set <team-member> [--display-name <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end]
+			`<team-member>` is both the acting identity and the account
+			written: this sets that member's own Slack display name, custom
+			status, presence and do-not-disturb state.
+
+			Persona identity only. It acts under the member's own user token
+			always; `--identity-bot` is REFUSED rather than
+			accepted-and-ignored, and a `routine-*` name is refused with its
+			own message. A bot and a routine own no persona, so there is
+			nothing for either to set, and a member with no user token fails
+			loud rather than silently writing under the shared bot.
+
+			At least one field is required. An empty string is a value here,
+			not an absence: `--status-text ''` clears the status and counts
+			as a field, and so do empty `--display-name` and
+			`--status-emoji`. Those three therefore accept an empty value;
+			`--status-expiry` (epoch seconds, 0 for no expiry), `--avatar`
+			(a path), `--presence` (`auto` or `away`, the only two values
+			Slack has) and `--snooze` (a positive whole number of minutes)
+			do not. `--snooze` and `--snooze-end` are mutually exclusive,
+			and no field flag is repeatable.
+
+			`--avatar <path>` replaces the account's photo. Slack has no
+			"clear the photo" call, so a photo is replaced and never unset.
+			The path is checked at parse time: it must exist and be a
+			regular file, and it must contain neither `;` nor `,`, which
+			multipart value syntax reads as part metadata and as a
+			multi-file separator rather than as part of a filename. Both
+			checks run before any request leaves the host, because a path
+			fault found later would surface only after the profile fields
+			had already been written. The filename itself goes on the wire.
+
+			Up to four API calls, one per facet, reported as
+			`PROFILE_SET_FACET=profile|avatar|presence|dnd` followed by
+			`PROFILE_SET_STATE=applied|failed|not-requested` and the raw
+			response for each applied facet. The photo is always its own
+			call, never folded into the profile write. A failed facet is
+			UNKNOWN, not known-unchanged. Nothing is rolled back and nothing
+			is retried under another identity. **0** when every requested
+			facet applied, **1** when any did not -- and a non-zero exit
+			here never means the whole call failed: the facets reported
+			applied really were applied.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

@@ -19,6 +19,8 @@
 ##     [--target-kind channel|dm]
 ##     [--form <name>=<value>]...
 ##     [--json-body <json>]
+##     [--upload-file <name>=<path>]   multipart; the part carries a file. Not
+##                                     combinable with --json-body or --fetch-url.
 ##     [--resolve-dm <user-id>]
 ##     [--resolve-target <user-id|conversation-id>]
 ##     [--expect-counterparty <user-id>]
@@ -297,7 +299,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local apiMethod="" identityOverride="" jsonBody="" resolveDmUser="" targetKind=""
+		local apiMethod="" identityOverride="" jsonBody="" uploadFile="" resolveDmUser="" targetKind=""
 		local resolveTarget="" expectCounterparty="" targetClass=""
 		## RAW AUTHENTICATED GET mode -- see this file's own FETCH MODE header
 		## block for why it lives in this op rather than in the calling arm.
@@ -380,6 +382,29 @@ case "$1" in
 						set +e ; return 1
 					fi
 					jsonBody="$2" ; shift 2
+				;;
+				## Multipart upload: the one shape neither urlencoded GET nor JSON
+				## POST can carry, because the payload is a file part.
+				--upload-file)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --upload-file: value required (<name>=<path>)" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					case "$2" in
+						*=*) ;;
+						*)
+							echo "$MDSC_CMD: slack-call: ⛔ ERROR: --upload-file: value must be <name>=<path>, got '$2'" >&2
+							AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+							set +e ; return 1
+						;;
+					esac
+					if [ ! -f "${2#*=}" ] ; then
+						echo "$MDSC_CMD: slack-call: ⛔ ERROR: --upload-file: no such file: ${2#*=}" >&2
+						AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+						set +e ; return 1
+					fi
+					uploadFile="$2" ; shift 2
 				;;
 				--resolve-dm)
 					if [ -z "${2:-}" ] ; then
@@ -501,6 +526,7 @@ case "$1" in
 			local fetchConflict=""
 			if [ "${#formArgs[@]}" -gt 0 ] ; then fetchConflict="--form" ; fi
 			if [ -n "$jsonBody" ]           ; then fetchConflict="--json-body" ; fi
+			if [ -n "$uploadFile" ]         ; then fetchConflict="--upload-file" ; fi
 			if [ -n "$resolveDmUser" ]      ; then fetchConflict="--resolve-dm" ; fi
 			if [ -n "$resolveTarget" ]      ; then fetchConflict="--resolve-target" ; fi
 			if [ -n "$expectCounterparty" ] ; then fetchConflict="--expect-counterparty" ; fi
@@ -543,6 +569,14 @@ case "$1" in
 			fi
 			if [ ${#formArgs[@]} -gt 0 ] ; then
 				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --form cannot be combined with --json-body -- form fields are not merged into a JSON body and would be silently dropped. Use one or the other." >&2
+				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+				set +e ; return 1
+			fi
+			## Upload is tested first at the transport, so pairing the two would
+			## send the multipart body and silently discard the JSON body --
+			## the same silent-degrade shape the arms above refuse.
+			if [ -n "$uploadFile" ] ; then
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --upload-file cannot be combined with --json-body -- a multipart upload and a JSON body are two different request bodies and only the upload would be sent, dropping the JSON silently. Use one or the other." >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
@@ -987,7 +1021,19 @@ case "$1" in
 				break
 			fi
 
-			if [ -n "$jsonBody" ] ; then
+			if [ -n "$uploadFile" ] ; then
+				## curl sets the multipart Content-Type and boundary itself; do not
+				## supply one, or the boundary will not match the body it writes.
+				local uploadArgs=( -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/$apiMethod" -H @"$headerFile" ) uploadPair
+				uploadArgs+=( --form "${uploadFile%%=*}=@${uploadFile#*=}" )
+				for uploadPair in "${formArgs[@]}" ; do
+					uploadArgs+=( --form "$uploadPair" )
+				done
+				response="$( curl "${uploadArgs[@]}" 2>&1 )" || {
+					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
+					break
+				}
+			elif [ -n "$jsonBody" ] ; then
 				response="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/$apiMethod" \
 					-H @"$headerFile" \
 					-H "Content-type: application/json" \
