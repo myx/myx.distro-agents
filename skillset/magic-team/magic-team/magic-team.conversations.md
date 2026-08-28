@@ -93,6 +93,12 @@ This file's own content is binding and obligatory on every team member who reads
    channel is correct and reaches nobody it was for. The destination is the audience, not where the work
    is tracked and not where the team happens to talk.
 
+1g. **Answer the question that was asked, first.**
+   The actual interrogative is answered before anything else. A question about whether something is
+   checkable is answered by checking it. A distinction that genuinely changes what someone would do
+   belongs after that answer, briefly — volunteering it is right, leading with it is not. The tell is an
+   opening of the shape "X, no — but Y", where the ruling is on a question nobody asked.
+
 2. **React at each stage — required, not optional.**
    The moment a message is read, react with a `seen`-class emoji (e.g. 👀); when work on it genuinely starts, add a `started`-class reaction; when it's resolved, add a `done`/`noted`-class reaction. Additive stage semantics (seen → started → done/noted) — a later stage's reaction doesn't remove an earlier one. React AND reply — a reaction never replaces an owed reply, and a reply never exempts you from reacting.
 
@@ -242,6 +248,22 @@ This file's own content is binding and obligatory on every team member who reads
    `NO` to a literal confirmation question means "not confirmed as exactly asked" — a distinct state from
    rejecting the underlying content. Clarification or addition typically follows and refines toward what's
    actually correct; treat it that way rather than discarding what was proposed.
+
+6b. **A repeated message, or a correction that the last answer was itself inadequate, is the trigger to ask
+   via `AskUserQuestion`, not to wait, guess, or apologize past it.** The same (or near-identical) message
+   arriving again from the human-owner means the prior answer didn't land — never a possible delivery
+   glitch to wait out or let pass unanswered; answer it again, substantively, every time. The same holds
+   when a reply is named inadequate rather than simply wrong: the fix is not another attempt in the same
+   shape, and not an apology that commits to trying harder without naming what was actually missed. The
+   moment either happens and the real point of confusion isn't yet clear, stop producing variations of the
+   same answer and use `AskUserQuestion` (or the channel's structured-clarification equivalent) to ask
+   directly what was missed.
+   verbatim-intent: `repetition and corrected-inadequate answers are live confusion to resolve, never
+   glitches to wait out or apologize past`.
+   verbatim-benchmark: `the same message arrives a second time in a row — the reply never offers to wait
+   and see if it stops resending; it answers again, and if the point of confusion still isn't clear, asks
+   via AskUserQuestion what was missed rather than repeating the same answer or apologizing without naming
+   the gap`.
 
 ### Mode and pacing
 

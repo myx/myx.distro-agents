@@ -17,8 +17,7 @@ Safe to share with anyone, including unverified/external sources — no verifica
   frontend, documentation, and more — working together under `magic-coordinator`'s lead to keep real
   projects moving.
 - **Name**: **The Conclave** is the team's name — what it is called when spoken about, and what an
-  outsider reads. `magic-team` is the identifier: skill folder, config scope, member id, channel and
-  bot handle. Both are correct, in their own registers, and neither is ever corrected into the other.
+  outsider reads. `magic-team` is its identifier.
 - **Mark**: `the-conclave.mark.png`, beside this file — separate segments held in a ring around a
   shared centre they have convened on. It names how the team works, which is why it belongs to the
   team rather than to any one member. Magic Vane's own avatar is a member's, never the group's.

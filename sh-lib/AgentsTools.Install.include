@@ -666,6 +666,199 @@ case "$1" in
 		return 0
 	;;
 
+	--install-workspace-restrictions)
+		shift
+
+		local workspaceArg
+		while [ "$#" -gt 0 ] ; do
+			case "$1" in
+				--workspace)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: --workspace requires a value" >&2
+						set +e ; return 1
+					fi
+					workspaceArg="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local workspace="${workspaceArg:-$MMDAPP}"
+		if [ ! -d "$workspace" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: workspace not found: $workspace" >&2
+			set +e ; return 1
+		fi
+		workspace="$( cd "$workspace" && pwd )"
+
+		local claudeDir="$workspace/.claude"
+		local hooksDir="$claudeDir/hooks"
+		mkdir -p "$hooksDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: cannot create $hooksDir" >&2
+			set +e ; return 1
+		}
+
+		local settingsFile="$claudeDir/settings.json"
+		if [ ! -f "$settingsFile" ] ; then
+			printf '{}\n' > "$settingsFile" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: cannot create $settingsFile" >&2
+				set +e ; return 1
+			}
+		fi
+
+		## Two hook scripts, kept separate from each other and from the
+		## already hand-verified protect-memory-md.sh (Edit/Write on
+		## MEMORY.md, untouched by this op): the plain permissions.deny
+		## array cannot carry a custom denial reason (only a PreToolUse
+		## hook's permissionDecisionReason can), so every one of these
+		## restrictions needs hook logic, not a deny-array entry alone.
+		## Regenerated every run (tmp+cmp+mv, like the mcp.json upserts
+		## above) so drift is corrected but a no-op run touches nothing.
+		local hooksFailed=0
+
+		local readHookFile="$hooksDir/deny-memory-md-read.sh"
+		local readHookTmp
+		readHookTmp="$( mktemp "$readHookFile.XXXXXX" )" || { hooksFailed=1 ; }
+		if [ -n "$readHookTmp" ] ; then
+			cat > "$readHookTmp" <<'HOOKEOF'
+#!/bin/bash
+# Denies Read on the memory-system's MEMORY.md index file, with a reason,
+# since the plain permissions.deny array cannot carry a custom denial
+# message. Sibling to protect-memory-md.sh (Edit/Write) -- kept as its own
+# file rather than merged into it, so that already-verified script is never
+# touched by an unrelated change.
+INPUT=$(cat)
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+
+if [[ "$FILE_PATH" == */.claude/projects/*/memory/MEMORY.md ]]; then
+	echo '{
+		"hookSpecificOutput": {
+			"hookEventName": "PreToolUse",
+			"permissionDecision": "deny",
+			"permissionDecisionReason": "read workspace, repository and project MAGIC.md"
+		}
+	}'
+	exit 0
+fi
+
+exit 0
+HOOKEOF
+			if [ "$?" != "0" ] || ! chmod 0755 "$readHookTmp" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not write $readHookFile" >&2
+				rm -f "$readHookTmp"
+				hooksFailed=1
+			elif cmp -s "$readHookTmp" "$readHookFile" 2>/dev/null ; then
+				rm -f "$readHookTmp"
+			elif ! mv -f "$readHookTmp" "$readHookFile" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $readHookFile" >&2
+				rm -f "$readHookTmp"
+				hooksFailed=1
+			fi
+		else
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: mktemp failed beside $readHookFile" >&2
+		fi
+
+		local bashHookFile="$hooksDir/deny-bash-tool.sh"
+		local bashHookTmp
+		bashHookTmp="$( mktemp "$bashHookFile.XXXXXX" )" || { hooksFailed=1 ; }
+		if [ -n "$bashHookTmp" ] ; then
+			cat > "$bashHookTmp" <<'HOOKEOF'
+#!/bin/bash
+# Denies all Bash tool usage wholesale -- git, rm, mv, python3, every command
+# -- with a reason, since the plain permissions.deny array cannot carry a
+# custom denial message. Workspace-wide: no file-path scoping, every Bash
+# call is denied regardless of what it would run.
+cat >/dev/null
+echo '{
+	"hookSpecificOutput": {
+		"hookEventName": "PreToolUse",
+		"permissionDecision": "deny",
+		"permissionDecisionReason": "always use MCP TOOLING to properly execute shell commands"
+	}
+}'
+exit 0
+HOOKEOF
+			if [ "$?" != "0" ] || ! chmod 0755 "$bashHookTmp" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not write $bashHookFile" >&2
+				rm -f "$bashHookTmp"
+				hooksFailed=1
+			elif cmp -s "$bashHookTmp" "$bashHookFile" 2>/dev/null ; then
+				rm -f "$bashHookTmp"
+			elif ! mv -f "$bashHookTmp" "$bashHookFile" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $bashHookFile" >&2
+				rm -f "$bashHookTmp"
+				hooksFailed=1
+			fi
+		else
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: mktemp failed beside $bashHookFile" >&2
+		fi
+
+		if [ "$hooksFailed" != "0" ] ; then
+			set +e ; return 1
+		fi
+
+		## permissions.deny: bare "Bash" denies the whole tool (same shape as
+		## --install-claude-permissions' own bare "mcp__claude_ai_Slack"
+		## entry), which already fully covers every command run through
+		## Bash -- python3, rm, mv, everything -- since none of them are
+		## reachable any other way. The three scoped patterns underneath are
+		## deliberate defense-in-depth, not required for the block to hold
+		## today: if the wholesale "Bash" entry (or the PreToolUse hook
+		## above) is ever loosened or removed later, these narrower
+		## patterns keep python3/rm/mv denied on their own. "Bash(rm *)"
+		## and "Bash(mv *)" mirror this same workspace's own
+		## $HOME/.claude/settings.json global deny-array pattern shape
+		## (space before the wildcard); that global entry has no custom
+		## reason and denies user-scope only, so it does not substitute for
+		## either the workspace-scoped entry here or the reason-bearing
+		## hook above.
+		local denyAddJson='["Bash", "Bash(mv *)", "Bash(python3*)", "Bash(rm *)"]'
+
+		local hooksDescFile
+		hooksDescFile="$( mktemp "${TMPDIR:-/tmp}/agents-ws-restrictions-hooks.XXXXXX" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: mktemp failed" >&2
+			set +e ; return 1
+		}
+		{
+			printf '%s\t%s\n' ".claude/hooks/deny-memory-md-read.sh" '{"matcher": "Read", "hooks": [{"type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/deny-memory-md-read.sh"}]}'
+			printf '%s\t%s\n' ".claude/hooks/deny-bash-tool.sh" '{"matcher": "Bash", "hooks": [{"type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/deny-bash-tool.sh"}]}'
+		} > "$hooksDescFile"
+
+		local settingsTmp
+		settingsTmp="$( mktemp "$settingsFile.XXXXXX" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: mktemp failed beside $settingsFile" >&2
+			rm -f "$hooksDescFile"
+			set +e ; return 1
+		}
+
+		if ! MYX_WSRESTRICT_DENY_ADD_JSON="$denyAddJson" \
+			MYX_WSRESTRICT_HOOKS_FILE="$hooksDescFile" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeWorkspaceRestrictionsUpsert.awk" \
+			"$settingsFile" > "$settingsTmp" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: settings merge failed, $settingsFile left untouched" >&2
+			rm -f "$settingsTmp" "$hooksDescFile"
+			set +e ; return 1
+		fi
+		rm -f "$hooksDescFile"
+
+		if cmp -s "$settingsTmp" "$settingsFile" ; then
+			rm -f "$settingsTmp"
+			echo "✅ workspace restrictions already current: $settingsFile" >&2
+			return 0
+		fi
+
+		if ! chmod 0644 "$settingsTmp" || ! mv -f "$settingsTmp" "$settingsFile" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $settingsFile" >&2
+			rm -f "$settingsTmp"
+			set +e ; return 1
+		fi
+
+		echo "✅ workspace restrictions installed: $settingsFile" >&2
+		return 0
+	;;
+
 	--install-workspace-integrations)
 		shift
 

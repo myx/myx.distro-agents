@@ -36,6 +36,17 @@ Any member writing or editing code — in any language, including a shell script
 - The team bot and a member's own IM account are two separate conversations with the human-owner. A member with no account of its own reaches the human-owner in the bot's conversation.
 - Identity defaults to the member's own where it exists, the team bot otherwise; `--identity-bot` is the only modifier, and it selects the bot's conversation on reads, checks and reactions as well as sends — that is how a member with its own account works in the bot's conversation. There is no opposite flag. One exception: message search runs under the member's own identity only and refuses `--identity-bot` outright.
 
+## Identifier and identity
+
+A member, or the team, may carry two names. Neither is ever corrected into the other.
+
+- **The identifier** — skill folder, config scope, member id, channel, bot handle, `project.inf` declares, symlink registry, board data. Mechanical, lowercase, load-bearing in paths, and it does not change.
+- **The identity** — what it is called when spoken about, what an outsider reads, what its mark stands for.
+
+Both are correct at once, in their own registers. A reader who finds two names for one thing reads this before deciding either is wrong, and a change to one is never a reason to change the other.
+
+The team's own identifier is `magic-team` and its identity is The Conclave. A member's persona sits below both and belongs to that member, never to the group.
+
 ## Folder shape — the typed-suffix scheme
 
 File set:

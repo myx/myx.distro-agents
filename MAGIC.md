@@ -12,7 +12,7 @@ Team-owned notes for the magic-* team.
 
 - Single-dispatcher convention, shared with every sibling `Distro*Tools`/`Distro*Command` script: exactly one top-level function, one `case "$1" in ... esac`. New operations go inline in that `case`.
 - Never a separate `DistroAgentsTools<OpName>` function per operation. Such a function tends to call `DistroAgentsTools` assuming it exists as a sibling, which holds only because the file happens to define it — not because the pattern is sound.
-- Inline the logic in the operation's own `case` arm, especially for single-liners. The few existing helpers (`DistroAgentsToolsResolveTarget`, `DistroAgentsToolsPermOf`) are established precedent, not licence to add more.
+- Inline the logic in the operation's own `case` arm, especially for single-liners. A helper shared by several arms of one family goes in that family's own arm, not at file scope — see below. `AgentsToolsAssertBareName` is at file scope because it is genuinely general; that is the bar, and it is not licence to add more.
 
 ## Operation contracts worth knowing before calling
 
@@ -298,6 +298,7 @@ Team-owned notes for the magic-* team.
 - `SLACK_BOT_TOKEN` resolves in two steps: the acting member's own scope first, the `magic-team` scope after it. `AgentsToolsResolveSlackBotToken`, defined in the dispatcher's own Slack arm, is the only implementation; every send, scope check and id resolve calls it rather than reading either scope directly.
 - The two keys are different credentials, not one key in two places. A member's own token is that member's bot identity; the team's is the shared fallback for members that hold none. What remains forbidden is the original defect — keeping the *team's* token in some member's scope, which made the whole team's identity a property of one member's config.
 - It prints `<source> <token>`, `member-bot-token` or `shared-bot-token`, so a caller reporting which identity it acted under does not resolve the question twice. `magic-team` itself is never labelled `member-bot-token`: its own scope *is* the shared scope.
+- `magic-team` here is an identifier, not a name. It is load-bearing in the scope key, the channel and the bot handle, and it does not follow the team's identity — read `magic-team/magic-team.shared.md`'s own "Identifier and identity" before renaming either.
 - The `@member:` attribution prefix the send op stamps on an identity swap applies under the shared token only. A member sending under its own bot is already itself on the wire.
 - A member needs no user token to post under its own name. The app declares `chat:write.customize`, which overrides `username` and `icon_url` per message, so a persona can post with its own display name and avatar into any channel the bot is in, without that persona's account being a member of that channel. No operation sends those overrides today. A user token buys what the bot genuinely cannot do — holding presence is the real case — never the name on the message.
 

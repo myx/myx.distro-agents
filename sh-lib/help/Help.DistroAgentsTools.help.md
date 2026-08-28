@@ -53,6 +53,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-current
 📘 syntax: DistroAgentsTools.fn.sh --install-claude-permissions
+📘 syntax: DistroAgentsTools.fn.sh --install-workspace-restrictions [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
@@ -1531,6 +1532,58 @@
 			configured) or the merge itself fails. A run that changes
 			nothing (already current) is reported as such, not silently
 			treated the same as a write.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--install-workspace-restrictions [--workspace <path>]
+			Installs Claude Code WORKSPACE-level permission restrictions --
+			deny rules plus `PreToolUse` hooks -- into a target workspace's
+			own `.claude/settings.json`, so a future session in that
+			workspace cannot bypass these rules just by not remembering a
+			CLAUDE.md instruction. Distinct from `--install-claude-permissions`
+			above: that op is `$HOME`-scoped and merges the team's own
+			mandatory grants; this one is workspace-scoped and merges a
+			fixed set of deny restrictions -- the two touch different files
+			and neither substitutes for the other.
+			Default target workspace is the current shell directory;
+			optional `--workspace <path>` overrides it. Creates
+			`<workspace>/.claude/` and `<workspace>/.claude/hooks/` if
+			missing, and creates `<workspace>/.claude/settings.json` as `{}`
+			if it does not already exist -- never overwrites an existing
+			one, only merges into it (awk, the same structural walker
+			`AgentsClaudeSettingsPermissionsUpsert.awk`/
+			`AgentsMcpServerJsonUpsert.awk` use; no jq dependency): every
+			entry already present that this op did not itself add is kept,
+			at both the JSON level and the file level.
+			Writes two hook scripts into `<workspace>/.claude/hooks/`
+			(mode 0755, regenerated idempotently every run --
+			tmp+`cmp`+`mv`, a no-op run touches nothing):
+			`deny-memory-md-read.sh` (denies `Read` on the memory-system's
+			`MEMORY.md` index file, any workspace/project, with reason
+			"read workspace, repository and project MAGIC.md") and
+			`deny-bash-tool.sh` (denies every `Bash` tool call outright,
+			with reason "always use MCP TOOLING to properly execute shell
+			commands" -- this also fully covers `python3`/`rm`/`mv`/
+			anything else run through Bash, since nothing reaches a shell
+			any other way). Neither writes nor touches
+			`protect-memory-md.sh` (the already-verified `Edit`/`Write`
+			MEMORY.md guard) -- that hook, and its own `hooks.PreToolUse`
+			entry, are left exactly as found.
+			Wires both new scripts into `hooks.PreToolUse` (matcher `Read`
+			and matcher `Bash` respectively) and adds
+			`"Bash"`, `"Bash(mv *)"`, `"Bash(python3*)"`, `"Bash(rm *)"` to
+			`permissions.deny`. The bare `"Bash"` entry (same shape as
+			`--install-claude-permissions`' own bare `"mcp__claude_ai_Slack"`
+			entry) already denies the whole tool on its own, so the three
+			scoped patterns are defense-in-depth, not load-bearing today --
+			they keep `python3`/`rm`/`mv` denied on their own if the
+			wholesale `"Bash"` entry or the hook above is ever loosened
+			later. `MEMORY.md` `Edit`/`Write`/`Read` denial relies on the
+			hooks alone (for the custom reason each needs); no
+			`permissions.deny` entry is added for either, since a hook's
+			`permissionDecision: deny` already blocks the call without one.
+			A run that changes nothing (already current) is reported as
+			such, not silently treated the same as a write.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
