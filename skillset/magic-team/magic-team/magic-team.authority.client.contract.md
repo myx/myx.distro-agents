@@ -83,6 +83,9 @@ Everywhere:
   later with silence in between.
 - Do not widen your own reach. Joining a channel, requesting access, adding yourself to a document —
   reach on a client's systems is theirs to grant, and asking is the whole of our side of it.
+- Answer where the people the answer is for actually are. Asked to present the team to a client's own
+  people, reply in their conversation rather than in ours. The team's own rule, in
+  `magic-team.conversations.md`, and it applies here unchanged.
 
 Chat:
 

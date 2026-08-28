@@ -101,6 +101,10 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-info <tea
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-read <team-member> <sheet-id> <a1-range> [--unformatted]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-write <team-member> <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-whoami <team-member>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-search <team-member> <jql> [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-whoami <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] --from-file <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] --from-stdin" >&2

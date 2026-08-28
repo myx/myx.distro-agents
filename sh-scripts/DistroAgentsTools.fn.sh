@@ -194,6 +194,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--member-comms-jira-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsJira.include"
+			return $?
+		;;
+
 		--magic-comms-slack-resolve-ids)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
 			return $?

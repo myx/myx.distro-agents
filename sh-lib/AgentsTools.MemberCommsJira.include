@@ -1,0 +1,233 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberCommsJira.include -- the raw per-member Jira Cloud comms
+## operations (identity, JQL search, issue read, comment read). READ SIDE ONLY:
+## nothing here creates or edits an issue, a comment or a field.
+##
+## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced for
+## $1/$@/$MDSC_CMD, and reached by the --member-comms-jira-* glob, which is
+## correct only while every op of that name lives here.
+##
+## Supported operations:
+##   --member-comms-jira-whoami        --member-comms-jira-issue-read
+##   --member-comms-jira-issue-search  --member-comms-jira-comment-read
+##
+
+## Assigns into the CALLER's already-declared locals: jiraSite jiraUser jiraToken
+AgentsToolsJiraResolveMember() {
+	local opName="$1"
+	local memberName="$2"
+
+	AgentsToolsAssertBareName "$memberName" "<team-member>" "$opName" || return 1
+	case "$memberName" in
+		routine-*)
+			## A routine acting as caller has no skill directory and is not expected to grow one.
+		;;
+		*)
+			if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --$opName: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+				return 1
+			fi
+		;;
+	esac
+
+	## Strictly the acting member's own scope, no fallback: an Atlassian API token
+	## IS an identity, and acting under the wrong one raises no error at all.
+	jiraSite="$( DistroAgentsTools --agents-config-option "$memberName" --select JIRA_SITE )"
+	jiraUser="$( DistroAgentsTools --agents-config-option "$memberName" --select JIRA_USER )"
+	jiraToken="$( DistroAgentsTools --agents-config-option "$memberName" --select JIRA_API_TOKEN )"
+	if [ -z "$jiraSite" ] || [ -z "$jiraUser" ] || [ -z "$jiraToken" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --$opName: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN not fully set in ${memberName}'s own scope in .local/.agents. Jira keeps its own key set even where one Atlassian token also serves Confluence, so a CONFLUENCE_* value is never read here" >&2
+		return 1
+	fi
+
+	## An embedded newline means the stored config is corrupted, and it is refused
+	## rather than stripped: the resulting 401 reads as a revoked credential.
+	local jiraNewline=$'\n'
+	case "$jiraSite$jiraUser$jiraToken" in
+		*"$jiraNewline"*)
+			echo "⛔ ERROR: $MDSC_CMD --$opName: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- none of them ever legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting 401 would be misread as a revoked credential" >&2
+			return 1
+		;;
+	esac
+	return 0
+}
+
+## One invocation of the Jira worker, credentials passed ONLY through the
+## environment -- never argv, never a file.
+AgentsToolsJiraCall() {
+	AGENTS_JIRA_SITE="$jiraSite" \
+	AGENTS_JIRA_USER="$jiraUser" \
+	AGENTS_JIRA_API_TOKEN="$jiraToken" \
+	AGENTS_JIRA_OP="$1" \
+	AGENTS_JIRA_ISSUE_KEY="${jiraIssueKey:-}" \
+	AGENTS_JIRA_JQL="${jiraJql:-}" \
+	AGENTS_JIRA_LIMIT="${jiraLimit:-}" \
+	AGENTS_JIRA_FORMAT="${jiraFormat:-}" \
+	python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsJiraApiCall.py"
+}
+
+case "$1" in
+
+		## Which Atlassian account this member's credential resolves to. First thing
+		## to run after a token is filed: a wrong one produces no error, only
+		## somebody else's name on the work.
+		--member-comms-jira-whoami)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-whoami: syntax is <team-member> -- the acting member is required, since an API token resolves to exactly one Atlassian account and this operation exists to say which one" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-whoami: takes exactly one argument" >&2
+				set +e ; return 1
+			fi
+			local jiraSite jiraUser jiraToken
+			AgentsToolsJiraResolveMember member-comms-jira-whoami "$memberName" || { set +e ; return 1 ; }
+			local jiraRc=0
+			AgentsToolsJiraCall whoami || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-whoami: COULD NOT DETERMINE which Atlassian account ${memberName}'s credential resolves to (worker rc=$jiraRc) -- the acting identity is UNKNOWN, which is NOT the same as anonymous; the worker's own diagnostic is above" >&2
+				set +e ; return "$jiraRc"
+			fi
+			return 0
+		;;
+
+		## JQL search -- the discovery entry point, since the issue ops need a key.
+		## The JQL is passed through as given, the way the Confluence family passes
+		## CQL: it is the documented surface a caller writes, and it has no single
+		## safe general wrapping.
+		--member-comms-jira-issue-search)
+			shift
+			local memberName="$1"
+			shift || true
+			local jiraJql="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$jiraJql" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-search: syntax is <team-member> <jql> [--limit <n>] -- the acting member is required, since a search returns only what that identity can see. Jira refuses an unrestricted query, so the JQL names at least one restriction: project = DATA ORDER BY updated DESC" >&2
+				set +e ; return 1
+			fi
+			local jiraLimit=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--limit)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-search: --limit requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraLimit="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-search: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			local jiraSite jiraUser jiraToken
+			AgentsToolsJiraResolveMember member-comms-jira-issue-search "$memberName" || { set +e ; return 1 ; }
+			local jiraRc=0
+			AgentsToolsJiraCall issue-search || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-search: COULD NOT SEARCH as $memberName (worker rc=$jiraRc) -- the result set is UNKNOWN, not empty; nothing is known from this call about whether any issue matches. The worker's own diagnostic is above" >&2
+				set +e ; return "$jiraRc"
+			fi
+			return 0
+		;;
+
+		## One issue's description to stdout, its metadata to stderr.
+		##
+		## FORMAT IS `adf` BY DEFAULT. ADF is the document Jira accepts back on a
+		## write, so read -> edit -> write stays possible once the write side
+		## exists; `rendered` is Jira's own HTML for a human reader and cannot be
+		## written back.
+		--member-comms-jira-issue-read)
+			shift
+			local memberName="$1"
+			shift || true
+			local jiraIssueKey="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$jiraIssueKey" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-read: syntax is <team-member> <issue-key> [--format adf|rendered] -- the acting member is required, since an issue is readable only by identities its project is shared with" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$jiraIssueKey" "<issue-key>" member-comms-jira-issue-read || { set +e ; return 1 ; }
+			local jiraFormat=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--format)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-read: --format requires a value: adf or rendered" >&2
+							set +e ; return 1
+						fi
+						jiraFormat="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-read: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			local jiraSite jiraUser jiraToken
+			AgentsToolsJiraResolveMember member-comms-jira-issue-read "$memberName" || { set +e ; return 1 ; }
+			local jiraRc=0
+			AgentsToolsJiraCall issue-read || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-read: COULD NOT READ issue $jiraIssueKey as $memberName (worker rc=$jiraRc) -- the content is UNKNOWN, not empty. Note a 404 from Jira does NOT establish that the issue is absent: it returns 404 both for a missing issue and for one this account cannot see. The worker's own diagnostic is above" >&2
+				set +e ; return "$jiraRc"
+			fi
+			return 0
+		;;
+
+		## One issue's comments, as TSV with its own header row. Same --format
+		## meaning as issue-read, applied to each comment body.
+		--member-comms-jira-comment-read)
+			shift
+			local memberName="$1"
+			shift || true
+			local jiraIssueKey="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$jiraIssueKey" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-read: syntax is <team-member> <issue-key> [--format adf|rendered] -- the acting member is required, since comments are visible only to identities the issue is shared with" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$jiraIssueKey" "<issue-key>" member-comms-jira-comment-read || { set +e ; return 1 ; }
+			local jiraFormat=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--format)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-read: --format requires a value: adf or rendered" >&2
+							set +e ; return 1
+						fi
+						jiraFormat="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-read: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			local jiraSite jiraUser jiraToken
+			AgentsToolsJiraResolveMember member-comms-jira-comment-read "$memberName" || { set +e ; return 1 ; }
+			local jiraRc=0
+			AgentsToolsJiraCall comment-read || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-read: COULD NOT READ comments on issue $jiraIssueKey as $memberName (worker rc=$jiraRc) -- the comment list is UNKNOWN, not empty; the worker's own diagnostic is above" >&2
+				set +e ; return "$jiraRc"
+			fi
+			return 0
+		;;
+
+		*)
+			echo "⛔ ERROR: $MDSC_CMD: unknown --member-comms-jira-* operation: $1 -- this family is read-only today; the supported operations are --member-comms-jira-whoami, --member-comms-jira-issue-search, --member-comms-jira-issue-read and --member-comms-jira-comment-read" >&2
+			set +e ; return 1
+		;;
+
+esac

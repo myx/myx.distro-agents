@@ -87,6 +87,12 @@ This file's own content is binding and obligatory on every team member who reads
    - Send path: `human-owner`'s own `reach-human-owner` procedure.
    - Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
 
+1f. **A reply goes where the people it is for will read it.**
+   A first reply to a fresh ask chooses its own destination; a continuation inherits one (1e). Asked to
+   present the team to people outside it, answer where those people are — an answer posted in our own
+   channel is correct and reaches nobody it was for. The destination is the audience, not where the work
+   is tracked and not where the team happens to talk.
+
 2. **React at each stage — required, not optional.**
    The moment a message is read, react with a `seen`-class emoji (e.g. 👀); when work on it genuinely starts, add a `started`-class reaction; when it's resolved, add a `done`/`noted`-class reaction. Additive stage semantics (seen → started → done/noted) — a later stage's reaction doesn't remove an earlier one. React AND reply — a reaction never replaces an owed reply, and a reply never exempts you from reacting.
 

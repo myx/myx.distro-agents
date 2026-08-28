@@ -31,6 +31,10 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-read <team-member> <uid> [--seen]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-read <team-member> <notification-id>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-whoami <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-search <team-member> <jql> [--limit <n>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered]
 📘 syntax: DistroAgentsTools.fn.sh --self-test
 📘 syntax: DistroAgentsTools.fn.sh --verify-permissions
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]
@@ -1075,6 +1079,117 @@
 			response carrying no id is reported as UNKNOWN rather than
 			success — a positive test on what is present, not an assumption
 			drawn from a 2xx status.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-whoami <team-member>
+			`<team-member>` is the member this lookup acts as, and it is
+			required: the identity returned is whoever that member's own
+			`JIRA_USER`/`JIRA_API_TOKEN` resolve to, with no fallback to
+			another member's scope.
+
+			Jira keeps its own key set — `JIRA_SITE`, `JIRA_USER`,
+			`JIRA_API_TOKEN` — even where one Atlassian token also serves
+			Confluence on the same site. A `CONFLUENCE_*` value is never read
+			here, so either service's credential can be rotated, revoked or
+			pointed at another account without disturbing the other.
+
+			Call it first after a token is filed, and whenever a report has to
+			state WHICH Jira account a read was made as. Prints
+			`JIRA_ACCOUNT_ID=`, `JIRA_ACCOUNT_EMAIL=` and
+			`JIRA_ACCOUNT_NAME=`, one per line, and returns non-zero when the
+			identity could not be established — an unknown identity is never
+			reported as an empty one.
+
+			It is also the only operation here that reports a bad credential
+			as one: Jira treats a request carrying a rejected token as
+			anonymous, and a private issue is invisible to anonymous, so an
+			issue read answers "not found" rather than "not authorised".
+			Diagnose a credential with this operation, never with a read that
+			failed.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-issue-search <team-member> <jql> [--limit <n>]
+			`<team-member>` is the member this search acts as, and it comes
+			first. It is required and strict: the results are what that
+			member's own identity can see in Jira, never another member's,
+			and there is no fallback to another member's scope.
+
+			The entry point for this family, since the issue operations need
+			an issue key and this is what produces one.
+
+			The JQL is passed through as given, the way the Confluence
+			family passes CQL: it is the documented query surface a caller is
+			expected to write, and it has no single safe general wrapping.
+			Jira refuses an unrestricted query outright, so the JQL names at
+			least one restriction — `project = DATA ORDER BY updated DESC`,
+			`assignee = currentUser() AND statusCategory != Done`.
+
+			**An empty result is not evidence that nothing matches.** Jira
+			answers a query naming a project that does not exist, and one
+			that is not JQL at all, with a success and an empty page rather
+			than an error, so a zero-row result means only that this exact
+			query matched nothing — re-check the query itself. The operation
+			says so on stderr whenever it returns no rows.
+
+			Emits one TSV row per issue with its own header row:
+			`ISSUE_KEY`, `TYPE`, `STATUS`, `ASSIGNEE`, `UPDATED`, `SUMMARY`.
+			`--limit` defaults to 25 and must be a positive whole number.
+			The endpoint pages by token and reports no total, so when more
+			issues match than the page carries, the operation says that on
+			stderr and how many more is unknown; raise `--limit` or narrow
+			the query.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
+			`<team-member>` is the member this read acts as, and it is
+			required: an issue is readable only by identities its project is
+			shared with, read strictly from that member's own scope with no
+			fallback.
+
+			The description goes to stdout and the identifying metadata to
+			stderr, so `issue-read > file` yields the description and nothing
+			else. Type, status, resolution, assignee, reporter, priority,
+			created, updated, labels and summary are the stderr diagnostics.
+
+			`--format adf` is the default: the Atlassian Document Format JSON
+			Jira accepts back on a write, so read-edit-write stays possible
+			once the write side exists. `--format rendered` returns Jira's
+			own HTML instead — what a human reads, and it cannot be written
+			back.
+
+			An issue whose description field came back null really has no
+			description: stdout stays empty, stderr says so, and the
+			operation returns zero. That is a different outcome from a read
+			that failed, which returns non-zero and reports the content as
+			UNKNOWN. A 404 from Jira does NOT establish that the issue is
+			absent — Jira returns 404 both for a missing issue and for one
+			this account cannot see, and says so itself.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered]
+			`<team-member>` is the member this read acts as, and it is
+			required: comments are visible only to identities the issue is
+			shared with, read strictly from that member's own scope with no
+			fallback.
+
+			Comments on one issue, as TSV with its own header row:
+			`COMMENT_ID`, `AUTHOR_ID`, `AUTHOR_NAME`, `CREATED`, `UPDATED`,
+			`BODY`. `--format` carries the same meaning as it does for
+			`--member-comms-jira-issue-read`, applied to each comment body:
+			`adf` (default) emits the Atlassian Document Format JSON on one
+			line, `rendered` emits Jira's own HTML.
+
+			An issue carrying more comments than one page holds is reported
+			on stderr, naming how many exist and how many were read.
+
+			**This family is read-only.** There is no operation here that
+			creates or edits an issue, a comment or a field, and that is a
+			sequencing decision rather than an omission — the write side is
+			its own separate piece of work.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
