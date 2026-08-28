@@ -47,6 +47,19 @@ Both are correct at once, in their own registers. A reader who finds two names f
 
 The team's own identifier is `magic-team` and its identity is The Conclave. A member's persona sits below both and belongs to that member, never to the group.
 
+### Identity marks
+
+A member with a persona carries an `## Identity marks` block in its own `.basic.md`, holding how that persona renders. Its image files sit beside that file, the way the team's own mark does.
+
+- **Unicode character** — required. The only field with no dependency on a platform: what the member reads as in plain text, an email, a transcript or an export, with nothing installed and no workspace configured.
+- **Slack shortcode** — `:name:`, the custom emoji that renders where a workspace holds it. Optional, and paired with the image below — one without the other is broken rather than partial.
+- **Image file** — beside the member's own file, so a workspace is given the custom emoji from the repository rather than from somebody's downloads.
+- **Favourite reactions and text emojis** — optional. The small set that member reaches for.
+
+The image and the Unicode character are one mark in two renderings, so a member reads the same whether it renders or degrades. A shortcode whose image does not match its fallback is a defect, not a variant.
+
+Where the fallback renders, the drawing belongs to the reader's platform — vendors do not draw one character alike. The character is chosen for what it is, never for how it looks in one font.
+
 ## Folder shape — the typed-suffix scheme
 
 File set:
