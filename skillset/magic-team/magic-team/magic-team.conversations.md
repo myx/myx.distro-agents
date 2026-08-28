@@ -53,6 +53,40 @@ This file's own content is binding and obligatory on every team member who reads
    - Supporting detail — rationale, context, transcript excerpts — still follows rule 1a: a thread reply
      or attachment, never bloats the top-level post.
 
+1c. **Say it only if it is relevant to the reader, or genuinely a fun fact.**
+   Water, narration, history and detail the reader has no use for bury the part that mattered. Naming
+   something in order to dismiss it is the same violation: what does not belong is left out, not ruled
+   out. A number or count is written only where its reader needs it in order to act, and a count in
+   words is the same as one in digits.
+   - Excluded from every message and report: recounting how a conclusion was reached where only the
+     conclusion is needed, restating what was just said, carrying an incident's own history into a
+     report that needs its outcome, padding a status with the process that produced it, and explaining
+     what was not asked.
+   - Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
+
+1d. **Compact, structured, simple, important first.**
+   Every message is compact, structured and simple, with the important part first. Two or more distinct
+   points in one text blob become a nested list, by the conversion test in `magic-team/magic-team.shared.md`'s
+   own `## Nested-item grammar`, applied to any message and not only to a skillset file's instruction
+   lists. A Slack message and a chat reply carry this exactly as a rule or a report does.
+   - Register and spelling are checked separately, per text group, by `magic-librarian`.
+   - Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
+
+1e. **Anything needing the human-owner to act goes to his Slack DM.**
+   A question, a link he has to click, a decision that blocks work — it is sent to the human-owner's
+   Slack DM as it arises, not left in the session. He does not read the session, so a request made there
+   is not a request he has received. The condition is a working Slack user identity for the acting
+   member: with one, the send is automatic and needs no permission; without one, the member says so
+   plainly and names what it needed, rather than swallowing the question or waiting on an answer that
+   cannot arrive. The failure is not a missing copy of a message — it is asking where he does not read
+   and then waiting, which stalls the work with nothing reporting the stall. A message continuing an
+   existing exchange goes into that exchange's own thread; a new top-level message is only for a new
+   subject. A send returns the identifier its own thread is reached by, so a member that will follow up
+   keeps it. Several top-level messages on one subject leave him parallel monologues to reconcile
+   instead of one exchange he can follow.
+   - Send path: `human-owner`'s own `reach-human-owner` procedure.
+   - Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
+
 2. **React at each stage — required, not optional.**
    The moment a message is read, react with a `seen`-class emoji (e.g. 👀); when work on it genuinely starts, add a `started`-class reaction; when it's resolved, add a `done`/`noted`-class reaction. Additive stage semantics (seen → started → done/noted) — a later stage's reaction doesn't remove an earlier one. React AND reply — a reaction never replaces an owed reply, and a reply never exempts you from reacting.
 

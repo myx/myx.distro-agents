@@ -149,6 +149,12 @@ Team-owned notes for the magic-* team.
 - Mechanical, not aesthetic. `close`, `index`, `length`, `split`, `sub` and `system` are awk built-ins, and a parameter named after one is a parse error rather than a shadowing warning — measured here: `function f(s, i, open, close)` reports "4 missing }'s" and points at an unrelated construct, so the message never names the real cause. Two words cannot collide.
 - General coding style, not a rule of this package: the canonical statement is `magic-developer/reference/code-craft.md`, restated here because this package is written by whoever is on duty, not only by `magic-developer`.
 
+## A number is written only where its reader needs it
+
+- No message, comment, help entry or program output here carries a number the reader does not need in order to act. A tally above the list enumerating its own items, how many exit codes an operation has, how many call sites one assertion has, how many facets an operation writes — the reader needs the items themselves, named. A count spelled in words is the same as one in digits.
+- A number a reader genuinely needs is computed where it is emitted, never typed in. `--member-comms-slack-profile-get` counts what it read into `profileRead`/`profileFailed` and prints those.
+- A standing rule of the human-owner's: say it only if it is relevant to the reader or genuinely a fun fact. The canonical statement is `magic-team/magic-team.shared.md`'s own human-owner standing rules, restated here because this package is written by whoever is on duty.
+
 ## A bracket range is never used in a `case` pattern
 
 - Measured on this platform: under `en_US.UTF-8`, `case "A" in [a-z])` **matches**; under `LC_ALL=C` it does not. Bracket ranges are collation-dependent, so a range-based whitelist is not a whitelist at all.
@@ -159,7 +165,7 @@ Team-owned notes for the magic-* team.
 - One shared assertion validates every member name, item filename, document name, and board/vault/audit item name across this package. A new operation of that shape calls it and never re-inlines a `case "$x" in */*|.|..)` copy.
 - Those copies are what it replaced, and they were strictly weaker: each caught `/`, `.` and `..` while silently accepting spaces, `:` and a leading `-`.
 - It reports and returns 1, never exits, so a caller owns its own `set -e` state and handles failure with `|| { set +e ; return 1 ; }`.
-- No count of call sites is recorded anywhere. A hard number is exactly the thing that goes stale and misleads.
+- No count of call sites is recorded anywhere.
 
 ## Slack target grammar
 
@@ -267,7 +273,7 @@ Team-owned notes for the magic-* team.
 - The avatar path is validated in the arm, at parse time, rather than left to the upload call -- it must exist and be a regular file, and it must contain neither `;` nor `,`, which curl's own multipart value syntax reads as part metadata and as a multi-file separator. This is hoisting, not duplication: with four facets, a path fault caught at call time surfaces only after the profile fields have already landed. No tilde expansion, no canonicalisation, and no local image sniff -- an unreadable or non-image file is Slack's own `invalid_image`/`bad_image` to report, and there is no false-success shape here of the kind the file-fetch HTML sniff exists for.
 - Up to four separate calls: `users.profile.set` through `--json-body`, which that op refuses to combine with `--form`; `users.setPhoto` through `--upload-file`; and `users.setPresence` and `dnd.setSnooze`/`dnd.endSnooze` through `--form`. Every field is validated before the first request leaves the host, because a value rejected after `users.profile.set` already landed leaves the persona half-written.
 - Partial application is reported, never hidden. One `PROFILE_SET_FACET=` plus `PROFILE_SET_STATE=applied|failed|not-requested` pair per facet, exit 1 if any facet failed, and the facets reported applied really were applied. Nothing is rolled back and nothing is retried under another identity.
-- `profile-get` is a three-facet read and takes the same exit-code shape `--intern-op-slack-check` uses: 0 all three read, 3 some read with the rest named, 4 none read though the operation ran, 1 failed before any facet was reached. A failed facet is unknown, never a report that the field is unset.
+- `profile-get` is a multi-facet read and takes the same exit-code shape `--intern-op-slack-check` uses: 0 every facet read, 3 some read with the rest named, 4 none read though the operation ran, 1 failed before any facet was reached. A failed facet is unknown, never a report that the field is unset.
 - Neither op is named in `--intern-op-check-slack-scopes`'s polled list. That list is declared by its caller in `AgentsTools.MagicHeartbeat.include`, and adding these two would make every heartbeat warn on any coordinator token that lacks the three write scopes.
 - `profile-get` reports every named field `users.profile.get` returns, including the avatar. It emitted five before and could see neither `title` nor the photo — so the op whose stated purpose is making a set verifiable could not verify two of the things a set writes, and comparing two personas meant reaching past the tooling to raw `curl`. A field this op cannot see is a field a set cannot be verified against.
 - Custom profile fields (`fields.*`) are still not emitted. Their keys are workspace-defined, not a fixed path the field extractor can be pointed at, so enumerating them needs a different reader.

@@ -29,7 +29,7 @@ Read `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" sect
 
 ## Writing code
 
-Any member writing or editing code — in any language, including a shell script, an awk program or a one-off harness — reads `magic-developer/reference/code-craft.md` first, and `magic-developer/reference/shell.md` on top of it for shell and awk. These are the team's general coding style, not `magic-developer`'s private notes: the member who happens to be on duty writes the code, so the style has to reach whoever that is. `magic-developer` owns and maintains them; everyone else reads them.
+Any member writing or editing code — in any language, including a shell script, an awk program or a one-off harness — reads `magic-developer/reference/code-craft.md` first, and `magic-developer/reference/shell.md` on top of it for shell and awk. These carry the team's general coding style: the member who happens to be on duty writes the code, so the style has to reach whoever that is. `magic-developer` owns and maintains them; everyone else reads them.
 
 ## Human-owner conversations: two identities
 
@@ -57,6 +57,19 @@ Every acting member (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) ski
 - "Sufficient on its own" means readable and actionable following the folder's own stated cross-reference graph, not literally zero pointers elsewhere — a cross-reference is fine when it's explicit and named, and the referencing step stays independently actionable without following it.
 - Real work-duty content is loaded by reading `.armed.md` directly, plus whatever it cross-references.
 - A routine's own single `.routine.md` file is independently sufficient the same way, on its own, without needing its owning member's other typed files.
+
+### Prose cross-reference versus guaranteed load — open, not settled
+
+Every typed file above is reached by prose instruction: `SKILL.md` says to read `<name>.armed.md`, which says to read the shared team files. Nothing loads them automatically, so a member that does not comply never meets the rules they carry, and nothing reports that it did not.
+
+What the host's own documentation settles:
+
+- Only a skill's frontmatter description is always in context. The `SKILL.md` body enters on invocation; a sibling file enters only if the model chooses to read it.
+- An `@import` inside a skill file is not documented as resolved, so it is not an available mechanism there.
+- A `CLAUDE.md` may import an absolute or `~`-rooted path, a skill file included. At user scope such imports load without a prompt; a project-level file importing outside its own tree raises a one-time approval dialog.
+- A `.claude/rules/*.md` file without `paths` frontmatter is loaded at launch, at the same priority as `.claude/CLAUDE.md`.
+
+So a supported guaranteed-load path exists, and the difference between the two is real: a prose cross-reference binds only a member that complies, while an imported or rules-directory file is in context before the member acts. Which the skillset should use is the human-owner's decision, taken on its own terms rather than folded into other work.
 
 ## Duty content only — tooling internals belong to the package, never the skillset
 
@@ -614,6 +627,14 @@ The request shows the sibling names it would join **and** the adjacent sets that
 
 Any conflict or ambiguity between two instruction files or conventions goes to the human-owner for the decision — real ambiguity about what the rules mean or how they apply, not only literally contradictory text. Dispatching a member to investigate one is fine; that dispatch is never authorization to reconcile it. A member's own review of a conflict never stands in for his decision. Both sides stay intact, unedited, until he rules.
 
+## Anything needing the human-owner to act goes to his Slack DM
+
+A question, a link he has to click, a decision that blocks work — it is sent to the human-owner's Slack DM as it arises, not left in the session. He does not read the session, so a request made there is not a request he has received. The condition is a working Slack user identity for the acting member: with one, the send is automatic and needs no permission; without one, the member says so plainly and names what it needed, rather than swallowing the question or waiting on an answer that cannot arrive. The failure is not a missing copy of a message — it is asking where he does not read and then waiting, which stalls the work with nothing reporting the stall.
+
+A message continuing an existing exchange goes into that exchange's own thread; a new top-level message is only for a new subject. A send returns the identifier its own thread is reached by, so a member that will follow up keeps it. Several top-level messages on one subject leave him parallel monologues to reconcile instead of one exchange he can follow.
+
+Send path: `human-owner`'s own `reach-human-owner` procedure.
+
 ## We build software, not fixes for one workspace
 
 The tool family is software with other clients. Any member can be set up in any other workspace, and those workspaces use the features *they* need — including features this one has no use for. Completeness is judged against what the software must offer generally, never against what is exercised here. Having no caller in this tree is not evidence that an operation is unneeded, an obviously incomplete operation family is itself the defect, and an operation's parameters are never narrowed to only what the local caller passes.
@@ -630,6 +651,32 @@ In a backlog document, a `CONVENTION`/`INTENT`/`TASK` body is a clean, timeless 
 
 A convention is a set of statements that stay, to be checked against later; it is not a task. Narrative and facts mixed into its body make that check noisy and date an item that should not age.
 
+## Say it only if it is relevant to the reader, or genuinely a fun fact
+
+Water, narration, history and detail the reader has no use for bury the part that mattered. Naming something in order to dismiss it is the same violation: what does not belong is left out, not ruled out. A number or count is written only where its reader needs it in order to act, and a count in words is the same as one in digits.
+
+This binds everything written to a reader: a Slack message, a report, a status line, a comment, a line of code, a help entry, a program's own output. Left out of all of them:
+
+- how a conclusion was reached, where only the conclusion is needed
+- a restatement of what was just said
+- an incident's own history, in a report that needs its outcome
+- the process behind a status
+- an answer to what was not asked
+
+A number a reader needs is computed where it is emitted, never typed in — a written figure goes stale as the thing it counts changes, every place that stated the old one has to be found, and each one missed asserts a falsehood in the register of a fact.
+
+## Compact, structured, simple, important first
+
+Every message is compact, structured and simple, with the important part first. Two or more distinct points in one text blob become a nested list, by the conversion test in `## Nested-item grammar` above, applied to any message and not only to a skillset file's instruction lists. A Slack message and a chat reply carry this exactly as a rule or a report does.
+
+Register and spelling are checked separately, per text group, by `magic-librarian`.
+
+## Generalise a rule, sharpen an instruction
+
+An intent or a rule takes the most generalised form that still covers the intent, and is never a ceiling. A rule written around the mechanisms that exist today silently forbids the ones that come later, and the narrowing is invisible because the text still reads as true.
+
+A test or an instruction takes the most exact and precise form that still covers the intended flexibility. "Still covers" bounds both: a rule generalised past its intent stops meaning anything, and an instruction sharpened past its intended flexibility rejects valid cases.
+
 ## Never mention local-cache sync staleness
 
 Never raise whether an installed/local copy of the tooling is stale, or whether a source-to-local sync needs running — not as a flag, a caveat, a note for awareness, or a suggested next step. It is not weighed at all: not checked, and not entertained as a possible cause. It is the human-owner's own separate workflow. A spawned session's own report carrying such a note has it dropped, not forwarded. This is the one kind of staleness "Doc/disk mismatch repair loop" above does not reach.
@@ -643,6 +690,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - This file is the durable, cross-cutting model of how the team's skill folders and routines work — every acting member's own skill folder (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`), plus every `routine-*` virtual member hosted inside one of them: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule.
 - This file's own content is binding and obligatory on every team member who reads it, never merely informational or reference material.
 - A routine is a named procedure hosted inside its owning member's own folder, never a skill folder of its own — so the same procedure performed by a different member yields member-appropriate results instead of a second identity.
+- The team's general coding style reaches whoever is actually on duty writing the code, never only the member that owns and maintains it.
 - Every acting member's own source files — `.basic.md`/`.armed.md`, plus every `.routine.md` it owns — are fully sufficient on their own.
 - A duty instruction says how to perform the duty; nothing else belongs in a skill file. Tooling internals stay with the package that owns them, so a tooling refactor never forces an edit to a member-owned file.
 - Each file-shape contract stated here is complete and self-contained, so a file's shape is read off the one contract matching its own kind, never reconstructed as a diff against another.
@@ -655,6 +703,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - A member needs a routine's procedure. It reads that routine's own single `.routine.md` file and executes it without needing its owning member's other typed files.
 - A member is asked to run a routine owned by a different member. It reads the procedure out of the owning member's file and applies its own identity while executing the steps; no separate skill folder appears for that routine.
+- A member that is not `magic-developer` is about to write an awk program. It reads `magic-developer/reference/code-craft.md` first, and `magic-developer/reference/shell.md` on top of it for shell and awk.
 - An acting member's skill folder is resolved for editing. The real source path is resolved first, because the folder under `~/.claude/skills/` may be a symlink rather than the canonical location.
 - A sentence in a skill file names a flag a stub forwards, an internal operation name, what a tool does beneath its own interface, unsettled design rationale, or a vendor-specific caveat. It is removed from the skill file and filed where it belongs — the package's own help pair, the package's `CLAUDE.md`/`README.md`, the owning `keeper-*`'s reference material or a board item, or the tooling implementation's own source comments.
 - A paragraph is 90% duty content and 10% internals. It is not exempt: the "can a member perform this step without this sentence?" test is applied to the sentence, not the section.
@@ -678,9 +727,17 @@ Used to check this file's own definitions against its own goals when it is updat
 - A new operation, flag, file, key, or document type needs a name, or a new method/operation syntax is proposed. It goes via approval before it lands — internal names nobody can invoke included — and the request shows the sibling names it would join plus the adjacent sets deliberately not the same thing.
 - An operation-renaming pass runs. Flags are left untouched: an operation carries its owner's namespace, a flag does not.
 - Two instruction files or conventions conflict, or a convention is genuinely ambiguous. It goes to the human-owner for the decision, both sides intact and unedited until he rules; a dispatch to investigate one is not authorization to reconcile it.
+- A session has a question for the human-owner, a link he must click, or a decision that blocks it. It goes to his Slack DM as it arises, sent without asking permission where the acting member has a working Slack user identity; the session never leaves it in the session and waits.
+- The acting member has no working Slack user identity. It says so plainly and names what it needed, rather than swallowing the question or waiting on an answer that cannot arrive.
+- A member sends a second message on a subject it has already raised. It goes into that subject's own thread, reached by the identifier the first send returned — never as a second top-level message beside the first.
+- A rule is written naming the mechanisms, members, activities or counts that exist today. It is stated at the most generalised form that still covers its intent, so one added later is not silently excluded by text that still reads as true.
+- An instruction or test is written loosely enough to admit a case its intent excludes, or so precisely that it rejects a variation its intent allows. It is restated at the most exact form that still covers the intended flexibility.
 - An operation family has no caller in this tree. That is not evidence it is unneeded, and its parameters are not narrowed to only what the local caller passes.
 - A board item names files living in another tracked workspace. The boundary is surfaced and the question asked, rather than editing there or requesting a one-off access grant.
 - A `CONVENTION`/`INTENT`/`TASK` body is written in a backlog document. It states the rule or task itself, timelessly; investigative facts, status, progress notes and dates go to that document's own Context Detail section.
+- A report, Slack message, comment or program output is being written. Each line goes in only if it is relevant to its reader or genuinely a fun fact; how the conclusion was reached, a restatement of what was just said, an incident's own history and process padding stay out.
+- A line would name a reading, a case or a value in order to rule it out. It is left out, not ruled out — the mention costs what stating it would have.
+- A line is about to state how many of something there are. The number is written only where its reader needs it to act, computed where it is emitted rather than typed in, a count spelled in words counting the same as one in digits.
 - A session notices that an installed/local copy of the tooling is stale, or that a source-to-local sync would help. It says nothing — not as a flag, a caveat, a note for awareness, or a suggested next step — and a spawned session's report carrying such a note has it dropped rather than forwarded.
 - A skillset file's own content disagrees with what is actually on disk. The real source file is corrected directly; this does not extend to the installed/local copy of the tooling.
 

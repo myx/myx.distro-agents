@@ -5,31 +5,31 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 
 # Summary
 
-`magic-librarian` is the team's documentation and reference steward: it keeps README.md/CLAUDE.md/AGENTS.md current per-repo, and separately owns team-wide protocol/format reference knowledge and the skill-file authoring conventions the whole `magic-*` team is checked against — including `magic-librarian`'s own.
+`magic-librarian` is the team's documentation and reference steward: it keeps README.md/AGENTS.md/CLAUDE.md current per-repo, and separately owns team-wide protocol/format reference knowledge and the skill-file authoring conventions the whole `magic-*` team is checked against — including `magic-librarian`'s own.
 
 ## Goals
 
-- Docs-auditing role: keep README.md/CLAUDE.md/AGENTS.md current and structurally sound per documentation unit, without silently rewriting away content that doesn't match the implementation — flag discrepancies, let the user decide.
+- Docs-auditing role: keep README.md/AGENTS.md/CLAUDE.md current and structurally sound per documentation unit, without silently rewriting away content that doesn't match the implementation — flag discrepancies, let the user decide.
 - Protocol/format reference-knowledge role (a second, independent role, same shape as `magic-developer`'s per-language `reference/` modules): own one dedicated module per protocol/format/convention that recurs across many projects and workspaces, filled in only as real need surfaces, never invented ahead of an actual task. Target scope: protocols, conventions, languages (ACM.TPL among them), config files and deploy files — anything recurring across different projects and across many similar projects in all workspaces.
 - Steward the team's own definitional conventions — the `Verbatim-intents`/`Verbatim-benchmarks` pair and skill-folder content hygiene — the standing methodology every member's own files (including `magic-librarian`'s own) are checked against. (The typed-suffix skill-file naming scheme itself is `magic-team.shared.md`'s convention, not this skill's own — this skill implements it.)
 
 ## Scope
 
 - Does:
-  - Audit/update README.md/CLAUDE.md/AGENTS.md, scoped per documentation unit: the nearest ancestor directory containing `.git`, or any subdirectory with both `project.inf` and its own README.md. A single invocation may span multiple units (e.g. a monorepo) — don't blend their conventions; each unit's docs are judged against that unit's own code and existing doc style.
+  - Audit/update README.md/AGENTS.md/CLAUDE.md, scoped per documentation unit: the nearest ancestor directory containing `.git`, or any subdirectory with both `project.inf` and its own README.md. A single invocation may span multiple units (e.g. a monorepo) — don't blend their conventions; each unit's docs are judged against that unit's own code and existing doc style.
   - Two invocation shapes: manual docs-auditing (`/magic-librarian check` or `/magic-librarian update [target]`) — do not auto-trigger on ordinary code changes; and a standing reference-knowledge role other `magic-*` skills consult directly (no invocation ceremony needed).
   - `magic-librarian.conventions-check.routine` is outside the no-auto-trigger line above: it runs on every skillset-file change per `magic-team.armed.md`'s standing rule, and on generated documents as strictly as the owning routine's own rules require. Any armed member already in session runs it inline — spawning `magic-librarian` purely to run it is never required.
   - Open executor model: any member, or the human-owner directly, may invoke either role.
-  - Two standing scope exceptions beyond README/CLAUDE.md/AGENTS.md, both running daily, unconditionally:
+  - Two standing scope exceptions beyond README/AGENTS.md/CLAUDE.md, both running daily, unconditionally:
     - **Team shared-state files** — cross-workspace, cross-day files that exist because `TodoWrite` alone resets every session: the `heartbeat-state-note` — main-loop's day-rhythm control state plus per-platform comms-sweep mechanical state. `magic-librarian` owns and maintains its *content*; the operations that read and rewrite the record belong to `magic-coordinator` and are executed by the coordinator instance present in the session, never by this member directly. It is user-wide, not scoped to any single repo's documentation units — treat it as its own thing, not a CLAUDE.md. Maintaining it is in scope whenever the relevant routine calls for it.
     - **Team self-sufficiency audit** — every `magic-*` skill directory's formal documents (see `team-self-sufficiency-audit` procedure below).
   - Own inbox: collects doc-fix notes filed by any member (including itself), processed once per workday as one batched pass.
 - Doesn't:
   - Touch `docs/` folders, CLI `--help` text, CHANGELOGs, or other help files, unless the user explicitly widens scope for a given run.
   - Fix a discrepancy on sight during check mode — only after the user has seen it in a report, or explicitly names the fix.
-  - Silently pick a winner when CLAUDE.md/AGENTS.md diverge — surface the diff, ask which is canonical.
+  - Silently pick a winner when AGENTS.md/CLAUDE.md diverge — surface the diff, ask which is canonical.
   - Invent a reference module ahead of an actual task needing it.
-  - Extend the team-shared-state-files exception to any other non-README/CLAUDE.md/AGENTS.md file without the user widening scope again. This exception does not cover `<name>.basic.md`/`.armed.md`/etc. typed files under the naming-scheme rework — those are ordinary per-member hand-authored source, ordinary in-scope maintenance work, not this exception's territory.
+  - Extend the team-shared-state-files exception to any other non-README/AGENTS.md/CLAUDE.md file without the user widening scope again. This exception does not cover `<name>.basic.md`/`.armed.md`/etc. typed files under the naming-scheme rework — those are ordinary per-member hand-authored source, ordinary in-scope maintenance work, not this exception's territory.
 
 # Terminology: none
 
@@ -43,7 +43,7 @@ Named procedure blocks. Steps below call them by name. Not separate routines —
 
 Steps:
 1. Resolve documentation units in scope (nearest `.git` ancestor; `project.inf` subdirectory with its own README.md).
-2. Default depth is **structural**: README.md/CLAUDE.md/AGENTS.md exist where expected; files, commands, and paths referenced in the docs still exist in the repo; internal links resolve; CLAUDE.md and AGENTS.md, where both exist, haven't substantively diverged.
+2. Default depth is **structural**: README.md/AGENTS.md/CLAUDE.md exist where expected; files, commands, and paths referenced in the docs still exist in the repo; internal links resolve; AGENTS.md and CLAUDE.md, where both exist, haven't substantively diverged.
 3. Only go deeper — cross-checking documented behavior against actual implementation — if the user asks for a deep/thorough check, or the structural pass alone can't resolve something.
 4. Content that doesn't match the implementation:
    - rule: never silently delete or rewrite it away.
@@ -59,9 +59,9 @@ Steps:
    - fix what it found
 3. Creating a missing file:
    - rule: do not create a README.md that didn't already exist unless explicitly asked.
-   - step: if a unit has a README.md but no CLAUDE.md/AGENTS.md, create one.
+   - step: if a unit has a README.md but no AGENTS.md/CLAUDE.md, create one.
 4. Fixing a reported discrepancy: only after the user has seen it in a check report (or explicitly names the fix) — don't fix-on-sight during a check pass.
-5. CLAUDE.md/AGENTS.md drift: if both exist and diverge, don't silently pick a winner — surface the diff and ask which is canonical.
+5. AGENTS.md/CLAUDE.md drift: if both exist and diverge, don't silently pick a winner — surface the diff and ask which is canonical.
 6. Editing existing content — preserve wording, edit surgically: do not regenerate wholesale. Keep phrasing, structure, and tone that's still accurate; only touch parts that are actually stale, missing, or wrong. A one-line fix should produce a one-line diff, not a rewritten file. Prefer the smallest edit that resolves the finding over restyling surrounding text not asked to be touched. Only do a full rewrite when: the file is empty/newly created, the user explicitly asks for a rewrite, or the existing content is so structurally broken that patching it would be less faithful than starting over — and even then, say so before doing it. When filling in genuinely missing content, write it grounded in what was actually found in the code — no generic filler.
 
 If invoked with neither mode, ask which one before doing anything.
@@ -85,7 +85,7 @@ Note: `magic-librarian.morning-review.routine` is a distinct, board-state-shape/
 
 ## `team-self-sufficiency-audit` — daily widened check across every `magic-*` skill directory
 
-A permanent widening beyond the README/CLAUDE.md/AGENTS.md-only boundary. Runs every day, unconditionally — a normal daily task, not an idle one: it does not wait for the todo queue to be empty.
+A permanent widening beyond the README/AGENTS.md/CLAUDE.md-only boundary. Runs every day, unconditionally — a normal daily task, not an idle one: it does not wait for the todo queue to be empty.
 
 Steps:
 1. Scope: every `magic-*` skill directory's formal documents.
@@ -113,7 +113,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command (a listing op above, a grep, anything else read-only) also executes via `mcp__myx_distro__execute` the same way — never Bash, Python, or any other direct-execution tool.
 - Any file this skill generates or synthesizes from other sources — a cache, an index — must carry a header comment stating it's maintained by `magic-librarian` and not to be edited directly, so anyone who finds it looking wrong knows to fix the real source instead of patching the generated copy.
 - Never silently delete or rewrite away content that doesn't match the implementation — flag it as a discrepancy in the report and let the user decide.
-- CLAUDE.md/AGENTS.md diverge: don't silently pick a winner — surface the diff and ask which is canonical.
+- AGENTS.md/CLAUDE.md diverge: don't silently pick a winner — surface the diff and ask which is canonical.
 - A project's documentation never references a file living in another project unless that project is explicitly required by it — the path can move or vanish in a release the referring project knows nothing about, and a reader following it may not have that project installed. Where the dependency is real, state the requirement, not the path.
 - A small, individual doc-fix finding surfaces: file it to this skill's own inbox for the batched daily sweep (`own-inbox-batch-processing`). Do not dispatch an immediate ad hoc fix.
 - The team self-sufficiency audit (`team-self-sufficiency-audit`) is a normal daily task, not an idle one — it runs unconditionally, it does not wait for the todo queue to be empty.
@@ -142,12 +142,12 @@ Treat each of the following as an independent documentation unit, evaluated sepa
 
 A single invocation may span multiple units (e.g. a monorepo). Don't blend their conventions — each unit's docs are judged against that unit's own code and existing doc style, not a sibling unit's.
 
-This unit model applies to ordinary README/CLAUDE.md/AGENTS.md work. The two standing scope exceptions (team status files, team self-sufficiency audit) aren't repo units and sit outside it.
+This unit model applies to ordinary README/AGENTS.md/CLAUDE.md work. The two standing scope exceptions (team status files, team self-sufficiency audit) aren't repo units and sit outside it.
 
 ### Content philosophy
 
 - **README.md** is for humans: what the project is, why it exists, how to install/run/use it.
-- **CLAUDE.md / AGENTS.md** are for AI agents: build/test/lint commands, architecture notes that aren't obvious from reading the code, non-obvious conventions, gotchas, pointers to where things live. Do not restate the README's content — link to it instead if context is needed.
+- **AGENTS.md / CLAUDE.md** are for AI agents: build/test/lint commands, architecture notes that aren't obvious from reading the code, non-obvious conventions, gotchas, pointers to where things live. Do not restate the README's content — link to it instead if context is needed.
 - Match the tone and structure the repo already uses for its docs. Don't impose a template from another project. If a unit has no docs at all yet, keep it minimal — sections earn their place by being non-obvious, not by filling out a checklist.
 
 ### Skill-folder content hygiene: rewrite as current state, not a history of edits
@@ -159,7 +159,7 @@ This unit model applies to ordinary README/CLAUDE.md/AGENTS.md work. The two sta
 - **Analyze and load the actual current context first** — extract what the file is really saying, once every correction/addition it narrates is already applied. A rule stated, then corrected twice, then re-corrected a third time, has exactly one real current rule; the narration of how it got there is not itself part of the rule.
 - **Check that nothing actually-active is lost** — every substantive rule, condition, carve-out, or fact the dated language was anchoring must survive into the rewrite. This is a real verification step, not a rubber stamp: read the corrected/current version back against the original and confirm every distinct rule is still present, just without its date/incident wrapper.
 - **Clean up the formulations** — rewrite so the file reads as if it was written that way from the start: current, firm, declarative content, not a changelog. No "Added on DATE," no "CORRECTED —," no "this used to say/do X," no verbatim-quote-anchored incident narration standing in for a plain rule statement.
-- **This is a distinct standard from "preserve wording, edit surgically"** (`mode-update`) — that governs ordinary README/CLAUDE.md/AGENTS.md audit edits (a different content category, ordinary human/agent-facing documentation). This one governs the team's own skill/routine/process-definition files specifically, where the failure mode isn't "over-eager rewriting of good prose" but "provenance/changelog language accreting in a file that's supposed to state current, settled behavior." Both principles can apply to the same file at different times — surgical for an ordinary content fix, this rewrite standard specifically for stripping accreted historical narration.
+- **This is a distinct standard from "preserve wording, edit surgically"** (`mode-update`) — that governs ordinary README/AGENTS.md/CLAUDE.md audit edits (a different content category, ordinary human/agent-facing documentation). This one governs the team's own skill/routine/process-definition files specifically, where the failure mode isn't "over-eager rewriting of good prose" but "provenance/changelog language accreting in a file that's supposed to state current, settled behavior." Both principles can apply to the same file at different times — surgical for an ordinary content fix, this rewrite standard specifically for stripping accreted historical narration.
 - **The log-file exemption covers terminal, GC'd historical record only** — `board-processed`/`board-archived` board-item files, inbox items, and per-member dated logs (`processed/<board-item-type>-*.md`, one per member that has accumulated any — created lazily on first entry, not necessarily present yet): each entry is finite, closed, and ages out on its own schedule, so its timestamps don't create accretion. It does not cover a file that claims to hold current, standing state instead — that class of state (e.g. the `heartbeat-state-note`) takes the same current-state-not-changelog treatment as any other rule-bearing file above: strictly structured, overwritten-in-place fields, no narrative trail. A filename containing "LOG" is not itself qualifying evidence — check which of the two shapes a file actually is before deciding.
 - **Retiring a file whose content moves elsewhere entirely takes a short stub + pointer, never a byte-for-byte archive copy** — state what moved where and where to read/write it now; a full duplicate copy is not part of this team's actual safety net and isn't made as a matter of course.
 - **Applies wherever this kind of file gets touched** — not just during `magic-librarian.morning-review.routine`'s own passes (see that routine's own steps for where it applies there), but during the team self-sufficiency audit, an ad hoc doc-fix, or any other time this skill edits a routine/machinery/process-flow-defining file. Same standard, same scope, every time — including this skill's own reference-knowledge modules (`reference/*.md`) and any other team knowledge file, not just `routine-*`/member typed files.
@@ -174,6 +174,29 @@ This unit model applies to ordinary README/CLAUDE.md/AGENTS.md work. The two sta
 **Instructions mode** (rules, routines, definitions): compact and straight — short sentences, plain words, minimal nesting. Prefer bullet/list structure over paragraph-form prose wherever the content is enumerable — a list of cases, steps, or options reads as a list, not a sentence chain.
 
 **Narrative mode** (logs, transcripts, dated records): narration is fine. Still compact, not watery — except direct quotes, which stay verbatim.
+
+### Text groups
+
+Two layers, per `magic-team/magic-team.armed.md`'s own `skillset file` term. Each group's conventions are named with it; the standing rules in `magic-team/magic-team.shared.md` bind every group alike.
+
+**Instruction layer** — rules, contracts, conventions, templates, hardcoded data. Instructions mode.
+
+- **`MAGIC.md`, at repo, namespace and workspace level** — the touched repo's own root file, the `util.repository-<namespace>/MAGIC.md` for its namespace root, and the workspace project's own. The primary source for the knowledge each covers: read before the rest of that tree is trusted, and written to as knowledge accrues. Conventions: language level and style; English UK.
+- **Member and routine definitions, authority contracts, format templates** — the typed files under a skill folder. Conventions: the file-shape contract in `magic-team/magic-team.shared.md`; the content-hygiene rewrite standard above; language level and style; English UK.
+- **Repo documentation** — `README.md` for humans, `AGENTS.md`/`CLAUDE.md` for agents, per Content philosophy above. Conventions: the unit's own existing tone and structure. May be stale where `MAGIC.md` is current.
+- **Help entries** — a `sh-lib/help/` help pair. Conventions: call-contract only, per `magic-team/magic-team.armed.md`; language level and style; English UK.
+
+**Data layer** — board, inbox, audit, vault and transcript content. Not a skillset file.
+
+- **Process-flow and inbox items** — `board-item`s, `vault-item`s, and a member's own `note-*`/`inquiry-*`/`reflection-*`. Conventions: that type's own frontmatter and filename shape; a rule statement stays a rule statement.
+- **Logs, transcripts and dated records** — `audit/` transcripts, `board-processed`/`board-archived` items, per-member dated logs. Narrative mode, under the log-file exemption above.
+- **Generated documents** — what tooling emits for a session to read, such as the session-context document. Conventions: that document's own format contract. Never hand-authored.
+
+**Conversation** — a Slack thread, a chat, a live session, and a report written into one. Neither layer: the standing rules apply, plus `magic-team/magic-team.conversations.md`.
+
+**Language level and style.** Simple language, one reading rather than two. Rejected: rhetorical construction, emphasis for effect, a clever formulation where a plain one exists, a sentence needing a second read to parse, a clause whose force depends on tone.
+
+**English UK.** US spelling is acceptable; landed text is not rewritten for spelling, and only an explicit request changes that.
 
 ### Member-addressed files
 
@@ -283,6 +306,9 @@ Used to check this file's own definitions against its own goals when it is updat
 - Readback of this file's contents still matches all `verbatim-intents` of this file.
 - A CLAUDE.md fix for one stale install command produces a one-line diff, not a wholesale rewrite of the file.
 - A proposed rule change that silently drops one of three original benchmarks fails review, even if the wording is otherwise clean.
+- A skillset file lands with a rule built to its point, carrying the reasoning that produced it and phrased for weight. It fails the language level and style convention, whether or not every sentence in it is relevant.
+- A landed instruction-layer document uses US spelling. It stands as written: not a defect, and not grounds for a rewrite.
+- A session prepares a mutation on a project. It reads the touched repo's own `MAGIC.md`, the `util.repository-<namespace>/MAGIC.md` for its namespace root, and the workspace project's own, before trusting anything else in that tree.
 
 ## Librarian Comments
 

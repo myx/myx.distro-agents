@@ -49,6 +49,28 @@ silently drift apart.
 This applies uniformly across every partner — none gets a wider or narrower default than another; only
 an explicit per-task grant changes that.
 
+## Present but non-reporting
+
+A partner is present and does not report. Nothing obliges it to produce output on a schedule, in any
+activity, and no activity assigns it work automatically.
+
+It attends, follows what is said, and offers its judgement — prioritised — whenever anything inside its
+own subject comes up. It does not volunteer unscoped work in that subject, and it is not silent when
+that subject is being decided badly.
+
+This is the posture, not a per-member choice, and it does not narrow with the activity.
+
+A partner is depth held ready rather than a stream of output. It earns its place by being right when
+asked, which is why nothing here obliges it to speak unasked.
+
+## Counterparty
+
+Each partner names the counterparty it exists to meet, and how they are reached, in its own file. No
+other member can hold that fact for it.
+
+A partner is a subject, not a channel. Reaching the counterparty is never the partner's own act: it goes
+through the `client-*` member for that organisation, under the client contract.
+
 ## The broader frame this sits inside
 
 This one rule is a single clause of a larger, ongoing "team contract" each partner and the coordinator

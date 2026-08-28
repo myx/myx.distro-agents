@@ -727,7 +727,7 @@
 			is a field a set cannot be verified against, which is not
 			knowable from the parsed output alone.
 
-			Four exit codes. **0**: all three facets read. **3**: some read,
+			Exit codes. **0**: every facet read. **3**: some read,
 			the rest named with their own reason. **4**: none read, though
 			the operation itself ran. **1**: the call was refused before any
 			facet was reached, or a facet's response could not be parsed --
