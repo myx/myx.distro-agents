@@ -22,7 +22,7 @@ case "$1" in
 			printf '%s\n' "      Spawn one heartbeat next-iteration, sleep, repeat -- forever, until killed." >&2
 			printf '%s\n' "      This is the basement layer that RUNS own-service mode, not merely gated behind it already being up." >&2
 			printf '%s\n' "" >&2
-			printf '%s\n' "Requires own-service mode already configured -- fails loud on --magic-heartbeat-config-check, re-checked at the top of every iteration." >&2
+			printf '%s\n' "Requires own-service mode already configured -- fails loud on --magic-heartbeat-config-check before the loop is ever entered." >&2
 			set +e ; return 1
 		fi
 		shift
@@ -32,15 +32,20 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		## Fail-fast-hard gate, NOT covered by the loop's own never-die
+		## discipline below: own-service mode must already be up before the
+		## loop that runs it even starts. Propagates via -e, still armed here.
+		DistroAgentsTools --magic-heartbeat-config-check
+
+		local sleepSeconds
+		sleepSeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
+
 		## No background job forked here, unlike --intern-mcp-server's
 		## `{...} &`, so -e state is never reset mid-loop: one set +e covers
 		## the loop's whole life, no per-iteration re-arm needed.
 		set +e
 
 		while true ; do
-			## Fail-fast-hard gate, per iteration: loop runs set +e, so failure must propagate explicitly.
-			DistroAgentsTools --magic-heartbeat-config-check || { set +e ; return 1 ; }
-
 			local promptFile
 			promptFile="$MMDAPP/.local/temp/mdat-main-loop-prompt.$$"
 			mkdir -p "$MMDAPP/.local/temp"
@@ -57,14 +62,6 @@ case "$1" in
 			DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait --from-file "$promptFile"
 			rm -f "$promptFile"
 
-			## Read fresh each iteration; empty/non-numeric/zero falls back to 29 -- sleep failing under set +e is a hot loop.
-			local sleepSeconds
-			sleepSeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
-			case "$sleepSeconds" in
-				*[!0123456789]*|''|0)
-					sleepSeconds=29
-				;;
-			esac
 			sleep "$sleepSeconds"
 		done
 	;;

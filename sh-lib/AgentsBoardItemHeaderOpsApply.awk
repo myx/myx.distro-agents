@@ -51,6 +51,15 @@ BEGIN {
 	} ;
 	infm = 0 ; closed = 0 ;
 } ;
+NR == 1 && $0 != "---" && n > 0 {
+	print "---" ;
+	for (nm in finalAction) {
+		if (finalAction[nm] == "set") { print nm ": " finalValue[nm] ; seen[nm] = 1 ; } ;
+	} ;
+	print "---" ;
+	print "" ;
+	closed = 1 ;
+} ;
 $0 == "---" && closed == 0 {
 	if (infm == 0) { infm = 1 ; print ; next ; } ;
 	for (nm in finalAction) {

@@ -119,7 +119,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]
+📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-sleep-run
 📘 syntax: DistroAgentsTools.fn.sh --purge-cleanup
 📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>
@@ -2359,31 +2359,47 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]
+		--magic-heartbeat-spawn-proxy <team-member> [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]
 			Heartbeat/advance spawn relay: executes a spawn prompt through
 			DistroAgentsConsole.sh. Prompt body source is stdin (default),
-			--from-board, --from-vault, or --from-audit (exactly one source
-			selector when used); empty body is rejected.
+			--from-file, --from-board, --from-vault, or --from-audit
+			(exactly one source selector when used); empty body is
+			rejected. On the stdin default the body has to be redirected
+			in for real — a pipe, a heredoc, or a file redirect. A bare
+			call with nothing attached does NOT wait for input: stdin is
+			already at EOF in a non-interactive caller, so the read
+			returns 0 bytes and the call fails with "empty spawn context"
+			straight away. Use --from-file <path> where redirecting is
+			awkward. The prompt body is passed to the spawned session as
+			its whole stdin and is not parsed here -- no field inside it
+			selects a mode, `--wait` included.
 
-			Two tracking outcomes, never a private receipt file: a
-			--from-board/--from-vault/--from-audit call already names an
-			existing tracking document, so nothing new is written and the
-			call prints `TRACKING_ITEM=<name>` instead. A stdin/--from-file
-			call is ad-hoc, so a `dispatch-*` board-item is created in
-			board-running up front (verbatim prompt as its own "## Brief"),
-			and the same item is updated in place on completion — a
-			`status:` header moving from `dispatch-started` to
-			`dispatch-succeeded`/`dispatch-failed`, `resolved-at` stamped,
-			and a real "## Result" section appended — printed as
+			Two tracking outcomes. The two input-path groups differ by
+			design, not by oversight, and neither writes a private receipt
+			file. A --from-board/--from-vault/--from-audit call already
+			names an existing tracking document, so NO new item is
+			written and the call prints `TRACKING_ITEM=<name>` instead. A
+			stdin/--from-file call is ad-hoc, with no document behind it
+			yet, so it DOES create one: a `dispatch-*` board-item in
+			board-running up front (verbatim prompt as its own "## Brief",
+			under a frontmatter block carrying `owner`, `status` and
+			`session-id`), and the same item is updated in place on
+			completion — a `status:` header moving from `dispatch-started`
+			to `dispatch-succeeded`/`dispatch-failed`, `resolved-at`
+			stamped, and a real "## Result" section appended — printed as
 			`DISPATCH_ITEM=<name>`. Async spawns close their own dispatch
 			item from a background subshell once the child exits, so
 			closure happens even though the call itself already returned.
 
 			Default mode is async (returns STATUS=started + PID); --wait
-			blocks for completion and returns non-zero on failure. Always
-			prints RECEIPT_ID (a correlation id) and OUTPUT_FILE — the
+			blocks for completion and returns non-zero on failure. Printed
+			keys in full: RECEIPT_ID (a correlation id) always; exactly
+			one of TRACKING_ITEM/DISPATCH_ITEM, per the two outcomes
+			above; STATUS always, accompanied by PID on the async path and
+			by EXIT_CODE on the --wait path; and OUTPUT_FILE always — the
 			spawned process's own raw stdout/stderr, written under
-			`$MDAT_DATA_ROOT/audit/<YYYY-MM>/`.
+			`$MDAT_DATA_ROOT/audit/<YYYY-MM>/`. No RECEIPT_FILE key is
+			written or printed on any path.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -2566,6 +2582,13 @@
 		with no leading path component) does not match this script's own
 		`case "$0"` dispatcher and silently no-ops; invoke it via `./sh-scripts/...`,
 		a full path, or with `sh-scripts/` on PATH.
+
+		--header:<upsert|append|remove> operations write into the item's own
+		`---` frontmatter block. An item that has no frontmatter block gets
+		one, carrying the requested fields, ahead of its existing body; the
+		body itself is untouched. An item whose frontmatter opens with `---`
+		and never closes is refused instead -- where that block ends cannot
+		be determined, so nothing is written.
 
 ##  Examples:
 
