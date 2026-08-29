@@ -656,7 +656,7 @@ case "$1" in
 		##
 		local repoRoot="" originUrl=""
 		set +e
-		originUrl="$( DistroAgentsTools --agents-config-option magic-coordinator --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
 		if [ -n "$originUrl" ] ; then
 			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
 		fi
