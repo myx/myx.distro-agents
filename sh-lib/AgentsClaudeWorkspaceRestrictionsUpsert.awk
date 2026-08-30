@@ -370,23 +370,33 @@ END {
 	## permissions docs, "Read and Edit" pattern table). allowSourceRoot is
 	## already absolute (carries its own leading "/"), so exactly ONE more
 	## "/" here yields the required "//" -- prepending "//" would double it.
-	desiredAllowEntry = "Read(/" allowSourceRoot "/**)"
+	## Read, Edit AND Write are all granted -- Read-only left every Edit/Write
+	## under these roots still prompting, which is the greater part of what
+	## dispatched agents actually do here (create/modify files, not just read
+	## them). Same replace-not-accumulate shape, per verb.
 	newAllowCount = 0
 	for (i = 0; i < oldAllowCount; i++) {
 		v = oldAllow[i]
-		if ((v ~ /^Read\(\/\/.*\/source\/\*\*\)$/) && v != desiredAllowEntry) continue
+		if ((v ~ /^(Read|Edit|Write)\(\/\/.*\/source\/\*\*\)$/) && v != ("Read(/" allowSourceRoot "/**)") && v != ("Edit(/" allowSourceRoot "/**)") && v != ("Write(/" allowSourceRoot "/**)")) continue
 		newAllow[newAllowCount++] = v
 	}
-	if (!inList(newAllow, newAllowCount, desiredAllowEntry)) newAllow[newAllowCount++] = desiredAllowEntry
+	for (verbIdx = 0; verbIdx < 3; verbIdx++) {
+		verb = (verbIdx == 0) ? "Read" : (verbIdx == 1) ? "Edit" : "Write"
+		desiredAllowEntry = verb "(/" allowSourceRoot "/**)"
+		if (!inList(newAllow, newAllowCount, desiredAllowEntry)) newAllow[newAllowCount++] = desiredAllowEntry
+	}
 
 	## Fixed extra reference roots (MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON) --
 	## unlike allowSourceRoot above, these are NOT derived from the target
 	## workspace, so there is no stale "workspace moved" entry to replace:
 	## add-if-missing only, same shape MYX_WSRESTRICT_DENY_ADD_JSON's own merge
-	## below uses.
+	## below uses. Same three verbs as above, same reason.
 	for (i = 0; i < allowExtraRootsCount; i++) {
-		desiredExtraAllowEntry = "Read(/" allowExtraRoots[i] "/**)"
-		if (!inList(newAllow, newAllowCount, desiredExtraAllowEntry)) newAllow[newAllowCount++] = desiredExtraAllowEntry
+		for (verbIdx = 0; verbIdx < 3; verbIdx++) {
+			verb = (verbIdx == 0) ? "Read" : (verbIdx == 1) ? "Edit" : "Write"
+			desiredExtraAllowEntry = verb "(/" allowExtraRoots[i] "/**)"
+			if (!inList(newAllow, newAllowCount, desiredExtraAllowEntry)) newAllow[newAllowCount++] = desiredExtraAllowEntry
+		}
 	}
 
 	sortList(newAllow, newAllowCount)
