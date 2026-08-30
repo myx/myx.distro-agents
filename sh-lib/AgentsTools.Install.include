@@ -833,8 +833,17 @@ HOOKEOF
 			set +e ; return 1
 		}
 
+		## Standing Read allow-grant on this workspace's own source/ tree --
+		## covers every source-symlinked skillset file (--install-skillset-symlinks
+		## links a member's skills-dir slot into here), so a plain skillset/
+		## MAGIC.md read never triggers an interactive permission prompt.
+		## Resolved per-target-workspace, same as $claudeDir/$hooksDir above --
+		## never hardcoded to one workspace.
+		local sourceRoot="$workspace/source"
+
 		if ! MYX_WSRESTRICT_DENY_ADD_JSON="$denyAddJson" \
 			MYX_WSRESTRICT_HOOKS_FILE="$hooksDescFile" \
+			MYX_WSRESTRICT_ALLOW_SOURCE_ROOT="$sourceRoot" \
 			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeWorkspaceRestrictionsUpsert.awk" \
 			"$settingsFile" > "$settingsTmp" ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: settings merge failed, $settingsFile left untouched" >&2

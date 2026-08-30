@@ -1536,15 +1536,38 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--install-workspace-restrictions [--workspace <path>]
-			Installs Claude Code WORKSPACE-level permission restrictions --
-			deny rules plus `PreToolUse` hooks -- into a target workspace's
-			own `.claude/settings.json`, so a future session in that
-			workspace cannot bypass these rules just by not remembering a
-			CLAUDE.md instruction. Distinct from `--install-claude-permissions`
-			above: that op is `$HOME`-scoped and merges the team's own
-			mandatory grants; this one is workspace-scoped and merges a
-			fixed set of deny restrictions -- the two touch different files
-			and neither substitutes for the other.
+			Installs Claude Code WORKSPACE-level permission rules -- a
+			standing Read allow-grant, deny rules, plus `PreToolUse` hooks
+			-- into a target workspace's own `.claude/settings.json`, so a
+			future session in that workspace cannot bypass the deny rules
+			just by not remembering a CLAUDE.md instruction, and does not
+			hit an interactive prompt for a plain read under the
+			workspace's own source tree either. Distinct from
+			`--install-claude-permissions` above: that op is `$HOME`-scoped
+			and merges the team's own mandatory grants; this one is
+			workspace-scoped and merges this fixed set of rules -- the two
+			touch different files and neither substitutes for the other.
+			Upserts `Read(//<workspace>/source/**)` into
+			`permissions.allow` -- resolved per target `<workspace>`, never
+			hardcoded. Covers every source-symlinked skillset file for this
+			workspace (`--install-skillset-symlinks` links a member's
+			skills-dir slot into this same `source/` tree) plus every other
+			file under it, so a plain skillset/MAGIC.md/source read here
+			never triggers an interactive permission prompt. A prior grant
+			for a DIFFERENT source root (e.g. after a workspace move) is
+			replaced, not accumulated alongside the new one -- same
+			replace-not-accumulate shape `--install-claude-permissions`'s
+			own board grant uses. Note the required double-slash: a single
+			leading slash in a permission-rule path anchors at the
+			settings source (e.g. `$HOME` for a user-scope file), not the
+			filesystem root -- `//` is what selects an absolute filesystem
+			path (Claude Code's own permissions documentation).
+			A workspace whose own skillset members live in a DIFFERENT
+			workspace's `source/` tree (a `keeper-*`/`partner-*` member
+			declared by a project outside this one) is not reached by this
+			grant -- configure that other workspace directly via its own
+			`--workspace <path>`, never by reaching across workspaces from
+			here.
 			Default target workspace is the current shell directory;
 			optional `--workspace <path>` overrides it. Creates
 			`<workspace>/.claude/` and `<workspace>/.claude/hooks/` if
@@ -2094,24 +2117,28 @@
 		--magic-heartbeat-config-check
 			Read-only, no arguments -- routine-heartbeat's step-0 upfront
 			config gate. Checks two scopes: magic-coordinator's own config
-			for the keys below, and magic-team's for SLACK_BOT_TOKEN, which
-			is the team's own credential rather than any one member's.
+			for the keys below, and magic-team's for SLACK_BOT_TOKEN and
+			TEAM_DATA_GIT_REMOTE, which are the team's own credential/config
+			rather than any one member's.
 			Prints one `<KEY>: OK`/`<KEY>: FAIL` line per key checked (name
 			only, never the value): TEAM_DATA_DIRECTORY,
 			SLACK_CHANNEL_EVENT_TRACK, SLACK_CHANNEL_EVENT_ALERT,
 			SLACK_CHANNEL_MAGIC_TEAM, SLACK_CHANNEL_HUMAN_OWNER,
 			EMAIL_IMAP_HOST, EMAIL_USER, EMAIL_APP_PASSWORD, TRELLO_KEY,
-			TRELLO_TOKEN, TEAM_DATA_GIT_REMOTE. Five are required:
+			TRELLO_TOKEN. Five are required:
 			TEAM_DATA_DIRECTORY and the four SLACK_CHANNEL_* keys -- any of
 			them missing also prints a
 			`⛔ ERROR ... set it first: DistroAgentsTools.fn.sh
 			--agents-config-option magic-coordinator --upsert <KEY> <value>`
-			line and returns 1. The other six, and SLACK_BOT_TOKEN, are
-			optional/informational -- each FAIL prints its own fix command
-			too, but never affects the exit code. For the credential-bearing
-			keys (EMAIL_APP_PASSWORD, TRELLO_KEY, TRELLO_TOKEN,
-			SLACK_BOT_TOKEN) that fix command is the --upsert-from-stdin
-			form, so following the hint never puts a secret in argv.
+			line and returns 1. The other five, and SLACK_BOT_TOKEN and
+			TEAM_DATA_GIT_REMOTE (checked under magic-team, fix command
+			`DistroAgentsTools.fn.sh --agents-config-option magic-team
+			--upsert <KEY> <value>`), are optional/informational -- each FAIL
+			prints its own fix command too, but never affects the exit code.
+			For the credential-bearing keys (EMAIL_APP_PASSWORD, TRELLO_KEY,
+			TRELLO_TOKEN, SLACK_BOT_TOKEN) that fix command is the
+			--upsert-from-stdin form, so following the hint never puts a
+			secret in argv.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

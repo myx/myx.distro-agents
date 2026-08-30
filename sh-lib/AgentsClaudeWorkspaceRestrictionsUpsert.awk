@@ -18,15 +18,27 @@
 # own header comment).
 #
 # Params via ENVIRON:
-#   MYX_WSRESTRICT_DENY_ADD_JSON -- fixed permissions.deny addition, JSON
-#                                   string array (literal)
-#   MYX_WSRESTRICT_HOOKS_FILE    -- path to a plain text file, one hook
-#                                   descriptor per line: `<dedupe-key>\t<PreToolUse-array-element-json>`.
-#                                   <dedupe-key> is a plain substring (not
-#                                   JSON) searched for within the CURRENT
-#                                   hooks.PreToolUse array's raw text --
-#                                   present means "already installed, skip";
-#                                   absent means "append this element".
+#   MYX_WSRESTRICT_DENY_ADD_JSON      -- fixed permissions.deny addition, JSON
+#                                        string array (literal)
+#   MYX_WSRESTRICT_HOOKS_FILE         -- path to a plain text file, one hook
+#                                        descriptor per line: `<dedupe-key>\t<PreToolUse-array-element-json>`.
+#                                        <dedupe-key> is a plain substring (not
+#                                        JSON) searched for within the CURRENT
+#                                        hooks.PreToolUse array's raw text --
+#                                        present means "already installed, skip";
+#                                        absent means "append this element".
+#   MYX_WSRESTRICT_ALLOW_SOURCE_ROOT  -- resolved `<workspace>/source` absolute
+#                                        path (raw, not JSON-escaped -- escaped
+#                                        here via jsonEscape() same as every
+#                                        other value this script writes).
+#                                        Upserted into permissions.allow as
+#                                        `Read(//<this>/**)`. A prior grant for
+#                                        a DIFFERENT source root (e.g. after a
+#                                        workspace move) is replaced, not
+#                                        accumulated alongside the new one --
+#                                        same pattern
+#                                        AgentsClaudeSettingsPermissionsUpsert.awk's
+#                                        own board-grant replace uses.
 
 function skipws(   c) {
 	while (p <= n) {
@@ -275,7 +287,8 @@ function arraySliceAt(arrStart,   savedP, closeAt, slice) {
 BEGIN {
 	denyAddRaw = ENVIRON["MYX_WSRESTRICT_DENY_ADD_JSON"]
 	hooksFile = ENVIRON["MYX_WSRESTRICT_HOOKS_FILE"]
-	if (denyAddRaw == "" || hooksFile == "") fail("usage")
+	allowSourceRoot = ENVIRON["MYX_WSRESTRICT_ALLOW_SOURCE_ROOT"]
+	if (denyAddRaw == "" || hooksFile == "" || allowSourceRoot == "") fail("usage")
 	if (!validJson(denyAddRaw, "[")) fail("deny-add-not-a-json-array")
 
 	s = denyAddRaw; n = length(s); p = 1; skipws()
@@ -305,7 +318,50 @@ END {
 	if (substr(s, p, 1) != "{") fail("not-a-json-object")
 	rootStart = p
 
+	## --- permissions.allow ---
+	## Standing Read grant on the target workspace's own source/ tree, so a
+	## plain skillset/MAGIC.md read inside it never triggers an interactive
+	## permission prompt -- covers every source-symlinked skillset file for
+	## this workspace already (see AgentsTools.Install.include's
+	## --install-skillset-symlinks: a member's skills-dir slot is a symlink
+	## into this same source/ tree). Merge-only, same replace-not-accumulate
+	## shape the deny section below and the sibling
+	## AgentsClaudeSettingsPermissionsUpsert.awk's own board grant both use.
+	s = ensureKey(rootStart, "permissions", "{}")
+	n = length(s); p = 1; skipws(); rootStart = p
+	if (!findKeyInObjectAt(rootStart, "permissions")) fail("unparsable")
+	permStart = VALUE_START
+	if (substr(s, permStart, 1) != "{") fail("permissions-not-an-object")
+
+	s = ensureKey(permStart, "allow", "[]")
+	n = length(s); p = 1; skipws(); rootStart = p
+	if (!findKeyInObjectAt(rootStart, "permissions")) fail("unparsable")
+	permStart = VALUE_START
+	if (!findKeyInObjectAt(permStart, "allow") || !FOUND) fail("unparsable")
+	if (substr(s, VALUE_START, 1) != "[") fail("allow-not-an-array")
+
+	oldAllowCount = stringArrayAt(VALUE_START)
+	for (i = 0; i < oldAllowCount; i++) oldAllow[i] = ELEMS[i]
+
+	## `//` (not a single `/`) is required for an absolute filesystem path --
+	## a single leading slash anchors at the settings source (e.g. $HOME for
+	## a user-scope file), not the filesystem root (Claude Code's own
+	## permissions docs, "Read and Edit" pattern table). allowSourceRoot is
+	## already absolute (carries its own leading "/"), so exactly ONE more
+	## "/" here yields the required "//" -- prepending "//" would double it.
+	desiredAllowEntry = "Read(/" allowSourceRoot "/**)"
+	newAllowCount = 0
+	for (i = 0; i < oldAllowCount; i++) {
+		v = oldAllow[i]
+		if ((v ~ /^Read\(\/\/.*\/source\/\*\*\)$/) && v != desiredAllowEntry) continue
+		newAllow[newAllowCount++] = v
+	}
+	if (!inList(newAllow, newAllowCount, desiredAllowEntry)) newAllow[newAllowCount++] = desiredAllowEntry
+	sortList(newAllow, newAllowCount)
+	s = upsertKeyValue(permStart, "allow", arrayJson(newAllow, newAllowCount))
+
 	## --- permissions.deny ---
+	n = length(s); p = 1; skipws(); rootStart = p
 	s = ensureKey(rootStart, "permissions", "{}")
 	n = length(s); p = 1; skipws(); rootStart = p
 	if (!findKeyInObjectAt(rootStart, "permissions")) fail("unparsable")

@@ -217,7 +217,6 @@ case "$1" in
 			--optional "EMAIL_APP_PASSWORD:<app-password>" \
 			--optional "TRELLO_KEY:<key>" \
 			--optional "TRELLO_TOKEN:<token>" \
-			--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \
 			--expect-id-kind SLACK_CHANNEL_EVENT_TRACK:channel \
 			--expect-id-kind SLACK_CHANNEL_EVENT_ALERT:channel \
 			--expect-id-kind SLACK_CHANNEL_MAGIC_TEAM:channel \
@@ -242,6 +241,7 @@ case "$1" in
 		## key must not start gating a heartbeat just because it moved scope.
 		DistroAgentsTools --intern-op-check-configs magic-team \
 			--optional "SLACK_BOT_TOKEN:<token>" \
+			--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \
 			--expect-secret SLACK_BOT_TOKEN \
 			--context --magic-heartbeat-config-check || true
 		## Slack granted-scope check. The op list is declared HERE, by the stub;
