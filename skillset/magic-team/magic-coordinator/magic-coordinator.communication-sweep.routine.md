@@ -52,9 +52,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
       - Email: get human confirmation before sending, when a human is actually present in the session; running unattended (`magic-coordinator.heartbeat.routine`), send directly, no confirmation gate — the rest of this step's send/reply discipline still applies in full.
       - Slack/Trello comments in the coordinator's own channels: lead dialog directly, still pause before anything reading as a commitment/decision on the user's behalf.
       - always send under the coordinator's own identity — never impersonate.
-      - genuinely requires the addressee's reaction/reply before anything proceeds → explicitly `@`-mention them, per `magic-team.conversations.md` rule 4c — posting where they might see it is not enough.
+      - genuinely requires the addressee's reaction/reply before anything proceeds → explicitly `@`-mention them, per `magic-team.conversations.md`'s **address-messages-clearly** — posting where they might see it is not enough.
       - send questions standalone, never bundled inside a longer status update.
-      - no message bundles multiple distinct topics — unit is topic count, not send-call count: one root message naming the overall topic, then each distinct point as its own separate threaded reply under it, per `magic-team.conversations.md` rule 1/1a — never one long message covering several points, never several unthreaded top-level posts on the same topic.
+      - no message bundles multiple distinct topics — unit is topic count, not send-call count: one root message naming the overall topic, then each distinct point as its own separate threaded reply under it, per `magic-team.conversations.md`'s **one-message-one-speech-act**/**message-shape-is-correctness** — never one long message covering several points, never several unthreaded top-level posts on the same topic.
       - mark read once handled, every platform (see Tooling for the per-platform mechanics).
       - Slack, additionally: apply the `slack-reaction-tracking` procedure's Reply-stage and terminal reactions on **this message**, now.
       - `--format blocks` is a hard rule, no exceptions — never plain-text; every array element in a hand-built `blocks` payload needs its own block-level `"type"` wrapper.

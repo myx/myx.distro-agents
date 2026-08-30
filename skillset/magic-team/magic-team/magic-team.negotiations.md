@@ -32,7 +32,7 @@ Maintainers (`quorum-all-agree`): `magic-coordinator` + `magic-librarian` + `mag
   - record it as a separate board-item (inquiry/reflection, as fits) on its own track, to be picked up
     later.
 - Never assume inclusion, never silently defer.
-- Distinct from `magic-team.conversations.md` rule 5d (propose-confirm to stretch an *already-approved
+- Distinct from `magic-team.conversations.md`'s **extending-approval-needs-confirm** (propose-confirm to stretch an *already-approved
   decision's* own reach beyond its case): here the topic itself is new, not yet part of any approved
   decision.
 
@@ -49,7 +49,7 @@ Maintainers (`quorum-all-agree`): `magic-coordinator` + `magic-librarian` + `mag
   substance itself open: establish the actual defining facts by asking, then draft the wording.
 - Distinct from Topic surfacing above: there a new topic enters the queue from outside current scope; here
   the gap sits inside the current topic and becomes a question on it.
-- Distinct from `magic-team.conversations.md` rules 5a/5b (an unclear or ambiguous point, received or
+- Distinct from `magic-team.conversations.md`'s **readback-on-suspected-assumption-gap**/**self-discovered-ambiguity-still-a-gap** (an unclear or ambiguous point, received or
   self-discovered): here nothing ambiguous exists — the fact was simply never established, and asking is
   what establishes it.
 
@@ -98,7 +98,7 @@ overstated as fully settled when a gap exists. Reassess remainder of the topic a
 ## Check-restart procedure
 
 Resume processing in an iterational conversation after a period of inactivity or an unexpected
-interruption. Inherits `magic-team.conversations.md` rule 8b for the actual dormancy/nudge/escalate
+interruption. Inherits `magic-team.conversations.md`'s **dormancy-nudge-once-then-escalate** for the actual dormancy/nudge/escalate
 mechanics (measured from the other party's last real activity, not the routine's own bookkeeping). Always
 concludes by returning exactly one of three states: `running` (nudged or still genuinely active),
 `finished` (the topic's own goal actually concluded), or `blocked` (something external prevents

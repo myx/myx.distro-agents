@@ -29,7 +29,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - step: when the interview is being opened or resumed by a genuinely live-interactive session, set `owner-session: interactive` and `owner-session-since: <now>` on the tracking board-item's frontmatter at this same moment — refreshed as a heartbeat each time **resume-review** runs under that same live session, so a long-running real conversation never drifts into looking stale mid-way through.
 3. **name-the-interview-on-resume**: when more than one interview's tracking board-item is open at once, name the specific one when resuming
    it.** A bare "continue"/"next round" with no name is ambiguous and must be treated as a genuine
-   assumption gap (conversation-mechanics rule 5a) — ask which interview, propose options, don't guess.
+   assumption gap (conversation-mechanics **readback-on-suspected-assumption-gap**) — ask which interview, propose options, don't guess.
 
 4. **resume-review**: whenever this interview is picked up or continued — standing, repeatable, every pickup, not just the first, run before any new question:
    - Review the interview's accumulated board-item and transcript content for sub-pieces already settled but not yet dispatched.
@@ -57,7 +57,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Conflict found -> resolve it, don't draft yet.
    - No conflict -> draft: built fresh each round from the above, not necessarily saved, and allowed to have
      gaps — that's normal. Where exact wording matters, generate several candidate phrasings and compare
-     them directly, same method as conversation-mechanics rule 10b.
+     them directly, same method as conversation-mechanics **wording-and-substance-are-separate-checks**.
    - Before using or showing the draft, check it keeps every verbatim-intent, verbatim-benchmark, and
      stated goal collected so far — nothing dropped, nothing contradicted.
    - When presenting a corrected draft mid-cycle, show what changed against the prior version, not just the
@@ -189,7 +189,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-coordinator/magic-coordinator.armed.md`'s `missing-tool-option-escalation` local procedure — the tooling-escalation ladder that's one concrete trigger for this routine.
 - `magic-coordinator/magic-coordinator.armed.md` — the `coordination-session`/`goal-gap-toward-empty` description **resume-review**'s third entry point refers to.
 - `magic-team/magic-team.board.md` — the general item lifecycle, `inquiry-*` item shape, `board-backlog`'s drop-point shape.
-- `magic-team/magic-team.conversations.md` — rules 5a/10b this routine's steps borrow, and the general conversation-mechanics baseline this routine's Local rules point to.
+- `magic-team/magic-team.conversations.md` — **readback-on-suspected-assumption-gap**/**wording-and-substance-are-separate-checks** this routine's steps borrow, and the general conversation-mechanics baseline this routine's Local rules point to.
 - `magic-team/magic-team.negotiations.md` — the `check-restart` procedure and topic/queue/question mechanics **inherit-check-restart** and this routine's own Local rules inherit.
 - `magic-team/magic-team.basic.md` — the propose-and-wait-for-confirmation filing gate this routine's own filing rule (Local rules) reuses.
 

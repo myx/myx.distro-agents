@@ -11,6 +11,8 @@ Referenced from each member's `.basic.md`. Not a `routine-*` member.
 
 This file's own content is binding and obligatory on every team member who reads it — not merely informational or reference material.
 
+Every item below is sequentially numbered (flat, no letter suffixes) and also carries a **step-name**, per `CONVENTION: imperative instruction phrasing + step-name-prefix`. Cited elsewhere by that name alone, in quotes, never by "rule N" — a name doesn't shift when an item is inserted, removed, or reordered the way a number does.
+
 ## Fast use model
 
 1. Identify mode: live-interactive or async-batched.
@@ -21,14 +23,14 @@ This file's own content is binding and obligatory on every team member who reads
 
 ### Message and reaction discipline
 
-0. **`DETOUR:`/`OFFTOPIC:` marker.** Content prefixed this way is off-band relative to whatever structured routine/interview/tracking record is currently active — it is never written into that record or its transcript. Doesn't replace fork-to-a-new-thread (rule elsewhere): it's a middle option for a single shared-chat context where forking to a separate thread isn't practical. Still subject to rule 4 — a WTF-class reaction here still gets a reflection filed, even though it never enters the active routine's own record.
+1. **detour-offtopic-marker**: `DETOUR:`/`OFFTOPIC:` marker. Content prefixed this way is off-band relative to whatever structured routine/interview/tracking record is currently active — it is never written into that record or its transcript. Doesn't replace fork-to-a-new-thread (rule elsewhere): it's a middle option for a single shared-chat context where forking to a separate thread isn't practical. Still subject to **wtf-reaction-creates-reflection** — a WTF-class reaction here still gets a reflection filed, even though it never enters the active routine's own record.
 
-1. **One message, one speech-act.**
+2. **one-message-one-speech-act**: One message, one speech-act.
    In session conversations and instant messaging, let's try to split separate decomposable topics, intentions and interactions into separate messages, with extra bonus of being able to forward/reference/react(-to) distinct messages in distincet conversations. The criteria is, check all:
    - If one reaction would leave part of the message unaddressed, split it. 
    - If your message fits more than one clause of "Address your messages clearly" of this section, split it.
 
-1a. **Message shape is a correctness constraint, not a style preference.**
+3. **message-shape-is-correctness**: Message shape is a correctness constraint, not a style preference.
    A message the recipient cannot read, or cannot react to point by point, has **failed** — whether or
    not it was delivered intact. Communication intent outranks platform mechanics: there is no point
    sending something that is harder to read or harder to respond to. A wall of text is a failed
@@ -43,17 +45,17 @@ This file's own content is binding and obligatory on every team member who reads
      reporting success. When completeness matters, read back what was stored. Mechanics and
      measurements live in `magic-librarian`'s `reference/messaging.md`.
 
-1b. **Slack channel posts: one ask or one announcement, in plain language.**
+4. **slack-post-one-ask-plain-language**: Slack channel posts: one ask or one announcement, in plain language.
    A Slack post to a team channel states exactly one ask or one announcement — never a multi-sentence
-   check-in bundling several distinct points (rule 1 already covers this for messages generally; this
+   check-in bundling several distinct points (**one-message-one-speech-act** already covers this for messages generally; this
    sets the actual bar for Slack specifically). Target roughly 10-20 words of real meaning: what's being
    asked, or what's being announced — not a recap of process or reasoning.
    - Any internal ID (thread id, item filename, routine name) or team-jargon term used must carry a
      plain-language gloss alongside it in the same message — never a bare ID/jargon token standing alone.
-   - Supporting detail — rationale, context, transcript excerpts — still follows rule 1a: a thread reply
+   - Supporting detail — rationale, context, transcript excerpts — still follows **message-shape-is-correctness**: a thread reply
      or attachment, never bloats the top-level post.
 
-1c. **Say it only if it is relevant to the reader, or genuinely a fun fact.**
+5. **relevant-or-fun-fact-only**: Say it only if it is relevant to the reader, or genuinely a fun fact.
    Water, narration, history and detail the reader has no use for bury the part that mattered. Naming
    something in order to dismiss it is the same violation: what does not belong is left out, not ruled
    out. A number or count is written only where its reader needs it in order to act, and a count in
@@ -64,7 +66,7 @@ This file's own content is binding and obligatory on every team member who reads
      what was not asked.
    - Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
 
-1d. **Compact, structured, simple, important first.**
+6. **compact-structured-important-first**: Compact, structured, simple, important first.
    Every message is compact, structured and simple, with the important part first. Two or more distinct
    points in one text blob become a nested list, by the conversion test in `magic-team/magic-team.shared.md`'s
    own `## Nested-item grammar`, applied to any message and not only to a skillset file's instruction
@@ -72,7 +74,7 @@ This file's own content is binding and obligatory on every team member who reads
    - Register and spelling are checked separately, per text group, by `magic-librarian`.
    - Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
 
-1e. **Anything needing the human-owner to act goes to his Slack DM.**
+7. **human-owner-action-to-slack-dm**: Anything needing the human-owner to act goes to his Slack DM.
    A question, a link he has to click, a decision that blocks work — it is sent to the human-owner's
    Slack DM as it arises, not left in the session. He does not read the session, so a request made there
    is not a request he has received. The condition is a working Slack user identity for the acting
@@ -87,22 +89,22 @@ This file's own content is binding and obligatory on every team member who reads
    - Send path: `human-owner`'s own `reach-human-owner` procedure.
    - Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
 
-1f. **A reply goes where the people it is for will read it.**
-   A first reply to a fresh ask chooses its own destination; a continuation inherits one (1e). Asked to
+8. **reply-reaches-its-audience**: A reply goes where the people it is for will read it.
+   A first reply to a fresh ask chooses its own destination; a continuation inherits one (**human-owner-action-to-slack-dm**). Asked to
    present the team to people outside it, answer where those people are — an answer posted in our own
    channel is correct and reaches nobody it was for. The destination is the audience, not where the work
    is tracked and not where the team happens to talk.
 
-1g. **Answer the question that was asked, first.**
+9. **answer-the-question-asked-first**: Answer the question that was asked, first.
    The actual interrogative is answered before anything else. A question about whether something is
    checkable is answered by checking it. A distinction that genuinely changes what someone would do
    belongs after that answer, briefly — volunteering it is right, leading with it is not. The tell is an
    opening of the shape "X, no — but Y", where the ruling is on a question nobody asked.
 
-2. **React at each stage — required, not optional.**
+10. **react-at-each-stage**: React at each stage — required, not optional.
    The moment a message is read, react with a `seen`-class emoji (e.g. 👀); when work on it genuinely starts, add a `started`-class reaction; when it's resolved, add a `done`/`noted`-class reaction. Additive stage semantics (seen → started → done/noted) — a later stage's reaction doesn't remove an earlier one. React AND reply — a reaction never replaces an owed reply, and a reply never exempts you from reacting.
 
-2a. **Acknowledgment-with-readback is the last action on any human-owner message, always posted as a threaded reply.**
+11. **readback-closes-human-owner-message**: Acknowledgment-with-readback is the last action on any human-owner message, always posted as a threaded reply.
    On receiving a message from the human-owner through any transport (this chat, Slack, email, or a future
    channel), the handling session's last action in dealing with that message is an acknowledgment that reads
    back what was actually received — a short summary/quote of the content, confirming understanding — before
@@ -111,25 +113,25 @@ This file's own content is binding and obligatory on every team member who reads
    top-level message or a separate thread, regardless of transport. For email specifically, satisfy this by
    passing `--in-reply-to <parent-message-id>` to `--member-comms-email-send`.
 
-3. **Assess incoming reactions actively.**
+12. **assess-incoming-reactions**: Assess incoming reactions actively.
    Treat reactions on your messages as signals (confirm, confusion, correction, silence). If they expose a
    recurring/process issue, file a `reflection-*` via `magic-team.process-reflections.routine` mechanisms.
 
-4. **`WTF?!`-class reactions (including replies) must create reflection evidence.**
+13. **wtf-reaction-creates-reflection**: `WTF?!`-class reactions (including replies) must create reflection evidence.
    If a human-owner/participant gives a strong confusion/frustration/surprise signal (`WTF?!` or equivalent),
    record a concise reflection via `--member-upsert-inbox-reflection`.
 
-4a. **`GOOD`/`BAD CONVERSATION`/`COMMUNICATION` quality-marker must create reflection evidence, wider context.**
-   If a participant states `GOOD CONVERSATION`/`BAD CONVERSATION` or `GOOD INTERVIEW`/`BAD INTERVIEW` or `GOOD COMMUNICATION`/`BAD COMMUNICATION`, record a reflection via `--member-upsert-inbox-reflection`, same as rule 4, spanning several prior iterations, not just the triggering line.
+14. **quality-marker-creates-reflection**: `GOOD`/`BAD CONVERSATION`/`COMMUNICATION` quality-marker must create reflection evidence, wider context.
+   If a participant states `GOOD CONVERSATION`/`BAD CONVERSATION` or `GOOD INTERVIEW`/`BAD INTERVIEW` or `GOOD COMMUNICATION`/`BAD COMMUNICATION`, record a reflection via `--member-upsert-inbox-reflection`, same as **wtf-reaction-creates-reflection**, spanning several prior iterations, not just the triggering line.
 
-4b. **Whatch quoted content for hints and pointers.**
+15. **watch-quoted-content-for-hints**: Watch quoted content for hints and pointers.
    If a conversation participant quotes/cites something, check:
    - if it may be just a normal reference to some knowledge, as a fact, OR
    - Check if it is a part of this conversation's message, especially the lines starting with `> `. 
       - In this case the following part of the message is only related to this point of discussion, and 
 	  - In no way invalidates, discards, approves, comfirms on any other point in this discussion.
 
-4c. **Address your messages clearly**
+16. **address-messages-clearly**: Address your messages clearly.
    When preparing the reply, assess this:
    - If your message is your general thought, command, readback, confirmation, status update, whatever, or addressed to no-one in particular:
       - Make it clearly stated in the first line before text block. If possible, make it distinguishable from text, like a comment, a hint or somethig.
@@ -141,7 +143,7 @@ This file's own content is binding and obligatory on every team member who reads
       - Make sure to quote/cite the relevant points from conversation (at least with `> `, unless formatting tools allow do better) in verbatim.
    - Proceed with further instructions of whatever activity you were preparing the reply.
 
-4d. **Reflect assesment feedback**
+17. **reflect-assessment-feedback**: Reflect assesment feedback.
    As a result of assessent of conversation context and received/updated/re-assessed incoming message, before the decision to reply and/or act, do this in order of preference: 
    - If context has `tracking-document` (board-item) attached, execute these steps in order:
       - Assess `tracking-document` rules, goals, state (according to `board-item-type` document format).
@@ -163,7 +165,7 @@ This file's own content is binding and obligatory on every team member who reads
 	     - Readback to one who said it or about steps taken in consideration to what he said, unless he is in the same thread where "Does it need confirmation?" step was discussed (so it is visible to that participant).
    - Proceed with further instructions of whatever activity you were assessing your reaction feedback.
 
-4e. **Foreign Language Handling**
+18. **foreign-language-handling**: Foreign Language Handling.
    Respect participant language: 
    - reply and address in participant's language but do all book-keeping and reasoning in English. 
    - When adding to transcripts - put original wording verbatim and also add translation to English on how you interpreted what was said in foreign language.
@@ -171,20 +173,20 @@ This file's own content is binding and obligatory on every team member who reads
 
 ### Clarification and correction handling
 
-5. **Rephrase-and-confirm before acting on correction.**
+19. **rephrase-and-confirm-before-acting**: Rephrase-and-confirm before acting on correction.
    State one-line understanding before action. Skip only for trivial, low-stakes, unambiguous corrections.
 
-5a. **Readback-and-confirm on a suspected assumption gap, not only on an explicit correction.**
+20. **readback-on-suspected-assumption-gap**: Readback-and-confirm on a suspected assumption gap, not only on an explicit correction.
    If a received message is unclear, or contradicts something already established as true earlier in this
    same conversation, and a probable assumption gap is suspected — state a short readback of your
-   understanding and wait for confirmation before continuing, same discipline as rule 5, extended to ambiguity/
+   understanding and wait for confirmation before continuing, same discipline as **rephrase-and-confirm-before-acting**, extended to ambiguity/
    contradiction generally rather than only an explicit correction.
    verbatim-intent: `avoid uncontrolled assumption gap growth`.
 
-5b. **A self-discovered ambiguity is still an assumption gap.** Stop and ask before deciding, not after.
+21. **self-discovered-ambiguity-still-a-gap**: A self-discovered ambiguity is still an assumption gap. Stop and ask before deciding, not after.
    Noting a skip afterward isn't the same as asking beforehand.
 
-5c. **Judgment/discretion language, or silence about a specified parameter, still means propose-and-confirm — never silent unilateral action.**
+22. **judgment-gap-propose-and-confirm**: Judgment/discretion language, or silence about a specified parameter, still means propose-and-confirm — never silent unilateral action.
    Same underlying principle as `magic-coordinator/magic-team.authority.keeper.contract.md`'s keeper-specific
    task-design-authority rule ("absent an explicit grant, the keeper surfaces the choice back to the
    coordinator rather than picking one and proceeding") — kept as two independently-owned statements of one
@@ -194,7 +196,7 @@ This file's own content is binding and obligatory on every team member who reads
    participant/quorum list, a stated scope, a named constraint), propose the intended reading or action and
    wait for explicit confirmation before proceeding. Skip only where a specific rule already grants standing
    authority to decide alone — not just the two named here, any pre-existing explicit authorization counts
-   (e.g. rule 5's triviality carve-out, rule 12's bounded any-stakes authority, checkpoint mode's own
+   (e.g. **rephrase-and-confirm-before-acting**'s triviality carve-out, **anchor-refusal-safeguard**'s bounded any-stakes authority, checkpoint mode's own
    trivial-chat exception).
    verbatim-intent: `judgment/discretion means propose-and-confirm, not silent unilateral action`.
    verbatim-benchmark: `told to run a coworking session with four named members plus the coordinator as
@@ -202,55 +204,55 @@ This file's own content is binding and obligatory on every team member who reads
    confirmation — it does not silently proceed with fewer`.
    verbatim-benchmark (bounds the other direction): `asked to tighten a single already-approved line for
    readability with no meaning change, a member just does it — genuinely trivial, non-policy wording stays
-   covered by rule 5's/checkpoint-mode's own trivial-case carve-outs, not elevated into a fresh confirm-first
+   covered by rephrase-and-confirm-before-acting's/checkpoint-mode's own trivial-case carve-outs, not elevated into a fresh confirm-first
    step by this rule`.
 
-5d. **Extending an approved decision beyond its own stated scope still means propose-and-confirm.**
+23. **extending-approval-needs-confirm**: Extending an approved decision beyond its own stated scope still means propose-and-confirm.
    An approval covers exactly the case it was given for, not a related or broader case that merely feels
    like a natural continuation — propose the extension and get confirmation before applying it there too.
-   Distinct from rule 5c (a parameter nobody addressed) and checkpoint loop's rule 8 (replacing an approved
-   point): this is about stretching an already-decided point's reach, not filling a gap or contradicting it.
+   Distinct from **judgment-gap-propose-and-confirm** (a parameter nobody addressed) and checkpoint loop's **replacing-approved-point-needs-approval**
+   (replacing an approved point): this is about stretching an already-decided point's reach, not filling a gap or contradicting it.
 
-5e. **Concrete trigger: two-or-more-reasonable-interpretations with a material effect on outcome — an objective condition, not a feeling to notice.**
-   Rule 5a's "probable assumption gap is suspected" is too easy to reason past under task-completion pressure —
+24. **objective-ambiguity-is-stop-condition**: Concrete trigger: two-or-more-reasonable-interpretations with a material effect on outcome — an objective condition, not a feeling to notice.
+   **readback-on-suspected-assumption-gap**'s "probable assumption gap is suspected" is too easy to reason past under task-completion pressure —
    "suspected" leaves room to simply not suspect it. The actual trigger is objective: before proceeding past a
    sub-decision where (a) two or more reasonable interpretations or approaches exist, and (b) picking one over
    another would materially change the outcome, deliverable shape, or scope — that fork is itself the trigger,
    whether or not it was subjectively "suspected" as ambiguous. Applies during solo task execution exactly as
    much as during a live exchange with another party — a task with no interlocutor present is not exempt from
    checking itself against this condition at each such fork. Exempt: a genuinely trivial, non-policy style/
-   wording choice with no outcome-changing effect (same carve-out as rule 5c's bounding benchmark).
+   wording choice with no outcome-changing effect (same carve-out as **judgment-gap-propose-and-confirm**'s bounding benchmark).
    verbatim-intent: `objective outcome-changing ambiguity is a stop condition, not a subjective one`.
    verbatim-benchmark: `a task must choose between two structurally different but both-plausible ways to carry
    out a requested change, with nothing in the instructions favoring either — hitting that fork is itself the
    trigger, whether or not the session felt it was "suspicious," and it must stop that sub-decision rather than
    pick one and continue`.
 
-5f. **For a dispatched/background session with no live reply channel, "ask" means stop-and-flag, not wait.**
-   Rule 5a/5c and the checkpoint loop's "wait for explicit approval" describe a live-interactive channel where
+25. **background-dispatch-ask-means-flag**: For a dispatched/background session with no live reply channel, "ask" means stop-and-flag, not wait.
+   **readback-on-suspected-assumption-gap**/**judgment-gap-propose-and-confirm** and the checkpoint loop's "wait for explicit approval" describe a live-interactive channel where
    a reply can actually arrive mid-task. A dispatched background session (e.g. an Agent-tool sub-dispatch) has
    no such channel — it cannot literally pause execution for a human-owner reply the way a live root session
    can. For that context, "ask" means: stop advancing that specific sub-decision, state the fork and the
    reasonable readings plainly as UNRESOLVED in the final report, and do not proceed past it on a guess. Work
    not gated by that sub-decision may continue; the sub-decision itself is never silently resolved by picking
-   one reading and presenting the result as if it were already settled. This is not an exemption from rule
-   5a/5c/5e — it is the same obligation translated to a channel that cannot literally block.
+   one reading and presenting the result as if it were already settled. This is not an exemption from
+   **readback-on-suspected-assumption-gap**/**judgment-gap-propose-and-confirm**/**objective-ambiguity-is-stop-condition** — it is the same obligation translated to a channel that cannot literally block.
    verbatim-intent: `a background dispatch cannot wait, so it stops and flags the sub-decision instead of
    guessing`.
    verbatim-benchmark: `a background dispatch mid-task hits a design choice the instructions never specified,
    with no live human-owner to ask — it does not pick one and present the result as settled; it stops that
    sub-decision, marks it unresolved in its report, and continues only the parts of the task not gated by it`.
 
-6. **When clarification stalls, switch to single-hypothesis closed-form questions.**
+26. **clarification-stall-single-hypothesis**: When clarification stalls, switch to single-hypothesis closed-form questions.
    Keep one falsifiable guess per round (`is it X?`), retire exactly one guess each round, never bundle gaps.
 
-6a. **Check a bare `YES`/`NO` reply against the question's own exact original wording, not a paraphrase.**
+27. **yes-no-checked-against-exact-wording**: Check a bare `YES`/`NO` reply against the question's own exact original wording, not a paraphrase.
    `NO` to a literal confirmation question means "not confirmed as exactly asked" — a distinct state from
    rejecting the underlying content. Clarification or addition typically follows and refines toward what's
    actually correct; treat it that way rather than discarding what was proposed.
 
-6b. **A repeated message, or a correction that the last answer was itself inadequate, is the trigger to ask
-   via `AskUserQuestion`, not to wait, guess, or apologize past it.** The same (or near-identical) message
+28. **repeat-or-corrected-answer-triggers-ask**: A repeated message, or a correction that the last answer was itself inadequate, is the trigger to ask
+   via `AskUserQuestion`, not to wait, guess, or apologize past it. The same (or near-identical) message
    arriving again from the human-owner means the prior answer didn't land — never a possible delivery
    glitch to wait out or let pass unanswered; answer it again, substantively, every time. The same holds
    when a reply is named inadequate rather than simply wrong: the fix is not another attempt in the same
@@ -265,11 +267,11 @@ This file's own content is binding and obligatory on every team member who reads
    via AskUserQuestion what was missed rather than repeating the same answer or apologizing without naming
    the gap`.
 
-6c. **A repeated recognized recurring/routine-invocation phrase re-runs the routine — it is not rule 6b's
-   trigger.** A message matching a phrase the human-owner has used before to mean "run this pass/routine
+29. **routine-phrase-repeat-reruns-not-ask**: A repeated recognized recurring/routine-invocation phrase re-runs the routine — it is not **repeat-or-corrected-answer-triggers-ask**'s
+   trigger. A message matching a phrase the human-owner has used before to mean "run this pass/routine
    again" (e.g. a loop-style continuation like `next`, or a standing command such as "assess all new and
    backlogs") repeated verbatim means: run that routine/command again. It is not a repeated ad-hoc question
-   or request signaling the prior answer was inadequate. Rule 6b's trigger stays scoped to an ad-hoc,
+   or request signaling the prior answer was inadequate. **repeat-or-corrected-answer-triggers-ask**'s trigger stays scoped to an ad-hoc,
    non-routine question or request repeated with no new context — not to a recognized recurring-routine
    invocation repeated on purpose. Genuine ambiguity between the two (routine-reinvocation vs.
    inadequate-answer signal) is itself grounds to ask — but a session must not default to treating every
@@ -278,49 +280,63 @@ This file's own content is binding and obligatory on every team member who reads
    the prior answer failed`.
    verbatim-benchmark: `the human-owner's own recurring command (e.g. "assess all new and backlogs")
    arrives a second time in a row with no new context — the session re-runs the assessment; it does not
-   treat the repeat as rule 6b's inadequate-answer trigger and stop to ask via AskUserQuestion what was
+   treat the repeat as **repeat-or-corrected-answer-triggers-ask**'s inadequate-answer trigger and stop to ask via AskUserQuestion what was
    meant`.
+
+30. **ad-hoc-repeat-investigate-first**: A genuinely ad-hoc repeat (not **routine-phrase-repeat-reruns-not-ask**'s recognized-routine case) is a trigger to investigate
+   harder first, not to ask immediately. **repeat-or-corrected-answer-triggers-ask**'s "trigger to ask" describes the point once genuine
+   investigation is exhausted, not the first response to an ad-hoc repeat. Before invoking
+   `AskUserQuestion`, use the repeat itself as a prompt to check real state directly — the actual file,
+   command output, or config the disputed point depends on — rather than reasoning about it further in
+   the abstract or asking again in the same shape. Fall back to `AskUserQuestion` only once that
+   investigation is exhausted and the ambiguity is still real.
+   verbatim-intent: `a genuinely ad-hoc repeated message is the trigger to investigate harder first, not
+   to ask immediately`.
+   verbatim-benchmark: `the human-owner repeats "TEAM_DATA_GIT_REMOTE / SET IN PROPER MEMBER
+   (magic-team)" a third time after two prior clarifying questions went unanswered — the session does
+   not ask a fourth time; it runs a direct check (`git remote -v` against the real TEAM_DATA directory)
+   and finds the actual answer itself, asking again only if that check had come back inconclusive`.
 
 ### Mode and pacing
 
-7. **Declare exchange mode explicitly and re-check on context shifts.**
+31. **declare-exchange-mode**: Declare exchange mode explicitly and re-check on context shifts.
    Live-interactive expects short prompt replies. Async-batched does not. Do not assume mode remains stable.
 
-8. **Fast-poll is acknowledgement only, never answer-substitute.**
+32. **fast-poll-is-acknowledgement-only**: Fast-poll is acknowledgement only, never answer-substitute.
    Tight-cycle polling can mark "seen" quickly. If substantive reply will lag, say so directly.
 
-8a. **Single-topic questions in live-interactive exchange.**
-    A message bundling several distinct asks lets a short reply resolve only some of them (rule 15) — keep
+33. **single-topic-questions-live-interactive**: Single-topic questions in live-interactive exchange.
+    A message bundling several distinct asks lets a short reply resolve only some of them (**partial-reply-leaves-rest-unchanged**) — keep
     each question atomic, one per message.
 
-8b. **Dormancy: nudge once, then escalate channel rather than repeat.**
+34. **dormancy-nudge-once-then-escalate**: Dormancy: nudge once, then escalate channel rather than repeat.
     If the other party goes quiet beyond a reasonable threshold, send one check-in nudge restating the open
     matter. If already nudged this way multiple times with no reply, escalate to a different channel (e.g.
     email instead of Slack) rather than repeating the identical nudge again.
 
-8c. **Quote original message while replying**
+35. **quote-original-message-when-replying**: Quote original message while replying.
 	If you are repling to one of the parts (facts, requests, etc...) of the message -- always explicitry quote the key point that part.
 
 ### Approval and relay safety
 
-9. **Confirm-before-acting requests are mandatory, including through relay.**
+36. **confirm-before-acting-mandatory**: Confirm-before-acting requests are mandatory, including through relay.
    If asked to assess/confirm before proceeding, preserve that constraint through dispatch. Do not rewrite into
    autonomous action. Literal relay is required when wording carries policy-bearing constraints.
 
-9a. **Rephrasing a relayed message's wording needs propose-confirm or readback-confirm first.**
+37. **relay-rephrase-needs-confirm**: Rephrasing a relayed message's wording needs propose-confirm or readback-confirm first.
    A relayed message keeps its original wording by default. Either propose the rephrase and get confirmation
    first, or read back the exact outgoing message and get confirmation first — an appended guess right after
    a verbatim quote counts as a rephrase too. Exempt: trimming a mechanical routing/addressing prefix (e.g.
    `send to all:`) before relaying the rest unchanged.
 
-9b. **A clearly separated, explicitly labeled annotation is not rephrasing — but it never overrides
-   the verbatim content it accompanies.**
+38. **labeled-annotation-not-rephrasing**: A clearly separated, explicitly labeled annotation is not rephrasing — but it never overrides
+   the verbatim content it accompanies.
    Keep it apart from the quote, never a trailing clause in the same paragraph — and mark it as the relaying
    party's own remark (e.g. `consider this comment from relay party:`). Unmarked or blended in, it's a
-   rephrase per rule 9a instead. If annotation and the verbatim content could be read as conflicting, the
+   rephrase per **relay-rephrase-needs-confirm** instead. If annotation and the verbatim content could be read as conflicting, the
    verbatim content wins — annotation is advisory only, never a substitute for the command.
 
-9c. **A "waiting on human-owner" claim requires a marker, not narrative inference.**
+39. **waiting-on-human-owner-needs-marker**: A "waiting on human-owner" claim requires a marker, not narrative inference.
     The literal marker `NEEDS REPLY:`, on its own line immediately before the question, is the only
     recognized signal that a message solicits the human-owner's reply — never buried mid-message, never
     implied by tone or closing prose alone. A claim that a thread is "waiting on human-owner" must cite a
@@ -331,32 +347,32 @@ This file's own content is binding and obligatory on every team member who reads
     the report never calls that thread "waiting on human-owner," not until a marked, still-unanswered
     occurrence exists`.
 
-10. **Rule/instruction text is directive-first and tight.**
+40. **rule-text-directive-first-and-tight**: Rule/instruction text is directive-first and tight.
     Lead with command, keep rationale short, avoid narrative preambles in instruction text. Any generated
     message or formulation uses clear structure (labeled sections, bullet points) rather than blended prose,
     wherever structure makes it clearer and less likely to be misread.
 
-10a. **A session is one continued routine-instance, not one medium/window.** Continuing the same interview/coworking/etc. across a medium switch (harness chat -> Slack -> Email) or after an interruption is still one session, one transcript. Starting a genuinely different routine-instance is a new session, new transcript. The harness-root chat itself carries a transcript only while actively identified with one such session; otherwise it has none of its own.
+41. **session-is-one-continued-routine-instance**: A session is one continued routine-instance, not one medium/window. Continuing the same interview/coworking/etc. across a medium switch (harness chat -> Slack -> Email) or after an interruption is still one session, one transcript. Starting a genuinely different routine-instance is a new session, new transcript. The harness-root chat itself carries a transcript only while actively identified with one such session; otherwise it has none of its own.
 
-10b. **Wording quality and substance completeness are two separate checks — passing one doesn't mean the other passed.** A well-worded rule can still be missing entirely, or missing a real behavior it should cover; check both, not just whichever prompted the review. Any proposed rule, instruction, or replacement content must be clearly and easily understandable, to both humans and agents. When comparing candidates, pick the better one — never present a worse one as if it were just as good. In
+42. **wording-and-substance-are-separate-checks**: Wording quality and substance completeness are two separate checks — passing one doesn't mean the other passed. A well-worded rule can still be missing entirely, or missing a real behavior it should cover; check both, not just whichever prompted the review. Any proposed rule, instruction, or replacement content must be clearly and easily understandable, to both humans and agents. When comparing candidates, pick the better one — never present a worse one as if it were just as good. In
 practice: generate several candidate phrasings, not just one, and compare them directly against each other (and content they to replace, if any)
 — a single first-draft phrasing is rarely already the best one. If no candidate is clearly better — a real tradeoff, not just uncertainty — present both plainly with the tradeoff stated, and ask, rather than forcing an artificial pick.
 
-10c. **No-regress.** An edit, replacement, or discard of already-approved content must not drop any intent, detail, or benchmark it had — only as good or better than before.
+43. **no-regress**: No-regress. An edit, replacement, or discard of already-approved content must not drop any intent, detail, or benchmark it had — only as good or better than before.
 
-11. **Transcripts are verbatim records, not summaries.**
+44. **transcripts-are-verbatim-records**: Transcripts are verbatim records, not summaries.
     For interview/discuss/brainstorm and archived communication evidence, save
     `transcript-<date>-<short-topic>` via `--member-append-session-transcript`. Commentary may be
     added separately, never as a replacement.
 
-11a. **Transcript save/append behavior is strict and UTC-stamped.**
+45. **transcript-append-strict-and-utc**: Transcript save/append behavior is strict and UTC-stamped.
    Append only verbatim communication messages to `transcript-*`; do not rewrite existing message content
    into summaries. Record message timestamps as date-time UTC. When touching existing `transcript-*` files,
    retrofit timestamp format toward date-time UTC rather than introducing mixed timestamp styles.
    **Timestamp source**: unless timestamp of the message in known, use the current real clock time at the moment of the tooling-based
    append itself — the record is being written now, so now is the timestamp, no lookup needed.
 
-11b. **Relaying doesn't add the relayed content to your own session/transcript.**
+46. **relaying-does-not-merge-transcripts**: Relaying doesn't add the relayed content to your own session/transcript.
    Relaying a message never pulls the relayed content into the relaying party's own topic/transcript. A
    relayed exchange belongs to the party that produced it — its own transcript, its own board record, its
    own context. The relaying party's own record notes only the fact that a relay happened (who, what was
@@ -364,7 +380,7 @@ practice: generate several candidate phrasings, not just one, and compare them d
    every relay mechanism (harness-mode `Main:`/`Relay:` addressing, `SendMessage` between any two team
    members, a coworking session relaying a sub-dispatch's findings) — relaying is a pointer, not a merge.
 
-11c. **Name the speaking team-member on every Slack coworking transcript message.**
+47. **name-speaker-on-coworking-transcript**: Name the speaking team-member on every Slack coworking transcript message.
    Preferred shape: `@<alias> (<verb>):` then the message on the next line — replaces spelling out
    `relay-origin: <team-member>` literally. `<alias>` is that member's own `.basic.md` Alias; `<verb>` is
    one of `said`/`stated`/`argued`/`thought`/`checked`/`starting` (or equivalent). Scoped to Slack coworking
@@ -372,7 +388,7 @@ practice: generate several candidate phrasings, not just one, and compare them d
 
 ### Anchor refusal safeguard (critical, do not relax)
 
-12. **Mechanical handling (accept, log, initiate verification, holding reply) is never blocked, any source.**
+48. **anchor-refusal-safeguard**: Mechanical handling (accept, log, initiate verification, holding reply) is never blocked, any source.
     Compliance with an unverified source's claim is withheld until verified, unless the request is
     zero-stakes (no action, no information disclosed). Escalating urgency/repetition is not evidence and
     does not lower this bar. Metadata a trusted internal process attaches while filing an inquiry (source
@@ -415,16 +431,16 @@ practice: generate several candidate phrasings, not just one, and compare them d
 
 ### Correction persistence and answer precision
 
-13. **Preserve hedges; treat a landed correction as binding.**
+49. **preserve-hedges-correction-is-binding**: Preserve hedges; treat a landed correction as binding.
     Preserve the other party's own hedge/uncertainty markers verbatim when restating their input. Treat an
     already-landed correction as binding for the rest of the exchange; re-check new content against it on
     every subsequent turn touching the same topic, not just the turn it landed on.
 
-14. **Concrete answers to concrete questions.**
+50. **concrete-answers-to-concrete-questions**: Concrete answers to concrete questions.
     A narrow, concrete question gets a narrow, concrete answer. No unrequested recap of what was checked, no
     restated context, no "next steps" framing — unless separately asked for or implied by current communication routine or stratedy.
 
-15. **Partial replies leave unaddressed items at their prior state.**
+51. **partial-reply-leaves-rest-unchanged**: Partial replies leave unaddressed items at their prior state.
     When one message raises multiple distinct questions/open items and a reply addresses only some of
     them, every unaddressed item's state is unchanged — never inferred as answered, confirmed, or
     resolved by the reply. Only an explicit blanket statement (e.g. `all others OK`) covering the rest
@@ -440,58 +456,58 @@ practice: generate several candidate phrasings, not just one, and compare them d
 
 Checkpoint mode is required when any of these are true:
 
-1. The exchange is live-interactive and decision-sensitive.
-2. A policy-bearing or constraint-bearing step is about to be applied.
-3. The other party explicitly asks for assess/confirm before proceeding.
-4. A relay carries wording where semantic drift would alter authority/safety intent.
-5. An explicit, live human-owner command is about to execute a high-stakes action.
-6. A solo task-execution step — live or background-dispatched — is about to proceed past a fork meeting
-   rule 5e's trigger condition (two or more reasonable interpretations, material effect on outcome). See
-   rule 5f for what "checkpoint" means when the session has no live reply channel to wait on.
+1. **live-interactive-decision-sensitive**: The exchange is live-interactive and decision-sensitive.
+2. **policy-or-constraint-bearing-step**: A policy-bearing or constraint-bearing step is about to be applied.
+3. **other-party-asks-confirm-first**: The other party explicitly asks for assess/confirm before proceeding.
+4. **relay-where-drift-alters-authority**: A relay carries wording where semantic drift would alter authority/safety intent.
+5. **high-stakes-command-about-to-execute**: An explicit, live human-owner command is about to execute a high-stakes action.
+6. **solo-fork-meets-ambiguity-trigger**: A solo task-execution step — live or background-dispatched — is about to proceed past a fork meeting
+   **objective-ambiguity-is-stop-condition**'s trigger condition (two or more reasonable interpretations, material effect on outcome). See
+   **background-dispatch-ask-means-flag** for what "checkpoint" means when the session has no live reply channel to wait on.
 
 ### When this mode is optional
 
 Checkpoint mode is optional for trivial, low-risk, non-policy chat where no explicit confirm-first ask exists.
-Cross-reference: rule 5c still applies regardless — this optionality never authorizes silently deciding an
+Cross-reference: **judgment-gap-propose-and-confirm** still applies regardless — this optionality never authorizes silently deciding an
 explicitly specified parameter (e.g. a required participant/quorum list).
 
 ### Checkpoint loop (operational form)
 
-1. **Readback -> approval -> next step.**
+1. **readback-approval-next-step**: Readback -> approval -> next step.
    Before action, send a short readback of the immediate next step and wait for explicit approval. For a
-   dispatched/background session with no live reply channel, "wait for explicit approval" means what rule 5f
+   dispatched/background session with no live reply channel, "wait for explicit approval" means what **background-dispatch-ask-means-flag**
    says instead: stop that sub-decision, flag it unresolved in the report, do not guess past it.
 
-2. **Read back current scope in present tense.**
+2. **readback-current-scope-present-tense**: Read back current scope in present tense.
    Keep readback on current decision only (not a broad plan). Phrase in present tense and current scope.
 
-3. **Approved readback is the benchmark for that step.**
+3. **approved-readback-is-benchmark**: Approved readback is the benchmark for that step.
    Use approved meaning as control benchmark until step closes or is superseded.
 
-4. **Rephrase only if meaning is unchanged.**
+4. **rephrase-only-if-meaning-unchanged**: Rephrase only if meaning is unchanged.
    Stylistic tightening is allowed. Any semantic change requires fresh approval first.
 
-5. **Run a small-step loop.**
+5. **small-step-loop**: Run a small-step loop.
    After each approved step: execute, report outcome, then checkpoint the next step as needed.
 
-6. **Relay and anchor safeguards remain unchanged.**
+6. **relay-and-anchor-safeguards-unchanged**: Relay and anchor safeguards remain unchanged.
    Literal relay where required, and never treat relay prefixes/text as independently-checkable anchors.
 
-7. **Approval ask must be one finished sentence/line/message.**
+7. **approval-ask-is-one-finished-message**: Approval ask must be one finished sentence/line/message.
    If an incoming approval ask is multi-line, normalize it to one finished sentence/line/message before
    requesting approval. If normalization would alter intent, do not execute and request a fresh one-line ask.
 
-8. **Replacing an already-approved point needs explicit approval first.**
+8. **replacing-approved-point-needs-approval**: Replacing an already-approved point needs explicit approval first.
    If a new proposal conflicts with something already approved, mark it blocked until the human-owner
    explicitly approves replacing the old one. State clearly what's being replaced, the new text, and that
    it's meant to replace it — then apply only after a clear approval reply. This includes a pure
    readability/simplification rewording of already-approved text — a rewording claiming to preserve meaning
-   still needs approval first, since it can silently drop something (rule 10c).
+   still needs approval first, since it can silently drop something (**no-regress**).
 
-9. **A human-owner correction overrides any earlier relayed instruction — proceed with the correction.**
+9. **human-owner-correction-overrides-relay**: A human-owner correction overrides any earlier relayed instruction — proceed with the correction.
    Expected protocol, not a gap.
 
-10. **A REJECT/REFUSE is not a STOP/CANCEL.**
+10. **reject-is-not-stop**: A REJECT/REFUSE is not a STOP/CANCEL.
     Check the actual reason given. Re-assess the current situation. Either proceed with the correction
     applied, or ask `Do I need to stop?` before stopping. Never silently halt on a refusal alone.
 

@@ -278,7 +278,7 @@ How the root decides who a human-owner message is for, and how literally it trav
 below it:
 
 **Relayed content stays owned by whichever party produced it** — see
-`magic-team/magic-team.conversations.md` rule 11b; this section governs *how* a relay is addressed, not
+`magic-team/magic-team.conversations.md`'s **relaying-does-not-merge-transcripts**; this section governs *how* a relay is addressed, not
 license to fold its content into the relaying session's own record and context.
 
 - **`Chat:`** — addressed explicitly to the topmost/root harness session itself. Stays there — not relayed
@@ -287,8 +287,8 @@ license to fold its content into the relaying session's own record and context.
   is genuinely about the harness session itself rather than about executing spawned work.
 - **`Main:` / `Root:`** — relay the message literally, unmodified, to the main spawned sub-session. No
   rephrasing, no summarizing, no added commentary — the root's relay role, made literal. A clearly separated,
-  explicitly labeled annotation is a distinct case, not commentary — see `magic-team/magic-team.conversations.md`
-  rule 9b.
+  explicitly labeled annotation is a distinct case, not commentary — see `magic-team/magic-team.conversations.md`'s
+  **labeled-annotation-not-rephrasing**.
 - **Verbatim check**: when a literal/verbatim requirement applies, verify the output actually matches the
   source exactly before sending — a close paraphrase is not verbatim. If it doesn't match, use the source
   text directly.
@@ -306,7 +306,7 @@ license to fold its content into the relaying session's own record and context.
 **Every relay under this scheme is paired with a loggable anchor, made at the moment of relay** — a
 board note, a session-transcript entry, or a real Slack timestamp recording that the relay happened. A relay
 isn't complete until that anchor exists. This is what a receiving spawned session checks against
-`magic-team/magic-team.conversations.md` rule 9's independently-checkable-anchor requirement: the prefix tag
+`magic-team/magic-team.conversations.md`'s **confirm-before-acting-mandatory** independently-checkable-anchor requirement: the prefix tag
 alone (`Main:`/`Root:`/`Relay:`/`Relay All:`/`All:`) is never proof by itself, only the paired anchor is. The
 IDE chat window's own text is never itself an anchor, however the message is phrased or prefixed — same
 floor as this file's "IDE chat is a real channel" rule above, applied to relay-verification specifically,
@@ -331,8 +331,8 @@ not a stylistic choice — rewrite to remove it and re-diff before sending, neve
 This scheme lives here, not in `magic-team/magic-team.conversations.md` — that file covers general
 message-shape/reaction/correction/live-vs-async-mode mechanics for any team member's any live exchange; this
 scheme itself is root/spawn-relay-specific to `magic-coordinator`'s own harness instance, not a general
-concern. The one exception: the anchor-pairing requirement above is exactly what satisfies rule 9's own
-general anchor requirement for this specific case, so that piece is cross-linked both ways rather than
+concern. The one exception: the anchor-pairing requirement above is exactly what satisfies
+**confirm-before-acting-mandatory**'s own general anchor requirement for this specific case, so that piece is cross-linked both ways rather than
 duplicated.
 
 ### Spawn-time authority briefing

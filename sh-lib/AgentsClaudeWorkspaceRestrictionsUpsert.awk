@@ -39,6 +39,21 @@
 #                                        same pattern
 #                                        AgentsClaudeSettingsPermissionsUpsert.awk's
 #                                        own board-grant replace uses.
+#   MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON -- fixed extra permissions.allow Read
+#                                        roots, JSON string array (literal,
+#                                        same shape as MYX_WSRESTRICT_DENY_ADD_JSON).
+#                                        Each element is a raw absolute path,
+#                                        upserted into permissions.allow as its
+#                                        own `Read(//<element>/**)`. Unlike
+#                                        MYX_WSRESTRICT_ALLOW_SOURCE_ROOT, these
+#                                        are FIXED external reference roots --
+#                                        not derived from the target workspace,
+#                                        so there is no "workspace moved" stale
+#                                        entry to replace: simple add-if-missing,
+#                                        same as MYX_WSRESTRICT_DENY_ADD_JSON's
+#                                        own merge (nothing removed if an
+#                                        element is later dropped from the
+#                                        caller's list).
 
 function skipws(   c) {
 	while (p <= n) {
@@ -288,12 +303,18 @@ BEGIN {
 	denyAddRaw = ENVIRON["MYX_WSRESTRICT_DENY_ADD_JSON"]
 	hooksFile = ENVIRON["MYX_WSRESTRICT_HOOKS_FILE"]
 	allowSourceRoot = ENVIRON["MYX_WSRESTRICT_ALLOW_SOURCE_ROOT"]
-	if (denyAddRaw == "" || hooksFile == "" || allowSourceRoot == "") fail("usage")
+	allowExtraRootsRaw = ENVIRON["MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON"]
+	if (denyAddRaw == "" || hooksFile == "" || allowSourceRoot == "" || allowExtraRootsRaw == "") fail("usage")
 	if (!validJson(denyAddRaw, "[")) fail("deny-add-not-a-json-array")
+	if (!validJson(allowExtraRootsRaw, "[")) fail("allow-extra-roots-not-a-json-array")
 
 	s = denyAddRaw; n = length(s); p = 1; skipws()
 	denyAddCount = stringArrayAt(p)
 	for (i = 0; i < denyAddCount; i++) denyAdd[i] = ELEMS[i]
+
+	s = allowExtraRootsRaw; n = length(s); p = 1; skipws()
+	allowExtraRootsCount = stringArrayAt(p)
+	for (i = 0; i < allowExtraRootsCount; i++) allowExtraRoots[i] = ELEMS[i]
 
 	hooksCount = 0
 	while ((getline hooksLine < hooksFile) > 0) {
@@ -357,6 +378,17 @@ END {
 		newAllow[newAllowCount++] = v
 	}
 	if (!inList(newAllow, newAllowCount, desiredAllowEntry)) newAllow[newAllowCount++] = desiredAllowEntry
+
+	## Fixed extra reference roots (MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON) --
+	## unlike allowSourceRoot above, these are NOT derived from the target
+	## workspace, so there is no stale "workspace moved" entry to replace:
+	## add-if-missing only, same shape MYX_WSRESTRICT_DENY_ADD_JSON's own merge
+	## below uses.
+	for (i = 0; i < allowExtraRootsCount; i++) {
+		desiredExtraAllowEntry = "Read(/" allowExtraRoots[i] "/**)"
+		if (!inList(newAllow, newAllowCount, desiredExtraAllowEntry)) newAllow[newAllowCount++] = desiredExtraAllowEntry
+	}
+
 	sortList(newAllow, newAllowCount)
 	s = upsertKeyValue(permStart, "allow", arrayJson(newAllow, newAllowCount))
 

@@ -653,7 +653,7 @@ Moving or regrouping existing content inside a file: one block at a time, each m
 
 Once the human-owner has confirmed a specific piece of code or content as good, it is never touched again as a side effect of unrelated work nearby — not for a different bug, not for a rename, not for a comment cleanup. Incremental change is the right way to work; the failure is the collateral edit. Scope every diff to the lines actually implicated, and if a fix genuinely requires touching approved content, say so before doing it rather than doing it silently.
 
-Distinct from `magic-team.conversations.md` rule 8 (replacing an already-approved *point* needs approval first) and rule 10c (no-regress): those govern what is proposed, this one governs what an unrelated edit quietly touches.
+Distinct from `magic-team.conversations.md`'s checkpoint loop **replacing-approved-point-needs-approval** (replacing an already-approved *point* needs approval first) and **no-regress**: those govern what is proposed, this one governs what an unrelated edit quietly touches.
 
 ## No rephrasing for human-owner commands, corrections, clarifications, no annotation without readback and approval
 
@@ -663,7 +663,7 @@ Two rules, given together.
 
 **A comment or annotation is never written into a file** as part of an edit unless its exact wording was read back to him and approved first. Never bundle an explanatory comment into a substantive change and let acceptance of the change stand as approval of the comment.
 
-Open conflict, his to rule on, both sides deliberately left standing: `magic-team.conversations.md` rule 5 ("Rephrase-and-confirm before acting on correction") and rule 4 of its checkpoint loop, plus `magic-team.interview.routine`'s "Rephrase and confirm before acting, every time", all instruct the opposite move. Rule 9a reconciles it for a *relayed* message only, not for confirming his own instruction back to him. Nobody on the team resolves this one.
+Open conflict, his to rule on, both sides deliberately left standing: `magic-team.conversations.md`'s **rephrase-and-confirm-before-acting** ("Rephrase-and-confirm before acting on correction") and its checkpoint loop's **rephrase-only-if-meaning-unchanged**, plus `magic-team.interview.routine`'s "Rephrase and confirm before acting, every time", all instruct the opposite move. **relay-rephrase-needs-confirm** reconciles it for a *relayed* message only, not for confirming his own instruction back to him. Nobody on the team resolves this one.
 
 ## Naming goes via approval, with siblings shown
 

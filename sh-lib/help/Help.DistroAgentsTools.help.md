@@ -1568,6 +1568,20 @@
 			grant -- configure that other workspace directly via its own
 			`--workspace <path>`, never by reaching across workspaces from
 			here.
+			Also upserts a fixed set of extra `Read` allow-grants, the SAME
+			for every target workspace (unlike the source-tree grant above,
+			never derived from `<workspace>`): real, external filesystem
+			locations outside any workspace's own `source/` tree that this
+			ecosystem's agents routinely need plain read access to. Currently
+			one entry, `Read(//Volumes/workspace/myx/**)` -- the canonical,
+			editable AE3 legacy Eclipse-project checkout. Kept short and
+			evidenced, grown only when live use actually hits the
+			interactive prompt for a real path, never speculatively. Each
+			entry is added if missing and left alone if already present --
+			unlike the source-tree grant's replace-not-accumulate handling,
+			there is no "moved" case for a fixed external root, so nothing
+			is ever removed here even if a future entry is dropped from the
+			op's own fixed list.
 			Default target workspace is the current shell directory;
 			optional `--workspace <path>` overrides it. Creates
 			`<workspace>/.claude/` and `<workspace>/.claude/hooks/` if

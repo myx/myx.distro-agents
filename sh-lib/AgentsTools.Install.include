@@ -841,9 +841,28 @@ HOOKEOF
 		## never hardcoded to one workspace.
 		local sourceRoot="$workspace/source"
 
+		## Fixed extra reference roots -- real, external filesystem locations
+		## outside any target workspace's own source/ tree that this
+		## ecosystem's agents routinely need plain Read access to, the SAME
+		## roots for every target workspace (unlike $sourceRoot above, never
+		## workspace-derived). Kept short and evidenced, not speculative --
+		## add an entry here only once live use actually hits the permission
+		## prompt for it, the same way this one was found.
+		##   /Volumes/workspace/myx -- the canonical, editable AE3 legacy
+		##   Eclipse-project checkout (keeper-ae3's own Domain anchor; distinct
+		##   from ws-myx.ae3-devel, which is pull-only and already reached via
+		##   its own vendored source/ tree). A separate filesystem mount, so
+		##   $sourceRoot above never covers it. Confirmed live, 2026-08-30:
+		##   AE3/XHTML investigation work reading files under it (e.g.
+		##   CurrentValues.js, show.xsl.tpl, HTMLEmitter.java,
+		##   SerializerFactoryHtmlScriptStyleFix.java) hit the interactive
+		##   permission prompt every time.
+		local allowExtraRootsJson='["/Volumes/workspace/myx"]'
+
 		if ! MYX_WSRESTRICT_DENY_ADD_JSON="$denyAddJson" \
 			MYX_WSRESTRICT_HOOKS_FILE="$hooksDescFile" \
 			MYX_WSRESTRICT_ALLOW_SOURCE_ROOT="$sourceRoot" \
+			MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON="$allowExtraRootsJson" \
 			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeWorkspaceRestrictionsUpsert.awk" \
 			"$settingsFile" > "$settingsTmp" ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: settings merge failed, $settingsFile left untouched" >&2
@@ -924,6 +943,55 @@ HOOKEOF
 		fi
 
 		DistroAgentsTools --install-claude-permissions || { set +e ; return 1 ; }
+
+		## Standing Read allow-grant on this workspace's own source/ tree -- same
+		## mechanism --install-workspace-restrictions uses for its own allow
+		## entry, called here too (deny-add/hooks/extra-roots all empty) so this
+		## lands for EVERY workspace that runs plain integration setup, not only
+		## the ones that separately opt into --install-workspace-restrictions.
+		## Originally landed restrictions-only by mistake: most workspaces never
+		## run --install-workspace-restrictions (an opt-in hardening op), so the
+		## original 2026-08-14 ask ("pre-grant skillset read permission... after
+		## all setup") was never actually solved for them. Extra reference roots
+		## (e.g. /Volumes/workspace/myx) stay restrictions-only, deliberately:
+		## those are evidenced needs specific to a hardened workspace's own real
+		## work, not something every workspace running plain setup should get by
+		## default.
+		local claudeDir="$workspace/.claude"
+		mkdir -p "$claudeDir" || { echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: cannot create $claudeDir" >&2 ; set +e ; return 1 ; }
+		local settingsFile="$claudeDir/settings.json"
+		if [ ! -f "$settingsFile" ] ; then
+			printf '{}\n' > "$settingsFile" || { echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: cannot create $settingsFile" >&2 ; set +e ; return 1 ; }
+		fi
+		local allowHooksDescFile
+		allowHooksDescFile="$( mktemp "${TMPDIR:-/tmp}/agents-ws-integrations-hooks.XXXXXX" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: mktemp failed" >&2
+			set +e ; return 1
+		}
+		local allowSettingsTmp
+		allowSettingsTmp="$( mktemp "$settingsFile.XXXXXX" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: mktemp failed beside $settingsFile" >&2
+			rm -f "$allowHooksDescFile"
+			set +e ; return 1
+		}
+		if ! MYX_WSRESTRICT_DENY_ADD_JSON='[]' \
+			MYX_WSRESTRICT_HOOKS_FILE="$allowHooksDescFile" \
+			MYX_WSRESTRICT_ALLOW_SOURCE_ROOT="$workspace/source" \
+			MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON='[]' \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeWorkspaceRestrictionsUpsert.awk" \
+			"$settingsFile" > "$allowSettingsTmp" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: settings merge failed, $settingsFile left untouched" >&2
+			rm -f "$allowSettingsTmp" "$allowHooksDescFile"
+			set +e ; return 1
+		fi
+		rm -f "$allowHooksDescFile"
+		if cmp -s "$allowSettingsTmp" "$settingsFile" ; then
+			rm -f "$allowSettingsTmp"
+		elif ! chmod 0644 "$allowSettingsTmp" || ! mv -f "$allowSettingsTmp" "$settingsFile" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: could not install $settingsFile" >&2
+			rm -f "$allowSettingsTmp"
+			set +e ; return 1
+		fi
 
 		## --quiet used to drop the step narration that is now gone; the op's one outcome line always prints
 		echo "✅ workspace integrations installed" >&2

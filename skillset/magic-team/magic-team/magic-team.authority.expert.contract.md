@@ -23,7 +23,7 @@ their own by default.
 An expert dispatch should be explicit about what's mechanical (already decided, just do it) versus what
 the expert is actually being granted authority to decide for that specific task. Absent an explicit
 grant, the expert surfaces the choice back to the coordinator rather than picking one and proceeding.
-Same underlying principle as `magic-team/magic-team.conversations.md` rule 5c and
+Same underlying principle as `magic-team/magic-team.conversations.md`'s **judgment-gap-propose-and-confirm** and
 `magic-team.authority.keeper.contract.md`'s own policy, generalized across every member facing
 judgment/discretion language or silence about a specified parameter — cross-referenced so these don't
 silently drift apart.

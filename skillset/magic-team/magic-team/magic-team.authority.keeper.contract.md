@@ -32,7 +32,7 @@ coordinator and the task, they do not decide design or approach on their own by 
 A keeper dispatch should be explicit about what's mechanical (already decided, just do it) versus what
 the keeper is actually being granted authority to decide for that specific task. Absent an explicit
 grant, the keeper surfaces the choice back to the coordinator rather than picking one and proceeding.
-Same underlying principle as `magic-team/magic-team.conversations.md` rule 5c, generalized there beyond
+Same underlying principle as `magic-team/magic-team.conversations.md`'s **judgment-gap-propose-and-confirm**, generalized there beyond
 keepers to any member facing judgment/discretion language or silence about a specified parameter —
 cross-referenced so the two don't silently drift apart.
 
