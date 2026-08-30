@@ -239,7 +239,7 @@ Check both against these definitions during any conventions-check pass, or when 
 
 Note on heading names: the bare headings `## Verbatim-intents` / `## Verbatim-benchmarks` and the standardized `## Verbatim-goals (intents)` / `## Verbatim-tests (benchmarks)` name the same two sections. The standardized form is what every file's own `# Maintainer Notes` carries.
 
-The banner is one wording team-wide, quoted above — the earlier variants ("...definitions, rules or instructions against its own goals...", and the file-local phrasings) are retired, not alternatives to choose between.
+The banner is one wording team-wide, quoted above — not one of several alternatives to choose between.
 
 # Team-Member's (-specific) tooling
 

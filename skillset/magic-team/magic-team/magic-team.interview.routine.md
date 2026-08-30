@@ -28,7 +28,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - step: create the tracking `inquiry-*` board-item right here, at channel-open time (see **keep-tracking-item-current**) — not deferred to "eventually" or to whenever that step gets reached. This step is never deferrable.
    - step: when the interview is being opened or resumed by a genuinely live-interactive session, set `owner-session: interactive` and `owner-session-since: <now>` on the tracking board-item's frontmatter at this same moment — refreshed as a heartbeat each time **resume-review** runs under that same live session, so a long-running real conversation never drifts into looking stale mid-way through.
 3. **name-the-interview-on-resume**: when more than one interview's tracking board-item is open at once, name the specific one when resuming
-   it.** A bare "continue"/"next round" with no name is ambiguous and must be treated as a genuine
+   it. A bare "continue"/"next round" with no name is ambiguous and must be treated as a genuine
    assumption gap (conversation-mechanics **readback-on-suspected-assumption-gap**) — ask which interview, propose options, don't guess.
 
 4. **resume-review**: whenever this interview is picked up or continued — standing, repeatable, every pickup, not just the first, run before any new question:
@@ -93,7 +93,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - step: present the proposal back to the human-owner *in this same interview* and ask for approval — not a separate approval routine.
    - step: once approved, dispatch it to `board-backlog`.
    - step: apply **dispatch-settled-points**' context-compaction.
-10. **run-bigger-mechanism-cycle**: for something bigger than **run-minimal-step-cycle** — a real mechanism/design, not a one-line change — the cycle is dispatch → test → apply → queue, still driven by this same interviewing session, not handed off and forgotten.**
+10. **run-bigger-mechanism-cycle**: for something bigger than **run-minimal-step-cycle** — a real mechanism/design, not a one-line change — the cycle is dispatch → test → apply → queue, still driven by this same interviewing session, not handed off and forgotten.
     - goal: same completion test as **run-minimal-step-cycle** — keep cycling until there's nothing left to focus on.
     - rule: the spawned sub-session doesn't report back within a bounded window: this isn't silently dropped — log it as a still-open piece on the interview's own tracking board-item (not compacted away), and if the interview itself wraps up before it resolves, flag it explicitly in the closing-reflection closure step. **resume-review** picks it back up automatically the next time this interview is continued, same as any other genuinely-settled-but-not-yet-dispatched piece.
     - step: once the interview settles a mechanism's actual shape, spawn a dedicated multi-member sub-session (a `magic-team.coworking.routine`-style dispatch — e.g. `magic-librarian` + `magic-architect` + `magic-tester` together, not `magic-architect` alone as in **run-minimal-step-cycle**'s lighter cycle) to produce a concrete, **tested** work-plan grounded in real files, not assumptions.
@@ -158,11 +158,11 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--member-comms-slack-send-message <team-member> <target> [text...]` (**open-channel-and-create-item**: establish/continue the Slack-thread channel; Slack activity-tracking obligation)
 - `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (**open-channel-and-create-item**: email failover channel)
 
-## `--member-comms-slack-send-message` operation reference
+## `--member-comms-slack-send-message` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
-## `--member-comms-email-send` operation reference
+## `--member-comms-email-send` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (or `-- --from-stdin` / `-- --from-file <path>` in place of the trailing body) — real standalone SMTP send. `<team-member>` comes first and is required: it is the acting identity, and the credentials the send authenticates with are that member's own, strictly — never another member's, and never a fallback to one. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; everything after the second becomes the body. Exactly one body source required — giving more than one of trailing-body-argv/`--from-stdin`/`--from-file` together is an error.
 

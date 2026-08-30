@@ -124,7 +124,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		printf '%s\n' "$content" > "$target"
-		echo "# $MDSC_CMD: member-inbox-upsert: wrote $target ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+		echo "# $MDSC_CMD: member-inbox-upsert: wrote ${target#"$inboxDir"/} ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
 		return 0
 	;;
 

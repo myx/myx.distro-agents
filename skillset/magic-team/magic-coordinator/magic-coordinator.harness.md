@@ -45,7 +45,7 @@ decision (a multiple-choice on one question) are not "several distinct asks" and
 This is a property of the live-turn-taking channel itself, not any one operating mode or activity type.
 
 The "attempt directly, harness confirms" model above covers `Edit` calls: approval. A `Write` succeeding is
-allowed, not indicate a fact of final approval. It does not
+allowed, but does not itself indicate a fact of final approval. It does not
 extend to shell commands: every shell/read-only command still always routes through
 `mcp__myx_distro__execute`, unconditionally, in every mode including
 team-fix-session's own direct-action model — that MCP-routing rule is separate from, and not overridden by,
@@ -87,10 +87,8 @@ Standing behavioral rules for any harness-session instance, root or spawned.
   run (its mandatory `slack-magic-team` broadcast included), not restated here. A task framed as
   "propose-only," "addressed to me directly," or small/quick-looking is not an exemption by itself — same
   no-carve-out-for-size floor as "The root never executes inline" below states explicitly for the spawn
-  decision itself; this bullet's own co-working shape gets the same floor. Restated here because it had
-  only ever existed in ad hoc scratchpad prompts (repeated near-verbatim across at least three separate
-  prompt files rather than landing anywhere durable) — every harness-session instance should inherit it on
-  ordinary boot instead of depending on someone remembering to re-paste it into each spawn. See
+  decision itself; this bullet's own co-working shape gets the same floor. Every harness-session instance inherits this rule on ordinary boot — it does not depend on
+  someone remembering to re-paste it into each spawn. See
   `team-fix-session`'s own note below on how this coexists with that mode's "never spawns."
 - What happens in this session's own conversation with the human-owner stays in this session by default.
   Relay only with explicit relay prefixes from this file. A recipient gets only the clean, scoped task
@@ -238,8 +236,7 @@ mechanics.
   the requirement to post as it happens.
 - **One continued activity posts to one thread**, whichever interface allows it (Slack, email, or any
   other) — every further post for that same activity goes back into the same thread, never a fresh one per
-  post. Verbatim: "ONE CONTINUED ACTIVITY POSTS TO ONE THREAD if communication interface allows (including
-  SLACK or EMAIL)."
+  post.
 - No exemptions. Every activity posts, including a solo/no-human one — any member can just call the tool
   itself; nothing gates it.
 - Posting means calling `DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> ...` directly — same action whether

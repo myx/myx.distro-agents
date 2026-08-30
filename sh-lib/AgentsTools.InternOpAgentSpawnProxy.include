@@ -85,6 +85,7 @@ AgentsToolsSpawnProxyCloseDispatch(){
 		--header:upsert:resolved-at:"$( date +"%Y-%m-%d %H:%M %z" )" \
 		--upsert-from-stdin \
 		--context --intern-op-agent-spawn-proxy \
+		--log-verb:updated \
 		|| echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: could not close dispatch item $itemName" >&2
 	return 0
 }
@@ -351,7 +352,8 @@ case "$1" in
 				--upsert-from-stdin \
 				--header:upsert:owner:"$callerName" \
 				--header:upsert:status:dispatch-started \
-				--header:upsert:session-id:"$receiptId" || {
+				--header:upsert:session-id:"$receiptId" \
+				--log-verb:created || {
 				rm -f "$contextFile"
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: could not create dispatch tracking item $dispatchItemName" >&2
 				set +e ; return 1

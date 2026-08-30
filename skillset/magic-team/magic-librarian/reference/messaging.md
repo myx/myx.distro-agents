@@ -28,7 +28,7 @@ of rejecting, form fields, URL parameters. Whenever the receiver silently trims 
 
 ## Measured behaviour (Slack, `chat.postMessage`, 2026-08-10)
 
-Controlled test, five lengths, each verified by reading back what was actually stored:
+Controlled test, three lengths, each verified by reading back what was actually stored:
 
 | Characters sent | Characters stored |
 |---|---|

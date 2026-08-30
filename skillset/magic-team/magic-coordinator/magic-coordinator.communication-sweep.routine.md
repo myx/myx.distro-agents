@@ -135,47 +135,47 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-sweep-state-read <team-member>` (**check**: read the `sweep-state-note`)
 - `--magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]` (**update-context**)
 
-## `--magic-sweep-input-scan` operation reference
+## `--magic-sweep-input-scan` Operation Reference
 
 `DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]` — this routine's own **check** step in one pass: the board-tracked threads this routine already follows, plus every watched source across every live platform. The cut-off is optional and the two spellings are mutually exclusive, neither repeatable — one cut-off, one spelling. `--comms-since-utime` takes epoch seconds, with or without a fractional part. This is not a platform-wide search: a conversation outside the already-watched sources, or an identity mention that falls outside them, stays undiscoverable here — true "tagged anywhere" coverage is a separate, not-yet-built capability. A single arbitrary target/thread outside the watched set is not covered by this scan — read it directly with `--member-comms-slack-read <team-member> <channel>:<ts>` when its id is known.
 
-## `--member-comms-email-check` operation reference
+## `--member-comms-email-check` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-comms-email-check <team-member>` — IMAP STATUS INBOX (UNSEEN) check only, unread count, not a full fetch. `<team-member>` comes first and is required: the count is that member's own mailbox, strictly — never another member's, and never a fallback to one. This routine passes `magic-coordinator`, its sole executor.
 
-## `--member-comms-trello-check` operation reference
+## `--member-comms-trello-check` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-comms-trello-check <team-member>` — unread Trello notifications only (`read_filter=unread`), not a full board read. `<team-member>` comes first and is required: the unread list is that member's own notifications, strictly — never another member's, and never a fallback to one. This routine passes `magic-coordinator`, its sole executor.
 
-## `--member-comms-slack-send-message` operation reference
+## `--member-comms-slack-send-message` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>`. Identity (native user token vs. team bot token) is resolved internally — the caller never specifies it: auto-detected from `<team-member>`/`--identity-bot`/configured token as before, and if a send fails with `channel_not_found` under the auto-detected identity, the op retries once under the other identity on its own before giving up.
 
-## `--member-upsert-inbox-note` operation reference
+## `--member-upsert-inbox-note` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
 
-## `--member-comms-email-send` operation reference
+## `--member-comms-email-send` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (or `-- --from-stdin` / `-- --from-file <path>` in place of the trailing body) — real standalone SMTP send. `<team-member>` comes first and is required: it is the acting identity, and the credentials the send authenticates with are that member's own, strictly — never another member's, and never a fallback to one. This routine passes `magic-coordinator`, its sole executor, the same member its check step used. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; everything after the second becomes the body. Exactly one body source required — giving more than one of trailing-body-argv/`--from-stdin`/`--from-file` together is an error.
 
-## `--member-comms-email-mark-seen` operation reference
+## `--member-comms-email-mark-seen` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>` — marks one email (by IMAP UID) as `\Seen` — otherwise every sweep re-sees the same UIDs as unseen. `<team-member>` comes first and is required: the mailbox written to is that member's own, strictly, and a UID only means anything inside one mailbox — the same `<uid>` under a different member names a different message, or none. This routine passes `magic-coordinator`, its sole executor, the same member its check step used.
 
-## `--member-comms-slack-react` operation reference
+## `--member-comms-slack-react` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]` — posts one Slack reaction to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). An `already_reacted` error is treated as a harmless no-op, not a failure. `<team-member>` is the acting identity — the reaction is posted BY that member, under its own identity when it has one and the team bot when it does not; `--identity-bot` reacts as the team bot instead.
 
-## `--member-comms-slack-read` operation reference
+## `--member-comms-slack-read` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]` — reads one specific message in full, or the whole thread it belongs to with `--thread`. `<channel>:<ts>` only: unlike the scan ops it takes no `magic-team`/`human-owner` shortcut, since it retrieves one exact message and that needs its own `<ts>`. `<team-member>` is the acting identity, and it decides WHICH conversation is read at all — a direct conversation belongs to one identity pair, so the member's own identity and the team bot hold two different DMs with the same person. Its own identity when it has one, the team bot when it does not; `--identity-bot` reads the bot's conversation instead. A call that could not see the message asked for fails loud — an empty result is never reported as an outcome, so "nothing there" can never be concluded from a failed read.
 
-## `--magic-sweep-state-read` operation reference
+## `--magic-sweep-state-read` Operation Reference
 
 `DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>` — read-only: prints the whole `sweep-state-note` on stdout, verbatim, this routine's source for `last_swept_ts` ahead of the **check** step. Prints `NO_STATE` and returns 0 when nothing is stored yet — a normal first-run outcome, not an error. `<team-member>` is the only argument.
 
-## `--magic-sweep-state-upsert` operation reference
+## `--magic-sweep-state-upsert` Operation Reference
 
 `DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) the `sweep-state-note`. Content via stdin by default; `--from-file <path>` for a full-content write, `--edit-patch-from-stdin` for a single-field update — per **update-context**, the patch form is used for a single-field update, full-content write only for a genuine whole-record rewrite. Empty content is refused rather than written. Takes no filename or path argument — storage is the operation's own concern.
 

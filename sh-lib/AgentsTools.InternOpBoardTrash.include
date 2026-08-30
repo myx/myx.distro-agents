@@ -170,7 +170,7 @@ case "$1" in
 			## rejection above: validation guards bad input, `--` guards a later
 			## edit that bypasses validation.
 			mv -- "$inboxSourcePath" "$inboxTargetPath"
-			echo "# $MDSC_CMD: board-trash: moved $inboxSourcePath to $inboxTargetPath" >&2
+			echo "# $MDSC_CMD: board-trash: moved ${inboxSourcePath#"$MDAT_DATA_ROOT"/} to ${inboxTargetPath#"$MDAT_DATA_ROOT"/}" >&2
 			return 0
 		fi
 
@@ -228,7 +228,7 @@ case "$1" in
 				set +e ; return 1
 			fi
 			mv "$sourcePath" "$targetPath"
-			echo "# $MDSC_CMD: board-trash: restored $sourcePath to $targetPath" >&2
+			echo "# $MDSC_CMD: board-trash: restored ${sourcePath#"$MDAT_DATA_ROOT"/} to ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
 		else
 			local sourcePath="$MDAT_DATA_ROOT/board/$boardState/$itemName"
 			local targetPath="$MDAT_DATA_ROOT/trash/$itemName"
@@ -237,7 +237,7 @@ case "$1" in
 				set +e ; return 1
 			fi
 			mv "$sourcePath" "$targetPath"
-			echo "# $MDSC_CMD: board-trash: moved $sourcePath to $targetPath" >&2
+			echo "# $MDSC_CMD: board-trash: moved ${sourcePath#"$MDAT_DATA_ROOT"/} to ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
 		fi
 		return 0
 	;;

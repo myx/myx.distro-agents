@@ -53,7 +53,7 @@ Maintainers (`quorum-all-agree`): `magic-coordinator` + `magic-librarian` + `mag
   self-discovered): here nothing ambiguous exists — the fact was simply never established, and asking is
   what establishes it.
 
-verbatim-intent: `no gap size makes guessing cheaper than asking — understanding is established before
+**intent:** `no gap size makes guessing cheaper than asking — understanding is established before
 work, not corrected after it`.
 
 ## Queue and ordering
@@ -112,7 +112,7 @@ then state any gaps found, or explicitly state none found. Ask whether to add th
 it open) or close the topic — this ask may also present the other queued topics as options to switch to
 next, not only the binary add/close choice.
 
-verbatim-intent: `work on collected/negotiated data happens at the next step, using current context — not
+**intent:** `work on collected/negotiated data happens at the next step, using current context — not
 deferred or batched separately`.
 
 ## Inheritance

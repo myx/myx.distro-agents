@@ -129,11 +129,11 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--routine-coworking-session-input-scan <team-member> <item-name>...` (**frame-the-shared-goal**: once it names specific board-item(s))
 - `--member-comms-slack-send-message <team-member> <target> [text...]` (**invite-participants-visibly**: invite/confirm posts; **report-out-with-transcripts**: report out; Slack activity-tracking obligation)
 
-## `--routine-coworking-session-input-scan` operation reference
+## `--routine-coworking-session-input-scan` Operation Reference
 
 `DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <item-name>...` — read-only: `magic-team.coworking.routine`'s own **frame-the-shared-goal** board scan once the session's shared goal names specific board-item(s).
 
-## `--member-comms-slack-send-message` operation reference
+## `--member-comms-slack-send-message` Operation Reference
 
 `DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 

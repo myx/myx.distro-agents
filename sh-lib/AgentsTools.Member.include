@@ -278,7 +278,7 @@ case "$1" in
 		rm -f -- "$tmpEntry"
 		trap - EXIT
 
-		echo "# $MDSC_CMD --member-append-session-transcript: appended $target (+${addedLines} lines, +${addedBytes} bytes)" >&2
+		echo "# $MDSC_CMD --member-append-session-transcript: appended ${target#"$MDAT_DATA_ROOT/audit"/} (+${addedLines} lines, +${addedBytes} bytes)" >&2
 		echo "$target"
 		return 0
 	;;

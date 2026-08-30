@@ -116,7 +116,7 @@ case "$1" in
 			set +e ; return 1
 		}
 		local boardRoot="$MDAT_DATA_ROOT/board"
-		local fromState="" fromInbox="" isCreate="false" sourcePath="" bodyMode="" scriptLang="" bodyModeCount=0 sourceModeCount=0
+		local fromState="" fromInbox="" isCreate="false" sourcePath="" bodyMode="" scriptLang="" bodyModeCount=0 sourceModeCount=0 msgVerb="wrote"
 		local headerOpsFile
 		headerOpsFile="$MMDAPP/.local/temp/mdat-intern-op-headers.$$"
 		mkdir -p "$MMDAPP/.local/temp" && : > "$headerOpsFile" || { set +e ; return 1 ; }
@@ -289,6 +289,10 @@ case "$1" in
 					fi
 					shift 2
 				;;
+				--log-verb:*)
+					msgVerb="${1#--log-verb:}"
+					shift
+				;;
 				*)
 					echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: invalid option: $1" >&2
 					set +e ; return 1
@@ -413,9 +417,9 @@ case "$1" in
 				set +e ; return 1
 			fi
 			mv -- "$sourcePath" "$MDAT_DATA_ROOT/trash/$itemName"
-			echo "# $MDSC_CMD: board-upsert-move-edit: wrote $targetPath, previous $sourcePath moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
+			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, previous ${sourcePath#"$boardRoot"/} moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
 		else
-			echo "# $MDSC_CMD: board-upsert-move-edit: wrote $targetPath" >&2
+			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}" >&2
 		fi
 
 		rm -f "$headerOpsFile"

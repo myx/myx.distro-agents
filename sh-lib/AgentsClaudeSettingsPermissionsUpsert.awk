@@ -263,13 +263,21 @@ function upsertKeyValue(objStart, targetKey, newValueJson,   head, tail, sep) {
 # static tool grants, then one Edit/Write pair per acting member path (from
 # MEMBERPATH[], loaded once by loadMembers() before this runs).
 function buildDesiredAllow(   dCount, k) {
+	## `//` (not a single `/`) is required for an absolute filesystem path --
+	## a single leading slash anchors at the settings source ($HOME, for this
+	## user-scope file), not the filesystem root (Claude Code's own
+	## permissions docs, "Read and Edit" pattern table; same rule
+	## AgentsClaudeWorkspaceRestrictionsUpsert.awk's own allow-grant comment
+	## documents and applies). boardRoot/MEMBERPATH[] are already absolute
+	## (each carries its own leading "/"), so exactly ONE more "/" here
+	## yields the required "//" -- prepending "//" would double it.
 	dCount = 0
-	DESIRED[dCount++] = "Edit(" boardRoot "/**)"
-	DESIRED[dCount++] = "Write(" boardRoot "/**)"
+	DESIRED[dCount++] = "Edit(/" boardRoot "/**)"
+	DESIRED[dCount++] = "Write(/" boardRoot "/**)"
 	for (i = 0; i < staticAllowCount; i++) DESIRED[dCount++] = staticAllow[i]
 	for (k = 0; k < MEMBERPATHCOUNT; k++) {
-		DESIRED[dCount++] = "Edit(" MEMBERPATH[k] "/**)"
-		DESIRED[dCount++] = "Write(" MEMBERPATH[k] "/**)"
+		DESIRED[dCount++] = "Edit(/" MEMBERPATH[k] "/**)"
+		DESIRED[dCount++] = "Write(/" MEMBERPATH[k] "/**)"
 	}
 	return dCount
 }

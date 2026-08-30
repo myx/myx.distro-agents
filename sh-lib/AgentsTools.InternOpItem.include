@@ -580,6 +580,8 @@ case "$1" in
 			rm -f "$headerOpsFile" ; set +e ; return 1
 		}
 		local target="$itemWriteDir/$itemName"
+		local itemStoreRoot="$MDAT_DATA_ROOT/$category"
+		[ "$category" = "inbox" ] && itemStoreRoot="$MDAT_DATA_ROOT/inboxes"
 
 		## --update-lock: refuse on a missing item -- a bare upsert CREATES
 		## on first write, and a refresh of a lock nobody holds must not
@@ -663,7 +665,7 @@ case "$1" in
 		set -e
 		if [ -z "$originUrl" ] || [ -z "$repoRoot" ] ; then
 			## No git remote configured for the board: local-only, silently.
-			echo "# $MDSC_CMD: item-upsert: wrote $target ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+			echo "# $MDSC_CMD: item-upsert: wrote ${target#"$itemStoreRoot"/} ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
 			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			if [ "$updateLock" = "true" ] ; then echo "REFRESHED" ; return 0 ; fi
 			return 0
@@ -771,7 +773,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ "$remoteSessionId" = "$localSessionId" ] ; then
-			echo "# $MDSC_CMD: item-upsert: wrote, pushed and read back $target -- lock held by session-id $localSessionId" >&2
+			echo "# $MDSC_CMD: item-upsert: wrote, pushed and read back ${target#"$itemStoreRoot"/} -- lock held by session-id $localSessionId" >&2
 			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			if [ "$updateLock" = "true" ] ; then echo "REFRESHED" ; return 0 ; fi
 			return 0
