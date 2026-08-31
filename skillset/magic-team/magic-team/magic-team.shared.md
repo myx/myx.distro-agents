@@ -733,6 +733,10 @@ A test or an instruction takes the most exact and precise form that still covers
 
 Never raise whether an installed/local copy of the tooling is stale, or whether a source-to-local sync needs running — not as a flag, a caveat, a note for awareness, or a suggested next step. It is not weighed at all: not checked, and not entertained as a possible cause. It is the human-owner's own separate workflow. A spawned session's own report carrying such a note has it dropped, not forwarded. This is the one kind of staleness "Doc/disk mismatch repair loop" above does not reach.
 
+## Skillset first on a failed or denied operation
+
+When a planned operation fails, errors, or is denied, an assumption about what happened forms naturally — that part is not the failure. The failure is acting on that assumption to build an alternative or workaround before checking the assumption itself against the skillset. A failure is frequently the wrong tool or the wrong method for that context, not a genuine blocker, and the right one is usually already written down.
+
 # Maintainer Notes
 
 Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
