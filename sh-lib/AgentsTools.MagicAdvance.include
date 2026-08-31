@@ -447,7 +447,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-sleep-run: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		local remaining=17
+		local remaining=19
 		while [ "$remaining" -gt 0 ] ; do
 			echo "$remaining"
 			sleep 1
