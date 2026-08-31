@@ -459,6 +459,23 @@ DistroAgentsTools(){
 
 		--intern-mcp-execute)
 			shift
+			case "$1" in
+				--workspace)
+					## Our own MDLT_ORIGIN is deliberately left untouched: the caller reached for
+					## this tooling precisely because the target workspace's own may be stale,
+					## broken, or absent. Only the workspace root moves.
+					if [ -z "$2" ] ; then
+						echo "$MDSC_CMD: mcp-execute: ⛔ ERROR: --workspace requires a value" >&2
+						set +e ; return 1
+					fi
+					if [ ! -d "$2" ] ; then
+						echo "$MDSC_CMD: mcp-execute: ⛔ ERROR: no such workspace: $2" >&2
+						set +e ; return 1
+					fi
+					export MMDAPP="$2"
+					shift 2
+				;;
+			esac
 			if [ $# -gt 0 ] ; then
 				echo "$MDSC_CMD: mcp-execute: ⛔ ERROR: takes no arguments" >&2
 				set +e ; return 1

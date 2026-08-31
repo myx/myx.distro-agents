@@ -156,13 +156,10 @@ case "$1" in
 							## Never `cmd ; rc=$?`: under -e that dies before reading $?.
 							mcpExitCode=0
 							if [ -n "$mcpWorkspace" ] ; then
-								## Fresh subprocess, real $0: re-triggers this same file's own
-								## `case "$0"` bootstrap (DistroAgentsContext --run-from-detect),
-								## so MDLT_ORIGIN/MDLT_OPTION re-resolve properly for the target
-								## workspace instead of inheriting this server's own values --
-								## the target may vendor its own copy, or consume a different
-								## sibling's, and only the real resolver knows which.
-								printf '%s\n' "$mcpScript" | ( unset MDLT_ORIGIN MDLT_OPTION MDLC_INMODE ; export MMDAPP="$mcpWorkspace" ; exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute ) > "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ" 2>&1 || mcpExitCode=$?
+								## Fresh subprocess. Our origin operates the target workspace -- the
+								## target's own tooling may be stale, broken, or absent, which is
+								## why this server was called for it. The operation takes the root.
+								printf '%s\n' "$mcpScript" | ( exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) > "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ" 2>&1 || mcpExitCode=$?
 							else
 								printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute > "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ" 2>&1 || mcpExitCode=$?
 							fi
