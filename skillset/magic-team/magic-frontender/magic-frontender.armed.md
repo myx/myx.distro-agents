@@ -91,6 +91,14 @@ Real limits: interpolation between samples is linear only (no curvature unless t
 
 Motion/visual-styling knowledge, not a systems-depth topic — reach for it when a task genuinely needs custom spring/physics-feel easing, not as a default lens on unrelated styling work.
 
+## Universal CSS resets can break nested-list indentation
+
+A blanket `* { padding: 0 }` (or `margin: 0`) reset zeros every element's box-model spacing, including `ul`/`ol` — whose nested-list indentation comes from the browser's own default `padding-left` on those elements. Zeroing it flattens every nesting depth to the same visual indent, with no depth-based offset.
+
+Prefer Josh Comeau's modern CSS reset shape (joshwcomeau.com/css/custom-css-reset): universal `margin: 0` only, never `padding` — no element gets its padding zeroed specifically, so list indentation survives untouched. A narrower alternative, excluding `ul`/`ol` from the reset explicitly, also works when a more surgical change is preferred.
+
+Watch for this wherever nested lists, or anything else relying on browser-default box-model spacing, sit downstream of a blanket universal reset. Concrete instance and verification: `keeper-acm`'s own domain (an AE3 skin's shared CSS reset) — not duplicated here.
+
 # Team-Member's (-specific) tooling
 
 Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only.

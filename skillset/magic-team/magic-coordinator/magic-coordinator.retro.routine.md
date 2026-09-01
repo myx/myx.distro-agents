@@ -67,6 +67,7 @@ All statements apply at the same time, always. These rules override a participan
 - `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
 - This routine is an extension of `magic-team.coworking.routine` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
+- Every participant is invited before **gather-recent-history** and stays present to the close, listening to the others throughout — this overrides **invite-participants-visibly**'s as-each-is-dispatched timing, not its no-default-attendee-roster posture: which members attend is still the executor's call, when they arrive is not. A member with nothing to reflect on is skipped at **self-analyse-per-member**, not sent away.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - No cron or automation without explicit human-owner confirmation.
 - **discuss-with-the-user**'s discussion genuinely pauses for the human-owner's live reaction when run interactively — only the (not-yet-built) autonomous path would defer this. **If autonomous invocation is added later**: **discuss-with-the-user** would follow the same pattern already used for `magic-coordinator.daily.routine`/`magic-team.grooming.routine` — don't block waiting for a live response, record findings as provisional in a `board-running` `note-*` item (filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`) and flag for confirmation the next time a human is present.
@@ -115,10 +116,12 @@ Used to check this file's own definitions against its own goals when it is updat
 ## Verbatim-goals (intents)
 
 - This routine exists because a team that only ever reports status never actually improves its own methodology — recurring friction needs a dedicated moment to surface and get turned into concrete fixes.
+- A retro's value comes from members hearing each other, so the whole participant set is present for the whole session rather than each member appearing only for its own turn.
 
 ## Verbatim-tests (benchmarks)
 
 - Retro asks how the work itself has been going, not what's outstanding — a session that turns into a task-status roll call has drifted into `magic-coordinator.daily.routine`'s own territory.
+- A member is invited only when its own topic comes up. That is a defect in the pass: the cross-member reading depends on every participant having heard the earlier ones.
 
 ## Librarian Comments
 
