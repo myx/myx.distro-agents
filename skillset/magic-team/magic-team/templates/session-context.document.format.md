@@ -75,7 +75,7 @@ scope: inboxes/<member>/*.md -- top level only, excluding processed/
 ## inbox/<item-filename>
 <key>: <value>
 ...
-body-truncated: <N> bytes found, capped at 8192 -- read the item in full for the rest
+body-truncated: <T> bytes stored, capped at 8192 -- <N> of <M> lines emitted
 body-final-newline: absent
 body-lines: <N>
 <exactly N lines, byte-identical to the corresponding prefix of storage>
@@ -83,8 +83,16 @@ body-lines: <N>
 <- then one blank line, then the next ## or EOF. body-lines: is the LAST key
    before the body, and states the lines ACTUALLY EMITTED.
    body-truncated: appears only when the body was cut at the 8192-byte cap.
-   body-final-newline: absent appears only when the content being emitted
-   does not end in a newline. Both sit before body-lines:, in that order.
+   body-final-newline: absent appears only when the body was emitted WHOLE and
+   storage did not end in a newline; a cut body never carries it.
+   Both sit before body-lines:, in that order.
+
+## inbox/<item-filename>
+item-empty: 0 bytes stored -- no frontmatter and no body; an interrupted write leaves exactly this
+body-lines: 0
+
+<- a zero-byte item still gets a block, in its own position. item-empty:
+   is what tells it apart from an item with frontmatter and no body.
 
 ## Current Inbox Reflections
 scope: inboxes/<member>/*.md -- top level only, excluding processed/
@@ -98,7 +106,7 @@ scope: inboxes/<member>/*.md -- top level only, excluding processed/
 <- every inbox item whose prefix is none of inquiry-/reflection-/note-.
 
 ## Board Items
-scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, owner: <member>
+scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, all types, owner: <member>
 
 <- or the every-state list at the wider breadth:
    backlog|pending|running|blocked|parked|processed|archived|retained
@@ -135,7 +143,9 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, owner: <mem
 - rule: **Two distinct marks, both required, and independent of each other.** The section-level mark
   above fires when the item *count* is cut. A second, per-item mark fires when a *body* is cut at the
   8192-byte cap, emitted exactly, as a header key inside that item's own frame:
-  `body-truncated: <N> bytes found, capped at 8192 -- read the item in full for the rest`.
+  `body-truncated: <T> bytes stored, capped at 8192 -- <N> of <M> lines emitted` — `<T>` the body's
+  full stored size in bytes, `<N>` the lines emitted (the same number `body-lines:` carries), `<M>`
+  the lines the body has in storage.
   A section can be over its item cap while an item it did carry also had its body cut; each mark is
   reported where it happened.
 - rule: The per-item mark is a key, not a `**NOTE:**`, and sits before `body-final-newline:` and
@@ -145,9 +155,10 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, owner: <mem
   its mark is a corrupt document, not a terse one. A mark placed *after* `body-lines:` would be counted
   as a body line; a `**NOTE:**` placed before it would break the `key: value` grammar the block is
   parsed with.
-- rule: The 8192-byte cut falls at the last line boundary at or before 8192 bytes, so emitted lines
-  are whole and no multi-byte character is split. Where a single line exceeds the cap on its own, that
-  one line is cut at a character boundary rather than emitting nothing.
+- rule: The 8192-byte cut falls at the last line boundary at or before 8192 bytes — whole lines only,
+  so no multi-byte character is ever split. Where a single line exceeds the cap on its own, no lines
+  are emitted: `body-lines: 0`, with the mark stating `0 of <M> lines emitted`. That is a truthful
+  empty body and not a silent one; the reader is told the size and goes to the item.
 - rule: **Inbox item bodies are framed by a declared line count, with no delimiter.** No delimiter can
   work — every fence or sentinel is a string a body may legally contain. Each inbox item block runs
   `## inbox/<filename>`, its frontmatter `key: value` lines verbatim, `body-truncated:` where it
@@ -155,11 +166,21 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, owner: <mem
   where it applies, `body-lines: <N>`, then exactly `N` lines, then one
   blank line, then the next `##` or EOF. `body-lines:` is the **last key before the body** — a reader
   stops treating lines as headers there — and is `body-lines: 0` when there is no body.
+- rule: **A zero-byte item still gets a block**, emitted in its own position, carrying exactly
+  `item-empty: 0 bytes stored -- no frontmatter and no body; an interrupted write leaves exactly this`
+  then `body-lines: 0`. Without it the item produces no block at all while the section's
+  `scanned`/`matched` counts still include it — the document asserts an item it never shows, which is
+  the one false-completeness failure a reader cannot detect, because the counts agree with themselves.
+  `item-empty:` is what keeps it distinguishable from an item that legitimately has frontmatter and no
+  body; the two must never read alike. It retains `body-lines:` rather than omitting it, so every block
+  still ends with the same last key and a reader still consumes `N` lines and then expects `##` or EOF.
   `body-lines:` states the lines **actually emitted**, and those lines are byte-identical to the
   corresponding prefix of storage; where no body was cut, that prefix is the whole body.
-  `body-final-newline: absent` appears only when the content being emitted does not end in a newline and sits
+  `body-final-newline: absent` appears only when the body was emitted **whole** and storage did not end
+  in a newline, and sits
   immediately before `body-lines:` so that `body-lines:` stays last; the emitter supplies the missing
-  newline and nothing else is added or removed. A count rather than a delimiter is what makes the body
+  newline and nothing else is added or removed. A cut body never carries it — a body that did not reach
+  its own last byte says nothing about how storage ended. A count rather than a delimiter is what makes the body
   byte-exact and the framing self-checking: after `N` lines a reader must find `##` or EOF, and if it
   does not, the document is corrupt and can say so. It also stays line-oriented, so `awk`/`grep` still
   work.
@@ -199,8 +220,11 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, owner: <mem
   `scope: inboxes/<member>/*.md -- top level only, excluding processed/` (reflections, notes and other
   items always, inquiry at its narrower breadth); `scope: inboxes/<member>/*.md -- top level plus
   processed/` (inquiry at its wider breadth); `scope: board/<state>/*.md -- backlog|pending|running|blocked|parked,
-  owner: <member>` (board, narrower); and the same board form listing every state
-  `backlog|pending|running|blocked|parked|processed|archived|retained` (board, wider). These are
+  <type filter>, owner: <member>` (board, narrower); and the same board form listing every state
+  `backlog|pending|running|blocked|parked|processed|archived|retained` (board, wider). The board form
+  alone carries a type filter between its states and its owner — `all types` when none was applied,
+  otherwise the prefixes that were; `owner: any owner` where no owner filter applied. The inbox forms
+  carry none, because each inbox section already is its type. These are
   strings this document emits, describing what was read — no member constructs or resolves them, and
   item lookup still goes through the operations that own it.
 - rule: Six requestable scopes feed these four sections — two mutually exclusive pairs and two

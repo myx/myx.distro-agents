@@ -155,9 +155,12 @@ case "$1" in
 			printf 'AUTH_USER_NAME=%s\n' '-'
 		fi
 
-		local usersJson channelsJson usersOk channelsOk
-		usersJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.list -H @"$headerFile" --data-urlencode "limit=1000" )"
-		channelsJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.list -H @"$headerFile" --data-urlencode "types=public_channel,private_channel,im,mpim" --data-urlencode "exclude_archived=true" --data-urlencode "limit=1000" )"
+		## Each list body is fetched only where something consumes it: the
+		## `--raw` echo, `--user-name`/`--channel-name` matching, and -- for the
+		## users list alone -- the human-owner hint fallback below, which fetches
+		## it at its own gate. A bare call consumes neither list, and parsing
+		## these two bodies was about 90% of this op's CPU time.
+		local usersJson="" channelsJson="" usersOk="not-requested" channelsOk="not-requested"
 		## Top-level `ok`, read by full key path like every other field in this
 		## arm. These two lines used to be
 		##   sed -En 's/.*"ok":(true|false).*/\1/p'
@@ -181,13 +184,21 @@ case "$1" in
 		## own fact, "no readable ok in this body", distinct from a body that
 		## genuinely said `ok:false`, which the `${usersOk:--}` default this
 		## replaced could not tell apart.
+		##
+		## `not-requested` is a fourth state and not a synonym for `-`: `-` says
+		## a body was read and carried no readable ok, `not-requested` says no
+		## body was asked for at all.
 		local usersOkRc=0 channelsOkRc=0
-		usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || usersOkRc=$?
-		channelsOk="$( printf '%s\n' "$channelsJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || channelsOkRc=$?
-		[ "$usersOkRc" = "0" ] || usersOk='-'
-		[ "$channelsOkRc" = "0" ] || channelsOk='-'
-		printf 'USERS_LIST_OK=%s\n' "$usersOk"
-		printf 'CHANNELS_LIST_OK=%s\n' "$channelsOk"
+		if [ "$raw" = "true" ] || [ -n "$userNamesCsv" ] ; then
+			usersJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.list -H @"$headerFile" --data-urlencode "limit=1000" )"
+			usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || usersOkRc=$?
+			[ "$usersOkRc" = "0" ] || usersOk='-'
+		fi
+		if [ "$raw" = "true" ] || [ -n "$channelNamesCsv" ] ; then
+			channelsJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.list -H @"$headerFile" --data-urlencode "types=public_channel,private_channel,im,mpim" --data-urlencode "exclude_archived=true" --data-urlencode "limit=1000" )"
+			channelsOk="$( printf '%s\n' "$channelsJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || channelsOkRc=$?
+			[ "$channelsOkRc" = "0" ] || channelsOk='-'
+		fi
 
 		if [ "$raw" = "true" ] ; then
 			printf 'USERS_JSON=%s\n' "$usersJson"
@@ -273,6 +284,9 @@ case "$1" in
 		if [ -n "$humanAliasChannel" ] ; then
 			humanAliasInfo="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info -H @"$headerFile" --data-urlencode "channel=$humanAliasChannel" )"
 			if printf '%s' "$humanAliasInfo" | grep -q '"ok":true' ; then
+				## This exit never reaches the hint path, so both list states are final here.
+				printf 'USERS_LIST_OK=%s\n' "$usersOk"
+				printf 'CHANNELS_LIST_OK=%s\n' "$channelsOk"
 				echo "HUMAN_OWNER_TARGET|status=reachable|target=$humanAliasChannel|source=config-alias"
 				rm -f "$headerFile"
 				trap - EXIT
@@ -290,6 +304,19 @@ case "$1" in
 		else
 			humanAliasErr="unresolved"
 		fi
+
+		## The hint path is the users list's third consumer, so its gate and its
+		## fetch move together: deferring the fetch alone would leave this gate
+		## shut forever and turn a resolvable hint into a silent unreachable.
+		if [ "$usersOk" = "not-requested" ] ; then
+			usersJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.list -H @"$headerFile" --data-urlencode "limit=1000" )"
+			usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || usersOkRc=$?
+			[ "$usersOkRc" = "0" ] || usersOk='-'
+		fi
+		## Every exit below passes here, and the config-alias exit above reports
+		## its own; neither reports twice.
+		printf 'USERS_LIST_OK=%s\n' "$usersOk"
+		printf 'CHANNELS_LIST_OK=%s\n' "$channelsOk"
 
 		if [ "$usersOk" = "true" ] ; then
 			local hintUserId
