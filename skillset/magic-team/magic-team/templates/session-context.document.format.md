@@ -43,7 +43,7 @@ comms since it last looked, the member's own live inbox, and the board rows that
 
 generated-for: <team-member>
 generated-at: <date-time>
-requested-scopes: <the scopes actually requested, space-separated, or "none">
+requested-scopes: <the scopes actually requested, named as this document names its own sections, space-separated, or "none">
 comms-cut-off: <--comms-since-* kind and value, or "none — per-service unread semantics used where available">
 
 # New Incoming Communications
@@ -54,7 +54,7 @@ comms-cut-off: <--comms-since-* kind and value, or "none — per-service unread 
 
 **NOTE:** no new incoming IM updates              <- when requested and empty
 **NOTE:** not requested                           <- when the scope was not asked for
-**NOTE:** no scan was made — <reason>             <- when asked for but not performable
+**NOTE:** no scan was made -- <reason>            <- when asked for but not performable
 
 ## <type-name> <id>
 <key>: <value>
@@ -67,24 +67,116 @@ comms-cut-off: <--comms-since-* kind and value, or "none — per-service unread 
 ## Incoming Trello Updates
 
 ## Active Inbox Inquiry Items
+scope: inboxes/<member>/*.md -- top level only, excluding processed/
+
+<- or "-- top level plus processed/" at the wider breadth. Always the section's
+   first line, before any item block and before any **NOTE:**.
+
+## inbox/<item-filename>
+<key>: <value>
+...
+body-truncated: <N> bytes found, capped at 8192 -- read the item in full for the rest
+body-final-newline: absent
+body-lines: <N>
+<exactly N lines, byte-identical to the corresponding prefix of storage>
+
+<- then one blank line, then the next ## or EOF. body-lines: is the LAST key
+   before the body, and states the lines ACTUALLY EMITTED.
+   body-truncated: appears only when the body was cut at the 8192-byte cap.
+   body-final-newline: absent appears only when the content being emitted
+   does not end in a newline. Both sit before body-lines:, in that order.
+
 ## Current Inbox Reflections
+scope: inboxes/<member>/*.md -- top level only, excluding processed/
+
 ## Current Inbox Notes
+scope: inboxes/<member>/*.md -- top level only, excluding processed/
+
+## Other Inbox Items
+scope: inboxes/<member>/*.md -- top level only, excluding processed/
+
+<- every inbox item whose prefix is none of inquiry-/reflection-/note-.
 
 ## Board Items
+scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, owner: <member>
+
+<- or the every-state list at the wider breadth:
+   backlog|pending|running|blocked|parked|processed|archived|retained
+   Present whenever this section has content. No cap line, no truncated mark.
+
 ## <state>/<item-filename>
-<frontmatter, per the existing --*-input-scan per-item shape>
+<frontmatter, per the existing --*-input-scan per-item shape; no body>
 ```
 
 # Rules
 
-- rule: Every section carries its items, or a single `**NOTE:**` line, and never neither. The one
-  permitted combination is items **plus** a `**NOTE:** partial — …` line (below); nothing else
-  carries both.
-- rule: The three `**NOTE:**` forms are distinct and not interchangeable — *no new X* (looked,
-  found nothing), *not requested* (never looked), *no scan was made — reason* (asked, could not
+- rule: Every section carries items, or a `**NOTE:**` line, and never neither. `**NOTE:**` covers two
+  distinct kinds, and which kind it is decides what may sit alongside it. **Status forms** — `no new X`,
+  `not requested`, `no scan was made` — are mutually exclusive, exactly one, and appear only *instead
+  of* items. **Annotation marks** — `partial`, `truncated` — accompany items, and may co-occur with
+  each other: a section can be over its cap and missing a source at once.
+- rule: The three status forms are distinct and not interchangeable — *no new X* (looked,
+  found nothing), *not requested* (never looked), *no scan was made -- reason* (asked, could not
   look). Collapsing them loses the one distinction this document exists to preserve.
+- rule: **A string this document emits is code. Every emitted string uses ASCII `--`, never an em
+  dash.** It governs every `scope:`, `**NOTE:**`, `identity:`, `instrument:` and `sources-scanned:`
+  line quoted in this file — reproduce those characters exactly and never compose one at the point of
+  use. The prose around them is unconstrained and is not touched by this rule. Recorded because
+  getting this wrong has already cost re-emitted sites more than once.
+- rule: **Wherever anything is cut, the document says so at the point it was cut.** A rule of the whole
+  document, not one section's feature. Two ratified forms, never a fresh one, each stating *what* was
+  cut and *how much* rather than merely that something was. Base form, for the email, Trello and all
+  four inbox sections, emitted exactly:
+  `**NOTE:** truncated -- <N> items found, capped at <M>`. IM superset, for `## Incoming IM Updates`
+  only: the same counts, then the dropped-conversation list, then that this is a display cap and not
+  an unread source — that clause exists because the IM cap counts conversations, and a dropped
+  conversation is not an unread source. The `**NOTE:** ` prefix is part of both forms; a form quoted
+  without it is a different string.
+- rule: **Two distinct marks, both required, and independent of each other.** The section-level mark
+  above fires when the item *count* is cut. A second, per-item mark fires when a *body* is cut at the
+  8192-byte cap, emitted exactly, as a header key inside that item's own frame:
+  `body-truncated: <N> bytes found, capped at 8192 -- read the item in full for the rest`.
+  A section can be over its item cap while an item it did carry also had its body cut; each mark is
+  reported where it happened.
+- rule: The per-item mark is a key, not a `**NOTE:**`, and sits before `body-final-newline:` and
+  `body-lines:`. **It cannot be omitted.** `body-lines:` is a count a reader consumes literally: a body
+  cut without the mark yields a count that no longer describes the whole stored body, and a reader
+  that consumes `N` lines and finds neither `##` nor EOF has walked into the next block. A cut without
+  its mark is a corrupt document, not a terse one. A mark placed *after* `body-lines:` would be counted
+  as a body line; a `**NOTE:**` placed before it would break the `key: value` grammar the block is
+  parsed with.
+- rule: The 8192-byte cut falls at the last line boundary at or before 8192 bytes, so emitted lines
+  are whole and no multi-byte character is split. Where a single line exceeds the cap on its own, that
+  one line is cut at a character boundary rather than emitting nothing.
+- rule: **Inbox item bodies are framed by a declared line count, with no delimiter.** No delimiter can
+  work — every fence or sentinel is a string a body may legally contain. Each inbox item block runs
+  `## inbox/<filename>`, its frontmatter `key: value` lines verbatim, `body-truncated:` where it
+  applies, `body-final-newline: absent`
+  where it applies, `body-lines: <N>`, then exactly `N` lines, then one
+  blank line, then the next `##` or EOF. `body-lines:` is the **last key before the body** — a reader
+  stops treating lines as headers there — and is `body-lines: 0` when there is no body.
+  `body-lines:` states the lines **actually emitted**, and those lines are byte-identical to the
+  corresponding prefix of storage; where no body was cut, that prefix is the whole body.
+  `body-final-newline: absent` appears only when the content being emitted does not end in a newline and sits
+  immediately before `body-lines:` so that `body-lines:` stays last; the emitter supplies the missing
+  newline and nothing else is added or removed. A count rather than a delimiter is what makes the body
+  byte-exact and the framing self-checking: after `N` lines a reader must find `##` or EOF, and if it
+  does not, the document is corrupt and can say so. It also stays line-oriented, so `awk`/`grep` still
+  work.
+- rule: Bodies are carried for **inbox items only**. The board section keeps frontmatter alone and
+  keeps its no-cap rule — board bodies were not asked for, and `--member-read-board-item` already
+  returns one.
+- rule: There are **four** inbox sections, not three: `## Active Inbox Inquiry Items` (`inquiry-*`),
+  `## Current Inbox Reflections` (`reflection-*`), `## Current Inbox Notes` (`note-*`), and
+  `## Other Inbox Items` — every inbox item whose prefix is none of those three. All four alike: cap
+  64 items, sorted by file modification time newest first, `scope:` line first, bodies framed as
+  above and each body itself capped at 8192 bytes.
+- rule: `## Board Items` carries its `scope:` line whenever it has content, stating the states walked,
+  the type filter, and the owner filter or that any owner matched. It never carries a cap line and
+  never carries a `truncated` mark, because it is uncapped. A board walk that declares nothing is the
+  failure this rule closes.
 - rule: **Form 1 never appears without a denominator and the filter that produced it**:
-  `**NOTE:** no new X — scanned <N> items, <M> matched <filter>`. Of the three forms it is the
+  `**NOTE:** no new X -- scanned <N> items, <M> matched <filter>`. Of the three forms it is the
   only one asserting a fact about the *world* rather than about the process, so it is the only one
   that can be wrong while looking right. A zero over a zero denominator and a zero over 256 are
   different facts, and only the second is evidence about the tree. Without this, a broken filter
@@ -92,9 +184,36 @@ comms-cut-off: <--comms-since-* kind and value, or "none — per-service unread 
   (0 of 256 items, every board scope silently empty) would have read as a truthful "no board
   items".
 - rule: A section whose sources are plural carries `sources-scanned: <N> of <M>`. When `N < M` it
-  also carries `**NOTE:** partial — <source> not scanned, <reason>` alongside its items. A section
+  also carries `**NOTE:** partial -- <source> not scanned, <reason>` alongside its items. A section
   that has items must still be able to report that something underneath it failed; otherwise a
   populated section reads as complete no matter how many sources errored.
+- rule: The inbox and board sections each open with their own `scope:` line — the section's **first**
+  line, before any item block and before any `**NOTE:**`. Same per-section metadata convention the
+  comms sub-sections carry with `identity:`/`instrument:`/`sources-scanned:`, extended to the four
+  sections that had none. Present whenever that scope was requested, on empty and non-empty sections
+  alike, exactly as `identity:` is; a section carrying `**NOTE:** not requested` has no `scope:` line.
+  The heading names the section, `scope:` names the run — which is what lets two runs under the same
+  heading tell themselves apart, and is why the heading set stays fixed rather than growing a variant
+  per breadth.
+- rule: Four exact `scope:` forms, one per breadth, and no others:
+  `scope: inboxes/<member>/*.md -- top level only, excluding processed/` (reflections, notes and other
+  items always, inquiry at its narrower breadth); `scope: inboxes/<member>/*.md -- top level plus
+  processed/` (inquiry at its wider breadth); `scope: board/<state>/*.md -- backlog|pending|running|blocked|parked,
+  owner: <member>` (board, narrower); and the same board form listing every state
+  `backlog|pending|running|blocked|parked|processed|archived|retained` (board, wider). These are
+  strings this document emits, describing what was read — no member constructs or resolves them, and
+  item lookup still goes through the operations that own it.
+- rule: Six requestable scopes feed these four sections — two mutually exclusive pairs and two
+  singles. Inbox inquiry items (active, or active plus collected); inbox reflections; inbox notes;
+  board items related to the member (active states, or every state). A pair's two breadths are
+  mutually exclusive: one breadth per run, never both.
+- rule: The wider inbox breadth is live **plus not-yet-collected** `processed/`, never complete
+  history. `processed/` is garbage-collected on a retention threshold that varies by document type,
+  so what it still holds when the document is generated is what that section reports. It is not an
+  archive and must not be read as one.
+- rule: Relatedness is `owner:` alone. `participants:` and `restart-session:` are deliberately not
+  consulted — an item naming a member is not thereby that member's work, and widening relatedness to
+  them would return items nobody has been assigned.
 - rule: `# New Incoming Communications` carries its own `**NOTE:** no new incoming communications`
   only when every requested comms sub-section is **empty and successfully scanned**. A sub-section
   that could not be scanned is unknown, not empty, and blocks the aggregate note outright — the
@@ -123,7 +242,8 @@ comms-cut-off: <--comms-since-* kind and value, or "none — per-service unread 
   only — `reply-if-warranted` never needs to read or pass it: `--member-comms-slack-send-message`
   resolves the correct identity internally on its own.
 - rule: Caps: **128** IM conversations — a thread, a channel or a DM is **one** unit, not one
-  message — **128** email, **64** Trello, **32** each inbox section. A truncated section says so on
+  message — **128** email, **64** Trello, **64** each inbox section, and **8192 bytes** per inbox item
+  body. A truncated section says so on
   its own line, naming every dropped conversation and its message count, and stating the cap as a
   display limit, not a source of unread state.
 - rule: The board section has **no cap** and is never truncated — the board is the work list, and

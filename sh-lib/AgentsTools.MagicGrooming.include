@@ -1019,9 +1019,21 @@ case "$1" in
 		## "no arguments" nature now means exactly one: the calling member.
 		local callingMember="$1"
 		shift || true
-		if [ -z "$callingMember" ] || [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: syntax is <team-member>, no other arguments" >&2
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: syntax is <team-member>" >&2
 			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			case "$1" in
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE $HOME/.claude/skills/magic-team/magic-team.grooming.routine.md" >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $HOME/.claude/skills/magic-team/magic-team.grooming.routine.md" >&2
+					set +e ; return 1
+				;;
+			esac
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: MDAT_DATA_ROOT is not set" >&2
@@ -1071,9 +1083,16 @@ case "$1" in
 		printf '\n%s\n\n' "## team-roster (cache)"
 		DistroAgentsTools --magic-team-roster-read "$callingMember"
 		printf '\n%s\n\n' "## board digest"
+		## The calling member's OWN inbox, with bodies -- its own leading
+		## positional decides whose, and no operation in this family reads
+		## another member's. This routine's own step text used to say "No
+		## inbox reads here"; that is now false and is corrected in the
+		## routine file, or code and routine text disagree.
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--state backlog --state pending --state running --state blocked --state parked \
 			--all-types \
+			--do-inbox-inquiry-active --do-inbox-reflections \
+			--do-inbox-notes --do-inbox-other \
 			--context --magic-grooming-input-scan
 		return $?
 	;;

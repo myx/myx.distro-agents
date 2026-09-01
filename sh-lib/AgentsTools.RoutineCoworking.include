@@ -18,43 +18,17 @@
 
 case "$1" in
 
-	## <item-name>... -- read-only discovery, same document shape as
-	## --magic-grooming-input-scan (thin wrapper over
-	## --intern-op-session-context-scan). Verified directly against
-	## routine-coworking.routine.md: no existing step loaded board-state at
-	## all before this op existed -- step 1 ("Frame the shared goal") now
-	## cites this op explicitly once the goal names specific board-item(s)
-	## (see that file's own step 1 text). At least one <item-name> is
-	## required -- this positional list IS this op's real defining input,
-	## not an override of some other fixed default, so it stays (unlike
-	## --state/--header on the sibling wrappers, which were caller-facing
-	## overrides of an already-fixed default and have been removed
-	## everywhere: dedicated wrappers are fixed, not flexible). No --header
-	## flag either, not just no --state: always every frontmatter field on
-	## the final display. Not --state-configurable (always every real board
-	## state -- a named item can live in any of them, and this op doesn't
-	## know which in advance) and not --owner-filtered (deliberate contrast
-	## with --member-work-session-input-scan: this scan is about specific
-	## named items regardless of who owns them, not "my own work").
-	##
-	## Two-call pattern, same shape --magic-sweep-input-scan uses (see
-	## AgentsTools.MagicSweep.include): phase 1 asks the primitive for
-	## blocks/blocked-by only, across every real state,
-	## --all-types, --item restricted to exactly the given names (a
-	## targeted lookup, not a whole-folder scan) -- this op's own real
-	## purpose per the routine text: "the given item(s) plus anything
-	## blocks/blocked-by them" (the retired untyped `references:` field this
-	## scan also used to request is gone -- no real item carries it anymore).
-	## AgentsRoutineCoworkingReferenceNames
-	## .awk (external, per this package's own externalize-awk/py convention)
-	## reads that document and prints every name mentioned in either of those
-	## two fields, across every given item, handling both plain scalar
-	## values and the comma-separated list encoding
-	## AgentsTools.InternOpBoardUpsertMoveEdit.include's own --header:append
-	## produces. Phase 2 re-calls the primitive restricted via --item to the
-	## union of the originally-given names plus every discovered related
-	## name (deduped), still every real state, --all-types, every
-	## frontmatter field -- the real, final display output.
+	## <team-member> <tracking-document>... -- read-only discovery, thin wrapper
+	## over --intern-op-session-context-scan, same document shape as
+	## --magic-grooming-input-scan. Each <tracking-document> is one tracking
+	## document for this particular coworking session -- a dispatch, an
+	## interview, a task or an attachment that is this session's own work --
+	## given as a bare name, no .md suffix; at least one is required. The
+	## positional list is this op's real
+	## defining input, not an override of a fixed default: phase 1 reads the
+	## named items for blocks:/blocked-by: only, phase 2 returns them plus
+	## every item those two fields reach, across every real state, every type,
+	## every frontmatter field.
 	--routine-coworking-session-input-scan)
 		shift
 		## <team-member> captured for future logging/validation, unused today --
@@ -63,24 +37,41 @@ case "$1" in
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: syntax is <team-member> <item-name>... -- <team-member> required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: syntax is <team-member> <tracking-document>... -- <team-member> required" >&2
 			set +e ; return 1
 		fi
 		local names=()
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: invalid option: $1 -- syntax is <team-member> <tracking-document>... -- an input-scan reads all baseline-relevant items itself, including everything reached via blocks:/blocked-by:. SEE $HOME/.claude/skills/magic-team/magic-team.coworking.routine.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					names+=( "$1" )
+					AgentsToolsAssertBareName "$1" "<tracking-document>" routine-coworking-session-input-scan || { set +e ; return 1 ; }
+					## --item compares against the real filename while the
+					## documented form of a <tracking-document> is the bare
+					## name, so the suffix is supplied here.
+					##
+					## A NAME THAT ALREADY CARRIES `.md` IS ACCEPTED, NOT
+					## REFUSED. Both spellings name the same tracking document
+					## and both must return it. This is deliberately the SAME
+					## one-line normalisation the blocks:/blocked-by: names get
+					## below -- two boundaries feed the one --item list, so
+					## they resolve a name by one rule, not by two that could
+					## drift apart. Bare stays what the help, the usage string
+					## and the skillset text all document; tolerating the
+					## suffix costs nothing and refusing it cost a caller a
+					## whole document.
+					local trackingDoc="$1"
+					case "$trackingDoc" in *.md) ;; *) trackingDoc="$trackingDoc.md" ;; esac
+					names+=( "$trackingDoc" )
 					shift
 				;;
 			esac
 		done
 		if [ ${#names[@]} -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: syntax is <team-member> <item-name>... -- at least one item-name required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: syntax is <team-member> <tracking-document>... -- at least one tracking-document required, the dispatch or interview document this session is for -- an input-scan reads all baseline-relevant items itself, including everything reached via blocks:/blocked-by:. SEE $HOME/.claude/skills/magic-team/magic-team.coworking.routine.md" >&2
 			set +e ; return 1
 		fi
 
@@ -95,18 +86,20 @@ case "$1" in
 			--header blocks --header blocked-by --all-types \
 			--context --routine-coworking-session-input-scan )" || return 1
 
+		local unionNames=() already seen
+		for n in "${names[@]}" ; do unionNames+=( "$n" ) ; done
+
 		local relatedFile
 		relatedFile="$MMDAPP/.local/temp/mdat-routine-coworking-related.$$"
 		mkdir -p "$MMDAPP/.local/temp" && : > "$relatedFile" || { set +e ; return 1 ; }
 		trap 'rm -f "$relatedFile"' EXIT
 		printf '%s\n' "$phaseAOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRoutineCoworkingReferenceNames.awk" | sort -u > "$relatedFile"
 
-		## Union: originally-given names, in order, then every discovered
-		## related name not already present.
-		local unionNames=() already seen
-		for n in "${names[@]}" ; do unionNames+=( "$n" ) ; done
+		## blocks:/blocked-by: carry bare names while --item compares against
+		## the filename -- without this every reached item is dropped.
 		while IFS= read -r n ; do
 			[ -z "$n" ] && continue
+			case "$n" in *.md) ;; *) n="$n.md" ;; esac
 			already="false"
 			for seen in "${unionNames[@]}" ; do
 				if [ "$seen" = "$n" ] ; then already="true" ; break ; fi
@@ -116,11 +109,42 @@ case "$1" in
 		rm -f "$relatedFile"
 		trap - EXIT
 
+		## No --item at all reads as "no restriction" in the primitive, which
+		## would return the whole board. Unreachable while at least one
+		## <item-name> is required -- the floor under that requirement.
+		if [ ${#unionNames[@]} -eq 0 ] ; then
+			return 0
+		fi
+
+		## Every real state on the display call -- a reached item may have
+		## moved to a terminal one.
 		local phaseBArgs=()
 		for s in "${allStates[@]}" ; do phaseBArgs+=( --state "$s" ) ; done
 		for n in "${unionNames[@]}" ; do phaseBArgs+=( --item "$n" ) ; done
 
-		DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" --all-types --context --routine-coworking-session-input-scan
+		## --item-include-inbox IS ON THE DISPLAY CALL ONLY, NEVER ON PHASE A.
+		## A tracking document is "like dispatch or interview", and an
+		## interview is an `inquiry-*` INBOX item -- so named-item resolution
+		## has to reach this member's own inbox or a named interview resolves
+		## to nothing and the caller cannot tell not-found from
+		## nothing-to-say. Phase A deliberately does not get it: that call
+		## harvests blocks:/blocked-by: with a line-anchored awk that has no
+		## notion of the body framing, and a raw body may legally contain a
+		## line beginning `blocks: ` -- feeding bodies into it would let body
+		## prose forge closure edges. The consequence is stated rather than
+		## hidden: the closure still seeds from board items only, so a named
+		## INBOX item is included but its own blocks:/blocked-by: are not
+		## walked.
+		##
+		## The four inbox sweep sections are this member's OWN inbox, per the
+		## per-operation matrix -- every operation in this family returns the
+		## calling member's own inbox with bodies, none reads another
+		## member's.
+		DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" \
+			--all-types --item-include-inbox \
+			--do-inbox-inquiry-active --do-inbox-reflections \
+			--do-inbox-notes --do-inbox-other \
+			--context --routine-coworking-session-input-scan
 		return $?
 	;;
 

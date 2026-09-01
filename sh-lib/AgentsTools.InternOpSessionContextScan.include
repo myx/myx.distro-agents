@@ -77,7 +77,10 @@
 ##     bash string comparison -- too trivial (one exact-match line check) to
 ##     need a script of its own.
 ##   - --item <name> (optional, repeatable): restricts matched files to just
-##     these bare basenames. Not part of this primitive's original spec --
+##     these FILENAMES, `.md` included -- the compare below is against
+##     "${f##*/}", so a bare board-item name (the form blocks:/blocked-by:
+##     carry) matches nothing, and a caller holding one normalises it before
+##     passing it here. Not part of this primitive's original spec --
 ##     added to make --routine-coworking-session-input-scan's "scan these
 ##     specific named items, wherever they live" need implementable as a thin
 ##     wrapper over this same primitive rather than reimplementing scan/
@@ -124,8 +127,27 @@
 ##                           member's own credentials and own configured
 ##                           sources; see its own block below)
 ##   --do-inbox-inquiry-active | --do-inbox-inquiry-all
-##   --do-inbox-reflections | --do-inbox-notes
+##   --do-inbox-reflections | --do-inbox-notes | --do-inbox-other
 ##   --do-board-related-active | --do-board-related-all
+##                          (the session-context scopes -- these are the flag
+##                           names, and this header is the ONE place they are
+##                           spelled; their contracts live in
+##                           magic-team.shared.md's "Session-context document"
+##                           entry and the format document named above, and
+##                           their rationale in myx.distro-agents/MAGIC.md.
+##                           Each pair is mutually exclusive, the -active/-all
+##                           axis is PHYSICAL -- folder membership, never a
+##                           frontmatter predicate -- and `status:` is never
+##                           parsed by any of them. --do-inbox-other is the
+##                           NEGATIVE of the three typed inbox prefixes, which
+##                           is why it is its own request and not a mode of
+##                           one of them)
+##   --item-include-inbox   (extends --item resolution to the acting member's
+##                           own inbox, top level and processed/, so a named
+##                           tracking document that is an inbox item resolves
+##                           at all. Opt-in and requested by one wrapper: a
+##                           phase-1 discovery scan whose output is parsed by
+##                           a line-anchored awk must never carry bodies)
 ## plus the three comms sections themselves -- `## Incoming IM Updates`,
 ## `## Incoming Email Updates`, `## Incoming Trello Updates` -- each carrying
 ## real items, its own `instrument:`, its own `sources-scanned: N of M`, the
@@ -146,13 +168,22 @@
 ## the human-owner's own stated intent, and is raised with magic-librarian
 ## rather than silently carried.
 ##
-## NOT BUILT YET: the inbox sections (--do-inbox-*), board-relatedness scoping
-## (--do-board-related-*), and the report's own `# Session Sweep Report` /
-## `## Contents & Abstract` envelope. Those flags are accepted and their
-## sections ARE emitted, carrying the third `**NOTE:**` form ("no scan was
-## made -- ... not implemented ... yet"), never the first ("no new X"). An
-## unfinished scan must never be indistinguishable from an empty one, which is
-## the whole point of the document.
+## ALSO BUILT, and no longer stubbed: the inbox sections (--do-inbox-*) and
+## board-relatedness scoping (--do-board-related-*). They now really look, and
+## an empty result carries the FIRST `**NOTE:**` form ("no new X"), with its own
+## denominator and its own filter text, rather than the third ("no scan was
+## made"). Each requested section leads with a `scope:` line naming exactly
+## which folders and which filter produced it -- the same per-section
+## how-was-this-produced metadata the comms sections already carry as
+## `identity:`/`instrument:`/`sources-scanned:`, extended to the two section
+## families that had none. Presence rule matches `identity:` exactly: present
+## whenever the scope was requested, empty and non-empty alike, absent only on a
+## `**NOTE:** not requested` section.
+##
+## STILL NOT BUILT: the report's own `# Session Sweep Report` /
+## `## Contents & Abstract` envelope. An unfinished scan must never be
+## indistinguishable from an empty one, which is the whole point of the
+## document.
 ##
 ## Per-service reality, measured, and how each is resolved here:
 ##   - Slack: accepts a cut-off (--oldest), offers NO unread semantics.
@@ -259,7 +290,23 @@ case "$1" in
 		local commsMemberScopeOnly="false"
 		local doInboxInquiryActive="false" doInboxInquiryAll="false"
 		local doInboxReflections="false" doInboxNotes="false"
+		## The fourth inbox section's own flag. Its predicate is the NEGATIVE of
+		## the other three -- every inbox item whose prefix is none of
+		## inquiry-/reflection-/note- -- so it cannot ride along on any of them
+		## and needs a request of its own. Without this section "the member's
+		## own inbox" silently drops every task-, proposal-, change-, idea-,
+		## warning- and interview- item it holds, and interview-/dispatch- are
+		## exactly the tracking-document kinds
+		## --routine-coworking-session-input-scan has to be able to reach.
+		local doInboxOther="false"
 		local doBoardRelatedActive="false" doBoardRelatedAll="false"
+		## Named-item resolution reaches the acting member's own inbox as well
+		## as the board. Opt-in, requested by exactly one wrapper, so no
+		## existing --item caller's resolved set changes: --magic-sweep-input-
+		## scan's phase-2 --item list is a board-survivor list, and widening
+		## the search under it could pull in an identically-named inbox file
+		## its own phase 1 never saw.
+		local itemIncludeInbox="false"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--state)
@@ -330,8 +377,10 @@ case "$1" in
 				--do-inbox-inquiry-all)    doInboxInquiryAll="true" ; shift ;;
 				--do-inbox-reflections)    doInboxReflections="true" ; shift ;;
 				--do-inbox-notes)          doInboxNotes="true" ; shift ;;
+				--do-inbox-other)          doInboxOther="true" ; shift ;;
 				--do-board-related-active) doBoardRelatedActive="true" ; shift ;;
 				--do-board-related-all)    doBoardRelatedAll="true" ; shift ;;
+				--item-include-inbox)      itemIncludeInbox="true" ; shift ;;
 				--comms-since-date-time|--comms-since-utime)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: $1: value required" >&2
@@ -449,6 +498,72 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		## ------------------------------------------------------------------
+		## The six session-context scopes: mutual exclusion, then the board
+		## pair's own state/owner binding.
+		##
+		## THE -active/-all AXIS IS PHYSICAL, NEVER A FRONTMATTER PREDICATE.
+		## For inbox scopes it is top level versus top level plus processed/;
+		## for board scopes it is the five active states versus all eight.
+		## `status:` is never parsed by any of these six, and no new lifecycle
+		## field is introduced -- across the real inbox corpus `status:` is
+		## free text with a dozen distinct values, so a filter reading it is a
+		## parser guessing at English, and it fails in the inclusive direction
+		## by silently dropping live work.
+		##
+		## Each pair is mutually exclusive rather than a union: one section,
+		## one stated scope, or a reader cannot tell which run produced it.
+		## ------------------------------------------------------------------
+		if [ "$doInboxInquiryActive" = "true" ] && [ "$doInboxInquiryAll" = "true" ] ; then
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-inbox-inquiry-active and --do-inbox-inquiry-all are mutually exclusive -- both fill the same section, and a section carrying two scopes states neither" >&2
+			set +e ; return 1
+		fi
+		if [ "$doBoardRelatedActive" = "true" ] && [ "$doBoardRelatedAll" = "true" ] ; then
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-board-related-active and --do-board-related-all are mutually exclusive -- both fill the same section, and a section carrying two scopes states neither" >&2
+			set +e ; return 1
+		fi
+
+		## --do-board-related-* binds relatedness to the acting <team-member>
+		## and supplies its own state set; --filter-owner matches a
+		## caller-named value. Passed together they must AGREE -- disagreeing
+		## values are an error, never an intersection, because an intersection
+		## would silently return a set neither argument asked for.
+		##
+		## RELATEDNESS IS `owner:` ALONE, and the NOTE's own filter text says
+		## so rather than leaving the limit implicit: `participants:` and
+		## `restart-session:` genuinely encode "involved but not owner" and are
+		## deliberately not seen here. Widening past `owner:` would invent
+		## scope beyond the recorded gap.
+		local boardRelatedStatesText=""
+		if [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; then
+			if [ -n "$owner" ] && [ "$owner" != "$actingMember" ] ; then
+				echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-board-related-* scopes the board to the acting <team-member> ($actingMember) while --filter-owner names $owner -- disagreeing values are an error, not an intersection" >&2
+				set +e ; return 1
+			fi
+			owner="$actingMember"
+			local boardRelatedStates=()
+			if [ "$doBoardRelatedAll" = "true" ] ; then
+				boardRelatedStates=( backlog pending running blocked parked processed archived retained )
+				boardRelatedStatesText="backlog|pending|running|blocked|parked|processed|archived|retained"
+			else
+				boardRelatedStates=( backlog pending running blocked parked )
+				boardRelatedStatesText="backlog|pending|running|blocked|parked"
+			fi
+			## Same disagreement rule as --filter-owner above, applied to the
+			## other half of what this flag supplies. A caller passing the
+			## identical set is not in conflict and is left alone.
+			if [ ${#states[@]} -gt 0 ] ; then
+				local statesGiven="" statesWanted="" sg
+				for sg in "${states[@]}" ; do statesGiven+="|$sg" ; done
+				for sg in "${boardRelatedStates[@]}" ; do statesWanted+="|$sg" ; done
+				if [ "$statesGiven" != "$statesWanted" ] ; then
+					echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-board-related-* supplies its own state set ($boardRelatedStatesText) and the --state values given do not match it -- disagreeing values are an error, not an intersection" >&2
+					set +e ; return 1
+				fi
+			fi
+			states=( "${boardRelatedStates[@]}" )
+		fi
+
 		if [ ${#states[@]} -eq 0 ] ; then
 			states=( backlog pending running blocked parked processed archived retained )
 		fi
@@ -488,10 +603,24 @@ case "$1" in
 		## (the only one that opens the file).
 		## ------------------------------------------------------------------
 		local matchedFiles=() matchedStates=()
+		## Every inbox file the sweep sections actually emitted. The named-item
+		## pass at the end of this arm consults it so an item that is BOTH
+		## named and swept is rendered once, not twice -- "named means
+		## included" is a guarantee of presence, never an instruction to
+		## duplicate. Declared out here because the sweep sections are inside
+		## the session-context block and the named pass is not.
+		local inboxEmittedPaths=()
+		## The denominator --do-board-related-*'s own empty-NOTE quotes: every
+		## item actually looked at across the scanned states, counted BEFORE
+		## any filter, so "0 matched" is reported against a real population
+		## rather than against itself. Counted here in the one loop that walks
+		## the board, never re-derived by a second pass that could disagree.
+		local boardScanned=0
 		local state f base it tp matched ownerVal
 		for state in "${states[@]}" ; do
 			for f in "$MDAT_DATA_ROOT/board/$state"/*.md ; do
 				[ -f "$f" ] || continue
+				boardScanned=$(( boardScanned + 1 ))
 				base="${f##*/}"
 
 				if [ ${#items[@]} -gt 0 ] ; then
@@ -545,6 +674,7 @@ case "$1" in
 			|| [ "$commsDoEmail" = "true" ] || [ "$commsDoTrello" = "true" ] \
 			|| [ "$doInboxInquiryActive" = "true" ] || [ "$doInboxInquiryAll" = "true" ] \
 			|| [ "$doInboxReflections" = "true" ] || [ "$doInboxNotes" = "true" ] \
+			|| [ "$doInboxOther" = "true" ] \
 			|| [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; then
 			sessionContextEngaged="true"
 		fi
@@ -1589,26 +1719,230 @@ case "$1" in
 				fi
 			fi
 
-			## Inbox scopes: still unbuilt. Reported with the format document's
-			## own third NOTE form (asked, could not look) rather than the
-			## first (looked, found nothing) -- an unbuilt scan must never be
-			## indistinguishable from an empty one.
-			local inboxSection
-			for inboxSection in \
-				"Active Inbox Inquiry Items:$doInboxInquiryActive$doInboxInquiryAll" \
-				"Current Inbox Reflections:$doInboxReflections" \
-				"Current Inbox Notes:$doInboxNotes" \
+			## ----------------------------------------------------------
+			## Inbox scopes. Membership is decided by FILENAME PREFIX ONLY --
+			## no frontmatter is opened for any inbox scope, and `status:` is
+			## never read. The -active/-all axis is the physical folder split:
+			## top level, versus top level plus processed/.
+			##
+			## `scope:` is the first line of every requested section, ahead of
+			## `cap:` and ahead of any item block or **NOTE:**. It is not a new
+			## convention: the comms sections already carry per-section
+			## metadata describing how the section was produced (`identity:`,
+			## `instrument:`, `sources-scanned:`, `cap:`, `cut-off-applied:`)
+			## and the inbox and board sections carried none. Same presence
+			## rule as `identity:`: present whenever the scope was requested,
+			## empty and non-empty sections alike, absent only on a section
+			## carrying `**NOTE:** not requested`. The HEADING names the
+			## section and stays stable -- stable headings are what make this
+			## document parseable; `scope:` names the run.
+			##
+			## processed/ IS GARBAGE-COLLECTED on a type-dependent retention
+			## threshold, so an -all inbox scope means live plus
+			## not-yet-collected processed -- never complete history. Said
+			## here because a reader who assumes otherwise reads a gap as an
+			## absence.
+			## ----------------------------------------------------------
+			## Two caps, two marks, and they are independent. The ITEM cap cuts
+			## how many items a section carries and is marked at section level
+			## by the ratified base form; the per-item BYTE cap cuts one item's
+			## body and is marked inside that item's own framing. Either can
+			## bite without the other, so both marks exist and neither stands
+			## in for the other.
+			local sessionContextCapInbox=64
+			local sessionContextCapInboxItemBytes=8192
+			local inboxDir="$MDAT_DATA_ROOT/inboxes/$actingMember"
+			local inboxScanned inboxMatched=() inboxOrdered inboxScopeLine inboxFilterText inboxHeading inboxPrefix
+			local inboxSpec inboxWanted inboxWithProcessed ii
+			local inboxFilterDesc inboxCandidates=() ci inboxEmit=()
+
+			## FOUR sections, not three. The fourth's predicate is the negative
+			## of the other three, so its match test is a token (`-other-`)
+			## rather than a prefix: every inbox item whose name starts with
+			## none of inquiry-/reflection-/note-. Measured team-wide, that is
+			## 42 items -- task-, proposal-, change-, idea-, warning- and
+			## interview- -- which "the member's own inbox" would otherwise
+			## drop entirely, interview-/dispatch- tracking documents included.
+			for inboxSpec in \
+				"Active Inbox Inquiry Items inquiry- $doInboxInquiryActive$doInboxInquiryAll $doInboxInquiryAll" \
+				"Current Inbox Reflections reflection- $doInboxReflections false" \
+				"Current Inbox Notes note- $doInboxNotes false" \
+				"Other Inbox Items -other- $doInboxOther false" \
 			; do
-				printf '## %s\n\n' "${inboxSection%%:*}"
-				case "${inboxSection#*:}" in
-					*true*) printf '**NOTE:** no scan was made -- inbox scopes are not implemented in this operation yet\n\n' ;;
-					*)      printf '**NOTE:** not requested\n\n' ;;
+				## Parsed from the END, not the start: the last two fields are
+				## the flags and the one before them is the filename prefix, so
+				## whatever remains is the heading -- which is multi-word in all
+				## three cases and would not survive a left-to-right split.
+				inboxWithProcessed="${inboxSpec##* }"
+				inboxSpec="${inboxSpec% *}"
+				inboxWanted="${inboxSpec##* }"
+				inboxSpec="${inboxSpec% *}"
+				inboxPrefix="${inboxSpec##* }"
+				inboxHeading="${inboxSpec% *}"
+
+				## A requested section prints its heading with NO blank line
+				## after it, so `scope:` really is the section's first line as
+				## the format document renders it. A `**NOTE:** not requested`
+				## section has no `scope:` line at all and keeps the blank.
+				case "$inboxWanted" in
+					*true*)
+						printf '## %s\n' "$inboxHeading"
+					;;
+					*)
+						printf '## %s\n\n' "$inboxHeading"
+						printf '**NOTE:** not requested\n\n'
+						continue
+					;;
 				esac
+
+				## EVERY STRING THIS DOCUMENT EMITS USES ASCII `--`, never an em
+				## dash. A string the document emits is code, and this file's
+				## own clause separator governs it; the contract's prose is a
+				## different thing and is unconstrained. Recorded here because
+				## reading the contract's own rendering as normative for an
+				## emitted string is what cost a six-site re-emission once
+				## already.
+				if [ "$inboxWithProcessed" = "true" ] ; then
+					inboxScopeLine="inboxes/$actingMember/*.md -- top level plus processed/"
+					inboxFilterText="including processed/"
+				else
+					inboxScopeLine="inboxes/$actingMember/*.md -- top level only, excluding processed/"
+					inboxFilterText="excluding processed/"
+				fi
+				## The fourth section's filter is a negative one, so it is
+				## spelled out rather than derived from a prefix that does not
+				## exist -- the NOTE has to name what was actually matched on.
+				if [ "$inboxPrefix" = "-other-" ] ; then
+					inboxFilterDesc="a prefix other than inquiry-*/reflection-*/note-*"
+				else
+					inboxFilterDesc="$inboxPrefix*"
+				fi
+				printf 'scope: %s\n' "$inboxScopeLine"
+				printf 'cap: %s\n' "$sessionContextCapInbox"
+
+				## Candidates collected first, then filtered once -- the
+				## match test is a two-branch case (a prefix, or the negative
+				## of three prefixes) and writing it twice, once per folder,
+				## is exactly the kind of duplicate predicate that drifts.
+				inboxScanned=0
+				inboxCandidates=()
+				if [ -d "$inboxDir" ] ; then
+					for f in "$inboxDir"/*.md ; do
+						[ -f "$f" ] && inboxCandidates+=( "$f" )
+					done
+					if [ "$inboxWithProcessed" = "true" ] && [ -d "$inboxDir/processed" ] ; then
+						for f in "$inboxDir/processed"/*.md ; do
+							[ -f "$f" ] && inboxCandidates+=( "$f" )
+						done
+					fi
+				fi
+				inboxScanned=${#inboxCandidates[@]}
+				inboxMatched=()
+				ci=0
+				while [ "$ci" -lt "$inboxScanned" ] ; do
+					f="${inboxCandidates[$ci]}"
+					ci=$(( ci + 1 ))
+					case "$inboxPrefix" in
+						-other-)
+							case "${f##*/}" in
+								inquiry-*|reflection-*|note-*) ;;
+								*) inboxMatched+=( "$f" ) ;;
+							esac
+						;;
+						*)
+							case "${f##*/}" in "$inboxPrefix"*) inboxMatched+=( "$f" ) ;; esac
+						;;
+					esac
+				done
+
+				if [ ${#inboxMatched[@]} -eq 0 ] ; then
+					## Form-1 NOTE, carrying its own denominator AND its own
+					## filter -- never a bare "no new X". A reader has to be
+					## able to tell an empty folder from a filter that matched
+					## nothing in a full one.
+					printf '**NOTE:** no new %s -- scanned %s items, 0 matched %s in inboxes/%s/ (%s)\n\n' \
+						"$inboxHeading" "$inboxScanned" "$inboxFilterDesc" "$actingMember" "$inboxFilterText"
+					continue
+				fi
+
+				[ ${#inboxMatched[@]} -le "$sessionContextCapInbox" ] || printf '**NOTE:** truncated -- %s items found, capped at %s\n' "${#inboxMatched[@]}" "$sessionContextCapInbox"
+				printf '\n'
+				## Newest first by file mtime. `ls -t` is the one ordering
+				## primitive that reads the same on Darwin, FreeBSD and Linux
+				## -- stat(1)'s own flags disagree across the three, so it is
+				## not usable here.
+				inboxOrdered="$( LC_ALL=C ls -t "${inboxMatched[@]}" )" || inboxOrdered=""
+				inboxEmit=()
+				ii=0
+				while IFS= read -r f ; do
+					[ -n "$f" ] || continue
+					ii=$(( ii + 1 ))
+					[ "$ii" -le "$sessionContextCapInbox" ] || break
+					inboxEmit+=( "$f" )
+				done <<< "$inboxOrdered"
+				## ONE awk for the whole section, given every surviving file at
+				## once -- this runs on every session for every member, so a
+				## subprocess per item (and a second one per item just to see
+				## whether the file ends in a newline) is exactly the cost that
+				## must not be paid here. The script reads each file once and
+				## derives the framing, the byte cap and the body from that
+				## single read.
+				[ ${#inboxEmit[@]} -eq 0 ] || LC_ALL=C awk \
+					-v bodyByteCap="$sessionContextCapInboxItemBytes" \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInboxItemBlockPrint.awk" \
+					"${inboxEmit[@]}"
+				## Recorded so the named-item pass can tell what is already in
+				## the document. An item cut by the cap is deliberately NOT
+				## recorded -- if it was also named, the named pass must still
+				## emit it, which is exactly what "exempt from the cap" means.
+				[ ${#inboxEmit[@]} -eq 0 ] || inboxEmittedPaths+=( "${inboxEmit[@]}" )
 			done
 
-			printf '## Board Items\n\n'
-			if [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; then
-				printf '**NOTE:** no scan was made -- board-relatedness scoping (--do-board-related-*) is not implemented in this operation yet; the item blocks below are this call'"'"'s own --state/--type-prefix:/--filter-owner scan, unfiltered by relatedness\n\n'
+			## NEVER CAPPED, unlike the inbox sections above, and so it carries
+			## no `cap:` line and can never carry a `truncated` mark: the board
+			## is the work list, and silently dropping part of it is the
+			## failure this document exists to prevent. The item blocks
+			## themselves are emitted by the walk below, from the same resolved
+			## set.
+			##
+			## `scope:` IS UNCONDITIONAL WHENEVER THIS SECTION HAS CONTENT, not
+			## conditional on --do-board-related-*. It used to sit inside that
+			## branch, so a full-state call with no relatedness scope walked
+			## every board item and declared none of them -- a section that
+			## walked the board and said nothing about what it walked, which is
+			## the one thing a self-describing document must not do. The line
+			## states all three filters that produced the set, including the
+			## two a relatedness scope does not set.
+			local boardStatesText="" boardTypeText="" boardOwnerText="" boardScopeLine bs
+			for bs in "${states[@]}" ; do
+				boardStatesText="${boardStatesText:+$boardStatesText|}$bs"
+			done
+			if [ "$allTypes" = "true" ] ; then
+				boardTypeText="all types"
+			else
+				for bs in "${typePrefixes[@]}" ; do
+					boardTypeText="${boardTypeText:+$boardTypeText|}$bs"
+				done
+				boardTypeText="types: $boardTypeText"
+			fi
+			if [ -n "$owner" ] ; then
+				boardOwnerText="owner: $owner"
+			else
+				boardOwnerText="any owner"
+			fi
+			boardScopeLine="board/<state>/*.md -- $boardStatesText, $boardTypeText, $boardOwnerText"
+
+			printf '## Board Items\n'
+			if [ ${#matchedFiles[@]} -gt 0 ] \
+				|| [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; then
+				printf 'scope: %s\n' "$boardScopeLine"
+			fi
+			if [ ${#matchedFiles[@]} -eq 0 ] \
+				&& { [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; } ; then
+				printf '**NOTE:** no new Board Items -- scanned %s items, 0 matched owner: %s across %s\n\n' \
+					"$boardScanned" "$actingMember" "$boardRelatedStatesText"
+			else
+				printf '\n'
 			fi
 		fi
 
@@ -1704,6 +2038,77 @@ case "$1" in
 			fi
 			printf '\n'
 		done
+
+		## ------------------------------------------------------------------
+		## NAMED ITEMS THAT LIVE IN THE ACTING MEMBER'S OWN INBOX.
+		##
+		## A tracking document is "like dispatch or interview", and an
+		## interview is an `inquiry-*` INBOX item -- so a named item that is
+		## not on the board must still resolve, or the caller gets an empty
+		## document and exit 0, and not-found is indistinguishable from
+		## nothing-to-say. That silent zero is the defect this closes.
+		##
+		## The acting member's own inbox ONLY, top level and processed/. Not
+		## every member's: that would be an unauthorised cross-member read of
+		## private content, and it would return far more than the named item.
+		## A document in another member's inbox is brought by that member, as a
+		## session step.
+		##
+		## NAMED MEANS INCLUDED. A named item is emitted regardless of state
+		## and regardless of whether the blocks:/blocked-by: closure reaches
+		## it, and it is exempt from the item cap -- the cap governs the sweep
+		## sections, never an item the caller asked for by name. The heading
+		## distinguishes the store it came from, `## inbox/<file>` against the
+		## board walk's `## <state>/<file>`, using grammar the document already
+		## has.
+		## ------------------------------------------------------------------
+		if [ "$itemIncludeInbox" = "true" ] && [ ${#items[@]} -gt 0 ] ; then
+			local namedInboxDir="$MDAT_DATA_ROOT/inboxes/$actingMember"
+			local namedEmit=() namedMissing=() namedFound namedPath ni
+			for it in "${items[@]}" ; do
+				namedFound="false"
+				## Already rendered by the board walk above -- named, found,
+				## nothing further to do for it here.
+				for f in "${matchedFiles[@]+"${matchedFiles[@]}"}" ; do
+					if [ "${f##*/}" = "$it" ] ; then namedFound="true" ; break ; fi
+				done
+				if [ "$namedFound" = "false" ] ; then
+					for namedPath in "$namedInboxDir/$it" "$namedInboxDir/processed/$it" ; do
+						if [ -f "$namedPath" ] ; then
+							namedFound="true"
+							## Already rendered by a sweep section above --
+							## found, present, and emitting it a second time
+							## would put two copies of one item in one
+							## document.
+							local namedSeen="false" namedPrev
+							for namedPrev in "${inboxEmittedPaths[@]+"${inboxEmittedPaths[@]}"}" ; do
+								if [ "$namedPrev" = "$namedPath" ] ; then namedSeen="true" ; break ; fi
+							done
+							[ "$namedSeen" = "true" ] || namedEmit+=( "$namedPath" )
+							break
+						fi
+					done
+				fi
+				[ "$namedFound" = "true" ] || namedMissing+=( "$it" )
+			done
+
+			## Same one-process-per-batch rule as the sweep sections, and the
+			## same framing -- a named item is not a different kind of block.
+			[ ${#namedEmit[@]} -eq 0 ] || LC_ALL=C awk \
+				-v bodyByteCap="$sessionContextCapInboxItemBytes" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInboxItemBlockPrint.awk" \
+				"${namedEmit[@]}"
+
+			## An asked-for item that does not exist gets its own explicit
+			## line. Silence here would be the same empty-versus-not-found
+			## confusion, one level down.
+			ni=0
+			while [ "$ni" -lt "${#namedMissing[@]}" ] ; do
+				printf '**NOTE:** named item not found -- %s, searched every board state and inboxes/%s/ including processed/\n\n' \
+					"${namedMissing[$ni]}" "$actingMember"
+				ni=$(( ni + 1 ))
+			done
+		fi
 
 		## SCAN-COMPLETENESS VERDICT. The body above already reports every
 		## unread source honestly -- `NOT SCANNED`/`**NOTE:** partial` markers

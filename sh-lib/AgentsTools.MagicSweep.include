@@ -92,8 +92,12 @@ case "$1" in
 					commsCutoffArgs=( "$1" "$2" )
 					shift 2
 				;;
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-sweep-input-scan: invalid option: $1 -- syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE $HOME/.claude/skills/magic-coordinator/magic-coordinator.communication-sweep.routine.md" >&2
+					set +e ; return 1
+				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-sweep-input-scan: invalid option: $1 -- syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
+					echo "⛔ ERROR: $MDSC_CMD --magic-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $HOME/.claude/skills/magic-coordinator/magic-coordinator.communication-sweep.routine.md" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -149,9 +153,15 @@ case "$1" in
 			## open threads" silently mean "no sweep", the exact
 			## empty-versus-not-scanned confusion this document exists to
 			## prevent.
+			## The inbox scopes ride on the DISPLAY calls, both of them, and
+			## never on phase A: phase A is a pure discovery scan whose output
+			## is consumed by a line-anchored awk with no notion of the body
+			## framing, and full bodies fed into it could forge matches.
 			DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 				--state backlog --state pending --state running --state blocked \
 				--all-types "${commsArgs[@]}" \
+				--do-inbox-inquiry-active --do-inbox-reflections \
+				--do-inbox-notes --do-inbox-other \
 				--context --magic-sweep-input-scan
 			return $?
 		fi
@@ -164,7 +174,10 @@ case "$1" in
 		rm -f "$survivorsFile"
 		trap - EXIT
 
-		DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" --all-types "${commsArgs[@]}" --context --magic-sweep-input-scan
+		DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" --all-types "${commsArgs[@]}" \
+			--do-inbox-inquiry-active --do-inbox-reflections \
+			--do-inbox-notes --do-inbox-other \
+			--context --magic-sweep-input-scan
 		return $?
 	;;
 

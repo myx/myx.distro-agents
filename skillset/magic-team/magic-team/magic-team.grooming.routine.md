@@ -41,7 +41,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Read all of `the board`:
      - every permanent member's open, deferred, or "not yet done" items
      - across `running/`, `blocked/`, and `parked/`
-   - No inbox reads here: each of the three participating members reads its own inbox automatically at session start (see `magic-team.process-inbox.routine`).
+   - Inbox: this scan returns the calling member's own inbox items too, with their bodies. That does not stand in for each participating member reading its own inbox at session start (see `magic-team.process-inbox.routine`) — both happen, and neither replaces the other.
    - Mechanically, this read is the `--magic-grooming-input-scan` operation — a fixed, read-only scan returning the open board items this step works from, each with its current state and frontmatter.
    - **Session tracking**: this routine's own `state-and-lock` note comes back with that scan, as part of this routine's own input; it is this pass's tracking document — the tactical status, and whatever the next pass needs to pick up from here. Steps:
      - reference `TEAM-DATA` rather than copying it, to keep it compact.
@@ -355,7 +355,7 @@ Prints this syntax + summary and exits.
 
 ## `--magic-grooming-input-scan` operation reference
 
-`DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>` — read-only: lists the open board items as `<state>/<item-filename>`, one per line, with their frontmatter, and this routine's own `state-and-lock` note alongside them as part of the same prepared input. Use this to find an item's actual current state before calling `--magic-grooming-to-*`.
+`DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>` — read-only: lists the open board items as `<state>/<item-filename>`, one per line, with their frontmatter, and this routine's own `state-and-lock` note alongside them as part of the same prepared input. Use this to find an item's actual current state before calling `--magic-grooming-to-*`. `<team-member>` is the only argument: the scan reads every baseline item this routine needs, and an item name is not a parameter to it.
 
 ## `--magic-grooming-lock-acquire` / `--magic-grooming-lock-refresh` / `--magic-grooming-close-state-and-unlock` / `--magic-grooming-lock-status` operation reference
 

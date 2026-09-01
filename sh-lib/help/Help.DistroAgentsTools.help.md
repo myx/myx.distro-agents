@@ -80,7 +80,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <item-name>...
+📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <tracking-document>...
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>
@@ -2043,8 +2043,8 @@
 			does not call this op as well. Outputs the record content, or
 			`NO_RECORD` if none is stored yet. Read-only.
 
-		--client-sweep-input-scan <client-*|partner-* member> [--comms-since-utime <v>|--comms-since-date-time <v>]
-			Read-only: one client-*/partner-* member's own incoming
+		--client-sweep-input-scan <client-* member> [--comms-since-utime <v>|--comms-since-date-time <v>]
+			Read-only: one client-* member's own incoming
 			external communications -- Slack, email and Trello -- read as
 			that member, under that member's own credentials, from that
 			member's own configured sources. Use it to sweep one external
@@ -2052,7 +2052,8 @@
 			team's own.
 
 			The member name is the only required argument, and it must be
-			a client-* or partner-* one: the document names that member as
+			a client-* one -- a partner-* member is not accepted: the
+			document names that member as
 			its entire scope, and no other member's is what it reports.
 			Each section states our own side of that source
 			(`identity: slack <id> (config: <member>)`, and the same for
@@ -2099,14 +2100,19 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--routine-coworking-session-input-scan <team-member> <item-name>...
+		--routine-coworking-session-input-scan <team-member> <tracking-document>...
 			Read-only: routine-coworking's own step-1 board scan once the
-			session's shared goal names specific board-item(s). At least one
-			<item-name> is required -- no --state/--header override
-			alongside it. Searches every real board state (a named item may
+			session's shared goal names its own tracking document(s). Each
+			<tracking-document> is one tracking document for this particular
+			session -- a dispatch, an interview, a task or an attachment that
+			is this session's own work -- given as a bare name, without the
+			.md suffix. At least one is required -- no --state/--header
+			override alongside them. Searches every real board state (a named
+			document may
 			live in any of them) and never filters by owner (contrast
 			--member-work-session-input-scan: this is about specific named
-			items regardless of who owns them). Returns the named items
+			documents regardless of who owns them). Returns the named
+			documents
 			plus every item reached through their own references/blocks/
 			blocked-by fields, every board-item type, every frontmatter
 			field.

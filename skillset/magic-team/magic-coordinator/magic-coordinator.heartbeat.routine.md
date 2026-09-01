@@ -292,7 +292,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-heartbeat-input-scan` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>` — read-only: this routine's own board scan (the name deliberately doesn't echo this routine's own name). Gives a broad "pulse of the whole active board" reading — every open board item, with its frontmatter. `<team-member>` is the only argument.
+`DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>` — read-only: this routine's own board scan (the name deliberately doesn't echo this routine's own name). Gives a broad "pulse of the whole active board" reading — every open board item, with its frontmatter. `<team-member>` is the only argument: the scan reads every baseline item this routine needs, and an item name is not a parameter to it.
 
 ## `--magic-heartbeat-lock-acquire` / `--magic-heartbeat-lock-refresh` / `--magic-heartbeat-close-state-and-unlock` / `--magic-heartbeat-lock-status` operation reference
 

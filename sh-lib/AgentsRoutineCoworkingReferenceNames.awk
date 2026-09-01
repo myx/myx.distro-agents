@@ -10,7 +10,8 @@
 ## strip below is a no-op on current-format values -- kept only so a
 ## still-bracketed legacy value parses the same way. Duplicates are expected and
 ## normal (dedupe with `sort -u`, not this script's job); the caller unions
-## this against the originally-given item-name set to build
+## this against the originally-given item-name set, normalising a bare name to
+## the `<name>.md` form --item compares against, to build
 ## --routine-coworking-session-input-scan's phase-2 --item list. See
 ## AgentsTools.RoutineCoworking.include's own header.
 ##

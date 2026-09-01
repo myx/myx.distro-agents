@@ -674,6 +674,7 @@ Note: the `--magic-*` operation families are not on this list and never will be.
 
 ## `--member-work-session-input-scan` Operation Reference
 "Read-only: one member's own current work-session input -- personal, not routine-dictated (every armed member runs this against its own name as it becomes armed, regardless of which routine triggered the arming)."
+The member's own name is the only argument: the scan reads every baseline item that member's arming check needs, and an item name is not a parameter to it.
 
 ## `--owner-workspace-list` / `--owner-workspace-upsert` / `--owner-workspace-forget` Operation Reference
 Named directly in this file's own "Workspace" section above: the only sanctioned way to read/add/remove entries in `human-owner.workspaces.md`'s tracked path list. No verbatim `--help` text is available for it here — see `myx.distro-agents`'s own help for the real syntax.

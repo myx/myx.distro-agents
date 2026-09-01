@@ -109,8 +109,16 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-input-scan: takes no arguments" >&2
-			set +e ; return 1
+			case "$1" in
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE $HOME/.claude/skills/magic-coordinator/magic-coordinator.heartbeat.routine.md" >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $HOME/.claude/skills/magic-coordinator/magic-coordinator.heartbeat.routine.md" >&2
+					set +e ; return 1
+				;;
+			esac
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-input-scan: MDAT_DATA_ROOT is not set" >&2
@@ -146,10 +154,19 @@ case "$1" in
 		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 		printf '\n%s\n\n' "## board digest"
+		## The calling member's OWN inbox, with bodies, per the per-operation
+		## matrix. The board half stays deliberately narrow -- running/blocked
+		## carrying `status` alone, the active-processes list this routine's
+		## own sub-step consumes -- and the inbox half is a separate section,
+		## so the narrowing is unaffected. `--header status` bounds the BOARD
+		## blocks only; an inbox block is framed content, not a header
+		## selection.
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--state running --state blocked \
 			--all-types \
 			--header status \
+			--do-inbox-inquiry-active --do-inbox-reflections \
+			--do-inbox-notes --do-inbox-other \
 			--context --magic-heartbeat-input-scan
 		return $?
 	;;

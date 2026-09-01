@@ -539,7 +539,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## `--member-work-session-input-scan` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>` — read-only: one member's own current work-session input, personal, not routine-dictated. Scans backlog/pending/running/blocked/parked, restricted to items owned by `<team-member>`. Appends that same member's own `inbox/` contents as a second section.
+`DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>` — read-only: one member's own current work-session input, personal, not routine-dictated. Scans backlog/pending/running/blocked/parked, restricted to items owned by `<team-member>`, and returns that same member's own inbox as the document's four inbox sections, each item carried with its body.
 
 ## `--magic-heartbeat-lock-acquire` / `--magic-heartbeat-lock-refresh` / `--magic-heartbeat-close-state-and-unlock` / `--magic-heartbeat-lock-status` Operation Reference
 

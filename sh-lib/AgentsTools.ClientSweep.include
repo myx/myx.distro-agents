@@ -7,7 +7,8 @@
 ## `--client-sweep-*)` wildcard arm via the standard $MDLT_ORIGIN-based path.
 ## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
-## One client/partner member's own external accounts, and nothing else. The
+## --client-sweep-input-scan reads one client-* member's own external accounts,
+## and nothing else -- client-only, a partner-* member is not accepted. The
 ## restriction is enforced in the scan primitive by --comms-member-scope-only,
 ## not by this stub's own reading of any credential: see
 ## AgentsTools.InternOpSessionContextScan.include's own gate block.
@@ -15,15 +16,16 @@
 
 case "$1" in
 
-	## Reads ONE client-*/partner-* member's own external incoming
+	## Reads ONE client-* member's own external incoming
 	## communications -- Slack, email and Trello -- as that member, under that
 	## member's own credentials, from that member's own configured sources.
 	##
 	## THE MEMBER PREFIX IS CHECKED, AND THE CHECK IS THE POINT. This document
 	## states in its own header that its whole scope is one external member. Run
 	## as a team member, that header would be false while the body looked exactly
-	## the same, so a name that is neither client-* nor partner-* is refused here
-	## rather than producing a correctly-formatted lie.
+	## the same, so a name that is not client-* is refused here
+	## rather than producing a correctly-formatted lie. Client-only: a partner-*
+	## member is not accepted by this op.
 	##
 	## A source this member holds no credentials for is reported as NOT SCANNED
 	## by the primitive, through the same `sources-scanned: N of M` and
@@ -35,7 +37,7 @@ case "$1" in
 		local clientMember="$1"
 		shift || true
 		if [ -z "$clientMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <client-*|partner-* member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <client-* member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$clientMember" "<team-member>" client-sweep-input-scan || { set +e ; return 1 ; }
@@ -43,9 +45,15 @@ case "$1" in
 		local clientKind=""
 		case "$clientMember" in
 			client-*)  clientKind="client" ;;
-			partner-*) clientKind="partner" ;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: this operation reads one external member's own accounts and labels the whole document as that member's, so it runs only as a client-* or partner-* member: $clientMember" >&2
+				## NAMES WHAT IS ACTUALLY WRONG, which is that the member is
+				## not a client-* one -- not that it is a partner, which most
+				## rejected names are not. Telling a member it was refused for
+				## being something it never was is the same false diagnosis the
+				## guard arms deliberately designed out of the invalid-option
+				## case: a message that sends someone hunting a problem they do
+				## not have, at the hour it costs most.
+				echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: this operation reads one external member's own accounts and labels the whole document as that member's, so it runs only as a client-* member: $clientMember" >&2
 				set +e ; return 1
 			;;
 		esac
@@ -69,8 +77,12 @@ case "$1" in
 					commsCutoffArgs=( "$1" "$2" )
 					shift 2
 				;;
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: invalid option: $1 -- syntax is <client-* member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE $HOME/.claude/skills/magic-team/magic-team.shared.md" >&2
+					set +e ; return 1
+				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: invalid option: $1 -- syntax is <client-*|partner-* member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <client-* member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $HOME/.claude/skills/magic-team/magic-team.shared.md" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -82,7 +94,14 @@ case "$1" in
 		printf '# Incoming Communications Sweep -- %s\n\n' "$clientMember"
 		printf 'member: %s\n' "$clientMember"
 		printf 'member-kind: %s\n' "$clientKind"
-		printf 'scope: this member'"'"'s own external accounts only -- its own credentials, its own configured sources; no team-scoped source and no team credential is read here\n\n'
+		## SCOPED TO COMMS SOURCES, WHERE IT ACTUALLY BELONGS. Written as a
+		## claim about the whole document it was already false: this op emits
+		## this member's own board items under it, via --filter-owner, and now
+		## its own inbox as well. Both are that member's own data -- not
+		## another member's, not team-scoped, and read under no credential at
+		## all -- so the restriction the sentence exists to state is a
+		## restriction on comms sources and credentials, and it says so.
+		printf 'scope: this member'"'"'s own COMMS sources only -- its own credentials, its own configured sources; no team-scoped comms source and no team credential is read here. Board items and inbox items below are this member'"'"'s own, by owner and by inbox\n\n'
 
 		## Configuration verdict ahead of content: a member with nothing configured
 		## to read produces a correct, empty report, and this is where that shows.
@@ -96,6 +115,8 @@ case "$1" in
 		DistroAgentsTools --intern-op-session-context-scan "$clientMember" \
 			--state backlog --state pending --state running --state blocked \
 			--all-types --filter-owner "$clientMember" \
+			--do-inbox-inquiry-active --do-inbox-reflections \
+			--do-inbox-notes --do-inbox-other \
 			--comms-do-all --comms-member-scope-only "${commsCutoffArgs[@]}" \
 			--context --client-sweep-input-scan
 		return $?
@@ -108,19 +129,24 @@ case "$1" in
 		local checkMember="$1"
 		shift || true
 		if [ -z "$checkMember" ] || [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: syntax is <client-*|partner-* member>" >&2
+			echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: syntax is <client-* member>" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$checkMember" "<team-member>" client-sweep-config-check || { set +e ; return 1 ; }
 
-		## Required for a client, which sweeps a conversation; not for a partner,
-		## which is a subject rather than a channel the team reads.
-		local conversationsMode="--optional"
+		## CLIENT-ONLY, the same rule as --client-sweep-input-scan whose
+		## configuration this checks. A sibling operation of a client-only op
+		## that still accepted a partner-* member left the group contradicting
+		## itself, reachable by a direct call. The conversations requirement is
+		## unconditional now that only a client can get here at all: a client
+		## sweeps a conversation.
+		local conversationsMode="--required"
 		case "$checkMember" in
-			client-*)  conversationsMode="--required" ;;
-			partner-*) ;;
+			client-*) ;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: runs only as a client-* or partner-* member: $checkMember" >&2
+				## Names what is actually wrong -- not a client -- rather than
+				## naming a category the member may never have been in.
+				echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: runs only as a client-* member: $checkMember" >&2
 				set +e ; return 1
 			;;
 		esac

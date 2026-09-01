@@ -304,7 +304,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-advance-input-scan` operation reference
 
-`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — read-only scan giving all board job-state information relevant to this routine, plus this routine's own `state-and-lock` note as part of the same prepared input. `<team-member>` is the only argument; the scan's shape is fixed.
+`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — read-only scan giving all board job-state information relevant to this routine, plus this routine's own `state-and-lock` note as part of the same prepared input. `<team-member>` is the only argument; the scan's shape is fixed, and it reads every baseline item this routine needs — an item name is not a parameter to it.
 
 ## `--magic-advance-lock-acquire` / `--magic-advance-lock-refresh` / `--magic-advance-close-state-and-unlock` / `--magic-advance-lock-status` operation reference
 

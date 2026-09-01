@@ -484,8 +484,16 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: unrecognized argument: $1" >&2
-			set +e ; return 1
+			case "$1" in
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE $HOME/.claude/skills/magic-team/magic-team.armed.md" >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $HOME/.claude/skills/magic-team/magic-team.armed.md" >&2
+					set +e ; return 1
+				;;
+			esac
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" member-work-session-input-scan || { set +e ; return 1 ; }
 		local memberDir="$HOME/.claude/skills/$memberName"
@@ -494,25 +502,28 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		## ONE MECHANISM FOR THIS MEMBER'S OWN INBOX, NOT TWO. The four typed
+		## --do-inbox-* sections REPLACE the hand-rolled uncapped
+		## `## inbox/<file>` walk that used to follow this call; they are not
+		## run alongside it. Two sections describing one folder -- one with
+		## bodies and one without, disagreeing on order and on membership --
+		## is the double-description this document exists to prevent, and it
+		## would render the same items twice.
+		##
+		## The earlier ruling that kept the hand-rolled walk rested on two
+		## premises that no longer hold: that the typed sections dropped most
+		## of a large inbox to a cap the human-owner had not set, and that they
+		## carried no bodies. He has since set the cap himself and required
+		## full bodies. The replacement is lossless only because of
+		## `## Other Inbox Items` -- the old walk's one unique contribution was
+		## exactly the items whose prefix is none of the typed three.
 		DistroAgentsTools --intern-op-session-context-scan "$memberName" \
 			--state backlog --state pending --state running --state blocked --state parked \
 			--all-types --filter-owner "$memberName" \
-			--context --member-work-session-input-scan || return 1
-
-		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: MDAT_DATA_ROOT is not set" >&2
-			set +e ; return 1
-		}
-		local inboxDir="$MDAT_DATA_ROOT/inboxes/$memberName" f
-		if [ -d "$inboxDir" ] ; then
-			for f in "$inboxDir"/*.md ; do
-				[ -f "$f" ] || continue
-				printf '## inbox/%s\n' "${f##*/}"
-				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrint.awk" "$f"
-				printf '\n'
-			done
-		fi
-		return 0
+			--do-inbox-inquiry-active --do-inbox-reflections \
+			--do-inbox-notes --do-inbox-other \
+			--context --member-work-session-input-scan
+		return $?
 	;;
 
 	## Lives here, not in the outer dispatcher, because --member-help matches
