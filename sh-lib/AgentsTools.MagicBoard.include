@@ -3,39 +3,18 @@
 
 ##
 ## AgentsTools.MagicBoard.include -- check-process-board's own --magic-board-*
-## operation group for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily
-## from the `--magic-board-*)` wildcard arm via the standard $MDLT_ORIGIN-based
-## path. Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
+## operation group. Sourced lazily from DistroAgentsTools.fn.sh; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. Rationale: myx.distro-agents/MAGIC.md.
 ##
-## First cross-routine namespace in this family -- every existing --magic-*-*
-## group (grooming/sweep/heartbeat/advance) is owned by exactly one routine.
-## check-process-board (magic-coordinator.armed.md) is explicitly callable by
-## any routine (routine-advance, routine-daily, routine-grooming, others), so
-## its own tooling doesn't fit any single routine's namespace -- --magic-board-*
-## names the board-mechanical-moves concept itself, not a caller.
+## Named for the board-mechanical-moves concept, not a caller: check-process-board
+## is callable by any routine, so its tooling fits no single routine's namespace.
 ##
-## Closes the real tooling gap check-process-board's own "board-mechanical-moves"
-## step has carried since it was written: none of its three moves
-## (backlog->pending, backlog->blocked, pending->running) ever named a real
-## op -- only --write-board-item was nearby, and its own documented two-call
-## move recipe (write new, remove old separately) is exactly the unsafe
-## half-write that already caused the now-fixed pending->running gap.
-## pending->running is covered by --magic-advance-to-running (routine-advance's
-## own namespace, kept there since check-execute-board's own restart mechanism
-## is genuinely advance-owned). backlog->pending and backlog->blocked are
-## check-process-board's own moves specifically, hence this file.
+## Every arm captures <team-member> as callingMember -- validated, then unused,
+## reserved for logging/validation.
 ##
 
 case "$1" in
 
-	## <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...
-	##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-	## No auto-stamp -- board-pending has no established always-set field the
-	## way board-running has started-at. Caller supplies whatever --header:*
-	## the move actually needs (typically none; approved-by/approved-at are
-	## already set before this fires). Thin logic over
-	## --intern-op-board-upsert-move-edit, same convention as
-	## --magic-advance-to-running.
 	--magic-board-to-pending)
 		shift
 		local callingMember="$1"
@@ -71,28 +50,8 @@ case "$1" in
 		return $?
 	;;
 
-	## Same shape as --magic-board-to-pending, target fixed to blocked --
-	## the backlog->blocked half of check-process-board's own
-	## human-owner-approval-needed branch. The companion approval-* item
-	## (board-running, fresh create) is a separate --magic-board-create-running
-	## call, defined further down this same file -- not this op's concern.
-	## That's a create, not a move, so it has its own one-call path.
-	##
-	## EXECUTION-RECEIPT AUTO-STAMP, unlike every plain-stampless sibling in
-	## this file: board-running->board-blocked is exactly the transition
-	## magic-coordinator.advance.routine's own continuation outcomes already
-	## mandate an execution-receipt for (spawn-receipt-id/dispatch-session-id/
-	## inline:<timestamp>/no-action:<reason-code>) -- leaving this one move
-	## unstamped would let a pass close an item into board-blocked with zero
-	## evidence of what was actually done, the same silent-close-over failure
-	## that convention exists to prevent. Human-owner design: "both" -- a
-	## meaningful auto-default stamp set here UNLESS the caller already
-	## supplied one via --header:upsert:execution-receipt:*/--header:append:
-	## execution-receipt:* among its own passthrough, in which case the
-	## caller's value stands, untouched. Default shape is blocked:<timestamp>
-	## -- new and distinct from the four already-exhaustive continuation-
-	## outcome shapes above (never collides), same colon-prefixed-marker
-	## family as inline:/no-action:.
+	## Same shape as the -to-<state> siblings, target fixed to blocked -- one of
+	## the two arms that stamp, defaulting execution-receipt to blocked:<timestamp>.
 	--magic-board-to-blocked)
 		shift
 		local callingMember="$1"
@@ -140,15 +99,6 @@ case "$1" in
 		return $?
 	;;
 
-	## Same shape as --magic-board-to-pending/-to-blocked, target fixed to
-	## backlog -- covers board-reopen-signaled-items (board-processed/
-	## board-archived -> board-backlog) and board-reassess-parked-blocked's
-	## own backlog-target case (board-parked/board-blocked -> board-backlog).
-	## The pending/running targets of that same reassess step are already
-	## covered generically by --magic-board-to-pending/--magic-advance-to-running
-	## (both accept any --from-state:<state>, not hardcoded to backlog) --
-	## this op is only for the one remaining uncovered target, moving to
-	## backlog itself.
 	--magic-board-to-backlog)
 		shift
 		local callingMember="$1"
@@ -184,31 +134,10 @@ case "$1" in
 		return $?
 	;;
 
-	## Same shape as --magic-board-to-pending/-to-blocked/-to-backlog, target
-	## fixed to parked -- check-process-board's own board-mechanical-moves and
-	## board-state-vs-content moves into board-parked, which until now had no
-	## dedicated op and fell back to --write-board-item's own unsafe two-call
-	## recipe (write new, remove old separately).
-	##
-	## One of three separate --*-to-parked stubs, deliberately: routine-advance
-	## calls --magic-advance-to-parked, routine-grooming calls
-	## --magic-grooming-to-parked, and check-process-board calls this one.
-	## Each lives in its own routine's namespace/.include, each carries its own
-	## independent validation even where identical today, and all three share
-	## the one --intern-op-board-upsert-move-edit implementation -- the same
-	## "own dedicated case arm per calling routine" convention already applied
-	## to --magic-grooming-to-* and --magic-advance-to-running.
-	##
-	## No auto-stamp, matching this file's own sibling ops: board-parked has no
-	## established always-set field, and the recheck-date/condition pair a
-	## parked item carries is a caller judgment (which trigger, which date),
-	## never derivable here -- callers pass it as --header:* like any other
-	## field this op does not own.
+	## One of three deliberate per-routine --*-to-parked stubs (advance, grooming,
+	## board) -- each keeps its own validation; not to be merged into one.
 	--magic-board-to-parked)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## tooling operation discipline convention, same as every sibling op in
-		## this file.
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -242,37 +171,69 @@ case "$1" in
 		return $?
 	;;
 
-	## check-process-board's own FIRST WRITE of a board-item, as against the
-	## --magic-board-to-<state> family above which moves items that already
-	## exist. One arm, because that procedure has exactly one creating step:
-	## magic-coordinator.armed.md's board-mechanical-moves, "board-backlog item
-	## flagged for human-owner approval, no approval-*/board-blocked move yet
-	## -> create approval-* in board-running (fresh item), record blocks/
-	## blocked-by, move original to board-blocked". The move half of that step
-	## is already --magic-board-to-blocked; this is the create half.
-	##
-	## --from-state: is rejected outright rather than ignored: a created item
-	## has no source state, and silently accepting it would let a caller
-	## believe a move was recorded when none was.
-	##
-	## No auto-stamp, matching every sibling in this file. THE EMPTY STAMP SET
-	## IS DELIBERATE, not an omission to be helpfully filled in later: the
-	## grooming family's owner/groomed-at/groomed-from/track are
-	## GROOMING-provenance fields, recording that routine-grooming touched an
-	## item and out of which state. This op is check-process-board's, not
-	## routine-grooming's, so it has no such provenance to record -- stamping
-	## groomed-* here would assert a grooming pass that never happened. blocks/
-	## blocked-by, which this step must set in the same single write, ride the
-	## ordinary --header:* passthrough.
-	##
-	## A body-input mode is required: a created board-item has no existing body
-	## to carry forward, and an approval-* item with an empty body would state
-	## nothing for the negotiation it exists to run.
+	## Same shape as the -to-<state> siblings above, target fixed to processed
+	## -- the only one stamping processed-at, and it sets a default
+	## execution-receipt.
+	--magic-board-to-processed)
+		shift
+		local callingMember="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local fromStateArg=""
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-state:*) fromStateArg="$1" ; shift ;;
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$fromStateArg" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: --from-state:<state> is required" >&2
+			set +e ; return 1
+		fi
+		local hasExecutionReceipt="false" passthroughEntry
+		for passthroughEntry in "${passthrough[@]}" ; do
+			case "$passthroughEntry" in
+				--header:upsert:execution-receipt:*|--header:append:execution-receipt:*)
+					hasExecutionReceipt="true"
+				;;
+			esac
+		done
+		if [ "$hasExecutionReceipt" = "false" ] ; then
+			local receiptAt ; receiptAt="$( date +"%Y-%m-%d %H:%M %z" )"
+			passthrough+=( "--header:upsert:execution-receipt:processed:$receiptAt" )
+		fi
+		## fromStateArg is read here for this one policy decision; validation stays the primitive's.
+		local moveStamps=()
+		if [ "${fromStateArg#--from-state:}" != "processed" ] ; then
+			local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+			moveStamps=( "--header:upsert:processed-at:$processedAt" )
+		fi
+		## moveStamps stays before passthrough -- header ops are last-wins, so this order is the whole caller-override contract.
+		DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
+			"$fromStateArg" \
+			"${moveStamps[@]}" \
+			--context --magic-board-to-processed \
+			"${passthrough[@]}"
+		return $?
+	;;
+
+	## The create half of check-process-board's approval branch; the move half is
+	## --magic-board-to-blocked. Stamps nothing: groomed-* are routine-grooming's
+	## own provenance, and stamping them here would assert a pass that never ran.
 	--magic-board-create-running)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## tooling operation discipline convention, same as every sibling op in
-		## this file.
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"

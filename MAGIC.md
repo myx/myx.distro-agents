@@ -216,7 +216,7 @@ Team-owned notes for the magic-* team.
 
 ## `--magic-board-to-blocked`/`--magic-grooming-to-blocked` auto-stamp `execution-receipt`
 
-- Both ops append `--header:upsert:execution-receipt:blocked:<timestamp>` to the caller's own header set unless the caller already supplied an `execution-receipt` header itself, in which case the caller's value stands untouched. Every sibling `-to-*` op in both files (`-to-pending`/`-to-backlog`/`-to-parked`/`-to-running`) stamps nothing — this pair is the one exception, and only for this one field.
+- Both ops append `--header:upsert:execution-receipt:blocked:<timestamp>` to the caller's own header set unless the caller already supplied an `execution-receipt` upsert or append, in which case the caller's value stands untouched. Every sibling `-to-*` op in both files (`-to-pending`/`-to-backlog`/`-to-parked`/`-to-running`) stamps nothing; `--magic-board-to-processed` stamps a `processed:<timestamp>` receipt of the same shape, plus its own `processed-at`.
 - The check is a plain scan of the collected `passthrough[]` array for an existing `--header:upsert:execution-receipt:*`/`--header:append:execution-receipt:*` entry before appending the default — duplicated independently in both files' own case arms, matching this package's own per-call-site validation convention rather than centralising into the shared `--intern-op-board-upsert-move-edit`.
 
 ## `sh-lib/AgentsSlackBlocksBuild.awk` — `##`/`###` render bold, not header

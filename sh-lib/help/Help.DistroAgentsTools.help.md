@@ -90,6 +90,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>
@@ -2277,12 +2278,13 @@
 			Moves a board item into board/parked/, in one call, and/or
 			patches its frontmatter -- check-process-board's own move into
 			board/parked/, the board-mechanical-moves counterpart of the
-			three ops above. No auto-stamp -- and that is family-wide, not a
-			property of board-parked: no --magic-board-* op stamps anything,
-			because check-process-board records no provenance of its own the
-			way routine-grooming does. The recheck-date/condition pair a
-			parked item carries is a caller judgment, passed as --header:*
-			like any other field this op does not own. --from-state:<state> is
+			three ops above. No auto-stamp here -- and no --magic-board-* op
+			stamps grooming provenance, because check-process-board records
+			none of its own the way routine-grooming does; the closing
+			-to-blocked and -to-processed moves stamp their own fields
+			instead. The recheck-date/condition pair a parked item carries is
+			a caller judgment, passed as --header:* like any other field this
+			op does not own. --from-state:<state> is
 			required. --header:* applies upsert/append/remove field
 			operations on top of the resolved body, in the order given.
 			--upsert-from-stdin takes stdin verbatim as the new body;
@@ -2291,6 +2293,30 @@
 			exact-literal-substring patches. The three body-input modes are
 			mutually exclusive; none given means the body carries over
 			unchanged except for any --header:* ops.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Moves a board item into board/processed/, in one call, and/or
+			patches its frontmatter -- the RUNNING->PROCESSED leg whose other
+			two legs are --magic-board-to-blocked and --magic-board-to-backlog.
+			Two auto-stamps, where --magic-board-to-blocked above stamps one
+			and the other siblings none. processed-at records when the item
+			entered board/processed/, the one fact age-based cleanup needs; it
+			is stamped only when --from-state: is not processed already, since
+			re-stamping on a same-state patch would restart that clock, and a
+			caller passing its own processed-at still wins. execution-receipt
+			defaults to processed:<timestamp> unless the caller supplied an
+			execution-receipt upsert or append, in which case the caller's
+			value stands untouched. Nothing else is
+			stamped. --from-state:<state> is required. --header:* applies
+			upsert/append/remove field operations on top of the resolved body,
+			in the order given. --upsert-from-stdin takes stdin verbatim as the
+			new body; --edit-script-from-stdin runs a given py/awk script
+			against the existing body; --edit-patch-from-stdin applies a JSON
+			array of exact-literal-substring patches. The three body-input
+			modes are mutually exclusive; none given means the body carries
+			over unchanged except for any --header:* ops.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
