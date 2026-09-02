@@ -252,7 +252,9 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 - `--librarian-list-team-files-dates [<path>...]`
 - `--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>`
 - `--librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
+- `--librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+
 - `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]`
 
 Note: `--librarian-list-team-files`/`-dates` (below) are this skill's dedicated replacement for raw `Bash`/`stat`/`find` when listing/verifying skill files — same optional scope args on both (zero or more: a bare path relative to the skill-root, or an absolute path resolving inside it; no args means the whole skill-root; a missing/outside-root arg is skipped and reported, not a hard abort).
@@ -278,6 +280,10 @@ Note: `--librarian-inbox-item-trash`/`--librarian-inbox-to-retained` (below) are
 ## `--librarian-inbox-to-retained` Operation Reference
 
 `DistroAgentsTools.fn.sh --librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — promotes one already-processed inbox item into `board-retained`: the item lands in `board-retained` under the same `<item-filename>`, and the inbox original is discarded into the tooling's trash — where either actually lives is the operation's own concern. Same argument rules as its sibling above. `--from-state:` is rejected — this operation moves an item out of a member inbox, never between board states; a board-to-board move uses `--magic-board-to-*`/`--magic-grooming-to-*` instead. It stamps nothing: anything the move should record rides `--header:*` on the same call. **Restoring is a manual step — the tooling will not do it for you**, and undoing this one means reversing two placements rather than one.
+
+## `--librarian-inbox-to-processed` Operation Reference
+
+`DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves one item out of `<team-member>`'s own live inbox root into that same inbox's processed-items area: the first step both siblings above already assume has happened. Unlike them, there is no `--from-inbox:<member>` here — the source and the acting member are the same one positional, since the source is that member's own inbox root, not a cross-member processed-items item. `--from-state:`/`--from-inbox:` are both rejected outright if given. Same `<item-filename>` rules as its siblings, and `--header:*` and the three body-input modes behave as they do on `--librarian-inbox-to-retained`. Refuses rather than overwrites when that basename is already held, leaving the source in place, so a refused call is safe to fix and re-run. **ONE-WAY, same shape as `--librarian-inbox-to-retained` — treat every call as final.**
 
 ## `--member-upsert-inbox-note` Operation Reference
 

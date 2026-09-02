@@ -742,15 +742,50 @@ case "$1" in
 					set +e ; return 1
 				}
 			fi
+			## NO CUT-OFF GIVEN -> THE SLACK SCAN IS BOUNDED TO THE LAST THREE
+			## DAYS rather than reading all history. Resolved HERE, and never
+			## written back into commsCutoffKind: that variable has six other
+			## readers -- the sessionContextEngaged test, the "cut-off with no
+			## comms selector" guard, and email's and Trello's own
+			## `cut-off-applied:` lines among them -- and a default reaching them
+			## would engage the whole comms surface on a board-only call, fire a
+			## caller-mistake guard on a value no caller gave, and make two
+			## services report a cut-off nobody asked for. Slack only: it is the
+			## one service here that can take a cut-off at all.
+			##
+			## A routine's first-ever run has no stored sweep timestamp, so its
+			## call arrives with no cut-off and the default fires there. That is
+			## the case the default exists for, not a leak into that path.
+			local sessionContextDefaultCutoffDays=3
+			local commsCutoffDefaulted="false"
+			if [ "$wantSlack" = "true" ] && [ -z "$cutoffEpoch" ] ; then
+				## Reading the CURRENT time is the one thing POSIX does specify
+				## date(1) for -- unlike the ISO->epoch conversion this file's
+				## header explains cannot be written portably at all. Validated,
+				## never trusted: an empty read arithmetics to a negative epoch,
+				## which is silently "scan everything" -- the exact widening this
+				## default exists to remove. Enumerated, never a [0-9] range.
+				local nowEpoch=""
+				nowEpoch="$( date +%s )" || nowEpoch=""
+				case "$nowEpoch" in
+					''|*[!0123456789]*)
+						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: no cut-off was given and date +%s did not return epoch seconds ($nowEpoch) -- refusing to fall back to an unbounded scan" >&2
+						set +e ; return 1
+					;;
+				esac
+				cutoffEpoch=$(( nowEpoch - sessionContextDefaultCutoffDays * 86400 ))
+				commsCutoffDefaulted="true"
+			fi
 			[ -z "$cutoffEpoch" ] || slackOldest="$cutoffEpoch"
 
 			## ---- Slack ----------------------------------------------------
 			## Slack offers NO unread semantics at all, so the cut-off is the
-			## whole instrument here and its absence is a real widening, stated
-			## as such rather than papered over with a fallback that does not
-			## exist. It is applied client-side rather than as Slack's own
-			## `oldest` -- the runtime instrument string below says so, and this
-			## comment must keep agreeing with it.
+			## whole instrument here. A caller that gives none now gets the
+			## three-day default resolved above rather than an unbounded read,
+			## and the instrument line states it as defaulted -- it must never
+			## read as though a caller supplied one. It is applied client-side
+			## rather than as Slack's own `oldest` -- the runtime instrument
+			## string below says so, and this comment must keep agreeing with it.
 			local imBlocks="" imInstrument="" imSourcesTotal=0 imSourcesScanned=0 imPartial=""
 			## imFailed means "not one source could be read". imAnySourceFailed
 			## means "at least one could not" -- the weaker condition, and the
@@ -759,10 +794,13 @@ case "$1" in
 			## claim about a scope nobody looked at.
 			local imFailed="false" imAnySourceFailed="false"
 			if [ "$wantSlack" = "true" ] ; then
-				if [ -n "$slackOldest" ] ; then
-					imInstrument="cut-off $commsCutoffKind $commsCutoffValue (applied client-side; Slack oldest= is deliberately NOT used, so thread discovery can still see parents older than the cut-off)"
+				## There is always a cut-off on this path now -- given or
+				## defaulted -- so the old "none" instrument string is
+				## unreachable and gone.
+				if [ "$commsCutoffDefaulted" = "true" ] ; then
+					imInstrument="cut-off defaulted to the last $sessionContextDefaultCutoffDays days -- no --comms-since-date-time or --comms-since-utime was given (applied client-side; Slack oldest= is deliberately NOT used, so thread discovery can still see parents older than the cut-off)"
 				else
-					imInstrument="none -- Slack offers no unread semantics and no cut-off was given; whatever conversations.history returns"
+					imInstrument="cut-off $commsCutoffKind $commsCutoffValue (applied client-side; Slack oldest= is deliberately NOT used, so thread discovery can still see parents older than the cut-off)"
 				fi
 
 				## MEMBER-SCOPE-ONLY GATE. Resolved here, ahead of every Slack
@@ -1386,6 +1424,41 @@ case "$1" in
 				unset -f AgentsSessionContextThreadFetchOne
 
 				[ "$imSourcesScanned" -gt 0 ] || imFailed="true"
+
+				## THREAD ROOTS ARRIVE TWICE. conversations.history emits a
+				## thread's root, and that same thread's conversations.replies
+				## read emits it again; the consumer processes each message
+				## individually, so every duplicated root is processed twice.
+				## Measured: 1514 blocks emitted, 1422 distinct, 92 duplicates.
+				##
+				## THE HISTORY COPY IS THE ONE KEPT, which is the opposite of the
+				## intuitive choice. The grouping filter below ranks each
+				## conversation by its own newest message, so dropping the
+				## history copy can take a channel's recency rank with it and
+				## push a whole conversation out of the capped document. Channel
+				## blocks are appended by the per-source loop above and thread
+				## blocks only by the merge loop after it, so first-seen IS the
+				## history copy -- if that order ever changes, so does this rule.
+				##
+				## A root discovered only from a board item appears in no history
+				## page, so it has exactly one copy and this is a no-op for it by
+				## construction rather than by a special case.
+				##
+				## Runs before imCount, or `messages-read:` overstates what the
+				## document carries, and before the grouping filter sees a block.
+				## Captured then guarded, never assigned straight out of the
+				## substitution: a failure here must leave the duplicates
+				## standing, never empty the section. The `$( )` strips the
+				## block terminator, so it is restored on the way back in --
+				## same reason the per-source append above restores it.
+				if [ -n "$imBlocks" ] ; then
+					local imDeduped=""
+					imDeduped="$( printf '%s' "$imBlocks" | LC_ALL=C awk '
+						/^## / { dropping = ($0 in seen) ; seen[$0] = 1 ; }
+						!dropping { print ; }
+					' )" || imDeduped=""
+					[ -z "$imDeduped" ] || imBlocks="$imDeduped"$'\n\n'
+				fi
 			fi
 
 			## ---- email ----------------------------------------------------

@@ -57,6 +57,11 @@
 # parseArray) is copied verbatim from AgentsSlackMessagesFormat.awk in this same
 # folder, which took it verbatim from myx.common's agentMcpJsonParseRequest.awk
 # -- same recursive-descent JSON parser, only the leaf-emission logic differs.
+#
+# LC_ALL=C IS REQUIRED, not advisory. The walk below indexes a byte array
+# built by `split(s, sc, "")`, and `split`/`length`/`substr` count CHARACTERS
+# rather than bytes under a UTF-8 locale. Every call site already sets it.
+# Dropping it does not fail -- it parses emoji and accented text subtly wrong.
 
 BEGIN {
 	itemCount = 0
@@ -76,7 +81,7 @@ BEGIN {
 
 function skipws(   c) {
 	while (p <= n) {
-		c = substr(s, p, 1)
+		c = sc[p]
 		if (c == " " || c == "\t" || c == "\n" || c == "\r") p++
 		else break
 	}
@@ -117,11 +122,11 @@ function parseString(   c, out, hex, code, hex2, code2, cp) {
 	p++ # skip opening quote
 	out = ""
 	while (p <= n) {
-		c = substr(s, p, 1)
+		c = sc[p]
 		if (c == "\"") { p++; break; }
 		if (c == "\\") {
 			p++
-			c = substr(s, p, 1)
+			c = sc[p]
 			if (c == "\"") out = out "\""
 			else if (c == "\\") out = out "\\"
 			else if (c == "/") out = out "/"
@@ -131,11 +136,11 @@ function parseString(   c, out, hex, code, hex2, code2, cp) {
 			else if (c == "r") out = out "\r"
 			else if (c == "t") out = out "\t"
 			else if (c == "u") {
-				hex = substr(s, p + 1, 4)
+				hex = sc[p+1] sc[p+2] sc[p+3] sc[p+4]
 				code = hex2dec(hex)
 				p += 4
-				if (code >= 55296 && code <= 56319 && substr(s, p + 1, 2) == "\\u") {
-					hex2 = substr(s, p + 3, 4)
+				if (code >= 55296 && code <= 56319 && (sc[p+1] sc[p+2]) == "\\u") {
+					hex2 = sc[p+3] sc[p+4] sc[p+5] sc[p+6]
 					code2 = hex2dec(hex2)
 					if (code2 >= 56320 && code2 <= 57343) {
 						cp = 65536 + (code - 55296) * 1024 + (code2 - 56320)
@@ -237,14 +242,12 @@ function emitLeaf(path, raw, val,   rest, idx, after) {
 	if (after == "data.board.name") { boardOf[idx] = val; return; }
 }
 
-function parseValue(path,   c, startp, val, raw) {
+function parseValue(path,   c, startp, val, raw, rawPos) {
 	skipws()
-	c = substr(s, p, 1)
+	c = sc[p]
 	if (c == "\"") {
-		startp = p
 		val = parseString()
-		raw = substr(s, startp, p - startp)
-		emitLeaf(path, raw, val)
+		emitLeaf(path, "", val)
 	} else if (c == "{") {
 		if (path == "") sawJsonRoot = 1
 		parseObject(path)
@@ -263,11 +266,12 @@ function parseValue(path,   c, startp, val, raw) {
 	} else {
 		startp = p
 		while (p <= n) {
-			c = substr(s, p, 1)
+			c = sc[p]
 			if (c == "-" || c == "+" || c == "." || c == "e" || c == "E" || (c >= "0" && c <= "9")) p++
 			else break
 		}
-		raw = substr(s, startp, p - startp)
+		raw = ""
+		for (rawPos = startp; rawPos < p; rawPos++) raw = raw sc[rawPos]
 		emitLeaf(path, raw, raw)
 	}
 }
@@ -275,7 +279,7 @@ function parseValue(path,   c, startp, val, raw) {
 function parseObject(path,   key, keypath, c) {
 	p++ # skip {
 	skipws()
-	if (substr(s, p, 1) == "}") { p++; return; }
+	if (sc[p] == "}") { p++; return; }
 	while (1) {
 		skipws()
 		key = parseString()
@@ -284,7 +288,7 @@ function parseObject(path,   key, keypath, c) {
 		keypath = (path == "") ? key : path "." key
 		parseValue(keypath)
 		skipws()
-		c = substr(s, p, 1)
+		c = sc[p]
 		if (c == ",") { p++; continue; }
 		else if (c == "}") { p++; break; }
 		else break
@@ -295,12 +299,12 @@ function parseArray(path,   idx, c) {
 	p++ # skip [
 	skipws()
 	idx = 0
-	if (substr(s, p, 1) == "]") { p++; return; }
+	if (sc[p] == "]") { p++; return; }
 	while (1) {
 		parseValue(path "." idx)
 		idx++
 		skipws()
-		c = substr(s, p, 1)
+		c = sc[p]
 		if (c == ",") { p++; continue; }
 		else if (c == "]") { p++; break; }
 		else break
@@ -345,7 +349,9 @@ kind == "slack" && /^## dm=/ {
 	next
 }
 
-{ s = $0; n = length(s); p = 1; parseValue(""); }
+## One split, then sc[p] per byte: substr(s, p, 1) costs a strlen of the whole
+## payload per call in one-true-awk, which makes the walk quadratic.
+{ s = $0; n = split(s, sc, ""); p = 1; parseValue(""); }
 
 END {
 	if (kindBad) exit 1

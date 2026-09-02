@@ -10,6 +10,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--work
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-restrictions [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]" >&2

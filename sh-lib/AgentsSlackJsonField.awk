@@ -131,6 +131,11 @@
 # in this same directory (which took it from AgentsSlackMessagesFormat.awk,
 # which took it from myx.common's agentMcpJsonParseRequest.awk) -- same
 # recursive-descent JSON parser, only the leaf-emission logic differs.
+#
+# LC_ALL=C IS REQUIRED, not advisory. The walk below indexes a byte array
+# built by `split(s, sc, "")`, and `split`/`length`/`substr` count CHARACTERS
+# rather than bytes under a UTF-8 locale. Every call site already sets it.
+# Dropping it does not fail -- it parses emoji and accented text subtly wrong.
 
 BEGIN {
 	## `-v path=...` is the caller-facing spelling, but `path` is also the
@@ -151,7 +156,7 @@ BEGIN {
 
 function skipws(   c) {
 	while (p <= n) {
-		c = substr(s, p, 1)
+		c = sc[p]
 		if (c == " " || c == "\t" || c == "\n" || c == "\r") p++
 		else break
 	}
@@ -197,11 +202,11 @@ function parseString(   c, out, hex, code, hex2, code2, cp, closed) {
 	out = ""
 	closed = 0
 	while (p <= n) {
-		c = substr(s, p, 1)
+		c = sc[p]
 		if (c == "\"") { p++; closed = 1; break; }
 		if (c == "\\") {
 			p++
-			c = substr(s, p, 1)
+			c = sc[p]
 			if (c == "\"") out = out "\""
 			else if (c == "\\") out = out "\\"
 			else if (c == "/") out = out "/"
@@ -211,11 +216,11 @@ function parseString(   c, out, hex, code, hex2, code2, cp, closed) {
 			else if (c == "r") out = out "\r"
 			else if (c == "t") out = out "\t"
 			else if (c == "u") {
-				hex = substr(s, p + 1, 4)
+				hex = sc[p+1] sc[p+2] sc[p+3] sc[p+4]
 				code = hex2dec(hex)
 				p += 4
-				if (code >= 55296 && code <= 56319 && substr(s, p + 1, 2) == "\\u") {
-					hex2 = substr(s, p + 3, 4)
+				if (code >= 55296 && code <= 56319 && (sc[p+1] sc[p+2]) == "\\u") {
+					hex2 = sc[p+3] sc[p+4] sc[p+5] sc[p+6]
 					code2 = hex2dec(hex2)
 					if (code2 >= 56320 && code2 <= 57343) {
 						cp = 65536 + (code - 55296) * 1024 + (code2 - 56320)
@@ -256,14 +261,12 @@ function emitLeaf(path, raw, val) {
 	foundCount++
 }
 
-function parseValue(path,   c, startp, val, raw) {
+function parseValue(path,   c, startp, val, raw, rawPos) {
 	skipws()
-	c = substr(s, p, 1)
+	c = sc[p]
 	if (c == "\"") {
-		startp = p
 		val = parseString()
-		raw = substr(s, startp, p - startp)
-		emitLeaf(path, raw, val)
+		emitLeaf(path, "", val)
 	} else if (c == "{") {
 		parseObject(path)
 	} else if (c == "[") {
@@ -280,11 +283,12 @@ function parseValue(path,   c, startp, val, raw) {
 	} else {
 		startp = p
 		while (p <= n) {
-			c = substr(s, p, 1)
+			c = sc[p]
 			if (c == "-" || c == "+" || c == "." || c == "e" || c == "E" || (c >= "0" && c <= "9")) p++
 			else break
 		}
-		raw = substr(s, startp, p - startp)
+		raw = ""
+		for (rawPos = startp; rawPos < p; rawPos++) raw = raw sc[rawPos]
 		emitLeaf(path, raw, raw)
 	}
 }
@@ -295,7 +299,7 @@ function parseValue(path,   c, startp, val, raw) {
 function parseObject(path,   key, keypath, c) {
 	p++
 	skipws()
-	if (substr(s, p, 1) == "}") { p++; return; }
+	if (sc[p] == "}") { p++; return; }
 	while (1) {
 		skipws()
 		key = parseString()
@@ -304,7 +308,7 @@ function parseObject(path,   key, keypath, c) {
 		keypath = (path == "") ? key : path "." key
 		parseValue(keypath)
 		skipws()
-		c = substr(s, p, 1)
+		c = sc[p]
 		if (c == ",") { p++; continue; }
 		else if (c == "}") { p++; break; }
 		else { structErr = 1; break; }
@@ -315,12 +319,12 @@ function parseArray(path,   idx, c) {
 	p++
 	skipws()
 	idx = 0
-	if (substr(s, p, 1) == "]") { p++; return; }
+	if (sc[p] == "]") { p++; return; }
 	while (1) {
 		parseValue(path "." idx)
 		idx++
 		skipws()
-		c = substr(s, p, 1)
+		c = sc[p]
 		if (c == ",") { p++; continue; }
 		else if (c == "]") { p++; break; }
 		else { structErr = 1; break; }
@@ -341,14 +345,16 @@ END {
 	}
 
 	s = input
-	n = length(s)
+	## One split, then sc[p] per byte: substr(s, p, 1) costs a strlen of the
+	## whole payload per call in one-true-awk, which makes the walk quadratic.
+	n = split(s, sc, "")
 	p = 1
 
 	## rc 1, the not-a-response state, decided BEFORE anything is parsed:
 	## an empty read and an HTML error page both fail here, and neither may
 	## be allowed to look like "the field is absent".
 	skipws()
-	if (p > n || substr(s, p, 1) != "{") {
+	if (p > n || sc[p] != "{") {
 		printf("⛔ ERROR: AgentsSlackJsonField.awk: input is not a JSON object -- an empty read, an HTML error page, or a transport diagnostic captured in place of a response body (wanted path `%s`)\n", wantPath) > "/dev/stderr"
 		exit 1
 	}

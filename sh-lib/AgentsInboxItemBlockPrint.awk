@@ -89,16 +89,29 @@ BEGIN {
 ##
 ## THE STUB IS NOT A NORMAL BLOCK WITH `body-lines: 0`. That form is
 ## indistinguishable from an item that legitimately has frontmatter and no
-## body, which would trade a silent omission for a silent misreport. It
-## carries its own key naming the file as empty, and still ends on
-## `body-lines:` so the framing contract holds for a reader that knows only
-## that key.
+## body, and the substitution is not a wash: it trades a silent omission for a
+## silent misreport, which is worse, because an omission is still countable
+## against the section's own scanned/matched figures while a plausible-looking
+## block is not. So the stub carries its own key, and still ends on
+## `body-lines:` so every block closes on the same last key and a reader
+## consuming N lines still expects `## ` or EOF.
+##
+## `item-empty:` IS THE RATIFIED KEY, QUOTED FROM THE CONTRACT CHARACTER FOR
+## CHARACTER -- magic-team.shared.md and
+## magic-team/templates/session-context.document.format.md, where it is
+## byte-identical and ASCII throughout. Deliberately NOT a `body-` prefix:
+## nothing here is a body fact, the whole file is empty, frontmatter included,
+## so a `body-` name would misname it and collide with the framing keys. It is
+## a per-item key in the same slot and family as `body-truncated:`, and
+## `0 bytes stored` echoes that key's `<T> bytes stored` so the marks read as
+## one set. The closing clause names what actually happened, for a member on
+## duty.
 ##
 function emitEmptyOperandStub( path,    stubName ) {
 	stubName = path ;
 	sub( /^.*\//, "", stubName ) ;
 	printf "## inbox/%s\n", stubName ;
-	printf "body-empty-file: 0 bytes stored -- the item file is empty, nothing to read\n" ;
+	printf "item-empty: 0 bytes stored -- no frontmatter and no body; an interrupted write leaves exactly this\n" ;
 	print "body-lines: 0" ;
 	print "" ;
 }
