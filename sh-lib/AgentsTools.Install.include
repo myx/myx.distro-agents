@@ -74,7 +74,7 @@ case "$1" in
 					fanRoots="$HOME/.agents/skills"$'\n'"$HOME/.copilot/skills"$'\n'"$HOME/.claude/skills"
 				;;
 				workspace)
-					fanRoots="$workspace/.agents/skills"$'\n'"$workspace/.github/skills"$'\n'"$workspace/.claude/skills"
+					fanRoots="$workspace/.agents/skills"$'\n'"$workspace/.claude/skills"
 				;;
 			esac
 			local ownsReport="false"
@@ -112,7 +112,7 @@ case "$1" in
 			echo "# $MDSC_CMD --install-skillset-symlinks --remove: removing every line owned by this workspace, linking skipped" >&2
 		else
 			memberNames="$(
-				for memberDir in "$bundleRoot"/*/ "$targetRoot"/*/ ; do
+				for memberDir in "$bundleRoot"/*/ ; do
 					[ -d "${memberDir%/}" ] || continue
 					basename "${memberDir%/}"
 				done | sort -u
@@ -126,9 +126,6 @@ case "$1" in
 			[ "$memberName" != "trash" ] || continue
 			memberTarget="$targetRoot/$memberName"
 			memberBundled="$bundleRoot/$memberName"
-			if [ ! -e "$memberBundled" ] ; then
-				continue
-			fi
 			if [ -L "$memberTarget" ] && [ ! -e "$memberTarget" ] ; then
 				echo "# $MDSC_CMD --install-skillset-symlinks: $memberTarget is a dangling symlink (points at $( readlink "$memberTarget" ), which does not exist) -- reclaiming the slot" >&2
 				if ! rm -f "$memberTarget" ; then

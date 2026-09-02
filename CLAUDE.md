@@ -50,13 +50,23 @@ pair (magic-* team Slack/email/board/console-session automation — unrelated to
 launcher above, see the naming-collision note below).
 
 **Implementation language**: prefer `awk` or POSIX shell for anything new — `sh-lib/`
-currently carries 15 `.awk` helpers to 8 `.py`. Those eight Python helpers stay as they
+currently carries 23 `.awk` helpers to 11 `.py`. Those 11 Python helpers stay as they
 are; this is a preference for new code, not a ban and not a cleanup task. Reach for
 Python only when the job genuinely needs it, and say why at the call site:
-`AgentsImapFetchMessage.py` exists because `curl` cannot consume an IMAP literal at all;
-`AgentsSlackBlocksFallbackText.py` because deriving fallback text from a Block Kit array
-needs real JSON parsing, and `python3` was already an unconditional dependency of that
-exact code branch.
+`AgentsImapFetchMessage.py` exists because `curl` cannot consume an IMAP literal at all.
+
+`AgentsSlackBlocksTextVersion.py` exists for the same reason — turning a caller-supplied
+Block Kit array into the text version of that message needs real JSON parsing, and
+`python3` is already an unconditional dependency of that exact code branch.
+
+It replaces `AgentsSlackBlocksFallbackText.py`, which was **deleted, not repaired**, and
+the difference is load-bearing rather than cosmetic. The old one collected each node's own
+`text` key; a structured element has none, so `ping <@U75H0DK43>` came back as `ping` and
+every mention, emoji and broadcast was silently lost. The replacement emits each element
+in its own text form, and reports anything it cannot render instead of dropping it. For a
+`markdown` body nothing is derived at all: the blocks version and the text version are
+generated independently from one input. A caller supplying blocks may still supply the
+text version, and it is used verbatim when given.
 
 **Not the same thing as `DistroAgentsConsole.sh`**: `sh-scripts/DistroAgentsTools.fn.sh`,
 also owned by this package, is a separate, unrelated magic-* team automation tool

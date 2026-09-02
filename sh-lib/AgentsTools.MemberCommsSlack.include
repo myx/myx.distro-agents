@@ -1256,6 +1256,290 @@ case "$1" in
 			return 0
 		;;
 
+		--member-comms-slack-file-share)
+			shift
+			if [ "$1" = "--print-required-scopes" ] ; then
+				printf '%s\n' files:write chat:write im:write channels:read im:read
+				return 0
+			fi
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: syntax is <team-member> <target> (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-file-share || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+					## Same routine-* carve-out as the sibling arms.
+				;;
+				*)
+					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+
+			local shareTarget="$1"
+			shift || true
+			if [ -z "$shareTarget" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: a <target> is required -- a share needs a conversation to land in." >&2
+				set +e ; return 1
+			fi
+
+			local shareFromFile="" shareFromStdin="false" shareSnippetType="" shareTitle="" shareComment="" shareCommentGiven="false" shareAsBot="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--from-file)
+						if [ -z "${2:-}" ] || [ ! -f "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: --from-file: file not found: ${2:-<no value>}" >&2
+							set +e ; return 1
+						fi
+						shareFromFile="$2" ; shift 2
+					;;
+					--from-stdin)
+						shareFromStdin="true" ; shift
+					;;
+					--snippet-type)
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: --snippet-type: value required" >&2
+							set +e ; return 1
+						fi
+						shareSnippetType="$2" ; shift 2
+					;;
+					--title)
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: --title: value required" >&2
+							set +e ; return 1
+						fi
+						shareTitle="$2" ; shift 2
+					;;
+					--comment)
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: --comment: value required" >&2
+							set +e ; return 1
+						fi
+						shareComment="$2" ; shareCommentGiven="true" ; shift 2
+					;;
+					--identity-bot)
+						shareAsBot="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: unrecognized option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			if [ "$shareFromStdin" = "true" ] && [ -n "$shareFromFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: --from-file and --from-stdin name two different bodies and there is no rule for which wins. Pass exactly one -- the same refusal --member-comms-slack-send-message makes." >&2
+				set +e ; return 1
+			fi
+			if [ "$shareFromStdin" = "false" ] && [ -z "$shareFromFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: one of --from-file <path> or --from-stdin is required -- this call names no content to share." >&2
+				set +e ; return 1
+			fi
+
+			## TARGET FIRST, UPLOAD SECOND. An unresolvable target costs no upload,
+			## so a failed target never leaves a file behind.
+			local shareResolved="" shareResolveRc=0 shareChannel="" shareThreadTs=""
+			shareResolved="$( DistroAgentsToolsResolveTarget "$shareTarget" )" || shareResolveRc=$?
+			case "$shareResolveRc" in
+				0)
+					shareChannel="$( printf '%s\n' "$shareResolved" | sed -n 's/^CHANNEL=//p' )"
+					shareThreadTs="$( printf '%s\n' "$shareResolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				2)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: unrecognized target: $shareTarget -- nothing was uploaded." >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: could not resolve a channel for target '$shareTarget' -- nothing was uploaded." >&2
+					set +e ; return 1
+				;;
+			esac
+
+			local shareDiagFile=""
+			shareDiagFile="$( mktemp )" || { set +e ; return 1 ; }
+			chmod 600 "$shareDiagFile"
+
+			## No EXIT trap anywhere in this arm: --intern-op-slack-call installs its
+			## own and clears it, which would silently take ours with it. Every exit
+			## path below cleans up explicitly. See MAGIC.md.
+			local shareStdinFile=""
+
+			## conversations.info reaches the conversation id through
+			## --resolve-target's own lexical rule -- a party id is opened as a DM
+			## under the acting identity, a conversation id passes through, and
+			## anything else is its hard error with no guessing fallback.
+			## SLACK_CHANNEL_HUMAN_OWNER holds a USER id, and completeUploadExternal
+			## needs a conversation: passing the user id straight through is the
+			## exact failure --intern-op-slack-call's own header documents.
+			local shareInfoArgs=( "$memberName" --api conversations.info --resolve-target "$shareChannel" )
+			[ "$shareAsBot" = "false" ] || shareInfoArgs+=( --identity bot )
+			shareInfoArgs+=( --context "--member-comms-slack-file-share" )
+			local shareInfoResp="" shareInfoRc=0
+			shareInfoResp="$( DistroAgentsTools --intern-op-slack-call "${shareInfoArgs[@]}" 2>"$shareDiagFile" )" || shareInfoRc=$?
+			cat "$shareDiagFile" >&2
+			if [ "$shareInfoRc" != "0" ] ; then
+				rm -f "$shareDiagFile"
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: could not resolve target '$shareTarget' to a conversation (see the op's own diagnostic above) -- nothing was uploaded." >&2
+				set +e ; return 1
+			fi
+			local shareConversation="" shareConvRc=0
+			shareConversation="$( printf '%s\n' "$shareInfoResp" | LC_ALL=C awk -v path=channel.id -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || shareConvRc=$?
+			if [ "$shareConvRc" != "0" ] || [ -z "$shareConversation" ] ; then
+				rm -f "$shareDiagFile"
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: the conversation lookup for '$shareTarget' returned no usable channel.id (field reader rc=$shareConvRc -- 3: that path is absent, 1: the body was not a parseable API response) -- nothing was uploaded." >&2
+				set +e ; return 1
+			fi
+
+			## thread_ts must be the thread's PARENT ts, unlike chat.postMessage which
+			## also accepts a reply's. The value a caller most easily holds is a
+			## reply's, so it is normalised rather than refused -- and silently,
+			## because a normalisation gives nothing up and has nothing to report.
+			local shareParentTs="$shareThreadTs"
+			if [ -n "$shareThreadTs" ] ; then
+				local shareRepliesArgs=( "$memberName" --api conversations.replies --form "channel=$shareConversation" --form "ts=$shareThreadTs" --form limit=1 )
+				[ "$shareAsBot" = "false" ] || shareRepliesArgs+=( --identity bot )
+				shareRepliesArgs+=( --context "--member-comms-slack-file-share" )
+				local shareRepliesResp="" shareRepliesRc=0
+				shareRepliesResp="$( DistroAgentsTools --intern-op-slack-call "${shareRepliesArgs[@]}" 2>"$shareDiagFile" )" || shareRepliesRc=$?
+				cat "$shareDiagFile" >&2
+				if [ "$shareRepliesRc" != "0" ] ; then
+					rm -f "$shareDiagFile"
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: could not read the thread at $shareThreadTs to find its parent (see the op's own diagnostic above) -- nothing was uploaded. A share is anchored to a thread's parent, and this call could not establish one." >&2
+					set +e ; return 1
+				fi
+				local shareFoundParent="" shareParentRc=0
+				shareFoundParent="$( printf '%s\n' "$shareRepliesResp" | LC_ALL=C awk -v path=messages.0.thread_ts -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || shareParentRc=$?
+				case "$shareParentRc" in
+					0)
+						[ -z "$shareFoundParent" ] || shareParentTs="$shareFoundParent"
+					;;
+					3)
+						## No thread_ts on the first message: it is not in a thread, so
+						## it is its own parent and the caller's ts already is one.
+					;;
+					*)
+						rm -f "$shareDiagFile"
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: the thread read for $shareThreadTs was not a parseable API response (field reader rc=$shareParentRc) -- nothing was uploaded." >&2
+						set +e ; return 1
+					;;
+				esac
+			fi
+
+			## --from-stdin is buffered because step 1 needs the byte length up front.
+			local shareBodyFile="$shareFromFile"
+			if [ "$shareFromStdin" = "true" ] ; then
+				shareStdinFile="$( mktemp )" || { rm -f "$shareDiagFile" ; set +e ; return 1 ; }
+				chmod 600 "$shareStdinFile"
+				cat > "$shareStdinFile"
+				shareBodyFile="$shareStdinFile"
+			fi
+
+			## BYTES, never characters. A character count sends a wrong length to a
+			## pre-signed upload and fails in a way that never names length.
+			local shareBytes=""
+			shareBytes="$( LC_ALL=C wc -c < "$shareBodyFile" | tr -d '[:space:]' )"
+			if [ -z "$shareBytes" ] || [ "$shareBytes" = "0" ] ; then
+				rm -f "$shareDiagFile" ; [ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: the content is empty -- there is nothing to share." >&2
+				set +e ; return 1
+			fi
+
+			local shareFilename="$shareTitle"
+			if [ -z "$shareFilename" ] ; then
+				if [ -n "$shareFromFile" ] ; then
+					shareFilename="$( basename "$shareFromFile" )"
+				else
+					shareFilename="shared-content"
+				fi
+			fi
+
+			## ---- step 1 of 3: ask for an upload URL ----
+			local shareStep1Args=( "$memberName" --api files.getUploadURLExternal --form "filename=$shareFilename" --form "length=$shareBytes" )
+			[ -z "$shareSnippetType" ] || shareStep1Args+=( --form "snippet_type=$shareSnippetType" )
+			[ "$shareAsBot" = "false" ] || shareStep1Args+=( --identity bot )
+			shareStep1Args+=( --context "--member-comms-slack-file-share" )
+			local shareStep1Resp="" shareStep1Rc=0
+			shareStep1Resp="$( DistroAgentsTools --intern-op-slack-call "${shareStep1Args[@]}" 2>"$shareDiagFile" )" || shareStep1Rc=$?
+			cat "$shareDiagFile" >&2
+			if [ "$shareStep1Rc" != "0" ] ; then
+				rm -f "$shareDiagFile" ; [ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+				if [ -n "$shareSnippetType" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: STEP 1 OF 3 FAILED (asking for an upload URL) -- see the op's own diagnostic above. This call passed --snippet-type '$shareSnippetType'; if that value is not one this platform supports, that is what the diagnostic reports. Nothing was uploaded." >&2
+				else
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: STEP 1 OF 3 FAILED (asking for an upload URL) -- see the op's own diagnostic above. Nothing was uploaded." >&2
+				fi
+				set +e ; return 1
+			fi
+			local shareUploadUrl="" shareUploadUrlRc=0 shareFileId="" shareFileIdRc=0
+			shareUploadUrl="$( printf '%s\n' "$shareStep1Resp" | LC_ALL=C awk -v path=upload_url -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || shareUploadUrlRc=$?
+			shareFileId="$( printf '%s\n' "$shareStep1Resp" | LC_ALL=C awk -v path=file_id -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || shareFileIdRc=$?
+			if [ "$shareUploadUrlRc" != "0" ] || [ -z "$shareUploadUrl" ] || [ "$shareFileIdRc" != "0" ] || [ -z "$shareFileId" ] ; then
+				rm -f "$shareDiagFile" ; [ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: STEP 1 OF 3 answered ok:true but without a usable upload_url and file_id (field reader rc=$shareUploadUrlRc and rc=$shareFileIdRc -- 3: that path is absent, 1: the body was not a parseable API response). The upload URL is not quoted here: it is a bearer capability. Nothing was uploaded." >&2
+				set +e ; return 1
+			fi
+
+			## ---- step 2 of 3: POST the bytes, with NO credential ----
+			## The URL never appears in this arm's own diagnostics either; the op
+			## called here withholds it from all of its own.
+			local shareStep2Rc=0
+			DistroAgentsTools --intern-op-url-post-bytes --url "$shareUploadUrl" --body-file "$shareBodyFile" --context "--member-comms-slack-file-share" >/dev/null 2>"$shareDiagFile" || shareStep2Rc=$?
+			cat "$shareDiagFile" >&2
+			if [ "$shareStep2Rc" != "0" ] ; then
+				rm -f "$shareDiagFile" ; [ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: STEP 2 OF 3 FAILED (sending the bytes) -- see the op's own POST_HTTP_STATUS and POST_BYTES above. The upload was begun and not completed; Slack abandons an uncompleted upload, so there is nothing to clean up and nothing was shared." >&2
+				set +e ; return 1
+			fi
+
+			## ---- step 3 of 3: complete the upload into the conversation ----
+			local shareTitleForJson="$shareFilename"
+			[ -z "$shareTitle" ] || shareTitleForJson="$shareTitle"
+			local shareEscapedTitle=""
+			shareEscapedTitle="$( printf '%s' "$shareTitleForJson" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
+			local shareStep3Args=( "$memberName" --api files.completeUploadExternal --form "files=[{\"id\":\"$shareFileId\",\"title\":\"$shareEscapedTitle\"}]" --form "channel_id=$shareConversation" )
+			[ -z "$shareParentTs" ] || shareStep3Args+=( --form "thread_ts=$shareParentTs" )
+			[ "$shareAsBot" = "false" ] || shareStep3Args+=( --identity bot )
+			shareStep3Args+=( --context "--member-comms-slack-file-share" )
+			local shareStep3Resp="" shareStep3Rc=0
+			shareStep3Resp="$( DistroAgentsTools --intern-op-slack-call "${shareStep3Args[@]}" 2>"$shareDiagFile" )" || shareStep3Rc=$?
+			cat "$shareDiagFile" >&2
+			rm -f "$shareDiagFile"
+			[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+			if [ "$shareStep3Rc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: STEP 3 OF 3 FAILED (completing the upload into the conversation) -- see the op's own diagnostic above. The bytes were sent but the upload was never completed; Slack abandons an uncompleted upload, so there is nothing to clean up and nothing was shared. THIS IS A FAILURE, not a partial success." >&2
+				set +e ; return 1
+			fi
+
+			printf '%s\n' "$shareStep3Resp"
+			printf 'SHARE_FILE_ID=%s\n' "$shareFileId" >&2
+			printf 'SHARE_CONVERSATION=%s\n' "$shareConversation" >&2
+			printf 'SHARE_BYTES=%s\n' "$shareBytes" >&2
+
+			## The comment is a REAL MESSAGE, posted after the share through the
+			## ordinary message path -- never the upload's own initial_comment, which
+			## accepts text or blocks and silently ignores blocks when both are given.
+			## Share first, message second: a message posted first would announce a
+			## file that is not there. Two visible items in one thread is the cost.
+			if [ "$shareCommentGiven" = "true" ] ; then
+				local shareCommentTarget="$shareConversation"
+				[ -z "$shareParentTs" ] || shareCommentTarget="$shareConversation:$shareParentTs"
+				local shareCommentArgs=( "$memberName" "$shareCommentTarget" )
+				[ "$shareAsBot" = "false" ] || shareCommentArgs+=( --identity-bot )
+				local shareCommentRc=0
+				printf '%s\n' "$shareComment" | DistroAgentsTools --member-comms-slack-send-message "${shareCommentArgs[@]}" --from-stdin >/dev/null || shareCommentRc=$?
+				if [ "$shareCommentRc" != "0" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: the file was shared as $shareFileId but its accompanying message could not be posted (see the send op's own diagnostic above). A shared file with no message beside it is a FAILED operation, not a partial success: the material is there and nothing says what it is for. Post the message yourself with --member-comms-slack-send-message against $shareCommentTarget, or delete the file." >&2
+					set +e ; return 1
+				fi
+			fi
+			return 0
+		;;
+
 	--member-comms-slack-send-message)
 		shift
 		if [ "$1" = "--print-required-scopes" ] ; then
@@ -1326,13 +1610,44 @@ case "$1" in
 
 		local format="markdown" fromStdin="false" identityAsBot="false"
 		local textArgs stdinContent
+		## Body source is tracked as a NAME, because the format registry below
+		## declares which sources each format accepts as an entry field rather
+		## than as a bespoke guard.
+		local bodySourceKind="argv"
+		## The text version of a caller-supplied blocks payload. Not a
+		## transcription of their blocks -- what the message SAYS, in text.
+		local messageText="" messageTextGiven="false"
+		## Addressees, repeatable. WHO THE MESSAGE IS FOR -- deliberately not
+		## the operation's own target, which is the conversation it goes TO.
+		local addressToList=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--identity-bot)
 					identityAsBot="true" ; shift
 				;;
 				--message-from-stdin|--from-stdin)
-					fromStdin="true" ; shift
+					fromStdin="true" ; bodySourceKind="stdin" ; shift
+				;;
+				--address-to)
+					if [ $# -lt 2 ] || [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to requires a value (a team member name, a Slack user id, or a conversation id)" >&2
+						set +e ; return 1
+					fi
+					addressToList="$addressToList $2" ; shift 2
+				;;
+				--message-text)
+					if [ $# -lt 2 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --message-text requires a value" >&2
+						set +e ; return 1
+					fi
+					messageText="$2" ; messageTextGiven="true" ; shift 2
+				;;
+				--message-text-from-file)
+					if [ -z "$2" ] || [ ! -f "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --message-text-from-file: file not found: $2" >&2
+						set +e ; return 1
+					fi
+					messageText="$( cat "$2" )" ; messageTextGiven="true" ; shift 2
 				;;
 				--from-file)
 					if [ -z "$2" ] || [ ! -f "$2" ] ; then
@@ -1341,6 +1656,7 @@ case "$1" in
 					fi
 					stdinContent="$( cat "$2" )"
 					fromStdin="true"
+					bodySourceKind="file"
 					shift 2
 				;;
 				--format)
@@ -1364,46 +1680,56 @@ case "$1" in
 			sourceText="${textArgs# }"
 		fi
 
-		if [ "$format" = "markdown" ] ; then
-			if [ -z "$sourceText" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no text/blocks content given" >&2
-				set +e ; return 1
-			fi
-			blocksJson="$( printf '%s\n' "$sourceText" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackBlocksBuild.awk" )"
-		elif [ "$fromStdin" = "true" ] && [ "$format" = "blocks" ] ; then
-			blocksJson="$sourceText"
+		## In-body "@name" resolution map for the blocks generator, as
+		## "name=Uxxx;name2=Uyyy". Empty today: team members hold no Slack user
+		## accounts (settled with a positive control), so every in-body @name
+		## currently resolves to nobody and stays literal in BOTH versions --
+		## which is the ruled failover, not a failure. The blocks generator
+		## reads this; the text generator has no @ branch to read it with.
+		local slackMentionMap=""
+
+		## ================= FORMAT REGISTRY, NOT A BRANCH ==================
+		## One row per accepted input format:
+		##   <name>|<blocks generator>|<text generator>|<accepted body sources>
+		## The set is OPEN by ruling: adding a format is adding a row here, and
+		## never a new arm bolted onto a converter. Do not restate this set
+		## anywhere as closed -- dispatch AND the error message below both read
+		## THIS table, which is what stops them drifting apart. The drift is not
+		## hypothetical: the manual documented a `text` value the code never
+		## implemented, and named neither the value it actually defaulted to.
+		##
+		## `text` is deliberately NOT a row. It was dropped as an input format.
+		local slackFormatRegistry="markdown|converter|body|argv stdin file
+blocks|verbatim|caller|stdin file"
+
+		local formatEntry formatValidSet formatBlocksGen formatTextGen formatBodySources
+		formatValidSet="$( printf '%s\n' "$slackFormatRegistry" | LC_ALL=C awk -F'|' 'NF { printf "%s%s", sep, $1 ; sep="|" }' )"
+		formatEntry="$( printf '%s\n' "$slackFormatRegistry" | LC_ALL=C awk -F'|' -v want="$format" '$1 == want { print ; exit }' )"
+
+		## Unrecognised format fails by LOOKUP MISS. Previously this dispatch
+		## had no else arm at all: an unknown value left blocksJson empty and
+		## fell through to a plain-text send that returned success.
+		if [ -z "$formatEntry" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: unrecognized --format '$format' -- accepted: $formatValidSet" >&2
+			set +e ; return 1
 		fi
+		formatBlocksGen="$( printf '%s\n' "$formatEntry" | LC_ALL=C awk -F'|' '{ print $2 }' )"
+		formatTextGen="$( printf '%s\n' "$formatEntry" | LC_ALL=C awk -F'|' '{ print $3 }' )"
+		formatBodySources="$( printf '%s\n' "$formatEntry" | LC_ALL=C awk -F'|' '{ print $4 }' )"
 
-		if [ -n "$blocksJson" ] ; then
-			if ! printf '%s' "$blocksJson" | DistroAgentsTools --intern-validate-json ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format content failed validate-json (see above)" >&2
+		## The body-source restriction is the ENTRY'S OWN FIELD, not a bespoke
+		## guard. This is what rejects a block array pasted as a trailing argv
+		## word -- which previously fell through and was posted, verbatim JSON
+		## and all, as the visible message body.
+		case " $formatBodySources " in
+			*" $bodySourceKind "*) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format does not accept a body from '$bodySourceKind' -- accepted for this format: $formatBodySources (use --from-stdin or --from-file <path>)" >&2
 				set +e ; return 1
-			fi
-			local blocksTrimmed
-			blocksTrimmed="$( printf '%s' "$blocksJson" | LC_ALL=C awk 'BEGIN{RS="\0"} { gsub(/^[ \t\r\n]+/, ""); gsub(/[ \t\r\n]+$/, ""); printf "%s", $0 }' )"
-			case "$blocksTrimmed" in
-				'['*']')
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format content is valid JSON but not a bare array (must start with '[' and end with ']')" >&2
-					set +e ; return 1
-				;;
-			esac
+			;;
+		esac
 
-			local blocksBadTypes
-			blocksBadTypes="$( printf '%s' "$blocksJson" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBlockKitValidate.py" 2>/dev/null )"
-			if [ -n "$blocksBadTypes" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format content has an invalid/missing top-level 'type' at block index(es) $blocksBadTypes -- mrkdwn/plain_text/etc. are TEXT-OBJECT types, valid only nested inside a block's own \"text\" field, never as a block's own \"type\" (valid top-level types: section, divider, header, context, image, actions, input, video, rich_text, file)" >&2
-				set +e ; return 1
-			fi
-
-			rawText="$( printf '%s' "$blocksJson" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackBlocksFallbackText.py" 2>/dev/null )"
-			[ -n "$rawText" ] || rawText="(formatted message -- see blocks)"
-		else
-			rawText="$sourceText"
-		fi
-
-		if [ -z "$rawText" ] && [ -z "$blocksJson" ] ; then
+		if [ -z "$sourceText" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no text/blocks content given" >&2
 			set +e ; return 1
 		fi
@@ -1442,9 +1768,223 @@ case "$1" in
 			;;
 		esac
 
-		## Attribution prefix: needed for bot sends and for a human-owner relay (which goes out as magic-coordinator, not the originating member).
-		if { [ "$sendIdentity" = "bot" ] || [ "$relayedForMember" = "true" ] ; } && [ -n "$rawText" ] ; then
-			rawText="$( printf '@%s:\n%s' "$memberName" "$rawText" )"
+		## Sender attribution is a FORMAL FIELD, resolved here -- before either
+		## generator runs -- so both can inject it. It used to be prepended to
+		## the text half after the blocks half had already been built, which is
+		## precisely why it reached one version and never the other.
+		local attributionLine=""
+		if [ "$sendIdentity" = "bot" ] || [ "$relayedForMember" = "true" ] ; then
+			attributionLine="@$memberName:"
+		fi
+
+		## ============ THE ADDRESSED LINE, A FORMAL FIELD ==================
+		## Resolved here -- before either generator -- so both can inject it in
+		## their own form, exactly like the attribution above.
+		##
+		## The argument form is RESOLVED, never chosen by the caller. Resolution
+		## is a registry rather than a branch and THE SET IS OPEN: recognition
+		## is lexical, on the argument's own first character, the same rule
+		## --resolve-target already uses. The caller never writes mention
+		## syntax and never needs to know who holds a Slack account.
+		local addressedText="" addressedElems=""
+		local addrWho addrFile addrAlias addrEmoji addrIcon addrMark
+		for addrWho in $addressToList ; do
+			case "$addrWho" in
+				U[A-Z0-9][A-Z0-9]*)
+					## A real Slack account: the structured element in blocks,
+					## the escape form in text. Different forms, same field.
+					addressedText="$addressedText<@$addrWho> "
+					addressedElems="$addressedElems{\"type\":\"user\",\"user_id\":\"$addrWho\"},"
+				;;
+				C[A-Z0-9][A-Z0-9]*|D[A-Z0-9][A-Z0-9]*|G[A-Z0-9][A-Z0-9]*)
+					addressedText="$addressedText<#$addrWho> "
+					addressedElems="$addressedElems{\"type\":\"channel\",\"channel_id\":\"$addrWho\"},"
+				;;
+				*@*)
+					## Recorded in the design as a declared direction so the
+					## registry accommodates it. Not built -- and it fails
+					## loudly rather than being guessed at as a member name.
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': an email addressee is a declared direction that is not built yet. Pass a team member name, a Slack user id, or a conversation id." >&2
+					set +e ; return 1
+				;;
+				*)
+					## A team member: bring that member's own identity marks
+					## into the message. Path is CONSTRUCTED, never discovered
+					## -- ~/.claude/skills entries are symlinks, and find/grep -r
+					## do not follow them and return a confident empty.
+					addrFile="$HOME/.claude/skills/$addrWho/$addrWho.basic.md"
+					if [ ! -f "$addrFile" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': no such team member -- expected $addrFile" >&2
+						set +e ; return 1
+					fi
+					## A backtick in a field value is presentation, not data,
+					## and the format permits commentary after a value, so each
+					## parse takes the value up to the first whitespace.
+					addrAlias="$( LC_ALL=C awk -F": " '/^- \*\*Alias\*\*:/ { v=$2 ; gsub(/`/, "", v) ; sub(/[[:space:]].*$/, "", v) ; sub(/\.$/, "", v) ; print v ; exit }' "$addrFile" )"
+					addrEmoji="$( LC_ALL=C awk -F": " '/^- \*\*Unicode character\*\*:/ { v=$2 ; sub(/[[:space:]].*$/, "", v) ; print v ; exit }' "$addrFile" )"
+					addrIcon="$( LC_ALL=C awk -F": " '/^- \*\*Slack shortcode\*\*:/ { v=$2 ; gsub(/`/, "", v) ; sub(/[[:space:]].*$/, "", v) ; print v ; exit }' "$addrFile" )"
+					## An alias that is absent or malformed never fails a send:
+					## the member name itself is the look-alike instead.
+					case "$addrAlias" in
+						"" | *[!A-Za-z0-9._-]* ) addrAlias="$addrWho" ;;
+					esac
+					## A missing icon never fails -- it falls back to the emoji.
+					addrMark="$addrIcon"
+					[ -n "$addrMark" ] || addrMark="$addrEmoji"
+					if [ -n "$addrMark" ] ; then
+						addressedText="$addressedText$addrMark "
+						case "$addrMark" in
+							:*:)
+								addressedElems="$addressedElems{\"type\":\"emoji\",\"name\":\"$( printf '%s' "$addrMark" | tr -d ':' )\"},"
+							;;
+							*)
+								addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"$addrMark \"},"
+							;;
+						esac
+					fi
+					## No team member holds a Slack account (settled with a
+					## positive control), so the tag can only ever be the
+					## look-alike -- the SAME characters in both versions.
+					addressedText="$addressedText@$addrAlias "
+					addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"@$addrAlias \"},"
+				;;
+			esac
+		done
+
+		## ============ TWO GENERATORS OVER THE ONE INPUT ===================
+		## Each reads the input independently. NEITHER reads the other's
+		## output, in either direction. This is not a preference: an escape-form
+		## mention inside rich_text stays inert plain text while the same form
+		## in the `text` field survives byte-identically, so the same field is a
+		## text sequence on one side and a structural element on the other, and
+		## nothing can carry it across.
+
+		## ---- blocks generator ----
+		case "$formatBlocksGen" in
+			converter)
+				blocksJson="$( printf '%s\n' "$sourceText" | LC_ALL=C awk -v mentionMap="$slackMentionMap" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackBlocksBuild.awk" )"
+			;;
+			verbatim)
+				blocksJson="$sourceText"
+			;;
+		esac
+
+		## ---- text generator ----
+		case "$formatTextGen" in
+			body)
+				## The body itself -- close to the input rather than a
+				## transformation of it. No "@" branch lives here at all, which
+				## is what makes "the text version does not change" true by
+				## construction rather than by care.
+				rawText="$sourceText"
+			;;
+			caller)
+				## The caller's own text version wins, verbatim, whenever given
+				## -- nothing is generated over the top of it.
+				##
+				## When it is absent we GENERATE one rather than failing: a hard
+				## error here would break every existing blocks caller on the
+				## team's own tool. That is a ruled reversal of an earlier
+				## decision, and it is NOT the deleted fallback renderer coming
+				## back. That one collected each node's own "text" key and so
+				## dropped every structured element; this generator emits each
+				## element in its own text form. Simplified is fine; lossy is
+				## not, and an element it cannot render is reported and made
+				## visible rather than silently lost.
+				if [ "$messageTextGiven" = "true" ] ; then
+					rawText="$messageText"
+				else
+					rawText="$( printf '%s' "$sourceText" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackBlocksTextVersion.py" )"
+					if [ -z "$rawText" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format: could not generate a text version from these blocks, and none was supplied. Pass --message-text <text> or --message-text-from-file <path> -- what the message SAYS, in plain text, not a transcription of the blocks." >&2
+						set +e ; return 1
+					fi
+				fi
+			;;
+		esac
+
+		if [ -n "$blocksJson" ] ; then
+			if ! printf '%s' "$blocksJson" | DistroAgentsTools --intern-validate-json ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format content failed validate-json (see above)" >&2
+				set +e ; return 1
+			fi
+			local blocksTrimmed
+			blocksTrimmed="$( printf '%s' "$blocksJson" | LC_ALL=C awk 'BEGIN{RS="\0"} { gsub(/^[ \t\r\n]+/, ""); gsub(/[ \t\r\n]+$/, ""); printf "%s", $0 }' )"
+			case "$blocksTrimmed" in
+				'['*']')
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format content is valid JSON but not a bare array (must start with '[' and end with ']')" >&2
+					set +e ; return 1
+				;;
+			esac
+
+			local blocksBadTypes
+			blocksBadTypes="$( printf '%s' "$blocksJson" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBlockKitValidate.py" 2>/dev/null )"
+			if [ -n "$blocksBadTypes" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format content has an invalid/missing top-level 'type' at block index(es) $blocksBadTypes -- mrkdwn/plain_text/etc. are TEXT-OBJECT types, valid only nested inside a block's own \"text\" field, never as a block's own \"type\" (valid top-level types: section, divider, header, context, image, actions, input, video, rich_text, file)" >&2
+				set +e ; return 1
+			fi
+
+		fi
+
+		## NOTHING DERIVES THE TEXT VERSION. Both versions were generated above,
+		## independently, from the one input. The fallback renderer that used to
+		## stand here -- deriving the text half by walking the blocks array and
+		## collecting each node's own "text" key -- is deleted, not fixed: a
+		## structured element carries no "text" key, so the derivation silently
+		## dropped exactly the elements that mattered ("ping <@U75H0DK43>" came
+		## back as "ping"). It was not a component with a bug; it was the reason
+		## the two halves could never disagree correctly.
+
+		## The addressed line, injected into BOTH versions, each in that
+		## version's own form. Construction on both sides -- never text
+		## parsing, and never one side copied from the other. Injected BEFORE
+		## the attribution below so the finished message reads attribution,
+		## then addressees, then body.
+		if [ -n "$addressedText" ] ; then
+			if [ -n "$rawText" ] ; then
+				rawText="$( printf '%s\n%s' "${addressedText% }" "$rawText" )"
+			else
+				rawText="${addressedText% }"
+			fi
+			if [ -n "$blocksJson" ] ; then
+				local addressedBlocks
+				addressedBlocks="[{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[${addressedElems%,}]}]}]"
+				if [ "$blocksJson" != "[]" ] ; then
+					blocksJson="${addressedBlocks%"]"},${blocksJson#"["}"
+				else
+					blocksJson="$addressedBlocks"
+				fi
+			fi
+		fi
+
+		## Sender attribution, injected into BOTH versions, each in that
+		## version's own form. Construction on both sides -- never text parsing,
+		## and never one side copied from the other.
+		if [ -n "$attributionLine" ] ; then
+			## text version: the characters that version uses.
+			if [ -n "$rawText" ] ; then
+				rawText="$( printf '%s\n%s' "$attributionLine" "$rawText" )"
+			else
+				rawText="$attributionLine"
+			fi
+			## blocks version: the same line, built as the structured element
+			## that version uses, then prepended as its own block.
+			if [ -n "$blocksJson" ] ; then
+				local attributionBlocks
+				attributionBlocks="$( printf '%s\n' "$attributionLine" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackBlocksBuild.awk" )"
+				if [ -n "$attributionBlocks" ] && [ "$blocksJson" != "[]" ] ; then
+					blocksJson="${attributionBlocks%"]"},${blocksJson#"["}"
+				elif [ -n "$attributionBlocks" ] ; then
+					blocksJson="$attributionBlocks"
+				fi
+			fi
+		fi
+
+		if [ -z "$rawText" ] && [ -z "$blocksJson" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no text/blocks content given" >&2
+			set +e ; return 1
 		fi
 
 		local escapedText

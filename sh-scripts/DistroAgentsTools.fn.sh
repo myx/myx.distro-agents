@@ -447,6 +447,14 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## THE NAME IS LOAD-BEARING, not arbitrary: NOT matching the --intern-op-slack-*
+		## glob above is what keeps that arm's credential resolvers out of this op's
+		## shell. Renaming it toward the Slack family silently undoes that. See MAGIC.md.
+		--intern-op-url-post-bytes)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpUrlPostBytes.include"
+			return $?
+		;;
+
 		--intern-mcp-server)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternMcpServer.include"
 			return $?

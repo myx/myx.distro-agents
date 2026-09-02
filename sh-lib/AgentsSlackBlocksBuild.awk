@@ -105,6 +105,18 @@ BEGIN {
 	listRun = ""    # rich_text_list elements accumulated for the whole current list run
 	inFence = 0     # 0 | 1 -- inside a ``` ... ``` fenced code block
 	fenceLineCount = 0
+	## In-body mention map, supplied by the send path as "name=Uxxx;name2=Uyyy"
+	## via -v mentionMap=. A name absent from it renders as a literal "@name"
+	## and NEVER fails the send -- same failover family as a missing icon
+	## falling back to the emoji. An empty/unset map means every "@name" in the
+	## body stays literal, which is exactly today's behavior.
+	if (mentionMap != "") {
+		mentionPairCount = split(mentionMap, mentionPairs, ";")
+		for (i = 1; i <= mentionPairCount; i++) {
+			eqAt = index(mentionPairs[i], "=")
+			if (eqAt > 1) mention[substr(mentionPairs[i], 1, eqAt - 1)] = substr(mentionPairs[i], eqAt + 1)
+		}
+	}
 }
 
 function jsonEscapeLine(line,   i, c, ln, res) {
@@ -120,10 +132,6 @@ function jsonEscapeLine(line,   i, c, ln, res) {
 	return res
 }
 
-function isAlnum(c) {
-	return (c ~ /^[A-Za-z0-9]$/)
-}
-
 function plainElem(text) {
 	return "{\"type\":\"text\",\"text\":\"" jsonEscapeLine(text) "\"}"
 }
@@ -132,120 +140,222 @@ function styledElem(text, style) {
 	return "{\"type\":\"text\",\"text\":\"" jsonEscapeLine(text) "\",\"style\":{\"" style "\":true}}"
 }
 
-function styledElemBoldItalic(text) {
-	return "{\"type\":\"text\",\"text\":\"" jsonEscapeLine(text) "\",\"style\":{\"bold\":true,\"italic\":true}}"
+## A real Slack mention: the structured "user" element. Deliberately NOT a text
+## element carrying an escape form -- an escape form inside rich_text stays
+## inert plain text, which is measured, and is the whole reason the text
+## version cannot be derived from this one.
+function mentionElem(userId) {
+	return "{\"type\":\"user\",\"user_id\":\"" jsonEscapeLine(userId) "\"}"
 }
 
 function appendElem(list, elem) {
 	return (list == "") ? elem : list "," elem
 }
 
-## Splits one raw (not yet JSON-escaped) line of text into a comma-joined
-## list of rich_text "text" element objects -- one per plain/bold/italic
-## span, in left-to-right order -- ready to be spliced directly into a
-## rich_text_section's own "elements" array. Single left-to-right scan, no
-## nesting, no recursion: see this file's own header comment for the exact
-## bold/italic rules this implements.
-function parseInlineStyles(line,    n, i, j, k, c, closeIdx, closeEnd, spanText, plain, out, leftOk, rightOk, found) {
+function isSpaceCh(c) {
+	return (c == " " || c == "\t")
+}
+
+## Punctuation, for the flanking rules below. ASCII punctuation MINUS three
+## characters: backtick, apostrophe and double quote.
+##
+## Excluding them makes each behave as an ordinary character, so a delimiter
+## sitting beside one does NOT gain a boundary it would have under CommonMark.
+## `"_it_"` therefore stays literal here where the spec would emphasise it.
+## That is a DELIBERATE, RULED DEPARTURE from the spec -- recorded here so it
+## is never "fixed" back as an oversight. Everything else follows the spec.
+function isPunctCh(c) {
+	if (c == "" || c == "`" || c == "'" || c == "\"") return 0
+	return (index("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", c) > 0)
+}
+
+function dupCh(ch, cnt,   s, x) {
+	s = ""
+	for (x = 0; x < cnt; x++) s = s ch
+	return s
+}
+
+function addTok(type, val, ch, len) {
+	nTok++
+	tkType[nTok] = type ; tkText[nTok] = val ; tkChar[nTok] = ch
+	tkLen[nTok] = len ; tkOrigLen[nTok] = len
+	tkOpen[nTok] = 0 ; tkClose[nTok] = 0 ; tkB[nTok] = 0 ; tkI[nTok] = 0
+}
+
+function styleElem(text, b, i) {
+	if (b && i) return "{\"type\":\"text\",\"text\":\"" jsonEscapeLine(text) "\",\"style\":{\"bold\":true,\"italic\":true}}"
+	if (b) return styledElem(text, "bold")
+	if (i) return styledElem(text, "italic")
+	return plainElem(text)
+}
+
+## The spec's own "process emphasis" step, run over the delimiter list built by
+## parseInlineStyles: walk forward to each closer, walk back to the nearest
+## compatible opener, and consume two delimiters for strong or one for
+## emphasis. Includes the multiple-of-three rule, which is what stops a run
+## that can both open and close from pairing with itself incorrectly.
+function processEmphasis(   closer, opener, ok, useLen, t) {
+	closer = 1
+	while (closer <= nTok) {
+		if (tkType[closer] != "delim" || !tkClose[closer] || tkLen[closer] == 0) { closer++ ; continue }
+		opener = closer - 1
+		ok = 0
+		while (opener >= 1) {
+			if (tkType[opener] == "delim" && tkLen[opener] > 0 && tkOpen[opener] && tkChar[opener] == tkChar[closer]) {
+				## Rule of 3: if either delimiter can both open and close, the
+				## summed ORIGINAL run lengths must not be a multiple of 3
+				## unless both lengths are themselves multiples of 3.
+				if ((tkClose[opener] || tkOpen[closer]) \
+				    && ((tkOrigLen[opener] + tkOrigLen[closer]) % 3 == 0) \
+				    && !(tkOrigLen[opener] % 3 == 0 && tkOrigLen[closer] % 3 == 0)) {
+					opener--
+					continue
+				}
+				ok = 1
+				break
+			}
+			opener--
+		}
+		if (!ok) {
+			## A closer with no opener is literal text -- unless it can also
+			## open, in which case it stays available for a later closer.
+			if (!tkOpen[closer]) {
+				tkType[closer] = "text" ; tkText[closer] = dupCh(tkChar[closer], tkLen[closer]) ; tkLen[closer] = 0
+			}
+			closer++
+			continue
+		}
+		## Two delimiters available on both sides means strong; otherwise
+		## emphasis. Slack rich_text cannot nest, so nested emphasis FLATTENS
+		## into a combined style set on the innermost text.
+		useLen = (tkLen[opener] >= 2 && tkLen[closer] >= 2) ? 2 : 1
+		for (t = opener + 1; t < closer; t++) {
+			if (useLen == 2) tkB[t] = 1 ; else tkI[t] = 1
+		}
+		tkLen[opener] -= useLen ; tkLen[closer] -= useLen
+		for (t = opener + 1; t < closer; t++) {
+			if (tkType[t] == "delim") { tkType[t] = "text" ; tkText[t] = dupCh(tkChar[t], tkLen[t]) ; tkLen[t] = 0 }
+		}
+		if (tkLen[opener] == 0) tkType[opener] = "used"
+		if (tkLen[closer] == 0) { tkType[closer] = "used" ; closer++ }
+	}
+	for (t = 1; t <= nTok; t++) {
+		if (tkType[t] == "delim") {
+			if (tkLen[t] > 0) { tkType[t] = "text" ; tkText[t] = dupCh(tkChar[t], tkLen[t]) }
+			else tkType[t] = "used"
+		}
+	}
+}
+
+function emitTokens(   t, out, curText, curB, curI) {
+	out = "" ; curText = "" ; curB = 0 ; curI = 0
+	for (t = 1; t <= nTok; t++) {
+		if (tkType[t] == "used") continue
+		if (tkType[t] == "text") {
+			if (curText != "" && (tkB[t] != curB || tkI[t] != curI)) {
+				out = appendElem(out, styleElem(curText, curB, curI)) ; curText = ""
+			}
+			curB = tkB[t] ; curI = tkI[t] ; curText = curText tkText[t]
+			continue
+		}
+		if (curText != "") { out = appendElem(out, styleElem(curText, curB, curI)) ; curText = "" }
+		if (tkType[t] == "code") out = appendElem(out, styledElem(tkText[t], "code"))
+		else if (tkType[t] == "mention") out = appendElem(out, mentionElem(tkText[t]))
+	}
+	if (curText != "") out = appendElem(out, styleElem(curText, curB, curI))
+	return out
+}
+
+## Splits one raw (not yet JSON-escaped) line of text into a comma-joined list
+## of rich_text element objects, ready to splice into a rich_text_section's
+## own "elements" array.
+##
+## EMPHASIS IS COMMONMARK, NOT AN INVENTED SUBSET. Delimiter runs, the
+## left/right-flanking predicates and the matching in processEmphasis() above
+## follow the CommonMark spec's "Emphasis and strong emphasis" section. ONE
+## delimiter is emphasis (italic), TWO is strong (bold), and BOTH "*" and "_"
+## carry both meanings. "_" takes the spec's stricter open/close predicates,
+## which is exactly why an intra-word run such as "mcp__myx_distro__execute"
+## never opens strong -- that identifier survives BY THE SPEC, not by a guard
+## of ours bolted on beside it.
+##
+## READ THIS BEFORE "CORRECTING" ANY EXAMPLE IN THIS TREE:
+## CommonMark makes "*x*" ITALIC and "__x__" BOLD. The human-owner's own
+## illustrations said the reverse ("*bold*", "__ITALLIC__"), and he ruled
+## against his own illustrations in the same breath -- "IT IS NOT ME SETTING
+## THE FORMAT CORRECTNESS", "whatever is EXACTLY SUPPORTED BY NORMAL PROPER
+## MARKDOWN - WINS". So the SPEC wins over the examples, by his own ruling.
+## Verified differentially against pandoc's CommonMark reader.
+##
+## The input grammar is CommonMark; the output is Slack Block Kit. They are
+## different things and neither constrains the other -- nested emphasis has no
+## Block Kit representation, so it flattens into a combined style set.
+function parseInlineStyles(line,   n, i, j, k, c, closeIdx, spanText, mname, runLen,
+                                   prevCh, nextCh, beforeSp, beforePu, afterSp, afterPu, lf, rf) {
 	n = length(line)
-	out = ""
-	plain = ""
+	nTok = 0
+	split("", tkType) ; split("", tkText) ; split("", tkChar)
+	split("", tkLen) ; split("", tkOrigLen) ; split("", tkOpen)
+	split("", tkClose) ; split("", tkB) ; split("", tkI)
 	i = 1
 	while (i <= n) {
 		c = substr(line, i, 1)
-		if (c == "*") {
-			j = i
-			while (j <= n && substr(line, j, 1) == "*") j++
-			## Combined bold+italic case -- see this file's own header
-			## comment for the exact "**_text_**" shape. Only ever
-			## preempts the generic bold scan below when the run is
-			## EXACTLY 2 asterisks and a "_" sits immediately after it;
-			## anything else (single "*", a 3+ run, no "_" right there,
-			## or no matching close) falls straight through unchanged.
-			if (j - i == 2 && substr(line, j, 1) == "_") {
-				k = j + 1
-				found = 0
-				while (k <= n) {
-					if (substr(line, k, 1) == "_" && substr(line, k + 1, 2) == "**" && substr(line, k + 3, 1) != "*") {
-						found = 1
-						break
-					}
-					k++
-				}
-				if (found && k > j + 1) {
-					spanText = substr(line, j + 1, k - j - 1)
-					if (plain != "") { out = appendElem(out, plainElem(plain)); plain = "" }
-					out = appendElem(out, styledElemBoldItalic(spanText))
-					i = k + 3
-					continue
-				}
-			}
-			closeIdx = 0
-			k = j
-			while (k <= n) {
-				if (substr(line, k, 1) == "*") { closeIdx = k; break }
-				k++
-			}
-			spanText = (closeIdx > 0) ? substr(line, j, closeIdx - j) : ""
-			if (spanText != "") {
-				if (plain != "") { out = appendElem(out, plainElem(plain)); plain = "" }
-				out = appendElem(out, styledElem(spanText, "bold"))
-				closeEnd = closeIdx
-				while (closeEnd <= n && substr(line, closeEnd, 1) == "*") closeEnd++
-				i = closeEnd
-			} else {
-				plain = plain substr(line, i, j - i)
-				i = j
-			}
-			continue
-		}
-		if (c == "_") {
-			leftOk = (i == 1) || !isAlnum(substr(line, i - 1, 1))
-			found = 0
-			if (leftOk) {
-				k = i + 1
-				while (k <= n) {
-					if (substr(line, k, 1) == "_") {
-						rightOk = (k == n) || !isAlnum(substr(line, k + 1, 1))
-						if (rightOk) { found = 1; break }
-					}
-					k++
-				}
-			}
-			spanText = found ? substr(line, i + 1, k - i - 1) : ""
-			if (spanText != "") {
-				if (plain != "") { out = appendElem(out, plainElem(plain)); plain = "" }
-				out = appendElem(out, styledElem(spanText, "italic"))
-				i = k + 1
-				continue
-			}
-			plain = plain c
-			i++
-			continue
-		}
+		## Code span FIRST: its content is taken verbatim and never rescanned.
 		if (c == "`") {
 			closeIdx = 0
 			k = i + 1
-			while (k <= n) {
-				if (substr(line, k, 1) == "`") { closeIdx = k; break }
-				k++
-			}
+			while (k <= n) { if (substr(line, k, 1) == "`") { closeIdx = k ; break } ; k++ }
 			spanText = (closeIdx > 0) ? substr(line, i + 1, closeIdx - i - 1) : ""
-			if (spanText != "") {
-				if (plain != "") { out = appendElem(out, plainElem(plain)); plain = "" }
-				out = appendElem(out, styledElem(spanText, "code"))
-				i = closeIdx + 1
-			} else {
-				plain = plain c
-				i++
-			}
+			if (spanText != "") { addTok("code", spanText, "", 0) ; i = closeIdx + 1 ; continue }
+			addTok("text", c, "", 0) ; i++
 			continue
 		}
-		plain = plain c
+		## Mention AFTER the code-span branch, so it INHERITS that exclusion by
+		## ordering rather than reimplementing it. Fenced blocks never reach
+		## inline parsing at all. Boundary: "@" to whitespace or end of line.
+		if (c == "@") {
+			k = i + 1
+			while (k <= n && substr(line, k, 1) != " " && substr(line, k, 1) != "\t") k++
+			mname = substr(line, i + 1, k - i - 1)
+			if (mname != "" && (mname in mention)) { addTok("mention", mention[mname], "", 0) ; i = k ; continue }
+			addTok("text", c, "", 0) ; i++
+			continue
+		}
+		if (c == "*" || c == "_") {
+			j = i
+			while (j <= n && substr(line, j, 1) == c) j++
+			runLen = j - i
+			prevCh = (i == 1) ? "" : substr(line, i - 1, 1)
+			nextCh = (j > n) ? "" : substr(line, j, 1)
+			## The beginning and the end of the line count as whitespace.
+			beforeSp = (prevCh == "" || isSpaceCh(prevCh))
+			afterSp  = (nextCh == "" || isSpaceCh(nextCh))
+			beforePu = isPunctCh(prevCh)
+			afterPu  = isPunctCh(nextCh)
+			## left-flanking  = (1) not followed by whitespace, AND
+			##                  ((2a) not followed by punctuation, OR
+			##                   (2b) followed by punctuation and preceded by
+			##                        whitespace or punctuation)
+			lf = (!afterSp && (!afterPu || (beforeSp || beforePu)))
+			## right-flanking = the mirror image of the above.
+			rf = (!beforeSp && (!beforePu || (afterSp || afterPu)))
+			addTok("delim", "", c, runLen)
+			if (c == "*") {
+				tkOpen[nTok] = lf ; tkClose[nTok] = rf
+			} else {
+				## "_" is deliberately stricter than "*" in the spec, so that
+				## intra-word underscores in identifiers never emphasise.
+				tkOpen[nTok]  = (lf && (!rf || beforePu))
+				tkClose[nTok] = (rf && (!lf || afterPu))
+			}
+			i = j
+			continue
+		}
+		addTok("text", c, "", 0)
 		i++
 	}
-	if (plain != "") out = appendElem(out, plainElem(plain))
-	return out
+	processEmphasis()
+	return emitTokens()
 }
 
 function emitBlock(json) {

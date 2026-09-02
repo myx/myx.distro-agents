@@ -171,6 +171,52 @@
 ## Adding fields does not add an exit path: the single failure branch, the three
 ## counterparty outcomes and the rc contract are all exactly as described above.
 ##
+## X-REQUEST-DETAIL IS A HEADER, NOT PROSE AND NOT A FIELD, AND PARSING IT IS
+## WHAT IT IS FOR.
+##
+##   X-Request-Detail: slack-workspace=<v>; client-member=<v>; channel-id=<v>
+##
+## A Slack operation resolves against whichever workspace the acting member's
+## token points at, and nothing in its output used to say which. A member asked
+## to list custom emoji answered ok:true with a full, correct list -- about the
+## wrong workspace. That is worse than a confident nothing: a null invites a
+## second look and a plausible value does not.
+##
+## The line is emitted FIRST, before the fields, because a header precedes the
+## data it describes. It is a third category beside the two the section above
+## distinguishes: the fields are the caller interface, the sentences are for
+## humans and unparseable, and this is structured data with a conventional shape.
+## It cannot collide with the field namespace -- it carries a colon, so no
+## `sed -n 's/^KEY=//p'` can match it, and no reader of a field can see it.
+##
+## `client-member` NAMES THE SLACK API CLIENT MAKING THE REQUEST, meaning the
+## acting member. It does NOT mean a `client-*` member. Recorded because the
+## name reads that way to anyone who does not already know, and two readers got
+## it wrong inside one exchange while choosing it; an unexplained name is renamed
+## by the next reader repeating that mistake.
+##
+## THE WORKSPACE IS A PROPERTY OF THE TOKEN, so it is read from the token's own
+## account through auth.test and never from configuration. A configured value is
+## a second home for one fact, free to disagree with the token that actually
+## decides where the call lands, and nothing would report the disagreement --
+## which is this same defect wearing new clothes. It is resolved per call rather
+## than cached per member because one member is not one workspace: a member whose
+## own user token belongs to another organisation acts there under user identity
+## and in the team's own workspace under bot identity, both correctly. See the
+## bot-token fallback in AgentsToolsResolveSlackBotToken, which is the route by
+## which such a member reports home and is not a leak to be closed.
+##
+## A VALUE THAT COULD NOT BE RESOLVED IS STATED, NEVER OMITTED. The header is
+## emitted on every exit path exactly as the fields are, and for the same reason:
+## a missing line cannot say whether the value was absent or the lookup failed.
+## An unresolved slot carries a bracketed state instead -- `<not-yet-selected>`
+## where the op exited before identity selection, `<lookup-failed>` where
+## auth.test itself did not answer, `<none>` where there is genuinely no such
+## value for this call. Angle brackets cannot occur in a workspace domain or a
+## conversation id, so a state and a real value are lexically disjoint: this is
+## enforcement of a declared field type, the same reasoning this op already
+## applies to Slack's own id prefixes, and not sniffing.
+##
 ## THERE IS DELIBERATELY NO DM_CHANNEL= FIELD, AND ITS ABSENCE IS NOT AN
 ## OVERSIGHT. One existed, emitted on the success path whenever --resolve-dm had
 ## opened a DM, and it was removed on purpose. --resolve-dm injects the opened
@@ -257,20 +303,46 @@
 ## response body here, because no API method was called.
 ##
 
-## The emitter for the fields documented above. A function rather than a line
-## copied to each of the two dozen `return` sites: a copy missed at one site is
-## indistinguishable, to a caller, from a call that never happened, and a
-## `return` added later would silently be that missed site. Writes to stderr
-## only and never touches rc.
+## The emitter for the header and the fields documented above. A function rather
+## than a line copied to each of the two dozen `return` sites: a copy missed at
+## one site is indistinguishable, to a caller, from a call that never happened,
+## and a `return` added later would silently be that missed site. Writes to
+## stderr only and never touches rc.
 ##
 ##   $1  acting identity  -- `bot`, `user`, or `not-yet-selected`
 ##   $2  response-body state -- `on-stdout`, `in-diagnostic`, or `none`
 ##   $3  the raw response body -- read only in the `in-diagnostic` state
 ##
+## The header's values arrive as SHARED VARIABLES rather than as arguments, and
+## that is a deliberate departure from the house rule against reading a variable
+## across a call boundary. The rule is right in general and wrong here: this
+## emitter has three dozen call sites, so a value threaded through arguments has
+## to be added correctly at every one of them, and a site missed is exactly the
+## invisible failure the paragraph above gives as the reason this is a function
+## rather than a repeated line. The same argument covers its inputs. Recorded
+## because an unexplained departure from a house rule reads as an oversight and
+## gets tidied back.
+##
+##   $reqDetailWorkspace  the workspace, or a bracketed state
+##   $callerMember        the acting member, read directly rather than copied
+##                        into a second variable that could disagree with it
+##   $formArgs            the conversation is read out of it here, at emission
+##                        time, rather than copied into a variable as each arm
+##                        appends one. A channel reaches this op three ways --
+##                        the caller's own --form, --resolve-target, and the DM
+##                        --resolve-dm opens -- and a copy taken at any one of
+##                        them is stale at the other two.
+##
 ## The RESPONSE_BODY= line is gated on a POSITIVE test of the state it belongs
 ## to, not on whether $3 looks non-empty: an API response that is genuinely the
 ## empty string is still a response, and the state field is what says so.
 AgentsToolsInternOpSlackCallEmitFields(){
+	local detailChannel="<none>" detailPair
+	for detailPair in ${formArgs[@]+"${formArgs[@]}"} ; do
+		case "$detailPair" in channel=*) detailChannel="${detailPair#channel=}" ;; esac
+	done
+	printf 'X-Request-Detail: slack-workspace=%s; client-member=%s; channel-id=%s\n' \
+		"${reqDetailWorkspace:-<not-yet-selected>}" "${callerMember:-<none>}" "$detailChannel" >&2
 	printf 'ACTING_IDENTITY=%s\n' "$1" >&2
 	printf 'RESPONSE_BODY_STATE=%s\n' "$2" >&2
 	if [ "$2" = "in-diagnostic" ] ; then
@@ -282,6 +354,11 @@ case "$1" in
 
 	--intern-op-slack-call)
 		shift
+		## Read by AgentsToolsInternOpSlackCallEmitFields for the X-Request-Detail
+		## header, and declared here so the earliest failure below already has it.
+		## It starts at the state that is true before anything is resolved, which
+		## is a real answer rather than a placeholder waiting to be filled.
+		local reqDetailWorkspace="<not-yet-selected>"
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do
@@ -785,6 +862,22 @@ case "$1" in
 		trap 'rm -f "$headerFile"' EXIT
 		printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
 
+		## The workspace this call is about to act in, for the X-Request-Detail
+		## header. Read from the token's own account, here, because this is the
+		## first point at which the token exists and the last before it is used.
+		## auth.test requires no scope, so this cannot fail for want of one, and
+		## a failure to answer is reported as itself rather than left to look
+		## like an absent workspace.
+		local workspaceUrl="" workspaceRc=0
+		workspaceUrl="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @"$headerFile" 2>/dev/null \
+			| LC_ALL=C awk -v path=url -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || workspaceRc=$?
+		if [ "$workspaceRc" = "0" ] && [ -n "$workspaceUrl" ] ; then
+			workspaceUrl="${workspaceUrl#https://}"
+			reqDetailWorkspace="${workspaceUrl%/}"
+		else
+			reqDetailWorkspace="<lookup-failed>"
+		fi
+
 		## Upload response body; created here so the one trap already covers it.
 		local uploadBodyFile=""
 		uploadBodyFile="$( mktemp )" || { rm -f "$headerFile" ; trap - EXIT ; AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" none ; set +e ; return 1 ; }
@@ -1069,7 +1162,18 @@ case "$1" in
 					break
 				}
 			else
-				local curlArgs=( -sS --connect-timeout 10 --max-time 120 -G "https://slack.com/api/$apiMethod" -H @"$headerFile" ) formPair
+				## THE FORM VALUES GO IN THE REQUEST BODY, NEVER THE REQUEST URI.
+				## `-G` moved every --data-urlencode pair into the query string,
+				## which put a whole Slack message into the URL and gave the call
+				## an undeclared ceiling on its own length: a 7278-byte
+				## chat.postMessage came back as an Apache `414 Request-URI Too
+				## Long` HTML page, while 2-3KB posts kept working, so nothing
+				## revealed the limit until a long enough message met it. Without
+				## `-G`, --data-urlencode makes this an ordinary
+				## application/x-www-form-urlencoded POST with no such ceiling.
+				## Measured equivalent on read methods, which Slack answers
+				## identically either way.
+				local curlArgs=( -sS --connect-timeout 10 --max-time 120 "https://slack.com/api/$apiMethod" -H @"$headerFile" ) formPair
 				for formPair in "${formArgs[@]}" ; do
 					curlArgs+=( --data-urlencode "$formPair" )
 				done
@@ -1113,6 +1217,25 @@ case "$1" in
 				## field rather than being left to be cut back out of the
 				## sentence below. The sentence stays, for humans; it is not the
 				## interface and must not be parsed.
+				## AN ok:false VERDICT REQUIRES A SLACK RESPONSE TO HAVE VERDICTED.
+				## Absence of `"ok":true` covers two different layers: the method
+				## answered and refused, and nothing from the method arrived at
+				## all. Reporting the second as the first is how a `414
+				## Request-URI Too Long` page from an HTTP server -- which Slack
+				## never saw -- was announced as ok:false and carried in
+				## RESPONSE_BODY=, a field whose contract is one line and which an
+				## HTML page silently broke into several. The house field reader
+				## separates the two on its own rc, so the distinction costs one
+				## read rather than a new state.
+				local okFieldRc=0
+				printf '%s\n' "$response" | LC_ALL=C awk -v path=ok -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" >/dev/null || okFieldRc=$?
+				if [ "$okFieldRc" != "0" ] ; then
+					## responseBodyState stays `none`, which is already its
+					## documented meaning for exactly this case: the call never
+					## returned an API response.
+					failMsg="$apiMethod: the server answered, but not with a Slack API response (field reader rc=$okFieldRc -- 3: no top-level ok in this payload, 1: not a parseable API response), under $sendIdentity identity. This is a TRANSPORT-LAYER failure, NOT an ok:false verdict: nothing is known from it about the method, its arguments, or its target, because the method never judged them. What arrived was: $response"
+					break
+				fi
 				responseBodyState="in-diagnostic"
 				failMsg="$apiMethod returned ok:false under $sendIdentity identity: $response"
 				break

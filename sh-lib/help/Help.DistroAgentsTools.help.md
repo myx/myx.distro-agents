@@ -6,8 +6,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [text...]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] --from-stdin [--format text|blocks]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] --from-file <path> [--format text|blocks]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>]
@@ -246,9 +246,9 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [text...]
-		--member-comms-slack-send-message <team-member> <target> [--identity-bot] --from-stdin [--format text|blocks]
-		--member-comms-slack-send-message <team-member> <target> [--identity-bot] --from-file <path> [--format text|blocks]
+		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... [text...]
+		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]
+		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]
 			Posts a message, attributed to <team-member>, to one of:
 			magic-team, human-owner, event-track, event-alert, a bare
 			<conversation-id> (posted as a NEW TOP-LEVEL message in that
@@ -263,11 +263,102 @@
 			and nothing is sent anywhere. Content comes from
 			trailing text args, --from-stdin, or --from-file <path> —
 			exactly one. --identity-bot posts as the team bot instead of
-			this member's own identity. --format
-			blocks sends a caller-supplied Block Kit JSON array instead of
-			plain text (with --from-stdin/--from-file only) — malformed JSON
-			or an unsupported block type is rejected before anything is
-			sent, with a specific error naming the problem.
+			this member's own identity.
+
+			**Two versions are generated, never derived from each other.**
+			Every message goes out as a blocks version and a text version,
+			each built independently from the one input you give. Neither is
+			produced from the other, and nothing converts between them: a
+			mention written as an escape form inside `rich_text` stays inert
+			plain text, while the same form in the `text` field survives
+			byte-identically, so the same field has to be a text sequence on
+			one side and a structural element on the other.
+
+			`--format` selects how the body is read. **Accepted values are
+			`markdown` (the default) and `blocks`.** An unrecognised value is
+			rejected with an error naming the accepted set, and nothing is
+			sent. Earlier revisions of this manual documented a `text` value
+			that the code never implemented, and did not name the value it
+			actually defaulted to; `text` is no longer an input format, and
+			passing it now fails loudly instead of silently posting an
+			unformatted message.
+
+			`--format blocks` sends a caller-supplied Block Kit JSON array
+			(with --from-stdin/--from-file only — a JSON array pasted as a
+			trailing text argument is rejected, not posted as the message
+			body). Malformed JSON or an unsupported block type is rejected
+			before anything is sent, with a specific error naming the
+			problem. `--message-text <text>` and
+			`--message-text-from-file <path>` supply the text version of a
+			blocks message and are **optional**: when neither is given, a text
+			version is generated from the blocks. When one is given, that text
+			is used verbatim and nothing is generated over it. Give what the
+			message *says*, in plain text — not a transcription of your blocks.
+
+			The generated text version is **simplified but not lossy**. Every
+			structured element is emitted in its own text form: a mention
+			becomes `<@Uxxx>`, a broadcast `<!here>`, a channel `<#Cxxx>`, an
+			emoji its character, a link its visible text. An element with no
+			known text form is rendered as a visible placeholder and reported
+			on stderr, never silently dropped. That last point is the whole
+			difference from the renderer this replaces, which collected each
+			node's own `text` key and so turned `ping <@U75H0DK43>` into
+			`ping`.
+
+			**`--address-to <member|user-id|conversation-id>`**, repeatable,
+			names who the message is *for*. Deliberately not the same thing as
+			the operation's own target, which is the conversation the message
+			goes *to* — a message in the team channel addressed to one member
+			is the ordinary case. The argument form is resolved by the
+			operation, never chosen by the caller: recognition is lexical, on
+			the argument's own first character. A team member name brings that
+			member's own identity marks — alias and emoji or Slack shortcode,
+			read from their `<name>.basic.md` — into both versions, each in
+			that version's own form. A `U…` id becomes the structured user
+			element in blocks and `<@U…>` in text. A `C…`/`D…`/`G…` id
+			resolves as given. An email addressee is a recorded direction that
+			is not built, and says so rather than being guessed at. A name
+			that is not a member fails loudly; a member whose alias is absent
+			or malformed falls back to the member name and never fails the
+			send.
+
+			**In-body mentions.** Write a bare `@name` anywhere in a
+			`markdown` body. The blocks version renders it as a real mention
+			where the name resolves; the text version keeps it exactly as
+			written, byte for byte. A name that resolves to nobody stays a
+			literal `@name` in both versions and never fails the send. Two
+			boundaries are ours, not Slack's: the token runs from the `@` to
+			whitespace or end of line, so `@name,` takes the trailing comma
+			with it and will not resolve, and a display name containing a
+			space breaks at the space. A `@name` inside a code span or a
+			fenced block is left exactly as written.
+
+			**Emphasis is CommonMark.** Not a restricted subset invented
+			here: delimiter runs, the left/right-flanking predicates and the
+			matching rules follow the CommonMark specification's "Emphasis and
+			strong emphasis" section. **One delimiter is emphasis (italic),
+			two is strong (bold), and both `*` and `_` carry both meanings.**
+			So `*x*` and `_x_` are italic; `**x**` and `__x__` are bold;
+			`***x***`, `*__x__*` and `**_x_**` are bold italic.
+
+			`_` takes the spec's stricter open/close predicates, which is
+			exactly why an intra-word run never opens emphasis: an identifier
+			such as `mcp__myx_distro__execute` or `snake_case_name` renders as
+			one unbroken literal token. That protection is the specification's
+			own, not a guard bolted on beside it.
+
+			Slack's `rich_text` cannot nest emphasis, so nested emphasis
+			flattens into a combined style set — `*__b__*` becomes one
+			bold+italic span. The input grammar is CommonMark and the output
+			is Block Kit; they are different things and neither constrains the
+			other.
+
+			**One ruled departure**: backtick, apostrophe and double quote do
+			NOT act as flanking boundaries here, so `"_it_"` stays literal
+			where CommonMark would emphasise it. Deliberate and recorded, not
+			an oversight. Backtick-quoting an identifier remains the reliable
+			way to protect one: a code span's content is taken verbatim and
+			never rescanned.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -661,6 +752,98 @@
 			**1**: the fetch did not complete, or it completed and the
 			result was not the file. For every non-zero code the
 			destination is left exactly as it was.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-slack-file-share <team-member> <target> --from-file <path> [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
+		--member-comms-slack-file-share <team-member> <target> --from-stdin [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
+			Shares a file into a conversation, attributed to
+			`<team-member>`. Use this for content that does not belong in a
+			message body -- anything long, anything a reader needs to
+			scroll, anything awaiting approval. A message body carries the
+			ask; the file carries the material.
+
+			`<target>` takes the same forms as
+			--member-comms-slack-send-message and is classified the same
+			way: `magic-team`, `human-owner`, `event-track`, `event-alert`,
+			a bare `<conversation-id>`, or a literal `<channel>:<ts>`. A
+			target resolving to a party rather than a conversation is
+			opened as a direct conversation first, under the acting
+			identity, because a share needs a conversation id and a party
+			id is not one. A target matching no form is REJECTED before
+			anything is uploaded, so a failed target never leaves a file
+			behind.
+
+			A `<channel>:<ts>` target shares into that thread. The `<ts>`
+			may be any message in it: a reply's own `<ts>` is resolved to
+			the thread's parent, because a share is anchored to the parent
+			and a reply's ts is the value a caller most easily holds. That
+			resolution is silent -- it gives nothing up, so there is
+			nothing to report. A `<ts>` whose thread cannot be read is an
+			error, never a share posted somewhere else.
+
+			Content comes from `--from-file <path>` or `--from-stdin`,
+			exactly one; naming both is an error, as it is on
+			--member-comms-slack-send-message. There is no trailing-text
+			form: the point of this operation is that the content is too
+			big to be an argument. `--from-stdin` is buffered to a
+			temporary file before the share begins, because the size in
+			BYTES has to be known up front -- a character count is not a
+			byte count, and content carrying em dashes or emoji differs in
+			the two.
+
+			`--snippet-type <v>` selects how the shared content is
+			rendered. Which values are accepted is a property of the
+			platform and of what this operation supports at the time you
+			call it: ask for the value you want, and a value that is not
+			supported is REJECTED, naming what was passed. It is never
+			quietly replaced with a different one.
+
+			`--title <v>` names the file as it appears in the
+			conversation. Without it the name is the `--from-file`
+			basename.
+
+			`--comment <text>` is the message posted alongside the file,
+			and is where the ask belongs. It is posted as its own message
+			AFTER the share, through the ordinary message path -- not as a
+			comment carried by the upload, which cannot render both
+			versions of a message. Two visible items appear in the thread
+			rather than one: that is the accepted cost of the message
+			being a real message. Share first, message second, because a
+			message posted first announces a file that is not there yet.
+
+			`--identity-bot` shares as the team bot instead of this
+			member's own identity.
+
+			A share is visible to the conversation it was shared into, and
+			not beyond it. It is not public, and it is not hidden from the
+			people in that conversation.
+
+			On success, the completion response on stdout, plus
+			`SHARE_FILE_ID`, `SHARE_CONVERSATION` and `SHARE_BYTES` as
+			`KEY=value` lines on stderr. `SHARE_BYTES` is the byte count
+			that was actually sent.
+
+			**failure**: this is one operation to the caller, and it is
+			not finished until both the file and its accompanying message
+			are there. A failure names the step that failed, of three. Two
+			steps done and the third failed is a FAILURE, not a partial
+			success -- and a file shared with no accompanying message is a
+			failed operation however much of it you can see in the
+			conversation. An upload begun and not completed is abandoned
+			by the platform; there is nothing left for you to clean up.
+
+			**mentions**: two separate things, and they behave
+			differently. This operation takes no addressee argument --
+			addressing a message is --member-comms-slack-send-message's
+			own, and a share needing an addressee gets it from the message
+			beside it. A bare `@name` written inside `--comment` is yours,
+			and is recognised on its own terms: the token runs from the
+			`@` to the next whitespace or the end of the line. That
+			boundary is this tool's own rule, not a limit of the platform,
+			so a display name containing a space cannot be written this
+			way -- the platform renders such a name correctly when it is
+			addressed by id.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1600,21 +1783,21 @@
 			Installs skillset-link integration. `$MDLT_ORIGIN/myx/
 			myx.distro-agents/skillset/magic-team` is the operation's source
 			skillset directory used for link targets.
-			Target roots are every hidden skills directory a popular AI chat
-			client reads, all created if missing:
-			`<workspace>/.agents/skills`, `<workspace>/.github/skills` and
-			`<workspace>/.claude/skills` for `--scope workspace`, at the
+			Target roots are the hidden skills directories below, all
+			created if missing:
+			`<workspace>/.agents/skills` and `<workspace>/.claude/skills`
+			for `--scope workspace`, at the
 			WORKSPACE ROOT; `$HOME/.agents/skills`, `$HOME/.copilot/skills` and
 			`$HOME/.claude/skills` for `--scope user-home`. Every root gets the
 			same members and its own registry file.
 			Two distinct mechanisms populate `target/`, not one:
-			(1) **Bundle members**: for each member name seen in either
-			target root or bundle root (skipping `trash`), ensures
-			target/member is a symlink to bundle/member — only when that
-			member actually exists under the bundle root
-			(`myx.distro-agents/skillset/magic-team`); a member with no
-			matching bundle directory is silently skipped here, regardless
-			of its name.
+			(1) **Bundle members**: for each member directory under the
+			bundle root (`myx.distro-agents/skillset/magic-team`, skipping
+			`trash`), ensures target/member is a symlink to bundle/member.
+			A name present in a target root but not in the bundle is not
+			this mechanism's concern: mechanism (2) below covers a member
+			this workspace declares, and a member another workspace
+			installed into the same root is left as it stands.
 			(2) **Declared team-members**: separately, every workspace
 			project that declares `magic-team:team-member:skillset/<name>:
 			<host-glob>` in its own `project.inf` (matched against this
