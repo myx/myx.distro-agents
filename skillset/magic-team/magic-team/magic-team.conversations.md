@@ -134,18 +134,30 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
      approve, or confirm any other point in the discussion.
 
 16. **address-messages-clearly**: Address your messages clearly.
-   When preparing a reply, check each of these in turn:
-   - A general thought, command, readback, confirmation, status update, or anything else addressed to no
-     one in particular: state that plainly in the first line, before the text block — set apart from the
-     text itself where possible, e.g. as a labeled comment or hint.
+   Every message has an addressee — see `magic-team/magic-team.shared.md`'s "Every message is addressed,
+   tagged, and sent to Slack". Establish who this one is for, then check each of these in turn:
+   - A general thought, command, readback, confirmation, status update, or anything else whose addressee
+     is the conversation as a whole rather than a named party: state that plainly in the first line,
+     before the text block — set apart from the text itself where possible, e.g. as a labeled comment or
+     hint. A message with a named addressee is tagged, never given this form instead.
    - A question, or anything else genuinely requiring the addressee's reaction, reply, or confirmation
      before proceeding (a proposal awaiting sign-off, a blocking decision, anything where silence isn't a
      safe default), or a message not addressed to every participant of the conversation: explicitly tag/cc
      every intended addressee. On Slack specifically, this means an actual `@`-mention of the
-     person/team, not just posting where they might see it.
+     person/team, not just posting where they might see it. The test is the message as delivered: the
+     addressee is really mentioned and really notified, never the literal characters of a mention sitting
+     in the text, and never a send reporting success as evidence of either. A send path that cannot
+     produce a real mention is a defect to report — name who could not be tagged and what the send
+     returned; never treat the literal characters as having tagged them.
    - A message referencing part of the conversation: quote/cite the relevant point verbatim (at least
      with `> `, or better where the platform's formatting tools allow it).
    - Once addressed, proceed with whatever activity the reply was for.
+   verbatim-intent: `every message has an addressee, and one addressed to a named party is tagged rather
+   than labelled`.
+   verbatim-benchmark: `a status update written for the human-owner is not filed under the
+   conversation-at-large clause and given a first-line label instead — it tags him; and where the send
+   path cannot produce a real mention, that is reported as a defect rather than satisfied by the literal
+   characters of one sitting in the body`.
 
 17. **reflect-assessment-feedback**: Reflect assessment feedback.
    Before deciding to reply and/or act on a received, updated, or re-assessed incoming message, assess

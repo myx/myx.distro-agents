@@ -56,6 +56,8 @@ A member with a persona carries an `## Identity marks` block in its own `.basic.
 - **Image file** — in the member's own `resources/` subfolder, so a workspace is given the custom emoji from the repository rather than from somebody's downloads.
 - **Favourites** — optional. The small set that member reaches for: reactions, and text emojis where it uses them.
 
+**Each field is one line, and its value is the first whitespace-delimited token on it.** The line is a list item naming the field in bold, then a colon, then the value. Where the token is wrapped, the first wrapping delimits the value and anything outside the closing wrapper is not part of it. Where it is not wrapped, punctuation at the end of the token, followed by whitespace or the end of the line, is not part of the value. Punctuation between characters is always part of it. The rest of the line is commentary. A field whose value is a set is not read this way. Its own spec states how the set is separated.
+
 The image and the Unicode character are one mark in two renderings, so a member reads the same whether it renders or degrades. A shortcode whose image does not match its fallback is a defect, not a variant. This binds members; the human-owner's own entry stands outside it.
 
 Where the fallback renders, the drawing belongs to the reader's platform — vendors do not draw one character alike. The character is chosen for what it is, never for how it looks in one font.
@@ -718,6 +720,19 @@ A message continuing an existing exchange goes into that exchange's own thread; 
 
 Send path: `human-owner`'s own `reach-human-owner` procedure.
 
+## Every message is addressed, tagged, and sent to Slack
+
+Every message a member writes has an addressee — the human-owner, or the harness. There is no unaddressed message. A message left in a session is a message he has not received: he does not read the session, so neither a chat reply nor a session log reaches him.
+
+Where the current workspace has Slack configured, the message goes to Slack directly, and the sender decides the destination:
+
+- `magic-coordinator` sends to the human-owner's own Slack DM.
+- Any other member sends to the team channel.
+
+A message addressed to anyone carries a real tag for that addressee in the message as delivered — a mention the platform renders and the addressee is notified by, never the literal characters of one sitting in the text. Check what was actually stored, not the send's own success. A send path that cannot produce a real tag is a defect to report: name who could not be tagged and what the send returned.
+
+Broader than "Anything needing the human-owner to act goes to his Slack DM" above, and not a replacement for it: that rule governs where a request that blocks work goes, this one governs every message, a status or a report included.
+
 ## We build software, not fixes for one workspace
 
 The tool family is software with other clients. Any member can be set up in any other workspace, and those workspaces use the features *they* need — including features this one has no use for. Completeness is judged against what the software must offer generally, never against what is exercised here. Having no caller in this tree is not evidence that an operation is unneeded, an obviously incomplete operation family is itself the defect, and an operation's parameters are never narrowed to only what the local caller passes.
@@ -808,6 +823,8 @@ Used to check this file's own definitions against its own goals when it is updat
 - A generated session-context document's board section is long. It is never capped: silently dropping part of the work list is the failure that document exists to prevent.
 - A first run produces a negative or surprising result. The validity of the test itself is established before the result is reported, and residual caveats are stated rather than rounded up to a clean pass.
 - Existing content is moved or regrouped inside a file. Each block moves as a single edit whose removal and matching insertion are both visible in the same diff — never one large rewrite covering many moves.
+- A member's message asks the human-owner for nothing — a status, a report, finished work product. It still goes to Slack rather than staying in the session: `magic-coordinator` to his DM, any other member to the team channel.
+- A mention is written into a message body and the send reports success. The message is not tagged: what the platform stored is the check, and a send path that cannot produce a real mention is reported as a defect rather than treated as having tagged anyone.
 - An unrelated fix sits next to content the human-owner has already confirmed as good. The diff is scoped to the lines actually implicated; if the fix genuinely requires touching approved content, that is said first rather than done silently.
 - An instruction of the human-owner's is confirmed or relayed. His wording is quoted verbatim, or a direct yes/no question is asked — never a summary in different words.
 - A comment or annotation would be written into a file as part of an edit. Its exact wording is read back and approved first; acceptance of the surrounding change is not approval of the annotation.
