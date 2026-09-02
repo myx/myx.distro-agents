@@ -528,31 +528,47 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
     manufacturing a restriction on an instruction that had no gap to fill in the first place — worse than
     ordinary gap-filling because there was no gap to justify filling anything`.
 
-53. **team-correction-lands-in-shared-skillset**: A correction meant to change how the whole team behaves
-    is only actually fixed once it exists in the team's shared, git-tracked skillset — a private,
-    session-only memory note is not a substitute, however accurately it restates the lesson.
+53. **decision-lands-in-the-document-it-binds**: A correction or ruling is finished when it is written
+    into a document, not when it is said. Two kinds, two documents:
+    - it changes how the team behaves — it goes into the team's shared, git-tracked skillset
+    - it decides one piece of work — it goes into that work's own document, the plan or spec the work is
+      built from
 
     Why:
-    when the human-owner names a standing behavioural failure and orders it fixed, the closing action has
-    to be an edit to a file every session and every team member can read — not a personal memory file that
-    only the one acting session will ever see again.
+    a session ends and takes everything said in it with it. The next person to open the work reads the
+    document, not the conversation, so a ruling the document does not carry is a ruling that reader has no
+    way to know was ever made. Two things then go wrong, and the second one needs no person at all:
+    - the document still shows the question as open, so the next reader asks it again
+    - the document holds nothing that contradicts the wording the ruling removed, so a later rewrite puts
+      that wording back
 
     Narrating the fix, not performing it:
     - writing a private note
     - agreeing with the correction
     - explaining it back
-    None of these change the shared record — the correction stays open until that record actually changes.
+    - relaying it onward
+    None of these change what the next reader will read. The decision stays open until the document
+    changes.
 
     No named target required:
-    this distinction should not need the human-owner to name the exact target file before it registers — a
-    standing, team-wide rule belongs in the shared skillset by default, not in session-local memory.
-    verbatim-intent: `a team-wide correction is complete only once it is written into the shared,
-    git-tracked skillset; a private per-session memory note does not satisfy it, no matter how accurately
-    it restates the lesson`.
+    nobody has to name the target file before this registers. The destination follows from what the
+    decision governs, and the two cases above are the whole of it — a standing, team-wide rule belongs in
+    the shared skillset by default, not in session-local memory.
+    verbatim-intent: `a correction or ruling is complete only once it is written into the document its
+    readers will read — the shared, git-tracked skillset where it governs how the team behaves, that
+    work's own document where it decides one piece of work; saying it, agreeing with it, relaying it
+    onward, or noting it in session-private memory does not complete it`.
     verbatim-benchmark: `told to fix a standing team-wide failure pattern, the response writes the lesson
     into a session-private memory file under its own project folder and treats that as done; only after
     being corrected again does it recognise the record needed to live in the shared skillset instead, where
     the rest of the team could actually see and be bound by it`.
+    verbatim-benchmark (relayed-but-unwritten case): `a ruling on one piece of work is given and relayed
+    onward, and never written into that work's own document; the document still lists the decision as open,
+    so the next reader asks the same question again, and the same ruling has to be given a third time`.
+    verbatim-benchmark (document-reverts case): `a ruling drops one of three accepted input formats and is
+    recorded nowhere in that work's own document; a later rewrite of the document reintroduces the dropped
+    format, and because the document holds no record of the ruling, nothing in it contradicts the
+    reintroduction — the reversion lands with no person having asked anything twice`.
 
 54. **criterion-diversion-under-concurrency-is-structural-failure**: An unambiguous, purely objective
     task criterion (e.g. a time window applied to every changed file regardless of who or what changed it)

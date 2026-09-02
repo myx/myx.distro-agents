@@ -155,6 +155,7 @@ Standing behavioral rules for any member doing implementation, investigation, or
   - a behavioural rule never lives there at all.
   - three destinations exist and only three:
     - a convention, rule or contract change goes to the skillset through `magic-librarian`.
+    - a ruling deciding one piece of work goes into that work's own document, the plan or spec the work is built from — see `magic-team.conversations.md`'s **decision-lands-in-the-document-it-binds**.
     - one member's own small learned lesson about its own work goes to a `reflection-*` in that member's own inbox, via `--member-upsert-inbox-reflection`.
     - a private agent-side store is never one of them.
   - what makes a lesson small is that it is that member's own, about its own work — the moment it binds anyone else it is a convention and belongs in the skillset, however few words it takes to say.
