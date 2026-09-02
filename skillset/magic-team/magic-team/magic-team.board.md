@@ -165,7 +165,7 @@ The same item's *own* ongoing back-and-forth (still-pending replies on the ident
 
 `board-processed` items are retained then deleted — timing is **not uniform**, it varies by `board-item` type/size (a completed Project shouldn't be purged on the same clock as a resolved Note).
 
-**(draft) Per-type retention thresholds** — days in `board-processed` before GC removes an item from the board, subject to the `archive: true`/still-referenced diversions below:
+**Per-type retention thresholds** — days in `board-processed` before GC removes an item from the board, subject to the `archive: true`/still-referenced diversions below:
 
 | `board-item` prefix | Days |
 |---|---|
