@@ -25,13 +25,10 @@
 ## is the whole reason for discriminating here rather than restructuring it.
 ##
 ## "both directions via one op", above, describes the BOARD source only. The
-## inbox source is one-directional: --untrash is refused for it outright (see
-## the arm below), because it restores into board/<state> and an item taken
-## out of inboxes/<member>/processed/ has no board state to return to. Note
-## the syntax lines above accordingly: [--untrash] appears on the board form
-## and on no other. An inbox-sourced item still SURVIVES in trash/ and can be
-## put back by hand -- that is a fact about the file, not a capability of this
-## op, and the two must not be read as the same thing.
+## inbox source does not relocate at all: it DELETES the item outright, so
+## --untrash is refused for it (see the arm below) and there is nothing to
+## restore -- the deletion is final. Note the syntax lines above accordingly:
+## [--untrash] appears on the board form and on no other.
 ##
 ## No --help entry: internal plumbing, called by
 ## --magic-heartbeat-board-item-trash and --librarian-inbox-item-trash.
@@ -150,27 +147,15 @@ case "$1" in
 				;;
 			esac
 			local inboxSourcePath="$inboxDirResolved/$inboxItemName"
-			local inboxTargetPath="$MDAT_DATA_ROOT/trash/$inboxItemName"
 			if [ ! -f "$inboxSourcePath" ] ; then
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found: $inboxSourcePath" >&2
-				set +e ; return 1
-			fi
-			##
-			## HAZARD: trash/ is FLAT and `mv` has no -n, so a basename
-			## collision between two different inboxes overwrites silently, exit
-			## 0, no diagnostic. Zero collisions were measured in one particular
-			## batch -- that is a fact about that data, not a property of this
-			## design. Assert, then move.
-			##
-			if [ -e "$inboxTargetPath" ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: trash target already exists, refusing to overwrite: $inboxTargetPath (source left in place: $inboxSourcePath)" >&2
 				set +e ; return 1
 			fi
 			## `--` before the operands is independent of the leading-'-'
 			## rejection above: validation guards bad input, `--` guards a later
 			## edit that bypasses validation.
-			mv -- "$inboxSourcePath" "$inboxTargetPath"
-			echo "# $MDSC_CMD: board-trash: moved ${inboxSourcePath#"$MDAT_DATA_ROOT"/} to ${inboxTargetPath#"$MDAT_DATA_ROOT"/}" >&2
+			rm -f -- "$inboxSourcePath"
+			echo "# $MDSC_CMD: board-trash: deleted ${inboxSourcePath#"$MDAT_DATA_ROOT"/}" >&2
 			return 0
 		fi
 

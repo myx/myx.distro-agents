@@ -40,7 +40,6 @@
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
-📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
@@ -1265,45 +1264,18 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
-			Discards one already-processed inbox item: moves
-			`inboxes/<member>/processed/<item-filename>` to `trash/`.
+			Discards one already-processed inbox item: DELETES
+			`inboxes/<member>/processed/<item-filename>` outright.
 			`--from-inbox:` is colon-style, never a spaced pair — a spaced
 			pair would silently swallow a neighbouring option. `<member>`
 			must be a bare name; `<item-filename>` must be a bare filename
-			ending in `.md`. Refuses rather than overwrites if a file of the
-			same name is already in `trash/` (`trash/` is flat, so two
-			inboxes can hold the same basename).
+			ending in `.md`.
 
-			**NOT UNDOABLE BY TOOLING.** Two separate facts, and neither
-			implies the other. The *file* survives: `trash/` relocates rather
-			than deletes, so the item can be put back by hand. The
-			*operation* has no inverse: the internal `--untrash` direction is
-			refused outright for an inbox-sourced item, because it restores
-			into `board/<state>` and an item taken out of
-			`inboxes/<member>/processed/` has no board state to return to.
+			**NOT UNDOABLE.** The item is deleted, not relocated: no copy is
+			left anywhere, and the operation has no inverse.
 
-			Calibrate a batch accordingly. "The file still exists" is not
-			"a mistake can be undone by running something" — undoing means
-			moving files back by hand, one at a time. Per-item trash
-			provenance would change this and is deliberately not built yet.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
-		--librarian-inbox-to-retained <team-member> <item-filename> --from-inbox:<member> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			Promotes one already-processed inbox item into `board/retained`:
-			reads `inboxes/<member>/processed/<item-filename>`, writes
-			`board/retained/<item-filename>`, and relocates the original to
-			`trash/`. Same `--from-inbox:`/bare-name/`.md` rules as
-			`--librarian-inbox-item-trash`. `--header:*` and the three
-			body-input modes behave exactly as they do on the
-			`--magic-board-to-*` family; `--from-state:` is rejected outright.
-			No field is auto-stamped — anything the move should record is
-			passed as `--header:*`.
-
-			**ONE-WAY**: there is no inverse. A board-to-board move reverses by
-			swapping the two states; this direction has no `--to-inbox:`
-			counterpart, so a call cannot be undone by tooling. Treat every
-			call as final.
+			Calibrate a batch accordingly. A mistake cannot be undone by
+			running something, and cannot be undone by hand either.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1311,24 +1283,23 @@
 			Moves one item OUT of `<team-member>`'s own live inbox ROOT into
 			that same inbox's `processed/` — reads
 			`inboxes/<team-member>/<item-filename>`, writes
-			`inboxes/<team-member>/processed/<item-filename>`, and relocates
-			the original to `trash/`. `<item-filename>` must be a bare
-			filename ending in `.md`. Unlike its two siblings above, there
+			`inboxes/<team-member>/processed/<item-filename>`, and deletes
+			the original. `<item-filename>` must be a bare
+			filename ending in `.md`. Unlike its sibling above, there
 			is no `--from-inbox:<member>` here — the source and the acting
 			member are the same one positional, since the source is that
 			member's own inbox root, not a cross-member processed/ item.
 			`--from-state:`/`--from-inbox:` are both rejected outright if
 			given. `--header:*` and the three body-input modes behave
-			exactly as they do on `--librarian-inbox-to-retained`/the
-			`--magic-board-to-*` family. Refuses rather than overwrites if
-			`processed/` or `trash/` already holds that basename, leaving
+			exactly as they do on the `--magic-board-to-*` family. Refuses
+			rather than overwrites if
+			`processed/` already holds that basename, leaving
 			the source in place, so a refused call is safe to fix and
 			re-run.
 
-			**ONE-WAY**, same shape as `--librarian-inbox-to-retained`:
-			there is no inverse, and the original root file ends up in
-			`trash/` too (survivable by hand) once the processed/ copy is
-			written. Treat every call as final.
+			**ONE-WAY**: there is no inverse, and the original root file is
+			deleted once the processed/ copy is written. Treat every call as
+			final.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

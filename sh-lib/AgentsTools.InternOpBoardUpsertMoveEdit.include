@@ -70,10 +70,10 @@ case "$1" in
 	## of the resolved body, in the order given (repeat upserts/removes on
 	## the same field: last wins; repeat appends on the same field:
 	## cumulative, in order) -- then the result is written to a temp file
-	## and `mv`'d into place atomically. On an actual move (--from-state !=
-	## <to-state>), the OLD file is `mv`'d to trash/ (a standalone sibling
-	## of board/, not one of its own states) rather than removed -- not
-	## destroyed, just relocated, for now.
+	## and `mv`'d into place atomically. On an actual move, the OLD file's
+	## disposal depends on the source: --from-inbox: DELETES it, so the new
+	## board item is then the only copy; --from-state: `mv`'s it to trash/ (a
+	## standalone sibling of board/, not one of its own states).
 	--intern-op-board-upsert-move-edit)
 		shift
 		## --context <caller-op>: the operation the caller actually invoked,
@@ -314,29 +314,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## Pre-flight trash-collision refusal, for the --from-inbox: source only.
-		## Hoisted here deliberately: the later check further down runs AFTER the
-		## new board item has already been written, so a collision detected there
-		## aborts with the item DUPLICATED -- written into <to-state> and still
-		## sitting in the inbox. Refusing before any write means the failure
-		## leaves the tree exactly as it was found.
-		##
-		## The predicate depends on nothing the write produces -- both
-		## $fromInbox and $itemName are settled by the exclusivity check above --
-		## so this costs no restructuring of the option loop.
-		##
-		## The later check is deliberately KEPT rather than replaced. Two checks
-		## around one write is the correct shape, not redundancy: this one makes
-		## the common case clean, and the late one still catches a file that
-		## appeared in trash/ during the write. Neither subsumes the other.
-		##
-		## No sourcePath/targetPath equality term is needed here the way the
-		## late check needs one: for the inbox source, sourcePath is under
-		## inboxes/ and targetPath under board/, so they can never be equal.
-		if [ -n "$fromInbox" ] && [ -e "$MDAT_DATA_ROOT/trash/$itemName" ] ; then
-			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (nothing written; source left in place)" >&2
-			set +e ; return 1
-		fi
 		## Three-way check via a counter, not a pairwise scriptLang/bodyMode
 		## comparison -- a pairwise check only catches one of the six
 		## possible orderings across three flags, an asymmetric gap that
@@ -404,20 +381,20 @@ case "$1" in
 		mv "$tmpFile" "$targetPath"
 
 		if [ "$isCreate" = "false" ] && [ "$sourcePath" != "$targetPath" ] ; then
-			##
-			## HAZARD: trash/ is FLAT and `mv` has no -n, so a basename
-			## collision overwrites silently, exit 0, no diagnostic. Asserted
-			## for the inbox source only -- the board-sourced path predates this
-			## arm and is deliberately left behaving exactly as it did. `--`
-			## before the operands is independent of that: validation guards bad
-			## input, `--` guards a later edit that bypasses validation.
-			##
-			if [ -n "$fromInbox" ] && [ -e "$MDAT_DATA_ROOT/trash/$itemName" ] ; then
-				echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (new item already written to $targetPath; source left in place: $sourcePath)" >&2
-				set +e ; return 1
+			if [ -n "$fromInbox" ] ; then
+				## `--` guards a later edit that bypasses validation.
+				rm -f -- "$sourcePath"
+				echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, previous ${sourcePath#"$boardRoot"/} deleted" >&2
+			else
+				##
+				## HAZARD: trash/ is FLAT and `mv` has no -n, so a basename
+				## collision overwrites silently, exit 0, no diagnostic. `--`
+				## before the operands: validation guards bad input, `--`
+				## guards a later edit that bypasses validation.
+				##
+				mv -- "$sourcePath" "$MDAT_DATA_ROOT/trash/$itemName"
+				echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, previous ${sourcePath#"$boardRoot"/} moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
 			fi
-			mv -- "$sourcePath" "$MDAT_DATA_ROOT/trash/$itemName"
-			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, previous ${sourcePath#"$boardRoot"/} moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
 		else
 			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}" >&2
 		fi

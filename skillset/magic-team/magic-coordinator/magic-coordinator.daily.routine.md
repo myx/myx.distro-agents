@@ -84,7 +84,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - step: where several say the same thing, replace them with one or two current ones — retire what is resolved, promote what has formed into an `inquiry-*`/proposal.
    - Anything a member's status raises that needs real discussion doesn't get resolved inline here — flag it for **questions-then-conclude** or the backlog instead.
 9. **update-todos**: reflect what the roll call surfaced in the current session's `TodoWrite` (today's working list) for the members about to get a work session.
-   - Member with nothing assigned but an idle-task menu of more than one file, steps:
+   - **Held until further notice — a temporary hold, not a removal; only the human-owner lifts it.** No idle task is assigned while the hold stands. Held instruction: member with nothing assigned but an idle-task menu of more than one file, steps:
      - randomly pick one `idle-tasks/*.idle.md` file now
      - put *that specific file* in the todo — don't leave "run the idle menu" as a vague item
    - Every member — acting members and `routine-*` virtual members alike — always has one more idle-task candidate available beyond whatever `idle-tasks/*.idle.md` files it happens to have.
@@ -157,7 +157,7 @@ All statements apply at the same time, always. These rules override a participan
 - `magic-coordinator` holds exclusive write authority over the board.
 - A member's status is ambiguous, or the roll call can't tell what they need (**roll-call**): don't guess a work assignment from a thin signal — flag it for **questions-then-conclude**, or leave it for the backlog.
 - Nothing-to-report is a normal, valid outcome for a member.
-- A member has more than one plausible idle-task file and no assigned work (**update-todos**): pick one at random and name it explicitly.
+- A member has more than one plausible idle-task file and no assigned work (**update-todos**): the random pick is held until further notice — a temporary hold, not a removal, lifted only by the human-owner. Held instruction: pick one at random and name it explicitly.
 - Do not let "figure out priorities among idle tasks" become its own mid-routine investigation — that is out of scope for a daily roll call.
 - A dispatched agent (**fan-out-work-sessions**) reports something ambiguous — not clearly stuck, not clearly done: default to treating it as still `board-running` (no state change) rather than guessing.
 - Ask the agent directly for a clearer status if there's time left in the work-session window.

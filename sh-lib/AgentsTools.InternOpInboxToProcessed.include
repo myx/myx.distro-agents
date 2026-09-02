@@ -16,7 +16,7 @@
 ## --intern-op-board-upsert-move-edit's --from-inbox: source (reads
 ## inboxes/<member>/processed/, writes board/<state>/) nor
 ## --intern-op-board-trash's --from-inbox: source (reads
-## inboxes/<member>/processed/, writes trash/) can move an item OUT of a
+## inboxes/<member>/processed/, deletes it) can move an item OUT of a
 ## member's live inbox/ ROOT -- both already assume processed/ as the
 ## starting point. This op is that missing first step:
 ## inboxes/<member>/<item-filename> (root) -> inboxes/<member>/processed/<item-filename>.
@@ -32,13 +32,10 @@
 ## inboxes/<member>/processed/), so there is no <to-state> positional and no
 ## board-state whitelist here.
 ##
-## Old-source handling ALSO mirrors the --from-inbox sibling: once the new
-## content is written to inboxes/<member>/processed/<item-filename>, the
-## ORIGINAL root file is `mv`'d to trash/ (a standalone sibling of board/,
-## not one of its own states) rather than removed outright -- not destroyed,
-## just relocated, same "leaves a copy in trash/ too" shape
-## --librarian-inbox-to-retained's own header comment documents for its
-## sibling.
+## Old-source handling: once the new content is written to
+## inboxes/<member>/processed/<item-filename>, the ORIGINAL root file is
+## DELETED outright -- not relocated. The processed/ copy is then the only
+## copy of that item.
 ##
 
 case "$1" in
@@ -233,15 +230,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## Pre-flight trash-collision refusal, same reasoning as
-		## AgentsTools.InternOpBoardUpsertMoveEdit.include's own copy: check
-		## BEFORE any write, so a collision aborts with the tree exactly as
-		## it was found rather than with the item duplicated.
-		if [ -e "$MDAT_DATA_ROOT/trash/$itemName" ] ; then
-			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (nothing written; source left in place)" >&2
-			set +e ; return 1
-		fi
-
 		local body
 		if [ "$bodyMode" = "script" ] ; then
 			local scriptContent existingContent scriptFile
@@ -288,23 +276,9 @@ case "$1" in
 		printf '%s\n' "$body" > "$tmpFile"
 		mv "$tmpFile" "$targetPath"
 
-		##
-		## HAZARD: trash/ is FLAT and `mv` has no -n, so a basename
-		## collision overwrites silently, exit 0, no diagnostic -- same
-		## hazard AgentsTools.InternOpBoardUpsertMoveEdit.include's own
-		## --from-inbox arm documents. Re-checked here (not just in the
-		## pre-flight above) because the pre-flight predicate depends on
-		## nothing the write produces, but a file could in principle appear
-		## in trash/ during the write itself; neither check subsumes the
-		## other. `--` before the operands is independent of that: guards a
-		## later edit that bypasses validation.
-		##
-		if [ -e "$MDAT_DATA_ROOT/trash/$itemName" ] ; then
-			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: trash target already exists, refusing to overwrite: $MDAT_DATA_ROOT/trash/$itemName (new item already written to $targetPath; source left in place: $sourcePath)" >&2
-			set +e ; return 1
-		fi
-		mv -- "$sourcePath" "$MDAT_DATA_ROOT/trash/$itemName"
-		echo "# $MDSC_CMD: inbox-to-processed: wrote ${targetPath#"$inboxDirResolved"/}, previous ${sourcePath#"$inboxDirResolved"/} moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
+		## `--` guards a later edit that bypasses validation.
+		rm -f -- "$sourcePath"
+		echo "# $MDSC_CMD: inbox-to-processed: wrote ${targetPath#"$inboxDirResolved"/}, previous ${sourcePath#"$inboxDirResolved"/} deleted" >&2
 
 		rm -f "$headerOpsFile"
 		trap - EXIT
