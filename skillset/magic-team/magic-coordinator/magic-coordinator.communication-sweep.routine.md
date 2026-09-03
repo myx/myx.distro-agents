@@ -44,7 +44,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
       - Bigger/questionable, concerns specific member(s) only → propose a `magic-coordinator.one-on-one.routine` session.
       - Worth recording, no investigation needed now → into the backlog `magic-team.grooming.routine` already triages.
       - Never start a new epic/initiative unilaterally inline.
-      - Normalize a genuinely new incoming item into a board-item (`note-*.md`/`inquiry-*.md`, per the team's own entity model): write it into `magic-coordinator`'s own inbox by default, or directly into the relevant member's own inbox via `--member-upsert-inbox-note` if clearly addressed to someone specific — filename shape mandatory, `note-<date>-<matter>.md` / `inquiry-<date>-<matter>.md`. Solo `magic-coordinator` work; no deep classification/enqueue-todo/triage here — that's `magic-team.grooming.routine`'s job later.
+      - Normalize a genuinely new incoming item into a board-item (`note-*.md`/`inquiry-*.md`, per the team's own entity model): write it into `magic-coordinator`'s own inbox by default, or directly into the relevant member's own inbox via `--member-inbox-note-upsert` if clearly addressed to someone specific — filename shape mandatory, `note-<date>-<matter>.md` / `inquiry-<date>-<matter>.md`. Solo `magic-coordinator` work; no deep classification/enqueue-todo/triage here — that's `magic-team.grooming.routine`'s job later.
       - Slack: apply the `slack-reaction-tracking` procedure's Act-stage reaction on **this message**, now.
    4. **reply-if-warranted**: respect each platform's own send/confirm rules, for this message specifically.
       - minimum floor: acknowledge every non-ignored incoming message.
@@ -61,7 +61,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    5. **advance-watermark**: only now, after this message's full local sequence above is done, does this message count as swept — record its own timestamp as this pass's running high-water mark (used by **update-context** below). Move to the next message in the ordered set.
 # Closure steps
 
-1. **update-context**: fold platform mechanical-state findings into the `sweep-state-note` via `--magic-sweep-state-upsert` — `--edit-patch-from-stdin` for a single-field update, full-content write only for a genuine whole-record rewrite — invoked through `mcp__myx_distro__execute` only. Fold identity/routing data into the `roster-note` via `--member-upsert-inbox-note`.
+1. **update-context**: fold platform mechanical-state findings into the `sweep-state-note` via `--magic-sweep-state-upsert` — `--edit-patch-from-stdin` for a single-field update, full-content write only for a genuine whole-record rewrite — invoked through `mcp__myx_distro__execute` only. Fold identity/routing data into the `roster-note` via `--member-inbox-note-upsert`.
    - **`last_swept_ts`, precisely**: **process-each-message**'s own running high-water mark — the timestamp of the last message that actually completed its full read→analyze→act→reply-if-warranted→react sequence this pass. Never wall-clock time at whatever moment this Closure step happens to run — this step runs after every message's own processing, which can take minutes, and writing "now" here silently advances the cutoff past any message that arrived during that processing window, permanently skipping it on every later pass (confirmed real-world failure: a human-owner reply arrived after the last message's own processing finished but before this write, and no later pass ever surfaced it). If **check** found zero messages this pass, `last_swept_ts` is left unchanged from its prior stored value, never bumped to now.
    - A message's own `:eyes:` reaction (or lack of one) is the visible, auditable record of whether that specific message was ever actually processed — deliberately redundant with `last_swept_ts`, so a human can verify sweep coverage by looking at real Slack reactions, not just trusting the stored state note.
    - Update the own-status Trello card: a standing checklist of what `magic-coordinator` is currently doing and what it needs from the human team, legible to someone who wasn't in the conversation — surface anything blocked on the human team here.
@@ -127,7 +127,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--member-comms-email-check <team-member>` (**check**: Email)
 - `--member-comms-trello-check <team-member>` (**check**: Trello)
 - `--member-comms-slack-send-message <team-member> <target> [text...]` (**reply-if-warranted**)
-- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (**act**: normalize a new incoming item into an inbox record)
+- `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (**act**: normalize a new incoming item into an inbox record)
 - `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (**reply-if-warranted**: email)
 - `--member-comms-email-mark-seen <team-member> <uid>` (**reply-if-warranted**: mark-read, email)
 - `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]` (`slack-reaction-tracking` procedure, throughout)
@@ -151,9 +151,9 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 `DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>`. Identity (native user token vs. team bot token) is resolved internally — the caller never specifies it: auto-detected from `<team-member>`/`--identity-bot`/configured token as before, and if a send fails with `channel_not_found` under the auto-detected identity, the op retries once under the other identity on its own before giving up.
 
-## `--member-upsert-inbox-note` Operation Reference
+## `--member-inbox-note-upsert` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
+`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
 
 ## `--member-comms-email-send` Operation Reference
 

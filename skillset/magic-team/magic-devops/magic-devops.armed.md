@@ -50,7 +50,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - A fix does require touching a script during real operation: consult `magic-developer`'s `reference/shell.md` for POSIX `sh`/AWK language mechanics. Most day-to-day authorship now runs through the owning `keeper-*` though.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way.
 - Don't touch Claude Code's own application state — anything under `~/.claude/`, `~/.claude.json`, or a generator whose own name/purpose is Claude-permissions-specific — even while chasing a real, related-seeming bug. Only a task explicitly naming one of these brings it into scope. This ecosystem's own workspace-level `.claude/settings.json` is different: real in-scope tooling (`--install-workspace-restrictions`/`--install-workspace-integrations`) manages that one, owned by the owning `keeper-*`.
-- Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-upsert-inbox-note` (this member's own inbox).
+- Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-inbox-note-upsert` (this member's own inbox).
 - Tooling execution is this skill's own mandate, exercised through `magic-tooling` only — but a destructive or irreversible operation is never self-authorised: it needs its own sanction before it runs. Escalate an unsanctioned one to `magic-coordinator` rather than proceeding. The same route applies to anything this file does not allow at all: escalate it to `magic-coordinator`, never reach for it directly.
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, in `magic-team`'s own shared/floor tooling, or in the "Routine-specific tooling" section of a routine this member is currently participating in.
 - **Classify every operation that changes any state before running it, by two questions in order.** Both must answer cleanly for Tier 1; a "no", or an answer needing investigation first, is Tier 2.
@@ -131,12 +131,12 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-upsert-inbox-note <magic-devops> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-note-upsert <magic-devops> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-comms-slack-send-message <magic-devops> <target> [--identity-bot] [text...]`
 
-## `--member-upsert-inbox-note` Operation Reference
+## `--member-inbox-note-upsert` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
+`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
 
 ## `--member-comms-slack-send-message` Operation Reference
 

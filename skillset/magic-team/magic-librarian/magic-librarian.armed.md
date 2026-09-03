@@ -75,7 +75,7 @@ Steps:
 ## `own-inbox-batch-processing` — process this skill's own doc-fix inbox
 
 Steps:
-1. **Landing**: any team member (including this skill itself) files a note describing a needed doc-fix via `--member-upsert-inbox-note magic-librarian <item-filename>`. Filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`. Small/individual findings do not get their own immediate ad hoc dispatch.
+1. **Landing**: any team member (including this skill itself) files a note describing a needed doc-fix via `--member-inbox-note-upsert magic-librarian <item-filename>`. Filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`. Small/individual findings do not get their own immediate ad hoc dispatch.
 2. **Timing**: process this inbox once per workday, before `magic-coordinator.daily.routine`, wired into `magic-coordinator.heartbeat.routine`'s first-today branch alongside its existing `magic-team.grooming.routine` pass.
 3. **Processing**, steps:
    - collect all doc-fix items in this inbox first
@@ -254,7 +254,7 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 - `--librarian-list-team-files-dates [<path>...]`
 - `--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>`
 - `--librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
-- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]`
 
 Note: `--librarian-list-team-files`/`-dates` (below) are this skill's dedicated replacement for raw `Bash`/`stat`/`find` when listing/verifying skill files — same optional scope args on both (zero or more: a bare path relative to the skill-root, or an absolute path resolving inside it; no args means the whole skill-root; a missing/outside-root arg is skipped and reported, not a hard abort).
@@ -281,9 +281,9 @@ Note: `--librarian-inbox-item-trash` (below) is inbox-sourced and does not rever
 
 `DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves one item out of `<team-member>`'s own live inbox root into that same inbox's processed-items area: the first step the sibling above already assumes has happened. Unlike it, there is no `--from-inbox:<member>` here — the source and the acting member are the same one positional, since the source is that member's own inbox root, not a cross-member processed-items item. `--from-state:`/`--from-inbox:` are both rejected outright if given. Same `<item-filename>` rules as its sibling, and `--header:*` and the three body-input modes behave as they do on the `--magic-board-to-*` family. Refuses rather than overwrites when that basename is already held, leaving the source in place, so a refused call is safe to fix and re-run. **ONE-WAY — treat every call as final.**
 
-## `--member-upsert-inbox-note` Operation Reference
+## `--member-inbox-note-upsert` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into any member's own personal inbox, including `magic-librarian`'s own — the standard cross-member handoff mechanism, and the landing point for `own-inbox-batch-processing`'s own doc-fix notes. `<member>` must already exist as a real skill directory; `<item-filename>` must be a bare filename. Content via stdin by default, or via `--from-file <path>`.
+`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into any member's own personal inbox, including `magic-librarian`'s own — the standard cross-member handoff mechanism, and the landing point for `own-inbox-batch-processing`'s own doc-fix notes. `<member>` must already exist as a real skill directory; `<item-filename>` must be a bare filename. Content via stdin by default, or via `--from-file <path>`.
 
 ## `--member-append-session-transcript` Operation Reference
 

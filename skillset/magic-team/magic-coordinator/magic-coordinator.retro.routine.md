@@ -74,7 +74,7 @@ All statements apply at the same time, always. These rules override a participan
 - Retro never implements a proposal during its own closing, however small. This covers a member's own **self-analyse-per-member** self-analysis proposal too, same as any other **assess-methodology-failures**/**discuss-with-the-user** finding.
 - A cross-member pattern (**surface-cross-member-patterns**) looks like it might actually be a genuine architecture or design question, not just a shared operational gripe: flag it for `magic-architect` rather than trying to resolve it as an ordinary retro finding — retro identifies patterns, it does not do structural design itself.
 - An improvement proposal from **assess-methodology-failures** looks big enough to affect how the whole team works, not a small contained fix: pause and confirm explicitly with the user that this is becoming build work — not something retro quietly escalates into a dispatch on its own.
-- Unsure whether a finding belongs in retro at all, vs. grooming/daily: retro is for reflection and methodology, not backlog triage — if it's really about re-prioritizing existing work rather than how the work has been going, note it via the `--member-upsert-inbox-note` operation and defer to `magic-team.grooming.routine`, instead of stretching retro's own scope to cover it.
+- Unsure whether a finding belongs in retro at all, vs. grooming/daily: retro is for reflection and methodology, not backlog triage — if it's really about re-prioritizing existing work rather than how the work has been going, note it via the `--member-inbox-note-upsert` operation and defer to `magic-team.grooming.routine`, instead of stretching retro's own scope to cover it.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as the routine actually runs — proactive, as-it-happens posts, not only a summary batched into close-out.
 - `# Steps`/`# Closure steps` sequencing follows `magic-team/magic-team.shared.md`'s own rule — see there for the full statement.
@@ -86,7 +86,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-comms-slack-send-message <team-member> <target> [text...]` (Slack activity-tracking obligation)
-- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (scope-boundary rule: defer a backlog-triage finding to `magic-team.grooming.routine`)
+- `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (scope-boundary rule: defer a backlog-triage finding to `magic-team.grooming.routine`)
 - `--magic-retro-lock-acquire <team-member> <owner-label>` (**acquire-lock**: acquire this routine's own lock)
 - `--magic-retro-lock-refresh <team-member>` (**discuss-with-the-user**: hold the lock across the discussion)
 - `--magic-retro-close-state-and-unlock <team-member>` (Closure steps: release the lock)
@@ -105,9 +105,9 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 `DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
 
-## `--member-upsert-inbox-note` operation reference
+## `--member-inbox-note-upsert` operation reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
+`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
 
 # Maintainer Notes
 

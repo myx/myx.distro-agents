@@ -64,7 +64,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **collect-reflections-output**: processes own inbox.
      - **post-opening-broadcast**: posts an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here).
 5. **librarian-confirms-roster**, in parallel with **sweep-comms-read**: dispatch `magic-librarian` to confirm the `roster-note` and `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section are current (roster/domain and workspace/tooling facts, read as trusted day-to-day, not re-derived here).
-   - Refresh the `roster-note` via the `--member-upsert-inbox-note` operation if it drifted.
+   - Refresh the `roster-note` via the `--member-inbox-note-upsert` operation if it drifted.
    - Per-member backlog itself lives on the board (coordinator-exclusive write authority).
 6. **sort-incoming**, in parallel with **librarian-confirms-roster** and **sweep-comms-read**: run `magic-team.process-inbox.routine magic-coordinator` — inline execution (own identity). A genuine second pass, not a repeat of **collect-reflections-output**: that one picks up what **fold-in-learned-lessons** just filed, this one is the sorting read across everyone's `inquiry-*`/`reflection-*`/status reports and reactions accumulated since the last daily, so **roll-call** speaks to what actually came in.
    - Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
@@ -179,7 +179,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 - `--member-comms-slack-send-message <team-member> <target> [text...]` (**ping-stale-interviews**: interview-thread nudge/re-engagement messages; **questions-then-conclude**'s autonomous invocation: post open questions to `magic-team`; Slack activity-tracking obligation)
 - `--member-work-session-input-scan <team-member>` (**roll-call**: per-member status read)
-- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (**librarian-confirms-roster**: refresh the `roster-note` if it drifted)
+- `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (**librarian-confirms-roster**: refresh the `roster-note` if it drifted)
 - `--magic-daily-lock-acquire <team-member> <owner-label>` (**acquire-lock**: acquire this routine's own lock)
 - `--magic-daily-lock-refresh <team-member>` (**spawn-morning-review** and **fan-out-work-sessions**: hold the lock across this routine's long-running waits)
 - `--magic-daily-close-state-and-unlock <team-member>` (Closure steps: release the lock)
@@ -201,9 +201,9 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## `--member-work-session-input-scan` operation reference
 
 `DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>` — read-only: one member's own current work-session input — personal, not routine-dictated (every armed member runs this against its own name as it becomes armed, regardless of which routine triggered the arming).
-## `--member-upsert-inbox-note` operation reference
+## `--member-inbox-note-upsert` operation reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into any member's own personal inbox; content via stdin. The `roster-note` is one continuously-updated note under a fixed filename.
+`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into any member's own personal inbox; content via stdin. The `roster-note` is one continuously-updated note under a fixed filename.
 
 # Maintainer Notes
 

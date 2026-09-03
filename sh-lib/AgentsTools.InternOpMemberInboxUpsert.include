@@ -10,8 +10,8 @@
 ## $1/$@/$MDSC_CMD.
 ##
 ## No --help entry: this is internal plumbing. The generic write mechanism
-## every --member-upsert-inbox-note/--member-upsert-member-inquiry/
-## --member-upsert-inbox-reflection wrapper calls -- each wrapper validates
+## every --member-inbox-note-upsert/--member-upsert-member-inquiry/
+## --member-inbox-reflection-upsert wrapper calls -- each wrapper validates
 ## and forwards its own allowed argument set, none of them call each other.
 ##
 ## <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]

@@ -41,10 +41,11 @@
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
-📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
+📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-read-board-item <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path>
@@ -1491,7 +1492,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
+		--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a note into your own personal
 			inbox. <member> must already exist as a real
 			skill directory; <item-filename> must be a bare filename. The
@@ -1507,13 +1508,10 @@
 			substring match-and-replace against the existing note -- a
 			patch whose old text isn't found, or matches more than once
 			without replace_all, fails loud before anything is written.
-			Renamed
-			from --write-inbox-note (verb-suffixed to match the existing
-			--owner-workspace-upsert/-forget/-list/-current convention,
-			first op under the --member-* prefix category) —
-			--write-inbox-note still works, unchanged, as a thin
-			backward-compatible shim calling this op, but is no longer
-			documented separately here.
+			Renamed from --member-upsert-inbox-note (itself earlier renamed
+			from --write-inbox-note) — both old names still work, unchanged,
+			as thin backward-compatible shims calling this op, but neither
+			is documented separately here.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1527,7 +1525,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
+		--member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a reflection-type item into a
 			member's own personal inbox. <member> must already exist as a
 			real skill directory; <item-filename> must be a bare filename.
@@ -1536,14 +1534,14 @@
 			overwrites the target outright. --edit-patch-from-stdin IS
 			accepted here (unlike --member-upsert-member-inquiry, which
 			rejects it) and behaves exactly as on
-			--member-upsert-inbox-note: a JSON array of {"old": <text>,
+			--member-inbox-note-upsert: a JSON array of {"old": <text>,
 			"new": <text>, "replace_all": <bool, default false>} patch
 			objects on stdin, each applied in order as an exact literal
 			(non-regex) substring match-and-replace against the existing
 			item, failing loud before any write if a patch's old text isn't
 			found or matches more than once without replace_all.
 
-			Mechanically identical to --member-upsert-inbox-note (both are
+			Mechanically identical to --member-inbox-note-upsert (both are
 			thin wrappers over the same shared write primitive; neither calls
 			the other) -- kept as its own distinctly-named op because
 			reflection notes are an established content family in this team's
@@ -1553,7 +1551,9 @@
 			inquiry. <item-filename> is conventionally expected to contain
 			"reflection-" in its slug, matching every existing example, but
 			that is a naming convention to follow, not something enforced by
-			this operation.
+			this operation. Renamed from --member-upsert-inbox-reflection —
+			the old name still works, unchanged, as a thin backward-compatible
+			shim calling this op, but is no longer documented separately here.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1570,7 +1570,7 @@
 			--member flag. It must already be a real team member (sanity check);
 			the target month's own bucket is
 			created on demand if missing (same laziness as
-			--member-upsert-inbox-note's inbox handling). --workspace-root is
+			--member-inbox-note-upsert's inbox handling). --workspace-root is
 			still required and validated (absolute, existing directory) but
 			does not determine the target path. Does not rewrite prior content.
 			Missing target transcript is an error unless --create is passed.
@@ -1578,6 +1578,22 @@
 			--from-stdin, or --from-file <path>.
 			Returns append audit details: target path plus added line and byte
 			counts.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]
+			Read-only accessor for one item in a member's own personal inbox,
+			by bare <item-filename> filename. <member> is both the
+			sanity-checked caller identity and the actual inbox searched --
+			same convention --member-inbox-note-upsert already uses for
+			whose inbox a write targets. Searches the live inbox root first,
+			then its own processed/ subfolder, first match wins.
+			<item-filename> must carry one of the four legitimate
+			personal-inbox type prefixes -- note-/inquiry-/reflection-/
+			warning- -- enforcing the type policy directly from the
+			filename, the same way --member-read-audit-item restricts to
+			transcript-* names. Optional line range is supported via
+			--start-line/--end-line and must be provided as a complete pair.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -2902,14 +2918,14 @@
 
 		# Post a note into another member's own personal inbox
 		```
-		DistroAgentsTools.fn.sh --member-upsert-inbox-note keeper-myx 2026-07-22-note-example.md <<'EOF'
+		DistroAgentsTools.fn.sh --member-inbox-note-upsert keeper-myx 2026-07-22-note-example.md <<'EOF'
 		... note content ...
 		EOF
 		```
 
 		# Same, via --from-file instead -- write content with a plain Write tool call
 		# first, then this stays a single-line command
-		`DistroAgentsTools.fn.sh --member-upsert-inbox-note keeper-myx 2026-07-22-note-example.md --from-file /path/to/note.md`
+		`DistroAgentsTools.fn.sh --member-inbox-note-upsert keeper-myx 2026-07-22-note-example.md --from-file /path/to/note.md`
 
 		# Pass an inquiry along to another member's own inbox
 		```

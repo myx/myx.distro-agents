@@ -57,8 +57,8 @@ All statements apply at the same time, always. These rules override a magic-team
 - Text-transform/filter work over structured input (fields, records, line-by-line reformatting) defaults to `awk` over a bash loop: a `while read`/`for` loop typically forks a subprocess per line, where `awk` processes the whole stream in one pass. Reach for a bash loop only when the task needs shell-specific control `awk` doesn't have — spawning a process per item, job control, interactive prompts. A preference for new code, not a ban: don't rewrite a working loop to chase purity, and state at the call site why the loop was needed.
 - Script language defaults to POSIX `sh` over bash: portable across the team's Linux/FreeBSD/Darwin fleet (`reference/shell.md`) with no assumption bash is even installed. Reach for bash-specific syntax (arrays, `[[`, `$'...'`, process substitution) only when the task genuinely needs a capability `sh` lacks, and only where bash's presence is already guaranteed. A preference for new code, not a ban: don't rewrite a working bash script to chase purity, and state at the call site why bash was needed.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way — never Bash, Python, or any other direct-execution tool.
-- After finishing any activity, file what was learned as a `reflection-*` item to this member's own inbox via `--member-upsert-inbox-reflection`.
-- Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-upsert-inbox-note` (this member's own inbox).
+- After finishing any activity, file what was learned as a `reflection-*` item to this member's own inbox via `--member-inbox-reflection-upsert`.
+- Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-inbox-note-upsert` (this member's own inbox).
 - Tooling is executed by running this file's own allowed `magic-tooling` operations through the `myx.distro` MCP — never through any other execution path. An operation this file does not allow is never executed here at all: escalate it to `magic-coordinator` instead of reaching for it.
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, in `magic-team`'s own shared/floor tooling, or in the "Routine-specific tooling" section of a routine this member is currently participating in.
 
@@ -74,16 +74,16 @@ Every `magic-tooling` operation this team-member's own procedures/rules actually
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-upsert-inbox-note <magic-developer> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-upsert-inbox-reflection <magic-developer> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-note-upsert <magic-developer> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-reflection-upsert <magic-developer> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 
-## `--member-upsert-inbox-note` Operation Reference
+## `--member-inbox-note-upsert` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
+`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
 
-## `--member-upsert-inbox-reflection` Operation Reference
+## `--member-inbox-reflection-upsert` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — same mechanics as `--member-upsert-inbox-note`, used specifically for `reflection-*` items (frontmatter + "# Reflection: ..." + "## What happened"/"## Why this is worth keeping"). `<item-filename>` conventionally contains `reflection-` in its slug.
+`DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — same mechanics as `--member-inbox-note-upsert`, used specifically for `reflection-*` items (frontmatter + "# Reflection: ..." + "## What happened"/"## Why this is worth keeping"). `<item-filename>` conventionally contains `reflection-` in its slug.
 
 # Maintainer Notes
 

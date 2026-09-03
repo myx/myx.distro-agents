@@ -42,12 +42,12 @@ All statements apply at the same time, always. These rules override a magic-team
 - `magic-tester` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - A "no tests exist" claim surfaces: never take it at face value — verify by finding and reading the real test tree for that domain first (this skill's own founding reason to exist).
 - A testing question touches domain internals this skill doesn't independently carry: call on the relevant keeper/partner via the `post-inquiry` procedure rather than guessing.
-- A self-initiated finding is ready (coverage gap, testing infra discovered/clarified, a suggested test plan): propose it to `magic-coordinator` for RICE-scoring/triage via `--member-upsert-inbox-note` — never self-approve into action.
+- A self-initiated finding is ready (coverage gap, testing infra discovered/clarified, a suggested test plan): propose it to `magic-coordinator` for RICE-scoring/triage via `--member-inbox-note-upsert` — never self-approve into action.
   - Exception: a specific, already-approved testing task dispatched directly — just do it; the propose/triage step is only for self-initiated findings.
   - Exception: a finding is bigger than a normal test-coverage gap — reads as a pattern change affecting how the whole team works, or something globally structural — skip ordinary RICE/triage entirely and flag it via the `post-inquiry` procedure for `magic-coordinator` to bring to the real user directly for explicit confirmation.
 - A security concern surfaces during any review: open an investigation subtask, then either escalate it or open a solution/implementation subtask — same shape used elsewhere in the team's docs, not a different one invented here; still routes through the propose/triage discipline above, no self-approving.
 - A security-by-design question overlaps `magic-architect`'s own macro-design lens: light cross-check there, not solely this skill's job in isolation.
-- Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-upsert-inbox-note` (this member's own inbox).
+- Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-inbox-note-upsert` (this member's own inbox).
 - Tooling execution is this skill's own mandate, exercised through `magic-tooling` only — but a destructive or irreversible operation is never self-authorised: it needs its own sanction before it runs. What counts as destructive here: any test or check that mutates state outside this skill's own inbox — writing into a real service, a shared workspace, or another member's files. Escalate an unsanctioned one to `magic-coordinator` rather than proceeding. The same route applies to anything this file does not allow at all: escalate it to `magic-coordinator`, never reach for it directly.
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, in `magic-team`'s own shared/floor tooling, or in the "Routine-specific tooling" section of a routine this member is currently participating in.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command executes the same way.
@@ -89,16 +89,16 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-upsert-inbox-note <magic-tester> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-note-upsert <magic-tester> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
 
-## `--member-upsert-inbox-note` Operation Reference
+## `--member-inbox-note-upsert` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
+`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
 
 ## `--member-upsert-member-inquiry` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]` — passes an inquiry to `<member>`'s own inbox. Same mechanics as `--member-upsert-inbox-note`; used when handing a question to another member rather than filing it for later.
+`DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]` — passes an inquiry to `<member>`'s own inbox. Same mechanics as `--member-inbox-note-upsert`; used when handing a question to another member rather than filing it for later.
 
 # Maintainer Notes
 

@@ -256,7 +256,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - Lookup order for any roster/routine/tooling fact, before reaching for any tool: (1) **use-loaded-context**: this conversation's already-loaded context; (2) **read-prepared-reference**: the prepared reference doc (the `roster-note`/`magic-team/magic-team.armed.md` tooling section/`magic-team/magic-team.shared.md`); (3) **search-the-tree**: only then a `find`/`grep` sweep through `mcp__myx_distro__execute` — and only when the doc is genuinely missing, silent, or contradicted.
 - If a roster/domain fact genuinely needs live re-verification, that's a `magic-tester` dispatch, not ad hoc coordinator discovery.
 - This skill's own files (`.basic.md`/`.armed.md` and its typed siblings, routine files, the board) are the durable, cross-workspace store for team-level lessons — not Claude Code's per-project auto-memory, which is scoped to one working directory and invisible across the team's other workspaces. Treat any available local auto-memory as a local supplement only, refreshed from these files on start/restart.
-- On load/spawn, check current local auto-memory for anything durable/generalizable (a corrected behavior, a root-cause lesson, a standing rule) not yet reflected in team knowledge. If found: file it to that member's own inbox (`--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`), flagged plainly ("important knowledge detected"), with enough original context preserved that it isn't lost on next read — a fast note-to-self, not a side investigation; it's reviewed on the member's next load, not necessarily acted on immediately. Filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`. Optionally also file a short linked pointer sub-task to `magic-librarian`'s own inbox asking it to fold the finding into the shared docs — the member's own inbox item stays the full detailed record; the librarian sub-task is just a pointer (same filename shape: `note-<date>-<matter>.md` or `inquiry-<date>-<matter>.md`, as fits).
+- On load/spawn, check current local auto-memory for anything durable/generalizable (a corrected behavior, a root-cause lesson, a standing rule) not yet reflected in team knowledge. If found: file it to that member's own inbox (`--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`), flagged plainly ("important knowledge detected"), with enough original context preserved that it isn't lost on next read — a fast note-to-self, not a side investigation; it's reviewed on the member's next load, not necessarily acted on immediately. Filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`. Optionally also file a short linked pointer sub-task to `magic-librarian`'s own inbox asking it to fold the finding into the shared docs — the member's own inbox item stays the full detailed record; the librarian sub-task is just a pointer (same filename shape: `note-<date>-<matter>.md` or `inquiry-<date>-<matter>.md`, as fits).
 - Ambiguous or multi-skill request: name the candidate skill(s) and reasoning in one line each; if it genuinely spans two skills' territory, say so and sequence the handoff rather than forcing one skill to cover both; if nothing fits, say that plainly instead of stretching an ill-fitting skill over it.
 - A small individual doc-fix finding goes to `magic-librarian`'s own inbox via the `post-inquiry` procedure, not an immediate ad hoc dispatch — the batched daily sweep covers it. Doesn't apply to something genuinely live-risk/blocking.
 - Dispatching work that has `approved-by`/`approved-at` recorded on its `board-item` includes moving that item to `board-running` as part of the same action, if it isn't already there — not a separate follow-up step.
@@ -435,7 +435,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 - `--magic-board-create-running <team-member> <item-filename> (body-input mode) [--header:...]...`
 - `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...`
-- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
 - `--owner-workspace-list`
 - `--magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]`
@@ -516,13 +516,13 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 `DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-parked` in one call, and/or patches its frontmatter: `check-execute-board`'s own fallback for a pass whose required spawn could not be executed. `--from-state:<state>` is required. It stamps nothing — `condition`/`handoff-action`/`recheck-date` ride `--header:*` on the same call, and an item left without a `recheck-date` falls to `magic-team.grooming.routine`'s slower cadence.
 
-## `--member-upsert-inbox-note` Operation Reference
+## `--member-inbox-note-upsert` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename.
+`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename.
 
 ## `--member-upsert-member-inquiry` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]` — passes an inquiry along to a specific named member's own inbox — same mechanics as `--member-upsert-inbox-note`, kept as its own distinctly-named op for the semantically distinct "pass it to another member" case.
+`DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]` — passes an inquiry along to a specific named member's own inbox — same mechanics as `--member-inbox-note-upsert`, kept as its own distinctly-named op for the semantically distinct "pass it to another member" case.
 
 ## `--owner-workspace-list` Operation Reference
 

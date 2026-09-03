@@ -12,7 +12,7 @@
 ## arm -- deliberately NOT a wildcard match and NOT a shared/parameterized
 ## helper deriving <state> from an argument, even though today they're
 ## near-identical. Same reasoning already established in this package for
-## --member-upsert-member-inquiry/--member-upsert-inbox-reflection (see
+## --member-upsert-member-inquiry/--member-inbox-reflection-upsert (see
 ## AgentsTools.Member.include): each op is expected to grow its own
 ## state-specific validation later, which only works cleanly if each
 ## already has its own independent code path now. Thin logic over

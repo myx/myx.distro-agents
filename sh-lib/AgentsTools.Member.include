@@ -43,19 +43,23 @@ case "$1" in
 	## whole cross-member handoff mechanism). Thin wrapper over the shared
 	## --intern-op-member-inbox-upsert primitive -- not called by, and does
 	## not call, its sibling --member-upsert-member-inquiry/
-	## --member-upsert-inbox-reflection ops below.
-	--member-upsert-inbox-note)
+	## --member-inbox-reflection-upsert ops below. Renamed from
+	## --member-upsert-inbox-note (human-owner decision, D0BSVA10285:
+	## 1788441812.769849) -- the old name still works, unchanged, as a
+	## thin backward-compatible shim matched alongside the new one below,
+	## per MAGIC.md's "Deprecated operation names".
+	--member-inbox-note-upsert|--member-upsert-inbox-note)
 		shift
-		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-upsert-inbox-note || return 1
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-inbox-note-upsert || return 1
 		return 0
 	;;
 
 	## The real op backing magic-team.armed.md's Process/dynamics rule
 	## formulation's other no-approval-available fallback, "pass it to
 	## another member" (as distinct from that section's "note it for
-	## later," which --member-upsert-inbox-note backs). Thin wrapper over
+	## later," which --member-inbox-note-upsert backs). Thin wrapper over
 	## the shared --intern-op-member-inbox-upsert primitive, same as
-	## --member-upsert-inbox-note -- does not call that sibling op directly.
+	## --member-inbox-note-upsert -- does not call that sibling op directly.
 	## --edit-patch-from-stdin passes straight through to the shared
 	## primitive, same as every other option -- no special-case rejection
 	## (human-owner decision 2026-08-27, reversing the earlier carve-out).
@@ -77,10 +81,14 @@ case "$1" in
 	## existing example, but this is a naming convention to follow, not
 	## something enforced here. Thin wrapper over the shared
 	## --intern-op-member-inbox-upsert primitive, same as
-	## --member-upsert-inbox-note -- does not call that sibling op directly.
-	--member-upsert-inbox-reflection)
+	## --member-inbox-note-upsert -- does not call that sibling op directly.
+	## Renamed from --member-upsert-inbox-reflection (human-owner decision,
+	## D0BSVA10285:1788441812.769849) -- the old name still works, unchanged,
+	## as a thin backward-compatible shim matched alongside the new one
+	## below, per MAGIC.md's "Deprecated operation names".
+	--member-inbox-reflection-upsert|--member-upsert-inbox-reflection)
 		shift
-		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-upsert-inbox-reflection || return 1
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-inbox-reflection-upsert || return 1
 		return 0
 	;;
 
@@ -106,7 +114,7 @@ case "$1" in
 	## <team-member>'s own skill directory must still exist (sanity check that
 	## the member is real) even though the transcript itself no longer lives
 	## under it. audit/ and its <YYYY-MM>/ subfolder are created on demand
-	## (lazily, same convention as --member-upsert-inbox-note's inbox/
+	## (lazily, same convention as --member-inbox-note-upsert's inbox/
 	## handling). --workspace-root stays required/validated (caller-
 	## environment sanity check) but does not feed the target path.
 	##
@@ -114,7 +122,7 @@ case "$1" in
 	##
 	## <team-member> is an enforced first positional argument -- same
 	## convention every other --magic-*/--routine-*/--member-* op in this
-	## family already uses (e.g. --member-upsert-inbox-note's <member>
+	## family already uses (e.g. --member-inbox-note-upsert's <member>
 	## <item-filename>, --magic-grooming-to-backlog's <team-member>
 	## <item-filename>): consumed immediately after shift, validated before
 	## any flag parsing, never an order-independent --member <name> flag
@@ -450,6 +458,88 @@ case "$1" in
 		return $?
 	;;
 
+	## Read-only, owner-scoped access to one item in a member's own inbox,
+	## by bare <item-filename>. <member> is both the sanity-checked caller
+	## identity and the actual lookup scope (the inbox searched) -- same
+	## convention --member-inbox-note-upsert already uses for whose inbox
+	## a write targets, and distinct from --member-read-board-item/
+	## --member-read-audit-item, where <team-member> is a caller sanity
+	## check only and lookup spans a shared, not per-member, store.
+	## Searches the live inbox root first, then its own processed/
+	## subfolder, first match wins -- same "current before archive" order
+	## --member-read-audit-item uses for its own year-month subfolder.
+	## <item-filename> must carry one of the four legitimate personal-inbox
+	## type prefixes (magic-team.armed.md's "Document-type prefix ->
+	## meaning list": note-/inquiry-/reflection-/warning-), enforcing the
+	## type policy directly from the filename -- same shape as
+	## --member-read-audit-item's own transcript-* restriction. Closes the
+	## gap tracked by the (retracted-on-a-separate-point) proposal
+	## proposal-20260901T1835Z-inbox-item-body-read-op, approach D.
+	--member-inbox-item-read)
+		shift
+		local memberName="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: syntax is <member> <item-filename> [--start-line <N> --end-line <N>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-item-read || { set +e ; return 1 ; }
+		local memberDir="$HOME/.claude/skills/$memberName"
+		if [ ! -d "$memberDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: no such member skill directory: $memberDir" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" member-inbox-item-read || { set +e ; return 1 ; }
+		case "$itemName" in
+			note-*|inquiry-*|reflection-*|warning-*)
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: only note-*/inquiry-*/reflection-*/warning-* items are allowed: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		local startLine="" endLine=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--start-line)
+					startLine="$2"
+					shift 2
+				;;
+				--end-line)
+					endLine="$2"
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		if [ -n "$startLine" ] || [ -n "$endLine" ] ; then
+			if [ -z "$startLine" ] || [ -z "$endLine" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: --start-line and --end-line must be provided together" >&2
+				set +e ; return 1
+			fi
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local inboxDir="$MDAT_DATA_ROOT/inboxes/$memberName"
+		local readArgs=( --intern-op-data-read "$itemName" --context --member-inbox-item-read \
+			--lookup-folder "$inboxDir" --lookup-folder "$inboxDir/processed" )
+
+		if [ -n "$startLine" ] ; then
+			readArgs+=( --start-line "$startLine" --end-line "$endLine" )
+		fi
+		DistroAgentsTools "${readArgs[@]}"
+		return $?
+	;;
+
 	## <member> -- read-only discovery, same document shape as
 	## --magic-grooming-input-scan (thin wrapper over
 	## --intern-op-session-context-scan; see that file for the actual scan/filter/
@@ -474,7 +564,7 @@ case "$1" in
 	## shape (the shared AgentsBoardItemFrontmatterPrint.awk, reused rather
 	## than duplicated) -- a lazily-created, possibly-absent inbox/ is a
 	## silent empty section, not an error (same laziness as
-	## --member-upsert-inbox-note's own inbox/ handling).
+	## --member-inbox-note-upsert's own inbox/ handling).
 	--member-work-session-input-scan)
 		shift
 		local memberName="$1"

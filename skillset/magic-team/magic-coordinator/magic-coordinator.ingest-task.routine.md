@@ -24,7 +24,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — ideas and asks already queued there awaiting ingest, so this session settles them alongside the one it was invoked for rather than writing a duplicate task-description.
 2. **gather-and-agree**: interactively gather and agree with the requester, one topic at a time, until the content is actually settled — don't rush to a task write while real ambiguity remains. Same pacing discipline `magic-team.interview.routine` uses for its own gathering step: small, minimal-assumption-gap questions, iterative; once something is genuinely clear and agreed, move on rather than re-confirming it in smaller pieces.
 3. **output**, once settled:
-   - (a) Default: write a task-description into the relevant inbox via `--member-upsert-inbox-note` — an individual member's own inbox or `magic-coordinator`'s own, depending on content, never the board. Creates the record only — does not start work; execution starts later when whatever owns that inbox picks the item up (see **note-on-inline-execution** for the one live exception).
+   - (a) Default: write a task-description into the relevant inbox via `--member-inbox-note-upsert` — an individual member's own inbox or `magic-coordinator`'s own, depending on content, never the board. Creates the record only — does not start work; execution starts later when whatever owns that inbox picks the item up (see **note-on-inline-execution** for the one live exception).
    - (b) Dispatch straight to execution via `magic-coordinator` — only within `magic-coordinator`'s own mandate, or explicitly authorized live by someone holding that mandate.
    - Even (b) routes through writing to an inbox first — no path skips inbox entirely.
 4. **note-on-inline-execution**: if the requester explicitly says to execute inline, now, in this same conversation, that overrides the "UI instance never executes" default for this one request only.
@@ -63,12 +63,12 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (**output**, branch (a): write the settled task-description)
+- `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (**output**, branch (a): write the settled task-description)
 - `--member-comms-slack-send-message <team-member> <target> [text...]` (Slack activity-tracking obligation)
 
-## `--member-upsert-inbox-note` operation reference
+## `--member-inbox-note-upsert` operation reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
+`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
 
 ## `--member-comms-slack-send-message` operation reference
 

@@ -123,10 +123,10 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
 
 13. **wtf-reaction-creates-reflection**: `WTF?!`-class reactions (including replies) must create reflection evidence.
    If a human-owner/participant gives a strong confusion/frustration/surprise signal (`WTF?!` or equivalent),
-   record a concise reflection via `--member-upsert-inbox-reflection`.
+   record a concise reflection via `--member-inbox-reflection-upsert`.
 
 14. **quality-marker-creates-reflection**: `GOOD`/`BAD CONVERSATION`/`COMMUNICATION` quality-marker must create reflection evidence, wider context.
-   If a participant states `GOOD CONVERSATION`/`BAD CONVERSATION` or `GOOD INTERVIEW`/`BAD INTERVIEW` or `GOOD COMMUNICATION`/`BAD COMMUNICATION`, record a reflection via `--member-upsert-inbox-reflection`, same as **wtf-reaction-creates-reflection**, spanning several prior iterations, not just the triggering line.
+   If a participant states `GOOD CONVERSATION`/`BAD CONVERSATION` or `GOOD INTERVIEW`/`BAD INTERVIEW` or `GOOD COMMUNICATION`/`BAD COMMUNICATION`, record a reflection via `--member-inbox-reflection-upsert`, same as **wtf-reaction-creates-reflection**, spanning several prior iterations, not just the triggering line.
 
 15. **watch-quoted-content-for-hints**: Watch quoted content for hints and pointers.
    If a conversation participant quotes/cites something, check which of the two it is:

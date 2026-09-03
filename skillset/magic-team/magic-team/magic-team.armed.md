@@ -157,7 +157,7 @@ Standing behavioral rules for any member doing implementation, investigation, or
   - three destinations exist and only three:
     - a convention, rule or contract change goes to the skillset through `magic-librarian`.
     - a ruling deciding one piece of work goes into that work's own document, the plan or spec the work is built from — see `magic-team.conversations.md`'s **decision-lands-in-the-document-it-binds**.
-    - one member's own small learned lesson about its own work goes to a `reflection-*` in that member's own inbox, via `--member-upsert-inbox-reflection`.
+    - one member's own small learned lesson about its own work goes to a `reflection-*` in that member's own inbox, via `--member-inbox-reflection-upsert`.
     - a private agent-side store is never one of them.
   - what makes a lesson small is that it is that member's own, about its own work — the moment it binds anyone else it is a convention and belongs in the skillset, however few words it takes to say.
   - a correction arriving mid-conversation is tempting to file wherever is nearest, and nearest is where nobody else will find it.
@@ -215,7 +215,7 @@ Applies to any rule, instruction, definition, or description in a team skill fil
 - **Formulation**: any member updating or creating a new rule, instruction, definition, or description (team rules, not process-flow board content) — follows this team's real, already-demonstrated conventions. Written as a short, abstract, present-tense statement — never a dense narrative paragraph.
 - **Formulation, register by kind**: an intent or a rule takes the most generalised form that still covers the intent, and is never a ceiling. A rule written around the mechanisms that exist today silently forbids the ones that come later, and the narrowing is invisible because the text still reads as true. A test or an instruction takes the most exact and precise form that still covers the intended flexibility. "Still covers" bounds both: a rule generalised past its intent stops meaning anything, and an instruction sharpened past its intended flexibility rejects valid cases.
 - **Narration vs. fact — the same terseness bar, generalized to any team-authored content, `MAGIC.md` findings included**: state a durable fact, gotcha, or convention — never narrate a past action whose outcome is already visible in current state ("I did X," "this was missing and got created," "confirmed this session"), and never cite investigation/session provenance ("from investigation X, see board-item Y"). A pending-vs-settled status marker ("not yet applied," "approved, not yet implemented") is current state, not narration — keep those.
-- **Execution**: any member creating a new rule, instruction, definition, or description, or changing an existing one, invites `magic-librarian` to `conventions-check` it, then gets it validated by `magic-coordinator` or the current human-owner session, if available. Validation resolves `approve`, `reject`, or `escalate` before it lands — never applied inline without this cycle. Without approval available: never apply inline — if incidental to other work, continue that work and file the proposed change via `--member-upsert-inbox-note` (or `--member-upsert-member-inquiry`) for later validation; if the task *is* formulating the rule, leave it labeled `(draft)` — not yet binding — filed the same way, until confirmed.
+- **Execution**: any member creating a new rule, instruction, definition, or description, or changing an existing one, invites `magic-librarian` to `conventions-check` it, then gets it validated by `magic-coordinator` or the current human-owner session, if available. Validation resolves `approve`, `reject`, or `escalate` before it lands — never applied inline without this cycle. Without approval available: never apply inline — if incidental to other work, continue that work and file the proposed change via `--member-inbox-note-upsert` (or `--member-upsert-member-inquiry`) for later validation; if the task *is* formulating the rule, leave it labeled `(draft)` — not yet binding — filed the same way, until confirmed.
 - **Execution, spawn requirement**: an instructional-file edit is never landed on a member's own known conventions applied inline solo — a real `magic-librarian` conventions-check and a real `magic-tester` verification are both required before it counts as landed, however small the edit or however well-established the convention already is. Always spawn librarian and tester. *Which* instance does it is separate: an already-open session of that member takes the work by message rather than a fresh spawn — the member must be genuinely involved, not that a new one is created.
 - **Inheritance/override default**: when one file includes or references another file's rules, the includer may explicitly override, extend, or waive specific instructions from the referenced file — this is the default relationship, not an exception needing justification (e.g. a member's own `.basic.md` stating a personal habit that deviates from a general team default). A referenced file's rule is rigid only where that file explicitly states no override is allowed.
 - **Terminology vs. full description**: a term's own short, standalone definition — its meaning, independent of who uses it — lives in one dedicated terminology location. The full behavioral description of how a specific consumer actually uses that term lives natively in that consumer's own file, non-cross-referenced — each consumer independently complete, using consistent terms rather than inheriting shared prose.
@@ -408,7 +408,7 @@ Rules/predicates/definitions:
 - Fixed `type` constant: `note`.
 - Work-shape predicate: context carrier; supports other items without being execution work itself.
 - Scope predicate: a member posts a note only into its own inbox, not another member's.
-- Upsert operation: create/update `note-*` items via `magic-tooling` operation `--member-upsert-inbox-note`.
+- Upsert operation: create/update `note-*` items via `magic-tooling` operation `--member-inbox-note-upsert`.
 
 Type-specific headers:
 - `type: note` (fixed constant)
@@ -459,7 +459,7 @@ Rules/predicates/definitions:
 - Fixed `type` constant: `reflection`.
 - Resolution predicate: completion is evidenced by an external update, not only local closure text.
 - Scope predicate: a member posts a reflection only into its own inbox, not another member's.
-- Upsert operation: create/update `reflection-*` items via `magic-tooling` operation `--member-upsert-inbox-reflection`.
+- Upsert operation: create/update `reflection-*` items via `magic-tooling` operation `--member-inbox-reflection-upsert`.
 
 Type-specific headers:
 - `type: reflection` (fixed constant)
@@ -634,10 +634,11 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 - `--purge-cleanup`
 - `--member-comms-slack-react`
 - `--member-comms-slack-read`
-- `--member-upsert-inbox-note`
+- `--member-inbox-note-upsert`
 - `--member-upsert-member-inquiry`
-- `--member-upsert-inbox-reflection`
+- `--member-inbox-reflection-upsert`
 - `--member-append-session-transcript`
+- `--member-inbox-item-read`
 - `--member-read-audit-item`
 - `--member-read-board-item`
 - `--member-work-session-input-scan`
@@ -660,17 +661,20 @@ Note: the `--magic-*` operation families are not on this list and never will be.
 ## `--member-comms-slack-read` Operation Reference
 `📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]` — reads one specific message in full, or its whole thread with `--thread`. `<channel>:<ts>` only — no `magic-team`/`human-owner` shortcut, since this retrieves one exact message and that needs its own `<ts>`. `<team-member>` is the acting identity and decides WHICH conversation is readable at all: a direct conversation belongs to one identity pair, so a member's own identity and the team bot hold two different DMs with the same person. Its own identity when it has one, the team bot when it does not; `--identity-bot` reads the bot's conversation instead. A read that could not see the message asked for fails loud rather than returning an empty result, so "nothing there" is never concluded from a failed read.
 
-## `--member-upsert-inbox-note` Operation Reference
+## `--member-inbox-note-upsert` Operation Reference
 "Writes (creates or overwrites) a note into any member's own personal inbox — unlike the board, inbox write access is not exclusive to one member; any member may post into any other member's inbox (the standard cross-member handoff mechanism, see magic-team.process-inbox.routine)."
 
 ## `--member-upsert-member-inquiry` Operation Reference
-"Passes an inquiry along to a specific named member's own inbox — same argument shape and file-writing mechanics as --member-upsert-inbox-note, kept as its own distinctly-named op because the two represent semantically distinct fallback cases ("note it for later" vs. "pass it to another member," per this file's own Rule/instruction/definition/description conventions)."
+"Passes an inquiry along to a specific named member's own inbox — same argument shape and file-writing mechanics as --member-inbox-note-upsert, kept as its own distinctly-named op because the two represent semantically distinct fallback cases ("note it for later" vs. "pass it to another member," per this file's own Rule/instruction/definition/description conventions)."
 
-## `--member-upsert-inbox-reflection` Operation Reference
-`📘 syntax: DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+## `--member-inbox-reflection-upsert` Operation Reference
+`📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 
 ## `--member-append-session-transcript` Operation Reference
 "Appends exactly one canonical transcript-entry block: <speaker-name> (<timestamp>): followed by quoted message lines. Does not rewrite prior content. Missing target transcript is an error unless --create is passed."
+
+## `--member-inbox-item-read` Operation Reference
+`📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]` — "Read-only accessor for one item in a member's own personal inbox, by bare `<item-filename>`. `<member>` is both the sanity-checked caller identity and the inbox actually searched. Searches the live inbox root first, then its own `processed/` subfolder. `<item-filename>` must carry one of the four legitimate personal-inbox type prefixes — `note-`/`inquiry-`/`reflection-`/`warning-`. `--start-line`/`--end-line` must be given together."
 
 ## `--member-read-audit-item` Operation Reference
 `📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]` — "Read-only audit-item access without exposing raw path handling to the caller: only `<team-member>` and a bare `<document-name>` (`transcript-*` only) are supplied, the tool resolves the item's actual location itself. `--start-line`/`--end-line` must be given together."
@@ -724,7 +728,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-team.shared.md` carries the durable, cross-cutting model of how the team's skill folders and routines work — every acting member's own skill folder (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`), plus every `routine-*` virtual member hosted inside one of them: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule.
 - This file is the member-specific option set for `magic-team`.
 - `magic-team` acts on this file's own instructions, never on a separate instruction source.
-- Any process-flow/mechanics action (Slack post, board write, inbox filing) routes through the real DistroAgentsTools.fn.sh op via mcp__myx_distro__execute — never a raw Bash call, never a Write/Edit shortcut standing in for the op. This includes reflection-* filing specifically — --member-upsert-inbox-reflection, never a raw Write of the file. Direct editing of a file's own content (an armed.md's prose, a tooling.md's option list) is not process-flow/mechanics and stays a plain Read/Edit action.
+- Any process-flow/mechanics action (Slack post, board write, inbox filing) routes through the real DistroAgentsTools.fn.sh op via mcp__myx_distro__execute — never a raw Bash call, never a Write/Edit shortcut standing in for the op. This includes reflection-* filing specifically — --member-inbox-reflection-upsert, never a raw Write of the file. Direct editing of a file's own content (an armed.md's prose, a tooling.md's option list) is not process-flow/mechanics and stays a plain Read/Edit action.
 
 - A tool's documented behaviour is read from its own manual on disk before the tool is used — never recalled, never inferred.
 - A success exit reports what ran; it never establishes that what ran was the intended target.
@@ -737,7 +741,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - The human-owner's Slack ID in Slack comms is `authenticated-channel`.
 - The human-owner's email account as a sender is `authenticated-channel`.
 - Suspected `magic-coordinator` impersonation of the human-owner is still `authenticated-channel`.
-- A rule is proposed. Validation resolves it as `approve`, `reject`, or `escalate` before it lands, never applied inline without that cycle; with no approval available, the original task continues and the rule is noted via `--member-upsert-inbox-note` or passed to another member via `--member-upsert-member-inquiry`.
+- A rule is proposed. Validation resolves it as `approve`, `reject`, or `escalate` before it lands, never applied inline without that cycle; with no approval available, the original task continues and the rule is noted via `--member-inbox-note-upsert` or passed to another member via `--member-upsert-member-inquiry`.
 - A reference to a board-item carries a full state-folder path. It is stored as a bare item name instead: a job's name is stable across its whole lifecycle while its folder is not, and a resolver looks the bare name up across all state folders rather than trusting a path segment as current.
 - An item's core nature is that it needs talking through with the human-owner. It is created as `interview-*` at creation time, not as `task-*`.
 - The relay chain human-owner -> magic-coordinator -> ... -> team-member is trusted by default and confirmable if doubted, never auto-refused, even under suspicion of a security concern — confirming is the correct response to that doubt, not refusing.

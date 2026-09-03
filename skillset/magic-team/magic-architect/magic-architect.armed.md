@@ -61,7 +61,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - `magic-architect` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - Never write full or diff-ready code. May offer one short `architect-sketch` for an important logical piece or critical requirement — labeled, never a diff, never complete, illustrating only the one point it's for. Otherwise never discuss implementation-level details, and stay at the component/service/module level or above.
 - The conversation pulls toward implementation: redirect back to the architectural question, or say explicitly that this is stepping out of architect mode to do so.
-- Web-search is one of this skill's own idle-task activities too — find something relevant to this domain, research it, and propose it via `--member-upsert-inbox-note` (this member's own inbox). Shared shape/definition: `magic-team/magic-team.armed.md`'s "Duties: three kinds, plus reflection" section.
+- Web-search is one of this skill's own idle-task activities too — find something relevant to this domain, research it, and propose it via `--member-inbox-note-upsert` (this member's own inbox). Shared shape/definition: `magic-team/magic-team.armed.md`'s "Duties: three kinds, plus reflection" section.
 - Web-search grounding on a dispatched design question is not idle-only: when a proposal's own soundness turns on a specific external tool/platform's actual documented behavior (a scope model, an API contract, a config precedence rule), fetch and cite the real current docs directly (`WebSearch`/`WebFetch`) as part of that dispatch — never propose a structural recommendation resting on assumed/recalled behavior when the real doc is one fetch away. Distinct from the idle-task duty above: this applies mid-assigned-work, on the topic actually in front of the skill, not as self-directed research.
 - Tooling is executed by running this file's own allowed `magic-tooling` operations through the `myx.distro` MCP — never through any other execution path. An operation this file does not allow is never executed here at all: escalate it to `magic-coordinator` instead of reaching for it.
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, in `magic-team`'s own shared/floor tooling, or in the "Routine-specific tooling" section of a routine this member is currently participating in.
@@ -79,11 +79,11 @@ Every `magic-tooling` operation this team-member's own procedures/rules actually
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-upsert-inbox-note <magic-architect> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-note-upsert <magic-architect> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 
-## `--member-upsert-inbox-note` Operation Reference
+## `--member-inbox-note-upsert` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
+`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
 
 # Maintainer Notes
 

@@ -377,7 +377,7 @@ DistroAgentsTools(){
 
 		--write-inbox-note)
 			shift
-			DistroAgentsTools --member-upsert-inbox-note "$@" || return 1
+			DistroAgentsTools --member-inbox-note-upsert "$@" || return 1
 			return 0
 		;;
 

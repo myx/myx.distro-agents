@@ -55,7 +55,7 @@ Steps:
    - performance budget
 2. Think it through with the systems depth listed in Goals.
 3. Build on the previous pass's content in `PWA-VISION.md` — don't restart.
-4. Report the result via `--member-upsert-inbox-note` (this member's own inbox).
+4. Report the result via `--member-inbox-note-upsert` (this member's own inbox).
    - Reaches an "architecture-boundary" question (one app vs. several)? Escalate to `magic-architect` via the `post-inquiry` procedure instead of deciding it here.
 
 # Team-Member's (-specific) local rules
@@ -65,11 +65,11 @@ All statements apply at the same time, always. These rules override a magic-team
 - `magic-frontender` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - No TypeScript — plain JS by default. A framework needs an explicit justification against the native-first default, never picked by habit.
 - Measure before optimizing — never guess at what's slow.
-- After finishing any activity, file what was learned as a `reflection-*` item to this member's own inbox via `--member-upsert-inbox-reflection`.
+- After finishing any activity, file what was learned as a `reflection-*` item to this member's own inbox via `--member-inbox-reflection-upsert`.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way.
 - Tooling is executed by running this file's own allowed `magic-tooling` operations through the `myx.distro` MCP — never through any other execution path. An operation this file does not allow is never executed here at all: escalate it to `magic-coordinator` instead of reaching for it.
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, in `magic-team`'s own shared/floor tooling, or in the "Routine-specific tooling" section of a routine this member is currently participating in.
-- Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-upsert-inbox-note` (this member's own inbox).
+- Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-inbox-note-upsert` (this member's own inbox).
 - Navigation stays in the tab it started in. `target="_blank"`, `window.open()`, and every equivalent new-tab or new-window mechanism are defects wherever they appear — a link, a deep-link, a button handler, generated markup. No page, destination, or external-site case earns an exception: opening a second tab is the user's own gesture to make. Opening in a new tab is always a bug; never do it.
 - Every public URL carries the `https://` scheme — an app's own published self-URLs, redirect targets, OIDC issuer and callback URLs, links written into generated pages and mail. No public URL is ever emitted with an `http://` scheme. A vhost behind a TLS terminator forwards the scheme the terminator sent and never overwrites it with its own listening scheme. Internal container-to-container URLs on a private network are not public URLs and are out of scope.
 
@@ -107,21 +107,21 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-upsert-inbox-note <magic-frontender> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-upsert-inbox-reflection <magic-frontender> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-note-upsert <magic-frontender> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-reflection-upsert <magic-frontender> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-upsert-member-inquiry <magic-architect> <item-filename> [--from-file <path>]`
 
-## `--member-upsert-inbox-note` Operation Reference
+## `--member-inbox-note-upsert` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
+`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`. `<item-filename>` is a bare filename, no path separators.
 
-## `--member-upsert-inbox-reflection` Operation Reference
+## `--member-inbox-reflection-upsert` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-reflection <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — same mechanics as `--member-upsert-inbox-note`, used specifically for `reflection-*` items (frontmatter + "# Reflection: ..." + "## What happened"/"## Why this is worth keeping"). `<item-filename>` conventionally contains `reflection-` in its slug.
+`DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — same mechanics as `--member-inbox-note-upsert`, used specifically for `reflection-*` items (frontmatter + "# Reflection: ..." + "## What happened"/"## Why this is worth keeping"). `<item-filename>` conventionally contains `reflection-` in its slug.
 
 ## `--member-upsert-member-inquiry` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]` — passes an inquiry to `<member>`'s own inbox. Same mechanics as `--member-upsert-inbox-note`; used when handing a question to another member rather than filing it for later.
+`DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]` — passes an inquiry to `<member>`'s own inbox. Same mechanics as `--member-inbox-note-upsert`; used when handing a question to another member rather than filing it for later.
 
 # Maintainer Notes
 

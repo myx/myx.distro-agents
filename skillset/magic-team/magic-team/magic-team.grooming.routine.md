@@ -51,7 +51,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Sub-checks, also part of gathering:
      - **Roster/tooling recheck** (grooming-cadence, not every routine):
        - re-list `<skillset>/*/` and re-read each `SKILL.md` description frontmatter
-       - refresh the `roster-note` via the `--member-upsert-inbox-note` operation if anything drifted
+       - refresh the `roster-note` via the `--member-inbox-note-upsert` operation if anything drifted
        - spot-check `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section against anything that's actually come up as wrong since the last grooming
        - if a specific fact genuinely needs live confirmation, dispatch `magic-tester` for it — don't check it here directly
      - **Trello board coverage** (grooming-cadence, not every sweep):
@@ -347,7 +347,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-grooming-create-processed` (creates a new board-item in `board-processed`)
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
 - `--member-work-session-input-scan <team-member>`
-- `--member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 
 ## `--help` operation reference
 
@@ -410,9 +410,9 @@ Same shape as `--magic-grooming-to-backlog` operation, target fixed to `board-pa
 ## `--member-work-session-input-scan` operation reference
 
 Read-only: one member's own current work-session input — personal, not routine-dictated (every armed member runs this against its own name as it becomes armed, regardless of which routine triggered the arming).
-## `--member-upsert-inbox-note` operation reference
+## `--member-inbox-note-upsert` operation reference
 
-`DistroAgentsTools.fn.sh --member-upsert-inbox-note <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into any member's own personal inbox; content via stdin. `<member>` must already exist as a real skill directory, `<item-filename>` must be a bare filename.
+`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into any member's own personal inbox; content via stdin. `<member>` must already exist as a real skill directory, `<item-filename>` must be a bare filename.
 
 # Maintainer Notes
 
