@@ -297,7 +297,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-board-item-trash: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-board-trash "$boardState" "$itemName" --context --magic-heartbeat-board-item-trash
+		DistroAgentsTools --intern-op-board-trash "$callingMember" "$boardState" "$itemName" --context --magic-heartbeat-board-item-trash
 		return $?
 	;;
 

@@ -1449,18 +1449,21 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
-			Discards one already-processed inbox item: DELETES
-			`inboxes/<member>/processed/<item-filename>` outright.
+			Discards one already-processed inbox item:
+			`inboxes/<member>/processed/<item-filename>`.
 			`--from-inbox:` is colon-style, never a spaced pair — a spaced
 			pair would silently swallow a neighbouring option. `<member>`
 			must be a bare name; `<item-filename>` must be a bare filename
 			ending in `.md`.
 
-			**NOT UNDOABLE.** The item is deleted, not relocated: no copy is
-			left anywhere, and the operation has no inverse.
+			**The operation itself has no inverse, whatever team-data's git
+			state.** When team-data is git-tracked, the item is deleted
+			outright and the deletion committed — no copy is left anywhere.
+			When it is not, the item is moved to trash/ instead, recoverable
+			only by hand — this op still won't restore it.
 
-			Calibrate a batch accordingly. A mistake cannot be undone by
-			running something, and cannot be undone by hand either.
+			Calibrate a batch accordingly: git-tracked team-data offers no
+			recovery at all.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -2596,7 +2599,8 @@
 		--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
 			Relocates one terminal board-item out of the board entirely, for
 			routine-heartbeat's own GC step. <team-member> is the calling
-			member's own identity (logged, not otherwise enforced);
+			member's own identity — recorded in the git-commit message once
+			team-data is git-tracked, otherwise unused;
 			<board-state> is the item's current real board state
 			(backlog/pending/running/blocked/parked/processed/archived/
 			retained); <item-name> is a bare filename. Thin wrapper, always

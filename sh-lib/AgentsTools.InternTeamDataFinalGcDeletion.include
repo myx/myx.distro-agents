@@ -14,11 +14,22 @@
 ## to share an implementation.
 ##
 ## Scans inboxes/*/processed/ and board/processed/ for items past their
-## type's retention threshold (mirrors magic-team.board.md's own "Per-type
-## retention thresholds" table exactly -- flagged to magic-librarian as a
-## real cross-file duplication risk, not solved here) and `rm -f`s them.
-## Unmatched filename prefix is always skipped, never deleted -- an unknown
-## type is not evidence it's safe to remove.
+## type's retention threshold and `rm -f`s them. Thresholds are this op's
+## own final-GC retention scheme per the human-owner's final GC-deletion
+## spec: 7-day default, warning-*/reflection-* 1 day, no other exceptions --
+## "default" is a genuine catch-all (`*) thresholdDays=7`), not an
+## enumerated whitelist of known type prefixes: ANY filename (any prefix,
+## including one not in the old 9-row scheme) gets a real 7-day threshold
+## unless it's warning-*/reflection-*. There is deliberately no more
+## "unmatched prefix is skipped forever" safety case -- every *.md file
+## under a scanned processed/ dir is eventually eligible for deletion on
+## this clock, per the human-owner's own explicit correction to an earlier
+## draft of this table that kept the old enumerated-whitelist shape.
+## This DELIBERATELY NO LONGER mirrors magic-team.board.md's own "Per-type
+## retention thresholds" table (still the old 9-row scheme as of this
+## edit); the human-owner's spec explicitly supersedes it for this op only.
+## Reconciling/superseding magic-team.board.md's own table is separate
+## scope, already flagged to magic-librarian, not done here.
 ##
 ## mtime is the spec'd retention clock, taken literally. FLAGGED, not
 ## silently worked around: a git checkout/merge (this data root gets
@@ -55,16 +66,8 @@ AgentsToolsFinalGcScanDir(){
 		[ -f "$path" ] || continue
 		fileBase="${path##*/}"
 		case "$fileBase" in
-			project-*)    thresholdDays=60 ;;
-			change-*)     thresholdDays=30 ;;
-			warning-*)    thresholdDays=30 ;;
-			interview-*)  thresholdDays=30 ;;
-			task-*)       thresholdDays=21 ;;
-			inquiry-*)    thresholdDays=21 ;;
-			proposal-*)   thresholdDays=21 ;;
-			reflection-*) thresholdDays=14 ;;
-			note-*)       thresholdDays=10 ;;
-			*) continue ;;
+			warning-*|reflection-*) thresholdDays=1 ;;
+			*)                      thresholdDays=7 ;;
 		esac
 		fileMtime="$( stat -f '%m' "$path" 2>/dev/null || stat -c '%Y' "$path" 2>/dev/null )"
 		[ -z "$fileMtime" ] && continue

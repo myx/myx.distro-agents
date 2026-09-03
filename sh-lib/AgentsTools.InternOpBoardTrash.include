@@ -15,20 +15,35 @@
 ## states. <board-state> in the --untrash direction names the RESTORE
 ## target, not a state trash/ itself belongs to.
 ##
-## TWO SOURCES, discriminated on the FIRST TOKEN:
-##   --intern-op-board-trash <board-state> <item-name> [--untrash] [--context <op>]
-##   --intern-op-board-trash --from-inbox:<member> <item-name> [--context <op>]
-## The first positional is read once: if it matches --from-inbox:* the inbox
-## source is taken, otherwise it is a board state. Board states never begin
-## with '--', so the discriminant is unambiguous -- and the board arm below is
-## left BYTE-IDENTICAL to what it was before the inbox source existed, which
-## is the whole reason for discriminating here rather than restructuring it.
+## GIT-GATED TRASHING, per the human-owner's final GC-deletion spec: when
+## $MDAT_DATA_ROOT is git-tracked (`git -C "$MDAT_DATA_ROOT" rev-parse
+## --show-toplevel` succeeds -- .git PRESENCE ONLY, same convention as
+## AgentsTools.InternTeamDataFinalGcDeletion.include, independent of
+## TEAM_DATA_GIT_REMOTE), trashing an item actually deletes it and commits
+## the deletion with message "- <op name>, <team-member>", instead of
+## moving it to trash/. Not git-tracked, the move-to-trash/ behaviour is
+## unchanged. <team-member>, the acting member, is a leading positional on
+## BOTH source forms below purely to feed that commit message.
 ##
-## "both directions via one op", above, describes the BOARD source only. The
-## inbox source does not relocate at all: it DELETES the item outright, so
-## --untrash is refused for it (see the arm below) and there is nothing to
-## restore -- the deletion is final. Note the syntax lines above accordingly:
+## TWO SOURCES, discriminated on the first token after <team-member>:
+##   --intern-op-board-trash <team-member> <board-state> <item-name> [--untrash] [--context <op>]
+##   --intern-op-board-trash <team-member> --from-inbox:<member> <item-name> [--context <op>]
+## Board states never begin with '--', so the discriminant is unambiguous.
+##
+## "both directions via one op", above, describes the BOARD source only.
+## The inbox source never relocates via --untrash -- --untrash is refused
+## for it unconditionally (see the arm below), regardless of git state.
+## Once git-tracked, its trashing is also a real delete-and-commit, so
+## nothing survives anywhere; not git-tracked, it now moves to trash/ same
+## as the board source, recoverable only by hand -- this op still won't
+## restore it either way. Note the syntax lines above accordingly:
 ## [--untrash] appears on the board form and on no other.
+##
+## --untrash ITSELF is refused outright on the board form too, once
+## git-tracked: trashing under git never populates trash/, so there is
+## nothing there to restore -- see that arm below for the explicit,
+## git-mode-aware refusal message (same shape as the inbox-source refusal
+## above it).
 ##
 ## No --help entry: internal plumbing, called by
 ## --magic-heartbeat-board-item-trash and --librarian-inbox-item-trash.
@@ -53,9 +68,20 @@ case "$1" in
 			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
 		done
 
+		## <team-member>: the acting member, consumed first on BOTH source
+		## forms below -- feeds the git-commit message's own
+		## "- <op name>, <team-member>" shape further down, nothing else.
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is <team-member> <board-state> <item-name> [--untrash] [--context <caller-op>], or <team-member> --from-inbox:<member> <item-name> [--context <caller-op>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" board-trash || { set +e ; return 1 ; }
+
 		##
 		## FIRST-TOKEN DISCRIMINANT -- inbox source. Everything below this
-		## `fi` is the original board-sourced arm, untouched.
+		## `fi` is the board-sourced arm.
 		##
 		if [ "${1#--from-inbox:}" != "$1" ] ; then
 			local inboxMember="${1#--from-inbox:}"
@@ -63,21 +89,21 @@ case "$1" in
 			local inboxItemName="$1"
 			shift || true
 			if [ -z "$inboxMember" ] || [ -z "$inboxItemName" ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is --from-inbox:<member> <item-name> [--context <caller-op>]" >&2
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is <team-member> --from-inbox:<member> <item-name> [--context <caller-op>]" >&2
 				set +e ; return 1
 			fi
 			##
 			## HAZARD: --untrash is REFUSED for an inbox-sourced item, and this
-			## refusal is a decision, not a missing feature. --untrash restores
-			## into board/<state>; an inbox-sourced item never came from a board
-			## state, so there is no correct place to put it back. Accepting it
-			## would deposit the item into some board state folder, exit 0, and
-			## read as success -- a wrong-place restore that reports success is
-			## strictly worse than a refusal. Recording per-item provenance
-			## (where each trashed item actually came from) is the better
-			## long-term answer; it is deliberately NOT being rushed in
-			## alongside this arm, so until it exists the honest behaviour is to
-			## refuse.
+			## refusal is a decision, not a missing feature -- unconditional,
+			## regardless of git state. --untrash restores into board/<state>;
+			## an inbox-sourced item never came from a board state, so there is
+			## no correct place to put it back. Accepting it would deposit the
+			## item into some board state folder, exit 0, and read as success --
+			## a wrong-place restore that reports success is strictly worse than
+			## a refusal. Recording per-item provenance (where each trashed item
+			## actually came from) is the better long-term answer; it is
+			## deliberately NOT being rushed in alongside this arm, so until it
+			## exists the honest behaviour is to refuse.
 			##
 			if [ "$1" = "--untrash" ] ; then
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash is not supported for an inbox-sourced item -- it restores into board/<state>, and an item trashed out of inboxes/$inboxMember/processed/ has no board state to return to. Restore it by hand, or wait for per-item trash provenance (deliberately not added with this arm)." >&2
@@ -114,6 +140,12 @@ case "$1" in
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 				set +e ; return 1
 			}
+			## Git-tracked gate, same .git-presence-only test as the board arm
+			## below and as AgentsTools.InternTeamDataFinalGcDeletion.include's
+			## own -- independent of TEAM_DATA_GIT_REMOTE.
+			local repoRoot=""
+			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+
 			##
 			## Source resolution. `processed/` is a FIXED LITERAL this op
 			## appends -- deliberately not caller-supplied. Measured: the whole
@@ -154,8 +186,25 @@ case "$1" in
 			## `--` before the operands is independent of the leading-'-'
 			## rejection above: validation guards bad input, `--` guards a later
 			## edit that bypasses validation.
-			rm -f -- "$inboxSourcePath"
-			echo "# $MDSC_CMD: board-trash: deleted ${inboxSourcePath#"$MDAT_DATA_ROOT"/}" >&2
+			if [ -n "$repoRoot" ] ; then
+				rm -f -- "$inboxSourcePath"
+				local gitOut="" gitRc=0
+				gitOut="$( git -C "$repoRoot" add -- "$inboxSourcePath" 2>&1 )" || gitRc=$?
+				if [ "$gitRc" -ne 0 ] ; then
+					echo "$MDSC_CMD: board-trash: ⛔ ERROR: git add failed for $inboxSourcePath: $gitOut" >&2
+					set +e ; return 1
+				fi
+				gitOut="$( git -C "$repoRoot" commit -m "- $opContext, $callingMember" -- "$inboxSourcePath" 2>&1 )" || gitRc=$?
+				if [ "$gitRc" -ne 0 ] ; then
+					echo "$MDSC_CMD: board-trash: ⛔ ERROR: git commit failed for $inboxSourcePath: $gitOut" >&2
+					set +e ; return 1
+				fi
+				echo "# $MDSC_CMD: board-trash: deleted and committed ${inboxSourcePath#"$MDAT_DATA_ROOT"/}" >&2
+			else
+				local inboxTrashPath="$MDAT_DATA_ROOT/trash/$inboxItemName"
+				mv "$inboxSourcePath" "$inboxTrashPath"
+				echo "# $MDSC_CMD: board-trash: moved ${inboxSourcePath#"$MDAT_DATA_ROOT"/} to ${inboxTrashPath#"$MDAT_DATA_ROOT"/}" >&2
+			fi
 			return 0
 		fi
 
@@ -164,7 +213,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$boardState" ] || [ -z "$itemName" ] ; then
-			echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is <board-state> <item-name> [--untrash]" >&2
+			echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is <team-member> <board-state> <item-name> [--untrash]" >&2
 			set +e ; return 1
 		fi
 		local doUntrash="false"
@@ -200,7 +249,24 @@ case "$1" in
 			echo "$MDSC_CMD: board-trash: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
+		## Git-tracked gate, same .git-presence-only test as the inbox arm
+		## above and as AgentsTools.InternTeamDataFinalGcDeletion.include's
+		## own -- independent of TEAM_DATA_GIT_REMOTE.
+		local repoRoot=""
+		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+
 		if [ "$doUntrash" = "true" ] ; then
+			##
+			## Once git-tracked, trashing never populates trash/ (see below) --
+			## nothing is ever there to restore. Refusing here, explicitly, is
+			## the same decision as the inbox-source refusal above: falling
+			## through to the "not found in trash/" check below would read as
+			## an ordinary missing-item error and hide the real reason.
+			##
+			if [ -n "$repoRoot" ] ; then
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash is not supported once team-data is git-tracked ($repoRoot) -- trashing there deletes the item outright and commits the deletion, so nothing is ever placed in trash/ to restore. Recover it from git history instead." >&2
+				set +e ; return 1
+			fi
 			local sourcePath="$MDAT_DATA_ROOT/trash/$itemName"
 			local targetDir="$MDAT_DATA_ROOT/board/$boardState"
 			local targetPath="$targetDir/$itemName"
@@ -216,13 +282,29 @@ case "$1" in
 			echo "# $MDSC_CMD: board-trash: restored ${sourcePath#"$MDAT_DATA_ROOT"/} to ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
 		else
 			local sourcePath="$MDAT_DATA_ROOT/board/$boardState/$itemName"
-			local targetPath="$MDAT_DATA_ROOT/trash/$itemName"
 			if [ ! -f "$sourcePath" ] ; then
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found: $sourcePath" >&2
 				set +e ; return 1
 			fi
-			mv "$sourcePath" "$targetPath"
-			echo "# $MDSC_CMD: board-trash: moved ${sourcePath#"$MDAT_DATA_ROOT"/} to ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
+			if [ -n "$repoRoot" ] ; then
+				rm -f -- "$sourcePath"
+				local gitOut="" gitRc=0
+				gitOut="$( git -C "$repoRoot" add -- "$sourcePath" 2>&1 )" || gitRc=$?
+				if [ "$gitRc" -ne 0 ] ; then
+					echo "$MDSC_CMD: board-trash: ⛔ ERROR: git add failed for $sourcePath: $gitOut" >&2
+					set +e ; return 1
+				fi
+				gitOut="$( git -C "$repoRoot" commit -m "- $opContext, $callingMember" -- "$sourcePath" 2>&1 )" || gitRc=$?
+				if [ "$gitRc" -ne 0 ] ; then
+					echo "$MDSC_CMD: board-trash: ⛔ ERROR: git commit failed for $sourcePath: $gitOut" >&2
+					set +e ; return 1
+				fi
+				echo "# $MDSC_CMD: board-trash: deleted and committed ${sourcePath#"$MDAT_DATA_ROOT"/}" >&2
+			else
+				local targetPath="$MDAT_DATA_ROOT/trash/$itemName"
+				mv "$sourcePath" "$targetPath"
+				echo "# $MDSC_CMD: board-trash: moved ${sourcePath#"$MDAT_DATA_ROOT"/} to ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
+			fi
 		fi
 		return 0
 	;;

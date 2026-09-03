@@ -169,15 +169,9 @@ The same item's *own* ongoing back-and-forth (still-pending replies on the ident
 
 | `board-item` prefix | Days |
 |---|---|
-| `project-*` | 60 |
-| `change-*` | 30 |
-| `warning-*` | 30 |
-| `interview-*` | 30 |
-| `task-*` | 21 |
-| `inquiry-*` | 21 |
-| `proposal-*` | 21 |
-| `reflection-*` | 14 |
-| `note-*` | 10 |
+| default | 7 |
+| `warning-*` | 1 |
+| `reflection-*` | 1 |
 
 GC is not a standalone routine — it's folded into `magic-coordinator.heartbeat.routine`'s own sub-step:
 - Each run checks whether any `board-processed` items have passed their retention threshold and, if so, removes them from the board rather than deleting them directly (real deletion mechanics live outside this file — see `magic-coordinator.heartbeat.routine`'s own GC step).

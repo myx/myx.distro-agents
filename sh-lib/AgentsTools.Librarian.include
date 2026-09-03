@@ -204,16 +204,15 @@ case "$1" in
 
 		## <team-member> <item-filename> --from-inbox:<member>
 		##
-		## Discards one already-processed inbox item: DELETES
-		## inboxes/<member>/processed/<item-filename> outright.
+		## Discards one already-processed inbox item:
+		## inboxes/<member>/processed/<item-filename>. Git-gated in
+		## --intern-op-board-trash's own inbox arm, per the human-owner's
+		## final GC-deletion spec: team-data git-tracked -> deletes it
+		## outright and commits the deletion (message "- <op name>,
+		## <team-member>"); not git-tracked -> moves it to trash/ instead,
+		## same as a board-sourced item.
 		##
-		## NOT UNDOABLE, and not undoable by hand either. Nothing is
-		## relocated, despite this op's name: --intern-op-board-trash's inbox
-		## source calls `rm` on the item and reports "deleted" (see that
-		## file's own header, which states the same, and its inbox arm). No
-		## copy is left in trash/ or anywhere else.
-		##
-		## The OPERATION has no inverse either -- --intern-op-board-trash
+		## The OPERATION has no inverse either way -- --intern-op-board-trash
 		## refuses --untrash for an inbox-sourced item outright, since it
 		## restores into board/<state> and an item taken out of
 		## inboxes/<member>/processed/ has no board state to return to.
@@ -221,14 +220,17 @@ case "$1" in
 		## Stated this way deliberately: a reader deciding how carefully to
 		## check a batch before running it must not read this op's name, or
 		## any claim that the file survives, as the tooling's word that a
-		## mistake is recoverable. It is not recoverable at all. Per-item
-		## trash provenance would change the --untrash half of this, and is
-		## deliberately not added with this arm.
+		## mistake is trivially recoverable. Once team-data is git-tracked
+		## there genuinely is no recovery at all; not git-tracked, only a
+		## manual trash/ recovery exists, and this op will never do it for
+		## you. Per-item trash provenance would change the --untrash half of
+		## this, and is deliberately not added with this arm.
 		--librarian-inbox-item-trash)
 			shift
-			## <team-member> captured for future logging/validation, unused
-			## today -- tooling operation discipline convention, same as every
-			## --magic-board-* sibling.
+			## <team-member> forwarded to --intern-op-board-trash as its own
+			## leading positional -- the acting member for its git-commit
+			## message once team-data is git-tracked (see
+			## AgentsTools.InternOpBoardTrash.include).
 			local callingMember="$1"
 			shift || true
 			local itemName="$1"
@@ -260,7 +262,7 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
-			DistroAgentsTools --intern-op-board-trash "$fromInboxArg" "$itemName" \
+			DistroAgentsTools --intern-op-board-trash "$callingMember" "$fromInboxArg" "$itemName" \
 				--context --librarian-inbox-item-trash
 			return $?
 		;;
