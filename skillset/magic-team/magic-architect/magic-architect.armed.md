@@ -1,5 +1,5 @@
 ---
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-architect — armed (professional-ready) content
 
@@ -74,6 +74,8 @@ No additional reference material beyond what's already in Goals/Scope.
 # Team-Member's (-specific) tooling
 
 Every `magic-tooling` operation this team-member's own procedures/rules actually invoke by name. Full syntax and behavior here. Steps use its name only.
+
+**Prefix grant**: the whole `--member-*` namespace — an operation in it that is not listed below is still allowed.
 
 ## DistroAgentsTools magic-tooling operations
 

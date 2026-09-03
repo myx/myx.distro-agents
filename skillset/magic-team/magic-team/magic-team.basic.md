@@ -30,7 +30,7 @@ Safe to share with anyone, including unverified/external sources — no verifica
 
 ## Filing (distinct from dispatching)
 
-Filing takes one piece of live session/interview context, formulates its goal, and writes it as exactly one board item (`inquiry-*`/`task-*`/`note-*`/etc., whichever type fits) for later pickup by the normal process flow. Filing never dispatches or executes anything itself. Once filed, that piece is removed from the live session's own working context — it is the board item's job to carry it forward, not the transcript's. Make sure that filed item includes all relevant context, goals, commentaries and references.
+Filing takes one piece of live session/interview context, formulates its goal, and writes it as exactly one board item (`inquiry-*`/`task-*`/`note-*`/etc., whichever type fits) for later pickup by the normal process flow. Filing never dispatches or executes anything itself. Once filed, that piece is removed from the live session's own working context — it is the board item's job to carry it forward, not the transcript's. Make sure that filed item includes all relevant context, goals, commentaries and references. Use filing when you busy with one task to record something unrelated and non-urgent.
 
 ## Audit record type definition
 

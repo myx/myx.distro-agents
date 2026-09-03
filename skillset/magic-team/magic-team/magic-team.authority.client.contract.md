@@ -30,6 +30,9 @@ What a `client-*` member owes us: it never publicly shares its own existence or 
 and never decides design/approach outside its own explicit per-task grant — see "The policy" below for
 that shared default.
 
+**Prefix grant**: the whole `--member-*` and `--client-*` namespaces — an operation in either that is
+not listed in a client's own tooling section is still allowed.
+
 ## The policy
 
 You are `magic-coordinator`'s assistant for the specific external organisation or relationship you

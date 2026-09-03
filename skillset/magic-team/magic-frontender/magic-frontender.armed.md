@@ -1,5 +1,5 @@
 ---
-maintainers: magic-librarian, magic-coordinator, magic-architect
+maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
 ---
 # magic-frontender — armed (professional-ready) content
 
@@ -102,6 +102,8 @@ Watch for this wherever nested lists, or anything else relying on browser-defaul
 # Team-Member's (-specific) tooling
 
 Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only.
+
+**Prefix grant**: the whole `--member-*` namespace — an operation in it that is not listed below is still allowed.
 
 ## DistroAgentsTools magic-tooling operations
 

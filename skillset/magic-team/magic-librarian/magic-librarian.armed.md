@@ -1,5 +1,5 @@
 ---
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-librarian — armed (professional-ready) content
 
@@ -244,6 +244,8 @@ The banner is one wording team-wide, quoted above — not one of several alterna
 # Team-Member's (-specific) tooling
 
 Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only.
+
+**Prefix grant**: the whole `--member-*` and `--librarian-*` namespaces — an operation in either that is not listed below is still allowed.
 
 ## DistroAgentsTools magic-tooling operations
 

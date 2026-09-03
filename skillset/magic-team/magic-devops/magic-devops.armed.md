@@ -127,6 +127,8 @@ This member is the one allowed to operate there, so it carries the reasoning —
 
 Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only.
 
+**Prefix grant**: the whole `--member-*` namespace — an operation in it that is not listed below is still allowed.
+
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-upsert-inbox-note <magic-devops> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`

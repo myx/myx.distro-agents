@@ -1,5 +1,5 @@
 ---
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-tester — armed (professional-ready) content
 
@@ -84,6 +84,8 @@ Security/CRA (Cyber Resilience Act)-style due diligence is part of this skill's 
 # Team-Member's (-specific) tooling
 
 Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only.
+
+**Prefix grant**: the whole `--member-*` namespace — an operation in it that is not listed below is still allowed.
 
 ## DistroAgentsTools magic-tooling operations
 

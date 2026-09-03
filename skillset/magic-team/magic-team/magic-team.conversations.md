@@ -73,6 +73,8 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    points in one text blob become a nested list, by the conversion test in `magic-team/magic-team.shared.md`'s
    own `## Nested-item grammar`, applied to any message and not only to a skillset file's instruction
    lists. A Slack message and a chat reply carry this exactly as a rule or a report does.
+   - A list is written with `- ` items, one point per line. A `•` glyph, or points run together in a
+     paragraph, delivers as one unreadable block whatever the source looked like.
    - Register and spelling are checked separately, per text group, by `magic-librarian`.
    - Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
 
@@ -149,14 +151,22 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
      in the text, and never a send reporting success as evidence of either. A send path that cannot
      produce a real mention is a defect to report — name who could not be tagged and what the send
      returned; never treat the literal characters as having tagged them.
+   - Every named party is tagged, not the first one or the most involved one. A message that names six
+     members and tags one has addressed one.
+   - The tag is that member's own `.basic.md` Alias, written `@<alias>` — never its member id, which
+     tags nobody. Its `## Identity marks` Unicode character goes with it, as `<mark> @<alias>`.
+   - The team's own members hold no account on the messaging platform, so no mention can render for one:
+     the alias in text is the tag, and is not the failed mention the clause above describes. That clause
+     holds for an addressee the platform can notify — the human-owner, or anyone outside the team.
    - A message referencing part of the conversation: quote/cite the relevant point verbatim (at least
      with `> `, or better where the platform's formatting tools allow it).
    - Once addressed, proceed with whatever activity the reply was for.
-   verbatim-intent: `every message has an addressee, and one addressed to a named party is tagged rather
-   than labelled`.
+   verbatim-intent: `every message has an addressee, and one addressed to named parties tags each of
+   them rather than labelling them`.
    verbatim-benchmark: `a status update written for the human-owner is not filed under the
-   conversation-at-large clause and given a first-line label instead — it tags him; and where the send
-   path cannot produce a real mention, that is reported as a defect rather than satisfied by the literal
+   conversation-at-large clause and given a first-line label instead — it tags him; a message naming
+   several team members tags every one of them by alias and mark; and where an addressee the platform
+   can notify is not really mentioned, that is reported as a defect rather than satisfied by the literal
    characters of one sitting in the body`.
 
 17. **reflect-assessment-feedback**: Reflect assessment feedback.

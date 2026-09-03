@@ -413,6 +413,8 @@ Most of this member's decision-making is embedded directly in the Local rules ab
 
 Every `magic-tooling` operation this member's own procedures/rules actually invoke by name. Full syntax and behavior pulled from `Help.DistroAgentsTools.help.md` — none invented. `--console-start` and `--member-append-session-transcript` are not listed: no text anywhere in this folder — this file's own, or any of the 9 routine files — actually invokes them. `--help` is not listed either, being a universal baseline op already covered by `magic-team.armed.md`'s own "Team-Member's (-specific) tooling" section, same as every other member's own Tooling section.
 
+**Prefix grant**: the whole `--member-*` and `--magic-*` namespaces — an operation in either that is not listed below is still allowed.
+
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [text...]`
