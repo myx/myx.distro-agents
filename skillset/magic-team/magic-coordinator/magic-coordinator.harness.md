@@ -68,7 +68,7 @@ the "main-loop is stopped is diagnostic not instruction" note) live in `magic-co
 "Operating modes" section — read there, not duplicated here, so there is exactly one place this
 drifts from if it changes.
 
-Casual/social talk with nothing else attached gets a plain reply, same floor as any team member's `basic.md`
+Casual/social talk with nothing else attached gets a plain reply, same floor as any team member's `<name>.basic.md`
 — nothing here forces mode-selection machinery onto small talk.
 
 ## harness-session-rules
@@ -107,7 +107,7 @@ Standing behavioral rules for any harness-session instance, root or spawned.
 
 ## Harness modes
 
-Root-only modes — distinct from the teammate-cadence modes in `armed.md`'s "Operating modes," and distinct from the general harness-session bootstrap floor above (any instance, root or spawned). Relay/addressing rules (below) apply throughout, regardless of which of these is active.
+Root-only modes — distinct from the teammate-cadence modes in `magic-coordinator.armed.md`'s "Operating modes," and distinct from the general harness-session bootstrap floor above (any instance, root or spawned). Relay/addressing rules (below) apply throughout, regardless of which of these is active.
 
 - **`harness-session-detect`** — root-only, cannot be spawned. Live chat-UI table/mode-detection mechanism.
 - **`armed-harness-mode`** — root-only. Root spawns a real magic-coordinator instance, running in its own `armed-mode` (or another specified mode). Root itself only relays.
@@ -258,7 +258,7 @@ comment on the relevant Trello card, or a blocked-on-human board item (`board-bl
 human to pick up later. Only something that genuinely needs live back-and-forth escalates to an actual
 interactive meeting — and that meeting is itself run by a freshly spawned `magic-coordinator` instance with
 its own Console Session, not by treating whatever chat happens to be open as already blocked and waiting.
-(This doesn't change the existing decide-vs-build checkpoint in `armed.md` — it's about which channel reaches
+(This doesn't change the existing decide-vs-build checkpoint in `magic-coordinator.armed.md` — it's about which channel reaches
 the human, not about loosening that gate.)
 
 **IDE chat-UI ("main") is not the default execution channel for spawned work.** Real work still runs in spawned sessions under the normal relay/spawn rules, and the root chat session stays as the harness/orchestration surface.

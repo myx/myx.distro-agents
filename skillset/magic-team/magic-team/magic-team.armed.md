@@ -755,7 +755,6 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-team.shared.md` — the routine-\*-as-virtual-member model, the typed-suffix skill-folder file-format spec, the executors-vs-maintainers quorum rule; stays a separate live file.
 - `roster-note` / `personas-note` — the team's member/domain/posture and per-member persona-data caches (`magic-coordinator`'s own inbox notes); live outside this file.
 - `board/` — the actual `board-item` files (`backlog/`, `pending/`, `running/`, `blocked/`, `parked/`, `processed/`, `archived/`, `retained/`).
-- `magic-team.tooling.md` — a retired filename, not a live file: its content is this file's own "Team-Member's tooling" section above.
 - `magic-coordinator` — the board's primary executor/owner; this skill's default pass-through target. Owns `main-loop-mode` and `harness-session`, both defined in this file's own Terminology sections above.
 - `magic-librarian` — the shared reference files' maintainer, joins the board once per workday under coordinator's supervision.
 - `magic-team.process-inbox.routine`, `magic-coordinator.external-inbox-handle-loop.routine` — personal-inbox mechanics for acting members and non-acting owners respectively.

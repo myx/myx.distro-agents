@@ -317,7 +317,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-librarian.basic.md` — identity.
-- This file's own "Team-Member's (-specific) local rules" section — who may run/change this skill, decision-making (there is no separate `magic-librarian.access.md`; per `magic-team/magic-team.shared.md`'s folder-shape spec, an acting member's access facts live inside its own `.armed.md`).
+- This file's own "Team-Member's (-specific) local rules" section — who may run/change this skill, decision-making (per `magic-team/magic-team.shared.md`'s folder-shape spec, an acting member's access facts live inside its own `.armed.md`).
 - `reference/mcp.md` — MCP (Model Context Protocol) / JSON-RPC 2.0 reference module. Fully populated — the former standalone `magic-mcp` skill, retired and folded in here.
 - `reference/messaging.md` — messaging-platform reference module: message-size limits and silent truncation (with the measured evidence behind `magic-team/magic-team.conversations.md`'s **message-shape-is-correctness**), identity-scoped send/read asymmetry, and the endpoint-derivation method for scope grants. Platform specifics live here deliberately; the conventions file stays platform-neutral.
 - A `reference/` module serving one member's own domain stays with that member — same shape as `magic-devops`'s and `magic-developer`'s own `reference/` modules, not this file's own cross-cutting protocol/format reference.
