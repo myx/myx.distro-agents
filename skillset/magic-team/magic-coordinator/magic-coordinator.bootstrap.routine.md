@@ -173,7 +173,7 @@ All statements apply at the same time, always. These rules override a participan
 - Never use a tight infinite busy-loop waiting for replies; use **wait-for-reply**'s bounded waits and timeout escalation.
 - Keep reports compact and operational: facts first, no narrative padding.
 - Never link this routine file into the skillset's routine indexes — it is setup machinery, not working-skillset content.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team/magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

@@ -52,9 +52,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
       - Email: get human confirmation before sending, when a human is actually present in the session; running unattended (`magic-coordinator.heartbeat.routine`), send directly, no confirmation gate — the rest of this step's send/reply discipline still applies in full.
       - Slack/Trello comments in the coordinator's own channels: lead dialog directly, still pause before anything reading as a commitment/decision on the user's behalf.
       - always send under the coordinator's own identity — never impersonate.
-      - genuinely requires the addressee's reaction/reply before anything proceeds → explicitly `@`-mention them, per `magic-team.conversations.md`'s **address-messages-clearly** — posting where they might see it is not enough.
+      - genuinely requires the addressee's reaction/reply before anything proceeds → explicitly `@`-mention them, per `magic-team/magic-team.conversations.md`'s **address-messages-clearly** — posting where they might see it is not enough.
       - send questions standalone, never bundled inside a longer status update.
-      - no message bundles multiple distinct topics — unit is topic count, not send-call count: one root message naming the overall topic, then each distinct point as its own separate threaded reply under it, per `magic-team.conversations.md`'s **one-message-one-speech-act**/**message-shape-is-correctness** — never one long message covering several points, never several unthreaded top-level posts on the same topic.
+      - no message bundles multiple distinct topics — unit is topic count, not send-call count: one root message naming the overall topic, then each distinct point as its own separate threaded reply under it, per `magic-team/magic-team.conversations.md`'s **one-message-one-speech-act**/**message-shape-is-correctness** — never one long message covering several points, never several unthreaded top-level posts on the same topic.
       - mark read once handled, every platform (see Tooling for the per-platform mechanics).
       - Slack, additionally: apply the `slack-reaction-tracking` procedure's Reply-stage and terminal reactions on **this message**, now.
       - `--format blocks` is a hard rule, no exceptions — never plain-text; every array element in a hand-built `blocks` payload needs its own block-level `"type"` wrapper.
@@ -115,7 +115,7 @@ All statements apply at the same time, always. These rules override a participan
 - A message's intent is genuinely unclear: ask, don't guess and proceed — especially on Slack and in comments where tone/brevity make intent easy to misread. This is about being genuinely clear on content and intent before acting, not about adding friction to every message: an unambiguous, already-scoped ask still doesn't need a fresh round of confirmation each time.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as the sweep runs — sweep step-progress/status always targets `event-track` (debug-only); milestones, blockers, and escalations always target `magic-team`.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team/magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

@@ -4,7 +4,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 # Client decision authority
 
 Shared policy file, cross-referenced from each client's own `.armed.md` file and from
-`magic-coordinator.armed.md`'s own Local rules — one copy, read here for the actual policy, never a
+`magic-coordinator/magic-coordinator.armed.md`'s own Local rules — one copy, read here for the actual policy, never a
 paraphrase at each call site.
 
 ## Why

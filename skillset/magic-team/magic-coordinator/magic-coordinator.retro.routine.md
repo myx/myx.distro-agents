@@ -77,7 +77,7 @@ All statements apply at the same time, always. These rules override a participan
 - Unsure whether a finding belongs in retro at all, vs. grooming/daily: retro is for reflection and methodology, not backlog triage — if it's really about re-prioritizing existing work rather than how the work has been going, note it via the `--member-upsert-inbox-note` operation and defer to `magic-team.grooming.routine`, instead of stretching retro's own scope to cover it.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as the routine actually runs — proactive, as-it-happens posts, not only a summary batched into close-out.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team/magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

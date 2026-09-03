@@ -3,7 +3,7 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>]
 ---
 # <name>.armed.md — example skeleton (`keeper-*`/`warden-*`)
 
-Normative contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Keeper / Warden. This file is a derived skeleton; where the two disagree, `magic-team.shared.md` wins.
+Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contracts" → Keeper / Warden. This file is a derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins.
 
 # Summary
 
@@ -62,7 +62,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `DistroAgentsTools.fn.sh` always executes via the `myx.distro` MCP tool `mcp__myx_distro__execute` (argument `command`, the shell script itself) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way.
 - Console-session requirement: doing an actual task with this role-family's own workspace/workspace tooling requires a `--console-start`/`--console-send` session, regardless of command count. Just answering a question or looking at files (not a task) may skip it.
-- This keeper relays between `magic-coordinator` and the task, never deciding design/approach independently unless explicitly granted — full policy in `magic-team.authority.keeper.contract.md`, cross-referenced, never restated in full.
+- This keeper relays between `magic-coordinator` and the task, never deciding design/approach independently unless explicitly granted — full policy in `magic-team/magic-team.authority.keeper.contract.md`, cross-referenced, never restated in full.
 - [...]
 
 # Domain knowledge: <topic>

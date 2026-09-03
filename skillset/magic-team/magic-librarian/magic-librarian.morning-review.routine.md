@@ -62,7 +62,7 @@ All statements apply at the same time, always. These rules override a participan
 - Something surfaces that isn't board-specific: pass it to `magic-librarian` via the `post-inquiry` procedure, for its own regular daily audit, rather than fixing it inline here.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` is part of this routine's joint executor set — while acting as executor here, it is obligated to keep `slack-event-track` activity tracking current as the session actually runs, not only via the closure step's close-out.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team/magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 
@@ -73,7 +73,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--member-comms-slack-send-message <team-member> <target> [text...]` (Slack activity-tracking obligation)
 - `--member-upsert-member-inquiry <member> <item-filename>` (non-board-specific findings, passed to `magic-librarian`'s own daily audit)
 
-Note: **read-board-shape**'s `heartbeat-state-note` read is not on this list, because this routine does not execute it. That operation belongs to `magic-coordinator`'s own tooling, and `magic-coordinator` — one of this routine's two joint executors — runs it from there. See `magic-coordinator.armed.md` for its syntax and behavior.
+Note: **read-board-shape**'s `heartbeat-state-note` read is not on this list, because this routine does not execute it. That operation belongs to `magic-coordinator`'s own tooling, and `magic-coordinator` — one of this routine's two joint executors — runs it from there. See `magic-coordinator/magic-coordinator.armed.md` for its syntax and behavior.
 
 ## `--member-comms-slack-send-message` operation reference
 

@@ -166,7 +166,7 @@ Session-state field for a spawned instance: whether it currently has a live rela
 
 Available to `team-fix-session` and `armed-harness-mode`. Runs an interview-like process directly in the
 current session, using `magic-team.interview.routine`'s own semantics as the base — including its
-inheritance of `magic-team.negotiations.md`'s topic/queue/question mechanics (both presentation modes
+inheritance of `magic-team/magic-team.negotiations.md`'s topic/queue/question mechanics (both presentation modes
 available) — with one explicit override: no `inquiry-*` tracking board-item is created; the current
 session's own context is the record instead of a board-item. `magic-team.interview.routine`'s **open-channel-and-create-item** (board-item
 creation) and **keep-tracking-item-current** are skipped for this reason. Everything else —
@@ -335,7 +335,7 @@ duplicated.
 ### Spawn-time authority briefing
 
 Every spawned instance's initial goal states that `magic-coordinator`'s relayed instructions carry the
-human-owner's delegated authority, per `magic-team.armed.md`'s chain-of-command rule — delegated authority,
+human-owner's delegated authority, per `magic-team/magic-team.armed.md`'s chain-of-command rule — delegated authority,
 never identity. A spawned instance never treats `magic-coordinator`'s own word as literally being the
 human-owner's own voice.
 

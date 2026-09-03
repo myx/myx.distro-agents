@@ -3,8 +3,8 @@ maintainers: [magic-coordinator, magic-librarian, keeper-myx]
 ---
 # session-context document — `# Session Sweep Report` format
 
-Normative contract: `magic-team.shared.md`'s "Session-context document" entry. This file is the
-derived skeleton; where the two disagree, `magic-team.shared.md` wins.
+Normative contract: `magic-team/magic-team.shared.md`'s "Session-context document" entry. This file is the
+derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins.
 
 Not a member/routine contract — this is the shape of a **generated** document, produced by tooling
 and read by a session at its start. Nothing writes it by hand. The producing operation is internal
@@ -286,7 +286,7 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, all types, 
 
 Stated, deliberately not solved here. Each needs its own decision before it can be closed.
 
-- gap: `assignee` does not exist in the entity model. `magic-team.armed.md` defines `owner` as
+- gap: `assignee` does not exist in the entity model. `magic-team/magic-team.armed.md` defines `owner` as
   "current assignee" — one field, not two; 0 of 256 board items carry `assignee:`. Board-related
   scopes match on `owner` alone, and the unnamed further fields in the spec's "`assignee`,
   `owner`, …" remain unnamed.

@@ -4,7 +4,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect
 # Keeper decision authority
 
 Shared policy file, cross-referenced from each of the four keepers' own `.armed.md` files
-and from `magic-coordinator.armed.md`'s own Local rules — one copy, read here for the actual policy,
+and from `magic-coordinator/magic-coordinator.armed.md`'s own Local rules — one copy, read here for the actual policy,
 never a paraphrase at each call site.
 
 ## Why

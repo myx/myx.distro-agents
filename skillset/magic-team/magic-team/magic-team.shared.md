@@ -661,7 +661,7 @@ Full write-up lives in `magic-team.board.md`'s "Two independent dimensions: item
 
 - There is no roster table in this file.
 - Every routine's own non-default executor/maintainer notes, invitee roster, special-care content, and design rationale live natively inside that specific routine's own `.routine.md` file (frontmatter plus body) — read it directly for its current, authoritative shape rather than expecting a central table to summarize it.
-- A live enumeration of which routines exist: each owning acting member's own `.armed.md` names its owned routines and their exact filenames, typically in a routines-index subsection of its own `Domain knowledge` (e.g. `magic-coordinator.armed.md`'s `## Routines (index)`) — the only in-file source of truth for that.
+- A live enumeration of which routines exist: each owning acting member's own `.armed.md` names its owned routines and their exact filenames, typically in a routines-index subsection of its own `Domain knowledge` (e.g. `magic-coordinator/magic-coordinator.armed.md`'s `## Routines (index)`) — the only in-file source of truth for that.
 - On disk: `ls ~/.claude/skills/*/*.routine.md` across every acting member's folder — but per the team's own "trust the cache, don't rediscover" discipline, prefer reading the `.armed.md` sections already surfaced in the skill-discovery listing every session gets.
 
 # Human-owner's standing rules

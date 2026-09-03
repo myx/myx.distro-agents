@@ -3,7 +3,7 @@ maintainers: [<group, e.g. magic-coordinator, magic-librarian, magic-architect; 
 ---
 # <name>.armed.md — example skeleton (`human-owner`)
 
-Normative contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Human-owner. This file is a derived skeleton; where the two disagree, `magic-team.shared.md` wins.
+Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contracts" → Human-owner. This file is a derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins.
 
 # Summary
 

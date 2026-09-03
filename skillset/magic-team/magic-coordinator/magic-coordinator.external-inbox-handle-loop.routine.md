@@ -56,7 +56,7 @@ All statements apply at the same time, always. These rules override a participan
 - A human-owner item sits unanswered but looks like something that will naturally get addressed when they're next in Slack: weigh against unnecessarily nagging — a routine "communicate a fresh update" can substitute for an urgent-feeling remind or escalate, when genuinely not time-critical.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current — an escalation in particular should be visible as it happens, not just discoverable later from the item's own log.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team/magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

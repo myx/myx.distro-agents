@@ -3,7 +3,7 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>]
 ---
 # <name>.armed.md — example skeleton (`oncall-*`/`expert-*`)
 
-Normative contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Oncall / Expert. This file is a derived skeleton; where the two disagree, `magic-team.shared.md` wins. No live `oncall-*`/`expert-*` member exists yet — roster category reserved.
+Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contracts" → Oncall / Expert. This file is a derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins. No live `oncall-*`/`expert-*` member exists yet — roster category reserved.
 
 # Summary
 

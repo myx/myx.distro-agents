@@ -4,7 +4,7 @@ Read this when sending, reading, or storing messages through any chat/messaging 
 writing or revising the conventions that govern how the team composes messages.
 
 This module carries the **evidence and reasoning**. The **operative rule** members follow lives in
-`magic-team.conversations.md`, "Message and reaction discipline", **message-shape-is-correctness** — written
+`magic-team/magic-team.conversations.md`, "Message and reaction discipline", **message-shape-is-correctness** — written
 platform-neutrally on purpose, and self-sufficient on its own. Read that for what to do; read this for
 why it is true and what was actually measured. Keep the two cross-referenced, never duplicated: a rule
 stated twice drifts.
@@ -161,6 +161,6 @@ with it. State it wherever the result is reported, not only where the check is d
 
 ## Reading list
 
-- `magic-team.conversations.md`'s **message-shape-is-correctness** — the operative message-structure rule.
-- `magic-librarian.armed.md` — this module's owner and the reference-module role generally.
+- `magic-team/magic-team.conversations.md`'s **message-shape-is-correctness** — the operative message-structure rule.
+- `magic-librarian/magic-librarian.armed.md` — this module's owner and the reference-module role generally.
 - `reference/mcp.md` — the sibling protocol module; same axis, different protocol.

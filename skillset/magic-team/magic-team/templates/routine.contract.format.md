@@ -5,7 +5,7 @@ invitees: [<only if this routine has genuine multi-member sessions>]
 ---
 # routine-<short-name> — the actual procedure
 
-Normative contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Routine. This file is a derived skeleton; where the two disagree, `magic-team.shared.md` wins.
+Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contracts" → Routine. This file is a derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins.
 
 # Summary
 

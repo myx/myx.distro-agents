@@ -67,7 +67,7 @@ All statements apply at the same time, always. These rules override a participan
 - Unsure whether something the target member raises needs a full board-item or just a status-file note: default to a real board-item if it's substantive enough that a future session would need to find it independently — a status-file line alone risks getting GC'd away with no independent trace.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
 - `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as the routine actually runs — proactive, as-it-happens posts, not only a summary batched into close-out.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
+- `# Steps`/`# Closure steps` sequencing follows `magic-team/magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
 

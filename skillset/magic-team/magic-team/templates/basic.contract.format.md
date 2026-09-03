@@ -3,7 +3,7 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>]
 ---
 # <name>.basic.md — example skeleton
 
-Normative contract: `magic-team.shared.md`'s "Armed & Routine contracts" → Basic. This file is a derived skeleton; where the two disagree, `magic-team.shared.md` wins.
+Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contracts" → Basic. This file is a derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins.
 
 [Identity-only, unconditionally loaded. Enough to respond in a casual or social context, never enough to do the work — point at `<name>.armed.md` for real work-duty.]
 
