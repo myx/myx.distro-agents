@@ -66,6 +66,20 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		## Bundle-relative rules files also exposed at $workspace/.claude/rules/
+		## (workspace scope only, only while processing the .claude/skills
+		## targetRoot -- see below). One line per file; add an entry here to
+		## link the next one, no other code changes needed.
+		local rulesFiles="magic-team/magic-team.basic.md"
+		## Plain basenames of the above, precomputed once -- used both to keep
+		## a rules-file row out of the skill-member report table further down
+		## (a rules file is not a skill member) and, inline further below, to
+		## classify a registry row's type.
+		local rulesNames="" rulesNamesInit
+		for rulesNamesInit in $rulesFiles ; do
+			rulesNames="${rulesNames}$( basename "$rulesNamesInit" ) "
+		done
+
 		local targetRoot
 		if [ -z "$targetRootArg" ] ; then
 			local fanRoots fanRoot fanStatus=0
@@ -348,6 +362,73 @@ case "$1" in
 			done
 		fi
 
+		## Rules files (see $rulesFiles above): a Claude-Code-specific mechanism
+		## (unconditional .claude/rules/*.md load into every session), so this is
+		## workspace-scope-only and deliberately NOT fanned to $HOME or to
+		## .agents/skills -- fires only while processing the .claude/skills
+		## targetRoot, which happens exactly once per --install-skillset-symlinks
+		## pass regardless of scope/fan-out. Rows feed into $ownedMembers, same as
+		## a bundled/declared member, so the existing registry-write and
+		## reconciliation-removal loops below pick them up automatically; only
+		## their own type classification (further down) and reconciliation path
+		## resolution (in the removal loop) need to know about them specially.
+		## $scope is checked explicitly, not inferred from $targetRoot alone: when
+		## $workspace is not a set-up distro workspace, --scope falls back from
+		## "workspace" to "user-home" (see the fallback above), and in that
+		## fallback state $workspace can coincide with $HOME -- which would make
+		## the user-home fan-out's own "$HOME/.claude/skills" targetRoot
+		## string-match this guard by coincidence. Requiring scope=workspace too
+		## keeps the rules link workspace-only even in that coincidence.
+		if [ "$scope" = "workspace" ] && [ "$targetRoot" = "$workspace/.claude/skills" ] && [ "$removeMode" != "true" ] ; then
+			local rulesDir="$workspace/.claude/rules"
+			mkdir -p "$rulesDir" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: cannot create rules directory: $rulesDir" >&2
+				hadError="true"
+			}
+
+			local rfEntry rfName rfBundled rfTarget rfActual
+			for rfEntry in $rulesFiles ; do
+				[ -n "$rfEntry" ] || continue
+				rfName="$( basename "$rfEntry" )"
+				rfBundled="$bundleRoot/$rfEntry"
+				rfTarget="$rulesDir/$rfName"
+
+				if [ ! -f "$rfBundled" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundled rules file does not exist: $rfBundled" >&2
+					errorMembers="${errorMembers}${rfName} " ; hadError="true"
+					continue
+				fi
+
+				if [ -L "$rfTarget" ] && [ ! -e "$rfTarget" ] ; then
+					echo "# $MDSC_CMD --install-skillset-symlinks: $rfTarget is a dangling symlink (points at $( readlink "$rfTarget" ), which does not exist) -- reclaiming the slot" >&2
+					if ! rm -f "$rfTarget" ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove dangling symlink: $rfTarget" >&2
+						errorMembers="${errorMembers}${rfName} " ; hadError="true"
+						continue
+					fi
+				elif [ -L "$rfTarget" ] ; then
+					rfActual="$( readlink "$rfTarget" )"
+					if [ "$rfActual" != "$rfBundled" ] ; then
+						keptMembers="${keptMembers}${rfName} "
+					fi
+					ownedMembers="${ownedMembers}${rfName} ${rfActual}"$'\n'
+					continue
+				fi
+				if [ -e "$rfTarget" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: real content at $rfTarget, will not overwrite (bundle already has $rfBundled)" >&2
+					errorMembers="${errorMembers}${rfName} " ; hadError="true"
+					continue
+				fi
+				if ! ln -s "$rfBundled" "$rfTarget" ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $rfTarget" >&2
+					errorMembers="${errorMembers}${rfName} " ; hadError="true"
+					continue
+				fi
+				ownedMembers="${ownedMembers}${rfName} ${rfBundled}"$'\n'
+				newLinks="${newLinks}${rfName} "
+			done
+		fi
+
 		local regLock="$registryFile.lock" regWait=0 regLocked="false"
 		while true ; do
 			if mkdir "$regLock" 2>/dev/null ; then
@@ -371,18 +452,38 @@ case "$1" in
 				[ -n "$regEntry" ] || continue
 				regName="${regEntry%% *}"
 				regResolved="${regEntry#* }"
-				case "$regResolved" in
-					"$compositeRoot"/*)      regType=".local-merged"   ; regRel="${regResolved#$workspace/.local/}" ;;
-					"$workspace/.local/"*)   regType=".local-symlink"  ; regRel="${regResolved#$workspace/.local/}" ;;
-					"$workspace/source/"*)   regType="source-symlink"  ; regRel="${regResolved#$workspace/source/}" ;;
-					## last of the known-good arms: a vendored copy matches one of the three
-					## above first, so this one only speaks for an origin outside $workspace.
-					"$originRoot"/*)         regType="origin-symlink"  ; regRel="${regResolved#$originRoot/}" ;;
-					*)
-						echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: not registered, points outside both workspace $workspace and origin $originRoot (pre-existing link kept, not ours to claim): $regName -> $regResolved" >&2
-						continue
-					;;
-				esac
+
+				## A rules-file row (see $rulesFiles above) resolves under $originRoot
+				## exactly like an origin-symlink member would -- checked explicitly,
+				## before the generic path-prefix classification below, since its
+				## registry type has to stay distinguishable from an ordinary member's
+				## so the reconciliation-removal loop further down can resolve its real
+				## link location ($workspace/.claude/rules/, a sibling of $targetRoot)
+				## instead of a member slot under $targetRoot.
+				local regRulesMatch="false" regRulesEntry
+				for regRulesEntry in $rulesFiles ; do
+					if [ "$regResolved" = "$bundleRoot/$regRulesEntry" ] ; then
+						regRulesMatch="true"
+						break
+					fi
+				done
+
+				if [ "$regRulesMatch" = "true" ] ; then
+					regType="rules-symlink" ; regRel="${regResolved#$originRoot/}"
+				else
+					case "$regResolved" in
+						"$compositeRoot"/*)      regType=".local-merged"   ; regRel="${regResolved#$workspace/.local/}" ;;
+						"$workspace/.local/"*)   regType=".local-symlink"  ; regRel="${regResolved#$workspace/.local/}" ;;
+						"$workspace/source/"*)   regType="source-symlink"  ; regRel="${regResolved#$workspace/source/}" ;;
+						## last of the known-good arms: a vendored copy matches one of the three
+						## above first, so this one only speaks for an origin outside $workspace.
+						"$originRoot"/*)         regType="origin-symlink"  ; regRel="${regResolved#$originRoot/}" ;;
+						*)
+							echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: not registered, points outside both workspace $workspace and origin $originRoot (pre-existing link kept, not ours to claim): $regName -> $regResolved" >&2
+							continue
+						;;
+					esac
+				fi
 				regLine="$regName:$workspaceName:$regType:$regRel"
 
 				if awk -F: -v m="$regName" -v w="$workspaceName" -v t="$regType" -v p="$regRel" '
@@ -435,6 +536,7 @@ case "$1" in
 
 					case "$rcType" in
 						source-symlink) rcPath="$workspace/source/$rcRel" ;;
+						rules-symlink)  rcPath="$workspace/.claude/rules/$rcName" ;;
 						*)              rcPath="$workspace/.local/$rcRel" ;;
 					esac
 					if [ "$removeMode" != "true" ] && [ -e "$rcPath" ] ; then
@@ -459,7 +561,12 @@ case "$1" in
 					if awk -F: -v m="$rcName" '$1 == m { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
 						continue
 					fi
-					rcSlot="$targetRoot/$rcName"
+					case "$rcType" in
+						## a rules-file link lives beside $targetRoot, not under it -- see
+						## the rcPath case above for the same distinction.
+						rules-symlink) rcSlot="$workspace/.claude/rules/$rcName" ;;
+						*)              rcSlot="$targetRoot/$rcName" ;;
+					esac
 					if [ -L "$rcSlot" ] ; then
 						if rm -f "$rcSlot" ; then
 							echo "🔗 unlinked $rcName, no workspace registers it any more" >&2
@@ -491,6 +598,9 @@ case "$1" in
 				[ "$regLineWs" != "$workspaceName" ] || continue
 				[ -e "$targetRoot/$regLineName" ] || continue
 				case " $foreignMembers " in *" $regLineName "*) continue ;; esac
+				## a rules file is not a skill member -- keep it out of the
+				## foreign-members table/count the same as everywhere else below
+				case " $rulesNames " in *" $regLineName "*) continue ;; esac
 				## already reported via ownedMembers -- this workspace registers it too,
 				## a second (foreign) registry line for the same name is not a second slot.
 				## ownedMembers is "name path" pairs, one per line -- match the name field, not a substring.
@@ -512,6 +622,11 @@ case "$1" in
 						[ -n "$reportEntry" ] || continue
 						reportName="${reportEntry%% *}"
 						case " $errorMembers " in *" $reportName "*) continue ;; esac
+						## a rules file (see $rulesNames above) is not a skill member --
+						## it was folded into $ownedMembers only so the registry-write and
+						## reconciliation loops above pick it up for free; it does not
+						## belong in this member-table report or its count below.
+						case " $rulesNames " in *" $reportName "*) continue ;; esac
 						## `status: reference-only` marks the non-acting human record; every acting member is `active`
 						reportWho="🤖"
 						if grep -q '^status: reference-only' "${reportEntry#* }/SKILL.md" 2>/dev/null ; then reportWho="👤" ; fi
@@ -520,9 +635,16 @@ case "$1" in
 							*) printf '%s\t%s\t%s\t%s\n' "$reportName" "$reportScope" "kept" "$reportWho" ;;
 						esac
 					done <<< "$ownedMembers"
-					for reportName in $errorMembers ; do printf '%s\t%s\t%s\t%s\n' "$reportName" "$reportScope" "error" "🤖" ; done
-					for reportName in $deletedMembers ; do printf '%s\t%s\t%s\t%s\n' "$reportName" "$reportScope" "deleted" "🤖" ; done
+					for reportName in $errorMembers ; do
+						case " $rulesNames " in *" $reportName "*) continue ;; esac
+						printf '%s\t%s\t%s\t%s\n' "$reportName" "$reportScope" "error" "🤖"
+					done
+					for reportName in $deletedMembers ; do
+						case " $rulesNames " in *" $reportName "*) continue ;; esac
+						printf '%s\t%s\t%s\t%s\n' "$reportName" "$reportScope" "deleted" "🤖"
+					done
 					for reportName in $foreignMembers ; do
+						case " $rulesNames " in *" $reportName "*) continue ;; esac
 						reportWho="🤖"
 						regLineTarget="$( readlink "$targetRoot/$reportName" 2>/dev/null )" || regLineTarget=""
 						if [ -n "$regLineTarget" ] && grep -q '^status: reference-only' "$regLineTarget/SKILL.md" 2>/dev/null ; then reportWho="👤" ; fi
@@ -530,8 +652,15 @@ case "$1" in
 					done
 				} >> "$MDSC_SKILLSET_REPORT"
 			fi
-			## progress while the roots are worked through; the table lands once, after all of them
-			echo "🔗 $shortRoot: $(( $( printf '%s' "$ownedMembers" | grep -c '' ) + $( printf '%s' "$foreignMembers" | wc -w ) )) members" >&2
+			## progress while the roots are worked through; the table lands once, after all of them --
+			## a rules row counts toward neither term, same exclusion as the report loop above.
+			local reportRulesOwnedCount=0 reportRulesEntry reportRulesName
+			while IFS= read -r reportRulesEntry ; do
+				[ -n "$reportRulesEntry" ] || continue
+				reportRulesName="${reportRulesEntry%% *}"
+				case " $rulesNames " in *" $reportRulesName "*) reportRulesOwnedCount=$(( reportRulesOwnedCount + 1 )) ;; esac
+			done <<< "$ownedMembers"
+			echo "🔗 $shortRoot: $(( $( printf '%s' "$ownedMembers" | grep -c '' ) - reportRulesOwnedCount + $( printf '%s' "$foreignMembers" | wc -w ) )) members" >&2
 		fi
 
 		if [ "$hadError" = "true" ] ; then
