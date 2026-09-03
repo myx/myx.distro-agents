@@ -690,6 +690,35 @@ case "$1" in
 		fi
 		workspace="$( cd "$workspace" && pwd )"
 
+		## Same root-check every console script performs on itself at startup
+		## (byte-identical across all five Make.Distro*ConsoleShellScript.include
+		## generators -- Source, Deploy, Local, Remote, Agents): a genuine
+		## workspace root is "$workspace/.local" existing as a directory, the
+		## exact test those generated scripts run on themselves, nothing newly
+		## invented here. A nested sub-project/repo living inside a real
+		## workspace has no .local of its own and fails this the same way a
+		## console launched from inside it would. Deliberately NOT a
+		## console-script-presence check: DistroRemoteConsole.sh was added to
+		## some workspaces after Source/Deploy/Local (this workspace's own
+		## CLAUDE.md notes this), so a real workspace can legitimately be
+		## missing one or more console scripts -- checking .local sidesteps
+		## "which subset of four" entirely.
+		if [ ! -d "$workspace/.local" ] ; then
+			local wsRootWalk="$workspace" wsRootFound=""
+			while [ "$wsRootWalk" != "/" ] ; do
+				wsRootWalk="$( dirname "$wsRootWalk" )"
+				if [ -d "$wsRootWalk/.local" ] ; then
+					wsRootFound="$wsRootWalk"
+					break
+				fi
+			done
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: not a workspace root: $workspace -- expected '$workspace/.local' to exist (the same check every DistroSourceConsole.sh/DistroDeployConsole.sh/etc. performs on itself at startup), but it is missing. This looks like a sub-project/repo living inside a real workspace, not the workspace root itself." >&2
+			if [ -n "$wsRootFound" ] ; then
+				echo "   likely correct root: $wsRootFound (found '$wsRootFound/.local')" >&2
+			fi
+			set +e ; return 1
+		fi
+
 		local claudeDir="$workspace/.claude"
 		local hooksDir="$claudeDir/hooks"
 		mkdir -p "$hooksDir" || {

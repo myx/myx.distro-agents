@@ -98,12 +98,28 @@
 ## ARGUMENTS
 ##
 ##   --intern-op-item-read <team-member> <item-selector>
-##       [--acquire-lock <owner-label> [--header:<upsert|append|remove>:name[:value]]...]
+##       [--acquire-lock <owner-label> [--commit-message <text>] [--header:<upsert|append|remove>:name[:value]]...]
 ##       --context <caller-op>
 ##   --intern-op-item-upsert <team-member> <item-selector>
 ##       [--header:<upsert|append|remove>:name[:value]]...
 ##       [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-##       [--update-lock|--unlock-lock] --context <caller-op>
+##       [--update-lock|--unlock-lock] [--commit-message <text>] [--no-push]
+##       --context <caller-op>
+##
+## --commit-message/--no-push (both optional, both narrow passthroughs, added
+## for --magic-advance-lock-acquire/--magic-advance-close-state-and-unlock's
+## own scoped commit-message/single-push-covers-two-commits needs -- a
+## human-owner-ruled narrow addition, not a general mechanism): --commit-message
+## overrides the default "$MDSC_CMD: item-upsert: $itemName" git commit
+## message when given; every other call site is unaffected since the default
+## is unchanged. --no-push stops --intern-op-item-upsert's own git half right
+## after the local commit -- skips push/cloneSync/session-id-readback
+## entirely, so a caller doing several of its own commits in sequence (e.g.
+## a GC-deletion commit then a lock-state commit) can push once itself
+## afterward instead of pushing after each one. --intern-op-item-read's
+## --acquire-lock path forwards --commit-message into the
+## --intern-op-item-upsert call it makes internally; it has no --no-push of
+## its own -- an acquire always wants the normal single push+readback.
 ##
 ## <item-selector> is one of the five forms under ITEM-CATEGORY ADDRESSING
 ## above. No option name is introduced beyond what the two ops this file
@@ -247,11 +263,11 @@ case "$1" in
 		local opContext ; AgentsToolsItemContextScan "$@"
 		local callingMember="$1" ; shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "$MDSC_CMD: item-read: ⛔ ERROR: syntax is <team-member> [--from-board <state> <item-filename>|--from-vault <item-filename>|--from-audit <item-filename>|--from-inbox <team-member> <item-filename>|<item-filename>] [--acquire-lock <owner-label> [--header:...]...] --context <caller-op>" >&2
+			echo "$MDSC_CMD: item-read: ⛔ ERROR: syntax is <team-member> [--from-board <state> <item-filename>|--from-vault <item-filename>|--from-audit <item-filename>|--from-inbox <team-member> <item-filename>|<item-filename>] [--acquire-lock <owner-label> [--commit-message <text>] [--header:...]...] --context <caller-op>" >&2
 			set +e ; return 1
 		fi
 		local category="" boardState="" inboxMember="" itemName=""
-		local acquireLock="false" ownerLabel="" headerArgs=()
+		local acquireLock="false" ownerLabel="" headerArgs=() commitMessageOverride=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-board|--from-vault|--from-audit|--from-inbox)
@@ -293,6 +309,11 @@ case "$1" in
 					[ -z "$ownerLabel" ] && { echo "$MDSC_CMD: item-read: ⛔ ERROR: --acquire-lock: <owner-label> required" >&2 ; set +e ; return 1 ; }
 					shift 2
 				;;
+				--commit-message)
+					commitMessageOverride="$2"
+					[ -z "$commitMessageOverride" ] && { echo "$MDSC_CMD: item-read: ⛔ ERROR: --commit-message: value required" >&2 ; set +e ; return 1 ; }
+					shift 2
+				;;
 				--header:*)
 					headerArgs+=( "$1" ) ; shift
 				;;
@@ -318,6 +339,10 @@ case "$1" in
 		fi
 		if [ "${#headerArgs[@]}" -gt 0 ] && [ "$acquireLock" != "true" ] ; then
 			echo "$MDSC_CMD: item-read: ⛔ ERROR: --header:* is only valid together with --acquire-lock" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$commitMessageOverride" ] && [ "$acquireLock" != "true" ] ; then
+			echo "$MDSC_CMD: item-read: ⛔ ERROR: --commit-message is only valid together with --acquire-lock" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$itemName" "<item-filename>" item-read || { set +e ; return 1 ; }
@@ -379,9 +404,12 @@ case "$1" in
 			audit) upsertSelectorArgs=( --from-audit "$itemName" ) ;;
 			inbox) upsertSelectorArgs=( --from-inbox "$inboxMember" "$itemName" ) ;;
 		esac
+		local commitMsgArgs=()
+		[ -n "$commitMessageOverride" ] && commitMsgArgs=( --commit-message "$commitMessageOverride" )
 		DistroAgentsTools --intern-op-item-upsert "$callingMember" "${upsertSelectorArgs[@]}" \
 			--header:upsert:session-id:"$ownerLabel" \
 			"${headerArgs[@]}" \
+			"${commitMsgArgs[@]}" \
 			--context "$opContext"
 		local acquireRc=$?
 		if [ "$acquireRc" -ne 0 ] ; then
@@ -427,7 +455,7 @@ case "$1" in
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: syntax is <team-member> [--from-board <state> <item-filename>|--from-vault <item-filename>|--from-audit <item-filename>|--from-inbox <team-member> <item-filename>|<item-filename>] [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin] [--update-lock|--unlock-lock]" >&2
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: syntax is <team-member> [--from-board <state> <item-filename>|--from-vault <item-filename>|--from-audit <item-filename>|--from-inbox <team-member> <item-filename>|<item-filename>] [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin] [--update-lock|--unlock-lock] [--commit-message <text>] [--no-push]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$callingMember" "<team-member>" item-upsert || { set +e ; return 1 ; }
@@ -438,6 +466,7 @@ case "$1" in
 
 		local category="" boardState="" inboxMember="" itemName=""
 		local updateLock="false" unlockLock="false"
+		local commitMessageOverride="" noPush="false"
 		local headerOpsFile
 		headerOpsFile="$MMDAPP/.local/temp/mdat-item-upsert-headers.$$"
 		mkdir -p "$MMDAPP/.local/temp" && : > "$headerOpsFile" || { set +e ; return 1 ; }
@@ -484,6 +513,17 @@ case "$1" in
 				;;
 				--unlock-lock)
 					unlockLock="true" ; shift
+				;;
+				--commit-message)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --commit-message: value required" >&2
+						rm -f "$headerOpsFile" ; set +e ; return 1
+					fi
+					commitMessageOverride="$2"
+					shift 2
+				;;
+				--no-push)
+					noPush="true" ; shift
 				;;
 				--header:*)
 					headerSpec="${1#--header:}"
@@ -693,14 +733,30 @@ case "$1" in
 		## comment for the measured defect this fixes (a same-minute
 		## byte-identical note produces "nothing to commit", so an early
 		## return would hand back SUCCESS having never contested the lock).
+		local commitMessage="$MDSC_CMD: item-upsert: $itemName"
+		[ -n "$commitMessageOverride" ] && commitMessage="$commitMessageOverride"
 		set +e
-		gitOut="$( git -C "$repoRoot" commit --allow-empty -m "$MDSC_CMD: item-upsert: $itemName" -- "$target" 2>&1 )"
+		gitOut="$( git -C "$repoRoot" commit --allow-empty -m "$commitMessage" -- "$target" 2>&1 )"
 		gitRc=$?
 		set -e
 		if [ "$gitRc" -ne 0 ] ; then
 			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: git commit failed for $target: $gitOut" >&2
 			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			set +e ; return 1
+		fi
+
+		## --no-push: stop right here, right after the local commit -- skips
+		## push/cloneSync/session-id-readback entirely. For a caller doing
+		## several of its own commits in sequence (e.g.
+		## --magic-advance-close-state-and-unlock's GC-deletion commit then
+		## its own lock-state commit) that wants to push once itself
+		## afterward, not once per commit. See this file's own ARGUMENTS
+		## section above.
+		if [ "$noPush" = "true" ] ; then
+			echo "# $MDSC_CMD: item-upsert: committed (no-push) ${target#"$itemStoreRoot"/}" >&2
+			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+			if [ "$updateLock" = "true" ] ; then echo "REFRESHED" ; return 0 ; fi
+			return 0
 		fi
 
 		## PUSH, THEN PULL AGAIN -- THE READ-BACK IS THE VERDICT. Unchanged

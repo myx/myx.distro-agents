@@ -471,11 +471,15 @@ case "$1" in
 	;;
 
 	##
-	## --magic-advance-lock-* -- routine-advance's own lock: four thin stubs
-	## over the shared --intern-op-item-read/--intern-op-item-upsert
-	## primitives (AgentsTools.InternOpItem.include), same unified mechanism
-	## every routine now uses -- frontmatter + git when TEAM_DATA_GIT_REMOTE
-	## is configured, local-only when it is not.
+	## --magic-advance-lock-* -- routine-advance's own lock: four stubs over
+	## the shared --intern-op-item-read/--intern-op-item-upsert primitives
+	## (AgentsTools.InternOpItem.include), same unified mechanism every
+	## routine now uses -- frontmatter + git when TEAM_DATA_GIT_REMOTE is
+	## configured, local-only when it is not. -lock-refresh/-lock-status stay
+	## thin; -lock-acquire and -close-state-and-unlock carry real logic of
+	## their own beyond the pass-through (a literal remote-published-head
+	## verification on acquire, GC-deletion integration + single-push
+	## batching on unlock) -- see each arm's own header comment.
 	##
 	## Position in the routine is fixed: lock before all, unlock in closure.
 	## Not inside --magic-advance-input-scan -- that op's contract is "return
@@ -508,13 +512,58 @@ case "$1" in
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
 		recheckRem=$(( targetEpoch % 86400 ))
 		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
-		DistroAgentsTools --intern-op-item-read "$callingMember" \
+		if ! DistroAgentsTools --intern-op-item-read "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
 			--acquire-lock "$ownerLabel" \
+			--commit-message "* advance.routine: activate, lock" \
 			--header:upsert:state:advance-running \
 			--header:upsert:recheck-date:"$recheckDate" \
 			--context --magic-advance-lock-acquire
-		return $?
+		then
+			set +e ; return 1
+		fi
+
+		##
+		## Human-owner ruling (stricter than the cloneSync-based local
+		## readback --intern-op-item-upsert already does above): explicitly
+		## verify the lock note's content is genuinely present and matching
+		## in the REMOTE PUBLISHED ref itself, not merely trusted from a
+		## local post-cloneSync file. Skipped when no remote is configured
+		## or the data root isn't a git repo -- nothing published to check
+		## against, and --intern-op-item-upsert already went local-only
+		## silently in that case.
+		##
+		local originUrl="" repoRoot=""
+		set +e
+		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		if [ -n "$originUrl" ] ; then
+			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
+		fi
+		set -e
+		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
+			local lockTarget lockRelPath lockBranch
+			lockTarget="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
+			lockRelPath="${lockTarget#"$repoRoot"/}"
+			set +e
+			lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )"
+			set -e
+			local fetchOut="" fetchRc=0
+			set +e
+			fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
+			fetchRc=$?
+			set -e
+			if [ "$fetchRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to verify the published lock: $fetchOut" >&2
+				set +e ; return 1
+			fi
+			local publishedSessionId
+			publishedSessionId="$( git -C "$repoRoot" show "origin/$lockBranch:$lockRelPath" 2>/dev/null | LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' )"
+			if [ "$publishedSessionId" != "$ownerLabel" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: LOCK_NOT_PUBLISHED -- origin/$lockBranch:$lockRelPath reads session-id '$publishedSessionId', not '$ownerLabel' -- the lock write did not actually land on the remote" >&2
+				set +e ; return 1
+			fi
+		fi
+		return 0
 	;;
 
 	--magic-advance-lock-refresh)
@@ -563,12 +612,85 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-close-state-and-unlock: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
+		##
+		## Ordering (human-owner ruling): GC-deletion first (own commit, only
+		## if it actually deleted anything), then the lock-state write (own
+		## commit), then ONE push covering both -- not one push per commit.
+		##
+		## GC-deletion failure is PROVISIONAL -- fails loud, aborting the
+		## whole unlock, rather than degrading to a best-effort skip. Matches
+		## this team's general "no silent degrade" convention, but this
+		## specific choice is NOT yet human-owner-confirmed -- flagged here
+		## and in this task's own report, easily reversible.
+		##
+		local gcRc=0
+		DistroAgentsTools --intern-team-data-final-gc-deletion "$callingMember" \
+			--context --magic-advance-close-state-and-unlock || gcRc=$?
+		if [ "$gcRc" -ne 0 ] && [ "$gcRc" -ne 2 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-close-state-and-unlock: team-data-final-gc-deletion failed (exit $gcRc) -- aborting unlock rather than degrading silently (PROVISIONAL policy, see AgentsTools.InternTeamDataFinalGcDeletion.include's own header / this task's own report)" >&2
+			set +e ; return 1
+		fi
+		## gcRc=2: nothing to delete -- not a failure, continue.
+
+		if ! DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
 			--unlock-lock \
 			--header:upsert:state:advance-finished \
+			--no-push \
+			--commit-message "* advance.routine: update, unlock" \
 			--context --magic-advance-close-state-and-unlock
-		return $?
+		then
+			set +e ; return 1
+		fi
+
+		##
+		## ONE push covering both commits above. --intern-op-item-upsert's
+		## own push/cloneSync/session-id-readback is intentionally skipped
+		## via --no-push above: closing is always best-effort/tolerant
+		## (mirrors --intern-op-item-upsert's own isClosing "closing anyway"
+		## warning-not-failure behavior for a closing write), so unlock does
+		## not need a post-push readback verdict the way lock-acquire does.
+		## Skipped entirely when no remote is configured -- matches
+		## --intern-op-item-upsert's own git-half gate.
+		##
+		local originUrl="" repoRoot=""
+		set +e
+		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		if [ -n "$originUrl" ] ; then
+			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
+		fi
+		set -e
+		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
+			## Retry-once-on-network-failure, same shape as
+			## --intern-op-item-upsert's own push loop (AgentsTools.InternOpItem.include)
+			## -- duplicated here rather than factored out, matching this
+			## codebase's own established convention of a dedicated stub per
+			## calling routine carrying its own literal mechanics even where
+			## identical to a sibling's.
+			local pushAttempt=1 pushOut="" pushRc=0
+			while : ; do
+				set +e
+				pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
+				pushRc=$?
+				set -e
+				[ "$pushRc" -eq 0 ] && break
+				case "$pushOut" in
+					*"Could not resolve host"*|*"could not resolve host"*|*"unable to access"*|*"Could not read from remote repository"*|*"Connection timed out"*|*"Connection refused"*|*"Operation timed out"*|*"Network is unreachable"*|*"connection reset"*)
+						if [ "$pushAttempt" -eq 1 ] ; then
+							echo "# $MDSC_CMD --magic-advance-close-state-and-unlock: push network failure, retrying once in 15s" >&2
+							sleep 15
+							pushAttempt=2
+							continue
+						fi
+					;;
+				esac
+				break
+			done
+			if [ "$pushRc" -ne 0 ] ; then
+				echo "⚠️ WARNING: $MDSC_CMD --magic-advance-close-state-and-unlock: push failed after unlock commits landed locally -- closing anyway (same tolerance as --intern-op-item-upsert's own closing-update warning): $pushOut" >&2
+			fi
+		fi
+		return 0
 	;;
 
 	--magic-advance-lock-status)

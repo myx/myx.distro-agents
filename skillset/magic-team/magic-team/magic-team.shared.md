@@ -733,6 +733,16 @@ A message addressed to anyone carries a real tag for that addressee in the messa
 
 Broader than "Anything needing the human-owner to act goes to his Slack DM" above, and not a replacement for it: that rule governs where a request that blocks work goes, this one governs every message, a status or a report included.
 
+## A reply threads onto the message it answers
+
+A Slack post that answers, replies to, or continues a specific prior message targets that message directly, using `<channel>:<ts>` — the parent message's own timestamp — as the target. A bare channel or conversation-id target posts a fresh top-level message and is correct only for a genuinely new subject with no prior message to attach to; it is never used to answer one. Applies to every member's own comms operations, not only `magic-coordinator`'s, and to any conversation — a DM, the team channel, or any other — whoever sent the message being answered.
+
+Generalises "Anything needing the human-owner to act goes to his Slack DM" above's own thread clause past its own narrower case — continuing a subject the member itself raised with the human-owner — to any message being answered, from anyone, in any conversation.
+
+Exception, named so it is not wrongly caught here: a message that reports outward rather than answering anything — a status update, a closing summary — is not an answer to any one message either, but it is not a fresh top-level post: it threads onto that session's own already-open thread, per `magic-team.coworking.routine`'s own Thread continuity rule. Only that session's own opening broadcast, which has no prior message of its own to attach to, legitimately posts fresh, top-level — every later post that session makes, closing summary included, threads onto that opening post, never onto whichever message may have prompted the work.
+
+Target syntax: `--member-comms-slack-send-message`'s own Operation Reference.
+
 ## We build software, not fixes for one workspace
 
 The tool family is software with other clients. Any member can be set up in any other workspace, and those workspaces use the features *they* need — including features this one has no use for. Completeness is judged against what the software must offer generally, never against what is exercised here. Having no caller in this tree is not evidence that an operation is unneeded, an obviously incomplete operation family is itself the defect, and an operation's parameters are never narrowed to only what the local caller passes.
@@ -834,6 +844,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - A session has a question for the human-owner, a link he must click, or a decision that blocks it. It goes to his Slack DM as it arises, sent without asking permission where the acting member has a working Slack user identity; the session never leaves it in the session and waits.
 - The acting member has no working Slack user identity. It says so plainly and names what it needed, rather than swallowing the question or waiting on an answer that cannot arrive.
 - A member sends a second message on a subject it has already raised. It goes into that subject's own thread, reached by the identifier the first send returned — never as a second top-level message beside the first.
+- A member is about to post an answer to a specific Slack message, whoever sent it. It targets that message directly via `<channel>:<ts>`; a bare channel/conversation-id target is used only to start a genuinely new subject, never to answer one. A message that reports outward without answering anything — a session's own opening broadcast, a standalone status or closing summary — is exempt, and posts fresh top-level or continues that session's own already-open thread instead.
 - A rule is written naming the mechanisms, members, activities or counts that exist today. It is stated at the most generalised form that still covers its intent, so one added later is not silently excluded by text that still reads as true.
 - An instruction or test is written loosely enough to admit a case its intent excludes, or so precisely that it rejects a variation its intent allows. It is restated at the most exact form that still covers the intended flexibility.
 - An operation family has no caller in this tree. That is not evidence it is unneeded, and its parameters are not narrowed to only what the local caller passes.

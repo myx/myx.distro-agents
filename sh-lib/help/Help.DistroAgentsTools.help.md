@@ -125,6 +125,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>
 📘 syntax: DistroAgentsTools.fn.sh [--help]
 
+**IMPORTANT -- for `mcp__myx_distro__execute` callers specifically:** call every operation as the bare `DistroAgentsTools <op> [args...]` function form -- never `DistroAgentsTools.fn.sh <op> [args...]`. That one execution context already has `DistroAgentsTools` defined as an in-process shell function before your command runs, uniquely among the ways this tool is invoked; every other context (a console session, a plain shell) still needs the full `.fn.sh` invocation shown throughout the rest of this file.
+
 ##  Summary:
 
 		The magic-* team's single mandated execution interface for every
@@ -1738,7 +1740,24 @@
 			is ever removed here even if a future entry is dropped from the
 			op's own fixed list.
 			Default target workspace is the current shell directory;
-			optional `--workspace <path>` overrides it. Creates
+			optional `--workspace <path>` overrides it. Refuses (exit 1,
+			nothing written) when `<workspace>` is not a genuine workspace
+			root: checks `<workspace>/.local` exists as a directory, the
+			same test every generated console script (DistroSourceConsole.sh
+			etc.) performs on itself at its own startup -- not a new check
+			invented for this op. Confirmed error shape (a nested
+			sub-project/repo given by mistake, e.g. a leaf repo under a real
+			workspace's own `source/`):
+			```
+			⛔ ERROR: DistroAgentsTools --install-workspace-restrictions: not a workspace root: <workspace> -- expected '<workspace>/.local' to exist (the same check every DistroSourceConsole.sh/DistroDeployConsole.sh/etc. performs on itself at startup), but it is missing. This looks like a sub-project/repo living inside a real workspace, not the workspace root itself.
+			   likely correct root: <ancestor> (found '<ancestor>/.local')
+			```
+			The `likely correct root:` hint line is printed only when an
+			ancestor directory with its own `.local` is actually found by
+			walking up from `<workspace>` to `/`; omitted entirely when none
+			is found (e.g. `<workspace>` is not under a real workspace at
+			all), never a guessed/fabricated suggestion.
+			Once past this guard, creates
 			`<workspace>/.claude/` and `<workspace>/.claude/hooks/` if
 			missing, and creates `<workspace>/.claude/settings.json` as `{}`
 			if it does not already exist -- never overwrites an existing

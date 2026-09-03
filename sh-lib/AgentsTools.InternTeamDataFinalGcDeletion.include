@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternTeamDataFinalGcDeletion.include -- the
+## --intern-team-data-final-gc-deletion op for DistroAgentsTools.fn.sh's
+## dispatcher. Sourced lazily from that exact op's own dispatcher arm via the
+## standard $MDLT_ORIGIN-based path. Not standalone: relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. One intern-op primitive per file, same
+## convention as AgentsTools.InternOpBoardTrash.include -- not bundled with
+## it, and NOT built on top of it: this op permanently deletes on a
+## retention clock, --intern-op-board-trash relocates one named item on
+## request; different mechanism, different contract, human-owner-ruled not
+## to share an implementation.
+##
+## Scans inboxes/*/processed/ and board/processed/ for items past their
+## type's retention threshold (mirrors magic-team.board.md's own "Per-type
+## retention thresholds" table exactly -- flagged to magic-librarian as a
+## real cross-file duplication risk, not solved here) and `rm -f`s them.
+## Unmatched filename prefix is always skipped, never deleted -- an unknown
+## type is not evidence it's safe to remove.
+##
+## mtime is the spec'd retention clock, taken literally. FLAGGED, not
+## silently worked around: a git checkout/merge (this data root gets
+## resynced by every routine's own lock traffic) does not guarantee
+## preserving a file's original mtime, which could silently reset an old
+## item's retention clock after a resync. Left as specified pending
+## human-owner confirmation -- see this task's own report.
+##
+## Local-commit gate is `.git`-PRESENCE ONLY (independent of
+## TEAM_DATA_GIT_REMOTE) -- deliberately diverging from
+## --intern-op-item-upsert's combined originUrl+repoRoot gate. This op never
+## pushes/syncs at all; that is always the caller's own job.
+##
+## No --help entry: internal plumbing, called from
+## --magic-advance-close-state-and-unlock and directly by magic-tester for
+## scratch-fixture verification.
+##
+
+## Scans one already-resolved processed/ directory, `rm -f`ing anything whose
+## filename prefix matches the retention table and whose mtime is past that
+## row's threshold. Reused across every inbox member's own processed/ dir
+## plus board/processed/ -- same algorithm, different directory each call.
+## Sets (accumulates into, never resets): gcDeletedCount, gcDeletedPaths[]
+## (both `local` in the caller, dynamic-scoped here, same convention as
+## AgentsToolsItemResolvePaths/AgentsToolsItemStaleCheck in
+## AgentsTools.InternOpItem.include). Never prints. An unreadable mtime is
+## skipped, not guessed at; a failed `rm -f` is the one real failure -- returns
+## 1 with gcScanFailedPath set rather than an unreadable mtime, which is
+## normal and skipped instead.
+AgentsToolsFinalGcScanDir(){
+	local scanDir="$1" nowEpoch="$2"
+	local path fileBase thresholdDays fileMtime ageSeconds thresholdSeconds
+	for path in "$scanDir"/*.md ; do
+		[ -f "$path" ] || continue
+		fileBase="${path##*/}"
+		case "$fileBase" in
+			project-*)    thresholdDays=60 ;;
+			change-*)     thresholdDays=30 ;;
+			warning-*)    thresholdDays=30 ;;
+			interview-*)  thresholdDays=30 ;;
+			task-*)       thresholdDays=21 ;;
+			inquiry-*)    thresholdDays=21 ;;
+			proposal-*)   thresholdDays=21 ;;
+			reflection-*) thresholdDays=14 ;;
+			note-*)       thresholdDays=10 ;;
+			*) continue ;;
+		esac
+		fileMtime="$( stat -f '%m' "$path" 2>/dev/null || stat -c '%Y' "$path" 2>/dev/null )"
+		[ -z "$fileMtime" ] && continue
+		ageSeconds=$(( nowEpoch - fileMtime ))
+		thresholdSeconds=$(( thresholdDays * 86400 ))
+		[ "$ageSeconds" -lt "$thresholdSeconds" ] && continue
+		if ! rm -f -- "$path" ; then
+			## Explicit rc check, not left to `set -e` -- an untested `rm -f`
+			## failing here would abort the whole op via `set -e` mid-scan,
+			## before the summary line ever prints, leaking a raw OS error
+			## instead of this codebase's own wrapped ⛔ ERROR: message. Sets
+			## gcScanFailedPath (dynamic-scoped into the caller, same
+			## convention as gcDeletedCount/gcDeletedPaths) so the caller can
+			## report which path failed.
+			gcScanFailedPath="$path"
+			return 1
+		fi
+		gcDeletedCount=$(( gcDeletedCount + 1 ))
+		gcDeletedPaths+=( "$path" )
+	done
+	return 0
+}
+
+case "$1" in
+
+	--intern-team-data-final-gc-deletion)
+		shift
+		## --context <caller-op>: see AgentsTools.InternOpBoardTrash.include's
+		## own copy of this block for the full reasoning. Pre-scanned before
+		## any validation so a future message here could name the invoking
+		## operation.
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then opContext="$ctxArg" ; ctxWanted="" ; continue ; fi
+			[ "$ctxArg" = "--context" ] && ctxWanted="1"
+		done
+
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: syntax is <team-member> [--context <caller-op>]" >&2
+			set +e ; return 1
+		fi
+		if [ "$1" = "--context" ] ; then
+			if [ -z "${2:-}" ] ; then
+				echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: --context: value required" >&2
+				set +e ; return 1
+			fi
+			shift 2
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" team-data-final-gc-deletion || { set +e ; return 1 ; }
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+
+		local nowEpoch ; nowEpoch="$( date +%s )"
+		local gcDeletedPaths=() gcDeletedCount=0 gcScanFailedPath=""
+		local inboxDeletedCount=0 boardDeletedCount=0
+
+		## Inbox source: every member's own processed/, resolved the same
+		## cd+pwd -P / containment-checked way as
+		## AgentsTools.InternOpBoardTrash.include's own --from-inbox: arm
+		## (lines ~118-148 there). A member escaping containment (e.g. a
+		## symlink) is skipped with a warning rather than aborting the whole
+		## scan across every other member -- this op covers many members in
+		## one call, unlike board-trash's single-item contract.
+		local inboxBase=""
+		inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
+		if [ -n "$inboxBase" ] ; then
+			local memberDir memberProcessed
+			for memberDir in "$inboxBase"/*/ ; do
+				[ -d "$memberDir" ] || continue
+				memberProcessed="$( cd "${memberDir}processed" 2>/dev/null && pwd -P )" || memberProcessed=""
+				[ -z "$memberProcessed" ] && continue
+				case "$memberProcessed" in
+					"$inboxBase"/*) ;;
+					*)
+						echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: skipping $memberProcessed -- escapes inbox root $inboxBase" >&2
+						continue
+					;;
+				esac
+				gcDeletedCount=0
+				if ! AgentsToolsFinalGcScanDir "$memberProcessed" "$nowEpoch" ; then
+					echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: could not delete $gcScanFailedPath" >&2
+					set +e ; return 1
+				fi
+				inboxDeletedCount=$(( inboxDeletedCount + gcDeletedCount ))
+			done
+		fi
+
+		## Board source: one fixed folder, no per-member fan-out.
+		local boardProcessed=""
+		boardProcessed="$( cd "$MDAT_DATA_ROOT/board/processed" 2>/dev/null && pwd -P )" || boardProcessed=""
+		if [ -n "$boardProcessed" ] ; then
+			gcDeletedCount=0
+			if ! AgentsToolsFinalGcScanDir "$boardProcessed" "$nowEpoch" ; then
+				echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: could not delete $gcScanFailedPath" >&2
+				set +e ; return 1
+			fi
+			boardDeletedCount=$(( boardDeletedCount + gcDeletedCount ))
+		fi
+
+		echo "team-data-final-gc: $inboxDeletedCount inbox-items, $boardDeletedCount board-items deleted."
+
+		if [ "${#gcDeletedPaths[@]}" -gt 0 ] ; then
+			local repoRoot=""
+			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+			if [ -n "$repoRoot" ] ; then
+				local gitOut="" gitRc=0
+				gitOut="$( git -C "$repoRoot" add -- "${gcDeletedPaths[@]}" 2>&1 )" || gitRc=$?
+				if [ "$gitRc" -ne 0 ] ; then
+					echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: git add failed for deleted paths: $gitOut" >&2
+					set +e ; return 1
+				fi
+				gitOut="$( git -C "$repoRoot" commit -m "- team-data-final-gc-deletion" -- "${gcDeletedPaths[@]}" 2>&1 )" || gitRc=$?
+				if [ "$gitRc" -ne 0 ] ; then
+					echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: git commit failed for deleted paths: $gitOut" >&2
+					set +e ; return 1
+				fi
+			fi
+		fi
+
+		if [ "$(( inboxDeletedCount + boardDeletedCount ))" -eq 0 ] ; then
+			set +e ; return 2
+		fi
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

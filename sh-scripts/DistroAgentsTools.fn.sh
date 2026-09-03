@@ -417,6 +417,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--intern-team-data-final-gc-deletion)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternTeamDataFinalGcDeletion.include"
+			return $?
+		;;
+
 		--intern-op-inbox-to-processed)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpInboxToProcessed.include"
 			return $?
