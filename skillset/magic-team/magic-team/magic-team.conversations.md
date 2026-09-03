@@ -203,7 +203,7 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
 21. **self-discovered-ambiguity-still-a-gap**: A self-discovered ambiguity is still an assumption gap. Stop and ask before deciding, not after.
    Noting a skip afterward isn't the same as asking beforehand.
 
-22. **judgment-gap-propose-and-confirm**: Judgment/discretion language, or silence about a specified parameter, still means propose-and-confirm — never silent unilateral action.
+22. **judgment-gap-propose-and-confirm**: Judgment/discretion language, or silence about a specified parameter, still means propose-and-confirm: state the intended reading or action, then wait for explicit confirmation.
 
    Trigger:
    this file, a routine, or a standing instruction either leaves a call to a member's own judgment/discretion,
@@ -631,8 +631,8 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
     itself, not which particular source was missed, is the actual failure`.
 
 56. **ceiling-insertion-during-restatement**: Restating a criterion already stated as universal — every
-    file, all workspaces, any session — must not, in the same breath, narrow it to one concrete instance
-    of itself.
+    file, all workspaces, any session — carries that universal word through into the restatement
+    unreplaced and unqualified, never narrowed to one concrete instance of itself.
 
     The pattern:
     the failure recurs across a run of readbacks of the same task — a universal criterion given once gets
