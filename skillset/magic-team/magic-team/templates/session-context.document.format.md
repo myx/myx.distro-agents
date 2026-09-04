@@ -133,12 +133,16 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, all types, 
   getting this wrong has already cost re-emitted sites more than once.
 - rule: **Wherever anything is cut, the document says so at the point it was cut.** A rule of the whole
   document, not one section's feature. Two ratified forms, never a fresh one, each stating *what* was
-  cut and *how much* rather than merely that something was. Base form, for the email, Trello and all
-  four inbox sections, emitted exactly:
-  `**NOTE:** truncated -- <N> items found, capped at <M>`. IM superset, for `## Incoming IM Updates`
+  cut and *how much* rather than merely that something was. Base form, for the email and Trello
+  sections, emitted exactly:
+  `**NOTE:** truncated -- <N> items found, capped at <M>`. Inbox form, for all four inbox sections,
+  emitted exactly:
+  `**NOTE:** truncated -- <N> items found, capped at <M> -- OLDEST kept, newest not shown` — it names
+  the end it kept, because a count alone does not say which items are out of reach. IM superset, for
+  `## Incoming IM Updates`
   only: the same counts, then the dropped-conversation list, then that this is a display cap and not
   an unread source — that clause exists because the IM cap counts conversations, and a dropped
-  conversation is not an unread source. The `**NOTE:** ` prefix is part of both forms; a form quoted
+  conversation is not an unread source. The `**NOTE:** ` prefix is part of every form; a form quoted
   without it is a different string.
 - rule: **Two distinct marks, both required, and independent of each other.** The section-level mark
   above fires when the item *count* is cut. A second, per-item mark fires when a *body* is cut at the
@@ -190,7 +194,7 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, all types, 
 - rule: There are **four** inbox sections, not three: `## Active Inbox Inquiry Items` (`inquiry-*`),
   `## Current Inbox Reflections` (`reflection-*`), `## Current Inbox Notes` (`note-*`), and
   `## Other Inbox Items` — every inbox item whose prefix is none of those three. All four alike: cap
-  64 items, sorted by file modification time newest first, `scope:` line first, bodies framed as
+  64 items, oldest first by file modification time, `scope:` line first, bodies framed as
   above and each body itself capped at 8192 bytes.
 - rule: `## Board Items` carries its `scope:` line whenever it has content, stating the states walked,
   the type filter, and the owner filter or that any owner matched. It never carries a cap line and
@@ -273,7 +277,14 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, all types, 
 - rule: The board section has **no cap** and is never truncated — the board is the work list, and
   silently dropping part of a member's own work is the exact failure this document exists to
   prevent.
-- rule: Inbox sections sort by file modification time, newest first.
+- rule: Inbox sections sort by file modification time, **oldest first**. The window advances only from
+  oldest toward newest, and an item leaves it by being moved to `processed/`. No inbox pointer is
+  stored anywhere: the live root's own oldest edge is the pointer, materialised as the difference
+  between what is filed and what has been drained.
+- rule: **Handled means moved, never edited in place.** The sort key is modification time, so any write
+  that leaves an item where it is — an in-place edit, a header change — makes it the newest item in the
+  inbox and buries it behind the far edge, beyond the cap's reach. A move preserves the item's own
+  modification time, so draining one item never reorders the rest.
 - rule: Comms sections sort by **message timestamp**, newest first — comms items have no file
   modification time. (Recorded gap: the spec says "modification time" for all sections.)
 - rule: IM is the carve-out, and it is two stages: the cap **selects** the newest **N**

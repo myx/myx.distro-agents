@@ -417,7 +417,7 @@ case "$1" in
 				regName="${regEntry%% *}"
 				regResolved="${regEntry#* }"
 
-				local regRulesMatch="false" regRulesEntry regBundled regVerdict
+				local regRulesMatch="false" regRulesEntry regBundled regVerdict regSlot
 				for regRulesEntry in $rulesFiles ; do
 					if [ "$regResolved" = "$bundleRoot/$regRulesEntry" ] ; then
 						regRulesMatch="true"
@@ -464,11 +464,19 @@ case "$1" in
 								;;
 							esac
 							case "$regVerdict" in
-								## Both of these keep the link, so the row says KEPT and means it.
-								## Same content needs nothing done. Content that moved on inside
-								## another of our own workspaces is known rather than foreign, and
-								## relinking would only hand the slot back and forth.
-								same|ours) ;;
+								same) ;;
+								ours)
+									case " $rulesNames " in
+										*" $regName "*) regSlot="$workspace/.claude/rules/$regName" ;;
+										*)              regSlot="$targetRoot/$regName" ;;
+									esac
+									if rm -f "$regSlot" && ln -s "$regBundled" "$regSlot" ; then
+										newLinks="${newLinks}${regName} "
+									else
+										echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to relink: $regSlot -> $regBundled" >&2
+										errorMembers="${errorMembers}${regName} " ; hadError="true"
+									fi
+								;;
 								*)
 									echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: not registered, points outside both workspace $workspace and origin $originRoot (pre-existing link kept, not ours to claim): $regName -> $regResolved" >&2
 								;;

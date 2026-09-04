@@ -7,7 +7,7 @@ Read this for any shell/AWK cross-platform portability question — writing or r
 The same three platforms — Darwin, FreeBSD and Linux — produce two different standards, and a file is held to exactly one of them. What the file itself requires settles which one; what it happens to run on does not.
 
 - **A `bash` script is written to bash 3.2**, the crossplatform baseline version across Darwin, FreeBSD and Linux. A file that already declares a bash requirement is written against that version's own feature set rather than contorted into POSIX — the constructs are available to it, subject to the test below.
-- **An `sh` script is written with no bash-isms at all**, because all three platforms' own `sh` has to run it. A construct is rejected there for being a bash-ism, not for failing somewhere: it stays out even where it would work on Linux.
+- **An `sh` script is written with no bash-isms at all**, because all three platforms' own `sh` has to run it. A construct is rejected there for being a bash-ism, not for failing somewhere: it stays out even where it would work on Linux. Test such a file under `dash`, never under `bash --posix` — that still accepts `<<<`, `[[ ]]` and arrays, so it passes a file `dash` rejects outright.
 
 The two tests point opposite ways, which is why the standard is settled before the code is written rather than argued per construct.
 
@@ -17,7 +17,7 @@ The baseline is the rule; the exclusions are derived from it, not memorised besi
 
 Available: redirections, expansions and arrays — process substitution `<( )`, herestrings `<<<`, indexed arrays with `+=( )`, `[[ ]]`, pattern substitution `${var//x/y}`, `local`, `$'...'`.
 
-Excluded, all of them bash 4 or later: `mapfile`/`readarray`, associative arrays (`declare -A`), case conversion `${var^^}`/`${var,,}`, `declare -g`.
+Excluded, as is everything else bash 4 or later added: `mapfile`/`readarray`, associative arrays (`declare -A`), case conversion `${var^^}`/`${var,,}`, `declare -g`.
 
 **Availability is not a reason to use anything.** A bash 3.2 construct goes in only where it makes the result better on all three counts at once:
 
@@ -42,9 +42,11 @@ Writing POSIX-only shell inside a bash script, to satisfy a constraint that is r
 
 ## A scratch file is the most expensive name in a shell script
 
+Written to the bash standard: the process substitution below is a bash-ism, and `dash` rejects it outright with `Syntax error: redirection unexpected`. What earns a file is the same under either standard; the mechanics here are bash's.
+
 - A value that fits in a variable goes in a variable. A file additionally costs a path to construct, a `mkdir -p`, a creation-failure branch, an EXIT trap and an `rm -f` on every return path — machinery whose whole purpose is to undo the file.
 - A hand-built `"<dir>/<name>.$$"` path leaks the moment any exit path misses its `rm`, and the trap is not the safety net it looks like: an EXIT trap set inside a function is the process's trap, so it silently replaces a caller's and its own `trap - EXIT` clears that one too.
-- A file feeding a loop disappears entirely under process substitution: `while IFS= read -r line ; do … ; done < <( … )` — no path, no trap, no cleanup, and the exit statuses stay reachable through `PIPESTATUS`.
+- A file feeding a loop disappears entirely under process substitution: `while IFS= read -r line ; do … ; done < <( … )` — no path, no trap, no cleanup, and no exit status. On bash 3.2 `PIPESTATUS` holds the read loop's own status, the same value a `< /dev/null` loop leaves, and `wait "$!"` reports the substitution is not a child of this shell. A producer status that has to be tested needs a real pipeline, whose `PIPESTATUS[0]` holds it and whose loop body runs in a subshell that keeps nothing it sets.
 - One dataset is materialised once. A capture, a second capture derived from it, and a file holding the same rows are three copies of one pipeline's output, each paying for its own declaration, failure branch and removal.
 - Two reasons genuinely earn a file, and both are about what the file *is* rather than about holding a value:
   - **A real file another process must open** — a credential header handed to `curl -H @file` keeps the token out of `argv` and out of `ps`. Create it with `mktemp`, then `chmod 600` it.

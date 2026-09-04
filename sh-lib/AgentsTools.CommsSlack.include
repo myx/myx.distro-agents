@@ -1011,7 +1011,7 @@ case "$1" in
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "$MDSC_CMD: check-slack-scopes: ⛔ ERROR: syntax is <team-member> [--scope-source <op-name>]..." >&2
+			echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: syntax is <team-member> [--scope-source <op-name>]..." >&2
 			set +e ; return 1
 		fi
 
@@ -1020,7 +1020,7 @@ case "$1" in
 			case "$1" in
 				--scope-source)
 					if [ -z "${2:-}" ] ; then
-						echo "$MDSC_CMD: check-slack-scopes: ⛔ ERROR: --scope-source: value required (<op-name>)" >&2
+						echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: --scope-source: value required (<op-name>)" >&2
 						set +e ; return 1
 					fi
 					scopeSources+=( "$2" )
@@ -1028,20 +1028,20 @@ case "$1" in
 				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
-						echo "$MDSC_CMD: check-slack-scopes: ⛔ ERROR: --context: value required" >&2
+						echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: --context: value required" >&2
 						set +e ; return 1
 					fi
 					shift 2
 				;;
 				*)
-					echo "$MDSC_CMD: check-slack-scopes: ⛔ ERROR: invalid option: $1" >&2
+					echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 
 		if [ ${#scopeSources[@]} -eq 0 ] ; then
-			echo "$MDSC_CMD: check-slack-scopes: ⛔ ERROR: at least one --scope-source <op-name> is required -- this op declares no scopes of its own" >&2
+			echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: at least one --scope-source <op-name> is required -- this op declares no scopes of its own" >&2
 			set +e ; return 1
 		fi
 
@@ -1050,7 +1050,7 @@ case "$1" in
 		for srcOp in "${scopeSources[@]}" ; do
 			srcScopes="$( DistroAgentsTools "$srcOp" --print-required-scopes 2>/dev/null )" || srcScopes=""
 			if [ -z "$srcScopes" ] ; then
-				echo "$MDSC_CMD: check-slack-scopes: ⛔ ERROR: declared --scope-source '$srcOp' returned no scope declaration -- it does not implement --print-required-scopes, so its requirements cannot be verified. A declared check with nothing implementing it must never pass silently." >&2
+				echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: declared --scope-source '$srcOp' returned no scope declaration -- it does not implement --print-required-scopes, so its requirements cannot be verified. A declared check with nothing implementing it must never pass silently." >&2
 				set +e ; return 1
 			fi
 			srcNames+=( "$srcOp" )
@@ -1123,7 +1123,7 @@ case "$1" in
 		done
 
 		local actingIdentity=""
-		actingIdentity="$( DistroAgentsTools --intern-op-slack-call "$callingMember" --print-acting-identity --context "$MDSC_CMD: check-slack-scopes" 2>/dev/null )" || actingIdentity=""
+		actingIdentity="$( DistroAgentsTools --intern-op-slack-call "$callingMember" --print-acting-identity --context "$MDSC_CMD: slack-check-scopes" 2>/dev/null )" || actingIdentity=""
 		case "$actingIdentity" in
 			bot|user) ;;
 			*) actingIdentity="" ;;

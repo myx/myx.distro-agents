@@ -53,46 +53,93 @@ case "$1" in
 			--all-types \
 			--context --magic-sweep-input-scan )" || return 1
 
-		local survivorsFile
-		survivorsFile="$MMDAPP/.local/temp/mdat-magic-sweep-survivors.$$"
-		mkdir -p "$MMDAPP/.local/temp" && : > "$survivorsFile" || { set +e ; return 1 ; }
-		trap 'rm -f "$survivorsFile"' EXIT
 		local survivorNames
-		survivorNames="$( printf '%s\n' "$phaseAOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMagicSweepSlackThreadNames.awk" )" || {
-			rm -f "$survivorsFile"
-			trap - EXIT
+		survivorNames="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMagicSweepSlackThreadNames.awk" <<< "$phaseAOutput" )" || {
 			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-input-scan: survivor extraction failed over the phase-A scan -- refusing to continue, since an empty survivor set here is indistinguishable from a board with no open threads" >&2
 			set +e ; return 1
 		}
-		[ -z "$survivorNames" ] || printf '%s\n' "$survivorNames" | sort -u > "$survivorsFile"
 
 		local commsArgs=( --comms-do-all "${commsCutoffArgs[@]}" )
 
-		if [ ! -s "$survivorsFile" ] ; then
-			rm -f "$survivorsFile"
-			trap - EXIT
-			DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
-				--state backlog --state pending --state running --state blocked \
-				--all-types "${commsArgs[@]}" \
-				--do-inbox-inquiry-active --do-inbox-reflections \
-				--do-inbox-notes --do-inbox-other \
-				--context --magic-sweep-input-scan
-			return $?
-		fi
-
 		local phaseBArgs=( --state backlog --state pending --state running --state blocked ) n
 		while IFS= read -r n ; do
-			[ -z "$n" ] && continue
-			phaseBArgs+=( --item "$n" )
-		done < "$survivorsFile"
-		rm -f "$survivorsFile"
-		trap - EXIT
+			if [ -n "$n" ] ; then phaseBArgs+=( --item "$n" ) ; fi
+		done < <( sort -u <<< "$survivorNames" )
 
+		local magicSweepStatus=0
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" --all-types "${commsArgs[@]}" \
 			--do-inbox-inquiry-active --do-inbox-reflections \
 			--do-inbox-notes --do-inbox-other \
-			--context --magic-sweep-input-scan
-		return $?
+			--context --magic-sweep-input-scan || magicSweepStatus=$?
+		case "$magicSweepStatus" in
+			0|3|4) ;;
+			*) set +e ; return "$magicSweepStatus" ;;
+		esac
+
+		## The members that exist, not the ones a cache remembers. The name is asserted
+		## here because a worker's command line is built from it before the callee sees it.
+		local clientMembers="" clientMember
+		for clientMember in "$HOME"/.claude/skills/client-* ; do
+			if [ -d "$clientMember" ] ; then
+				AgentsToolsAssertBareName "${clientMember##*/}" "<client-* member>" magic-sweep-input-scan || { set +e ; return 1 ; }
+				clientMembers="$clientMembers ${clientMember##*/}"
+			fi
+		done
+
+		## Every client-* member is swept in this same pass, under its own credentials.
+		## A worker is a separate process, so its document needs a real path to be read
+		## back from; naming that path after the member is what keeps the combined
+		## document tagged by whose sweep it was rather than by who finished first, and
+		## is why the loop below becomes
+		## `| Parallel --workers-x2 MagicSweepOneClientMember` unchanged.
+		local clientSweepDir="$MMDAPP/.local/temp/mdat-magic-sweep-clients.$callingMember.$$"
+		rm -rf "$clientSweepDir" && mkdir -p "$clientSweepDir" || { set +e ; return 1 ; }
+		trap 'rm -rf "$clientSweepDir"' EXIT
+
+		(
+			MagicSweepOneClientMember(){
+				local memberStatus=0
+				DistroAgentsTools --client-sweep-input-scan "$1" "${commsCutoffArgs[@]}" \
+					> "$clientSweepDir/$1.document" || memberStatus=$?
+				printf '%s\n' "$memberStatus" > "$clientSweepDir/$1.status"
+			}
+
+			for clientMember in $clientMembers ; do printf '%s\n' "$clientMember" ; done \
+			| while IFS= read -r clientMember ; do MagicSweepOneClientMember "$clientMember" ; done
+		)
+
+		## A member that recorded no coverage of its own is a member nothing was read
+		## for, never one with nothing new, and it is said in that member's own place:
+		## a silently absent member is the one gap a reader cannot see.
+		local memberStatus sweepComplete="true" sweepScannedSomething="false"
+		if [ "$magicSweepStatus" != 0 ] ; then sweepComplete="false" ; fi
+		case "$magicSweepStatus" in 0|3) sweepScannedSomething="true" ;; esac
+		for clientMember in $clientMembers ; do
+			memberStatus="$( cat "$clientSweepDir/$clientMember.status" 2>/dev/null )" || memberStatus=""
+			case "$memberStatus" in
+				0|3|4)
+					cat "$clientSweepDir/$clientMember.document"
+				;;
+				*)
+					memberStatus=4
+					printf '# Incoming Communications Sweep -- %s\n\nmember: %s\nmember-kind: client\n**NOTE:** no scan was made -- this member recorded no coverage of its own; its sources enter no source total\n\n' "$clientMember" "$clientMember"
+				;;
+			esac
+			if [ "$memberStatus" != 0 ] ; then sweepComplete="false" ; fi
+			case "$memberStatus" in 0|3) sweepScannedSomething="true" ;; esac
+		done
+		rm -rf "$clientSweepDir"
+
+		## Complete only when every member's own scan was, empty only when none of them
+		## read anything, partial everywhere in between -- so a sweep one member failed
+		## can never be read as one that covered them all.
+		if [ "$sweepComplete" = "true" ] ; then
+			return 0
+		fi
+		if [ "$sweepScannedSomething" = "true" ] ; then
+			set +e ; return 3
+		fi
+		set +e ; return 4
 	;;
 
 

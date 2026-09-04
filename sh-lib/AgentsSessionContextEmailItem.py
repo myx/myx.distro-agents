@@ -52,11 +52,13 @@ except Exception as error:
     )
     raise SystemExit(2)
 
-block = "## email-message %s\nmailbox: %s\nstatus: %s\nfrom: %s\ndate: %s\nsubject: %s\n" % (
+block = "## email-message %s\nmailbox: %s\nstatus: %s\nfrom: %s\nto: %s\ncc: %s\ndate: %s\nsubject: %s\n" % (
     uid,
     oneLine(mailbox),
     oneLine(status),
     headerValue(message, "from"),
+    headerValue(message, "to"),
+    headerValue(message, "cc"),
     headerValue(message, "date"),
     headerValue(message, "subject"),
 )

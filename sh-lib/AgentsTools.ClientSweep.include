@@ -69,24 +69,36 @@ case "$1" in
 			commsCutoffArgs=( --comms-since-utime 0 )
 		fi
 
-		printf '# Incoming Communications Sweep -- %s\n\n' "$clientMember"
-		printf 'member: %s\n' "$clientMember"
-		printf 'member-kind: %s\n' "$clientKind"
-		printf 'scope: this member'"'"'s own COMMS sources only -- its own credentials, its own configured sources; no team-scoped comms source and no team credential is read here. Board items and inbox items below are this member'"'"'s own, by owner and by inbox\n\n'
+		## Written whole before any of it is emitted: a run that failed before it had a
+		## document must not leave a title and a header on stdout that read as the
+		## beginning of a real sweep.
+		local clientSweepStatus=0 clientSweepDocument
+		clientSweepDocument="$(
+			printf '# Incoming Communications Sweep -- %s\n\n' "$clientMember"
+			printf 'member: %s\n' "$clientMember"
+			printf 'member-kind: %s\n' "$clientKind"
+			printf 'scope: this member'"'"'s own COMMS sources only -- its own credentials, its own configured sources; no team-scoped comms source and no team credential is read here. Board items and inbox items below are this member'"'"'s own, by owner and by inbox\n\n'
 
-		DistroAgentsTools --client-sweep-config-check "$clientMember" || true
-		printf '\n'
+			DistroAgentsTools --client-sweep-config-check "$clientMember" || true
+			printf '\n'
 
-		## --do-board-related-active supplies the state set; a --state list here would
-		## have to byte-match it.
-		DistroAgentsTools --intern-op-session-context-scan "$clientMember" \
-			--do-board-related-active \
-			--all-types --filter-owner "$clientMember" \
-			--do-inbox-inquiry-active --do-inbox-reflections \
-			--do-inbox-notes --do-inbox-other \
-			--comms-do-all --comms-member-scope-only "${commsCutoffArgs[@]}" \
-			--context --client-sweep-input-scan
-		return $?
+			## --do-board-related-active supplies the state set; a --state list here would
+			## have to byte-match it.
+			DistroAgentsTools --intern-op-session-context-scan "$clientMember" \
+				--do-board-related-active \
+				--all-types --filter-owner "$clientMember" \
+				--do-inbox-inquiry-active --do-inbox-reflections \
+				--do-inbox-notes --do-inbox-other \
+				--comms-do-all --comms-member-scope-only "${commsCutoffArgs[@]}" \
+				--context --client-sweep-input-scan
+		)" || clientSweepStatus=$?
+
+		## 0, 3 and 4 each describe a document that exists and states its own coverage.
+		## Any other status is a run with no document to describe.
+		case "$clientSweepStatus" in
+			0|3|4) printf '%s\n' "$clientSweepDocument" ;;
+		esac
+		set +e ; return "$clientSweepStatus"
 	;;
 
 	## What an external member must hold for its own sweep to mean anything.

@@ -2207,10 +2207,29 @@
 			An empty result (no live-tracked thread) is a normal, clean
 			outcome, not an error. No --state/--header override.
 
+			**One pass, several accounts.** After the calling member's own
+			document it sweeps EVERY client-* member that exists, each
+			under that member's own credentials and its own configured
+			sources, and returns the whole set as one document. A client
+			member's part is the same document --client-sweep-input-scan
+			returns on its own, opening with its own
+			`# Incoming Communications Sweep -- <member>` heading and
+			`member:`/`member-kind:` lines, so a reader can tell whose
+			traffic is whose. The member set is read from the members that
+			exist at the moment of the call, never from a cached roster.
+
+			A client member whose own sweep recorded no coverage still
+			gets a block, in its own place, saying `no scan was made` --
+			nothing it may have emitted is shown, so a member that failed
+			never reads as a member with nothing new, and a member is
+			never silently missing from the report.
+
 			An optional cut-off narrows the read: --comms-since-utime takes
 			epoch seconds, with or without a fractional part; --comms-since-date-time
 			takes a YYYY-MM-DD-leading value. Mutually exclusive, neither
-			repeatable -- one cut-off, one spelling.
+			repeatable -- one cut-off, one spelling. It is passed on to
+			every client member's own sweep unchanged, so the whole
+			document shares one cut-off.
 
 			**Not a workspace-wide mention search.** A conversation outside
 			the already-watched sources, or an identity mention that falls
@@ -2220,12 +2239,18 @@
 			Exit code, reporting how much of the watched set was actually
 			read (the body reports the same fact in its own
 			`sources-scanned: N of M` lines and `NOT SCANNED`/partial
-			markers; this makes it readable by status alone):
-			0 when every source was scanned,
-			3 when some were and some could not be -- the result is a
-			partial sweep and must not be read as a complete one,
-			4 when none could be,
+			markers; this makes it readable by status alone). It is the
+			combined verdict over the calling member and every client
+			member swept, since they are one document:
+			0 when every one of them scanned every source it has,
+			3 when some sources were read and some could not be -- whether
+			that split falls inside one member or between two, the result
+			is a partial sweep and must not be read as a complete one,
+			4 when none of them read anything,
 			1 when the operation failed before producing a document.
+			A client member's own failure is coverage it did not get, so
+			it lands in this status as 4 would and never as 1: once a
+			document exists, 1 is not reachable.
 			Same three-way shape and meanings as --member-comms-slack-read's
 			human-owner fan-out.
 

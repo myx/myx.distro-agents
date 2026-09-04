@@ -1075,9 +1075,9 @@ case "$1" in
 					continue
 				fi
 
-				[ ${#inboxMatched[@]} -le "$sessionContextCapInbox" ] || printf '**NOTE:** truncated -- %s items found, capped at %s\n' "${#inboxMatched[@]}" "$sessionContextCapInbox"
+				[ ${#inboxMatched[@]} -le "$sessionContextCapInbox" ] || printf '**NOTE:** truncated -- %s items found, capped at %s -- OLDEST kept, newest not shown\n' "${#inboxMatched[@]}" "$sessionContextCapInbox"
 				printf '\n'
-				inboxOrdered="$( LC_ALL=C ls -t "${inboxMatched[@]}" )" || inboxOrdered=""
+				inboxOrdered="$( LC_ALL=C ls -tr "${inboxMatched[@]}" )" || inboxOrdered=""
 				inboxEmit=()
 				ii=0
 				while IFS= read -r f ; do

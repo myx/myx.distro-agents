@@ -37,6 +37,26 @@ AgentsToolsCommsSlackFileInfoEmitField(){
 	return 1
 }
 
+## One member's own display marks from its .basic.md, tab-separated: the icon
+## (Slack shortcode, else the unicode character) and the alias (the member's
+## own name instead, when the alias is absent or malformed).
+AgentsToolsCommsSlackMemberMarks(){
+	local marksFile="$HOME/.claude/skills/$1/$1.basic.md"
+	[ -f "$marksFile" ] || return 1
+	LC_ALL=C awk -F": " -v who="$1" '
+		icon  == "" && /^- \*\*Slack shortcode\*\*:/	{ icon  = $2 ; }
+		emoji == "" && /^- \*\*Unicode character\*\*:/	{ emoji = $2 ; }
+		alias == "" && /^- \*\*Alias\*\*:/		{ alias = $2 ; }
+		END {
+			if ( icon == "" ) { icon = emoji ; }
+			gsub( /`/, "", icon )  ; sub( /[[:space:]].*$/, "", icon ) ;
+			gsub( /`/, "", alias ) ; sub( /[[:space:]].*$/, "", alias ) ; sub( /\.$/, "", alias ) ;
+			if ( alias !~ /^[A-Za-z0-9._-]+$/ ) { alias = who ; }
+			printf "%s\t%s\n", icon, alias ;
+		}
+	' "$marksFile"
+}
+
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 
 case "$1" in
@@ -1654,23 +1674,31 @@ blocks|verbatim|caller|stdin file"
 			;;
 		esac
 
-		local attributionLine=""
-		if [ "$sendIdentity" = "bot" ] || [ "$relayedForMember" = "true" ] ; then
-			attributionLine="@$memberName:"
-		fi
+		## Who the message is from. Built always -- the identity swap below
+		## needs it too -- but prepended only where the Slack account shown
+		## is not the member's own: a bot post, or one relayed for them.
+		local fromMarks fromMark attributionLine
+		fromMarks="$( AgentsToolsCommsSlackMemberMarks "$memberName" )" || fromMarks=$'\t'"$memberName"
+		fromMark="${fromMarks%%$'\t'*}"
+		attributionLine="From: ${fromMark:+$fromMark }$memberName @${fromMarks#*$'\t'}"
 
-		local addressedText="" addressedElems=""
-		local addrWho addrFile addrAlias addrEmoji addrIcon addrMark
+		## Who the message is for. Always present, and always labelled: Slack
+		## rewrites the fallback text of a blocks message and flattens its
+		## line breaks, so nothing may depend on a line's own position.
+		local addressedText="To:" addressedElems="{\"type\":\"text\",\"text\":\"To:\"},"
+		local addrWho addrMarks addrMark addrAlias addrSep=" "
 		for addrWho in $addressToList ; do
+			addressedText="$addressedText$addrSep"
+			addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"$addrSep\"},"
 			case "$addrWho" in
 				U[A-Z0-9][A-Z0-9]*)
 					## A real Slack account: the structured element in blocks,
 					## the escape form in text. Different forms, same field.
-					addressedText="$addressedText<@$addrWho> "
+					addressedText="$addressedText<@$addrWho>"
 					addressedElems="$addressedElems{\"type\":\"user\",\"user_id\":\"$addrWho\"},"
 				;;
 				C[A-Z0-9][A-Z0-9]*|D[A-Z0-9][A-Z0-9]*|G[A-Z0-9][A-Z0-9]*)
-					addressedText="$addressedText<#$addrWho> "
+					addressedText="$addressedText<#$addrWho>"
 					addressedElems="$addressedElems{\"type\":\"channel\",\"channel_id\":\"$addrWho\"},"
 				;;
 				*@*)
@@ -1678,38 +1706,28 @@ blocks|verbatim|caller|stdin file"
 					set +e ; return 1
 				;;
 				*)
-					addrFile="$HOME/.claude/skills/$addrWho/$addrWho.basic.md"
-					if [ ! -f "$addrFile" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': no such team member -- expected $addrFile" >&2
+					## The name reaches the payload as a JSON string, so it is
+					## held to the same bare-name shape as the sender's own.
+					AgentsToolsAssertBareName "$addrWho" "--address-to" member-comms-slack-send-message || { set +e ; return 1 ; }
+					addrMarks="$( AgentsToolsCommsSlackMemberMarks "$addrWho" )" || {
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': no such team member -- expected $HOME/.claude/skills/$addrWho/$addrWho.basic.md" >&2
 						set +e ; return 1
-					fi
-					addrAlias="$( LC_ALL=C awk -F": " '/^- \*\*Alias\*\*:/ { v=$2 ; gsub(/`/, "", v) ; sub(/[[:space:]].*$/, "", v) ; sub(/\.$/, "", v) ; print v ; exit }' "$addrFile" )"
-					addrEmoji="$( LC_ALL=C awk -F": " '/^- \*\*Unicode character\*\*:/ { v=$2 ; sub(/[[:space:]].*$/, "", v) ; print v ; exit }' "$addrFile" )"
-					addrIcon="$( LC_ALL=C awk -F": " '/^- \*\*Slack shortcode\*\*:/ { v=$2 ; gsub(/`/, "", v) ; sub(/[[:space:]].*$/, "", v) ; print v ; exit }' "$addrFile" )"
-					## An alias that is absent or malformed never fails a send:
-					## the member name itself is the look-alike instead.
-					case "$addrAlias" in
-						"" | *[!A-Za-z0-9._-]* ) addrAlias="$addrWho" ;;
+					}
+					addrMark="${addrMarks%%$'\t'*}" ; addrAlias="${addrMarks#*$'\t'}"
+					addressedText="$addressedText${addrMark:+$addrMark }$addrWho @$addrAlias"
+					case "$addrMark" in
+						:*:)	addressedElems="$addressedElems{\"type\":\"emoji\",\"name\":\"${addrMark//:/}\"},{\"type\":\"text\",\"text\":\" $addrWho @$addrAlias\"}," ;;
+						*)	addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"${addrMark:+$addrMark }$addrWho @$addrAlias\"}," ;;
 					esac
-					## A missing icon never fails -- it falls back to the emoji.
-					addrMark="$addrIcon"
-					[ -n "$addrMark" ] || addrMark="$addrEmoji"
-					if [ -n "$addrMark" ] ; then
-						addressedText="$addressedText$addrMark "
-						case "$addrMark" in
-							:*:)
-								addressedElems="$addressedElems{\"type\":\"emoji\",\"name\":\"$( printf '%s' "$addrMark" | tr -d ':' )\"},"
-							;;
-							*)
-								addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"$addrMark \"},"
-							;;
-						esac
-					fi
-					addressedText="$addressedText@$addrAlias "
-					addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"@$addrAlias \"},"
 				;;
 			esac
+			addrSep="; "
 		done
+		## No named addressee: the message is for whoever the conversation holds.
+		if [ -z "$addressToList" ] ; then
+			addressedText="$addressedText @here"
+			addressedElems="$addressedElems{\"type\":\"text\",\"text\":\" @here\"},"
+		fi
 
 
 		## ---- blocks generator ----
@@ -1758,30 +1776,19 @@ blocks|verbatim|caller|stdin file"
 		fi
 
 
-		if [ -n "$addressedText" ] ; then
-			if [ -n "$rawText" ] ; then
-				rawText="$( printf '%s\n%s' "${addressedText% }" "$rawText" )"
+		rawText="$addressedText${rawText:+$'\n'$rawText}"
+		if [ -n "$blocksJson" ] ; then
+			local addressedBlocks="[{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[${addressedElems%,}]}]}]"
+			if [ "$blocksJson" != "[]" ] ; then
+				blocksJson="${addressedBlocks%"]"},${blocksJson#"["}"
 			else
-				rawText="${addressedText% }"
-			fi
-			if [ -n "$blocksJson" ] ; then
-				local addressedBlocks
-				addressedBlocks="[{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[${addressedElems%,}]}]}]"
-				if [ "$blocksJson" != "[]" ] ; then
-					blocksJson="${addressedBlocks%"]"},${blocksJson#"["}"
-				else
-					blocksJson="$addressedBlocks"
-				fi
+				blocksJson="$addressedBlocks"
 			fi
 		fi
 
-		if [ -n "$attributionLine" ] ; then
+		if [ "$sendIdentity" = "bot" ] || [ "$relayedForMember" = "true" ] ; then
 			## text version: the characters that version uses.
-			if [ -n "$rawText" ] ; then
-				rawText="$( printf '%s\n%s' "$attributionLine" "$rawText" )"
-			else
-				rawText="$attributionLine"
-			fi
+			rawText="$attributionLine${rawText:+$'\n'$rawText}"
 			## blocks version: the same line, built as the structured element
 			## that version uses, then prepended as its own block.
 			if [ -n "$blocksJson" ] ; then
@@ -1895,8 +1902,13 @@ blocks|verbatim|caller|stdin file"
 					token="$botToken"
 					printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
 					## Attribution only under the shared bot -- a member's own bot is already itself.
-					if [ -n "$rawText" ] && [ "$swapTokenSource" = "shared-bot-token" ] ; then
-						rawText="$( printf '@%s:\n%s' "$memberName" "$rawText" )"
+					if [ "$swapTokenSource" = "shared-bot-token" ] ; then
+						rawText="$attributionLine${rawText:+$'\n'$rawText}"
+						if [ -n "$blocksJson" ] ; then
+							local swapBlocks
+							swapBlocks="$( printf '%s\n' "$attributionLine" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackBlocksBuild.awk" )"
+							[ -z "$swapBlocks" ] || blocksJson="${swapBlocks%"]"},${blocksJson#"["}"
+						fi
 						escapedText="$( printf '%s' "$rawText" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
 						payload="{\"channel\":\"$channel\",\"text\":\"$escapedText\""
 						[ -z "$threadTs" ] || payload="$payload,\"thread_ts\":\"$threadTs\""
