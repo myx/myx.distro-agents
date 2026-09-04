@@ -11,9 +11,47 @@ Read this before writing code in any language — it is not a per-language modul
 - A path, filename, or other location is written literally at the site that uses it — never assembled through a chain of names the reader has to walk backwards to resolve.
 - A number is written only where its reader needs it in order to act. In code that falls on a tally beside the list enumerating its own items, a message stating a set's size instead of naming what it read, a comment recording how many call sites something has, and how many exit codes a table carries — the reader needs the things themselves, named. Where a number is genuinely needed it is computed at the point it is printed, never typed in by hand; the second test, for whatever survives the first, is whether this site would have to change as the thing it counts grows, and a site that would while not computing the number itself does not carry it.
 - A standing rule of the human-owner's: say it only if it is relevant to the reader or genuinely a fun fact. Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
+- A scratch file is a name too, and the costliest kind: on top of everything a variable costs it carries a path to construct, a cleanup, and a failure branch for each. A value that fits in a variable goes in a variable — `shell.md` states the shell mechanics and the two cases that genuinely earn a file.
+- A declaration and its assignment are one line. The split form earns its place for one reason only — in shell, `local x="$( cmd )"` reports `local`'s own status and hides `cmd`'s, so a status that is actually tested is captured on a line of its own. Where nothing tests the status, the split doubles the line count and names nothing the single line did not.
 - Banned outright: a function called from one place; a function that wraps a couple of lines; a variable holding a value used once; a variable trivially derived from another; a global used as an out-parameter; a wrapper that only renames an existing call.
 - A name that earns its place is at least two words in camelCase — `doClose`, `needsClose`, `openChar`, `nestDepth`, `fieldCount`. Never a bare `close`, `depth`, `key`, `value`, `data`, `i`, `n`. Applies to every language and to every kind of name: parameter, local, field, function.
 - The rule is mechanical, not aesthetic. A bare word is the one shape that collides with a language's own vocabulary, and the diagnostic rarely says so: `close`, `index`, `length`, `split`, `sub` and `system` are AWK built-ins, and a parameter named after one is a parse error rather than a shadowing warning — `function f(s, i, open, close)` reports "4 missing }'s" and points at an unrelated construct, so the real cause is invisible in the message. Two words cannot collide. The same holds for a shell variable one `readonly` or one sourced file away from a clash it will never announce.
+
+## The human-owner's standing words on this
+
+His own wording, held as the standard this file states:
+
+> "Why you create so many temp files?
+> Why you create extra variables, extra functions?
+> Why you make it more complicated than it needs to be compliant to requirements and efficient?
+> FOR JUST ONE: LOTS OF FILES COULD BE LOCAL VARS - WITH NO CLEANUP PROBLEM
+> I DONT WANT YOU TO MAKE CRAZY FRAGILE UNREADABLE COMPLICATED CODE FOR STRAIGHTFORWARD TASK
+> EVEN MORE: for `bash` scripts - bash 3.2 is the base - you may use this version's supported bash-isms since you already said that this script required bash
+> bash 3.2 - crossplatform baseline version of Darwin, FreeBSD and Linux - this is baseline for `bash` scripts. Of course, in some other projects we need all three OS emulated `sh` support - then we do the other standard and don't use any bashisms even if it would work on Linux
+> NO mapfile! I said bash 3.2 on 3 OS!
+> But there are nice redirections, expansions and arrays - BUT ONLY USE THEM WHEN THEY MAKE RESULT BETTER IN ALL:
+> - faster (executionally, less CPU time, less total time)
+> - readable (understandable, traversable by eye)
+> - simpler (logically, algorithmically solution-wise)"
+
+Three things follow:
+
+- **One fault, three shapes: an unnecessary temp file, an unnecessary variable, an unnecessary function.** Each is a unit created to hold a step that did not need holding, and each adds something to create, name, track and clean up. A helper called from one place, wrapping what its single caller could have stated directly, is the function-shaped version of materialising one dataset three times. The same principle read from the other side: a stub written for one call site takes mandatory arguments and does its mechanical steps itself, rather than distributing them to its caller as options.
+- **Simplicity is a requirement, not a preference.** A straightforward task gets straightforward code. Complication is a defect in its own right, before any question of whether the code works.
+- **A shell file's standard is settled by what that file requires**, and an available construct still has to earn its place on all three of faster, readable and simpler at once. `shell.md` states the standards and the test.
+
+## Comments: quantity and content are two separate checks
+
+- The limits are the team's existing ones, not a second set: `magic-team/magic-team.armed.md`'s "A comment is short, or it is not a comment" — an internal comment is one line, a header comment a few at most, and anything longer is documentation belonging in the package's own `MAGIC.md`. Where a package carries a `MAGIC.md`, it states the same limits for its own code.
+- **Quantity is checkable, and it is the half that gets failed.** The reviewer's question is what proportion of the file is comment. A file where comments approach a third or more of its lines, or that opens with a header of dozens of lines, is over the limit whatever those lines say.
+- **Content is the other check** — the Narration-vs-fact discipline in `magic-team/magic-team.armed.md`: a durable fact or convention, never a narration of a past action or an explanation of what changed. The two checks are independent: a comment can be entirely factual and still be forty lines that belong in `MAGIC.md`.
+- Volume regenerates in new code even where an existing tree has been brought within the limit. The standard holds where it is enforced, which is why this is a review step and not a one-off sweep.
+
+## A requirement is a property of the result, not a structure in the code
+
+- A long list of caveats invites a mechanism per caveat — its own variable, its own file, its own trap, its own branch. That reflex builds the shape of the briefing instead of the shape of the problem.
+- Constraints are things that must be true of the finished result. They are checked against it, never mirrored inside it.
+- Where a requirement appears to need something convoluted, that is a finding about the requirement. It goes to the human-owner, not into the code.
 
 ## The habit this exists to break
 

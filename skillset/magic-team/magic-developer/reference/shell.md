@@ -1,6 +1,54 @@
-# POSIX shell / AWK portability
+# Shell / AWK portability: the two standards, POSIX `sh` and bash 3.2
 
-Read this for any POSIX `sh`/AWK cross-platform portability question — writing or reviewing a script that must run unmodified on Linux, FreeBSD, and Darwin, regardless of which project it's for. Canonical home for this content; `magic-devops` reads this module directly rather than duplicating it, since it's the team's heaviest day-to-day user of it. [code-craft.md](code-craft.md) applies on top of this one for any shell code actually being written: straight-line, top-to-bottom, structure only where the code genuinely has structure.
+Read this for any shell/AWK cross-platform portability question — writing or reviewing a script that must run unmodified on Linux, FreeBSD, and Darwin, regardless of which project it's for. It covers both shell standards, POSIX `sh` and bash 3.2; the section below settles which one a given file is held to, and everything after it applies to both unless it says otherwise. Canonical home for this content; `magic-devops` reads this module directly rather than duplicating it, since it's the team's heaviest day-to-day user of it. [code-craft.md](code-craft.md) applies on top of this one for any shell code actually being written: straight-line, top-to-bottom, structure only where the code genuinely has structure.
+
+## Two shell standards, and which one a file is held to
+
+The same three platforms — Darwin, FreeBSD and Linux — produce two different standards, and a file is held to exactly one of them. What the file itself requires settles which one; what it happens to run on does not.
+
+- **A `bash` script is written to bash 3.2**, the crossplatform baseline version across Darwin, FreeBSD and Linux. A file that already declares a bash requirement is written against that version's own feature set rather than contorted into POSIX — the constructs are available to it, subject to the test below.
+- **An `sh` script is written with no bash-isms at all**, because all three platforms' own `sh` has to run it. A construct is rejected there for being a bash-ism, not for failing somewhere: it stays out even where it would work on Linux.
+
+The two tests point opposite ways, which is why the standard is settled before the code is written rather than argued per construct.
+
+### The bash 3.2 baseline, and what follows from it
+
+The baseline is the rule; the exclusions are derived from it, not memorised beside it. A flat list of banned builtins invites the next bash-4 feature to slip in for not being on the list — anyone applying the baseline reaches the same exclusions unaided.
+
+Available: redirections, expansions and arrays — process substitution `<( )`, herestrings `<<<`, indexed arrays with `+=( )`, `[[ ]]`, pattern substitution `${var//x/y}`, `local`, `$'...'`.
+
+Excluded, all of them bash 4 or later: `mapfile`/`readarray`, associative arrays (`declare -A`), case conversion `${var^^}`/`${var,,}`, `declare -g`.
+
+**Availability is not a reason to use anything.** A bash 3.2 construct goes in only where it makes the result better on all three counts at once:
+
+- **faster (executionally, less CPU time, less total time)** — two measures, and both have to improve. A construct that cuts CPU while adding waiting is not faster, and neither is one that cuts elapsed time by spending more CPU. Fewer lines is not evidence of either.
+- **readable (understandable, traversable by eye)** — two things at once. A reader has to understand what it does *and* scan it without stopping to decode. A dense one-liner can be understandable after study and still fail the second half.
+- **simpler (logically, algorithmically solution-wise)** — reaches past the code to the solution. Not only fewer branches in what was written, but a less elaborate approach to the problem. Not line count, and not `readable` restated.
+
+Any one of the three failing is a reject, and the plain form stands.
+
+`simpler` is the criterion that catches what the other two miss, and its algorithmic half is the harder failure to see because the code can look clean. A scan captured into one variable, an extraction captured from that, and a file holding the same rows is understandable at every stage and traversable line by line — it is a three-stage approach to a one-stage problem, which a reviewer judging only the code's tidiness would pass. `readable` asks whether a reader follows this line; `simpler` asks whether there is less to follow at all, and whether the solution needed these steps.
+
+In review the question is never whether 3.2 allows a construct. It is those three questions, and all three answer yes or the construct comes out.
+
+### Shell features and external tools are different constraints
+
+Both exist because the same three platforms are supported, and they resolve in opposite directions:
+
+- **The shell's own features** are granted by the version floor above. A file declaring bash gets bash 3.2's syntax.
+- **External utilities** differ per platform, which is what rules out `grep -P` and in-place `sed -i` (see Principles below). That says nothing about the shell's own syntax.
+
+Writing POSIX-only shell inside a bash script, to satisfy a constraint that is really about `sed` and `grep`, is the mistake this distinction exists to stop.
+
+## A scratch file is the most expensive name in a shell script
+
+- A value that fits in a variable goes in a variable. A file additionally costs a path to construct, a `mkdir -p`, a creation-failure branch, an EXIT trap and an `rm -f` on every return path — machinery whose whole purpose is to undo the file.
+- A hand-built `"<dir>/<name>.$$"` path leaks the moment any exit path misses its `rm`, and the trap is not the safety net it looks like: an EXIT trap set inside a function is the process's trap, so it silently replaces a caller's and its own `trap - EXIT` clears that one too.
+- A file feeding a loop disappears entirely under process substitution: `while IFS= read -r line ; do … ; done < <( … )` — no path, no trap, no cleanup, and the exit statuses stay reachable through `PIPESTATUS`.
+- One dataset is materialised once. A capture, a second capture derived from it, and a file holding the same rows are three copies of one pipeline's output, each paying for its own declaration, failure branch and removal.
+- Two reasons genuinely earn a file, and both are about what the file *is* rather than about holding a value:
+  - **A real file another process must open** — a credential header handed to `curl -H @file` keeps the token out of `argv` and out of `ps`. Create it with `mktemp`, then `chmod 600` it.
+  - **A whole document buffered before any of it is emitted**, so a run that fails partway leaves nothing on stdout that reads as a finished result. It only works if every byte is written inside the redirect: one header printed before the redirect defeats the entire mechanism.
 
 ## Principles
 

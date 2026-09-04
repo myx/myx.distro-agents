@@ -13,7 +13,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Core philosophy: a domain skill (`magic-devops`, a `partner-*` member, a `keeper-*` member) knows *where* code lives and *why* it's structured the way it is for its project; `magic-developer` knows *how to write the language itself* correctly — portability traps, idioms, "always do X, never do Y" rules that hold regardless of which repo you're in. A language axiom belongs here even if it was only ever written down while working on one project; a project-specific convention (naming, file layout, deploy mechanics) belongs in the domain skill even if the code happens to be written in this language.
 - `reference/code-craft.md` — the cross-language writing-style axiom: straight-line top-to-bottom code, structure only where the code genuinely has structure, fewer names. Not a language module and not optional — read before writing code in any language, alongside whichever language module applies.
 - One reference module per language — read only the one(s) relevant to the task at hand:
-  - `reference/shell.md` — POSIX `sh`/AWK cross-platform portability: the AWK semicolon axiom, GNU-dependency avoidance, and reusable POSIX patterns (dynamic argv, portable mutex, wall-clock timeout, filename-trim gotchas). Fully populated, canonical home — `magic-devops`/the relevant `keeper-*` read this module directly for their own day-to-day shell work rather than duplicating it.
+  - `reference/shell.md` — shell/AWK cross-platform portability across Linux, FreeBSD and Darwin: the two shell standards and which one a file is held to (POSIX `sh` carrying no bash-ism at all, or bash 3.2 as the crossplatform baseline) with the three-part test any bash construct must pass, the cost of a scratch file measured against a variable, the AWK semicolon axiom, GNU-dependency avoidance, and reusable POSIX patterns (dynamic argv, portable mutex, wall-clock timeout, filename-trim gotchas). Fully populated, canonical home — `magic-devops`/the relevant `keeper-*` read this module directly for their own day-to-day shell work rather than duplicating it.
   - `reference/xslt.md` — XSLT, especially 1.0: elegant, minimal solutions using only basic/standard 1.0 features. Fully populated — the former standalone `magic-xslt` skill, retired and folded in here.
   - `reference/java.md` — seeded with a first real axiom (allocation: hoist an immutable literal to `static final`, never allocate one inline per call), otherwise still thin.
   - `reference/go.md`, `reference/javascript.md` — starter stubs, not yet populated from real estate knowledge.
@@ -55,7 +55,12 @@ All statements apply at the same time, always. These rules override a magic-team
 - Working code is never rewritten for consistency alone: a difference in style, ordering or phrasing between two correct pieces of code is not a defect and is not fixed, and only a behaviour-changing defect or an explicit human-owner ask justifies touching code that already works. A mass cosmetic pass also buries real defects — a diff of hundreds of mechanical edits cannot be reviewed, so a genuine bug inside it goes unseen — which keeps behavioural fixes and cosmetic passes separate, separately-approvable work. The sibling of the rule above, and stated in full in `reference/code-craft.md`.
 - Language choice for a small script defaults to `awk` over Python: spawning a Python interpreter costs far more process-start latency than `awk`. Reach for Python only when the task genuinely needs something `awk` can't do cleanly — and even then, try `jq` first when the task is JSON-shaped. A preference for new code, not a ban: don't rewrite working Python to chase purity, and state at the call site why Python was needed.
 - Text-transform/filter work over structured input (fields, records, line-by-line reformatting) defaults to `awk` over a bash loop: a `while read`/`for` loop typically forks a subprocess per line, where `awk` processes the whole stream in one pass. Reach for a bash loop only when the task needs shell-specific control `awk` doesn't have — spawning a process per item, job control, interactive prompts. A preference for new code, not a ban: don't rewrite a working loop to chase purity, and state at the call site why the loop was needed.
-- Script language defaults to POSIX `sh` over bash: portable across the team's Linux/FreeBSD/Darwin fleet (`reference/shell.md`) with no assumption bash is even installed. Reach for bash-specific syntax (arrays, `[[`, `$'...'`, process substitution) only when the task genuinely needs a capability `sh` lacks, and only where bash's presence is already guaranteed. A preference for new code, not a ban: don't rewrite a working bash script to chase purity, and state at the call site why bash was needed.
+- Script language defaults to POSIX `sh` over bash: portable across the team's Linux/FreeBSD/Darwin fleet with no assumption bash is even installed. That choice is made once, when the file is created, and it settles which of the two standards in `reference/shell.md` the file is then held to — a file declaring a bash requirement is written against bash 3.2's own feature set rather than contorted into POSIX, and a file written to `sh` carries no bash-ism at all, including ones that would work on Linux. A preference for new code, not a ban: don't rewrite a working script to chase either standard, and state at the call site why bash was needed.
+- Shell-feature portability and external-tool portability are different constraints, and conflating them is what produces needless POSIX contortions: the bash 3.2 floor grants the shell's own syntax, while `grep -P` and in-place `sed -i` are out because the three platforms' utilities differ. Neither constraint says anything about the other. Stated in full in `reference/shell.md`.
+- An available bash 3.2 construct still has to earn its place: it goes in only where the result is better on all three of faster, readable and simpler at once, and any one of the three failing means the plain form stands. Availability is never the justification, and `simpler` reaches past the code to the solution — a tidy implementation of a needlessly elaborate approach fails it. Stated in full in `reference/shell.md`.
+- An unnecessary temp file, an unnecessary variable and an unnecessary function are one fault in three shapes — a unit created to hold a step that did not need holding, each adding something to create, name, track and clean up. A value that fits in a variable never becomes a file; only a file another process must open, or one buffering a whole document before any of it is emitted, earns being a file. Stated in `reference/code-craft.md`, with the shell mechanics in `reference/shell.md`.
+- Comment quantity is reviewed as its own check, against the team's existing limits rather than a second set — `magic-team/magic-team.armed.md`'s "A comment is short, or it is not a comment", and the same limits restated in a package's own `MAGIC.md` where one exists. Content is checked separately, against the Narration-vs-fact discipline: a comment can be entirely factual and still be far too long for a script. Both stated in `reference/code-craft.md`.
+- A constraint is something that must be true of the finished result, never a structure to mirror in the code — a list of caveats does not become a mechanism per caveat, each with its own variable, file, trap and branch. Where a requirement appears to need something convoluted, that is a finding about the requirement and it goes to the human-owner rather than into the code.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way — never Bash, Python, or any other direct-execution tool.
 - After finishing any activity, file what was learned as a `reflection-*` item to this member's own inbox via `--member-inbox-reflection-upsert`.
 - Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-inbox-note-upsert` (this member's own inbox).
@@ -103,6 +108,13 @@ Used to check this file's own definitions against its own goals when it is updat
   `awk` can't do cleanly.
 - Prefer the least-latency, most-portable tool actually suited to a scripting task's shape, in order to
   keep tool choice consistent across every shell-scripting decision.
+- A shell file is held to exactly one standard, settled by what that file itself requires: bash 3.2 where
+  it declares a bash requirement, POSIX `sh` carrying no bash-ism at all otherwise.
+- An available construct is not thereby a justified one: a bash 3.2 construct is used only where the
+  result is better on faster, readable and simpler together.
+- Simplicity is a requirement of the result, not a preference weighed against other requirements.
+- An unnecessary temp file, variable and function are one fault in three shapes: a unit created to hold a
+  step that did not need holding.
 
 ## Verbatim-tests (benchmarks)
 
@@ -117,13 +129,21 @@ Used to check this file's own definitions against its own goals when it is updat
 - Given a choice between two tools where either could do the job, the one with lower startup cost and
   narrower/more portable scope is chosen, unless the task genuinely needs the other tool's specific
   capability.
+- A file already declares a bash requirement. Rewriting one of its constructs into a POSIX-only form, to
+  satisfy a portability constraint that is actually about `sed` and `grep`, fails review.
+- A construct is faster and reads clearly while adding a stage the plain form did not have. It fails the
+  three-part test on `simpler`, and the plain form stands.
+- A scratch file holds a value used once and is removed by a trap on every return path. It becomes a
+  variable, and the path, the trap and the removal sites go with it.
+- A comment is accurate, durable and forty lines long. It fails the quantity check and moves to the
+  package's own `MAGIC.md`, its content never having been the problem.
 
 ## Librarian Comments
 
 ### Reference
 
-- `reference/code-craft.md` — cross-language writing-style axiom, read before writing code in any language.
-- `reference/shell.md` — POSIX `sh`/AWK cross-platform portability, fully populated, canonical home.
+- `reference/code-craft.md` — cross-language writing-style axiom, read before writing code in any language. Also the home of the human-owner's own standing words on this subject, the one-fault-three-shapes statement, and the comment quantity-versus-content pair.
+- `reference/shell.md` — shell/AWK cross-platform portability, fully populated, canonical home. Also the two shell standards and their determinant, the bash 3.2 baseline and the three-part test for using it, and the cost of a scratch file.
 - `reference/xslt.md` — XSLT (especially 1.0), fully populated, former standalone `magic-xslt` skill.
 - `reference/java.md` — seeded with a first real axiom, otherwise still thin.
 - `reference/go.md`, `reference/javascript.md` — starter stubs, not yet populated.
@@ -138,3 +158,5 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - The language-craft/project-convention split ("a language axiom belongs here even if only ever written down while working on one project") is this skill's core organizing principle — preserve it precisely, it's what keeps this skill from accreting project-specific content that belongs elsewhere.
 - `reference/code-craft.md` is the one module that is not per-language: it states how code is written at all. Keep it out of the per-language list, and keep language-specific instances of it in the language modules rather than restated there.
+- The bash exclusion list is derived from the 3.2 baseline, never maintained beside it. Stating the baseline as the rule is what stops the next bash-4 feature entering for not having been listed; a flat list of banned builtins invites exactly that.
+- The comment limits are pointed at, never restated here — one wording in `magic-team/magic-team.armed.md`, echoed in a package's own `MAGIC.md`. A second copy in this skill's own modules is how the two drift apart.
