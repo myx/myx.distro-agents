@@ -54,8 +54,8 @@ Help(){
 
 while true; do
 	case "$(
-		set -- --.local-config-option-select-default MDLT_CONSOLE_HISTORY default
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+		ReadConfig(){ . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ; }
+		ReadConfig --.local-config-option-select-default MDLT_CONSOLE_HISTORY default
 	)" in
 		workspace-personal|default)
 			mkdir -p "$MMDAPP/.local/home/${USER}"
