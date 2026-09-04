@@ -354,7 +354,7 @@ Relationship shape — the asymmetric external-organisation relationship (`clien
 `partner-*` the opposite), not restated here: see `magic-team.authority.partner.contract.md`/
 `magic-team.authority.client.contract.md`'s own "Relationship shape".
 
-Comms-sweep for any `client-*` member reads via `--client-sweep-input-scan <client-* member> [--comms-since-utime <v>|--comms-since-date-time <v>]` — generic across every `client-*` member, per-member-credentialed, and client-only: a `partner-*` member is not accepted. The member name and the optional cut-off are its only arguments: it reads every baseline source that member holds credentials for, and an item name is not a parameter to it. No wrapping check→analyze→act→reply-if-warranted routine around it exists yet for any member of this shape.
+Comms-sweep for any `client-*` member reads via `--client-sweep-input-scan <client-* member> [--comms-since-utime <v>|--comms-since-date-time <v>]` — generic across every `client-*` member, per-member-credentialed, and client-only: a `partner-*` member is not accepted. The member name and the optional cut-off are its only arguments: it reads every baseline source that member holds credentials for, and an item name is not a parameter to it. `magic-coordinator.communication-sweep.routine` is the wrapper around it: every `client-*` member is read in that routine's own pass, alongside the executor's own team-scoped sources, under each member's own credentials.
 
 Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
 
