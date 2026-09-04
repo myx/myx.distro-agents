@@ -351,6 +351,19 @@
 			or malformed falls back to the member name and never fails the
 			send.
 
+			**Every message carries a labelled `To:` line, and a bot message
+			carries a `From:` line above it.** Both name their member the same
+			way — `<icon> <team-member> @<alias>` — and several addressees are
+			separated by `; `. `To:` is always present: with no `--address-to`
+			it reads `To: @here`, which is plain text and pings nobody. `From:`
+			appears only where the Slack account shown is not the member's own
+			— a bot post, or one relayed for a token-less member — since a
+			message sent under the member's own user token already shows who
+			sent it. Both lines land in the blocks version and in the text
+			version, and both are found by their label: Slack rewrites the text
+			version of a blocks message and flattens its line breaks, so a
+			reader must never depend on which line either one sits on.
+
 			**In-body mentions.** Write a bare `@name` anywhere in a
 			`markdown` body. The blocks version renders it as a real mention
 			where the name resolves; the text version keeps it exactly as
