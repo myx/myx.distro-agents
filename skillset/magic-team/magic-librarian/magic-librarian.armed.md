@@ -275,7 +275,7 @@ Note: `--librarian-inbox-item-trash` (below) is inbox-sourced and does not rever
 
 ## `--librarian-inbox-item-trash` Operation Reference
 
-`DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>` — deletes one already-processed inbox item. `--from-inbox:` is colon-style, never a spaced `--from-inbox <member>` pair. `<member>` and `<item-filename>` must both be bare names, and `<item-filename>` must end in `.md`. Resolving the item's actual location is the operation's own concern — the caller never passes a path segment, only an inbox that already has a processed-items area is reachable, and the rest error rather than one being created. **Nothing is kept — the item is deleted, and there is no restoring it.**
+`DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>` — deletes one of `<member>`'s inbox items, a live one or an already-processed one alike. `--from-inbox:` is colon-style, never a spaced `--from-inbox <member>` pair. `<member>` and `<item-filename>` must both be bare names, and `<item-filename>` must end in `.md`. Resolving the item's actual location is the operation's own concern — the caller never passes a path segment; the live inbox root is searched first, then that inbox's processed-items area, first match wins, so a basename held in both resolves to the live-root copy. Neither directory is ever created, and a miss in both errors naming both. **Nothing is kept — the item is deleted, and there is no restoring it.**
 
 ## `--librarian-inbox-to-processed` Operation Reference
 

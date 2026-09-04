@@ -40,6 +40,11 @@ case "$1" in
 		local doInboxInquiryActive="false" doInboxInquiryAll="false"
 		local doInboxReflections="false" doInboxNotes="false"
 		local doInboxOther="false"
+		## Read-only widening of the INBOX section only. Never touches actingMember:
+		## the acting identity, the credentials every comms read uses, the board's
+		## owner scoping and the named-item lookup all stay with actingMember, and
+		## nothing here writes into another member's inbox.
+		local inboxAlsoMembers=() alsoSeen
 		local doBoardRelatedActive="false" doBoardRelatedAll="false"
 		local itemIncludeInbox="false"
 		while [ $# -gt 0 ] ; do
@@ -108,6 +113,25 @@ case "$1" in
 				--do-inbox-reflections)    doInboxReflections="true" ; shift ;;
 				--do-inbox-notes)          doInboxNotes="true" ; shift ;;
 				--do-inbox-other)          doInboxOther="true" ; shift ;;
+				--do-inbox-also-member)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-inbox-also-member: value required" >&2
+						set +e ; return 1
+					fi
+					AgentsToolsAssertBareName "$2" "<team-member>" session-context-scan || { set +e ; return 1 ; }
+					if [ "$2" = "$actingMember" ] ; then
+						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-inbox-also-member: $2 is already the acting <team-member>, whose own inbox this scan reads anyway -- naming it again would print the same inbox twice" >&2
+						set +e ; return 1
+					fi
+					for alsoSeen in "${inboxAlsoMembers[@]+"${inboxAlsoMembers[@]}"}" ; do
+						if [ "$alsoSeen" = "$2" ] ; then
+							echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-inbox-also-member: $2 given more than once -- one inbox, one set of sections" >&2
+							set +e ; return 1
+						fi
+					done
+					inboxAlsoMembers+=( "$2" )
+					shift 2
+				;;
 				--do-board-related-active) doBoardRelatedActive="true" ; shift ;;
 				--do-board-related-all)    doBoardRelatedAll="true" ; shift ;;
 				--item-include-inbox)      itemIncludeInbox="true" ; shift ;;
@@ -191,6 +215,16 @@ case "$1" in
 
 		if [ "$doInboxInquiryActive" = "true" ] && [ "$doInboxInquiryAll" = "true" ] ; then
 			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-inbox-inquiry-active and --do-inbox-inquiry-all are mutually exclusive -- both fill the same section, and a section carrying two scopes states neither" >&2
+			set +e ; return 1
+		fi
+		## A widening with nothing to widen is a caller mistake, not an empty result:
+		## the extra inboxes would silently print four "not requested" sections and
+		## read as "that member's inbox holds nothing".
+		if [ ${#inboxAlsoMembers[@]} -gt 0 ] \
+			&& [ "$doInboxInquiryActive" != "true" ] && [ "$doInboxInquiryAll" != "true" ] \
+			&& [ "$doInboxReflections" != "true" ] && [ "$doInboxNotes" != "true" ] \
+			&& [ "$doInboxOther" != "true" ] ; then
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-inbox-also-member widens the inbox sections, and no --do-inbox-* section was requested -- there is nothing to widen" >&2
 			set +e ; return 1
 		fi
 		if [ "$doBoardRelatedActive" = "true" ] && [ "$doBoardRelatedAll" = "true" ] ; then
@@ -279,6 +313,53 @@ case "$1" in
 			done
 		done
 
+		## OLDEST FIRST, ACROSS EVERY STATE. The two loops above walk state by state
+		## and glob each one, so the list arrived ordered by state and then
+		## LEXICALLY BY FILENAME -- which sorts on the item TYPE first, because a
+		## name is `<type>-<YYYYMMDDTHHMMZ>-<slug>.md`. Every `dispatch-*` therefore
+		## preceded every `note-*` regardless of age, and a state's items never
+		## interleaved with another's at all. That is not a chronological order and
+		## it is not this scan's to impose: every list an input-scan returns is
+		## ordered oldest to newest.
+		##
+		## The key is the timestamp embedded in the name, which is fixed-width UTC
+		## and therefore sorts lexically in chronological order. The two arrays are
+		## PARALLEL -- matchedStates[i] describes matchedFiles[i] -- so they are
+		## sorted together through one keyed record and split back apart; sorting
+		## either alone would silently re-label every item.
+		## A name carrying no timestamp keeps its arrival position at the END rather
+		## than being given an invented date: unknown is not oldest.
+		if [ ${#matchedFiles[@]} -gt 1 ] ; then
+			local boardSorted="" boardIndex=0 boardState="" boardFile=""
+			## The key is derived in awk, not in a shell `case`: a bracket range in a
+			## shell pattern is collation-dependent and this family does not use one.
+			## A name carrying no timestamp gets "~" (0x7E, above every digit under
+			## LC_ALL=C) and lands at the END -- unknown is not oldest -- with the
+			## original arrival index breaking ties so the sort is stable.
+			boardSorted="$( for (( boardIndex = 0 ; boardIndex < ${#matchedFiles[@]} ; boardIndex++ )) ; do
+					printf '%s\t%s\t%s\n' "$boardIndex" "${matchedStates[$boardIndex]}" "${matchedFiles[$boardIndex]}"
+				done | LC_ALL=C awk -F '\t' '
+					{
+						base = $3
+						sub(/^.*\//, "", base)
+						key = base
+						sub(/^[^-]*-/, "", key)
+						sub(/-.*$/, "", key)
+						if ( key !~ /^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T/ ) { key = "~" ; }
+						printf("%s\t%s\t%s\t%s\n", key, $1, $2, $3)
+					}
+				' | LC_ALL=C sort -t "$( printf '\t' )" -k1,1 -k2,2n )"
+			matchedFiles=()
+			matchedStates=()
+			while IFS="$( printf '\t' )" read -r boardIndex boardIndex boardState boardFile ; do
+				[ -n "$boardFile" ] || continue
+				matchedFiles+=( "$boardFile" )
+				matchedStates+=( "$boardState" )
+			done <<- BOARDEOF
+			$boardSorted
+			BOARDEOF
+		fi
+
 		local sessionContextEngaged="false"
 		if [ -n "$commsCutoffKind" ] || [ "$commsDoAll" = "true" ] || [ "$commsDoSlack" = "true" ] \
 			|| [ "$commsDoEmail" = "true" ] || [ "$commsDoTrello" = "true" ] \
@@ -304,7 +385,7 @@ case "$1" in
 
 			local imIdentity="<unresolved>" emailIdentity="<not configured>" trelloIdentity="<unresolved>"
 
-			local slackOldest="" cutoffEpoch=""
+			local cutoffEpoch=""
 			if [ "$commsCutoffKind" = "--comms-since-utime" ] ; then
 				cutoffEpoch="$commsCutoffValue"
 			elif [ "$commsCutoffKind" = "--comms-since-date-time" ] ; then
@@ -327,7 +408,6 @@ case "$1" in
 				cutoffEpoch=$(( nowEpoch - sessionContextDefaultCutoffDays * 86400 ))
 				commsCutoffDefaulted="true"
 			fi
-			[ -z "$cutoffEpoch" ] || slackOldest="$cutoffEpoch"
 
 			local imBlocks="" imInstrument="" imSourcesTotal=0 imSourcesScanned=0 imPartial=""
 			local imFailed="false" imAnySourceFailed="false"
@@ -338,8 +418,29 @@ case "$1" in
 					imInstrument="cut-off $commsCutoffKind $commsCutoffValue (applied client-side; Slack oldest= is deliberately NOT used, so thread discovery can still see parents older than the cut-off)"
 				fi
 
-				local slackSourceNames=( magic-team human-owner )
+				## THE SOURCE SET, TWO SCOPES CHOSEN BY WHICH TOKEN IS IN PLAY. Not one
+				## set with an identity fan-out bolted onto it:
+				##
+				##   BOT_TOKEN  -- the `magic-team` channel, the `human-owner` DM, and
+				##                 the bot's OWN DMs. The first two were this list's
+				##                 entire content and are still exactly right for the
+				##                 scope; the bot's own DMs were the missing third.
+				##   USER_TOKEN -- for a persona holding one: ALL of its DMs, and all
+				##                 of its mentions.
+				##
+				## Each spec is `identity|target|label|source-key`:
+				##   identity   which token reads it -- `bot` or `user`.
+				##   target     what --intern-op-slack-check is given.
+				##   label      the document's `source:` value, and therefore the key
+				##              the renderer groups by. It carries the persona, so one
+				##              correspondent writing to two personas stays two groups.
+				##   source-key `<auth-id>-<conversation-id>`, this source's stable
+				##              name for a caller that wants to speak about one source
+				##              in its own records. The scan itself reads nothing by
+				##              it: it holds no per-source position to look up.
+				local slackSourceSpecs=()
 				local slackOwnCredentials="true"
+				local slackRosterIdentityArg="--identity both"
 				if [ "$commsMemberScopeOnly" = "true" ] ; then
 					## Presence only -- reduced to a boolean on the next lines and
 					## dropped. No credential is compared, stored or printed.
@@ -349,30 +450,28 @@ case "$1" in
 					[ -z "$ownTokenPresent" ] || slackOwnCredentials="true"
 					ownTokenPresent=""
 
-					slackSourceNames=()
+					## A client-* member reads under its OWN user token and nothing
+					## else, so its roster is enumerated for that identity alone. Asking
+					## for the bot leg here would resolve to the TEAM's shared bot token
+					## -- a different workspace entirely -- which is exactly what the
+					## partial note below has always refused to do.
+					slackRosterIdentityArg="--identity user"
+
 					local configuredSources="" configuredSource
 					configuredSources="$( DistroAgentsTools --member-config-option "$actingMember" --select SLACK_CONVERSATIONS )" || configuredSources=""
 					for configuredSource in ${configuredSources//,/ } ; do
-						slackSourceNames+=( "$configuredSource" )
+						slackSourceSpecs+=( "user|$configuredSource|$configuredSource|" )
 					done
 
 					if [ "$slackOwnCredentials" != "true" ] ; then
-						slackSourceNames=()
+						slackSourceSpecs=()
 						imSourcesTotal=$(( imSourcesTotal + 1 ))
 						imAnySourceFailed="true"
 						imPartial="$imPartial**NOTE:** partial -- Slack not scanned, $actingMember holds no Slack credentials of its own; this scan never reads Slack under the team's shared credentials"$'\n'
-					elif [ ${#slackSourceNames[@]} -eq 0 ] ; then
-						imSourcesTotal=$(( imSourcesTotal + 1 ))
-						imAnySourceFailed="true"
-						imPartial="$imPartial**NOTE:** partial -- Slack not scanned, no conversation is configured for $actingMember"$'\n'
 					fi
+				else
+					slackSourceSpecs=( "bot|magic-team|magic-team|" "bot|human-owner|human-owner|" )
 				fi
-				if [ "$commsDoSlackTags" = "true" ] ; then
-					imSourcesTotal=$(( imSourcesTotal + 1 ))
-					imPartial="$imPartial**NOTE:** partial -- member-tag search not scanned, no search term for a member's own tag is expressible through --member-comms-slack-search-messages (it searches one named conversation, not a term across all of them); no conclusion about tags is supported by this document"$'\n'
-					imAnySourceFailed="true"
-				fi
-
 				local ownSlackId="" ownResolveOutput=""
 				if [ "$slackOwnCredentials" = "true" ] ; then
 					ownResolveOutput="$( DistroAgentsTools --magic-comms-slack-resolve-ids "$actingMember" )" || true
@@ -385,6 +484,181 @@ case "$1" in
 				[ -z "$ownSlackId" ] || imIdentity="$ownSlackId"
 
 				local threadTargets=() dt discovered
+
+				## EVERY DM OF EVERY PERSONA, ENUMERATED FROM SLACK, THIS PASS.
+				## Not a configured list and not a remembered one: a correspondent who
+				## writes for the first time -- or for the first time in a year -- is
+				## invisible to both, and that invisibility is the whole defect. The
+				## roster op re-fetches conversations.list every call for exactly that
+				## reason; see its own header.
+				##
+				## A DM IS ADDRESSED BY PRESENCE. Nobody @-mentions anyone in a direct
+				## conversation, they just write, so no mention or addressing test
+				## gates a DM's top-level messages -- they are read because the
+				## conversation is ours. (The `vaneId` test in
+				## AgentsSlackHistoryThreadTargets.awk is a WIDENER, not a filter: it
+				## reads `if (!fresh && !vaneHit) continue`, so it only ever ADDS a
+				## thread that is ours but stale. A fresh thread is discovered with or
+				## without it, in a DM as in a channel. Nothing there needed changing,
+				## and nothing there may be turned into a DM scope test.)
+				local dmRosterOutput="" dmRosterRc=0
+				if [ "$slackOwnCredentials" = "true" ] ; then
+					dmRosterOutput="$( DistroAgentsTools --magic-comms-slack-conversations-roster "$actingMember" $slackRosterIdentityArg )" || dmRosterRc=$?
+				else
+					dmRosterRc=4
+				fi
+				## Only rc 0 is a roster that can be trusted to be complete. A partial
+				## one is USED -- what it did enumerate is real -- and said out loud,
+				## because the alternative is silently sweeping a subset.
+				case "$dmRosterRc" in
+					0)	;;
+					3)
+						imPartial="$imPartial**NOTE:** partial -- the DM roster came back INCOMPLETE (one identity could not be enumerated); the conversations below are real but are not known to be all of them"$'\n'
+						imAnySourceFailed="true"
+					;;
+					*)
+						dmRosterOutput=""
+						if [ "$slackOwnCredentials" = "true" ] ; then
+							imSourcesTotal=$(( imSourcesTotal + 1 ))
+							imAnySourceFailed="true"
+							imPartial="$imPartial**NOTE:** partial -- NO DM was enumerated: conversations.list could not be read for any identity, so nothing here says how many direct conversations exist or whether any carries unread traffic. This is an UNKNOWN inventory, never an empty one"$'\n'
+						fi
+					;;
+				esac
+
+				## The human-owner DM is already read, under BOTH identities, by the
+				## `human-owner` alias above -- its fan-out resolves one DM per identity
+				## and asserts each against the counterparty. Its conversations appear
+				## in both rosters too, so they are skipped HERE rather than the alias
+				## being dropped: the alias path carries a counterparty control this
+				## one does not, and removing a working control to remove a duplicate
+				## is a bad trade.
+				local humanOwnerParty=""
+				if [ "$commsMemberScopeOnly" != "true" ] ; then
+					humanOwnerParty="$( DistroAgentsToolsResolveTarget human-owner | LC_ALL=C sed -n 's/^CHANNEL=//p' )" || humanOwnerParty=""
+					case "$humanOwnerParty" in
+						U*|W*)	;;
+						*)	humanOwnerParty="" ;;
+					esac
+				fi
+
+				local rosterLine rosterIdentity rosterAuth rosterConv rosterKind rosterParty rosterHandle
+				local rosterPersona="" rosterDmCount=0
+				## Handles for the `user:` lines, from the roster's OWN users.list fetch
+				## -- no second call. Exported rather than passed, because the same map
+				## has to reach the thread-fetch jobs this scan backgrounds, and a
+				## tenth positional argument to reach them would be worse than a name.
+				COMMS_USER_HANDLES=""
+				while IFS= read -r rosterLine ; do
+					case "$rosterLine" in
+						"IDENTITY|"*)
+							## The persona's own handle, for the label a reader sees.
+							rosterPersona="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|handle=\([^|]*\)|.*/\1/p' )"
+							continue
+						;;
+						"USER|"*)
+							COMMS_USER_HANDLES="$COMMS_USER_HANDLES$( printf '%s\n' "$rosterLine" | LC_ALL=C awk -F '|' '{ printf("%s\t%s", $2, $3) ; }' )"$'\n'
+							continue
+						;;
+						"CONV|"*)	;;
+						*)	continue ;;
+					esac
+					rosterIdentity="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|identity=\([^|]*\)|.*/\1/p' )"
+					rosterAuth="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|auth=\([^|]*\)|.*/\1/p' )"
+					rosterConv="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|id=\([^|]*\)|.*/\1/p' )"
+					rosterKind="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|kind=\([^|]*\)|.*/\1/p' )"
+					rosterParty="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|counterparty=\([^|]*\)|.*/\1/p' )"
+					rosterHandle="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|handle=\([^|]*\)|.*/\1/p' )"
+					[ -n "$rosterConv" ] && [ -n "$rosterAuth" ] || continue
+					if [ -n "$humanOwnerParty" ] && [ "$rosterParty" = "$humanOwnerParty" ] ; then continue ; fi
+					## An unresolved handle keeps the party id rather than an empty
+					## name: a group heading has to identify SOMEONE.
+					[ "$rosterHandle" != "-" ] && [ -n "$rosterHandle" ] || rosterHandle="$rosterParty"
+					slackSourceSpecs+=( "$rosterIdentity|$rosterConv|$rosterKind:$rosterHandle@${rosterPersona:-$rosterAuth}|$rosterAuth-$rosterConv" )
+					rosterDmCount=$(( rosterDmCount + 1 ))
+				done <<- EOF
+				$dmRosterOutput
+				EOF
+				export COMMS_USER_HANDLES
+
+				## ALL MENTIONS FOR EVERY USER_TOKEN PERSONA -- the channel-side half of
+				## the same rule. In a channel a mention is HOW a message becomes ours,
+				## where in a DM presence already is.
+				##
+				## The hits are turned into thread targets rather than rendered
+				## separately, so a mention is read, trimmed, grouped and capped by the
+				## one pipeline every other message goes through -- no second rendering
+				## path, and no mention-specific handling rule.
+				##
+				## THIS IS A USER_TOKEN CAPABILITY AND CANNOT BE MADE A BOT ONE. Slack's
+				## search.messages refuses a bot token outright, at any scope; so the
+				## bot persona's mentions are only ever the ones sitting in the
+				## conversations it is already read above. That is Slack's limit, not a
+				## gap in this scan, and it is stated rather than left to be inferred.
+				if [ "$commsDoSlackTags" = "true" ] ; then
+					imSourcesTotal=$(( imSourcesTotal + 1 ))
+					local mentionUserToken=""
+					mentionUserToken="$( DistroAgentsTools --member-config-option "$actingMember" --select SLACK_USER_TOKEN )" || mentionUserToken=""
+					local mentionHasToken="false"
+					[ -z "$mentionUserToken" ] || mentionHasToken="true"
+					mentionUserToken=""
+
+					if [ "$mentionHasToken" != "true" ] ; then
+						imPartial="$imPartial**NOTE:** partial -- mention search not run for $actingMember: it holds no SLACK_USER_TOKEN, and Slack's search.messages is refused to a bot token at any scope. Mentions of the bot identity are covered only where they sit in a conversation read above; no conclusion about mentions elsewhere is supported by this document"$'\n'
+						imAnySourceFailed="true"
+					elif [ -z "$ownSlackId" ] ; then
+						imPartial="$imPartial**NOTE:** partial -- mention search not run, this persona's own Slack user id could not be resolved, so there was no term to search for"$'\n'
+						imAnySourceFailed="true"
+					else
+						local mentionAfter="" mentionRc=0 mentionResponse="" mentionHits=""
+						mentionAfter="$( printf '%s\n' "$(( ${cutoffEpoch%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )" || mentionAfter=""
+						if [ -z "$mentionAfter" ] ; then
+							imPartial="$imPartial**NOTE:** partial -- mention search not run, the search window's start date could not be derived from cut-off $cutoffEpoch"$'\n'
+							imAnySourceFailed="true"
+						else
+							## One day early on purpose: Slack's own `after:` is
+							## day-granular and exclusive, and the real sub-second
+							## cut-off is applied by the trim every source already goes
+							## through. Same over-fetch --member-comms-slack-search-messages
+							## documents at its own call site.
+							mentionResponse="$( DistroAgentsTools --intern-op-slack-call "$actingMember" \
+								--api search.messages --identity user \
+								--form "query=<@$ownSlackId> after:$mentionAfter" \
+								--form sort=timestamp --form sort_dir=desc --form count=100 --form page=1 \
+								--context "--intern-op-session-context-scan (mentions of $ownSlackId)" )" || mentionRc=$?
+							if [ "$mentionRc" != "0" ] ; then
+								imPartial="$imPartial**NOTE:** partial -- mention search FAILED for <@$ownSlackId>; nothing here says whether this persona was mentioned anywhere outside the conversations read above"$'\n'
+								imAnySourceFailed="true"
+							else
+								## Reuses the generic list reader rather than a second
+								## copy of a matches parser: search nests its array at
+								## `messages.matches`, which is just another array path.
+								mentionHits="$( printf '%s\n' "$mentionResponse" | LC_ALL=C awk \
+									-v array=messages.matches -v want=channel.id,ts \
+									-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackListRecords.awk" )" || mentionHits=""
+								local mentionChannel mentionTs mentionCount=0
+								while IFS="$( printf '\t' )" read -r mentionChannel mentionTs ; do
+									[ -n "$mentionChannel" ] && [ -n "$mentionTs" ] || continue
+									threadTargets+=( "$mentionChannel:$mentionTs" )
+									mentionCount=$(( mentionCount + 1 ))
+								done <<- MENTIONEOF
+								$mentionHits
+								MENTIONEOF
+								imSourcesScanned=$(( imSourcesScanned + 1 ))
+								imInstrument="$imInstrument; mentions of <@$ownSlackId> searched since $mentionAfter ($mentionCount hit(s), read through the same per-conversation pipeline as everything else)"
+							fi
+						fi
+					fi
+				fi
+
+				## Said once, after both scopes have contributed: a member with nothing
+				## configured AND nothing enumerated really has no source, and that is
+				## the only case in which this scan reads no Slack at all.
+				if [ "$slackOwnCredentials" = "true" ] && [ ${#slackSourceSpecs[@]} -eq 0 ] ; then
+					imSourcesTotal=$(( imSourcesTotal + 1 ))
+					imAnySourceFailed="true"
+					imPartial="$imPartial**NOTE:** partial -- Slack not scanned, no conversation is configured for $actingMember and none was enumerated for any identity it holds"$'\n'
+				fi
 
 				local commsCutoffTrimAwkProgram='
 					## Float-free ordering key: zero-padded seconds then exactly six
@@ -467,10 +741,24 @@ case "$1" in
 				mkdir -p "$MMDAPP/.local/temp" && : > "$dmIdentityMapFile" || { set +e ; return 1 ; }
 				trap 'rm -f "$dmIdentityMapFile"' EXIT
 
-				local slackName slackResolved slackChannel slackRaw slackJson slackBlocks
-				for slackName in ${slackSourceNames[@]+"${slackSourceNames[@]}"} ; do
+				## Per-conversation resume points, `label<TAB>channel<TAB>identity<TAB>ts<TAB>origin`,
+				## collected as the loop resolves each source and handed to the
+				## renderer so the document can state, per correspondent, where this
+				## pass actually started. That is what makes it auditable; today a
+				## reader cannot tell one source's starting point from another's.
+				local imSourceResume=""
+
+				local slackSpec slackName slackResolved slackChannel slackRaw slackJson slackBlocks
+				local specIdentity specTarget
+				for slackSpec in ${slackSourceSpecs[@]+"${slackSourceSpecs[@]}"} ; do
+					specIdentity="${slackSpec%%|*}"
+					slackName="${slackSpec#*|}"
+					specTarget="${slackName%%|*}"
+					slackName="${slackName#*|}"
+					slackName="${slackName%%|*}"
+
 					imSourcesTotal=$(( imSourcesTotal + 1 ))
-					slackResolved="$( DistroAgentsToolsResolveTarget "$slackName" )" || {
+					slackResolved="$( DistroAgentsToolsResolveTarget "$specTarget" )" || {
 						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, no channel id configured"$'\n'
 						imAnySourceFailed="true"
 						continue
@@ -479,14 +767,41 @@ case "$1" in
 					local slackUserId=""
 					slackUserId="$( printf '%s\n' "$slackResolved" | sed -n 's/^USER_ID=//p' )" || slackUserId=""
 					local slackCheckTarget="$slackChannel:"
-					if [ "$commsMemberScopeOnly" != "true" ] && [ "$slackName" = "human-owner" ] ; then
-						slackCheckTarget="$slackName"
+					if [ "$commsMemberScopeOnly" != "true" ] && [ "$specTarget" = "human-owner" ] ; then
+						slackCheckTarget="$specTarget"
 					fi
+
+					## WHERE THIS SOURCE RESUMES FROM: the cut-off this pass was GIVEN,
+					## the same one for every source. This scan holds no position of
+					## its own and reads none -- it is stateless, and a caller wanting
+					## a different floor states a different --comms-since-*. Recording
+					## how far a read got is the calling reader's own business, kept in
+					## the calling reader's own state-and-lock note, and the scan
+					## neither reads nor writes it.
+					imSourceResume="$imSourceResume$slackName	$slackChannel	$specIdentity	$cutoffEpoch	pass cut-off"$'\n'
+
 					local slackCheckRc=0
-					slackRaw="$( if [ "$commsMemberScopeOnly" = "true" ] ; then
-						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackCheckTarget" --raw
+					## --page-until, NOT --oldest. The read below is now paged to
+					## the end of a conversation instead of stopping after one
+					## page, and with nothing bounding the walk that means every
+					## watched source is re-read from its first message on every
+					## pass. This bounds how far back the PAGING goes -- to the
+					## same cut-off this scan already applies client-side -- while
+					## leaving Slack's own `oldest=` unsent, so the page that
+					## straddles the cut-off still arrives whole and thread
+					## discovery keeps seeing parents older than it.
+					local slackPageUntilArgs=()
+					if [ -n "$cutoffEpoch" ] ; then
+						slackPageUntilArgs=( --page-until "$cutoffEpoch" )
+					fi
+					## The spec names which token reads this source. `bot` keeps the
+					## identity every team-side source has always been read under; `user`
+					## is the persona's own token, which is what a USER_TOKEN persona's
+					## own DMs and the whole client-* path have always needed.
+					slackRaw="$( if [ "$specIdentity" = "bot" ] ; then
+						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackCheckTarget" "${slackPageUntilArgs[@]+"${slackPageUntilArgs[@]}"}" --identity-bot --raw
 					else
-						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackCheckTarget" --identity-bot --raw
+						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackCheckTarget" "${slackPageUntilArgs[@]+"${slackPageUntilArgs[@]}"}" --raw
 					fi )" || slackCheckRc=$?
 					if [ "$slackCheckRc" != "0" ] && [ "$slackCheckRc" != "3" ] ; then
 						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, --intern-op-slack-check failed"$'\n'
@@ -503,7 +818,20 @@ case "$1" in
 							rest = $0
 							sub(/^## dm=/, "", rest)
 							id = rest ; sub(/ .*/, "", id)
-							idn = rest ; sub(/^[^ ]+ identity=/, "", idn) ; sub(/ .*/, "", idn)
+							## `identity=` IS OPTIONAL ON THIS MARKER -- the same
+							## optionality AgentsSessionContextCommsItems.awk already
+							## honours at its own copy of this rule. Without this
+							## positive test the sub() below simply does not match,
+							## `idn` keeps the whole remainder, and the first word of
+							## it -- the channel id itself -- is recorded as though it
+							## were an identity name. That mapping is then non-empty,
+							## so the follow-up thread read takes the "some identity
+							## was mapped" branch and silently reads under the member
+							## token where it had been reading under the bot token.
+							idn = ""
+							if (rest ~ /identity=/) {
+								idn = rest ; sub(/^.*identity=/, "", idn) ; sub(/ .*/, "", idn)
+							}
 							if (id != "" && idn != "") print id, idn
 						}
 					' | sort -u >> "$dmIdentityMapFile"
@@ -512,6 +840,9 @@ case "$1" in
 						imAnySourceFailed="true"
 						continue
 					}
+					## Trimmed against THIS source's resume point, the same value the
+					## paging was bounded by -- two different cut-offs over one read is
+					## how a message ends up fetched and then silently dropped.
 					if [ -n "$cutoffEpoch" ] && [ -n "$slackBlocks" ] ; then
 						slackBlocks="$( printf '%s\n' "$slackBlocks" | LC_ALL=C awk -v cut="$cutoffEpoch" -v ctx=0 "$commsCutoffTrimAwkProgram" )" || {
 							imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, cut-off filter over the channel page failed"$'\n'
@@ -522,7 +853,7 @@ case "$1" in
 					imSourcesScanned=$(( imSourcesScanned + 1 ))
 					[ -z "$slackBlocks" ] || imBlocks="$imBlocks$slackBlocks"$'\n\n'
 
-					discovered="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v channel="$slackChannel" -v oldest="${slackOldest:-}" -v vaneId="$ownSlackId" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackHistoryThreadTargets.awk" )" || {
+					discovered="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v channel="$slackChannel" -v oldest="$cutoffEpoch" -v vaneId="$ownSlackId" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackHistoryThreadTargets.awk" )" || {
 						imPartial="$imPartial**NOTE:** partial -- thread discovery failed for $slackName, watched-channel read above unaffected"$'\n'
 						discovered=""
 					}
@@ -592,16 +923,23 @@ case "$1" in
 					if [ -n "$identityMapFile" ] && [ -f "$identityMapFile" ] ; then
 						dtIdentity="$( LC_ALL=C awk -v ch="$dtChannel" '$1 == ch { print $2 ; exit }' "$identityMapFile" )"
 					fi
+					## Same paging bound as the watched-source read above: a long
+					## thread is paged to its end, but only back as far as this
+					## scan's own cut-off needs.
+					local dtPageUntilArgs=()
+					if [ -n "$cutoffEpoch" ] ; then
+						dtPageUntilArgs=( --page-until "$cutoffEpoch" )
+					fi
 					fetchRaw="$( if [ "$memberScopeOnly" = "true" ] ; then
-						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --raw
+						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --raw
 					elif [ "$dtIdentity" = "bot" ] ; then
-						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --identity-bot --raw
+						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --identity-bot --raw
 					elif [ "$dtIdentity" != "" ] ; then
 						## A non-bot, non-empty mapped identity ("user"): omitting
 						## --identity-bot resolves to the token memberName holds.
-						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --raw
+						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --raw
 					else
-						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --identity-bot --raw
+						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --identity-bot --raw
 					fi )" || {
 						printf 'FAIL:--intern-op-slack-check failed\n' > "$statusFile"
 						return 0
@@ -663,6 +1001,7 @@ case "$1" in
 				rm -f "$dmIdentityMapFile"
 				trap - EXIT
 				unset -f AgentsSessionContextThreadFetchOne
+				unset COMMS_USER_HANDLES
 
 				[ "$imSourcesScanned" -gt 0 ] || imFailed="true"
 
@@ -845,7 +1184,7 @@ case "$1" in
 						"$imSourcesScanned" "$imSourcesTotal" "$imInstrument"
 				else
 					local imRendered=""
-					imRendered="$( printf '%s' "$imBlocks" | LC_ALL=C awk -v cap="$sessionContextCapIm" '
+					imRendered="$( printf '%s' "$imBlocks" | IM_SOURCE_RESUME="$imSourceResume" LC_ALL=C awk -v cap="$sessionContextCapIm" '
 							## Deliberately the same key function as the per-thread trim above:
 							## two orderings that must agree are not two implementations.
 							function tskey(v,   d, sec, frac) {
@@ -862,6 +1201,22 @@ case "$1" in
 							function trim(v) {
 								gsub(/^[ \t]+|[ \t\r]+$/, "", v)
 								return v
+							}
+							## Resume points arrive through the ENVIRONMENT, never `-v`:
+							## one-true-awk rejects a newline inside a `-v` value outright
+							## ("awk: newline in string ... at source line 1", measured), so
+							## a multi-line map cannot be passed that way at all.
+							function loadResume(   raw, nl, i, f) {
+								raw = ENVIRON["IM_SOURCE_RESUME"]
+								nl = split(raw, rl, "\n")
+								for (i = 1; i <= nl; i++) {
+									if (rl[i] == "") continue
+									split(rl[i], f, "\t")
+									resumeChannel[f[1]] = f[2]
+									resumeIdentity[f[1]] = f[3]
+									resumeTs[f[1]] = f[4]
+									resumeOrigin[f[1]] = f[5]
+								}
 							}
 							function flush(   i, t, g) {
 								if (nb == 0) return
@@ -886,6 +1241,7 @@ case "$1" in
 							/^source:/ { if (curSource == "") curSource = trim(substr($0, index($0, ":") + 1)) ; }
 							END {
 								flush()
+								loadResume()
 								## ONE comparator drives both stages: a conversation is ranked by
 								## its own NEWEST message, SELECTION keeps the top `cap` of that
 								## ranking and PRESENTATION renders that same window ascending.
@@ -912,6 +1268,29 @@ case "$1" in
 								printf("\n")
 								for (x = keepFrom; x <= ng; x++) {
 									g = gname[gord[x]]
+									## ONE HEADING PER CORRESPONDENT, naming who this is, which
+									## conversation it is, which persona read it, and where THIS
+									## pass started in it. The resume point per conversation is
+									## what makes the document auditable at all: with one shared
+									## cut-off a reader could not tell one source apart from
+									## another, and thirty conversations rendered as one flat
+									## stream of opaque ids can only be handled in bulk -- which
+									## is exactly what forces a DM-specific rule. Grouping is
+									## what lets the ORDINARY handling rules apply per message
+									## without conflating whose message is whose.
+									##
+									## `### ` deliberately, not `## `: every block scanner in
+									## this pipeline keys on a literal "## " and none of them
+									## matches a third hash.
+									if (g in resumeChannel) {
+										printf("### %s -- conversation %s, read as %s, resumed from %s (%s)\n\n", \
+											g, resumeChannel[g], resumeIdentity[g], resumeTs[g], resumeOrigin[g])
+									}
+									## A `thread:` group has no heading and needs none: a
+									## thread is DISCOVERED inside a source that already has
+									## one, and does not carry a pointer of its own. Printing
+									## "resume point not recorded" against every one of them
+									## would bury the sources that do carry one.
 									m = 0
 									for (i = nblk; i >= 1; i--) if (bsrc[i] == g) ord[++m] = i
 									for (y = 2; y <= m; y++) {
@@ -994,103 +1373,131 @@ case "$1" in
 
 			local sessionContextCapInbox=64
 			local sessionContextCapInboxItemBytes=8192
-			local inboxDir="$MDAT_DATA_ROOT/inboxes/$actingMember"
+			local inboxDir
 			local inboxScanned inboxMatched=() inboxOrdered inboxScopeLine inboxFilterText inboxHeading inboxPrefix
 			local inboxSpec inboxWanted inboxWithProcessed ii
 			local inboxFilterDesc inboxCandidates=() ci inboxEmit=()
 
-			for inboxSpec in \
-				"Active Inbox Inquiry Items inquiry- $doInboxInquiryActive$doInboxInquiryAll $doInboxInquiryAll" \
-				"Current Inbox Reflections reflection- $doInboxReflections false" \
-				"Current Inbox Notes note- $doInboxNotes false" \
-				"Other Inbox Items -other- $doInboxOther false" \
-			; do
-				inboxWithProcessed="${inboxSpec##* }"
-				inboxSpec="${inboxSpec% *}"
-				inboxWanted="${inboxSpec##* }"
-				inboxSpec="${inboxSpec% *}"
-				inboxPrefix="${inboxSpec##* }"
-				inboxHeading="${inboxSpec% *}"
+			## The acting member's own inbox first -- byte-for-byte the same sections as
+			## before this option existed -- and then one labelled group per widened
+			## inbox. A widened inbox is READ and shown, never acted as and never
+			## written to; the banner below states that in the document as well, so a
+			## reader of the scan cannot mistake a client's inbox for the coordinator's.
+			local inboxMembers=( "$actingMember" ) inboxMember inboxHeadingText
+			for alsoSeen in "${inboxAlsoMembers[@]+"${inboxAlsoMembers[@]}"}" ; do
+				inboxMembers+=( "$alsoSeen" )
+			done
 
-				case "$inboxWanted" in
-					*true*)
-						printf '## %s\n' "$inboxHeading"
-					;;
-					*)
-						printf '## %s\n\n' "$inboxHeading"
-						printf '**NOTE:** not requested\n\n'
-						continue
-					;;
-				esac
-
-				if [ "$inboxWithProcessed" = "true" ] ; then
-					inboxScopeLine="inboxes/$actingMember/*.md -- top level plus processed/"
-					inboxFilterText="including processed/"
-				else
-					inboxScopeLine="inboxes/$actingMember/*.md -- top level only, excluding processed/"
-					inboxFilterText="excluding processed/"
+			for inboxMember in "${inboxMembers[@]}" ; do
+				if [ "$inboxMember" != "$actingMember" ] ; then
+					printf '## Additional Inbox -- %s\n\n' "$inboxMember"
+					printf 'scope: inboxes/%s/ -- read-only widening. The acting identity stays %s: this scan does not act as %s, reads none of its credentials or comms sources, and writes nothing into its inbox.\n\n' \
+						"$inboxMember" "$actingMember" "$inboxMember"
 				fi
-				if [ "$inboxPrefix" = "-other-" ] ; then
-					inboxFilterDesc="a prefix other than inquiry-*/reflection-*/note-*"
-				else
-					inboxFilterDesc="$inboxPrefix*"
-				fi
-				printf 'scope: %s\n' "$inboxScopeLine"
-				printf 'cap: %s\n' "$sessionContextCapInbox"
+				inboxDir="$MDAT_DATA_ROOT/inboxes/$inboxMember"
 
-				inboxScanned=0
-				inboxCandidates=()
-				if [ -d "$inboxDir" ] ; then
-					for f in "$inboxDir"/*.md ; do
-						[ -f "$f" ] && inboxCandidates+=( "$f" )
-					done
-					if [ "$inboxWithProcessed" = "true" ] && [ -d "$inboxDir/processed" ] ; then
-						for f in "$inboxDir/processed"/*.md ; do
-							[ -f "$f" ] && inboxCandidates+=( "$f" )
-						done
+				for inboxSpec in \
+					"Active Inbox Inquiry Items inquiry- $doInboxInquiryActive$doInboxInquiryAll $doInboxInquiryAll" \
+					"Current Inbox Reflections reflection- $doInboxReflections false" \
+					"Current Inbox Notes note- $doInboxNotes false" \
+					"Other Inbox Items -other- $doInboxOther false" \
+				; do
+					inboxWithProcessed="${inboxSpec##* }"
+					inboxSpec="${inboxSpec% *}"
+					inboxWanted="${inboxSpec##* }"
+					inboxSpec="${inboxSpec% *}"
+					inboxPrefix="${inboxSpec##* }"
+					inboxHeading="${inboxSpec% *}"
+					if [ "$inboxMember" = "$actingMember" ] ; then
+						inboxHeadingText="$inboxHeading"
+					else
+						inboxHeadingText="$inboxHeading -- $inboxMember"
 					fi
-				fi
-				inboxScanned=${#inboxCandidates[@]}
-				inboxMatched=()
-				ci=0
-				while [ "$ci" -lt "$inboxScanned" ] ; do
-					f="${inboxCandidates[$ci]}"
-					ci=$(( ci + 1 ))
-					case "$inboxPrefix" in
-						-other-)
-							case "${f##*/}" in
-								inquiry-*|reflection-*|note-*) ;;
-								*) inboxMatched+=( "$f" ) ;;
-							esac
+
+					case "$inboxWanted" in
+						*true*)
+							printf '## %s\n' "$inboxHeadingText"
 						;;
 						*)
-							case "${f##*/}" in "$inboxPrefix"*) inboxMatched+=( "$f" ) ;; esac
+							printf '## %s\n\n' "$inboxHeadingText"
+							printf '**NOTE:** not requested\n\n'
+							continue
 						;;
 					esac
+
+					if [ "$inboxWithProcessed" = "true" ] ; then
+						inboxScopeLine="inboxes/$inboxMember/*.md -- top level plus processed/"
+						inboxFilterText="including processed/"
+					else
+						inboxScopeLine="inboxes/$inboxMember/*.md -- top level only, excluding processed/"
+						inboxFilterText="excluding processed/"
+					fi
+					if [ "$inboxPrefix" = "-other-" ] ; then
+						inboxFilterDesc="a prefix other than inquiry-*/reflection-*/note-*"
+					else
+						inboxFilterDesc="$inboxPrefix*"
+					fi
+					printf 'scope: %s\n' "$inboxScopeLine"
+					printf 'cap: %s\n' "$sessionContextCapInbox"
+
+					inboxScanned=0
+					inboxCandidates=()
+					if [ -d "$inboxDir" ] ; then
+						for f in "$inboxDir"/*.md ; do
+							[ -f "$f" ] && inboxCandidates+=( "$f" )
+						done
+						if [ "$inboxWithProcessed" = "true" ] && [ -d "$inboxDir/processed" ] ; then
+							for f in "$inboxDir/processed"/*.md ; do
+								[ -f "$f" ] && inboxCandidates+=( "$f" )
+							done
+						fi
+					fi
+					inboxScanned=${#inboxCandidates[@]}
+					inboxMatched=()
+					ci=0
+					while [ "$ci" -lt "$inboxScanned" ] ; do
+						f="${inboxCandidates[$ci]}"
+						ci=$(( ci + 1 ))
+						case "$inboxPrefix" in
+							-other-)
+								case "${f##*/}" in
+									inquiry-*|reflection-*|note-*) ;;
+									*) inboxMatched+=( "$f" ) ;;
+								esac
+							;;
+							*)
+								case "${f##*/}" in "$inboxPrefix"*) inboxMatched+=( "$f" ) ;; esac
+							;;
+						esac
+					done
+
+					if [ ${#inboxMatched[@]} -eq 0 ] ; then
+						printf '**NOTE:** no new %s -- scanned %s items, 0 matched %s in inboxes/%s/ (%s)\n\n' \
+							"$inboxHeading" "$inboxScanned" "$inboxFilterDesc" "$inboxMember" "$inboxFilterText"
+						continue
+					fi
+
+					[ ${#inboxMatched[@]} -le "$sessionContextCapInbox" ] || printf '**NOTE:** truncated -- %s items found, capped at %s -- OLDEST kept, newest not shown\n' "${#inboxMatched[@]}" "$sessionContextCapInbox"
+					printf '\n'
+					inboxOrdered="$( LC_ALL=C ls -tr "${inboxMatched[@]}" )" || inboxOrdered=""
+					inboxEmit=()
+					ii=0
+					while IFS= read -r f ; do
+						[ -n "$f" ] || continue
+						ii=$(( ii + 1 ))
+						[ "$ii" -le "$sessionContextCapInbox" ] || break
+						inboxEmit+=( "$f" )
+					done <<< "$inboxOrdered"
+					[ ${#inboxEmit[@]} -eq 0 ] || LC_ALL=C awk \
+						-v bodyByteCap="$sessionContextCapInboxItemBytes" \
+						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInboxItemBlockPrint.awk" \
+						"${inboxEmit[@]}"
+					## Named-item lookup below is the ACTING member's own inbox only, so
+					## only its paths belong in the already-emitted set.
+					if [ "$inboxMember" = "$actingMember" ] ; then
+						[ ${#inboxEmit[@]} -eq 0 ] || inboxEmittedPaths+=( "${inboxEmit[@]}" )
+					fi
 				done
-
-				if [ ${#inboxMatched[@]} -eq 0 ] ; then
-					printf '**NOTE:** no new %s -- scanned %s items, 0 matched %s in inboxes/%s/ (%s)\n\n' \
-						"$inboxHeading" "$inboxScanned" "$inboxFilterDesc" "$actingMember" "$inboxFilterText"
-					continue
-				fi
-
-				[ ${#inboxMatched[@]} -le "$sessionContextCapInbox" ] || printf '**NOTE:** truncated -- %s items found, capped at %s -- OLDEST kept, newest not shown\n' "${#inboxMatched[@]}" "$sessionContextCapInbox"
-				printf '\n'
-				inboxOrdered="$( LC_ALL=C ls -tr "${inboxMatched[@]}" )" || inboxOrdered=""
-				inboxEmit=()
-				ii=0
-				while IFS= read -r f ; do
-					[ -n "$f" ] || continue
-					ii=$(( ii + 1 ))
-					[ "$ii" -le "$sessionContextCapInbox" ] || break
-					inboxEmit+=( "$f" )
-				done <<< "$inboxOrdered"
-				[ ${#inboxEmit[@]} -eq 0 ] || LC_ALL=C awk \
-					-v bodyByteCap="$sessionContextCapInboxItemBytes" \
-					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInboxItemBlockPrint.awk" \
-					"${inboxEmit[@]}"
-				[ ${#inboxEmit[@]} -eq 0 ] || inboxEmittedPaths+=( "${inboxEmit[@]}" )
 			done
 
 			local boardStatesText="" boardTypeText="" boardOwnerText="" boardScopeLine bs

@@ -283,8 +283,10 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, all types, 
   between what is filed and what has been drained.
 - rule: **Handled means moved, never edited in place.** The sort key is modification time, so any write
   that leaves an item where it is — an in-place edit, a header change — makes it the newest item in the
-  inbox and buries it behind the far edge, beyond the cap's reach. A move preserves the item's own
-  modification time, so draining one item never reorders the rest.
+  inbox and buries it behind the far edge, beyond the cap's reach. Draining does not reorder the live
+  root: the drained item leaves it rather than moving within it. The processed copy carries the drain
+  time, so a scope reading `processed/` too sorts recently drained items to the newest edge — the end
+  an oldest-first cap cuts first.
 - rule: Comms sections sort by **message timestamp**, newest first — comms items have no file
   modification time. (Recorded gap: the spec says "modification time" for all sections.)
 - rule: IM is the carve-out, and it is two stages: the cap **selects** the newest **N**

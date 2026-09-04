@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberContact.include -- the --member-contact-* stubs, the
+## contact family's own file on the member side. Sourced lazily from the
+## `--member-contact-*)` wildcard arm via the standard $MDLT_ORIGIN-based
+## path, ahead of the generic `--member-*)` arm that would otherwise swallow
+## the whole family. A further contact stub is a new arm here and no
+## dispatcher line. Not standalone: relies on being dot-sourced for
+## $1/$@/$MDSC_CMD.
+##
+
+case "$1" in
+
+	## The member form of the contact-digest primitive: the acting member IS the
+	## origin, so the origin is supplied here rather than accepted. A caller
+	## passing one fails closed -- use --magic-contact-digest-send for another
+	## identity's correspondence.
+	--member-contact-digest-send)
+		shift
+		local digestMember="$1"
+		shift || true
+		if [ -z "$digestMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-contact-digest-send: syntax is <team-member> (--resolved|--needs-ruling) <text...>" >&2
+			set +e ; return 1
+		fi
+		case "${1:-}" in
+			--resolved|--needs-ruling)
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --member-contact-digest-send: syntax is <team-member> (--resolved|--needs-ruling) <text...> -- the acting member is the origin here and is never passed; report another identity's correspondence with --magic-contact-digest-send" >&2
+				set +e ; return 1
+			;;
+		esac
+		DistroAgentsTools --intern-op-contact-digest-send "$digestMember" "$digestMember" "$@" \
+			--context --member-contact-digest-send
+		return $?
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

@@ -118,6 +118,32 @@ function oneLine(v) {
 	return v
 }
 
+## A raw `U…` beside the handle it belongs to, when the caller supplied a map.
+## The id STAYS and the handle is ADDED, never substituted: a reader needs the
+## name, and every follow-up call in this family is addressed by the id, so
+## dropping either one costs the other. An id the map does not carry is printed
+## exactly as before -- unnamed, never blank.
+##
+## The map travels in the ENVIRONMENT, not through `-v`: one-true-awk rejects a
+## newline inside a `-v` assigned value outright ("awk: newline in string ... at
+## source line 1", measured in this package), and this map is one entry per
+## line. `-v` would separately backslash-decode what it carried.
+function whoIs(id,   raw, nl, i, f) {
+	if (!handlesLoaded) {
+		handlesLoaded = 1
+		raw = ENVIRON["COMMS_USER_HANDLES"]
+		nl = split(raw, hl, "\n")
+		for (i = 1; i <= nl; i++) {
+			if (hl[i] == "") continue
+			split(hl[i], f, "\t")
+			if (f[1] != "" && f[2] != "") handleOf[f[1]] = f[2]
+		}
+	}
+	if (id == "") return "?"
+	if (id in handleOf) return id " (" handleOf[id] ")"
+	return id
+}
+
 ## Prints the CURRENT leg under its own legChannel; resetLeg() is the separate reset.
 function flushLeg(   i) {
 	if (itemCount == 0) return
@@ -127,7 +153,7 @@ function flushLeg(   i) {
 		printf("channel: %s\n", legChannel)
 		if (legIdentity != "") printf("identity: %s\n", legIdentity)
 		printf("ts: %s\n", tsOf[i])
-		printf("user: %s\n", (i in userOf) ? userOf[i] : "?")
+		printf("user: %s\n", (i in userOf) ? whoIs(userOf[i]) : "?")
 		if (i in threadTsOf) printf("thread-ts: %s\n", threadTsOf[i])
 		if ((i in replyCountOf) && replyCountOf[i] + 0 > 0) printf("reply-count: %s\n", replyCountOf[i])
 		printf("text: %s\n", oneLine(textOf[i]))
@@ -291,7 +317,13 @@ END {
 	if (kind == "slack") {
 		flushLeg()
 	} else {
-		for (i = 0; i < itemCount; i++) {
+		## OLDEST FIRST. Trello's notifications endpoint returns newest-first, so
+		## the array is walked BACKWARDS here -- every list an input-scan returns is
+		## ordered oldest to newest, and a source's own ordering is not the
+		## document's. The Slack path above reaches the same order by sorting on
+		## `ts`; Trello carries no comparable key on every notification, so its own
+		## documented ordering is reversed rather than a key invented for it.
+		for (i = itemCount - 1; i >= 0; i--) {
 			printf("## trello-notification %s\n", idOf[i])
 			printf("type: %s\n", (i in typeOf) ? typeOf[i] : "?")
 			printf("date: %s\n", (i in dateOf) ? dateOf[i] : "?")

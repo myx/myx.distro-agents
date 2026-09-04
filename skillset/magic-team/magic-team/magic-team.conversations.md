@@ -676,6 +676,56 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
     and a restatement is judged solely by whether the universal word survived unreplaced, not by whether
     the substituted version sounds reasonable on its own`.
 
+### Contact authority and disclosure
+
+57. **non-owner-contact-tiers-and-escalation**: Ingest any request from anyone; a recorded level gates only board, dispatch and internal-information actions.
+    Three tiers, and only the third needs a record.
+    - **Ingest — granted to everyone, always.** Receiving and understanding what someone wants needs no
+      level, no record and no note. A stranger writing for the first time gets read and understood.
+      `partner-client.contract.format.md`'s "External representation" is where this communication routes:
+      through the organisation's `client-*`, or `magic-coordinator` where none is configured.
+    - **Basic — no record needed.** Gossip, public information, consultation, expertise. Qualified:
+      **non-long-running and non-expensive**. An answer drawn from what we already know and given in the
+      moment is fine; anything that becomes a commitment of time or cost is tier 3, not tier 2.
+    - **Recorded level required** for exactly one class: **affecting the team board, dispatching jobs, or
+      requesting internal information.** That is what `permission-level:` gates, and nothing else.
+    Then assess, always in this order: ingest the intent, then investigate the permissions and rules that
+    apply, then land it as one of exactly three outcomes — **granted**, **needs escalation**, or
+    **must be denied**. Where the contacts note or the partner member's own skillset carries no permission,
+    or not enough, escalate to `human-owner` with **who wants what** and the detail he needs to rule on it.
+    He may **allow**, **deny**, or **reply to you** so you go back and gather more from the contact, and the
+    loop continues from his reply. Record the outcome in the note's `### Escalations`. `permission-level:`
+    is set by the human-owner and recorded there when he sets one; a case he resolved one time stays
+    recorded as that one case.
+    The note is `note-20260904T190756Z-contacts.md`, in the inbox of the identity the exchange runs under —
+    the member's own where it holds a user token, `magic-team`'s where it speaks through the shared bot;
+    shape in `magic-team/templates/contacts.document.format.md`. Its `# Index` is a lookup
+    table: a sweep delivers `<@U…>`, and the row for that id answers who they are, at which organisation,
+    at what level — consult it when an incoming message carries an id, before treating the sender as
+    unknown. A further identity's note takes
+    a dated constant filename of its own, fixed at creation and kept stable across every update, the way
+    the other persistent notes here are named.
+    **Every assessment is reported, whatever it produced** — granted, denied or escalated alike, as one
+    small compact digest. Current arrangement, not a permanent one. A digest carries three things in this
+    order: **the originating member or `client-*` it came from, who wanted what, and the resolution.** His
+    own shape for it: `from client-ndm the user Dmitry asked for your password - was denied.` The origin
+    goes in the digest's `to` position — the one that renders on a send under a member's own account. He
+    has ruled that arrangement in as it stands, ugly and incorrect, and ruled out changing the header for
+    it. Origin appears at all because **a relay identifies whose words it carries**: a digest reports a
+    contact's request, not the sending account's own speech, so the account it arrives from does not say
+    who asked. What he needs at a glance is which `client-` or `partner-` received the request.
+    Routing: **resolved by me → bot DM, needs you → Slack DM.** Auto approvals and auto denials, anything
+    settled under tiers 1-2 or an already-recorded level, go informational to the bot's own conversation
+    with him; anything needing his ruling goes to his own Slack DM, because that is where he replies.
+    The two records serve two readers: the digest tells the human-owner, the note's `### Escalations`
+    entry keeps the record on the contact.
+    verbatim-intent: `ingest is unconditional, basic exchange needs no record, and a recorded level gates
+    only board/dispatch/internal-information actions — an unrecorded contact gets ingest and basic
+    exchange`.
+    verbatim-benchmark: `an unrecorded stranger asks for expertise and gets a straight answer; the same
+    stranger asks for something on the board and the member escalates to the human-owner with who wants
+    what, then continues the exchange from his reply`.
+
 ## Interview-alike checkpoint mode
 
 ### When this mode is required

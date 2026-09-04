@@ -64,9 +64,21 @@ case "$1" in
 				;;
 			esac
 		done
-		## A sweep states its own cut-off: a defaulted window reports a first sweep as empty.
+		## NO STORED POSITION IS CONSULTED. This scan is stateless: the cut-off is
+		## whatever the caller stated, and with none stated the session-context
+		## scan's own default window applies. Recording how far a sweep got is the
+		## calling reader's business, in the calling reader's own note.
+		##
+		## What must still NOT happen is inheriting the CALLER's cut-off: the
+		## calling routine's position is a position in the TEAM's traffic, and
+		## applying it to a client's own conversations silently drops every client
+		## message older than the team's last team-side pass -- measured against the
+		## live NDM workspace, that hid all ten of its messages behind a cut-off
+		## that had nothing to do with them. `--magic-sweep-input-scan` therefore
+		## forwards nothing here, and that is unchanged.
+		local clientCutoffOrigin="stated on the command line"
 		if [ ${#commsCutoffArgs[@]} -eq 0 ] ; then
-			commsCutoffArgs=( --comms-since-utime 0 )
+			clientCutoffOrigin="none stated -- the scan's own default window"
 		fi
 
 		## Written whole before any of it is emitted: a run that failed before it had a
@@ -77,7 +89,11 @@ case "$1" in
 			printf '# Incoming Communications Sweep -- %s\n\n' "$clientMember"
 			printf 'member: %s\n' "$clientMember"
 			printf 'member-kind: %s\n' "$clientKind"
-			printf 'scope: this member'"'"'s own COMMS sources only -- its own credentials, its own configured sources; no team-scoped comms source and no team credential is read here. Board items and inbox items below are this member'"'"'s own, by owner and by inbox\n\n'
+			printf 'scope: this member'"'"'s own COMMS sources only -- its own credentials, its own configured sources; no team-scoped comms source and no team credential is read here. Board items and inbox items below are this member'"'"'s own, by owner and by inbox\n'
+			## Said in the document, not just in the code: a reader cannot tell a
+			## short sweep that resumed from a stored position from a short sweep
+			## that read everything and found little, unless the document says which.
+			printf 'resumed-from: %s (%s)\n\n' "${commsCutoffArgs[1]:-none}" "$clientCutoffOrigin"
 
 			DistroAgentsTools --client-sweep-config-check "$clientMember" || true
 			printf '\n'

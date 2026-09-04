@@ -45,6 +45,8 @@ case "$1" in
 		}
 
 		local bodyMode="" scriptLang="" bodyModeCount=0
+		## Set below when the caller names processed-at, which overrides the move stamp.
+		local callerSetProcessedAt="false"
 		local headerOpsFile
 		headerOpsFile="$MMDAPP/.local/temp/mdat-inbox-to-processed-headers.$$"
 		mkdir -p "$MMDAPP/.local/temp" && : > "$headerOpsFile" || { set +e ; return 1 ; }
@@ -84,6 +86,9 @@ case "$1" in
 							set +e ; return 1
 						;;
 					esac
+					if [ "$headerName" = "processed-at" ] ; then
+						callerSetProcessedAt="true"
+					fi
 					printf '%s\t%s\t%s\n' "$headerOp" "$headerName" "$headerValue" >> "$headerOpsFile"
 					shift
 				;;
@@ -193,6 +198,17 @@ case "$1" in
 			rm -f "$contentFile" "$patchFile"
 		else
 			body="$( cat "$sourcePath" )"
+		fi
+
+		## Move stamp: this op's target state is fixed in its own name. Contract: MAGIC.md.
+		if [ "$callerSetProcessedAt" = "false" ] ; then
+			local probeState
+			probeState="$( printf '%s\n' "$body" | LC_ALL=C awk -v fieldName=processed-at -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterFieldProbe.awk" )" || probeState=""
+			## `|| ...` because this file runs under `set -e`: a bare capture aborts the op instead of returning through its own error path.
+			if [ "$probeState" = "FRONTMATTER" ] ; then
+				local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+				printf '%s\t%s\t%s\n' upsert processed-at "$processedAt" >> "$headerOpsFile"
+			fi
 		fi
 
 		if [ -s "$headerOpsFile" ] ; then

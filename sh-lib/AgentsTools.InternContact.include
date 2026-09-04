@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternContact.include -- the --intern-op-contact-* primitives,
+## the contact family's own file. Sourced lazily from the
+## `--intern-op-contact-*)` wildcard arm via the standard $MDLT_ORIGIN-based
+## path, so a further contact primitive is a new arm here and no dispatcher
+## line. Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
+## Contracts in MAGIC.md.
+##
+
+case "$1" in
+
+	## Sits above the send path and composes what it already accepts: which
+	## client-*/partner- the request came through is the caller's knowledge,
+	## not the shared sender's. See MAGIC.md.
+	--intern-op-contact-digest-send)
+		shift
+		## Which wrapper the caller actually invoked, so an error names the
+		## operation they typed rather than this primitive.
+		local opContext="--intern-op-contact-digest-send"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		local digestMember="$1"
+		shift || true
+		local digestOrigin="$1"
+		shift || true
+		if [ -z "$digestMember" ] || [ -z "$digestOrigin" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $opContext: syntax is <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$digestMember" "<team-member>" intern-op-contact-digest-send || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$digestOrigin" "<origin>" intern-op-contact-digest-send || { set +e ; return 1 ; }
+		local digestRoute="" digestText=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--resolved|--needs-ruling)
+					if [ -n "$digestRoute" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $opContext: --resolved and --needs-ruling are mutually exclusive -- one assessment, one route" >&2
+						set +e ; return 1
+					fi
+					digestRoute="$1" ; shift
+				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $opContext: --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD $opContext: invalid option: $1 -- syntax is <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
+					set +e ; return 1
+				;;
+				*)
+					digestText="$digestText $1" ; shift
+				;;
+			esac
+		done
+		if [ -z "$digestRoute" ] || [ -z "$digestText" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $opContext: syntax is <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
+			set +e ; return 1
+		fi
+
+		## --address-to carries the origin: the header's `to` slot is the one
+		## that renders on a send, and he has ruled that arrangement in as it
+		## stands rather than have the header changed for it.
+		if [ "$digestRoute" = "--needs-ruling" ] ; then
+			## His own Slack DM, because that is where he replies: the send
+			## path's own human-owner target, which forces a user identity.
+			DistroAgentsTools --member-comms-slack-send-message "$digestMember" human-owner \
+				--address-to "$digestOrigin" "${digestText# }"
+			return $?
+		fi
+
+		## The bot's own conversation with him. That same human-owner target
+		## cannot be it -- it forces the user identity by design -- so this
+		## route names his account and lets --identity-bot open the bot DM.
+		local ownerUserId
+		ownerUserId="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_HUMAN_OWNER )" || ownerUserId=""
+		if [ -z "$ownerUserId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $opContext: --resolved: no SLACK_CHANNEL_HUMAN_OWNER configured -- the bot's own conversation with him cannot be addressed without his account id" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --member-comms-slack-send-message "$digestMember" "$ownerUserId" --identity-bot \
+			--address-to "$digestOrigin" "${digestText# }"
+		return $?
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

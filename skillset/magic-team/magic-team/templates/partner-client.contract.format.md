@@ -25,6 +25,7 @@ Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contrac
 
 - `partner-*`: holds the subject [named external party]'s counterpart works in — our interface to that counterpart, never a stand-in for them and never their representative among us.
 - `client-*`: our own avatar inside [named external party]'s own systems, holding our credentials for them.
+- A `client-*` is a persona avatar with its own account and presentation inside that organisation — the shape is `magic-team/magic-team.authority.client.contract.md`'s "Relationship shape" section. Its records follow the persona: the contacts note lives in the inbox of the identity the exchange runs under. What an incoming contact gets is `magic-team/magic-team.conversations.md`'s **non-owner-contact-tiers-and-escalation**.
 - Communication with the external entity: a `client-*` acts on its own account or email; a `partner-*` reaches its counterpart through the `client-*` for that organisation. Where neither is configured, it routes through `magic-coordinator` — an explicit ask, `magic-coordinator`'s own conscious assessment, escalated to human-owner confirmation when warranted.
 - Generic role operations run through the shared `magic-tooling` baseline; any external-system tooling specific to this partner/client (their own Jira/Slack/Google, etc.) is documented in this file's own `Team-Member's (-specific) tooling` section below.
 

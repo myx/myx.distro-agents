@@ -334,7 +334,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-sleep-run: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		local remaining=53
+		local remaining=59
 		while [ "$remaining" -gt 0 ] ; do
 			echo "$remaining"
 			sleep 1

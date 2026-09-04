@@ -63,7 +63,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - **GC**, generalized across every `processed/` folder in the tree, not just the board's own, same pass:
          - Check whether any `board-processed` item, has passed its (type-dependent) retention threshold.
          - If so, remove it — not a direct delete, `rm` needs explicit permission granted separately by the human-owner — except, checked in this order:
-           1. `archive: true` on the item diverts it to `archived/` instead (see the board's own `archived/` entry) — checked first, always wins. Applies the same to `board-processed` items and per-member `<member>/processed/` log entries.
+           1. `archive: true` on the item diverts it to `archived/` instead (see the board's own `archived/` entry) — checked first, always wins. **`board-processed` items only** — a per-member `<member>/processed/` log entry ignores the marker entirely and ages out on the ordinary retention table whatever its frontmatter says.
            2. Failing that, **`board-processed` items only** — a per-member log entry carries no typed relation field at all (the board's own "Per-member `<member>/processed/` file shape" note: no `owner` field, no typed relation fields, this isn't the board's own `board-item` model — so this check never fires for one): an item still depended on via another live board-item's `blocked-by`/`spawned-by` field diverts it to `board-retained` instead (see the board's own `retained/` entry). A qualifying `blocked-by`/`spawned-by` pointer:
               - originates from an active state (`board-backlog`/`board-pending`/`board-running`/`board-blocked`/`board-parked`) or from `board-archived` itself — one from another `board-processed`/`board-retained` item, or from an already-removed item, never qualifies, which is what stops two mutually-dependent concluded items from retaining each other forever.
               - is also structurally load-bearing by construction — `blocks`/`blocked-by` and `spawns`/`spawned-by` are hard-typed relations, never an incidental passing mention (see the board's own `retained/` entry for why `supersedes`/`superseded-by` doesn't qualify here).
@@ -308,7 +308,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-heartbeat-board-item-trash` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` — relocates one terminal board-item out of the board entirely, for this routine's own GC step. `<board-state>` is the item's current real board state (`backlog/pending/running/blocked/parked/processed/archived/retained`); `<item-name>` is a bare filename. Thin wrapper, always trashes, never restores — restoring is a separate, internal-only capability, not exposed through this op.
+`DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` — relocates one terminal board-item out of the board entirely, for this routine's own GC step. `<board-state>` is the item's current real board state (`backlog/pending/running/blocked/parked/processed/archived/retained`); `<item-name>` is a bare filename. Thin wrapper, always trashes, never restores — there is no restore anywhere in this tool: a trashed item is recovered from git history, or by hand out of `trash/`.
 
 ## `--magic-heartbeat-spawn-proxy` operation reference
 

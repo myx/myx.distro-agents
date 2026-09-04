@@ -8,6 +8,93 @@
 ## $MDLT_ORIGIN-based path. Not standalone: relies on being dot-sourced for
 ## $1/$@/$MDSC_CMD.
 ##
+## The two lock paths resync the board through myx.common git/cloneSync
+## whenever TEAM_DATA_GIT_REMOTE is set, and the acquire path refuses a lock
+## it cannot prove is the actual head's. See MAGIC.md, "The advance lock
+## paths: resync, conflict check, and the unlock order".
+##
+
+## Runs the board's own resync primitive. Caller declares advanceSyncOut.
+AgentsToolsAdvanceCloneSync(){
+	local repoRoot="$1" originUrl="$2" lockBranch="$3"
+	advanceSyncOut=""
+	if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
+		advanceSyncOut="myx.common git/cloneSync is not reachable (MYXROOT=${MYXROOT:-<unset>})"
+		return 1
+	fi
+	local syncRc=0
+	set +e
+	advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
+	syncRc=$?
+	set -e
+	return "$syncRc"
+}
+
+## Refuses a lock whose local copy is in a state the checkout cannot vouch
+## for -- an unresolved merge, or an edit that was never committed. Runs both
+## before and after the resync: the resync itself can leave either state.
+AgentsToolsAdvanceLockStateCheck(){
+	local repoRoot="$1" lockRelPath="$2" opName="$3" phase="$4"
+	local checkOut="" checkRc=0
+
+	set +e
+	checkOut="$( git -C "$repoRoot" ls-files -u -- "$lockRelPath" 2>&1 )"
+	checkRc=$?
+	set -e
+	if [ "$checkRc" -ne 0 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_UNCHECKABLE -- could not read the index state of $lockRelPath $phase: $checkOut" >&2
+		return 1
+	fi
+	if [ -n "$checkOut" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_CONFLICT -- $lockRelPath has unmerged index entries $phase; the checkout carries an unresolved merge and the lock must not be taken over it" >&2
+		return 1
+	fi
+
+	if [ -f "$repoRoot/$lockRelPath" ] && LC_ALL=C grep -Eq '^(<<<<<<< |>>>>>>> )' "$repoRoot/$lockRelPath" ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_CONFLICT -- $lockRelPath carries merge conflict markers $phase; the lock must not be taken over it" >&2
+		return 1
+	fi
+
+	set +e
+	checkOut="$( git -C "$repoRoot" status --porcelain -- "$lockRelPath" 2>&1 )"
+	checkRc=$?
+	set -e
+	if [ "$checkRc" -ne 0 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_UNCHECKABLE -- could not read the working-tree state of $lockRelPath $phase: $checkOut" >&2
+		return 1
+	fi
+	if [ -n "$checkOut" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_CONFLICT -- $lockRelPath differs $phase from the commit it was checked out from ($checkOut); the lock must not be taken over an uncommitted local copy" >&2
+		return 1
+	fi
+	return 0
+}
+
+## Refuses a lock whose local copy is not the one published on the branch head.
+AgentsToolsAdvanceLockHeadCheck(){
+	local repoRoot="$1" lockRelPath="$2" lockBranch="$3" opName="$4"
+	local fetchOut="" fetchRc=0 headBlob="" remoteBlob=""
+
+	## FETCH_HEAD, not origin/<branch>: an instrument that does not depend on
+	## the resync having updated the remote-tracking ref.
+	set +e
+	fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
+	fetchRc=$?
+	set -e
+	if [ "$fetchRc" -ne 0 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to compare the lock against the actual head: $fetchOut" >&2
+		return 1
+	fi
+	set +e
+	headBlob="$( git -C "$repoRoot" rev-parse --verify --quiet "HEAD:$lockRelPath" 2>/dev/null )"
+	remoteBlob="$( git -C "$repoRoot" rev-parse --verify --quiet "FETCH_HEAD:$lockRelPath" 2>/dev/null )"
+	set -e
+	if [ "$headBlob" != "$remoteBlob" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_STALE -- $lockRelPath is ${headBlob:-absent} locally and ${remoteBlob:-absent} on origin/$lockBranch; the local copy is not the actual head's and the lock must not be taken over it" >&2
+		return 1
+	fi
+	return 0
+}
 
 case "$1" in
 
@@ -39,12 +126,34 @@ case "$1" in
 		printf '%s\n\n' "## state-and-lock (routine-advance)"
 		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
+		## The board scope below is already all types / any owner, so an item a
+		## client-* member filed on the board has always been visible here. An
+		## INBOX item was not: the scan read inboxes/<calling member>/ alone, and an
+		## inquiry the communication sweep filed into inboxes/client-ndm/ was
+		## invisible to every advance pass. Each client-* member's inbox is widened
+		## into the same scan, read-only -- advance never acts as that identity and
+		## never writes into that inbox; --do-inbox-also-member widens the read and
+		## nothing else. Same "the members that exist, not the ones a cache
+		## remembers" enumeration --magic-sweep-input-scan uses; the roster note is a
+		## cache and does not decide which inboxes are in scope.
+		local advanceInboxAlso=() advanceClientDir advanceClientName
+		for advanceClientDir in "$HOME"/.claude/skills/client-* ; do
+			if [ -d "$advanceClientDir" ] ; then
+				advanceClientName="${advanceClientDir##*/}"
+				AgentsToolsAssertBareName "$advanceClientName" "<client-* member>" magic-advance-input-scan || { set +e ; return 1 ; }
+				## The acting member's own inbox is already the scan's first section.
+				if [ "$advanceClientName" != "$callingMember" ] ; then
+					advanceInboxAlso+=( --do-inbox-also-member "$advanceClientName" )
+				fi
+			fi
+		done
 		printf '\n%s\n\n' "## board digest"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--state backlog --state pending --state running --state blocked --state parked \
 			--all-types \
 			--do-inbox-inquiry-active --do-inbox-reflections \
 			--do-inbox-notes --do-inbox-other \
+			"${advanceInboxAlso[@]+"${advanceInboxAlso[@]}"}" \
 			--context --magic-advance-input-scan
 		return $?
 	;;
@@ -256,7 +365,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-sleep-run: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		local remaining=19
+		local remaining=29
 		while [ "$remaining" -gt 0 ] ; do
 			echo "$remaining"
 			sleep 1
@@ -279,6 +388,48 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: invalid option: $1" >&2
 			set +e ; return 1
 		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+
+		local lockTarget="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
+		local originUrl="" repoRoot="" lockRelPath="" lockBranch=""
+		set +e
+		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		if [ -n "$originUrl" ] ; then
+			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
+		fi
+		set -e
+
+		## The pre-write half of the lock's concurrency control, ahead of
+		## item-upsert's own post-push read-back: refuse a conflicted copy,
+		## resync, refuse again, then refuse anything still not the head's.
+		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
+			lockRelPath="${lockTarget#"$repoRoot"/}"
+			set +e
+			lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )"
+			set -e
+			case "$lockRelPath" in
+				/*|'')
+					echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: LOCK_UNCHECKABLE -- the lock note does not resolve inside the board checkout $repoRoot" >&2
+					set +e ; return 1
+				;;
+			esac
+			if [ -z "$lockBranch" ] || [ "$lockBranch" = "HEAD" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: LOCK_UNCHECKABLE -- the board checkout $repoRoot is not on a named branch" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" --magic-advance-lock-acquire "before the board resync" || { set +e ; return 1 ; }
+			local advanceSyncOut
+			if ! AgentsToolsAdvanceCloneSync "$repoRoot" "$originUrl" "$lockBranch" ; then
+				echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: LOCK_UNCHECKABLE -- could not resync the board before taking the lock, so whether the local copy is the published one is UNKNOWN: $advanceSyncOut" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" --magic-advance-lock-acquire "after the board resync" || { set +e ; return 1 ; }
+			AgentsToolsAdvanceLockHeadCheck "$repoRoot" "$lockRelPath" "$lockBranch" --magic-advance-lock-acquire || { set +e ; return 1 ; }
+		fi
+
 		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
 		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 10 * 60 ))
 		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
@@ -295,20 +446,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local originUrl="" repoRoot=""
-		set +e
-		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
-		if [ -n "$originUrl" ] ; then
-			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
-		fi
-		set -e
 		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
-			local lockTarget lockRelPath lockBranch
-			lockTarget="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
-			lockRelPath="${lockTarget#"$repoRoot"/}"
-			set +e
-			lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )"
-			set -e
 			local fetchOut="" fetchRc=0
 			set +e
 			fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
@@ -319,7 +457,7 @@ case "$1" in
 				set +e ; return 1
 			fi
 			local publishedSessionId
-			publishedSessionId="$( git -C "$repoRoot" show "origin/$lockBranch:$lockRelPath" 2>/dev/null | LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' )"
+			publishedSessionId="$( git -C "$repoRoot" show "FETCH_HEAD:$lockRelPath" 2>/dev/null | LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' )"
 			if [ "$publishedSessionId" != "$ownerLabel" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: LOCK_NOT_PUBLISHED -- origin/$lockBranch:$lockRelPath reads session-id '$publishedSessionId', not '$ownerLabel' -- the lock write did not actually land on the remote" >&2
 				set +e ; return 1
@@ -353,6 +491,9 @@ case "$1" in
 		return $?
 	;;
 
+	## ORDER IS LOAD-BEARING: the GC runs and commits under the still-held
+	## lock, the unlock commit is the last write under it, and the push plus
+	## resync publish both together.
 	--magic-advance-close-state-and-unlock)
 		shift
 		local callingMember="$1" ; shift || true
@@ -406,6 +547,10 @@ case "$1" in
 		fi
 		set -e
 		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
+			local lockBranch=""
+			set +e
+			lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )"
+			set -e
 			local pushAttempt=1 pushOut="" pushRc=0
 			while : ; do
 				set +e
@@ -427,6 +572,10 @@ case "$1" in
 			done
 			if [ "$pushRc" -ne 0 ] ; then
 				echo "⚠️ WARNING: $MDSC_CMD --magic-advance-close-state-and-unlock: push failed after unlock commits landed locally -- closing anyway (same tolerance as --intern-op-item-upsert's own closing-update warning): $pushOut" >&2
+			fi
+			local advanceSyncOut
+			if ! AgentsToolsAdvanceCloneSync "$repoRoot" "$originUrl" "$lockBranch" ; then
+				echo "⚠️ WARNING: $MDSC_CMD --magic-advance-close-state-and-unlock: board resync failed after the unlock landed locally -- closing anyway, the checkout is left unreconciled: $advanceSyncOut" >&2
 			fi
 		fi
 		return 0

@@ -20,8 +20,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-info <team-member> <file-id> [--identity-bot] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-fetch <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-get <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set <team-member> [--display-name <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set <team-member> [--display-name <v>] [--title <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-conversations-roster <team-member> [--identity user|bot|both] [--types <csv>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-check <team-member>
@@ -46,6 +47,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-trash <member> <item-filename>
 📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-read-board-item <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path>
@@ -351,18 +353,31 @@
 			or malformed falls back to the member name and never fails the
 			send.
 
-			**Every message carries a labelled `To:` line, and a bot message
-			carries a `From:` line above it.** Both name their member the same
-			way — `<icon> <team-member> @<alias>` — and several addressees are
-			separated by `; `. `To:` is always present: with no `--address-to`
-			it reads `To: @here`, which is plain text and pings nobody. `From:`
+			**Every message opens with a one-line header naming who it is for,
+			and who it is from where that is not already visible:**
+
+				[<from> ]→ <to>. <body>
+
+			Both fields name their member the same way — `<icon>
+			<team-member> @<alias>`, the member name in bold italic — and
+			several addressees are separated by `; ` under the one terminator.
+			The `<to>` field is always present: with no `--address-to` it reads
+			`→ @here`, which is plain text and pings nobody. The `<from>` field
 			appears only where the Slack account shown is not the member's own
 			— a bot post, or one relayed for a token-less member — since a
 			message sent under the member's own user token already shows who
-			sent it. Both lines land in the blocks version and in the text
-			version, and both are found by their label: Slack rewrites the text
-			version of a blocks message and flattens its line breaks, so a
-			reader must never depend on which line either one sits on.
+			sent it.
+
+			**The header is one line on purpose, and both its markers are
+			literal ASCII.** Slack collapses the text version of a blocks
+			message onto a single line, turning every line break into one
+			space, so a header that is already one line reads the same in the
+			formatted message and in the notification. `→` (U+2192) and the
+			closing `. ` both store byte-for-byte in the text version, which a
+			Unicode marker does not: an emoji is rewritten to its own shortcode
+			there, and is extracted into a separate `emoji` element in the
+			blocks. So a reader cuts the header at the first `. ` and splits it
+			on `→`, in either version, with no shortcode to match.
 
 			**In-body mentions.** Write a bare `@name` anywhere in a
 			`markdown` body. The blocks version renders it as a real mention
@@ -401,6 +416,49 @@
 			an oversight. Backtick-quoting an identifier remains the reliable
 			way to protect one: a code span's content is taken verbatim and
 			never rescanned.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-contact-digest-send <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>
+		--member-contact-digest-send <team-member> (--resolved|--needs-ruling) <text...>
+			Sends one contact-assessment digest to the human-owner, under
+			<team-member> as the acting identity. Both forms are thin
+			wrappers over the same internal primitive and hold no logic of
+			their own.
+
+			The two differ only in where the origin comes from -- the team
+			member whose correspondence produced the digest, any member and
+			not a family of them: any may hold a SLACK_USER_TOKEN and any may
+			read its own correspondence.
+			--magic-contact-digest-send takes it as a positional, because that
+			caller reports about another identity's correspondence.
+			--member-contact-digest-send accepts none: the
+			acting member is the origin, so the value is supplied at the call
+			site and a caller passing one is rejected rather than honoured.
+
+			The origin is carried in the message's `to` position -- the only
+			field that renders on a send under a member's own account. It
+			reads as an addressee and means an origin; the human-owner has
+			ruled that arrangement in as it stands. Origin appears at all
+			because a relay identifies whose words it carries: the sending
+			account does not say who asked.
+
+			<text> is the rest of the digest, in his own order -- who wanted
+			what, then the resolution. Rendered whole, origin included:
+			`from client-ndm the user Dmitry asked for your password - was
+			denied.`
+
+			Exactly one route is required. --resolved is informational -- an
+			auto approval or auto denial, anything settled under tiers 1-2 or
+			an already-recorded level -- and goes to the bot's own
+			conversation with him. --needs-ruling goes to his own Slack DM,
+			because that is where he replies.
+
+			See non-owner-contact-tiers-and-escalation in
+			magic-team/magic-team.conversations.md for what is assessed and
+			when a digest is owed. The digest is one of two records of the
+			same event; the other is the contacts note's ### Escalations
+			entry, written the same session.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -574,6 +632,42 @@
 			Exit code:
 			0 when a reachable human-owner target is confirmed,
 			1 when unresolved/unreachable.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-slack-conversations-roster <team-member> [--identity user|bot|both] [--types <csv>]
+			Read-only: which conversations exist for that member RIGHT NOW,
+			per identity, asked of Slack on every call. `conversations.list`
+			is paged to exhaustion and joined with `users.list` so each row
+			carries a handle, not just an id.
+
+			Default `--identity both` reports the member's own user-token
+			persona and the bot identity it acts as; `--types` defaults to
+			`im,mpim` and takes any `conversations.list` types= csv.
+
+			Output is line-oriented:
+			`IDENTITY|identity=|auth=|handle=|status=|conversations=` once per
+			identity, then `CONV|identity=|auth=|id=|kind=|counterparty=|handle=|counterparty-deleted=`
+			per conversation, then `USER|<id>|<handle>` for each party the
+			roster named, then `ROSTER_STATUS=`.
+
+			`status=no-token` on the user leg means that member holds no
+			`SLACK_USER_TOKEN` -- a configuration fact, not a failure, and the
+			call still succeeds.
+
+			THERE IS DELIBERATELY NO CACHE AND NO DORMANCY SKIP-LIST. A stored
+			inventory is exactly what makes a correspondent who writes for the
+			first time, or for the first time in a year, invisible. A dormant
+			conversation costs one later history call that returns nothing;
+			the cut-off the caller states is the filter, never a remembered
+			guess about who is still talking.
+
+			Exit code:
+			0 every requested identity was enumerated,
+			3 at least one was and at least one failed (partial -- what came
+			back is real but is NOT known to be all of it),
+			4 none was (the inventory is UNKNOWN, never empty),
+			1 usage.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -970,10 +1064,10 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-slack-profile-set <team-member> [--display-name <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end]
+		--member-comms-slack-profile-set <team-member> [--display-name <v>] [--title <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end]
 			`<team-member>` is both the acting identity and the account
-			written: this sets that member's own Slack display name, custom
-			status, presence and do-not-disturb state.
+			written: this sets that member's own Slack display name, title,
+			custom status, presence and do-not-disturb state.
 
 			Persona identity only. It acts under the member's own user token
 			always; `--identity-bot` is REFUSED rather than
@@ -983,13 +1077,20 @@
 			loud rather than silently writing under the shared bot.
 
 			At least one field is required. An empty string is a value here,
-			not an absence: empty `--display-name`, `--status-text` and
-			`--status-emoji` each count as a field. Those three therefore
-			accept an empty value; `--status-expiry` (epoch seconds, 0 for
-			no expiry), `--avatar` (a path), `--presence` (`auto` or `away`,
-			the only two values Slack has) and `--snooze` (a positive whole
-			number of minutes) do not. `--snooze` and `--snooze-end` are
-			mutually exclusive, and no field flag is repeatable.
+			not an absence: empty `--display-name`, `--title`,
+			`--status-text` and `--status-emoji` each count as a field. Those
+			four therefore accept an empty value; `--status-expiry` (epoch
+			seconds, 0 for no expiry), `--avatar` (a path), `--presence`
+			(`auto` or `away`, the only two values Slack has) and `--snooze`
+			(a positive whole number of minutes) do not. `--snooze` and
+			`--snooze-end` are mutually exclusive, and no field flag is
+			repeatable.
+
+			`--title` is backed by a workspace-defined custom field, so a
+			workspace that does not allow it answers `"ok":true` and leaves
+			the field empty. Read the result back with
+			--member-comms-slack-profile-get rather than taking the applied
+			facet as proof the title landed.
 
 			**A custom status is cleared by both status flags together.**
 			Slack refuses an empty `--status-text` on its own with
@@ -1491,12 +1592,22 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
-			Discards one already-processed inbox item:
-			`inboxes/<member>/processed/<item-filename>`.
+			Discards one of `<member>`'s inbox items — a LIVE one or an
+			already-processed one alike. Two directories are searched, in
+			this order: the live inbox root
+			`inboxes/<member>/<item-filename>` first, then
+			`inboxes/<member>/processed/<item-filename>`. First match wins,
+			so a basename held in BOTH resolves to the LIVE ROOT copy and
+			the processed one is left untouched. Root-first is deliberate:
+			a member's own inbox read resolves the same way, so the copy
+			this discards is always one the caller could have inspected.
 			`--from-inbox:` is colon-style, never a spaced pair — a spaced
 			pair would silently swallow a neighbouring option. `<member>`
 			must be a bare name; `<item-filename>` must be a bare filename
-			ending in `.md`.
+			ending in `.md`. There is no type-prefix restriction: a
+			misfiled board-type document (`task-*`, `proposal-*`, …) sitting
+			in an inbox is exactly what this is for. Not found in either
+			directory, the error names both.
 
 			**The operation itself has no inverse, whatever team-data's git
 			state.** When team-data is git-tracked, the item is deleted
@@ -1521,7 +1632,24 @@
 			member's own inbox root, not a cross-member processed/ item.
 			`--from-state:`/`--from-inbox:` are both rejected outright if
 			given. `--header:*` and the three body-input modes behave
-			exactly as they do on the `--magic-board-to-*` family. Refuses
+			exactly as they do on the `--magic-board-to-*` family.
+
+			Auto-stamps `processed-at` (date-time) on the drained item — the
+			field belonging to a to-processed move, recording when the item
+			entered `processed/`. It is not what
+			`--intern-team-data-final-gc-deletion` clocks retention from: that
+			op reads the file's own mtime, or its latest commit date where git
+			holds one. Three cases suppress the stamp, all deliberate:
+			`--header:<op>:processed-at` given by the caller (the explicit
+			override — `--header:remove:processed-at` included, so "no stamp"
+			stays expressible); a resolved body already carrying
+			`processed-at` in its own frontmatter (never re-stamped, so an
+			entry's own recorded conclusion time is not overwritten by the
+			drain); and a body with no complete `---` frontmatter block at all
+			(nothing to stamp into — such an item drains unstamped rather than
+			being refused).
+
+			Refuses
 			rather than overwrites if
 			`processed/` already holds that basename, leaving
 			the source in place, so a refused call is safe to fix and
@@ -1635,6 +1763,42 @@
 			filename, the same way --member-read-audit-item restricts to
 			transcript-* names. Optional line range is supported via
 			--start-line/--end-line and must be provided as a complete pair.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-inbox-item-trash <member> <item-filename>
+			Discards one item out of `<member>`'s OWN personal inbox. Same
+			one-positional convention as --member-inbox-item-read: `<member>`
+			is both the sanity-checked caller identity and the inbox acted
+			on. There is deliberately no `--from-inbox:<member>` here, and
+			one supplied in any position is REFUSED rather than honoured —
+			the source inbox is synthesised from that same positional, so a
+			member-scoped call can never be turned into a cross-member one.
+			Use --librarian-inbox-item-trash for another member's inbox.
+
+			Resolution matches --member-inbox-item-read exactly: the live
+			inbox root `inboxes/<member>/<item-filename>` first, then
+			`inboxes/<member>/processed/<item-filename>`, first match wins —
+			so a basename held in BOTH resolves to the LIVE ROOT copy, which
+			is the one a read would have returned, and the processed copy is
+			left untouched. Not found in either directory, the error names
+			both. `<item-filename>` must be a bare filename ending in `.md`;
+			unlike --member-inbox-item-read there is NO type-prefix
+			restriction, since a misfiled board-type document (`task-*`,
+			`proposal-*`, …) is precisely the thing an inbox most needs to
+			shed.
+
+			An item carrying `archive: true` is discarded like any other.
+			That header diverts the heartbeat GC's automatic retention clock
+			to board-archived; it does not override an explicit, named,
+			single-item call, and an inbox item has no board state to be
+			diverted into in the first place.
+
+			**The operation has no inverse, whatever team-data's git state**
+			— identical to --librarian-inbox-item-trash above: deleted and
+			committed when team-data is git-tracked, moved to trash/ and
+			recoverable only by hand when it is not. Treat every call as
+			final.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -2070,12 +2234,18 @@
 			board-running", which that step previously did as a two-call
 			write-then-remove move. Distinct from --magic-advance-to-running,
 			which targets the same state: that one is routine-advance's own
-			dispatch and auto-stamps started-at, while this one is
-			routine-grooming's and stamps owner/groomed-at/groomed-from/track
-			instead. Same target state, different owning routine, different
-			recorded provenance. Anything this op does not own -- started-at
-			included -- is caller-supplied via --header:*. Own dedicated case
+			dispatch, while this one is routine-grooming's and stamps
+			owner/groomed-at/groomed-from/track. Same target state, different
+			owning routine, different recorded provenance. Own dedicated case
 			arm.
+
+			started-at is stamped on this move too, as it is on every move or
+			create into board/running/ -- the target state owns that field, so
+			the stamp does not belong to one routine. It is applied by the
+			shared --intern-op-board-upsert-move-edit primitive rather than by
+			this arm; pass --header:upsert:started-at:<date-time> to override
+			it. Anything else this op does not own is caller-supplied via
+			--header:*.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -2271,17 +2441,41 @@
 
 		--magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) routine-communication-sweep's own
-			state record. Takes no filename or path argument -- storage is
-			the operation's own concern.
+			state record FOR THAT MEMBER. Takes no filename or path argument --
+			storage is the operation's own concern; `<team-member>` says whose
+			position this is, and each member's record is its own, so a
+			`client-*` member's sweep resumes from where its own sources were
+			last swept and not from the team's position in the team's traffic.
 			Input source is exactly one of: stdin (default), `--from-file`, or
 			`--edit-patch-from-stdin`. Empty content is rejected. If
 			`--edit-patch-from-stdin` is used, stdin must be a JSON patch array
 			for exact-literal replace operations.
+			A SWEEP POINTER ONLY EVER MOVES FROM OLDEST TO NEWEST, and that is
+			enforced here rather than left to the caller: content whose
+			`last_swept_ts` is older than the stored one is REFUSED, and so is
+			content that drops the field while a position is stored (a reset).
+			To re-read material below the stored pointer, pass an explicit
+			`--comms-since-utime` to the scan -- a read does not move the pointer.
 
 		--magic-sweep-state-read <team-member>
-			Reads back the whole record written by --magic-sweep-state-upsert,
-			verbatim. Outputs `NO_STATE` if nothing is stored yet.
-			Read-only.
+			Reads back the whole record written by --magic-sweep-state-upsert
+			for that member, verbatim. Outputs `NO_STATE` if nothing is stored
+			yet. Read-only.
+
+
+			With a <source-key> it prints THAT source's own pointer instead --
+			the `source-<key>-last-swept-ts:` entry -- under exactly the same
+			three-outcome contract, where rc 3 means this member has never
+			swept that source. A caller getting rc 3 falls back to the global
+			pointer as that source's floor: never to 0, and never to "nothing
+			to read".
+
+			The key is `<auth-user-id>-<conversation-id>`: persona AND
+			conversation, never the conversation alone. The same DM is
+			reachable under two identities, so a key naming only the
+			conversation would let whichever persona swept first move the
+			pointer for the other, and the second persona's unread messages
+			would then sit below a pointer it never set.
 
 		--magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 			Writes the team's roster cache -- member/domain/posture rows plus
@@ -2472,6 +2666,17 @@
 			lock. <team-member> is the only argument -- no --state/--header
 			override.
 
+			Inbox scope is <team-member>'s own inbox PLUS every client-*
+			member that exists as a skill directory, each in its own
+			"Additional Inbox -- <member>" group. Widening the read is all
+			it does: the acting identity stays <team-member>, no client
+			credential or comms source is read, and nothing is written into
+			a client inbox. It exists because the communication sweep files
+			its findings as inquiry-* items into inboxes/client-*/, and a
+			scan that read only inboxes/<team-member>/ never saw them. The
+			client-* members that exist decide the scope, not the roster
+			note, which is a cache.
+
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -2626,6 +2831,17 @@
 			<owner-label> names the running process, not a chat-session id.
 			Takes no options; any further argument is rejected.
 
+			--magic-advance-lock-acquire only, and only with
+			TEAM_DATA_GIT_REMOTE set: the board is resynced and the lock
+			note checked against the branch head before anything is
+			written, so three further rc 1 refusals are possible.
+			`LOCK_CONFLICT` -- the local lock note carries an unresolved
+			merge, a committed conflict marker, or an uncommitted edit.
+			`LOCK_STALE` -- the local lock note is not the one on the
+			branch head. `LOCK_UNCHECKABLE` -- the resync or fetch could
+			not answer, so ownership is unknown. All three mean do not
+			start, and nothing has been written.
+
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-advance-lock-refresh <team-member>
@@ -2664,6 +2880,11 @@
 			--edit-patch-from-stdin
 				Apply a JSON array of {"old","new","replace_all"} patches to
 				the existing body. Mutually exclusive with --from-file.
+
+			--magic-advance-close-state-and-unlock only, and only with
+			TEAM_DATA_GIT_REMOTE set: after the unlock commit it pushes,
+			then resyncs the board. A failure of either warns on stderr
+			and still returns 0 -- the lock is released either way.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -2719,8 +2940,8 @@
 			<board-state> is the item's current real board state
 			(backlog/pending/running/blocked/parked/processed/archived/
 			retained); <item-name> is a bare filename. Thin wrapper, always
-			trashes, never restores -- restoring is a separate, internal-only
-			capability, not exposed through this op.
+			trashes. There is no restore anywhere in this tool: a trashed
+			item is recovered from git history, or by hand out of trash/.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

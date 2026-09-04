@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MagicContact.include -- the --magic-contact-* wrapper group,
+## the contact family's own file. Sourced lazily from the `--magic-contact-*)`
+## wildcard arm via the standard $MDLT_ORIGIN-based path, so a further contact
+## wrapper is a new arm here and no dispatcher line. Not standalone: relies on
+## being dot-sourced for $1/$@/$MDSC_CMD.
+##
+
+case "$1" in
+
+	## The wider form: the caller reports about some other identity's
+	## correspondence, so the origin member is taken explicitly.
+	--magic-contact-digest-send)
+		shift
+		local digestMember="$1"
+		shift || true
+		local commsClient="$1"
+		shift || true
+		if [ -z "$digestMember" ] || [ -z "$commsClient" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-contact-digest-send: syntax is <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-contact-digest-send "$digestMember" "$commsClient" "$@" \
+			--context --magic-contact-digest-send
+		return $?
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

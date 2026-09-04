@@ -9,6 +9,82 @@
 ## $1/$@/$MDSC_CMD.
 ##
 
+## Prints the stored `last_swept_ts` of a sweep-state note read on stdin, and
+## nothing else. Only the leading `---` frontmatter block is looked at: the body
+## of this note quotes watermarks in prose, pass after pass, and a whole-file
+## grep would happily return one of those instead of the field.
+##
+## Serves the write guard below and nothing else. No `--*-input-scan` reads a
+## position from here: a scan takes its cut-off as an argument and holds none,
+## and the reader that called it records how far it got in its own
+## `*-state-and-lock` note.
+##
+## THREE OUTCOMES, TOLD APART BY EXIT STATUS, never by the printed string -- two
+## of them print nothing and must not be confused:
+##   rc 0 -- found; the value is on stdout.
+##   rc 3 -- a well-formed frontmatter block carrying no such entry. The honest
+##           "no position stored yet" of a first sweep.
+##   rc 1 -- NO frontmatter block at all: the note is not the shape this reader
+##           understands, so nothing is known about its position. Kept distinct
+##           from rc 3 on purpose -- collapsing them lets an unreadable note read
+##           as "no position", which silently disables the backwards-move guard
+##           below exactly when the note's shape is unexpected, the one case
+##           where that guard matters most.
+AgentsMagicSweepStateWatermark(){
+	LC_ALL=C awk '
+		BEGIN { want = "last_swept_ts:" ; }
+		NR == 1 && $0 == "---" { inFront = 1 ; sawFront = 1 ; next ; }
+		inFront && $0 == "---" { inFront = 0 ; next ; }
+		inFront && index($0, want) == 1 {
+			value = substr($0, length(want) + 1)
+			gsub(/^[ \t]+|[ \t]+$/, "", value)
+			gsub(/^"|"$/, "", value)
+			if ( value != "" ) { found = value ; }
+		}
+		END {
+			if ( ! sawFront ) { exit 1 ; }
+			if ( found == "" ) { exit 3 ; }
+			print found
+		}
+	'
+}
+
+## True when $1 is not older than $2. Both are Slack `ts` values: ten digits of
+## seconds, a dot, six of microseconds. Deliberately NOT `$1+0 < $2+0`: at a
+## magnitude near 1.8e9 a double resolves to roughly 2e-7, so two timestamps one
+## microsecond apart can compare equal or backwards. Seconds compare as numbers
+## (exact at that width), microseconds as a zero-padded fixed-width string.
+## Deliberately a twin of AgentsToolsSlackTsNewerThan in AgentsTools.CommsSlack
+## rather than a call to it -- differing equality boundary, and this include does
+## not source that one, so depending on it would make a watermark write depend on
+## the Slack file having been loaded first.
+AgentsMagicSweepStateTsNotOlder(){
+	LC_ALL=C awk -v candidate="$1" -v floorTs="$2" '
+		function secOf(v) {
+			sub(/\..*$/, "", v)
+			if ( v == "" ) { v = "0" ; }
+			return v + 0
+		}
+		function fracOf(v,   f) {
+			f = v
+			if ( f !~ /\./ ) { return "000000" ; }
+			sub(/^[^.]*\./, "", f)
+			while ( length(f) < 6 ) { f = f "0" ; }
+			return substr(f, 1, 6)
+		}
+		BEGIN {
+			candidateSec = secOf(candidate)
+			floorSec = secOf(floorTs)
+			if ( candidateSec > floorSec ) { exit 0 ; }
+			if ( candidateSec < floorSec ) { exit 1 ; }
+			candidateFrac = fracOf(candidate)
+			floorFrac = fracOf(floorTs)
+			if ( candidateFrac < floorFrac ) { exit 1 ; }
+			exit 0
+		}
+	'
+}
+
 case "$1" in
 
 	--magic-sweep-input-scan)
@@ -59,7 +135,18 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		local commsArgs=( --comms-do-all "${commsCutoffArgs[@]}" )
+		## MENTIONS ARE ASKED FOR EXPLICITLY. `--comms-do-all` is Slack, email and
+		## Trello; it has never implied the tag search, so until now the only way a
+		## channel mention reached this sweep was as a side effect of thread
+		## discovery. Asking for it here is what makes the mention path stand on
+		## its own, which has to be true before discovery stops carrying it.
+		##
+		## USER_TOKEN ONLY, AND THAT IS SLACK'S LIMIT RATHER THAN A GAP HERE:
+		## search.messages is refused to a bot token at any scope, so the bot
+		## persona's mentions are only ever the ones sitting in a conversation
+		## already read above. A member holding no SLACK_USER_TOKEN says so in its
+		## own partial note rather than reporting silence.
+		local commsArgs=( --comms-do-all --intern-op-do-slack-tags "${commsCutoffArgs[@]}" )
 
 		local phaseBArgs=( --state backlog --state pending --state running --state blocked ) n
 		while IFS= read -r n ; do
@@ -97,9 +184,17 @@ case "$1" in
 		trap 'rm -rf "$clientSweepDir"' EXIT
 
 		(
+			## NO CUT-OFF IS FORWARDED, deliberately. This pass's own cut-off is a
+			## position in the TEAM's traffic; a client-* member's conversations are
+			## a different stream under different credentials, and the two have no
+			## common position. Forwarding it -- which is what this call used to do
+			## -- filtered every client's messages by the team's last team-side pass
+			## and reported the remainder as "nothing new": against the live NDM
+			## workspace that hid all ten of its messages. Each member resolves its
+			## OWN stored position instead, inside --client-sweep-input-scan.
 			MagicSweepOneClientMember(){
 				local memberStatus=0
-				DistroAgentsTools --client-sweep-input-scan "$1" "${commsCutoffArgs[@]}" \
+				DistroAgentsTools --client-sweep-input-scan "$1" \
 					> "$clientSweepDir/$1.document" || memberStatus=$?
 				printf '%s\n' "$memberStatus" > "$clientSweepDir/$1.status"
 			}
@@ -155,7 +250,14 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local stateDir="$MDAT_DATA_ROOT/inboxes/magic-coordinator"
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" magic-sweep-state-upsert || { set +e ; return 1 ; }
+		## PER-MEMBER STORAGE. The member argument names WHOSE sweep position this
+		## is, and always did in the signature -- it was simply not read, so every
+		## caller shared magic-coordinator's one note and a client-* member had
+		## nowhere to record how far its own sources had been swept. The filename
+		## is deliberately unchanged, so magic-coordinator's own existing note
+		## resolves to exactly the same path it always did.
+		local stateDir="$MDAT_DATA_ROOT/inboxes/$callingMember"
 		mkdir -p "$stateDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
@@ -209,6 +311,40 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: empty content -- refusing to erase the stored sweep state" >&2
 			set +e ; return 1
 		fi
+
+		## A SWEEP POINTER ONLY EVER MOVES FROM OLDEST TO NEWEST. Enforced here,
+		## in the one place that writes it, rather than left to the discipline of
+		## whichever routine happens to call: a pointer moved backwards re-reads
+		## handled traffic, and one reset forward past unread material loses it
+		## permanently and silently -- the second is unrecoverable, so neither is
+		## accepted. Comparison is textual by design: a Slack ts carries six
+		## fractional digits at a magnitude around 1.8e9, which is at the edge of
+		## a double's precision, so `a+0 < b+0` can compare two adjacent
+		## timestamps wrongly. Seconds and microseconds are compared separately.
+		local existingWatermark="" newWatermark="" existingRc=0 newRc=0
+		if [ -f "$target" ] ; then
+			existingWatermark="$( AgentsMagicSweepStateWatermark < "$target" )" || existingRc=$?
+			## rc 1 is "this note has no frontmatter block", NOT "no position". The
+			## guard below cannot be skipped on the strength of a note nobody could
+			## read: that is precisely when a write might be moving a pointer no one
+			## has checked.
+			if [ "$existingRc" = "1" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: $callingMember: the stored sweep-state note has no frontmatter block, so its own sweep position could not be read and this write cannot be checked against it. Refusing rather than overwriting a position that was never established. Inspect ${target##*/} and restore its leading '---' block." >&2
+				set +e ; return 1
+			fi
+		fi
+		if [ -n "$existingWatermark" ] ; then
+			newWatermark="$( printf '%s\n' "$content" | AgentsMagicSweepStateWatermark )" || newRc=$?
+			if [ -z "$newWatermark" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: $callingMember: the stored state carries last_swept_ts $existingWatermark and the content being written carries none. That is a RESET of the sweep pointer, not an update: every message after $existingWatermark would be re-read, and on the next write the position would be re-derived from a pass that never saw them. Refusing. Carry last_swept_ts forward in the content, or use --edit-patch-from-stdin, which preserves the fields it does not touch." >&2
+				set +e ; return 1
+			fi
+			if ! AgentsMagicSweepStateTsNotOlder "$newWatermark" "$existingWatermark" ; then
+				echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: $callingMember: refusing to move the sweep pointer BACKWARDS, from $existingWatermark to $newWatermark. A sweep pointer only ever moves from oldest to newest. If material below the stored pointer genuinely needs re-reading, read it directly with an explicit --comms-since-utime on the scan; that is a read, and it does not move the pointer." >&2
+				set +e ; return 1
+			fi
+		fi
+
 		printf '%s\n' "$content" > "$target"
 		echo "# $MDSC_CMD --magic-sweep-state-upsert: wrote ${target#"$stateDir"/} ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
 		return 0
@@ -230,9 +366,12 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-read: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		## Same fixed literal filename as --magic-sweep-state-upsert above --
-		## must match exactly, since this is a read of the SAME document.
-		local target="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260812T231137Z-sweep-state.md"
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" magic-sweep-state-read || { set +e ; return 1 ; }
+		## Same member-scoped directory and same fixed literal filename as
+		## --magic-sweep-state-upsert above -- must match exactly, since this is a
+		## read of the SAME document, and a member reading another member's
+		## position would resume from a place its own sources were never swept to.
+		local target="$MDAT_DATA_ROOT/inboxes/$callingMember/note-20260812T231137Z-sweep-state.md"
 		if [ -f "$target" ] ; then
 			cat "$target"
 		else

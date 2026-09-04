@@ -449,15 +449,15 @@ case "$1" in
 
 		printf '%s\n' "$content" > "$target"
 
+		## Two independent conditions, never one: the repository is what makes a
+		## commit possible, the remote is what makes a push possible.
 		local repoRoot="" originUrl=""
 		set +e
 		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
-		if [ -n "$originUrl" ] ; then
-			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
-		fi
+		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
 		set -e
-		if [ -z "$originUrl" ] || [ -z "$repoRoot" ] ; then
-			## No git remote configured for the board: local-only, silently.
+		if [ -z "$repoRoot" ] ; then
+			## Team-data is not a repository: there is nothing to commit into.
 			echo "# $MDSC_CMD: item-upsert: wrote ${target#"$itemStoreRoot"/} ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
 			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			if [ "$updateLock" = "true" ] ; then echo "REFRESHED" ; return 0 ; fi
@@ -491,6 +491,15 @@ case "$1" in
 			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: git commit failed for $target: $gitOut" >&2
 			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			set +e ; return 1
+		fi
+
+		## No remote to push to, and no remote copy to read the lock back from:
+		## the commit above is the whole of what this configuration can do.
+		if [ -z "$originUrl" ] ; then
+			echo "# $MDSC_CMD: item-upsert: committed (no remote configured) ${target#"$itemStoreRoot"/}" >&2
+			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+			if [ "$updateLock" = "true" ] ; then echo "REFRESHED" ; return 0 ; fi
+			return 0
 		fi
 
 		if [ "$noPush" = "true" ] ; then

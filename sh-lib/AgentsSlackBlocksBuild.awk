@@ -300,6 +300,17 @@ function parseInlineStyles(line,   n, i, j, k, c, closeIdx, spanText, mname, run
 	i = 1
 	while (i <= n) {
 		c = substr(line, i, 1)
+		## CommonMark backslash escape, ahead of everything: a backslash before
+		## ASCII punctuation makes that character ordinary text, so "\*" is a
+		## literal asterisk that opens no delimiter run and "\`" starts no code
+		## span. Before any other branch precisely because of that second case.
+		## The punctuation set is spelled out here rather than taken from
+		## isPunctCh(), which deliberately drops three characters for the
+		## flanking rules and would leave "\`" unescaped.
+		if (c == "\\" && i < n && index("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", substr(line, i + 1, 1)) > 0) {
+			addTok("text", substr(line, i + 1, 1), "", 0) ; i += 2
+			continue
+		}
 		## Code span FIRST: its content is taken verbatim and never rescanned.
 		if (c == "`") {
 			closeIdx = 0

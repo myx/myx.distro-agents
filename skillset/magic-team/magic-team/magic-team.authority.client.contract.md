@@ -18,7 +18,9 @@ reverted — same failure shape `magic-team.authority.keeper.contract.md` exists
 `client-*` is our own team's avatar into a specific external organisation — an extension of us, not of
 them. It holds our credentials for that organisation's own systems, acts with our own team's authority
 when operating inside those systems, and stays private: never publicly shared, never an instance the
-external organisation itself holds or sees. This is the opposite direction from `partner-*`
+external organisation itself holds or sees. Inside that organisation the `client-*` posts under
+an account of its own: one identity, with its own name and its own presentation to the people
+there, distinct from the human-owner's own account. This is the opposite direction from `partner-*`
 (`magic-team.authority.partner.contract.md`): both are ours and differ only in which way the agent faces —
 a `partner-*` holds the subject its counterpart works in, a `client-*` holds the channel into that
 organisation's own systems. The two are not interchangeable variants of one shape.

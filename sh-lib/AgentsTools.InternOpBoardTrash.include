@@ -12,7 +12,9 @@ case "$1" in
 
 	--intern-op-board-trash)
 		shift
-		local opContext="<no --context given>"
+		## A direct call is still an op, and the commit message names whichever
+		## one ran -- so the default is this op's own name, not a placeholder.
+		local opContext="--intern-op-board-trash"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do
 			if [ -n "$ctxWanted" ] ; then
@@ -24,7 +26,7 @@ case "$1" in
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is <team-member> <board-state> <item-name> [--untrash] [--context <caller-op>], or <team-member> --from-inbox:<member> <item-name> [--context <caller-op>]" >&2
+			echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is <team-member> <board-state> <item-name> [--context <caller-op>], or <team-member> --from-inbox:<member> <item-name> [--context <caller-op>]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$callingMember" "<team-member>" board-trash || { set +e ; return 1 ; }
@@ -36,10 +38,6 @@ case "$1" in
 			shift || true
 			if [ -z "$inboxMember" ] || [ -z "$inboxItemName" ] ; then
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is <team-member> --from-inbox:<member> <item-name> [--context <caller-op>]" >&2
-				set +e ; return 1
-			fi
-			if [ "$1" = "--untrash" ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash is not supported for an inbox-sourced item -- it restores into board/<state>, and an item trashed out of inboxes/$inboxMember/processed/ has no board state to return to. Restore it by hand, or wait for per-item trash provenance (deliberately not added with this arm)." >&2
 				set +e ; return 1
 			fi
 			if [ "$1" = "--context" ] ; then
@@ -62,34 +60,116 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
+			##
+			## DELIBERATELY ABSENT: no inbox type-prefix whitelist. The types an
+			## inbox is *written* with are note-/inquiry-/reflection-, but the
+			## items this op exists to relocate are task-/proposal-/change-/
+			## interview-. A prefix whitelist would reject exactly the files the
+			## operation was built to move -- it would make the item whose
+			## removal is least in doubt (a misfiled board-type document, which
+			## magic-team.shared.md's "## Other Inbox Items" section exists to
+			## surface) the one item that cannot be removed. Do not add one.
+			## (Recovered from this file's own history; re-affirmed by the
+			## magic-developer consult that cleared this arm's widening.)
+			##
 			[ -n "${MDAT_DATA_ROOT:-}" ] || {
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 				set +e ; return 1
 			}
+			## Git-tracked gate, same .git-presence-only test as the board arm
+			## below and as AgentsTools.InternTeamDataFinalGcDeletion.include's
+			## own -- independent of TEAM_DATA_GIT_REMOTE.
 			local repoRoot=""
 			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
 
+			##
+			## Source resolution. BOTH path segments are FIXED LITERALS this op
+			## appends -- the inbox root itself, and `processed/` under it.
+			## Neither is caller-supplied, and widening the searched set from one
+			## literal to two does not change that: a caller still passes a bare
+			## item name and never a path segment. (The original single-literal
+			## note is recovered from this file's history; it measured that 6 of
+			## the 13 inboxes carry a `processed` subdirectory, nothing else, no
+			## deeper nesting. That measurement is what makes a two-entry fixed
+			## list sufficient -- it is still not a parameter.)
+			##
+			## `cd` + `pwd -P` rather than `realpath` (not POSIX) or
+			## `readlink -f` (absent on macOS before Monterey).
+			##
+			## `archive: true` IS NOT CONSULTED HERE, deliberately.
+			## magic-team.board.md's GC spec diverts an item carrying it to
+			## board-archived instead of removing it -- but that guard governs
+			## the heartbeat GC's automatic retention CLOCK, not a member naming
+			## one file. Two reasons it is not replayed here. First, the
+			## diversion is structurally unavailable: an inbox item has no board
+			## state to be diverted into, so "honouring" it could only mean
+			## refusing outright. Second, a
+			## refusal on a header is the deadlock this arm exists to break --
+			## no tooling edits an item's frontmatter in place once it sits in
+			## processed/, so a refusal would be terminal, and it would land on
+			## exactly the misfiled board-type document (the only kind carrying
+			## board frontmatter at all) that the absent type-whitelist above
+			## exists to keep removable. The explicit, named, single-item call
+			## therefore overrides the guard; the automatic clock must not.
+			##
 			local inboxBase="" inboxDirResolved=""
 			inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 			if [ -z "$inboxBase" ] ; then
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
 				set +e ; return 1
 			fi
-			inboxDirResolved="$( cd "$MDAT_DATA_ROOT/inboxes/$inboxMember/processed" 2>/dev/null && pwd -P )" || inboxDirResolved=""
-			if [ -z "$inboxDirResolved" ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: no such inbox processed directory: $MDAT_DATA_ROOT/inboxes/$inboxMember/processed" >&2
-				set +e ; return 1
-			fi
-			case "$inboxDirResolved" in
-				"$inboxBase"/*) ;;
-				*)
-					echo "$MDSC_CMD: board-trash: ⛔ ERROR: resolved inbox directory escapes the inbox root ($inboxBase): $inboxDirResolved" >&2
-					set +e ; return 1
-				;;
-			esac
-			local inboxSourcePath="$inboxDirResolved/$inboxItemName"
-			if [ ! -f "$inboxSourcePath" ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found: $inboxSourcePath" >&2
+			## Both the live inbox ROOT and its own processed/ are searched,
+			## ROOT FIRST. A member's only inspection path resolves the same
+			## way (root, then processed/, first match wins), so inverting the
+			## order would delete a copy the caller could never have read. A
+			## basename held in both is therefore the ROOT copy: the drain path
+			## refuses a processed/ basename collision, so the only producer of
+			## the pair is a re-upsert into the root after an earlier same-named
+			## item was drained -- which makes the root copy the live item.
+			## Refusing instead would re-create the exact deadlock this arm
+			## exists to break, on an ordinary name shape.
+			local inboxRootDir="$MDAT_DATA_ROOT/inboxes/$inboxMember"
+			local inboxProcessedDir="$MDAT_DATA_ROOT/inboxes/$inboxMember/processed"
+			local inboxSourcePath="" inboxCandidateDir=""
+			for inboxCandidateDir in "$inboxRootDir" "$inboxProcessedDir" ; do
+				inboxDirResolved="$( cd "$inboxCandidateDir" 2>/dev/null && pwd -P )" || inboxDirResolved=""
+				if [ -z "$inboxDirResolved" ] ; then continue ; fi
+				## Per candidate, never once for the pair: each is resolved on
+				## its own, so each has to clear the inbox root on its own. A
+				## processed/ reached through a symlink out of the tree is not
+				## vouched for by its parent having been fine.
+				##
+				## Containment tested WITH the separator -- "$inboxBase"/* ,
+				## never a bare "$inboxBase"* prefix: /data/inboxes-evil/x
+				## passes the bare prefix test and correctly fails this one.
+				## $inboxBase is proven non-empty above, and that check is
+				## load-bearing rather than defensive: with an empty base this
+				## pattern is "/*", which matches /etc -- measured on bash 3.2.
+				## The guard degenerates to "any absolute path" the moment that
+				## emptiness check is dropped.
+				case "$inboxDirResolved" in
+					"$inboxBase"/*) ;;
+					*)
+						echo "$MDSC_CMD: board-trash: ⛔ ERROR: resolved inbox directory escapes the inbox root ($inboxBase): $inboxDirResolved" >&2
+						set +e ; return 1
+					;;
+				esac
+				## `if`, never `[ -f x ] && { ... ; break ; }`: the AND-OR form
+				## leaves the loop's exit status at 1 when the last candidate
+				## misses (measured on bash 3.2, `if` form exits 0 in the same
+				## position), which is a live fault wherever such a loop is the
+				## last command of a function.
+				if [ -f "$inboxDirResolved/$inboxItemName" ] ; then
+					inboxSourcePath="$inboxDirResolved/$inboxItemName"
+					break
+				fi
+			done
+			if [ -z "$inboxSourcePath" ] ; then
+				## Both searched directories are named. On a total miss there is
+				## no resolved path to print, and an error whose colon is
+				## followed by nothing tells the caller neither where it looked
+				## nor what it looked for.
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found in $inboxRootDir or $inboxProcessedDir: $inboxItemName" >&2
 				set +e ; return 1
 			fi
 			if [ -n "$repoRoot" ] ; then
@@ -107,8 +187,18 @@ case "$1" in
 				fi
 				echo "# $MDSC_CMD: board-trash: deleted and committed ${inboxSourcePath#"$MDAT_DATA_ROOT"/}" >&2
 			else
+				## trash/ is flat, has several writers, and `mv` cannot refuse a
+				## collision: this test is the only thing that reports one.
 				local inboxTrashPath="$MDAT_DATA_ROOT/trash/$inboxItemName"
+				mkdir -p "$MDAT_DATA_ROOT/trash"
+				if [ -e "$inboxTrashPath" ] ; then
+					echo "$MDSC_CMD: board-trash: ⛔ ERROR: trash/ already holds that name, refusing to overwrite it: $inboxTrashPath" >&2
+					set +e ; return 1
+				fi
 				mv "$inboxSourcePath" "$inboxTrashPath"
+				## Arrival in trash/ starts that copy's own retention clock:
+				## `mv` preserves mtime, so the item would arrive expired.
+				touch "$inboxTrashPath"
 				echo "# $MDSC_CMD: board-trash: moved ${inboxSourcePath#"$MDAT_DATA_ROOT"/} to ${inboxTrashPath#"$MDAT_DATA_ROOT"/}" >&2
 			fi
 			return 0
@@ -119,13 +209,8 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$boardState" ] || [ -z "$itemName" ] ; then
-			echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is <team-member> <board-state> <item-name> [--untrash]" >&2
+			echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is <team-member> <board-state> <item-name>" >&2
 			set +e ; return 1
-		fi
-		local doUntrash="false"
-		if [ "$1" = "--untrash" ] ; then
-			doUntrash="true"
-			shift
 		fi
 		if [ "$1" = "--context" ] ; then
 			if [ -z "${2:-}" ] ; then
@@ -155,49 +240,37 @@ case "$1" in
 		local repoRoot=""
 		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
 
-		if [ "$doUntrash" = "true" ] ; then
-			if [ -n "$repoRoot" ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash is not supported once team-data is git-tracked ($repoRoot) -- trashing there deletes the item outright and commits the deletion, so nothing is ever placed in trash/ to restore. Recover it from git history instead." >&2
+		local sourcePath="$MDAT_DATA_ROOT/board/$boardState/$itemName"
+		if [ ! -f "$sourcePath" ] ; then
+			echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found: $sourcePath" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$repoRoot" ] ; then
+			rm -f -- "$sourcePath"
+			local gitOut="" gitRc=0
+			gitOut="$( git -C "$repoRoot" add -- "$sourcePath" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: git add failed for $sourcePath: $gitOut" >&2
 				set +e ; return 1
 			fi
-			local sourcePath="$MDAT_DATA_ROOT/trash/$itemName"
-			local targetDir="$MDAT_DATA_ROOT/board/$boardState"
-			local targetPath="$targetDir/$itemName"
-			if [ ! -f "$sourcePath" ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash: item not found in trash/: $sourcePath" >&2
+			gitOut="$( git -C "$repoRoot" commit -m "- $opContext, $callingMember" -- "$sourcePath" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: git commit failed for $sourcePath: $gitOut" >&2
 				set +e ; return 1
 			fi
-			if [ ! -d "$targetDir" ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash: no such board state directory: $targetDir" >&2
+			echo "# $MDSC_CMD: board-trash: deleted and committed ${sourcePath#"$MDAT_DATA_ROOT"/}" >&2
+		else
+			## Same flat-trash/ collision refusal as the inbox arm above.
+			local targetPath="$MDAT_DATA_ROOT/trash/$itemName"
+			mkdir -p "$MDAT_DATA_ROOT/trash"
+			if [ -e "$targetPath" ] ; then
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: trash/ already holds that name, refusing to overwrite it: $targetPath" >&2
 				set +e ; return 1
 			fi
 			mv "$sourcePath" "$targetPath"
-			echo "# $MDSC_CMD: board-trash: restored ${sourcePath#"$MDAT_DATA_ROOT"/} to ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
-		else
-			local sourcePath="$MDAT_DATA_ROOT/board/$boardState/$itemName"
-			if [ ! -f "$sourcePath" ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found: $sourcePath" >&2
-				set +e ; return 1
-			fi
-			if [ -n "$repoRoot" ] ; then
-				rm -f -- "$sourcePath"
-				local gitOut="" gitRc=0
-				gitOut="$( git -C "$repoRoot" add -- "$sourcePath" 2>&1 )" || gitRc=$?
-				if [ "$gitRc" -ne 0 ] ; then
-					echo "$MDSC_CMD: board-trash: ⛔ ERROR: git add failed for $sourcePath: $gitOut" >&2
-					set +e ; return 1
-				fi
-				gitOut="$( git -C "$repoRoot" commit -m "- $opContext, $callingMember" -- "$sourcePath" 2>&1 )" || gitRc=$?
-				if [ "$gitRc" -ne 0 ] ; then
-					echo "$MDSC_CMD: board-trash: ⛔ ERROR: git commit failed for $sourcePath: $gitOut" >&2
-					set +e ; return 1
-				fi
-				echo "# $MDSC_CMD: board-trash: deleted and committed ${sourcePath#"$MDAT_DATA_ROOT"/}" >&2
-			else
-				local targetPath="$MDAT_DATA_ROOT/trash/$itemName"
-				mv "$sourcePath" "$targetPath"
-				echo "# $MDSC_CMD: board-trash: moved ${sourcePath#"$MDAT_DATA_ROOT"/} to ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
-			fi
+			## Same fresh retention clock as the inbox arm above.
+			touch "$targetPath"
+			echo "# $MDSC_CMD: board-trash: moved ${sourcePath#"$MDAT_DATA_ROOT"/} to ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
 		fi
 		return 0
 	;;

@@ -46,6 +46,8 @@ case "$1" in
 		}
 		local boardRoot="$MDAT_DATA_ROOT/board"
 		local fromState="" fromInbox="" isCreate="false" sourcePath="" bodyMode="" scriptLang="" bodyModeCount=0 sourceModeCount=0 msgVerb="wrote"
+		## Space-delimited field names the caller named in --header:, for the move stamp's override check.
+		local callerHeaderFields=""
 		local headerOpsFile
 		headerOpsFile="$MMDAPP/.local/temp/mdat-intern-op-headers.$$"
 		mkdir -p "$MMDAPP/.local/temp" && : > "$headerOpsFile" || { set +e ; return 1 ; }
@@ -144,6 +146,7 @@ case "$1" in
 							set +e ; return 1
 						;;
 					esac
+					callerHeaderFields="$callerHeaderFields $headerName"
 					printf '%s\t%s\t%s\n' "$headerOp" "$headerName" "$headerValue" >> "$headerOpsFile"
 					shift
 				;;
@@ -244,6 +247,32 @@ case "$1" in
 			fi
 		fi
 
+		## Move stamp: the date field the target state owns. Contract: MAGIC.md.
+		local stampField=""
+		case "$toState" in
+			processed) stampField="processed-at" ;;
+			running)   stampField="started-at" ;;
+		esac
+		## Same state is an edit, not a move. Empty fromState is --create/--from-inbox, both of which arrive.
+		if [ "$fromState" = "$toState" ] ; then stampField="" ; fi
+		case " $callerHeaderFields " in
+			*" $stampField "*) stampField="" ;;
+		esac
+		if [ -n "$stampField" ] ; then
+			local probeState
+			probeState="$( printf '%s\n' "$body" | LC_ALL=C awk -v fieldName="$stampField" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterFieldProbe.awk" )" || probeState=""
+			## `|| ...` because this file runs under `set -e`: a bare capture aborts the op instead of returning through its own error path.
+			## HAS keeps a recorded processed-at ("never re-stamped"); started-at is per-run, so a real move restarts it.
+			case "$probeState:$stampField" in
+				FRONTMATTER:*|HAS:started-at) ;;
+				*) stampField="" ;;
+			esac
+		fi
+		if [ -n "$stampField" ] ; then
+			local stampedAt ; stampedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+			printf '%s\t%s\t%s\n' upsert "$stampField" "$stampedAt" >> "$headerOpsFile"
+		fi
+
 		if [ -s "$headerOpsFile" ] ; then
 			body="$( printf '%s\n' "$body" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" )" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
 		fi
@@ -259,17 +288,45 @@ case "$1" in
 		printf '%s\n' "$body" > "$tmpFile"
 		mv "$tmpFile" "$targetPath"
 
+		## Commit gate: .git presence in the team-data root, presence only and
+		## independent of TEAM_DATA_GIT_REMOTE -- this op never pushes or syncs.
+		local repoRoot="" sourceTracked="false"
+		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+		## Asked before the source is removed: `git add` on a vanished untracked
+		## path fails the whole op after the move has already happened.
+		if [ -n "$repoRoot" ] && [ "$isCreate" = "false" ] && [ "$sourcePath" != "$targetPath" ] ; then
+			[ -z "$( git -C "$repoRoot" ls-files -- "$sourcePath" 2>/dev/null )" ] || sourceTracked="true"
+		fi
+
 		if [ "$isCreate" = "false" ] && [ "$sourcePath" != "$targetPath" ] ; then
-			if [ -n "$fromInbox" ] ; then
-				## `--` guards a later edit that bypasses validation.
-				rm -f -- "$sourcePath"
-				echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, previous ${sourcePath#"$boardRoot"/} deleted" >&2
-			else
-				mv -- "$sourcePath" "$MDAT_DATA_ROOT/trash/$itemName"
-				echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, previous ${sourcePath#"$boardRoot"/} moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
-			fi
+			## trash/ belongs to the trash op and is not a board state, so a move
+			## never spools there. `--` guards a later edit that bypasses validation.
+			rm -f -- "$sourcePath"
+			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, previous ${sourcePath#"$boardRoot"/} deleted" >&2
 		else
 			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}" >&2
+		fi
+
+		## Both ends of the move in one commit: the destination that now holds the
+		## item, and the source whose removal git must record.
+		if [ -n "$repoRoot" ] ; then
+			local commitPaths=( "$targetPath" )
+			[ "$sourceTracked" = "true" ] && commitPaths+=( "$sourcePath" )
+			local gitOut="" gitRc=0
+			gitOut="$( git -C "$repoRoot" add -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: git add failed for ${commitPaths[*]}: $gitOut" >&2
+				rm -f "$headerOpsFile" ; trap - EXIT ; set +e ; return 1
+			fi
+			local moveFrom="$fromState"
+			[ -n "$fromInbox" ] && moveFrom="inbox:$fromInbox"
+			[ "$isCreate" = "true" ] && moveFrom="create"
+			gitOut="$( git -C "$repoRoot" commit -m "* board-upsert-move-edit: $itemName $moveFrom -> $toState, $opContext" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: git commit failed for ${commitPaths[*]}: $gitOut" >&2
+				rm -f "$headerOpsFile" ; trap - EXIT ; set +e ; return 1
+			fi
+			echo "# $MDSC_CMD: board-upsert-move-edit: committed ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
 		fi
 
 		rm -f "$headerOpsFile"

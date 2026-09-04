@@ -140,6 +140,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--member-contact-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberContact.include"
+			return $?
+		;;
+
 		--member-comms-email-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsEmail.include"
 			return $?
@@ -355,6 +360,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--intern-op-contact-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternContact.include"
+			return $?
+		;;
+
 		--intern-op-check-configs)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpCheckConfigs.include"
 			return $?
@@ -447,6 +457,11 @@ DistroAgentsTools(){
 
 		--client-sweep-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientSweep.include"
+			return $?
+		;;
+
+		--magic-contact-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicContact.include"
 			return $?
 		;;
 

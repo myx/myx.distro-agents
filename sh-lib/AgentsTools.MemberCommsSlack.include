@@ -57,6 +57,53 @@ AgentsToolsCommsSlackMemberMarks(){
 	' "$marksFile"
 }
 
+## One member's Slack user id, for a real mention element; nothing at all when
+## that member has no Slack account of its own, which is the caller's cue to
+## keep the plain "@alias" text. Cached beside the config store and re-resolved
+## once per advance/heartbeat lock cycle, never per message. See MAGIC.md,
+## "A member name renders as a real Slack mention".
+AgentsToolsCommsSlackMentionUserId(){
+	local cacheFile="$MMDAPP/.local/.agents/slack-mention-ids.cache"
+	local lockGen
+	lockGen="$( LC_ALL=C cat \
+		"$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md" \
+		"$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md" \
+		2>/dev/null | cksum )"
+	if [ "$lockGen" != "$( head -n 1 "$cacheFile" 2>/dev/null )" ] ; then
+		printf '%s\n' "$lockGen" > "$cacheFile" 2>/dev/null || true
+	fi
+	local cachedId
+	cachedId="$( LC_ALL=C awk -F= -v who="$1" '$1 == who { cachedId = $2 ; } END { print cachedId ; }' "$cacheFile" 2>/dev/null )" || cachedId=""
+	if [ -n "$cachedId" ] ; then
+		[ "$cachedId" = "-" ] || printf '%s\n' "$cachedId"
+		return 0
+	fi
+
+	local memberId="" memberToken
+	memberToken="$( DistroAgentsTools --member-config-option "$1" --select SLACK_USER_TOKEN 2>/dev/null )" || memberToken=""
+	if [ -n "$memberToken" ] ; then
+		local headerFile authResp
+		headerFile="$( mktemp )" || return 0
+		chmod 600 "$headerFile"
+		printf 'Authorization: Bearer %s\n' "$memberToken" > "$headerFile"
+		authResp="$( curl -sS --connect-timeout 10 --max-time 30 https://slack.com/api/auth.test -H @"$headerFile" 2>/dev/null )" || authResp=""
+		rm -f "$headerFile"
+		memberId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || memberId=""
+	elif [ "$1" = "human-owner" ] ; then
+		memberId="$( DistroAgentsToolsResolveTarget human-owner | sed -n 's/^CHANNEL=//p' )" || memberId=""
+		## Only a user id is an account. A DM conversation id is not one, and
+		## the member degrades to plain text rather than mentioning a channel.
+		case "$memberId" in
+			U[A-Z0-9][A-Z0-9]*) ;;
+			*) memberId="" ;;
+		esac
+	fi
+	printf '%s=%s\n' "$1" "${memberId:--}" >> "$cacheFile" 2>/dev/null || true
+	echo "# $MDSC_CMD: Slack mention id for '$1': ${memberId:-<none -- renders as plain text>} (resolved and cached for lock generation $lockGen)" >&2
+	[ -z "$memberId" ] || printf '%s\n' "$memberId"
+	return 0
+}
+
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 
 case "$1" in
@@ -1674,22 +1721,80 @@ blocks|verbatim|caller|stdin file"
 			;;
 		esac
 
-		## Who the message is from. Built always -- the identity swap below
-		## needs it too -- but prepended only where the Slack account shown
-		## is not the member's own: a bot post, or one relayed for them.
-		local fromMarks fromMark attributionLine
-		fromMarks="$( AgentsToolsCommsSlackMemberMarks "$memberName" )" || fromMarks=$'\t'"$memberName"
-		fromMark="${fromMarks%%$'\t'*}"
-		attributionLine="From: ${fromMark:+$fromMark }$memberName @${fromMarks#*$'\t'}"
+		## The one-line header: [<from> ]→ <to>. <body>. Slack collapses a
+		## caller's text to one line whenever blocks travel with it, so a
+		## header that is already one line reads the same in both versions.
+		## Both its markers are ASCII and store literally, so a reader parses
+		## the header out of the flattened text without matching a shortcode.
+		local headerOpen="[{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":["
 
-		## Who the message is for. Always present, and always labelled: Slack
-		## rewrites the fallback text of a blocks message and flattens its
-		## line breaks, so nothing may depend on a line's own position.
-		local addressedText="To:" addressedElems="{\"type\":\"text\",\"text\":\"To:\"},"
-		local addrWho addrMarks addrMark addrAlias addrSep=" "
+		## Who the message is from. Built always -- the identity swap below
+		## needs it too -- but inserted only where the Slack account shown
+		## is not the member's own: a bot post, or one relayed for them.
+		local fromMarks fromMark fromAlias fromElems=""
+		fromMarks="$( AgentsToolsCommsSlackMemberMarks "$memberName" )" || fromMarks=$'\t'"$memberName"
+		fromMark="${fromMarks%%$'\t'*}" ; fromAlias="${fromMarks#*$'\t'}"
+		local fromText="${fromMark:+$fromMark }*_${memberName}_* @$fromAlias "
+		case "$fromMark" in
+			"")	;;
+			:*:)	fromElems="{\"type\":\"emoji\",\"name\":\"${fromMark//:/}\"},{\"type\":\"text\",\"text\":\" \"}," ;;
+			*)	fromElems="{\"type\":\"text\",\"text\":\"$fromMark \"}," ;;
+		esac
+		fromElems="$fromElems{\"type\":\"text\",\"text\":\"$memberName\",\"style\":{\"bold\":true,\"italic\":true}},{\"type\":\"text\",\"text\":\" @$fromAlias \"},"
+
+		## Nothing named, and the conversation is a DM or a group DM: its own
+		## participants are the addressees, minus the sender. "@here" names
+		## nobody there. Keyed on the conversation's type, never on who the
+		## counterpart is. A `U…` target IS the party and a `C…` one is never
+		## a DM, so neither costs a call; anything else asks Slack. A lookup
+		## that answers nothing leaves the old "@here" rather than failing a
+		## send over a header field.
+		if [ -z "$addressToList" ] ; then
+			local dmParties="" dmInfo="" dmIsMpim="" dmSelfId="" dmParty="" dmIndex=0
+			local dmArgs
+			case "$channel" in
+				U[A-Z0-9][A-Z0-9]*)
+					dmParties=" $channel"
+				;;
+				C[A-Z0-9][A-Z0-9]*)
+				;;
+				*)
+					dmArgs=( "$memberName" --api conversations.info --resolve-target "$channel" )
+					[ "$sendIdentity" != "bot" ] || dmArgs+=( --identity bot )
+					dmArgs+=( --context "--member-comms-slack-send-message" )
+					dmInfo="$( DistroAgentsTools --intern-op-slack-call "${dmArgs[@]}" )" || dmInfo=""
+					dmParty="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackConversationCounterparty.awk" )" || dmParty=""
+					if [ -n "$dmParty" ] ; then
+						dmParties=" $dmParty"
+					else
+						dmIsMpim="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -v path=channel.is_mpim -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || dmIsMpim=""
+					fi
+					if [ "$dmIsMpim" = "true" ] ; then
+						dmArgs=( "$memberName" --api conversations.members --form "channel=$channel" --form limit=100 )
+						[ "$sendIdentity" != "bot" ] || dmArgs+=( --identity bot )
+						dmArgs+=( --context "--member-comms-slack-send-message" )
+						dmInfo="$( DistroAgentsTools --intern-op-slack-call "${dmArgs[@]}" )" || dmInfo=""
+						dmSelfId="$( AgentsToolsCommsSlackMentionUserId "$memberName" )" || dmSelfId=""
+						while : ; do
+							dmParty="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -v path="members.$dmIndex" -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || dmParty=""
+							[ -n "$dmParty" ] || break
+							[ "$dmParty" = "$dmSelfId" ] || dmParties="$dmParties $dmParty"
+							dmIndex=$(( dmIndex + 1 ))
+						done
+					fi
+				;;
+			esac
+			addressToList="$dmParties"
+		fi
+
+		## Who the message is for.
+		local addressedText="" addressedElems=""
+		local addrWho addrMarks addrMark addrAlias addrUserId addrHandleText addrHandleElems
 		for addrWho in $addressToList ; do
-			addressedText="$addressedText$addrSep"
-			addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"$addrSep\"},"
+			if [ -n "$addressedText" ] ; then
+				addressedText="$addressedText; "
+				addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"; \"},"
+			fi
 			case "$addrWho" in
 				U[A-Z0-9][A-Z0-9]*)
 					## A real Slack account: the structured element in blocks,
@@ -1714,19 +1819,32 @@ blocks|verbatim|caller|stdin file"
 						set +e ; return 1
 					}
 					addrMark="${addrMarks%%$'\t'*}" ; addrAlias="${addrMarks#*$'\t'}"
-					addressedText="$addressedText${addrMark:+$addrMark }$addrWho @$addrAlias"
+					## The handle half of the field, in the two forms the same
+					## field takes. Where the member has a Slack account, both
+					## are that account and Slack renders its real handle; where
+					## it has none, both stay the roster alias as plain text.
+					addrUserId="$( AgentsToolsCommsSlackMentionUserId "$addrWho" )" || addrUserId=""
+					if [ -n "$addrUserId" ] ; then
+						addrHandleText="<@$addrUserId>"
+						addrHandleElems="{\"type\":\"text\",\"text\":\" \"},{\"type\":\"user\",\"user_id\":\"$addrUserId\"},"
+					else
+						addrHandleText="@$addrAlias"
+						addrHandleElems="{\"type\":\"text\",\"text\":\" @$addrAlias\"},"
+					fi
+					addressedText="$addressedText${addrMark:+$addrMark }*_${addrWho}_* $addrHandleText"
 					case "$addrMark" in
-						:*:)	addressedElems="$addressedElems{\"type\":\"emoji\",\"name\":\"${addrMark//:/}\"},{\"type\":\"text\",\"text\":\" $addrWho @$addrAlias\"}," ;;
-						*)	addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"${addrMark:+$addrMark }$addrWho @$addrAlias\"}," ;;
+						"")	;;
+						:*:)	addressedElems="$addressedElems{\"type\":\"emoji\",\"name\":\"${addrMark//:/}\"},{\"type\":\"text\",\"text\":\" \"}," ;;
+						*)	addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"$addrMark \"}," ;;
 					esac
+					addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"$addrWho\",\"style\":{\"bold\":true,\"italic\":true}},$addrHandleElems"
 				;;
 			esac
-			addrSep="; "
 		done
 		## No named addressee: the message is for whoever the conversation holds.
 		if [ -z "$addressToList" ] ; then
-			addressedText="$addressedText @here"
-			addressedElems="$addressedElems{\"type\":\"text\",\"text\":\" @here\"},"
+			addressedText="@here"
+			addressedElems="{\"type\":\"text\",\"text\":\"@here\"},"
 		fi
 
 
@@ -1776,30 +1894,27 @@ blocks|verbatim|caller|stdin file"
 		fi
 
 
-		rawText="$addressedText${rawText:+$'\n'$rawText}"
+		## The newline is deliberate: Slack flattens it to one space, which is
+		## exactly the ". " seam, and where no blocks travel and nothing
+		## flattens, the body still starts on its own line.
+		rawText="→ $addressedText.${rawText:+$'\n'$rawText}"
 		if [ -n "$blocksJson" ] ; then
-			local addressedBlocks="[{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[${addressedElems%,}]}]}]"
+			local headerBlock="$headerOpen{\"type\":\"text\",\"text\":\"→ \"},$addressedElems{\"type\":\"text\",\"text\":\".\"}]}]}]"
 			if [ "$blocksJson" != "[]" ] ; then
-				blocksJson="${addressedBlocks%"]"},${blocksJson#"["}"
+				blocksJson="${headerBlock%"]"},${blocksJson#"["}"
 			else
-				blocksJson="$addressedBlocks"
+				blocksJson="$headerBlock"
 			fi
 		fi
 
+		## The sender goes INTO the header just built, never above it as a
+		## second line -- blocksJson starts with headerOpen by construction,
+		## so stripping that prefix is what opens the slot. The identity swap
+		## below repeats these two lines, and its own guard keeps a relayed
+		## send from taking both and inserting the sender twice.
 		if [ "$sendIdentity" = "bot" ] || [ "$relayedForMember" = "true" ] ; then
-			## text version: the characters that version uses.
-			rawText="$attributionLine${rawText:+$'\n'$rawText}"
-			## blocks version: the same line, built as the structured element
-			## that version uses, then prepended as its own block.
-			if [ -n "$blocksJson" ] ; then
-				local attributionBlocks
-				attributionBlocks="$( printf '%s\n' "$attributionLine" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackBlocksBuild.awk" )"
-				if [ -n "$attributionBlocks" ] && [ "$blocksJson" != "[]" ] ; then
-					blocksJson="${attributionBlocks%"]"},${blocksJson#"["}"
-				elif [ -n "$attributionBlocks" ] ; then
-					blocksJson="$attributionBlocks"
-				fi
-			fi
+			rawText="$fromText$rawText"
+			[ -z "$blocksJson" ] || blocksJson="$headerOpen$fromElems${blocksJson#"$headerOpen"}"
 		fi
 
 		if [ -z "$rawText" ] && [ -z "$blocksJson" ] ; then
@@ -1902,13 +2017,11 @@ blocks|verbatim|caller|stdin file"
 					token="$botToken"
 					printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
 					## Attribution only under the shared bot -- a member's own bot is already itself.
-					if [ "$swapTokenSource" = "shared-bot-token" ] ; then
-						rawText="$attributionLine${rawText:+$'\n'$rawText}"
-						if [ -n "$blocksJson" ] ; then
-							local swapBlocks
-							swapBlocks="$( printf '%s\n' "$attributionLine" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackBlocksBuild.awk" )"
-							[ -z "$swapBlocks" ] || blocksJson="${swapBlocks%"]"},${blocksJson#"["}"
-						fi
+					## A relayed send already carries the sender, and reaches here still
+					## marked user identity, so without this guard it would get it twice.
+					if [ "$swapTokenSource" = "shared-bot-token" ] && [ "$relayedForMember" != "true" ] ; then
+						rawText="$fromText$rawText"
+						[ -z "$blocksJson" ] || blocksJson="$headerOpen$fromElems${blocksJson#"$headerOpen"}"
 						escapedText="$( printf '%s' "$rawText" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
 						payload="{\"channel\":\"$channel\",\"text\":\"$escapedText\""
 						[ -z "$threadTs" ] || payload="$payload,\"thread_ts\":\"$threadTs\""

@@ -1,7 +1,7 @@
 ---
-executors: [<team-member-or-magic-team>]
-maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>]
-invitees: [<only if this routine has genuine multi-member sessions>]
+executors: <team-member-or-magic-team>
+maintainers: <group, e.g. magic-coordinator, magic-librarian, magic-architect>
+invitees: <only if this routine has genuine multi-member sessions>
 ---
 # routine-<short-name> — the actual procedure
 

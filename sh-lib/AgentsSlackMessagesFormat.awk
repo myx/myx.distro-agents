@@ -227,17 +227,38 @@ function parseArray(path,   idx, c) {
 
 { s = $0; n = length(s); p = 1; parseValue(""); }
 
-## Slack returns messages newest-first; print oldest-first (chronological)
-## since that's what's actually useful to read. Reaction/thread
-## annotations are appended to the same line, never a separate output line,
-## so a "ts | user | text" parser downstream keeps working unchanged.
+## Prints oldest-first (chronological), sorted on ts rather than taken from
+## the body's own order: conversations.history returns newest-first and
+## conversations.replies oldest-first. Reaction/thread annotations are
+## appended to the same line, never a separate output line, so a
+## "ts | user | text" parser downstream keeps working unchanged.
 END {
 	if (apiOkSeen && apiOk == "false") {
 		printf("⛔ ERROR: Slack API call failed: ok:false%s\n", (apiError != "" ? " error=" apiError : "")) > "/dev/stderr"
 		exit 1
 	}
 
-	for (i = msgCount - 1; i >= 0; i--) {
+	## Fixed-width seconds then microseconds: the sort compares bytes, never a float, which at 1.8e9 cannot separate two ts a microsecond apart.
+	for (keyPos = 0; keyPos < msgCount; keyPos++) {
+		tsSeconds = tsOf[keyPos]
+		tsFraction = tsOf[keyPos]
+		sub(/\..*$/, "", tsSeconds)
+		sub(/^[0-9]*\.?/, "", tsFraction)
+		sortKeyOf[keyPos] = sprintf("%016d", tsSeconds) substr(tsFraction "000000", 1, 6)
+		orderOf[keyPos] = keyPos
+	}
+	for (sortPos = 1; sortPos < msgCount; sortPos++) {
+		sortIdx = orderOf[sortPos]
+		sortScan = sortPos - 1
+		while (sortScan >= 0 && sortKeyOf[orderOf[sortScan]] > sortKeyOf[sortIdx]) {
+			orderOf[sortScan + 1] = orderOf[sortScan]
+			sortScan--
+		}
+		orderOf[sortScan + 1] = sortIdx
+	}
+
+	for (emitPos = 0; emitPos < msgCount; emitPos++) {
+		i = orderOf[emitPos]
 		annotations = ""
 
 		if (i in reactionCountPerMsg) {

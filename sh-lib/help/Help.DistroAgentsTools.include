@@ -29,6 +29,8 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-blocked <team-member
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-conversations-roster <team-member> [--identity user|bot|both] [--types <csv>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-contact-digest-send <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-stdin" >&2
@@ -86,6 +88,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-comment-rea
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-search <team-member> <cql> [--limit <n>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-whoami <team-member>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-contact-digest-send <team-member> (--resolved|--needs-ruling) <text...>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-read <team-member> <uid> [--seen]" >&2
@@ -116,7 +119,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-info <team-
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-share <team-member> <target> --from-file <path> [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-share <team-member> <target> --from-stdin [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-get <team-member> [--raw]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set <team-member> [--display-name <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set <team-member> [--display-name <v>] [--title <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]" >&2
@@ -129,6 +132,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-whoami <team-me
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> <operation>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-trash <member> <item-filename>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]" >&2

@@ -93,7 +93,7 @@ case "$1" in
 		local profileMember="$1"
 		shift || true
 		if [ -z "$profileMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: syntax is <team-member> [--display-name <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end] -- the acting member is required, and it is the account whose own profile is written: this operation has no other way to know whose persona it is setting" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: syntax is <team-member> [--display-name <v>] [--title <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end] -- the acting member is required, and it is the account whose own profile is written: this operation has no other way to know whose persona it is setting" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$profileMember" "<team-member>" member-comms-slack-profile-set || { set +e ; return 1 ; }
@@ -114,6 +114,7 @@ case "$1" in
 
 		local profileFieldCount=0
 		local profileDisplayNameGiven="false" profileDisplayName=""
+		local profileTitleGiven="false" profileTitle=""
 		local profileStatusTextGiven="false" profileStatusText=""
 		local profileStatusEmojiGiven="false" profileStatusEmoji=""
 		local profileStatusExpiryGiven="false" profileStatusExpiry=""
@@ -122,7 +123,7 @@ case "$1" in
 		local profileSnoozeMode="" profileSnoozeMinutes=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
-				--display-name|--status-text|--status-emoji)
+				--display-name|--title|--status-text|--status-emoji)
 					## Positional presence, not a non-empty test: `--status-text ""`
 					## is how a status is cleared.
 					if [ $# -lt 2 ] ; then
@@ -136,6 +137,13 @@ case "$1" in
 								set +e ; return 1
 							fi
 							profileDisplayNameGiven="true" ; profileDisplayName="$2"
+						;;
+						--title)
+							if [ "$profileTitleGiven" = "true" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --title is not repeatable -- one value, one field" >&2
+								set +e ; return 1
+							fi
+							profileTitleGiven="true" ; profileTitle="$2"
 						;;
 						--status-text)
 							if [ "$profileStatusTextGiven" = "true" ] ; then
@@ -250,7 +258,7 @@ case "$1" in
 		done
 
 		if [ "$profileFieldCount" -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: at least one field is required -- pass one or more of --display-name, --status-text, --status-emoji, --status-expiry, --avatar, --presence, --snooze or --snooze-end. Nothing was changed. An empty string IS a value here: --status-text '' clears the status and counts as a field." >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: at least one field is required -- pass one or more of --display-name, --title, --status-text, --status-emoji, --status-expiry, --avatar, --presence, --snooze or --snooze-end. Nothing was changed. An empty string IS a value here: --status-text '' clears the status and counts as a field." >&2
 			set +e ; return 1
 		fi
 
@@ -267,6 +275,10 @@ case "$1" in
 		if [ "$profileDisplayNameGiven" = "true" ] ; then
 			profileEscaped="$( printf '%s' "$profileDisplayName" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
 			profileFieldsJson="$profileFieldsJson,\"display_name\":\"$profileEscaped\""
+		fi
+		if [ "$profileTitleGiven" = "true" ] ; then
+			profileEscaped="$( printf '%s' "$profileTitle" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			profileFieldsJson="$profileFieldsJson,\"title\":\"$profileEscaped\""
 		fi
 		if [ "$profileStatusTextGiven" = "true" ] ; then
 			profileEscaped="$( printf '%s' "$profileStatusText" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"

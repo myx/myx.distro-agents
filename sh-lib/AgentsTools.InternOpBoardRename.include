@@ -25,23 +25,40 @@ case "$1" in
 		local newName="$1"
 		shift || true
 		if [ -z "$oldName" ] || [ -z "$newName" ] ; then
-			echo "$MDSC_CMD: board-rename: ⛔ ERROR: syntax is <old-name> <new-name> [--do-not-track]" >&2
+			echo "$MDSC_CMD: board-rename: ⛔ ERROR: syntax is <old-name> <new-name> [--do-not-track] [--processed-at:<date-time>]" >&2
 			set +e ; return 1
 		fi
-		local doNotTrack="false"
-		if [ "$1" = "--do-not-track" ] ; then
-			doNotTrack="true"
-			shift
-		fi
-		if [ "$1" = "--context" ] ; then
-			if [ -z "${2:-}" ] ; then
-				echo "$MDSC_CMD: board-rename: ⛔ ERROR: --context: value required" >&2
-				set +e ; return 1
-			fi
-			shift 2
-		fi
-		if [ $# -gt 0 ] ; then
-			echo "$MDSC_CMD: board-rename: ⛔ ERROR: invalid option: $1" >&2
+		local doNotTrack="false" processedAtOverride=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--do-not-track)
+					doNotTrack="true"
+					shift
+				;;
+				--processed-at:*)
+					processedAtOverride="${1#--processed-at:}"
+					if [ -z "$processedAtOverride" ] ; then
+						echo "$MDSC_CMD: board-rename: ⛔ ERROR: --processed-at:<date-time>: value required" >&2
+						set +e ; return 1
+					fi
+					shift
+				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: board-rename: ⛔ ERROR: --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: board-rename: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		## Refused, not ignored: --do-not-track leaves no husk for --processed-at: to stamp.
+		if [ "$doNotTrack" = "true" ] && [ -n "$processedAtOverride" ] ; then
+			echo "$MDSC_CMD: board-rename: ⛔ ERROR: --processed-at: is not valid together with --do-not-track -- it stamps the husk left at board/processed/, and --do-not-track leaves no husk to stamp" >&2
 			set +e ; return 1
 		fi
 
@@ -97,8 +114,11 @@ case "$1" in
 			fi
 		done
 
+		## The husk is this op's own move of the old name into board/processed/. Contract: MAGIC.md.
 		if [ "$doNotTrack" = "false" ] ; then
-			if ! printf '%s\n' '---' 'type: note' "superseded-by: $newName (renamed)" '---' "Renamed to \`$newName\`." | DistroAgentsTools --intern-op-board-upsert-move-edit processed "$oldName" --create --upsert-from-stdin --context --intern-op-board-rename >/dev/null ; then
+			local huskProcessedAt="$processedAtOverride"
+			if [ -z "$huskProcessedAt" ] ; then huskProcessedAt="$( date +"%Y-%m-%d %H:%M %z" )" ; fi
+			if ! printf '%s\n' '---' 'type: note' "superseded-by: $newName (renamed)" '---' "Renamed to \`$newName\`." | DistroAgentsTools --intern-op-board-upsert-move-edit processed "$oldName" --create --upsert-from-stdin --header:upsert:processed-at:"$huskProcessedAt" --context --intern-op-board-rename >/dev/null ; then
 				echo "$MDSC_CMD: board-rename: ⛔ ERROR: failed to leave husk at board/processed/$oldName" >&2
 				set +e ; return 1
 			fi

@@ -24,6 +24,269 @@
 ## dispatches on anything, tests $1, or runs an operation.
 ## ===========================================================================
 
+## THE TWO ENDPOINTS BOTH PAGE BACKWARDS, but only one of them is paged here.
+## Measured against the live API, walked page by page, not assumed:
+##
+## - `conversations.history` pages BACKWARDS. Page 1 is the newest `limit`
+##   messages, its body is ordered newest-first, and the cursor walks into older
+##   material. Cursor paging works, and a backwards bound (`$9`) is meaningful.
+## - `conversations.replies` ALSO pages backwards -- page 1 carries the NEWEST
+##   replies -- but its body is ordered oldest-first AND it repeats the thread
+##   parent at the head of EVERY page. Walked with `limit=1` over a 3-message
+##   thread: page 1 = parent + newest reply, page 2 = parent + middle reply,
+##   then `has_more:false`. So every reply appears exactly once across the pages
+##   and none is skipped: the pages ARE a clean partition of the replies, and
+##   the parent is the single duplicate. Paging it correctly is therefore
+##   possible, and costs the one thing avoided everywhere in this family --
+##   dropping the repeated parent from pages 2..N means editing a `messages`
+##   array inside a raw body, i.e. JSON surgery. Until that exists a thread is
+##   read in ONE call at the ceiling; because the endpoint pages backwards that
+##   call returns the parent plus the NEWEST 999 replies -- the end a sweep
+##   actually needs -- and never an old prefix. If Slack still reports
+##   `has_more` the read FAILS rather than passing a partial thread off as
+##   whole. `ENV_MAGIC_SWEEP_SLACK_THREAD_TRUNCATE_OK=true` downgrades that to a
+##   loud note keeping the newest 999, for the operator who would otherwise have
+##   a thread go partial on every pass for ever with no way to clear it. Opt-in,
+##   because the default must not decide for a reader that the tail is enough.
+##
+## PAGES ARE KEPT SEPARATE, one raw body per FILE in $8's directory, and are
+## emitted by the callers each behind its own `## dm=<channel>` marker -- the
+## multi-document input shape AgentsSlackHistoryThreadTargets.awk and
+## AgentsSessionContextCommsItems.awk already implement for the human-owner
+## two-DM fan-out. Splicing the pages' `messages` arrays into one synthetic body
+## would need a JSON merge this family does not have, and would let page two's
+## message index 0 overwrite page one's in both of those parsers. One file per
+## page rather than one line per page, because page identity must not be line
+## identity -- the line-oriented shortcut AgentsSlackJsonField.awk:115-120
+## forbids. The marker deliberately carries NO `identity=`: optional at both
+## parsers, and omitting it keeps a one-page read byte-identical to the
+## single-call read it replaces.
+##
+## $8 is a work DIRECTORY. It is created/emptied here, and filled with
+## `page.<n>` files numbered from 1 in arrival order.
+##
+## rc 0 -- the conversation was read to its end. rc 1 -- it was not, and nothing
+## partial is passed off as complete: a page that failed, a cursor that could not
+## be read, a thread longer than one high-limit call, and a conversation still
+## unfinished at the page cap are all hard failures, because the whole point of
+## this helper is that a short answer must never mean "I stopped looking".
+AgentsToolsSlackReadPagedConversation(){
+	local pagedMember="$1" pagedApi="$2" pagedTarget="$3" pagedIdentity="$4"
+	local pagedThreadTs="$5" pagedOldest="$6" pagedContext="$7" pagedDir="$8"
+	local pagedUntil="$9" pagedCounterparty="${10}"
+
+	## Slack's default when `limit` is omitted is 100 (measured), and it documents
+	## 999 as the ceiling while recommending no more than 200. 200 is REQUESTED
+	## rather than defaulted, so the page size is a stated number. The floor of 100
+	## is what makes "page 1 alone already covers everything the pre-paging single
+	## call returned" a guarantee rather than a property of the default.
+	local pagedSize="${ENV_MAGIC_SWEEP_SLACK_PAGE_SIZE:-200}"
+	case "$pagedSize" in
+		''|*[!0123456789]*)	pagedSize=200 ;;
+	esac
+	if [ "$pagedSize" -lt 100 ] ; then pagedSize=100 ; fi
+	if [ "$pagedSize" -gt 999 ] ; then pagedSize=999 ; fi
+	## A bound on a loop whose exit condition is a remote server's own field.
+	local pagedMax="${ENV_MAGIC_SWEEP_SLACK_PAGE_MAX:-20}"
+	case "$pagedMax" in
+		''|*[!0123456789]*|0)	pagedMax=20 ;;
+	esac
+
+	## A thread is read in ONE call, at the ceiling -- see the endpoint note above.
+	local pagedSingleCall="false"
+	if [ "$pagedApi" = "conversations.replies" ] ; then
+		pagedSingleCall="true"
+		pagedSize=999
+		pagedUntil=""
+	fi
+
+	rm -rf "$pagedDir" && mkdir -p "$pagedDir" || return 1
+
+	local pagedCursor="" pagedIndex=0 pagedBody="" pagedRc=0 pagedFieldRc=0
+	local pagedHasMore="" pagedPageOldest=""
+	local pagedArgs=()
+	while : ; do
+		pagedIndex=$(( pagedIndex + 1 ))
+
+		pagedArgs=( "$pagedMember" --api "$pagedApi" --resolve-target "$pagedTarget" )
+		if [ "$pagedIdentity" = "bot" ] ; then
+			pagedArgs+=( --identity bot )
+		fi
+		if [ -n "$pagedThreadTs" ] ; then
+			pagedArgs+=( --form "ts=$pagedThreadTs" )
+		fi
+		## Positive test on presence: an absent --oldest is "not asked for".
+		if [ -n "$pagedOldest" ] ; then
+			pagedArgs+=( --form "oldest=$pagedOldest" )
+		fi
+		## The counterparty control is its own conversations.info call attached to
+		## whichever request carries the flag, never a check on the body -- so
+		## asserting it once, on page 1, costs nothing beyond what the unpaged
+		## read already spent, and repeating it per page would spend a call a page.
+		if [ -n "$pagedCounterparty" ] && [ "$pagedIndex" -eq 1 ] ; then
+			pagedArgs+=( --expect-counterparty "$pagedCounterparty" )
+		fi
+		pagedArgs+=( --form "limit=$pagedSize" )
+		if [ -n "$pagedCursor" ] ; then
+			pagedArgs+=( --form "cursor=$pagedCursor" )
+		fi
+		pagedArgs+=( --context "$pagedContext (page $pagedIndex)" )
+
+		pagedRc=0
+		pagedBody="$( DistroAgentsTools --intern-op-slack-call "${pagedArgs[@]}" )" || pagedRc=$?
+		if [ "$pagedRc" != "0" ] ; then
+			if [ "$pagedIndex" -gt 1 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD: paged read of $pagedApi $pagedTarget failed on page $pagedIndex of an already-started conversation. Pages 1..$(( pagedIndex - 1 )) were read and are being DISCARDED rather than returned: a prefix returned without its remainder is exactly the silent truncation this read exists to remove." >&2
+			fi
+			return 1
+		fi
+		printf '%s\n' "$pagedBody" > "$pagedDir/page.$pagedIndex" || return 1
+
+		## A thread: one call, and `has_more` decides pass-or-fail, never a merge.
+		if [ "$pagedSingleCall" = "true" ] ; then
+			pagedFieldRc=0
+			pagedHasMore="$( printf '%s\n' "$pagedBody" | LC_ALL=C awk -v path=has_more \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" 2>/dev/null )" || pagedFieldRc=$?
+			case "$pagedFieldRc" in
+				0|3)	;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD: read of $pagedApi $pagedTarget: the response body could not be parsed to decide whether the thread was returned whole (field reader rc=$pagedFieldRc). Refusing to treat an unreadable body as a complete thread." >&2
+					return 1
+				;;
+			esac
+			if [ "$pagedHasMore" = "true" ] ; then
+				## Backwards paging means what came back is the thread's NEWEST
+				## $pagedSize replies, never an old prefix -- so the truncation
+				## here drops the OLD end. Said either way, never silently.
+				if [ "${ENV_MAGIC_SWEEP_SLACK_THREAD_TRUNCATE_OK:-}" = "true" ] ; then
+					echo "# $MDSC_CMD: read of $pagedApi $pagedTarget: TRUNCATED ON PURPOSE -- this thread has more than $pagedSize replies. What follows is the parent plus the NEWEST $pagedSize of them; replies older than those are NOT in this result and nothing here says what they contain. Accepted because ENV_MAGIC_SWEEP_SLACK_THREAD_TRUNCATE_OK=true was set." >&2
+					return 0
+				fi
+				echo "⛔ ERROR: $MDSC_CMD: read of $pagedApi $pagedTarget: this thread has MORE than $pagedSize replies. What came back is the parent plus the NEWEST $pagedSize -- the endpoint pages backwards -- so the missing part is the OLD end of the thread, not the recent end. It is not cursor-paged here because conversations.replies repeats the thread parent on every page and dropping it needs a JSON edit this family does not do. This read FAILS rather than passing a partial thread off as whole. Set ENV_MAGIC_SWEEP_SLACK_THREAD_TRUNCATE_OK=true to accept the newest $pagedSize instead -- appropriate when a cut-off already puts the old end out of scope -- or read the thread's older part directly." >&2
+				return 1
+			fi
+			return 0
+		fi
+
+		pagedFieldRc=0
+		pagedCursor="$( printf '%s\n' "$pagedBody" | LC_ALL=C awk -v path=response_metadata.next_cursor \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" 2>/dev/null )" || pagedFieldRc=$?
+		case "$pagedFieldRc" in
+			0)
+				## Present. A present-but-empty cursor is Slack's own "last page".
+			;;
+			3)
+				## Absent: the documented shape of a response with no page after it.
+				pagedCursor=""
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD: paged read of $pagedApi $pagedTarget: page $pagedIndex was fetched but its own body could not be parsed to decide whether another page follows (field reader rc=$pagedFieldRc). Refusing to treat an unreadable body as the end of the conversation." >&2
+				return 1
+			;;
+		esac
+
+		if [ -z "$pagedCursor" ] ; then
+			return 0
+		fi
+
+		## STOP ONCE THE WINDOW IS COVERED, when a bound is given -- otherwise
+		## paging to the true end means re-reading every watched channel from its
+		## first message on every pass, since the sweep deliberately sends no
+		## Slack `oldest=`. Applied to PAGING only: the straddling page is kept
+		## whole, so a parent below the bound is still discovered. Only reachable
+		## for conversations.history, whose formatted page really does start at
+		## its own oldest message (replies clear $pagedUntil above).
+		if [ -n "$pagedUntil" ] ; then
+			pagedPageOldest=""
+			pagedPageOldest="$( printf '%s\n' "$pagedBody" \
+				| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessagesFormat.awk" 2>/dev/null \
+				| LC_ALL=C awk 'NR == 1 { sub(/ .*/, "") ; print ; exit ; }' )" || pagedPageOldest=""
+			## An unreadable page ts is not treated as "covered": paging continues
+			## and the page cap stays the backstop. Guessing "covered" here would
+			## reintroduce the truncation silently.
+			if [ -n "$pagedPageOldest" ] ; then
+				if ! AgentsToolsSlackTsNewerThan "$pagedPageOldest" "$pagedUntil" ; then
+					return 0
+				fi
+			fi
+		fi
+
+		if [ "$pagedIndex" -ge "$pagedMax" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD: paged read of $pagedApi $pagedTarget stopped at the page cap of $pagedMax pages ($pagedSize per page) with Slack still offering another page. This read FAILS rather than returning what it has: $(( pagedIndex * pagedSize )) messages returned as if they were the whole conversation is the exact silent truncation this paging removes. Raise ENV_MAGIC_SWEEP_SLACK_PAGE_MAX, or give the read a cut-off so it has less to walk." >&2
+			return 1
+		fi
+	done
+}
+
+## True when $1 is strictly newer than $2. Both are Slack `ts` values -- ten
+## digits of seconds, a dot, six of microseconds. Deliberately NOT `$1+0 > $2+0`:
+## at a magnitude near 1.8e9 a double resolves to roughly 2e-7, so two timestamps
+## a microsecond apart are not reliably ordered by float comparison. Seconds
+## compare as numbers (exact at that width), microseconds as a zero-padded
+## fixed-width string. A bound given as bare epoch seconds compares correctly:
+## its microseconds read as 000000.
+AgentsToolsSlackTsNewerThan(){
+	LC_ALL=C awk -v candidate="$1" -v floorTs="$2" '
+		function secOf(v) {
+			sub(/\..*$/, "", v)
+			if ( v == "" ) { v = "0" ; }
+			return v + 0
+		}
+		function fracOf(v,   f) {
+			f = v
+			if ( f !~ /\./ ) { return "000000" ; }
+			sub(/^[^.]*\./, "", f)
+			while ( length(f) < 6 ) { f = f "0" ; }
+			return substr(f, 1, 6)
+		}
+		BEGIN {
+			candidateSec = secOf(candidate)
+			floorSec = secOf(floorTs)
+			if ( candidateSec > floorSec ) { exit 0 ; }
+			if ( candidateSec < floorSec ) { exit 1 ; }
+			if ( fracOf(candidate) > fracOf(floorTs) ) { exit 0 ; }
+			exit 1
+		}
+	'
+}
+
+## Renders the pages written by AgentsToolsSlackReadPagedConversation into $1 --
+## a work directory of `page.<n>` files -- in the human-readable form.
+##
+## ONE FORMATTER RUN PER PAGE, pages replayed LAST FIRST. Both halves measured,
+## not assumed:
+##
+## - AgentsSlackMessagesFormat.awk keys every message on its index WITHIN ITS OWN
+##   response (`tsOf[idx]`, that file's :128) and never resets between input
+##   lines, so feeding it N pages in one run does not concatenate them: the last
+##   page's message 0 overwrites the previous page's, and a 6-message
+##   conversation read in 3 pages of 2 comes back as 2 messages, silently.
+## - That formatter's END sorts every message by `ts` ascending, so each
+##   formatted page comes out oldest-first whatever order its own body arrived
+##   in. The sort never crosses pages, and `conversations.history` pages are
+##   newest-first, so replaying last page first is what orders the pages
+##   themselves and the whole conversation comes out chronological.
+##   (`conversations.replies` is never multi-page here -- see the reader above
+##   -- so its single page is simply emitted as the unpaged read always emitted
+##   it.)
+AgentsToolsSlackFormatPagedConversation(){
+	local formatDir="$1"
+	local formatIndex=0 formatRc=0
+
+	while [ -f "$formatDir/page.$(( formatIndex + 1 ))" ] ; do
+		formatIndex=$(( formatIndex + 1 ))
+	done
+	while [ "$formatIndex" -ge 1 ] ; do
+		LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessagesFormat.awk" \
+			< "$formatDir/page.$formatIndex" || formatRc=$?
+		if [ "$formatRc" != "0" ] ; then
+			return "$formatRc"
+		fi
+		formatIndex=$(( formatIndex - 1 ))
+	done
+	return 0
+}
+
 ## Resolves alias|<channel>|<channel>:<ts> to CHANNEL= + THREAD_TS=; shared by every op taking a target.
 DistroAgentsToolsResolveTarget(){
 	local target="$1"
@@ -747,11 +1010,26 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local oldest pretty="true" identityAsBot="false"
+		local oldest pretty="true" identityAsBot="false" pageUntil=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--oldest)
 					oldest="$2" ; shift 2
+				;;
+				## NOT --oldest. --oldest is sent to Slack and drops messages;
+				## this bounds only how far BACK the paging walks, and the page
+				## that straddles it is still returned whole. It exists so a
+				## resumable sweep does not re-page an entire channel history
+				## every pass while still being allowed to see thread parents
+				## older than its own cut-off. IGNORED for a thread target: a
+				## thread is read in one call, and conversations.replies pages
+				## forwards, so a backwards bound has no meaning against it.
+				--page-until)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: slack-check: ⛔ ERROR: --page-until: value required (<epoch>[.<micros>])" >&2
+						set +e ; return 1
+					fi
+					pageUntil="$2" ; shift 2
 				;;
 				--raw)
 					pretty="false" ; shift
@@ -856,20 +1134,19 @@ case "$1" in
 						break
 					fi
 
-					local legOpArgs=( "$memberName" --api conversations.history \
-						--resolve-target "$legDm" \
-						--expect-counterparty "$fanOutParty" \
-						--identity "$legIdentity" )
-					## Positive test on presence: an absent --oldest is "not
-					## asked for", exactly as on the single-conversation path.
-					if [ -n "$oldest" ] ; then
-						legOpArgs+=( --form "oldest=$oldest" )
-					fi
-					legOpArgs+=( --context "--intern-op-slack-check human-owner ($legIdentity identity, DM $legDm)" )
-
-					echo "# $MDSC_CMD: slack-check: GET conversations.history channel=$legDm (human-owner DM under $legIdentity identity, counterparty asserted against $fanOutParty)${oldest:+ oldest=$oldest}" >&2
+					echo "# $MDSC_CMD: slack-check: GET conversations.history channel=$legDm (human-owner DM under $legIdentity identity, counterparty asserted against $fanOutParty)${oldest:+ oldest=$oldest} (paged to the end of the DM, not one page)" >&2
 					legRc=0
-					legResponse="$( DistroAgentsTools --intern-op-slack-call "${legOpArgs[@]}" 2>"$legDiagFile" )" || legRc=$?
+					## Same paging as the single-conversation path below: this leg
+					## used to make one call and drop the cursor, so a human-owner
+					## DM longer than one page was read as if it ended there.
+					## `--expect-counterparty` goes INTO the paged read, which
+					## attaches it to page 1 only -- the control is its own
+					## conversations.info call, so asserting it there costs exactly
+					## what the unpaged read already cost, and nothing per page.
+					AgentsToolsSlackReadPagedConversation "$memberName" conversations.history "$legDm" \
+						"$legIdentity" "" "$oldest" \
+						"--intern-op-slack-check human-owner ($legIdentity identity, DM $legDm)" \
+						"$fanDir/pages.$legIndex" "$pageUntil" "$fanOutParty" 2>"$legDiagFile" || legRc=$?
 					legDiag="$( cat "$legDiagFile" )"
 					[ -z "$legDiag" ] || printf '%s\n' "$legDiag" >&2
 					if [ "$legRc" != "0" ] ; then
@@ -879,7 +1156,7 @@ case "$1" in
 
 					if [ "$pretty" = "true" ] ; then
 						local legFmtRc=0
-						printf '%s\n' "$legResponse" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessagesFormat.awk" > "$fanDir/fmt.$legIndex" || legFmtRc=$?
+						AgentsToolsSlackFormatPagedConversation "$fanDir/pages.$legIndex" > "$fanDir/fmt.$legIndex" || legFmtRc=$?
 						if [ "$legFmtRc" != "0" ] ; then
 							legReason="the response was read but could not be formatted (the formatter's own error is above)"
 							break
@@ -902,10 +1179,19 @@ case "$1" in
 							break
 						fi
 					else
-						{
-							printf '## dm=%s identity=%s (this DM'"'"'s own raw API response follows)\n' "$legDm" "$legIdentity"
-							printf '%s\n' "$legResponse"
-						} >> "$fanDir/raw"
+						## One marker per PAGE, each carrying this leg's own
+						## identity exactly as before -- the consumers scope their
+						## per-message arrays to the document a marker opens, so a
+						## second page's message index 0 cannot overwrite a first
+						## page's without one.
+						local legPageIndex=1
+						while [ -f "$fanDir/pages.$legIndex/page.$legPageIndex" ] ; do
+							{
+								printf '## dm=%s identity=%s (this DM'"'"'s own raw API response, page %s, follows)\n' "$legDm" "$legIdentity" "$legPageIndex"
+								cat "$fanDir/pages.$legIndex/page.$legPageIndex"
+							} >> "$fanDir/raw"
+							legPageIndex=$(( legPageIndex + 1 ))
+						done
 					fi
 					break
 				done
@@ -964,32 +1250,38 @@ case "$1" in
 			apiMethod="conversations.history"
 		fi
 
-		echo "# $MDSC_CMD: slack-check: GET $apiMethod channel=$channel${threadTs:+ ts=$threadTs}${oldest:+ oldest=$oldest}" >&2
+		echo "# $MDSC_CMD: slack-check: GET $apiMethod channel=$channel${threadTs:+ ts=$threadTs}${oldest:+ oldest=$oldest} (read whole, not one page)" >&2
 
-		local opArgs=( "$memberName" --api "$apiMethod" --resolve-target "$channel" )
+		local checkIdentity="user"
 		if [ "$identityAsBot" = "true" ] ; then
-			opArgs+=( --identity bot )
+			checkIdentity="bot"
 		fi
-		if [ -n "$threadTs" ] ; then
-			opArgs+=( --form "ts=$threadTs" )
-		fi
-		if [ -n "$oldest" ] ; then
-			opArgs+=( --form "oldest=$oldest" )
-		fi
-		opArgs+=( --context "--intern-op-slack-check" )
 
-		local response callRc=0
-		response="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" )" || callRc=$?
-		if [ "$callRc" != "0" ] ; then
+		local pagesDir
+		pagesDir="$( mktemp -d )" || { set +e ; return 1 ; }
+		local pagedCallRc=0
+		AgentsToolsSlackReadPagedConversation "$memberName" "$apiMethod" "$channel" "$checkIdentity" \
+			"$threadTs" "$oldest" "--intern-op-slack-check" "$pagesDir" "$pageUntil" "" || pagedCallRc=$?
+		if [ "$pagedCallRc" != "0" ] ; then
+			rm -rf "$pagesDir"
 			set +e ; return 1
 		fi
 
-		local awkStatus=0
+		local awkStatus=0 pageIndex=1
 		if [ "$pretty" = "true" ] ; then
-			printf '%s\n' "$response" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessagesFormat.awk" || awkStatus=$?
+			## Marker lines are deliberately not written on this path: they are
+			## not JSON, and this formatter parses every line it is given as a body.
+			AgentsToolsSlackFormatPagedConversation "$pagesDir" || awkStatus=$?
 		else
-			printf '%s\n' "$response"
+			while [ -f "$pagesDir/page.$pageIndex" ] ; do
+				## No `identity=` on this marker, deliberately -- see
+				## AgentsToolsSlackReadPagedConversation's own note.
+				printf '## dm=%s (page %s of this conversation'"'"'s own raw read follows)\n' "$channel" "$pageIndex"
+				cat "$pagesDir/page.$pageIndex"
+				pageIndex=$(( pageIndex + 1 ))
+			done
 		fi
+		rm -rf "$pagesDir"
 
 		if [ "$awkStatus" != "0" ] ; then
 			set +e ; return 1

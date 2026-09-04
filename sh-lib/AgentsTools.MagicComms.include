@@ -12,6 +12,65 @@
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 
+## Pages a Slack LIST endpoint to exhaustion under ONE identity, printing each
+## page body on its own line -- the multi-page input shape
+## AgentsSlackListRecords.awk reads. Called for conversations.list and for
+## users.list, which is the reuse that makes it a function rather than two
+## copies of a cursor loop.
+##
+## rc 1 ON ANY FAILURE, and nothing partial is printed as if it were whole: a
+## prefix of a conversation list returned as the list is exactly what makes a
+## correspondent invisible -- the defect this enumeration exists to remove.
+##   $1 member  $2 identity (user|bot)  $3 api method
+##   $4 `types=` value, or "" for an endpoint that takes none  $5 --context text
+AgentsMagicCommsSlackListPaged(){
+	local listMember="$1" listIdentity="$2" listApi="$3" listTypes="$4" listContext="$5"
+	local listMax="${ENV_MAGIC_SWEEP_SLACK_PAGE_MAX:-20}"
+	case "$listMax" in ''|*[!0123456789]*|0) listMax=20 ;; esac
+	local listCursor="" listIndex=0 listBody="" listRc=0 listFieldRc=0 listArgs=()
+	while : ; do
+		listIndex=$(( listIndex + 1 ))
+		listArgs=( "$listMember" --api "$listApi" --identity "$listIdentity" --form "limit=1000" )
+		if [ -n "$listTypes" ] ; then
+			listArgs+=( --form "types=$listTypes" --form "exclude_archived=true" )
+		fi
+		if [ -n "$listCursor" ] ; then
+			listArgs+=( --form "cursor=$listCursor" )
+		fi
+		listArgs+=( --context "$listContext (page $listIndex)" )
+		listRc=0
+		listBody="$( DistroAgentsTools --intern-op-slack-call "${listArgs[@]}" )" || listRc=$?
+		if [ "$listRc" != "0" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD: $listApi under the $listIdentity identity failed on page $listIndex. Pages 1..$(( listIndex - 1 )) are DISCARDED rather than returned: an inventory missing its tail reads as a workspace with fewer conversations than it has." >&2
+			return 1
+		fi
+		printf '%s\n' "$listBody"
+		listFieldRc=0
+		listCursor="$( printf '%s\n' "$listBody" | LC_ALL=C awk -v path=response_metadata.next_cursor \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" 2>/dev/null )" || listFieldRc=$?
+		case "$listFieldRc" in
+			0)
+				## Present. A present-but-empty cursor is Slack's own "last page".
+			;;
+			3)
+				## Absent: the documented shape of a response with no page after it.
+				listCursor=""
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD: $listApi page $listIndex was fetched but its own body could not be parsed to decide whether another page follows (field reader rc=$listFieldRc). Refusing to treat an unreadable body as the end of the list." >&2
+				return 1
+			;;
+		esac
+		if [ -z "$listCursor" ] ; then
+			return 0
+		fi
+		if [ "$listIndex" -ge "$listMax" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD: $listApi stopped at the page cap of $listMax pages with Slack still offering another page. This enumeration FAILS rather than returning what it has. Raise ENV_MAGIC_SWEEP_SLACK_PAGE_MAX." >&2
+			return 1
+		fi
+	done
+}
+
 case "$1" in
 
 	--magic-comms-slack-resolve-ids)
@@ -244,6 +303,205 @@ case "$1" in
 		rm -f "$headerFile"
 		trap - EXIT
 		set +e ; return 1
+	;;
+
+	## WHICH CONVERSATIONS EXIST FOR THIS MEMBER RIGHT NOW -- the one question this
+	## op answers, per identity, from Slack, every time it is called.
+	##
+	## THERE IS DELIBERATELY NO CACHE AND NO DORMANCY SKIP-LIST. A stored inventory
+	## is precisely what makes a correspondent who writes for the first time -- or
+	## for the first time in a year -- invisible, which is the defect this op
+	## exists to remove. A dormant DM costs one `conversations.history` with an
+	## `oldest=` that returns nothing; the per-source watermark is the filter, not
+	## a remembered guess about who is still talking.
+	##
+	## SEPARATE OP RATHER THAN AN INLINED CALL, for three reasons: two callers need
+	## the inventory (the sweep, and anything auditing its coverage); it is exactly
+	## the thing that must be re-fetched every pass; and a named op makes "the
+	## roster could not be fetched" a reportable partial instead of an empty source
+	## list that reads as "this identity has no DMs".
+	--magic-comms-slack-conversations-roster)
+		shift
+		if [ "$1" = "--print-required-scopes" ] ; then
+			printf '%s\n' users:read channels:read groups:read im:read mpim:read
+			return 0
+		fi
+		local memberName="$1"
+		shift || true
+		if [ -z "$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-conversations-roster: syntax is <team-member> [--identity user|bot|both] [--types <csv>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" magic-comms-slack-conversations-roster || { set +e ; return 1 ; }
+
+		local rosterIdentities="user bot" rosterTypes="im,mpim"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--identity)
+					case "${2:-}" in
+						user)	rosterIdentities="user" ;;
+						bot)	rosterIdentities="bot" ;;
+						both)	rosterIdentities="user bot" ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-conversations-roster: --identity must be user, bot or both, got: ${2:-}" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
+				--types)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-conversations-roster: --types requires a value (a conversations.list types= csv, e.g. im,mpim or public_channel,private_channel)" >&2
+						set +e ; return 1
+					fi
+					rosterTypes="$2"
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-conversations-roster: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		echo "## op=magic-comms-slack-conversations-roster member=$memberName types=$rosterTypes"
+
+		## Presence only, reduced to a boolean on the next line and dropped. A
+		## member with no user token has no user persona at all -- that is a
+		## configuration fact, reported as `no-token`, and it is NOT a failure.
+		local memberUserToken=""
+		memberUserToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_USER_TOKEN )" || memberUserToken=""
+		local memberHasUserToken="false"
+		[ -z "$memberUserToken" ] || memberHasUserToken="true"
+		memberUserToken=""
+
+		local rosterIdentity rosterOkCount=0 rosterFailCount=0
+		for rosterIdentity in $rosterIdentities ; do
+			if [ "$rosterIdentity" = "user" ] && [ "$memberHasUserToken" != "true" ] ; then
+				echo "IDENTITY|identity=user|auth=-|handle=-|status=no-token|conversations=0"
+				continue
+			fi
+
+			local rosterAuthResp="" rosterAuthRc=0
+			rosterAuthResp="$( DistroAgentsTools --intern-op-slack-call "$memberName" --api auth.test \
+				--identity "$rosterIdentity" \
+				--context "--magic-comms-slack-conversations-roster ($rosterIdentity identity)" )" || rosterAuthRc=$?
+			if [ "$rosterAuthRc" != "0" ] ; then
+				echo "IDENTITY|identity=$rosterIdentity|auth=-|handle=-|status=FAILED|reason=auth.test failed, so this identity was never established and nothing was enumerated under it"
+				rosterFailCount=$(( rosterFailCount + 1 ))
+				continue
+			fi
+			local rosterAuthId="" rosterAuthName="" rosterAuthIdRc=0 rosterAuthNameRc=0
+			rosterAuthId="$( printf '%s\n' "$rosterAuthResp" | LC_ALL=C awk -v path=user_id \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || rosterAuthIdRc=$?
+			if [ "$rosterAuthIdRc" != "0" ] || [ -z "$rosterAuthId" ] ; then
+				echo "IDENTITY|identity=$rosterIdentity|auth=-|handle=-|status=FAILED|reason=auth.test returned ok but no readable top-level user_id (field reader rc=$rosterAuthIdRc) -- refusing to key a roster on an empty identity"
+				rosterFailCount=$(( rosterFailCount + 1 ))
+				continue
+			fi
+			rosterAuthName="$( printf '%s\n' "$rosterAuthResp" | LC_ALL=C awk -v path=user -v optional=1 \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || rosterAuthNameRc=$?
+			[ "$rosterAuthNameRc" = "0" ] && [ -n "$rosterAuthName" ] || rosterAuthName='-'
+
+			## Handles come from the SAME identity that enumerated the
+			## conversations: a roster naming a counterparty the reading token
+			## cannot see would be a name attached to nothing.
+			local rosterUserPages="" rosterUserRc=0
+			rosterUserPages="$( AgentsMagicCommsSlackListPaged "$memberName" "$rosterIdentity" users.list "" \
+				"--magic-comms-slack-conversations-roster ($rosterIdentity identity, handles)" )" || rosterUserRc=$?
+			local rosterHandles=""
+			if [ "$rosterUserRc" = "0" ] ; then
+				rosterHandles="$( printf '%s\n' "$rosterUserPages" | LC_ALL=C awk -v array=members -v want=id,name \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackListRecords.awk" )" || rosterHandles=""
+			fi
+			rosterUserPages=""
+
+			local rosterConvPages="" rosterConvRc=0
+			rosterConvPages="$( AgentsMagicCommsSlackListPaged "$memberName" "$rosterIdentity" conversations.list "$rosterTypes" \
+				"--magic-comms-slack-conversations-roster ($rosterIdentity identity, conversations)" )" || rosterConvRc=$?
+			if [ "$rosterConvRc" != "0" ] ; then
+				echo "IDENTITY|identity=$rosterIdentity|auth=$rosterAuthId|handle=$rosterAuthName|status=FAILED|reason=conversations.list could not be paged to its end, so this identity's inventory is UNKNOWN -- not empty"
+				rosterFailCount=$(( rosterFailCount + 1 ))
+				continue
+			fi
+
+			local rosterLines="" rosterLinesRc=0
+			rosterLines="$( printf '%s\n' "$rosterConvPages" \
+				| LC_ALL=C awk -v array=channels -v want=id,is_im,is_mpim,user,is_user_deleted \
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackListRecords.awk" )" || rosterLinesRc=$?
+			rosterConvPages=""
+			if [ "$rosterLinesRc" != "0" ] ; then
+				echo "IDENTITY|identity=$rosterIdentity|auth=$rosterAuthId|handle=$rosterAuthName|status=FAILED|reason=the conversations.list body was fetched but could not be read (record reader rc=$rosterLinesRc) -- treat as NOT ENUMERATED, never as empty"
+				rosterFailCount=$(( rosterFailCount + 1 ))
+				continue
+			fi
+
+			## The join is one awk over one value, not a scratch file: the handle map
+			## is a value, and a value that fits in a variable stays in one.
+			##
+			## THE MAP TRAVELS IN THE ENVIRONMENT, NOT IN `-v`. one-true-awk rejects
+			## a newline inside a `-v` assigned value outright -- `awk: newline in
+			## string ... at source line 1`, measured here against this very map --
+			## so a multi-line value cannot be passed that way at all. `ENVIRON` has
+			## no such restriction, and separately does not backslash-decode what it
+			## carries, which a handle containing one would otherwise lose.
+			local rosterEmitted=""
+			rosterEmitted="$( printf '%s\n' "$rosterLines" | ROSTER_HANDLES="$rosterHandles" LC_ALL=C awk -F '\t' \
+				-v identity="$rosterIdentity" -v auth="$rosterAuthId" -v persona="$rosterAuthName" '
+				BEGIN {
+					hn = split(ENVIRON["ROSTER_HANDLES"], hl, "\n")
+					for (h = 1; h <= hn; h++) {
+						if (hl[h] == "") continue
+						split(hl[h], hf, "\t")
+						handleOf[hf[1]] = hf[2]
+					}
+					count = 0
+				}
+				$1 == "" { next ; }
+				{
+					kind = ($3 == "true") ? "mpim" : (($2 == "true") ? "im" : "other")
+					who = ($4 == "") ? "-" : $4
+					name = (who in handleOf && handleOf[who] != "") ? handleOf[who] : "-"
+					printf("CONV|identity=%s|auth=%s|id=%s|kind=%s|counterparty=%s|handle=%s|counterparty-deleted=%s\n", \
+						identity, auth, $1, kind, who, name, ($5 == "" ? "-" : $5))
+					if (name != "-" && !(who in named)) { named[who] = name ; order[++nn] = who ; }
+					count++
+				}
+				END {
+					## The handle map, bounded to the parties this roster actually names
+					## -- the whole workspace directory is not the answer to "who is this
+					## conversation with", and a caller wanting it can ask users.list
+					## itself. Emitted from the SAME fetch the join above used, so it
+					## costs no additional call.
+					if (!(auth in named) && auth != "" && persona != "" && persona != "-") { printf("USER|%s|%s\n", auth, persona) ; }
+					for (u = 1; u <= nn; u++) printf("USER|%s|%s\n", order[u], named[order[u]])
+					printf("COUNT=%d\n", count)
+				}
+			' )" || rosterEmitted=""
+			if [ -z "$rosterEmitted" ] ; then
+				echo "IDENTITY|identity=$rosterIdentity|auth=$rosterAuthId|handle=$rosterAuthName|status=FAILED|reason=the roster records were read but could not be rendered -- treat as NOT ENUMERATED, never as empty"
+				rosterFailCount=$(( rosterFailCount + 1 ))
+				continue
+			fi
+			local rosterCount=""
+			rosterCount="$( printf '%s\n' "$rosterEmitted" | LC_ALL=C sed -n 's/^COUNT=//p' )"
+			echo "IDENTITY|identity=$rosterIdentity|auth=$rosterAuthId|handle=$rosterAuthName|status=ok|conversations=${rosterCount:-0}"
+			printf '%s\n' "$rosterEmitted" | LC_ALL=C grep -E '^(CONV|USER)\|' || true
+			rosterOkCount=$(( rosterOkCount + 1 ))
+		done
+
+		## Complete / partial / nothing, told apart by rc as well as by the line --
+		## a roster one identity failed must never be read as one covering them all.
+		if [ "$rosterFailCount" = "0" ] ; then
+			echo "ROSTER_STATUS=complete"
+			return 0
+		fi
+		if [ "$rosterOkCount" != "0" ] ; then
+			echo "ROSTER_STATUS=partial"
+			set +e ; return 3
+		fi
+		echo "ROSTER_STATUS=none"
+		set +e ; return 4
 	;;
 
 	*)

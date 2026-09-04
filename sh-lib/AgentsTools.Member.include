@@ -420,6 +420,71 @@ case "$1" in
 		return $?
 	;;
 
+	##
+	## Member-scoped trash for one item out of the member's OWN inbox --
+	## the live root or its processed/, whichever holds it, root first.
+	## Forwards to the same intern-op arm --librarian-inbox-item-trash
+	## calls; the difference is only where --from-inbox: comes from.
+	##
+	## <member> is one positional carrying both the acting member and the
+	## owning inbox, matching --member-inbox-item-read's own convention.
+	## NOTE for whoever hardens this next: that makes the two the same
+	## STRING, not the same IDENTITY -- nothing here proves the caller is
+	## the member it names, so this positional is not access control and
+	## must not be relied on as any.
+	##
+	## No type-prefix whitelist, unlike the sibling read op: see the
+	## "DELIBERATELY ABSENT" note in AgentsTools.InternOpBoardTrash.include
+	## for why -- a whitelist would make the misfiled board-type document,
+	## the item whose removal is least in doubt, the one item that cannot
+	## be removed.
+	##
+	--member-inbox-item-trash)
+		shift
+		##
+		## --from-inbox: FAILS CLOSED in every position. This op synthesises
+		## that value from the acting member itself; accepting a
+		## caller-supplied one would turn a member-scoped operation into a
+		## cross-member one silently. Scanned across the whole argument
+		## vector before the positionals are consumed, so a --from-inbox:
+		## standing where <item-filename> belongs is refused for the real
+		## reason rather than as some downstream arity error.
+		##
+		local trashScanArg
+		for trashScanArg in "$@" ; do
+			case "$trashScanArg" in
+				--from-inbox:*)
+					echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-trash: $trashScanArg is not valid here -- this op trashes an item out of <member>'s own inbox, so the source inbox and the acting member are the same one positional. Use --librarian-inbox-item-trash for a cross-member inbox." >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local memberName="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-trash: syntax is <member> <item-filename>" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-trash: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-item-trash || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" member-inbox-item-trash || { set +e ; return 1 ; }
+		case "$itemName" in
+			*.md) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-trash: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
+		DistroAgentsTools --intern-op-board-trash "$memberName" "--from-inbox:$memberName" "$itemName" \
+			--context --member-inbox-item-trash
+		return $?
+	;;
+
 	--member-work-session-input-scan)
 		shift
 		local memberName="$1"
