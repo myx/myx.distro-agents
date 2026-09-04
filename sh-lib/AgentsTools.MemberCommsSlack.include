@@ -1755,14 +1755,6 @@ blocks|verbatim|caller|stdin file"
 					set +e ; return 1
 				;;
 			esac
-
-			local blocksBadTypes
-			blocksBadTypes="$( printf '%s' "$blocksJson" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBlockKitValidate.py" 2>/dev/null )"
-			if [ -n "$blocksBadTypes" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format $format content has an invalid/missing top-level 'type' at block index(es) $blocksBadTypes -- mrkdwn/plain_text/etc. are TEXT-OBJECT types, valid only nested inside a block's own \"text\" field, never as a block's own \"type\" (valid top-level types: section, divider, header, context, image, actions, input, video, rich_text, file)" >&2
-				set +e ; return 1
-			fi
-
 		fi
 
 
@@ -1806,6 +1798,16 @@ blocks|verbatim|caller|stdin file"
 		if [ -z "$rawText" ] && [ -z "$blocksJson" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no text/blocks content given" >&2
 			set +e ; return 1
+		fi
+
+		if [ -n "$blocksJson" ] ; then
+			local blocksProblems blocksProblemsRc=0
+			blocksProblems="$( printf '%s' "$blocksJson" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBlockKitValidate.py" )" || blocksProblemsRc=$?
+			if [ "$blocksProblemsRc" != "0" ] || [ -n "$blocksProblems" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: these blocks are not a payload Slack accepts, so nothing was sent (validator rc=$blocksProblemsRc):" >&2
+				printf '%s\n' "$blocksProblems" >&2
+				set +e ; return 1
+			fi
 		fi
 
 		local escapedText
@@ -1859,7 +1861,7 @@ blocks|verbatim|caller|stdin file"
 			fi
 		fi
 
-		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false" identitySwapped="false"
+		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false" identitySwapped="false" permanentVerdict=""
 		while [ "$attempt" -le "$maxAttempts" ] ; do
 			response="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/chat.postMessage" \
 				-H @"$headerFile" \
@@ -1906,7 +1908,13 @@ blocks|verbatim|caller|stdin file"
 				fi
 			fi
 			case "$response" in
+				*'"error":"invalid_blocks"'*)
+					permanentVerdict="Slack answered and rejected the blocks as invalid"
+					echo "# $MDSC_CMD --member-comms-slack-send-message: $permanentVerdict -- not retried, no retry can change a payload -- $response" >&2
+					break
+				;;
 				*'"error":"not_in_channel"'*|*'"error":"channel_not_found"'*|*'"error":"is_archived"'*)
+					permanentVerdict="the conversation cannot be reached under $sendIdentity identity"
 					echo "# $MDSC_CMD --member-comms-slack-send-message: permanent verdict under $sendIdentity identity and no recovery applies -- not retried -- $response" >&2
 					break
 				;;
@@ -1939,6 +1947,11 @@ blocks|verbatim|caller|stdin file"
 			return 0
 		fi
 
+		if [ -n "$permanentVerdict" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: nothing was posted -- $permanentVerdict. Slack answered, so comms are not stuck and no email is sent." >&2
+			set +e ; return 1
+		fi
+
 		echo "⛔ $MDSC_CMD --member-comms-slack-send-message: Slack did not confirm after $maxAttempts attempts -- notifying by email that Slack comms are stuck" >&2
 		local fallbackUser
 		fallbackUser="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_USER )"
@@ -1954,8 +1967,10 @@ blocks|verbatim|caller|stdin file"
 			"recovers; retry --member-comms-slack-send-message manually if it doesn't." "" \
 			"Team-member: $memberName" "Target: $target" "" \
 			"Queued message:" "$rawText" "" \
-			"Last Slack error response:" "$response"
-		return $?
+			"Last Slack error response:" "$response" \
+			|| echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: the notification email failed too" >&2
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: nothing was posted to Slack -- the email is a notification, not a delivery" >&2
+		set +e ; return 1
 	;;
 
 		*)

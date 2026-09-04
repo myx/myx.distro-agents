@@ -28,6 +28,16 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		case "$clientMember" in
+			routine-*)
+			;;
+			*)
+				if [ ! -d "$HOME/.claude/skills/$clientMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: no such member skill directory: $HOME/.claude/skills/$clientMember" >&2
+					set +e ; return 1
+				fi
+			;;
+		esac
 
 		local commsCutoffArgs=()
 		while [ $# -gt 0 ] ; do
@@ -54,6 +64,10 @@ case "$1" in
 				;;
 			esac
 		done
+		## A sweep states its own cut-off: a defaulted window reports a first sweep as empty.
+		if [ ${#commsCutoffArgs[@]} -eq 0 ] ; then
+			commsCutoffArgs=( --comms-since-utime 0 )
+		fi
 
 		printf '# Incoming Communications Sweep -- %s\n\n' "$clientMember"
 		printf 'member: %s\n' "$clientMember"
@@ -63,8 +77,10 @@ case "$1" in
 		DistroAgentsTools --client-sweep-config-check "$clientMember" || true
 		printf '\n'
 
+		## --do-board-related-active supplies the state set; a --state list here would
+		## have to byte-match it.
 		DistroAgentsTools --intern-op-session-context-scan "$clientMember" \
-			--state backlog --state pending --state running --state blocked \
+			--do-board-related-active \
 			--all-types --filter-owner "$clientMember" \
 			--do-inbox-inquiry-active --do-inbox-reflections \
 			--do-inbox-notes --do-inbox-other \
@@ -74,7 +90,6 @@ case "$1" in
 	;;
 
 	## What an external member must hold for its own sweep to mean anything.
-	## Declared here by the stub; the intern-op infers nothing from key names.
 	--client-sweep-config-check)
 		shift
 		local checkMember="$1"
@@ -89,10 +104,21 @@ case "$1" in
 		case "$checkMember" in
 			client-*) ;;
 			*)
-				## Names what is actually wrong -- not a client -- rather than
-				## naming a category the member may never have been in.
+				## Names what is actually wrong -- not a client -- rather than a category.
 				echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: runs only as a client-* member: $checkMember" >&2
 				set +e ; return 1
+			;;
+		esac
+		## Before any config read: --agents-config-option creates a scope file the
+		## moment it is reached, so an unchecked name leaves a phantom scope on disk.
+		case "$checkMember" in
+			routine-*)
+			;;
+			*)
+				if [ ! -d "$HOME/.claude/skills/$checkMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: no such member skill directory: $HOME/.claude/skills/$checkMember" >&2
+					set +e ; return 1
+				fi
 			;;
 		esac
 

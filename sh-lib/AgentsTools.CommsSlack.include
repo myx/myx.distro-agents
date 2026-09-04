@@ -4,56 +4,19 @@
 ##
 ## AgentsTools.CommsSlack.include -- THE ONE PLACE. Every piece of non-member
 ## Slack code in this tool family lives in this file: the shared helpers, and
-## the three operations that actually reach api.slack.com on the team's behalf
-## rather than on one member's behalf.
+## the three operations that reach api.slack.com on the team's behalf rather
+## than on one member's behalf. OUT -- the member stubs, which are a member's
+## own surface, keep their own arms in the dispatcher, and source THIS file.
 ##
-## The human-owner's own ruling, and the reason this file exists at all:
-##   "no sites - one site - intern-op for slack - all affected in one file"
-##   "NO SLACK IN DistroAgentsTools.fn.sh! ALL IN SEPARATE ARMS"
-##   "Reorganise - so these helpers somewhere in one place and this place is
-##    not DistroAgentsTools.fn.sh"
-## So: not the dispatcher, and not a scatter of per-op includes with a helpers
-## file beside them either. One file. This one.
-##
-## WHAT IS AND IS NOT IN HERE
-##   IN   -- the shared helpers (target resolution, bot-token resolution,
-##           workspace-domain resolution, the X-Request-Detail emitter, the
-##           slack-call field emitter, the workspace resolve-for-scope helper);
-##           --intern-op-slack-call, --intern-op-slack-check and
-##           --intern-op-check-slack-scopes, formerly three separate includes.
-##   OUT  -- the member stubs. AgentsTools.MemberCommsSlack.include,
-##           AgentsTools.MemberCommsSlackPresence.include,
-##           AgentsTools.MemberCommsSlackProfile.include and
-##           AgentsTools.MagicComms.include are a member's own surface, keep
-##           their own arms in the dispatcher, and are not folded in here.
-##           They source THIS file for the helpers -- see DUAL USE below.
-##
-## DUAL USE -- dispatch, and definitions-only sourcing.
-## An op include is normally not sourceable from inside another op include,
-## because sourcing one dispatches on $1 and would run an operation. This file
-## is sourceable anyway, and deliberately so: its `case "$1"` ends in a branch
-## that does nothing at all when $1 is not one of the Slack operations named
-## here. A member stub (or any other op include) sources this file at its own
-## top, before its own `case "$1"`, gets every helper defined, and dispatches
-## nothing.
-##
-## That silent branch does NOT weaken the invalid-option discipline. The arm
-## just above it catches any --intern-op-slack-* / --intern-op-check-slack-*
-## name that is not implemented here and reports it, and the dispatcher itself
-## routes only the three exact names below into this file -- so a mistyped
-## Slack op name never arrives here in the first place; it falls through to
-## DistroAgentsTools.fn.sh's own invalid-option branch, exactly as before.
-##
-## Sourcing this file more than once in one call is expected and harmless -- a
-## function definition is idempotent. AgentsTools.MemberCommsSlack.include
-## sources it and then sources the presence/profile includes from its own case,
-## so those two inherit the definitions and do not source it again.
+## DUAL USE -- dispatch, and definitions-only sourcing. `case "$1"` ends in a
+## branch that does nothing at all when $1 is not one of the Slack operations
+## named here, so any op include may source this file at its own top, get every
+## helper defined and dispatch nothing; sourcing it more than once is harmless.
+## The arm just above that branch catches an --intern-op-slack-* /
+## --intern-op-check-slack-* name this file does not implement and reports it.
 ##
 ## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD. No --help entry: internal plumbing.
-##
-## Defined here rather than at DistroAgentsTools.fn.sh file scope for the reason
-## that has always applied: file scope would load them for every unrelated op.
 ##
 
 ## ===========================================================================
@@ -139,21 +102,10 @@ AgentsToolsResolveSlackBotToken(){
 	return 0
 }
 
-## The X-Request-Detail header's workspace value -- two-tier fallback,
-## same shape as AgentsToolsResolveSlackBotToken directly above: the
-## calling member's own persisted SLACK_WORKSPACE_DOMAIN when it has
-## one, magic-team's shared one when it does not. A cheap config read,
-## once per call. See the human-owner's ruling in
-## myx.distro-agents/MAGIC.md's own header section: a member's own
-## value is resolved and persisted by --intern-op-check-configs
-## <member> --resolve-slack-workspace-into SLACK_WORKSPACE_DOMAIN
-## wherever that member's own config-check runs; magic-team's is
-## resolved the same way on the main loop's own config-check pass.
-## `<none>`/no member -> straight to magic-team's, same as the token
-## resolver. Prints the resolved domain, or nothing when neither scope
-## has one -- the caller (the header emitter) is what states
-## `<lookup-failed>`, the same discipline the header's other
-## unresolvable states already use.
+## The X-Request-Detail header's workspace value -- two-tier fallback, same shape
+## as AgentsToolsResolveSlackBotToken above. See MAGIC.md.
+## Prints the resolved domain, or nothing when neither scope has one; the caller
+## is what states `<lookup-failed>`.
 AgentsToolsResolveSlackWorkspaceDomain(){
 	local memberName="$1"
 	local resolvedDomain=""
@@ -168,10 +120,8 @@ AgentsToolsResolveSlackWorkspaceDomain(){
 	[ -z "$resolvedDomain" ] || printf '%s\n' "$resolvedDomain"
 }
 
-## The one emitter for the X-Request-Detail header, so every Slack
-## call site -- not only --intern-op-slack-call -- can cheaply carry
-## it. Writes to stderr only, never touches rc. Text form only, by
-## the human-owner's own ruling: "NO JSON - MIME IS SUFFICIENT."
+## The one emitter for the X-Request-Detail header, for every Slack call site.
+## Writes to stderr only, never touches rc. Text form only, never JSON.
 ##   $1  client-member -- the acting member, or <none>
 ##   $2  channel-id -- or <none> where the call has no single conversation
 AgentsToolsEmitRequestDetailHeader(){
@@ -184,8 +134,7 @@ AgentsToolsEmitRequestDetailHeader(){
 }
 
 ## The diagnostic trailer every --intern-op-slack-call exit writes, on stderr.
-## Reads `formArgs` and `callerMember` from its caller's own scope -- it is only
-## ever called from that op's arm below, where both are `local`.
+## Reads `formArgs` and `callerMember` from its caller's own scope.
 AgentsToolsInternOpSlackCallEmitFields(){
 	local detailChannel="<none>" detailPair
 	for detailPair in ${formArgs[@]+"${formArgs[@]}"} ; do
@@ -199,28 +148,21 @@ AgentsToolsInternOpSlackCallEmitFields(){
 	fi
 }
 
-## The workspace domain for ONE named config scope, resolved from that scope's
-## OWN SLACK_BOT_TOKEN and nothing else. Used by --intern-op-check-configs's
-## --resolve-slack-workspace-into <KEY>, whose whole job is to persist a value
-## INTO the scope it is checking: it must not fall back to magic-team's token
-## the way AgentsToolsResolveSlackBotToken does for a send, or it would persist
-## magic-team's workspace into some other member's scope. That is why this is a
-## separate resolver rather than a call to the two-tier one above.
-##
-## Lives here because it is Slack code, and all Slack code lives in this file --
-## --intern-op-check-configs is not a Slack op and carries no Slack call of its
-## own; it sources this file for the definitions and calls this.
-##
+## The workspace domain for ONE named config scope, from a token that scope holds
+## itself and no other scope's -- the value is persisted INTO the scope, so there
+## is no fallback to magic-team's token. EITHER TOKEN KIND ANSWERS: auth.test
+## returns the same `url` under a user token as under a bot one, and the user
+## token is tried first as the one a member's own Slack traffic runs under.
 ##   $1  config scope (team-member name)
-## Prints the bare workspace domain (no scheme, no trailing slash) and returns
-## 0; returns non-zero with nothing printed when the scope has no token, no
-## private header file could be made, or auth.test did not answer this pass.
-## The caller decides what a failure means -- this helper never persists and
-## never reports.
+## Prints the bare workspace domain (no scheme, no trailing slash) and returns 0;
+## returns non-zero with nothing printed on any failure, and never persists.
 AgentsToolsSlackResolveWorkspaceForScope(){
 	local scopeMember="$1"
 	local scopeToken=""
-	scopeToken="$( DistroAgentsTools --agents-config-option "$scopeMember" --select SLACK_BOT_TOKEN 2>/dev/null )" || scopeToken=""
+	scopeToken="$( DistroAgentsTools --agents-config-option "$scopeMember" --select SLACK_USER_TOKEN 2>/dev/null )" || scopeToken=""
+	if [ -z "$scopeToken" ] ; then
+		scopeToken="$( DistroAgentsTools --agents-config-option "$scopeMember" --select SLACK_BOT_TOKEN 2>/dev/null )" || scopeToken=""
+	fi
 	if [ -z "$scopeToken" ] ; then
 		return 2
 	fi
@@ -1055,7 +997,7 @@ case "$1" in
 		return 0
 	;;
 
-	--intern-op-check-slack-scopes)
+	--intern-op-slack-check-scopes)
 		shift
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
@@ -1255,18 +1197,14 @@ case "$1" in
 		return 0
 	;;
 
-	## A Slack operation name this file does not implement. Reported, never
-	## swallowed -- the combined arm this file replaces used to end its inner
-	## `esac` on a silent `return 0`, which turned a typo into a success.
+	## A Slack operation name this file does not implement. Reported, never swallowed.
 	--intern-op-slack-*|--intern-op-check-slack-*)
 		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 
-	## DEFINITIONS-ONLY SOURCE -- see DUAL USE in this file's own header. $1 is
-	## some other op's own name, because that op sourced this file at its top to
-	## get the helpers above. Nothing to dispatch, and nothing is an error: this
-	## is the supported way to reach the helpers, and the only one.
+	## DEFINITIONS-ONLY SOURCE -- see DUAL USE in this file's own header. Nothing to
+	## dispatch, and nothing is an error: the supported way to reach the helpers.
 	*)
 		:
 	;;

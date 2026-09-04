@@ -1,67 +1,17 @@
 #!/usr/bin/env awk
 
-# Turns one comms API response (fed on stdin as a single line, run under
-# LC_ALL=C for byte safety) into the session-context document's own per-item
-# block shape:
+# Turns one comms API response (stdin, one line, LC_ALL=C) into the
+# session-context document's own per-item block shape, defined by
+# magic-team/templates/session-context.document.format.md.
 #
-#	## <type-name> <id>
-#	<key>: <value>
-#	...
-#	<blank line>
+# `-v kind=slack|trello`; Slack additionally takes `-v source=<watched-target-name>`
+# and `-v channel=<channel-id>`.
 #
-# defined by magic-team/templates/session-context.document.format.md ("Every
-# item block states its type name and id on its heading line").
+# EMPTY IS NOT THE SAME AS FAILED: a Slack `"ok":false` inside a 200 body, or a
+# Trello plain-text error line with curl still exiting 0, goes to stderr and exits 1.
 #
-# Selected by `-v kind=slack` or `-v kind=trello`; Slack additionally takes
-# `-v source=<watched-target-name>` and `-v channel=<channel-id>` so each block
-# can name where it came from. Email needs nothing here -- IMAP's UID SEARCH
-# reply is a plain text line, not JSON, and is handled at its own call site.
-#
-# NOT the same job as AgentsSlackMessagesFormat.awk, which prints the human
-# "ts | user | text" scan lines --intern-op-slack-check/--magic-sweep-input-scan
-# emit. Both exist because the two consumers want genuinely different shapes:
-# that one is read by a person scanning, this one is parsed as a document.
-#
-# EMPTY IS NOT THE SAME AS FAILED, and this file is where that distinction is
-# actually enforced for these two services:
-#   - Slack answers a failure with `"ok":false` inside a 200 body.
-#   - Trello answers a failure with a plain-text line ("invalid key") and curl
-#     still exits 0.
-# Either would otherwise render exactly like "nothing new", which is the one
-# confusion the whole session-context document exists to prevent. Both are
-# reported on stderr and exit 1, so the caller reports "no scan was made"
-# rather than a truthful-looking zero.
-#
-# Sorting: newest first, which is the order both APIs already return
-# (conversations.history/replies and /members/me/notifications are both
-# newest-first), so the emission order below is the natural index order and no
-# sort step is needed.
-#
-# MULTI-DOCUMENT INPUT: a human-owner fan-out read (--intern-op-slack-check's
-# own two-DM merge, --raw mode) concatenates TWO separate conversations.history
-# responses on stdin, each preceded by its own "## dm=<id> identity=<name> ..."
-# marker line -- one already present in that data, not added by this script.
-# Same shape AgentsSlackHistoryThreadTargets.awk already handles for its own
-# thread-discovery read of this exact fan-out output; this file mirrors that
-# file's own flushDoc/resetDoc convention (named flushLeg/resetLeg here). Every
-# per-message array below is scoped to the CURRENT leg and reset at each such
-# marker, and each leg's own channel id is read out of the marker itself, so a
-# second leg's message index 0 can never silently overwrite the first's, and
-# neither leg is stamped with the other's (or a pre-fan-out static) channel
-# id. A single-leg input (every caller besides the human-owner fan-out)
-# carries no marker at all, so the whole input stays one implicit leg under
-# the externally-passed -v channel= value, exactly reproducing prior
-# behaviour.
-#
-# Parsing engine (skipws/hex2dec/utf8enc/parseString/parseValue/parseObject/
-# parseArray) is copied verbatim from AgentsSlackMessagesFormat.awk in this same
-# folder, which took it verbatim from myx.common's agentMcpJsonParseRequest.awk
-# -- same recursive-descent JSON parser, only the leaf-emission logic differs.
-#
-# LC_ALL=C IS REQUIRED, not advisory. The walk below indexes a byte array
-# built by `split(s, sc, "")`, and `split`/`length`/`substr` count CHARACTERS
-# rather than bytes under a UTF-8 locale. Every call site already sets it.
-# Dropping it does not fail -- it parses emoji and accented text subtly wrong.
+# LC_ALL=C IS REQUIRED, not advisory: `split(s, sc, "")` counts CHARACTERS rather
+# than bytes under a UTF-8 locale, and dropping it parses emoji subtly wrong.
 
 BEGIN {
 	itemCount = 0
@@ -72,8 +22,7 @@ BEGIN {
 	legIdentity = ""
 	if (kind != "slack" && kind != "trello") {
 		printf("⛔ ERROR: AgentsSessionContextCommsItems.awk: -v kind= must be slack or trello, got: %s\n", kind) > "/dev/stderr"
-		## `exit` in BEGIN still runs END, so END would otherwise add a second,
-		## misleading "not JSON" error on top of this one.
+		## `exit` in BEGIN still runs END, which would otherwise add a second error.
 		kindBad = 1
 		exit 1
 	}
@@ -163,20 +112,13 @@ function parseString(   c, out, hex, code, hex2, code2, cp) {
 	return out
 }
 
-## A document is one block per item and one `key: value` per line, so any
-## embedded newline in a value would forge a new key line. Flattened to spaces
-## at the single point every value passes through, never per-field.
+## One `key: value` per line: an embedded newline in a value would forge a key line.
 function oneLine(v) {
 	gsub(/[\n\r\t]/, " ", v)
 	return v
 }
 
-## Prints the CURRENT leg's already-accumulated slack-message blocks under its
-## own legChannel, then leaves the arrays untouched -- resetLeg() below is the
-## separate, explicit reset. A safe no-op when nothing has been accumulated
-## yet (itemCount == 0), which is exactly what makes the marker rule's own
-## provenance-line hits (channel update, no message content) harmless: see
-## this file's own header note and the marker rule's comment.
+## Prints the CURRENT leg under its own legChannel; resetLeg() is the separate reset.
 function flushLeg(   i) {
 	if (itemCount == 0) return
 	for (i = 0; i < itemCount; i++) {
@@ -209,8 +151,7 @@ function emitLeaf(path, raw, val,   rest, idx, after) {
 		if (index(path, "messages.") != 1) return
 		rest = substr(path, length("messages.") + 1)
 	} else {
-		## Trello's notifications endpoint returns a bare top-level array, so
-		## every path arrives as `.<idx>.<field>` -- strip that leading dot.
+		## Trello returns a bare top-level array, so every path arrives as `.<idx>.<field>`.
 		rest = path
 		sub(/^\./, "", rest)
 	}
@@ -311,34 +252,17 @@ function parseArray(path,   idx, c) {
 	}
 }
 
-## LEG-BOUNDARY MARKER (Slack only -- Trello's own notifications endpoint
-## never carries one). Matched BEFORE the catch-all parse rule below, same
-## ordering convention AgentsSlackHistoryThreadTargets.awk's own
-## document-boundary rule uses for this identical fan-out shape ("must
-## precede the buffering rule, so a heading closes the previous block and
-## then lands in the new one"): a marker here flushes the PREVIOUS leg's
-## already-accumulated messages under ITS OWN channel id, resets the per-leg
-## accumulator, and opens the new leg under the marker's own dm id.
-##
-## MATCHES MORE THAN ONE MARKER PER LEG, ON PURPOSE, SAME REASONING AS
-## AgentsSlackHistoryThreadTargets.awk's identical rule: --intern-op-slack-check's
-## own --raw fan-out emits a provenance summary line per leg before any blob
-## content, then the inline marker immediately before that leg's own raw
-## JSON. Both shapes share the "## dm=<id> identity=<name>" prefix this rule
-## matches; the earlier (provenance) hits are harmless no-ops -- flushLeg()'s
-## own itemCount guard makes closing an empty/not-yet-started leg a no-op, so
-## they simply update legChannel and do nothing else.
+## LEG-BOUNDARY MARKER (Slack only), matched BEFORE the catch-all parse rule below:
+## flushes the previous leg under ITS OWN channel id, resets, opens the new leg.
+## More than one marker per leg is expected; flushLeg()'s itemCount guard makes the
+## extra hits update legChannel and nothing else.
 kind == "slack" && /^## dm=/ {
 	flushLeg()
 	resetLeg()
 	legChannel = $0
 	sub(/^## dm=/, "", legChannel)
 	sub(/ .*/, "", legChannel)
-	## `identity=<user|bot>` on the same marker line -- optional. A
-	## single-leg/non-fan-out marker (or an old-style marker with no
-	## identity= at all) leaves this "", and flushLeg()'s own
-	## `legIdentity != ""` guard is what keeps that case byte-identical to
-	## pre-existing output: no `identity:` line emitted at all.
+	## `identity=<user|bot>` on the marker line is optional; absent leaves this "".
 	legIdentity = $0
 	if (legIdentity ~ /identity=/) {
 		sub(/^.*identity=/, "", legIdentity)
@@ -349,15 +273,13 @@ kind == "slack" && /^## dm=/ {
 	next
 }
 
-## One split, then sc[p] per byte: substr(s, p, 1) costs a strlen of the whole
-## payload per call in one-true-awk, which makes the walk quadratic.
+## One split, then sc[p] per byte: substr() per call makes the walk quadratic.
 { s = $0; n = split(s, sc, ""); p = 1; parseValue(""); }
 
 END {
 	if (kindBad) exit 1
 	if (!sawJsonRoot) {
-		## Trello's own failure shape: a plain-text body ("invalid key",
-		## "unauthorized permission requested") returned with curl exiting 0.
+		## Trello's own failure shape: a plain-text body with curl exiting 0.
 		printf("⛔ ERROR: AgentsSessionContextCommsItems.awk: %s response was not JSON -- treat as NOT SCANNED, never as empty\n", kind) > "/dev/stderr"
 		exit 1
 	}

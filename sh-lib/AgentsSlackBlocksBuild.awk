@@ -412,12 +412,13 @@ function flushFence(    i, elems) {
 	if (fenceLineCount == 0) return
 	elems = ""
 	for (i = 1; i <= fenceLineCount; i++) {
-		if (i > 1) elems = elems ",{\"type\":\"text\",\"text\":\"\\n\"}"
-		elems = appendElem(elems, plainElem(fenceLines[i]))
+		if (i > 1) elems = appendElem(elems, "{\"type\":\"text\",\"text\":\"\\n\"}")
+		if (fenceLines[i] != "") elems = appendElem(elems, plainElem(fenceLines[i]))
 		delete fenceLines[i]
 	}
-	emitBlock("{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_preformatted\",\"elements\":[" elems "]}]}")
 	fenceLineCount = 0
+	if (elems == "") return
+	emitBlock("{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_preformatted\",\"elements\":[" elems "]}]}")
 }
 
 function flushRun() {
@@ -427,6 +428,7 @@ function flushRun() {
 }
 
 function emitHeader(text) {
+	if (text == "") return
 	emitBlock("{\"type\":\"header\",\"text\":{\"type\":\"plain_text\",\"text\":\"" jsonEscapeLine(text) "\",\"emoji\":true}}")
 }
 
@@ -489,8 +491,8 @@ function emitHeader(text) {
 			closeListIndentRun()
 			listIndent = indent
 		}
-		if (listItems != "") listItems = listItems ","
-		listItems = listItems "{\"type\":\"rich_text_section\",\"elements\":[" parseInlineStyles(text) "]}"
+		bulletElems = parseInlineStyles(text)
+		if (bulletElems != "") listItems = appendElem(listItems, "{\"type\":\"rich_text_section\",\"elements\":[" bulletElems "]}")
 		next
 	}
 

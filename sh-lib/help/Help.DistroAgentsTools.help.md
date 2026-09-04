@@ -291,7 +291,33 @@
 			trailing text argument is rejected, not posted as the message
 			body). Malformed JSON or an unsupported block type is rejected
 			before anything is sent, with a specific error naming the
-			problem. `--message-text <text>` and
+			problem.
+
+			**Both formats are checked against Slack's own acceptance before
+			the send, and a payload that fails is never posted in a reduced
+			form.** The whole array is walked, not its top level: an empty
+			text string or a childless `elements` array anywhere in it is
+			reported by the path it sits at, and the operation fails with
+			nothing sent. This does not promise that a Slack rejection is
+			impossible — the empty-node rule appears in none of Slack's own
+			published Block Kit pages and was learned from a live rejection,
+			so the rule set is open. What it promises is that every rejection
+			class already measured is caught here rather than at Slack.
+			Known-uncaught, each documented by Slack and none of them a
+			property of a single node: the 50-block cap per message, the
+			150-character header maximum, and the per-type required fields
+			of the blocks a caller supplies verbatim.
+
+			**A send that does not land fails, and says so.** `invalid_blocks`
+			is a verdict Slack reached, not a transport fault, so it is not
+			retried and no stuck-comms email is sent for it; the same holds
+			for an unreachable or archived conversation. Only a send that
+			genuinely exhausted its retries notifies by email, and even then
+			the operation returns failure — the email is a notification, never
+			a delivery, and the exit status always reports whether the message
+			reached Slack.
+
+			`--message-text <text>` and
 			`--message-text-from-file <path>` supply the text version of a
 			blocks message and are **optional**: when neither is given, a text
 			version is generated from the blocks. When one is given, that text
@@ -377,7 +403,9 @@
 
 			Real, standalone SMTP send. Uses that member's configured email
 			credentials, not just an internal fallback -- a --member-comms-slack-send-message
-			call that exhausts its retries falls back to sending a real email through this same operation. Multiple recipients
+			call that exhausts its retries notifies through this same operation. That
+			notification does not stand in for the message: the Slack send still reports
+			failure, and its exit status says so. Multiple recipients
 			accepted before the first `--`; subject is everything between the
 			two `--` separators; everything after the second `--` becomes the
 			body, one line per remaining argument -- OR
@@ -2252,11 +2280,19 @@
 			email and Trello), and board items are limited to the ones
 			that member owns.
 
-			A source this member holds no credentials of its own for is
-			reported as not scanned, in that section's
-			`sources-scanned: N of M` line and its `**NOTE:** partial`
-			marker, and counts against the exit status. It is never read
-			under any other member's or the team's credentials.
+			A source that could not be read is reported as not scanned, in
+			that section's `sources-scanned: N of M` line and its
+			`**NOTE:** partial` marker, and counts against the exit status.
+			It is never read under any other member's or the team's
+			credentials.
+
+			An OPTIONAL source this member holds no credentials of its own
+			for -- email, Trello -- is a separate case: it was never
+			contacted, so it carries no `sources-scanned:` line, enters no
+			source total, and does not make the scan partial. Its section
+			says so in its own `**NOTE:** no scan was made` line, naming
+			the keys that are unset. Only that way is an unconfigured
+			source distinguishable from an unreachable one.
 
 			Slack sources come from this member's own `SLACK_CONVERSATIONS`
 			config value -- conversation ids or `<channel>:<ts>` targets,
@@ -2264,11 +2300,16 @@
 			Slack section reports that nothing was scanned rather than
 			falling back to any team-scoped conversation.
 
-			An optional cut-off narrows the read: --comms-since-utime takes
+			A cut-off narrows the read: --comms-since-utime takes
 			epoch seconds, with or without a fractional part;
 			--comms-since-date-time takes a YYYY-MM-DD-leading value.
 			Mutually exclusive, neither repeatable -- one cut-off, one
-			spelling.
+			spelling. Optional to pass, never absent from the call: with
+			neither given this operation supplies
+			`--comms-since-utime 0` itself, so a member swept for the first
+			time is not reported empty by a defaulted recent window. The
+			cut-off actually used is stated in each section's own
+			`instrument:` line.
 
 			Exit code, same three-way shape and meanings as
 			--magic-sweep-input-scan's: 0 when every source was scanned,
@@ -2333,8 +2374,11 @@
 			for the keys below, and magic-team's for SLACK_BOT_TOKEN and
 			TEAM_DATA_GIT_REMOTE, which are the team's own credential/config
 			rather than any one member's.
-			Prints one `<KEY>: OK`/`<KEY>: FAIL` line per key checked (name
-			only, never the value): TEAM_DATA_DIRECTORY,
+			Prints one `<KEY>: OK`/`<KEY>: WARN`/`<KEY>: FAIL`/`<KEY>: SKIP`
+			line per key checked (name
+			only, never the value). OK is set; WARN is set but suspect;
+			FAIL is required and unset, and is the only token that gates
+			the exit code; SKIP is optional and unset. Keys checked: TEAM_DATA_DIRECTORY,
 			SLACK_CHANNEL_EVENT_TRACK, SLACK_CHANNEL_EVENT_ALERT,
 			SLACK_CHANNEL_MAGIC_TEAM, SLACK_CHANNEL_HUMAN_OWNER,
 			EMAIL_IMAP_HOST, EMAIL_USER, EMAIL_APP_PASSWORD, TRELLO_KEY,
@@ -2346,8 +2390,9 @@
 			line and returns 1. The other five, and SLACK_BOT_TOKEN and
 			TEAM_DATA_GIT_REMOTE (checked under magic-team, fix command
 			`DistroAgentsTools.fn.sh --agents-config-option magic-team
-			--upsert <KEY> <value>`), are optional/informational -- each FAIL
-			prints its own fix command too, but never affects the exit code.
+			--upsert <KEY> <value>`), are optional/informational -- unset
+			they read SKIP, print their own fix command too, and never
+			affect the exit code.
 			For the credential-bearing keys (EMAIL_APP_PASSWORD, TRELLO_KEY,
 			TRELLO_TOKEN, SLACK_BOT_TOKEN) that fix command is the
 			--upsert-from-stdin form, so following the hint never puts a

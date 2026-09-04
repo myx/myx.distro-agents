@@ -417,7 +417,7 @@ case "$1" in
 				regName="${regEntry%% *}"
 				regResolved="${regEntry#* }"
 
-				local regRulesMatch="false" regRulesEntry
+				local regRulesMatch="false" regRulesEntry regBundled regVerdict
 				for regRulesEntry in $rulesFiles ; do
 					if [ "$regResolved" = "$bundleRoot/$regRulesEntry" ] ; then
 						regRulesMatch="true"
@@ -436,7 +436,43 @@ case "$1" in
 						## above first, so this one only speaks for an origin outside $workspace.
 						"$originRoot"/*)         regType="origin-symlink"  ; regRel="${regResolved#$originRoot/}" ;;
 						*)
-							echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: not registered, points outside both workspace $workspace and origin $originRoot (pre-existing link kept, not ours to claim): $regName -> $regResolved" >&2
+							## Reaching here means the link points outside both this workspace
+							## and the origin about to be linked into. What is left to separate
+							## is a link into a DIFFERENT workspace carrying the same skillset
+							## from one that is genuinely foreign. $regResolved is readlink
+							## output, so a relative link lands here too and stays foreign: a
+							## member link is based on $targetRoot but a rules link on $rulesDir,
+							## so it cannot be resolved here.
+							regBundled="$bundleRoot/$regName"
+							for regRulesEntry in $rulesFiles ; do
+								[ "${regRulesEntry##*/}" = "$regName" ] || continue
+								regBundled="$bundleRoot/$regRulesEntry"
+								break
+							done
+							regVerdict="foreign"
+							case "$regResolved" in
+								/*)
+									## The same skillset reached by another path. `diff -r` covers a
+									## rules entry (a file) and a member (a directory) alike.
+									if diff -r -q "$regResolved" "$regBundled" >/dev/null 2>&1 ; then
+										regVerdict="same"
+									elif awk -F: -v m="$regName" '$1 == m { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
+										## Content differs, but one of our own workspaces registered this
+										## member into this shared root: known, so not foreign.
+										regVerdict="ours"
+									fi
+								;;
+							esac
+							case "$regVerdict" in
+								## Both of these keep the link, so the row says KEPT and means it.
+								## Same content needs nothing done. Content that moved on inside
+								## another of our own workspaces is known rather than foreign, and
+								## relinking would only hand the slot back and forth.
+								same|ours) ;;
+								*)
+									echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: not registered, points outside both workspace $workspace and origin $originRoot (pre-existing link kept, not ours to claim): $regName -> $regResolved" >&2
+								;;
+							esac
 							continue
 						;;
 					esac

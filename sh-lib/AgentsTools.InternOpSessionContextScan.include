@@ -388,28 +388,11 @@ case "$1" in
 
 				local commsCutoffTrimAwkProgram='
 					## Float-free ordering key: zero-padded seconds then exactly six
-					## fractional digits, compared as a STRING. Concatenation always
-					## yields a string type in awk, so > here can never silently
-					## become the numeric compare a 22-digit key would not survive.
-					## Returns "" for anything unparseable -- read that as "cannot be
-					## dated", never as 0. An undatable block is KEPT: silently
-					## discarding what this code cannot date would lose real content
-					## to a parse gap.
-					##
-					## The empty-value case is REAL, not theoretical.
-					## AgentsSessionContextCommsItems.awk prints `ts:`
-					## unconditionally, so a message whose ts never parsed emits a
-					## `ts: ` line with an EMPTY value. The test this replaced matched
-					## that line, believed it therefore had a timestamp, compared the
-					## empty value as 0 and dropped the block as stale -- the exact
-					## opposite of the promise above. An unparseable value and an
-					## absent line are ONE case here, and this function is the single
-					## place that decides it.
-					##
-					## Not + 0: awk converts through strtod, whose decimal point is
-					## locale-dependent, so under a comma-decimal locale every
-					## sub-second ordering would collapse. The LC_ALL=C on every call
-					## site is what stands between that and this key.
+					## fractional digits, compared as a STRING, never + 0 -- awk converts
+					## through strtod, whose decimal point is locale-dependent. Returns ""
+					## for anything unparseable, the EMPTY value an unparsed `ts:` line
+					## carries included; read that as "cannot be dated", never as 0, and
+					## KEEP the block. This is the single place that decides it.
 					function tskey(v,   d, sec, frac) {
 						gsub(/^[ \t]+|[ \t\r]+$/, "", v)
 						d = index(v, ".")
@@ -431,19 +414,16 @@ case "$1" in
 					}
 					BEGIN {
 						cutKey = tskey(cut)
-						## An unparseable cut-off must never widen the scan to
-						## everything: with an empty key every real key compares
-						## greater and the entire read comes back as new.
+						## An unparseable cut-off must never widen the scan to everything:
+						## an empty key makes every real key compare greater.
 						if (cutKey == "") {
 							printf("⛔ ERROR: AgentsTools.InternOpSessionContextScan.include: cut-off is not a parseable timestamp: %s -- treat as NOT SCANNED, never as empty\n", cut) > "/dev/stderr"
 							bad = 1
 							exit 1
 						}
 					}
-					## This rule must precede the buffering rule, so a heading closes
-					## the PREVIOUS block and then lands in the new one. Never next
-					## here -- that would skip the buffering rule and the heading
-					## would vanish from its own block.
+					## Must precede the buffering rule, so a heading closes the PREVIOUS
+					## block and then lands in the new one. Never `next` here.
 					/^## / { flush() ; }
 					{ if ($0 != "") blk[++nb] = $0 ; }
 					## Offset derived from the colon, never a second hardcoded count
@@ -452,10 +432,8 @@ case "$1" in
 					END {
 						if (bad) exit 1
 						flush()
-						## Oldest-first over a plain index array -- POSIX awk has no
-						## asort and macOS ships BWK awk. Collected back-to-front
-						## because Slack hands a page back newest-first, which leaves
-						## this insertion sort linear on the real data path.
+						## Oldest-first over a plain index array -- POSIX awk has no asort.
+						## Collected back-to-front: Slack pages back newest-first.
 						m = 0
 						for (i = nblk; i >= 1; i--) ord[++m] = i
 						for (x = 2; x <= m; x++) {
@@ -463,9 +441,8 @@ case "$1" in
 							while (j >= 1 && bkey[ord[j]] > bkey[v]) { ord[j + 1] = ord[j] ; j-- ; }
 							ord[j + 1] = v
 						}
-						## Dated and undatable separated, so the context window counts
-						## real messages instead of being eaten by blocks that have no
-						## position in the ordering at all.
+						## Dated and undatable separated, so the context window counts real
+						## messages rather than blocks with no position in the ordering.
 						nd = 0 ; nu = 0
 						for (x = 1; x <= m; x++) {
 							if (bkey[ord[x]] == "") { und[++nu] = ord[x] ; }
@@ -475,12 +452,8 @@ case "$1" in
 						for (x = 1; x <= nd; x++) {
 							if (bkey[dat[x]] > cutKey) { first = x ; break ; }
 						}
-						## Nothing newer than the cut-off means nothing new here, and
-						## it emits NOTHING -- undatable blocks included. Emitting them
-						## anyway would put a conversation with no new content back
-						## under "New Incoming Communications" as though it were new,
-						## which is the stale-parent regression this trim exists to
-						## prevent.
+						## Nothing newer than the cut-off emits NOTHING, undatable blocks
+						## included: a conversation with no new content is not new.
 						if (first == 0) exit 0
 						for (x = 1; x <= nu; x++) printf("%s\n", body[und[x]])
 						start = first - ctx
@@ -624,11 +597,8 @@ case "$1" in
 					elif [ "$dtIdentity" = "bot" ] ; then
 						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --identity-bot --raw
 					elif [ "$dtIdentity" != "" ] ; then
-						## A non-bot, non-empty mapped identity ("user") -- omitting
-						## --identity-bot resolves to memberName's own token, same
-						## default --member-comms-slack-send-message's own doc
-						## already states ("the member's own identity when it has
-						## one").
+						## A non-bot, non-empty mapped identity ("user"): omitting
+						## --identity-bot resolves to the token memberName holds.
 						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --raw
 					else
 						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" --identity-bot --raw
@@ -696,16 +666,10 @@ case "$1" in
 
 				[ "$imSourcesScanned" -gt 0 ] || imFailed="true"
 
-				## THREAD ROOTS ARRIVE TWICE. conversations.history emits a
-				## thread's root, and that same thread's conversations.replies
-				## read emits it again; the consumer processes each message
-				## individually, so every duplicated root is processed twice.
-				## Measured: 1514 blocks emitted, 1422 distinct, 92 duplicates.
-				##
-				## THE HISTORY COPY IS THE ONE KEPT, which is the opposite of the
-				## intuitive choice. The grouping filter below ranks each
-				## conversation by its own newest message, so dropping the
-				## history copy can take a channel's recency rank with it and
+				## THREAD ROOTS ARRIVE TWICE: conversations.history emits a thread's
+				## root, and that thread's conversations.replies read emits it again.
+				## The first copy is the one kept -- the history one, so the grouping
+				## filter below keeps the channel's own recency rank.
 				if [ -n "$imBlocks" ] ; then
 					local imDeduped=""
 					imDeduped="$( printf '%s' "$imBlocks" | LC_ALL=C awk '
@@ -717,16 +681,26 @@ case "$1" in
 			fi
 
 			local emailBlocks="" emailInstrument="" emailFailed="false"
+			local emailUidsTotal=0 emailNotConfigured="false"
 			if [ "$wantEmail" = "true" ] ; then
 				emailInstrument="unread-semantics (IMAP UID SEARCH UNSEEN)"
 				## The mailbox this scan reads as, from the acting member's own
 				## scope. A member with no EMAIL_USER keeps the stated default.
-				local emailUser=""
+				local emailUser="" emailHost="" emailPass=""
 				emailUser="$( DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_USER )" || emailUser=""
 				[ -z "$emailUser" ] || emailIdentity="$emailUser"
+				emailHost="$( DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_IMAP_HOST )" || emailHost=""
+				emailPass="$( DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_APP_PASSWORD )" || emailPass=""
+				## Mirrors --member-comms-email-check's own gate exactly: an optional
+				## source nothing is configured for must not read as one that failed.
+				if [ -z "$emailHost" ] || [ -z "$emailUser" ] || [ -z "$emailPass" ] ; then
+					emailNotConfigured="true"
+				fi
 				local emailCheck emailUids emailUid
-				emailCheck="$( DistroAgentsTools --member-comms-email-check "$actingMember" )" || emailFailed="true"
-				if [ "$emailFailed" = "false" ] ; then
+				if [ "$emailNotConfigured" = "false" ] ; then
+					emailCheck="$( DistroAgentsTools --member-comms-email-check "$actingMember" )" || emailFailed="true"
+				fi
+				if [ "$emailNotConfigured" = "false" ] && [ "$emailFailed" = "false" ] ; then
 					emailUids="$( printf '%s\n' "$emailCheck" | LC_ALL=C awk '
 						{ sub(/\r$/, ""); }
 						/^\* SEARCH/ { seenSearch = 1; for (i = 3; i <= NF; i++) print $i; }
@@ -739,29 +713,65 @@ case "$1" in
 					' )" || emailFailed="true"
 				fi
 				if [ "$emailFailed" = "false" ] ; then
+					local emailReadRc emailBlock emailFetched=0
+					local emailWorkFile="$MMDAPP/.local/temp/mdat-sweep-email.$$"
+					mkdir -p "$MMDAPP/.local/temp" && : > "$emailWorkFile" || { set +e ; return 1 ; }
 					while IFS= read -r emailUid ; do
 						[ -n "$emailUid" ] || continue
-						emailBlocks="$emailBlocks## email-message $emailUid"$'\n'"mailbox: INBOX"$'\n'"status: unseen"$'\n'$'\n'
+						emailUidsTotal=$(( emailUidsTotal + 1 ))
+						## Fetch only what the cap will render: every read is its own IMAP login.
+						[ "$emailFetched" -lt "$sessionContextCapEmail" ] || continue
+						emailFetched=$(( emailFetched + 1 ))
+						emailReadRc=0
+						## A subshell and a file, never $(): a command substitution truncates
+						## raw message bytes at the first NUL, and a direct call would leak
+						## the op's own `set +e` into the rest of this scan.
+						( DistroAgentsTools --member-comms-email-read "$actingMember" "$emailUid" ) > "$emailWorkFile" || emailReadRc=$?
+						if [ "$emailReadRc" -ne 0 ] ; then
+							emailBlocks="$emailBlocks## email-message $emailUid"$'\n'"mailbox: INBOX"$'\n'"status: unseen"$'\n'"fetch: not read -- --member-comms-email-read returned $emailReadRc; the message is UNKNOWN, not empty"$'\n'$'\n'
+							continue
+						fi
+						emailBlock=""
+						emailBlock="$( AGENTS_EMAIL_UID="$emailUid" AGENTS_EMAIL_MAILBOX="INBOX" AGENTS_EMAIL_STATUS="unseen" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSessionContextEmailItem.py" < "$emailWorkFile" )" || emailBlock=""
+						if [ -z "$emailBlock" ] ; then
+							emailBlocks="$emailBlocks## email-message $emailUid"$'\n'"mailbox: INBOX"$'\n'"status: unseen"$'\n'"fetch: not rendered -- the message was fetched but could not be parsed into a block"$'\n'$'\n'
+							continue
+						fi
+						emailBlocks="$emailBlocks$emailBlock"$'\n'$'\n'
 					done <<- EOF
 					$emailUids
 					EOF
+					rm -f "$emailWorkFile"
 				fi
 			fi
 
 			local trelloBlocks="" trelloInstrument="" trelloFailed="false"
+			local trelloNotConfigured="false"
 			if [ "$wantTrello" = "true" ] ; then
 				trelloInstrument="unread-semantics (Trello read_filter=unread)"
+				local trelloKey="" trelloToken=""
+				trelloKey="$( DistroAgentsTools --agents-config-option "$actingMember" --select TRELLO_KEY )" || trelloKey=""
+				trelloToken="$( DistroAgentsTools --agents-config-option "$actingMember" --select TRELLO_TOKEN )" || trelloToken=""
+				## Mirrors --member-comms-trello-check's own gate, same reason as the email
+				## gate above: that op gives "no credentials" and "no answer" one status.
+				if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
+					trelloNotConfigured="true"
+				fi
 				local trelloWhoami="" trelloUser="" trelloId=""
-				trelloWhoami="$( DistroAgentsTools --member-comms-trello-whoami "$actingMember" )" || trelloWhoami=""
-				trelloUser="$( printf '%s\n' "$trelloWhoami" | LC_ALL=C sed -n 's/^TRELLO_USERNAME=//p' | head -1 )" || trelloUser=""
-				trelloId="$( printf '%s\n' "$trelloWhoami" | LC_ALL=C sed -n 's/^TRELLO_USER_ID=//p' | head -1 )" || trelloId=""
+				if [ "$trelloNotConfigured" = "false" ] ; then
+					trelloWhoami="$( DistroAgentsTools --member-comms-trello-whoami "$actingMember" )" || trelloWhoami=""
+					trelloUser="$( printf '%s\n' "$trelloWhoami" | LC_ALL=C sed -n 's/^TRELLO_USERNAME=//p' | head -1 )" || trelloUser=""
+					trelloId="$( printf '%s\n' "$trelloWhoami" | LC_ALL=C sed -n 's/^TRELLO_USER_ID=//p' | head -1 )" || trelloId=""
+				fi
 				if [ -n "$trelloUser" ] && [ -n "$trelloId" ] ; then
 					trelloIdentity="@$trelloUser / $trelloId"
 				fi
 				local trelloJson
 				## The ACTING MEMBER, same reason as the email check above.
-				trelloJson="$( DistroAgentsTools --member-comms-trello-check "$actingMember" )" || trelloFailed="true"
-				if [ "$trelloFailed" = "false" ] ; then
+				if [ "$trelloNotConfigured" = "false" ] ; then
+					trelloJson="$( DistroAgentsTools --member-comms-trello-check "$actingMember" )" || trelloFailed="true"
+				fi
+				if [ "$trelloNotConfigured" = "false" ] && [ "$trelloFailed" = "false" ] ; then
 					trelloBlocks="$( printf '%s\n' "$trelloJson" | LC_ALL=C awk -v kind=trello -f "$commsItemsAwk" )" || {
 						trelloFailed="true"
 						trelloBlocks=""
@@ -775,23 +785,30 @@ case "$1" in
 			emailCount="$( printf '%s' "$emailBlocks" | LC_ALL=C awk 'BEGIN { c = 0; } /^## / { c++; } END { print c; }' )"
 			trelloCount="$( printf '%s' "$trelloBlocks" | LC_ALL=C awk 'BEGIN { c = 0; } /^## / { c++; } END { print c; }' )"
 
-			local anyCommsRequested="false" allCommsEmptyAndScanned="true"
+			local anyCommsRequested="false" anyCommsConfigured="false" allCommsEmptyAndScanned="true"
 			if [ "$wantSlack" = "true" ] || [ "$wantEmail" = "true" ] || [ "$wantTrello" = "true" ] ; then
 				anyCommsRequested="true"
 			fi
+			## A source nothing is configured for was never looked at: it cannot
+			## be empty and it cannot have failed, so it decides nothing here.
+			if [ "$wantSlack" = "true" ] ; then anyCommsConfigured="true" ; fi
+			if [ "$wantEmail" = "true" ]  && [ "$emailNotConfigured" = "false" ]  ; then anyCommsConfigured="true" ; fi
+			if [ "$wantTrello" = "true" ] && [ "$trelloNotConfigured" = "false" ] ; then anyCommsConfigured="true" ; fi
 			if [ "$wantSlack" = "true" ]  && { [ "$imCount" != "0" ]     || [ "$imAnySourceFailed" = "true" ] ; } ; then allCommsEmptyAndScanned="false" ; fi
-			if [ "$wantEmail" = "true" ]  && { [ "$emailCount" != "0" ]  || [ "$emailFailed" = "true" ] ; }  ; then allCommsEmptyAndScanned="false" ; fi
-			if [ "$wantTrello" = "true" ] && { [ "$trelloCount" != "0" ] || [ "$trelloFailed" = "true" ] ; } ; then allCommsEmptyAndScanned="false" ; fi
+			if [ "$wantEmail" = "true" ]  && [ "$emailNotConfigured" = "false" ]  && { [ "$emailCount" != "0" ]  || [ "$emailFailed" = "true" ] ; }  ; then allCommsEmptyAndScanned="false" ; fi
+			if [ "$wantTrello" = "true" ] && [ "$trelloNotConfigured" = "false" ] && { [ "$trelloCount" != "0" ] || [ "$trelloFailed" = "true" ] ; } ; then allCommsEmptyAndScanned="false" ; fi
 
 			if [ "$wantSlack" = "true" ] ; then
 				sessionContextSourcesTotal=$(( sessionContextSourcesTotal + imSourcesTotal ))
 				sessionContextSourcesScanned=$(( sessionContextSourcesScanned + imSourcesScanned ))
 			fi
-			if [ "$wantEmail" = "true" ] ; then
+			## An unconfigured optional source enters neither counter: un-scanned would
+			## report partial for ever, scanned would assert a read that never happened.
+			if [ "$wantEmail" = "true" ] && [ "$emailNotConfigured" = "false" ] ; then
 				sessionContextSourcesTotal=$(( sessionContextSourcesTotal + 1 ))
 				[ "$emailFailed" = "true" ] || sessionContextSourcesScanned=$(( sessionContextSourcesScanned + 1 ))
 			fi
-			if [ "$wantTrello" = "true" ] ; then
+			if [ "$wantTrello" = "true" ] && [ "$trelloNotConfigured" = "false" ] ; then
 				sessionContextSourcesTotal=$(( sessionContextSourcesTotal + 1 ))
 				[ "$trelloFailed" = "true" ] || sessionContextSourcesScanned=$(( sessionContextSourcesScanned + 1 ))
 			fi
@@ -799,6 +816,8 @@ case "$1" in
 			printf '# New Incoming Communications\n\n'
 			if [ "$anyCommsRequested" = "false" ] ; then
 				printf '**NOTE:** not requested\n\n'
+			elif [ "$anyCommsConfigured" = "false" ] ; then
+				printf '**NOTE:** no scan was made -- no requested comms source is configured in this member'"'"'s own scope\n\n'
 			elif [ "$allCommsEmptyAndScanned" = "true" ] ; then
 				printf '**NOTE:** no new incoming communications\n\n'
 			fi
@@ -827,9 +846,8 @@ case "$1" in
 				else
 					local imRendered=""
 					imRendered="$( printf '%s' "$imBlocks" | LC_ALL=C awk -v cap="$sessionContextCapIm" '
-							## Same float-free, locale-proof key as the per-thread trim
-							## above, and deliberately the same function: two orderings
-							## that must agree forever should not be two implementations.
+							## Deliberately the same key function as the per-thread trim above:
+							## two orderings that must agree are not two implementations.
 							function tskey(v,   d, sec, frac) {
 								gsub(/^[ \t]+|[ \t\r]+$/, "", v)
 								d = index(v, ".")
@@ -855,11 +873,9 @@ case "$1" in
 								bsrc[nblk] = g
 								if (!(g in gseen)) { gseen[g] = 1 ; gname[++ng] = g ; gmax[g] = "" ; gn[g] = 0 ; }
 								gn[g]++
-								## An undatable conversation ranks HIGHEST, never lowest:
-								## the cap must not quietly delete the one conversation
-								## whose recency this code could not establish. "~" (0x7E)
-								## sorts above any digit under LC_ALL=C -- which is another
-								## reason that setting is not optional here.
+								## An undatable conversation ranks HIGHEST, so the cap never
+								## deletes one whose recency could not be established. "~"
+								## (0x7E) sorts above any digit under LC_ALL=C.
 								if (curKey == "") { gmax[g] = "~" ; }
 								else if (gmax[g] != "~" && curKey > gmax[g]) { gmax[g] = curKey ; }
 								nb = 0 ; curKey = "" ; curSource = "" ;
@@ -870,29 +886,21 @@ case "$1" in
 							/^source:/ { if (curSource == "") curSource = trim(substr($0, index($0, ":") + 1)) ; }
 							END {
 								flush()
-								## ONE comparator drives both stages. A conversation is
-								## ranked by its own NEWEST message: SELECTION keeps the
-								## top `cap` of that ranking, PRESENTATION renders that
-								## same window ascending. Two different keys would leave
-								## the rendered order non-monotone in the selection key,
-								## so a reader could not tell where the cap had fallen.
+								## ONE comparator drives both stages: a conversation is ranked by
+								## its own NEWEST message, SELECTION keeps the top `cap` of that
+								## ranking and PRESENTATION renders that same window ascending.
 								for (i = 1; i <= ng; i++) gord[i] = i
 								for (x = 2; x <= ng; x++) {
 									v = gord[x] ; j = x - 1
 									while (j >= 1 && gmax[gname[gord[j]]] > gmax[gname[v]]) { gord[j + 1] = gord[j] ; j-- ; }
 									gord[j + 1] = v
 								}
-								## gord ascends by recency, so the cap keeps the TAIL and
-								## never the head. Keeping the head is what the old
-								## first-come cap amounted to, and it is what starved every
-								## thread out of the document.
+								## gord ascends by recency, so the cap keeps the TAIL, never the head.
 								keepFrom = ng - cap + 1
 								if (keepFrom < 1) keepFrom = 1
 								printf("conversations: %d shown of %d\n", ng - keepFrom + 1, ng)
-								## Truncation is never silent, and never reads like an
-								## unread source: a dropped conversation WAS read and does
-								## count toward sources-scanned. Naming each one is the
-								## point -- "something was dropped" is not a report.
+								## Truncation is never silent: a dropped conversation WAS read and
+								## still counts toward sources-scanned, and each one is named.
 								if (keepFrom > 1) {
 									dropped = ""
 									for (x = 1; x < keepFrom; x++) {
@@ -928,6 +936,12 @@ case "$1" in
 			printf '## Incoming Email Updates\n\n'
 			if [ "$wantEmail" != "true" ] ; then
 				printf '**NOTE:** not requested\n\n'
+			elif [ "$emailNotConfigured" = "true" ] ; then
+				## No sources-scanned: line -- an unconfigured optional source has no
+				## denominator to be a fraction of.
+				printf 'identity: email %s (config: %s)\n' "$emailIdentity" "$actingMember"
+				printf 'instrument: %s\n' "$emailInstrument"
+				printf '**NOTE:** no scan was made -- EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD are not all set in this member'"'"'s own scope; this source is optional, is counted in no source total, and does not make the scan partial\n\n'
 			elif [ "$emailFailed" = "true" ] ; then
 				printf 'identity: email %s (config: %s)\n' "$emailIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$emailInstrument"
@@ -942,7 +956,9 @@ case "$1" in
 				if [ "$emailCount" = "0" ] ; then
 					printf '**NOTE:** no new incoming email updates -- scanned 1 of 1 sources, 0 messages matched %s\n\n' "$emailInstrument"
 				else
-					[ "$emailCount" -le "$sessionContextCapEmail" ] || printf '**NOTE:** truncated -- %s items found, capped at %s\n' "$emailCount" "$sessionContextCapEmail"
+					## The UID count, not the block count: the fetch loop stops at the cap,
+					## so a block count could never exceed it and would disclose no cut.
+					[ "$emailUidsTotal" -le "$sessionContextCapEmail" ] || printf '**NOTE:** truncated -- %s items found, capped at %s\n' "$emailUidsTotal" "$sessionContextCapEmail"
 					printf '\n'
 					printf '%s' "$emailBlocks" | LC_ALL=C awk -v cap="$sessionContextCapEmail" '/^## / { c++; } c <= cap'
 				fi
@@ -951,6 +967,11 @@ case "$1" in
 			printf '## Incoming Trello Updates\n\n'
 			if [ "$wantTrello" != "true" ] ; then
 				printf '**NOTE:** not requested\n\n'
+			elif [ "$trelloNotConfigured" = "true" ] ; then
+				## No sources-scanned: line, same reason as the email section.
+				printf 'identity: trello %s (config: %s)\n' "$trelloIdentity" "$actingMember"
+				printf 'instrument: %s\n' "$trelloInstrument"
+				printf '**NOTE:** no scan was made -- TRELLO_KEY/TRELLO_TOKEN are not both set in this member'"'"'s own scope; this source is optional, is counted in no source total, and does not make the scan partial\n\n'
 			elif [ "$trelloFailed" = "true" ] ; then
 				printf 'identity: trello %s (config: %s)\n' "$trelloIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$trelloInstrument"

@@ -104,7 +104,7 @@ case "$1" in
 			--expect-secret SLACK_BOT_TOKEN \
 			--resolve-slack-workspace-into SLACK_WORKSPACE_DOMAIN \
 			--context --magic-heartbeat-config-check || true
-		DistroAgentsTools --intern-op-check-slack-scopes magic-coordinator \
+		DistroAgentsTools --intern-op-slack-check-scopes magic-coordinator \
 			--scope-source --member-comms-slack-send-message \
 			--scope-source --intern-op-slack-check \
 			--scope-source --member-comms-slack-read \

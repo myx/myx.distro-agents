@@ -7,11 +7,8 @@
 ## dot-sourced for $1/$@/$MDSC_CMD. Generic config-key status-check
 ## primitive (name only, never the value); --required gates exit 1,
 ## --optional is informational only. No --help entry: internal plumbing.
-##
-## NOT A SLACK OP, and it carries no Slack code: its one call that has to reach
-## Slack -- --resolve-slack-workspace-into <KEY> -- goes through a helper in
-## sh-lib/AgentsTools.CommsSlack.include, the single file every non-member Slack
-## call lives in, sourced from inside that branch and nowhere else in this file.
+## NOT A SLACK OP: --resolve-slack-workspace-into <KEY> goes through a helper in
+## sh-lib/AgentsTools.CommsSlack.include, sourced from inside that branch alone.
 ##
 
 case "$1" in
@@ -201,7 +198,8 @@ case "$1" in
 					printf '%s\n' "${warnDetail[@]}"
 				fi
 			else
-				echo "$checkKey: FAIL"
+				## FAIL is a key that had to be set; an unset optional key is a SKIP.
+				if [ "$checkMode" = "required" ] ; then echo "$checkKey: FAIL" ; else echo "$checkKey: SKIP" ; fi
 				local fixHint esEntry
 				fixHint="DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey $checkHint"
 				for esEntry in ${expectSecrets[@]+"${expectSecrets[@]}"} ; do
@@ -219,24 +217,13 @@ case "$1" in
 		done
 
 		if [ -n "$resolveWorkspaceKey" ] ; then
-			## THIS OP CARRIES NO SLACK CALL OF ITS OWN. --intern-op-check-configs
-			## is a generic config-key check; resolving a workspace domain is the
-			## one thing it does that has to reach Slack, and that call lives where
-			## every non-member Slack call lives -- the single
-			## sh-lib/AgentsTools.CommsSlack.include, per the human-owner's ruling
-			## "no sites - one site". Sourced HERE rather than at this file's top
-			## so that a config check which is not resolving a workspace never
-			## pulls Slack credential resolvers into its shell at all.
-			##
-			## Sourcing an op include normally dispatches on $1 and would run an
-			## operation; that file's `case` ends in a branch that dispatches
-			## nothing for any name that is not one of its own ops, which is what
-			## makes this legal. See its DUAL USE header.
+			## Sourced HERE, not at file top: a check that resolves no workspace never
+			## pulls Slack credential resolvers into its shell. Sourcing dispatches
+			## nothing for a name that file does not own -- see its DUAL USE header.
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 
-			## Scope-pinned on purpose: the resolver reads THIS scope's own
-			## SLACK_BOT_TOKEN and never falls back to magic-team's, because the
-			## value is about to be persisted INTO this scope.
+			## Scope-pinned: the value is about to be persisted INTO this scope, so the
+			## resolver never falls back to magic-team's token.
 			local wsUrl="" wsRc=0
 			wsUrl="$( AgentsToolsSlackResolveWorkspaceForScope "$callingMember" )" || wsRc=$?
 			case "$wsRc" in
@@ -246,7 +233,7 @@ case "$1" in
 				;;
 				2)
 					echo "$resolveWorkspaceKey: WARN"
-					echo "  warn: no SLACK_BOT_TOKEN configured in $callingMember scope -- cannot resolve a workspace to persist"
+					echo "  warn: neither SLACK_USER_TOKEN nor SLACK_BOT_TOKEN is configured in $callingMember scope -- there is no token of this scope's own to resolve a workspace with, and previously persisted value, if any, is left untouched"
 				;;
 				3)
 					echo "$resolveWorkspaceKey: WARN"

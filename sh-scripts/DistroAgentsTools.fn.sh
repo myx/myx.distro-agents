@@ -111,32 +111,15 @@ DistroAgentsTools(){
 			esac
 		;;
 
-		## SLACK ROUTES ONLY -- NO SLACK CODE IN THIS FILE. The human-owner's own
-		## ruling: "NO SLACK IN DistroAgentsTools.fn.sh! ALL IN SEPARATE ARMS".
-		## Each Slack op gets its own arm, exactly as Google, Trello, Confluence
-		## and Jira already do, and each arm does nothing but source an include.
-		##
-		## ONE PLACE, and it is not this file. The human-owner's own follow-up:
-		## "make AgentsTools.CommsSlack.include - and move all non-member
-		## non-stubs", and "Reorganise - so these helpers somewhere in one place
-		## and this place is not DistroAgentsTools.fn.sh". So every non-member
-		## Slack operation AND every helper they share live in the single file
-		## sh-lib/AgentsTools.CommsSlack.include. There is no helpers file beside
-		## it and no per-op include behind it: the three --intern-op-* arms below
-		## all route to that one file, which dispatches on the op name.
-		##
-		## The member stubs keep their own arms and their own includes -- a
-		## member's Slack surface is that member's, not the team's -- and they
-		## source AgentsTools.CommsSlack.include at their own top purely for the
-		## helper definitions. That works because that file's `case` ends in a
-		## branch that dispatches nothing when $1 is not one of its own ops; see
-		## its DUAL USE header.
-		##
+		## SLACK ROUTES ONLY -- NO SLACK CODE IN THIS FILE. Each Slack family gets
+		## its own arm, and each arm does nothing but source an include. Every
+		## non-member Slack op and every shared helper lives in the single file
+		## sh-lib/AgentsTools.CommsSlack.include; the member stubs keep their own
+		## arms and source that file only for the helper definitions.
 		## These stay ahead of the --member-* route below, which would otherwise
-		## take every --member-comms-slack-* op. An --intern-op-slack-* name that
-		## is none of the three below falls through to this file's own
-		## invalid-option branch, where the former combined arm's inner `esac`
-		## used to swallow it and return 0.
+		## take every --member-comms-slack-* op. A future --intern-op-slack-* op
+		## routing anywhere else goes above the glob arm, the same rule
+		## --intern-op-item-* already lives under.
 		--member-comms-slack-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlack.include"
 			return $?
@@ -147,17 +130,7 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--intern-op-slack-call)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
-			return $?
-		;;
-
-		--intern-op-slack-check)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
-			return $?
-		;;
-
-		--intern-op-check-slack-scopes)
+		--intern-op-slack-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 			return $?
 		;;
@@ -397,11 +370,9 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		## THE NAME IS LOAD-BEARING, not arbitrary: this op is not a Slack op, so its
-		## include does not source sh-lib/AgentsTools.CommsSlack.include and that
-		## file's credential resolvers never enter this op's shell. Renaming it toward
-		## the Slack family, or sourcing those helpers here, silently undoes that.
-		## See MAGIC.md.
+		## THE NAME IS LOAD-BEARING: this op is not a Slack op, so its include never
+		## sources AgentsTools.CommsSlack.include and no credential resolver enters
+		## its shell. Renaming it toward the Slack family undoes that. See MAGIC.md.
 		--intern-op-url-post-bytes)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpUrlPostBytes.include"
 			return $?
