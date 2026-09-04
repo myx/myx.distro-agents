@@ -12,10 +12,6 @@
 ## set -e rules, portability floor and design notes: see MAGIC.md.
 ##
 
-## Empty id means a notification: no response.
-## mkdir is the atomic test-and-set every POSIX filesystem has, where flock is
-## not guaranteed on bare FreeBSD/Darwin. Held for the one printf only.
-## $$ is the server's own pid in a background job too, never the subshell's.
 AgentsMcpSendResult(){
 	local mcpLockSpin=0
 	[ -n "$1" ] || return 0
@@ -73,11 +69,6 @@ case "$1" in
 
 		set +e
 
-		## The one scratch root, workspace-local and one per server process:
-		## req is the current request's parsed fields, wire.lock the response
-		## mutex, out.<seq> one job's output. The pid keeps concurrent servers
-		## apart; a leftover directory from a crashed run under a recycled pid
-		## is cleared first, so a restart never inherits a stale wire.lock.
 		rm -rf "$MMDAPP/.local/temp/agent-mcp.$$"
 		if ! mkdir -p "$MMDAPP/.local/temp/agent-mcp.$$" ; then
 			printf '%s\n' "$MDSC_CMD: mcp-server: ⛔ ERROR: cannot create scratch directory $MMDAPP/.local/temp/agent-mcp.$$" >&2
@@ -104,13 +95,6 @@ case "$1" in
 
 			printf '%s\n' "$mcpLine" | LC_ALL=C awk -v outDir="$MMDAPP/.local/temp/agent-mcp.$$/req" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonParseRequest.awk"
 
-			## Read here and not in the job below: the next message wipes this
-			## directory while that job still runs, and the fork copies these.
-			## `read`, not $( ): avoiding the fork is the point. Guarded on the
-			## file, never on 2>/dev/null: a failing `<` reports before a later
-			## redirection applies. An absent file leaves the empty default,
-			## which is exactly what the parser omitting that field means.
-			## has_id exists only when the parser also wrote id.
 			mcpMethod='' ; mcpId='' ; mcpToolName=''
 			[ ! -f "$MMDAPP/.local/temp/agent-mcp.$$/req/method" ] || IFS= read -r mcpMethod < "$MMDAPP/.local/temp/agent-mcp.$$/req/method" || true
 			[ ! -f "$MMDAPP/.local/temp/agent-mcp.$$/req/tool_name" ] || IFS= read -r mcpToolName < "$MMDAPP/.local/temp/agent-mcp.$$/req/tool_name" || true
@@ -120,10 +104,6 @@ case "$1" in
 			## Optional per-call workspace override; empty means "this server's own MMDAPP", unchanged.
 			mcpWorkspace="$( cat "$MMDAPP/.local/temp/agent-mcp.$$/req/arg_workspace" 2>/dev/null || true )"
 
-			## The whole handler forks, not just the command: this loop then
-			## waits on nothing a script can influence, and a slow request
-			## delays only its own response. stdin is /dev/null so no handler
-			## can ever eat the wire.
 			AGENTS_MCP_REQ_SEQ=$(( AGENTS_MCP_REQ_SEQ + 1 ))
 			{
 				case "$mcpMethod" in
@@ -148,17 +128,8 @@ case "$1" in
 						elif [ -n "$mcpWorkspace" ] && [ ! -d "$mcpWorkspace/.local" ] ; then
 							AgentsMcpSendError "$mcpId" -32602 "workspace has no .local, not a set-up myx.distro workspace: $mcpWorkspace"
 						else
-							## Redirected to a file, never captured by $( ): a command substitution
-							## returns only once its pipe has no writers left, so any child the script
-							## leaves running (`&`, a daemon, nohup) would hold this response forever.
-							## The pipe keeps the script off the loop's stdin, which is the wire.
-							## The seq counter keeps two concurrent jobs off each other's output file.
-							## Never `cmd ; rc=$?`: under -e that dies before reading $?.
 							mcpExitCode=0
 							if [ -n "$mcpWorkspace" ] ; then
-								## Fresh subprocess. Our origin operates the target workspace -- the
-								## target's own tooling may be stale, broken, or absent, which is
-								## why this server was called for it. The operation takes the root.
 								printf '%s\n' "$mcpScript" | ( exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) > "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ" 2>&1 || mcpExitCode=$?
 							else
 								printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute > "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ" 2>&1 || mcpExitCode=$?
@@ -187,15 +158,6 @@ case "$1" in
 				esac
 			} < /dev/null &
 		done
-		## Every handler is a background job of THIS shell, so end-of-stdin
-		## must not be the end of the process: without this wait the loop
-		## falls straight through to the rm -rf below and deletes
-		## out.<seq> under a handler still writing its response, which is
-		## then answered never -- measured, both tools/call requests of a
-		## six-message probe were lost exactly this way. wait returns as
-		## soon as each handler pipeline does; a child the script itself
-		## left running (`&`, a daemon) is a grandchild, not a job of this
-		## shell, so it is never waited on and cannot hold shutdown.
 		wait
 
 		rm -rf "$MMDAPP/.local/temp/agent-mcp.$$"

@@ -9,82 +9,11 @@
 ## $MDLT_ORIGIN-based path. Not standalone: relies on being dot-sourced for
 ## $1/$@/$MDSC_CMD.
 ##
-## No --help entry: this is internal plumbing. Real board-write policy
-## (mandatory fields per state transition, audit stamps like groomed-at)
-## lives in the caller (e.g. AgentsTools.MagicGrooming.include's
-## --magic-grooming-* ops), not here. This is the one generic, reusable
-## move/edit/upsert mechanism every such caller shares -- "Make all similar
-## use it." One deliberate exception: `approved-by`'s own value SHAPE
-## (`<team-member> (<session-id>, <date-time>)`) is validated right here,
-## in the shared --header:* parsing below, not duplicated per caller --
-## it's a fact about the field itself (magic-team.armed.md's own field
-## definition), not one caller's transition-specific policy, so every
-## current/future header-writing caller gets the same check for free.
-##
-## Header-ops apply logic (upsert/append/remove against the body's
-## frontmatter) is externalized to AgentsBoardItemHeaderOpsApply.awk, per
-## this package's own externalize-awk/py convention (see
-## AgentsBoardItemFrontmatterPrint.awk's own header comment for that name) --
-## unconditional, no size-based exception.
-##
 
 case "$1" in
 
-	## <to-state> <item-filename> (--from-state:<state>|--from-inbox:<member>|--create)
-	##   [--header:<upsert|append|remove>:name[:value]]...
-	##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-	##
-	## Source selection: exactly one of the three. --from-state:<state> reads
-	## board/<state>/<item-filename>; --from-inbox:<member> reads
-	## inboxes/<member>/processed/<item-filename>; --create starts fresh.
-	## --from-inbox: is colon-style to match its --from-state: sibling, NOT a
-	## spaced `--from-inbox <member>` pair: a spaced pair silently swallows a
-	## neighbouring option, so `--from-inbox --create` would set the member name
-	## to the literal string "--create" and fail far from the real mistake.
-	##
-	## ONE-WAY DOOR on the inbox source: there is no --to-inbox: counterpart.
-	## A board->board move reverses by swapping the two states; an inbox->board
-	## move has no inverse. Callers must treat it as final.
-	##
-	## Body resolution (in order): --edit-script-from-stdin runs the given
-	## py/awk script (read from this op's own stdin) against the existing
-	## content (empty on --create) and takes its stdout as the new body;
-	## --upsert-from-stdin takes this op's stdin verbatim as the new body;
-	## --edit-patch-from-stdin reads a JSON array of
-	## `{"old": <text>, "new": <text>, "replace_all": <bool, default false>}`
-	## patch objects from this op's own stdin and applies each, in order,
-	## against the existing content (empty on --create) as an exact literal
-	## (non-regex) substring match-and-replace -- each patch's `old` must
-	## match exactly once unless `replace_all` is true, in which case every
-	## occurrence is replaced; a patch whose `old` is not found, or matches
-	## more than once without `replace_all`, fails the whole op loud (no
-	## partial write, original file untouched) before anything reaches
-	## disk; patch N+1 matches against the result of patch N, same as
-	## several `Edit`-tool calls run in sequence. Externalized as
-	## AgentsBoardItemPatchApply.py per this package's own externalize-awk/py
-	## convention (see AgentsBoardItemFrontmatterPrint.awk). None of the
-	## three given means the body is the existing content unchanged
-	## (--create with neither starts from an empty `---`/`---` frontmatter
-	## skeleton, so --header:upsert has somewhere to land). The three
-	## body-input modes are mutually exclusive. --header:* ops apply on top
-	## of the resolved body, in the order given (repeat upserts/removes on
-	## the same field: last wins; repeat appends on the same field:
-	## cumulative, in order) -- then the result is written to a temp file
-	## and `mv`'d into place atomically. On an actual move, the OLD file's
-	## disposal depends on the source: --from-inbox: DELETES it, so the new
-	## board item is then the only copy; --from-state: `mv`'s it to trash/ (a
-	## standalone sibling of board/, not one of its own states).
 	--intern-op-board-upsert-move-edit)
 		shift
-		## --context <caller-op>: the operation the caller actually invoked,
-		## carried as data on the call rather than inferred from re-entry or
-		## shell scoping. Pre-scanned here, before any validation, so every
-		## message in this arm can name it -- including the ones that fire
-		## before the option loop below ever runs. That loop consumes
-		## --context again as an ordinary option; this scan only reads it.
-		## Absent, it stays the explicit "<no --context given>" literal --
-		## never blank, so a caller that did not pass one is visibly missing
-		## it rather than silently printing nothing.
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do
@@ -152,25 +81,6 @@ case "$1" in
 							set +e ; return 1
 						;;
 					esac
-					##
-					## DELIBERATELY ABSENT: no inbox type-prefix whitelist. The
-					## types an inbox is *written* with are note-/inquiry-/
-					## reflection-, but the items this source exists to relocate
-					## are task-/proposal-/change-/interview-. A prefix
-					## whitelist would reject exactly the files the operation
-					## was built to move. Do not add one.
-					##
-					## `processed/` below is a FIXED LITERAL this op appends --
-					## deliberately not caller-supplied. Measured: the whole
-					## domain of that path segment is one value (6 of the 13
-					## inboxes carry a `processed` subdirectory, nothing else,
-					## no deeper nesting). The literal can be widened into a
-					## parameter later; a parameter could never be narrowed
-					## back. Not an oversight.
-					##
-					## `cd` + `pwd -P` rather than `realpath` (not POSIX) or
-					## `readlink -f` (absent on macOS before Monterey).
-					##
 					local inboxBase="" inboxDirResolved=""
 					inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 					if [ -z "$inboxBase" ] ; then
@@ -182,9 +92,6 @@ case "$1" in
 						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: no such inbox processed directory: $MDAT_DATA_ROOT/inboxes/$fromInbox/processed" >&2
 						set +e ; return 1
 					fi
-					## Containment tested WITH the separator -- "$inboxBase"/* ,
-					## never a bare "$inboxBase"* prefix: /data/inboxes-evil/x
-					## passes the bare prefix test and correctly fails this one.
 					case "$inboxDirResolved" in
 						"$inboxBase"/*) ;;
 						*)
@@ -224,25 +131,6 @@ case "$1" in
 								echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --header:$headerOp:$headerName requires a value" >&2
 								set +e ; return 1
 							fi
-							## approved-by's required shape: `<team-member>
-							## (<session-id>, <date-time>)`. <team-member> is a
-							## bare name (letters/digits/hyphen, same bare-name
-							## family as <item-filename>'s own convention
-							## elsewhere in this file). <session-id> is
-							## deliberately unconstrained beyond "no comma/
-							## parens inside it" -- both a
-							## $CLAUDE_CODE_SESSION_ID (interactive harness/IDE
-							## chat session) and a --console-start
-							## console-channel-id
-							## (myx.distro-agent-console.<slug>.<console>, see
-							## DistroAgentsTools.fn.sh's own
-							## MDAT_CHANNEL_PREFIX) are valid shapes, and
-							## hardcoding either one specifically would reject
-							## the other. <date-time> reuses the exact
-							## ISO-UTC-with-Z-suffix regex already established
-							## for --member-append-session-transcript's
-							## --timestamp (AgentsTools.Member.include), not a
-							## new format invented here.
 							if [ "$headerName" = "approved-by" ] ; then
 								if ! printf '%s' "$headerValue" | grep -Eq '^[A-Za-z][A-Za-z0-9_-]* \([^,()]+, [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z\)$' ; then
 									echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --header:$headerOp:approved-by: value must match '<team-member> (<session-id>, <date-time>)' (ISO UTC date-time, suffix Z): $headerValue" >&2
@@ -300,11 +188,6 @@ case "$1" in
 			esac
 		done
 
-		## Source-group exclusivity via a counter, the same idiom bodyModeCount
-		## below already uses -- not a pairwise comparison. With three members
-		## (--from-state:, --from-inbox:, --create) a pairwise check catches
-		## only one of the possible orderings, an asymmetric gap that widens
-		## with every source added.
 		if [ "$sourceModeCount" -eq 0 ] ; then
 			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: exactly one of --from-state:<state>, --from-inbox:<member>, or --create is required" >&2
 			set +e ; return 1
@@ -314,10 +197,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## Three-way check via a counter, not a pairwise scriptLang/bodyMode
-		## comparison -- a pairwise check only catches one of the six
-		## possible orderings across three flags, an asymmetric gap that
-		## widens (not narrows) once --edit-patch-from-stdin joins the set.
 		if [ "$bodyModeCount" -gt 1 ] ; then
 			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --upsert-from-stdin, --edit-script-from-stdin, and --edit-patch-from-stdin are mutually exclusive" >&2
 			set +e ; return 1
@@ -386,12 +265,6 @@ case "$1" in
 				rm -f -- "$sourcePath"
 				echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, previous ${sourcePath#"$boardRoot"/} deleted" >&2
 			else
-				##
-				## HAZARD: trash/ is FLAT and `mv` has no -n, so a basename
-				## collision overwrites silently, exit 0, no diagnostic. `--`
-				## before the operands: validation guards bad input, `--`
-				## guards a later edit that bypasses validation.
-				##
 				mv -- "$sourcePath" "$MDAT_DATA_ROOT/trash/$itemName"
 				echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}, previous ${sourcePath#"$boardRoot"/} moved to $MDAT_DATA_ROOT/trash/$itemName" >&2
 			fi

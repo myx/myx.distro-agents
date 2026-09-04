@@ -111,114 +111,59 @@ DistroAgentsTools(){
 			esac
 		;;
 
-		## EVERY OP THAT NEEDS THE SLACK HELPERS ENTERS HERE, AND ONLY THESE DO.
-		## The two helpers shared by more than one Slack include are defined in the
-		## arm that shares them -- not at file scope, where they would load for
-		## every unrelated op, and not in an include of their own, which an op
-		## include cannot source anyway (sourcing one dispatches on $1).
+		## SLACK ROUTES ONLY -- NO SLACK CODE IN THIS FILE. The human-owner's own
+		## ruling: "NO SLACK IN DistroAgentsTools.fn.sh! ALL IN SEPARATE ARMS".
+		## Each Slack op gets its own arm, exactly as Google, Trello, Confluence
+		## and Jira already do, and each arm does nothing but source an include.
 		##
-		## Stays ahead of the --member-* route below, which would otherwise take
-		## every --member-comms-* op. The inner case is the real routing.
-		--member-comms-slack-*|--magic-comms-slack-*|--intern-op-slack-*|--intern-op-check-slack-scopes|--intern-op-session-context-scan)
+		## ONE PLACE, and it is not this file. The human-owner's own follow-up:
+		## "make AgentsTools.CommsSlack.include - and move all non-member
+		## non-stubs", and "Reorganise - so these helpers somewhere in one place
+		## and this place is not DistroAgentsTools.fn.sh". So every non-member
+		## Slack operation AND every helper they share live in the single file
+		## sh-lib/AgentsTools.CommsSlack.include. There is no helpers file beside
+		## it and no per-op include behind it: the three --intern-op-* arms below
+		## all route to that one file, which dispatches on the op name.
+		##
+		## The member stubs keep their own arms and their own includes -- a
+		## member's Slack surface is that member's, not the team's -- and they
+		## source AgentsTools.CommsSlack.include at their own top purely for the
+		## helper definitions. That works because that file's `case` ends in a
+		## branch that dispatches nothing when $1 is not one of its own ops; see
+		## its DUAL USE header.
+		##
+		## These stay ahead of the --member-* route below, which would otherwise
+		## take every --member-comms-slack-* op. An --intern-op-slack-* name that
+		## is none of the three below falls through to this file's own
+		## invalid-option branch, where the former combined arm's inner `esac`
+		## used to swallow it and return 0.
+		--member-comms-slack-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlack.include"
+			return $?
+		;;
 
-			## Resolves alias|<channel>|<channel>:<ts> to CHANNEL= + THREAD_TS=; shared by every op taking a target.
-			DistroAgentsToolsResolveTarget(){
-				local target="$1"
-				local channel threadTs
-				case "$target" in
-					event-track|event-track:*)
-						channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_TRACK )"
-						case "$target" in *:*) threadTs="${target#*:}" ;; esac
-					;;
-					event-alert|event-alert:*)
-						channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_ALERT )"
-						case "$target" in *:*) threadTs="${target#*:}" ;; esac
-					;;
-					magic-team|magic-team:*)
-						channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_MAGIC_TEAM )"
-						case "$target" in *:*) threadTs="${target#*:}" ;; esac
-					;;
-					human-owner|human-owner:*)
-						channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_HUMAN_OWNER )"
-						case "$target" in *:*) threadTs="${target#*:}" ;; esac
-					;;
-					*:*)
-						channel="${target%%:*}"
-						threadTs="${target#*:}"
-					;;
-					## Bare uppercase id: a whole conversation, so THREAD_TS stays empty and the send posts at top level.
-					## Must stay after `*:*`, and never a [A-Z] range -- bracket ranges are collation-dependent.
-					?????????*)
-						local bareRest="$target" bareChar bareFirst="true"
-						while [ -n "$bareRest" ] ; do
-							bareChar="${bareRest%"${bareRest#?}"}"
-							bareRest="${bareRest#?}"
-							case "$bareChar" in
-								A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
-								0|1|2|3|4|5|6|7|8|9)
-									[ "$bareFirst" = "false" ] || return 2
-								;;
-								*)
-									return 2
-								;;
-							esac
-							bareFirst="false"
-						done
-						channel="$target"
-					;;
-					*)
-						return 2
-					;;
-				esac
-				if [ -z "$channel" ] ; then
-					return 1
-				fi
-				printf 'CHANNEL=%s\nTHREAD_TS=%s\n' "$channel" "$threadTs"
-				return 0
-			}
+		--magic-comms-slack-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
+			return $?
+		;;
 
-			## The member's own SLACK_BOT_TOKEN when it has one, magic-team's shared token
-			## when it does not. See MAGIC.md.
-			## Prints `<source> <token>`; returns 1 with nothing printed when neither holds one.
-			AgentsToolsResolveSlackBotToken(){
-				local memberName="$1"
-				local resolvedToken=""
-				## magic-team's own scope IS the shared scope -- labelling it `member` would lie.
-				if [ -n "$memberName" ] && [ "$memberName" != "magic-team" ] ; then
-					resolvedToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_BOT_TOKEN 2>/dev/null )" || resolvedToken=""
-					if [ -n "$resolvedToken" ] ; then
-						printf 'member-bot-token %s\n' "$resolvedToken"
-						return 0
-					fi
-				fi
-				resolvedToken="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN 2>/dev/null )" || resolvedToken=""
-				if [ -z "$resolvedToken" ] ; then
-					return 1
-				fi
-				printf 'shared-bot-token %s\n' "$resolvedToken"
-				return 0
-			}
+		--intern-op-slack-call)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
+			return $?
+		;;
 
-			case "$1" in
-				--member-comms-slack-*)
-					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlack.include"
-				;;
-				--magic-comms-slack-*)
-					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
-				;;
-				--intern-op-slack-call)
-					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSlackCall.include"
-				;;
-				--intern-op-slack-check)
-					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSlackCheck.include"
-				;;
-				--intern-op-check-slack-scopes)
-					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpCheckSlackScopes.include"
-				;;
-				--intern-op-session-context-scan)
-					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSessionContextScan.include"
-				;;
-			esac
+		--intern-op-slack-check)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
+			return $?
+		;;
+
+		--intern-op-check-slack-scopes)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
+			return $?
+		;;
+
+		--intern-op-session-context-scan)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSessionContextScan.include"
 			return $?
 		;;
 
@@ -452,9 +397,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		## THE NAME IS LOAD-BEARING, not arbitrary: NOT matching the --intern-op-slack-*
-		## glob above is what keeps that arm's credential resolvers out of this op's
-		## shell. Renaming it toward the Slack family silently undoes that. See MAGIC.md.
+		## THE NAME IS LOAD-BEARING, not arbitrary: this op is not a Slack op, so its
+		## include does not source sh-lib/AgentsTools.CommsSlack.include and that
+		## file's credential resolvers never enter this op's shell. Renaming it toward
+		## the Slack family, or sourcing those helpers here, silently undoes that.
+		## See MAGIC.md.
 		--intern-op-url-post-bytes)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpUrlPostBytes.include"
 			return $?

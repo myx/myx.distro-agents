@@ -32,17 +32,11 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## Fail-fast-hard gate, NOT covered by the loop's own never-die
-		## discipline below: own-service mode must already be up before the
-		## loop that runs it even starts. Propagates via -e, still armed here.
 		DistroAgentsTools --magic-heartbeat-config-check
 
 		local sleepSeconds
 		sleepSeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
 
-		## No background job forked here, unlike --intern-mcp-server's
-		## `{...} &`, so -e state is never reset mid-loop: one set +e covers
-		## the loop's whole life, no per-iteration re-arm needed.
 		set +e
 
 		while true ; do
@@ -56,9 +50,6 @@ case "$1" in
 				"WAIT: yes" \
 				> "$promptFile"
 
-			## Log-and-continue regardless of exit code -- no retry backoff,
-			## no cap, no judgment. A failed cycle just means the next sleep
-			## and iteration happen anyway.
 			DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait --from-file "$promptFile"
 			rm -f "$promptFile"
 

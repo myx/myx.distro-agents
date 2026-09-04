@@ -4,54 +4,12 @@
 ##
 ## AgentsTools.MemberCommsTrello.include -- the raw per-member Trello comms
 ## operations (unread-notification check and single-notification read).
-## Split out of the former single comms include, which carried Slack, email
-## and Trello in one file and no longer exists; the Slack and email arms now
-## live in AgentsTools.MemberCommsSlack.include and AgentsTools.MemberCommsEmail.include.
-##
-## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced
-## for $1/$@/$MDSC_CMD.
-##
-## EVERY OP HERE TAKES <team-member> FIRST, and that member IS the acting
-## identity -- which is why `comms` is a namespace layer UNDER the member
-## prefix, --member-comms-<service>-<verb>, rather than a prefix of its own.
-## The name says who acts before it says through which service. A Trello
-## notification feed belongs to one account, so the member decides whose feed
-## is read at all.
-##
-## THE DISPATCHER REACHES THIS FILE BY THE --member-comms-trello-* GLOB, so
-## adding a --member-comms-trello-* op costs no dispatcher line. NOTE that the
-## --magic-comms-trello-* ops are a different family with their own route and their
-## own include (AgentsTools.MagicTrello.include); this glob does not reach
-## them and must not be widened to.
-##
-## Supported operations:
-##   --member-comms-trello-check   --member-comms-trello-read
-##
-## THE API'S STATUS CODE IS NOT THE ANSWER TO THE QUESTION THE CALLER ASKED.
-## An empty result must not read as success: a failed notifications call means
-## the unread list is UNKNOWN, not empty, and an HTTP error status counts as a
-## failure here rather than as an empty body. Each arm reports the outcome of
-## the QUESTION its caller asked, and curl's own exit status is only evidence
-## toward that answer, never the answer itself. Outcomes are told apart by
-## POSITIVE tests on what is present, never by a negation against an empty
-## result, which is indistinguishable from "could not see anything".
 ##
 
 case "$1" in
 
-		## Same rationale as --member-comms-email-check in
-		## AgentsTools.MemberCommsEmail.include -- Trello's own read side of
-		## the same precoded-tooling gap. Unread notifications only (matches
-		## the comms-sweep routine's Check step), not a full board read.
 		--member-comms-trello-check)
 			shift
-			## <team-member> IS THE ACTING IDENTITY, for the same reason and with the
-			## same validation shape as --member-comms-email-check in
-			## AgentsTools.MemberCommsEmail.include and --member-comms-slack-read in
-			## AgentsTools.MemberCommsSlack.include: a Trello notification feed belongs to
-			## one identity, `members/me` resolves against whichever token is
-			## presented, and so the member decides whose unread list this even is.
-			## All of it runs BEFORE any network call.
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
@@ -61,9 +19,6 @@ case "$1" in
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-trello-check || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
-					## A routine acting as caller has no skill directory and is not
-					## expected to grow one -- same treatment, same reason, as
-					## --member-comms-slack-read's own carve-out.
 				;;
 				*)
 					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
@@ -72,9 +27,6 @@ case "$1" in
 					fi
 				;;
 			esac
-			## Strictly the acting member's own scope, no fallback -- see
-			## --member-comms-email-check's own note for why a fallback would
-			## recreate the accepted-and-ignored defect this argument exists to end.
 			local trelloKey trelloToken
 			trelloKey="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_KEY )"
 			trelloToken="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_TOKEN )"
@@ -89,26 +41,11 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
-			## THE CREDENTIALS NEVER APPEAR ON A COMMAND LINE. `key=`/`token=` in the
-			## query string put both of them in argv, world-readable through `ps`,
-			## and a URL is additionally the thing most likely to be echoed into a
-			## log or an error message verbatim. Trello's own documented
-			## `Authorization: OAuth` header carries them instead, written to a
-			## mode-600 temp file and read back with `-H @file` -- the same mechanism
-			## AgentsTools.InternOpSlackCall.include already uses for the Slack
-			## bearer token, not a new one invented here. The URL that remains
-			## carries no secret at all.
 			local headerFile
 			headerFile="$( mktemp )" || { set +e ; return 1 ; }
 			chmod 600 "$headerFile"
 			trap 'rm -f "$headerFile"' EXIT
 			printf 'Authorization: OAuth oauth_consumer_key="%s", oauth_token="%s"\n' "$trelloKey" "$trelloToken" > "$headerFile"
-			## -sS and "|| rc=$?", matching the email arms in
-			## AgentsTools.MemberCommsEmail.include for exactly the reasons stated
-			## there: -s alone swallows curl's own error text, and a
-			## bare call followed by `return $?` cannot run at all under the active
-			## set -e -- errexit aborts first, so the status is never read and a
-			## failed check is indistinguishable from an empty one.
 			local trelloRc=0
 			curl -sS --connect-timeout 10 --max-time 120 -H @"$headerFile" \
 				"https://api.trello.com/1/members/me/notifications?read_filter=unread" || trelloRc=$?
@@ -121,17 +58,8 @@ case "$1" in
 			return 0
 		;;
 
-		## Full detail for one specific Trello notification by id -- the
-		## comms-sweep's own unit of "a message" for Trello (per
-		## --member-comms-trello-check's own read_filter=unread notifications list).
-		## Contrast with --member-comms-trello-check's unread-list-only scan.
 		--member-comms-trello-read)
 			shift
-			## <team-member> IS THE ACTING IDENTITY, for the same reason and with the
-			## same validation shape as --member-comms-trello-check above: a
-			## notification is visible only to the identity it was raised for, so the
-			## member decides whose notification this id is resolved against. All of
-			## it runs BEFORE any network call.
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
@@ -141,9 +69,6 @@ case "$1" in
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-trello-read || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
-					## A routine acting as caller has no skill directory and is not
-					## expected to grow one -- same treatment, same reason, as
-					## --member-comms-slack-read's own carve-out.
 				;;
 				*)
 					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
@@ -159,9 +84,6 @@ case "$1" in
 				set +e ; return 1
 			fi
 
-			## Strictly the acting member's own scope, no fallback -- see
-			## --member-comms-email-check's own note for why a fallback would
-			## recreate the accepted-and-ignored defect this argument exists to end.
 			local trelloKey trelloToken
 			trelloKey="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_KEY )"
 			trelloToken="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_TOKEN )"
@@ -177,49 +99,12 @@ case "$1" in
 				;;
 			esac
 
-			## THE CREDENTIALS NEVER APPEAR ON A COMMAND LINE, for exactly the
-			## reasons stated on --member-comms-trello-check above -- but by a
-			## different mechanism, deliberately. The same `Authorization: OAuth`
-			## header is written as a `header = "..."` line into `curl -K -`
-			## (curl's "read options from this file", `-` meaning stdin) instead
-			## of a mode-600 temp file read back with `-H @file`. Do not "align"
-			## the two: a temp file needs cleanup, and cleanup is the part that
-			## actually fails -- this package left netrc files holding a live
-			## SMTP password in $TMPDIR for ~14 hours when a `trap` was missing.
-			## `-K -` writes no file, so there is nothing to leak and nothing to
-			## forget to remove. The trade is real, and it is the escaping below:
-			## `-H @file` takes its line as-is, with no escape processing, so a
-			## key or token cannot corrupt it however it is spelled.
-			##
-			## THE QUOTING AND ESCAPING ARE LOAD-BEARING, not tidiness. A `-K`
-			## config value ends at the first whitespace unless the whole value is
-			## double-quoted, and this header contains spaces -- unquoted it
-			## truncates to a bare `Authorization:`, which is curl's own idiom for
-			## REMOVING a header, so the request would go out carrying no
-			## credential at all. Inside the quoted value curl still processes `\`
-			## and `"` as escapes, so an unescaped one arriving in a key or token
-			## would close the value early -- curl then discards the rest of that
-			## physical line and sends the truncated remains as the credential,
-			## again with nothing in curl's own output to notice it by. Hence `\`
-			## first, then `"`, in that order.
 			local trelloKeyEsc trelloTokenEsc
 			trelloKeyEsc="${trelloKey//\\/\\\\}"
 			trelloKeyEsc="${trelloKeyEsc//\"/\\\"}"
 			trelloTokenEsc="${trelloToken//\\/\\\\}"
 			trelloTokenEsc="${trelloTokenEsc//\"/\\\"}"
 			echo "# $MDSC_CMD --member-comms-trello-read: fetching full notification id=$notificationId" >&2
-			## -sS and "|| trelloRc=$?", matching --member-comms-trello-check
-			## above in this file and the email arms in
-			## AgentsTools.MemberCommsEmail.include, for exactly the reasons stated
-			## there: -s alone swallows curl's own error text, and a bare call
-			## followed by `return $?` cannot run at all under the active set -e.
-			## --fail-with-body, not --fail: curl exits 0 for a 4xx/5xx response,
-			## so without one of them an HTTP error would be reported as success,
-			## but plain --fail also discards the response body -- and this op's
-			## product IS the body (see this arm's header above), so a failure
-			## would then have nothing to say why. --fail-with-body keeps the body
-			## and still exits non-zero, which is what makes the error line below's
-			## "an HTTP error status counts as a failure here" actually true.
 			local trelloRc=0
 			printf 'header = "Authorization: OAuth oauth_consumer_key=\\"%s\\", oauth_token=\\"%s\\""\n' \
 				"$trelloKeyEsc" "$trelloTokenEsc" \
@@ -232,16 +117,8 @@ case "$1" in
 			return 0
 		;;
 
-		## The acting side's OWN Trello identity -- whoever the TRELLO_KEY/
-		## TRELLO_TOKEN in <team-member>'s scope actually resolve to. Printed as
-		## KEY=VALUE lines, the same consumable shape --magic-comms-slack-resolve-ids
-		## already hands its caller for the Slack side of the same question.
 		--member-comms-trello-whoami)
 			shift
-			## <team-member> IS THE ACTING IDENTITY, same validation shape and
-			## same reason as --member-comms-trello-check above: `members/me`
-			## resolves against whichever token is presented, and this op exists
-			## precisely to say which one that is.
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
@@ -275,19 +152,11 @@ case "$1" in
 				;;
 			esac
 
-			## THE CREDENTIALS NEVER APPEAR ON A COMMAND LINE -- the `curl -K -`
-			## mechanism of --member-comms-trello-read above, verbatim, including
-			## its `\` then `"` escaping order. No temp file, so nothing to trap
-			## and nothing to leak.
 			local trelloKeyEsc trelloTokenEsc
 			trelloKeyEsc="${trelloKey//\\/\\\\}"
 			trelloKeyEsc="${trelloKeyEsc//\"/\\\"}"
 			trelloTokenEsc="${trelloToken//\\/\\\\}"
 			trelloTokenEsc="${trelloTokenEsc//\"/\\\"}"
-			## `fields=id,username` keeps the response a flat two-key object, so
-			## the reader below cannot pick up a same-named key from a nested
-			## object -- the failure mode AgentsSlackJsonField.awk's own header
-			## documents at length.
 			local trelloRc=0 trelloMe=""
 			trelloMe="$( printf 'header = "Authorization: OAuth oauth_consumer_key=\\"%s\\", oauth_token=\\"%s\\""\n' \
 				"$trelloKeyEsc" "$trelloTokenEsc" \

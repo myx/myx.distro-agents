@@ -7,31 +7,9 @@
 ## `--client-sweep-*)` wildcard arm via the standard $MDLT_ORIGIN-based path.
 ## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
-## --client-sweep-input-scan reads one client-* member's own external accounts,
-## and nothing else -- client-only, a partner-* member is not accepted. The
-## restriction is enforced in the scan primitive by --comms-member-scope-only,
-## not by this stub's own reading of any credential: see
-## AgentsTools.InternOpSessionContextScan.include's own gate block.
-##
 
 case "$1" in
 
-	## Reads ONE client-* member's own external incoming
-	## communications -- Slack, email and Trello -- as that member, under that
-	## member's own credentials, from that member's own configured sources.
-	##
-	## THE MEMBER PREFIX IS CHECKED, AND THE CHECK IS THE POINT. This document
-	## states in its own header that its whole scope is one external member. Run
-	## as a team member, that header would be false while the body looked exactly
-	## the same, so a name that is not client-* is refused here
-	## rather than producing a correctly-formatted lie. Client-only: a partner-*
-	## member is not accepted by this op.
-	##
-	## A source this member holds no credentials for is reported as NOT SCANNED
-	## by the primitive, through the same `sources-scanned: N of M` and
-	## `**NOTE:** partial` machinery every other source-level failure already
-	## uses, and lands in the exit status. It is never read under the team's
-	## shared credentials -- that outcome is unreachable from this op.
 	--client-sweep-input-scan)
 		shift
 		local clientMember="$1"
@@ -46,22 +24,11 @@ case "$1" in
 		case "$clientMember" in
 			client-*)  clientKind="client" ;;
 			*)
-				## NAMES WHAT IS ACTUALLY WRONG, which is that the member is
-				## not a client-* one -- not that it is a partner, which most
-				## rejected names are not. Telling a member it was refused for
-				## being something it never was is the same false diagnosis the
-				## guard arms deliberately designed out of the invalid-option
-				## case: a message that sends someone hunting a problem they do
-				## not have, at the hour it costs most.
 				echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: this operation reads one external member's own accounts and labels the whole document as that member's, so it runs only as a client-* member: $clientMember" >&2
 				set +e ; return 1
 			;;
 		esac
 
-		## The one option this stub accepts, same shape and same reasoning as
-		## --magic-sweep-input-scan's: which services get read is this op's own
-		## fixed contract, and the cut-off is genuinely per-call data. Value
-		## validation is left to the primitive, which owns it.
 		local commsCutoffArgs=()
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -88,30 +55,14 @@ case "$1" in
 			esac
 		done
 
-		## Attribution first, before a single item. Every section below carries
-		## its own `identity:` line already; this states whose document the whole
-		## thing is, so a page of item blocks can never be read as the team's.
 		printf '# Incoming Communications Sweep -- %s\n\n' "$clientMember"
 		printf 'member: %s\n' "$clientMember"
 		printf 'member-kind: %s\n' "$clientKind"
-		## SCOPED TO COMMS SOURCES, WHERE IT ACTUALLY BELONGS. Written as a
-		## claim about the whole document it was already false: this op emits
-		## this member's own board items under it, via --filter-owner, and now
-		## its own inbox as well. Both are that member's own data -- not
-		## another member's, not team-scoped, and read under no credential at
-		## all -- so the restriction the sentence exists to state is a
-		## restriction on comms sources and credentials, and it says so.
 		printf 'scope: this member'"'"'s own COMMS sources only -- its own credentials, its own configured sources; no team-scoped comms source and no team credential is read here. Board items and inbox items below are this member'"'"'s own, by owner and by inbox\n\n'
 
-		## Configuration verdict ahead of content: a member with nothing configured
-		## to read produces a correct, empty report, and this is where that shows.
-		## Non-gating -- the scan's own sources-scanned already lands in the status.
 		DistroAgentsTools --client-sweep-config-check "$clientMember" || true
 		printf '\n'
 
-		## Board items are scoped to this member's own by --filter-owner, for the
-		## same reason the header exists: an item owned by somebody else is not
-		## part of what this document claims to be.
 		DistroAgentsTools --intern-op-session-context-scan "$clientMember" \
 			--state backlog --state pending --state running --state blocked \
 			--all-types --filter-owner "$clientMember" \
@@ -134,12 +85,6 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$checkMember" "<team-member>" client-sweep-config-check || { set +e ; return 1 ; }
 
-		## CLIENT-ONLY, the same rule as --client-sweep-input-scan whose
-		## configuration this checks. A sibling operation of a client-only op
-		## that still accepted a partner-* member left the group contradicting
-		## itself, reachable by a direct call. The conversations requirement is
-		## unconditional now that only a client can get here at all: a client
-		## sweeps a conversation.
 		local conversationsMode="--required"
 		case "$checkMember" in
 			client-*) ;;
@@ -154,15 +99,18 @@ case "$1" in
 		DistroAgentsTools --intern-op-check-configs "$checkMember" \
 			"$conversationsMode" "SLACK_CONVERSATIONS:<conversation-id>[,<conversation-id>]..." \
 			--optional "SLACK_USER_TOKEN:<token>" \
+			--optional "SLACK_BOT_TOKEN:<token>" \
 			--optional "EMAIL_IMAP_HOST:<host>" \
 			--optional "EMAIL_USER:<email-address>" \
 			--optional "EMAIL_APP_PASSWORD:<app-password>" \
 			--optional "TRELLO_KEY:<key>" \
 			--optional "TRELLO_TOKEN:<token>" \
 			--expect-secret SLACK_USER_TOKEN \
+			--expect-secret SLACK_BOT_TOKEN \
 			--expect-secret EMAIL_APP_PASSWORD \
 			--expect-secret TRELLO_KEY \
 			--expect-secret TRELLO_TOKEN \
+			--resolve-slack-workspace-into SLACK_WORKSPACE_DOMAIN \
 			--context --client-sweep-config-check
 		return $?
 	;;

@@ -4,32 +4,6 @@
 ## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD. No --help entry: internal plumbing.
 ##
-## POSTs a file's bytes as the raw request body to a URL the caller was handed.
-## NO credential is attached. That is structural, not a suppressed flag: this op
-## is deliberately not named --intern-op-slack-*, so the dispatcher never enters
-## the arm defining the Slack credential resolvers and they do not exist here.
-##
-## Why it is a sibling rather than a mode of --intern-op-slack-call, why the URL
-## is never quoted back, and why it installs no EXIT trap are in MAGIC.md.
-##
-## Syntax:
-##   --intern-op-url-post-bytes --url <url> --body-file <path> [--context <caller-op>]
-##
-## Reports two line-anchored stderr fields on every exit path, read back with
-## `sed -n 's/^POST_HTTP_STATUS=//p'` exactly as the sibling ops' fields are:
-##   POST_HTTP_STATUS=<code>   the HTTP status curl saw.
-##   POST_BYTES=<n>            bytes SENT, the same direction UPLOAD_BYTES uses:
-##                             compared against the file's size on disk, it is
-##                             what separates a truncated send from a refusal.
-## Measured, curl 8.7.1: a transport failure still writes the -w line, as
-## `000 0`, so the fields carry that rather than `not-reported`. `000` is curl's
-## own "no HTTP status was received" and cannot collide with a real status; the
-## rc and the transport-failure line are what say the transfer never happened.
-## `not-reported` stays the initial value, for a curl that writes nothing.
-##
-## The response body is this op's stdout on a 2xx, as on --intern-op-slack-call's
-## API path, and is discarded on every failure path -- see the site for why.
-##
 
 case "$1" in
 
@@ -39,10 +13,6 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--url)
-					## Argv on purpose, not an oversight. A Slack token travels in a header
-					## file to stay out of ps because it is long-lived and reused; this URL is
-					## same-user, single-use and expiring. Ruled -- do not "make it consistent"
-					## with the token path by adding a --url-from-file.
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --url: value required" >&2
 						set +e ; return 1
@@ -95,18 +65,10 @@ case "$1" in
 			;;
 		esac
 
-		## Body to its own temp file so the -w line is all that is left in the
-		## capture -- the split --intern-op-slack-call's upload arm already uses,
-		## for its own stated reason: tail is exact against curl's fixed one-line
-		## format and not against a body the server shapes.
 		local postBodyOut=""
 		postBodyOut="$( mktemp )" || { set +e ; return 1 ; }
 		chmod 600 "$postBodyOut"
 
-		## NO EXIT trap here, deliberately. A caller's own trap is live in this
-		## shell when this op runs, and installing one replaces it silently.
-		## curl's own stderr is discarded rather than captured for reporting: its
-		## messages can carry the URL, which this op does not put anywhere.
 		local postOut="" postRc=0
 		postOut="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "$postUrl" \
 			--data-binary "@$postBodyFile" \
@@ -123,10 +85,6 @@ case "$1" in
 		printf 'POST_HTTP_STATUS=%s\n' "$postStatus" >&2
 		printf 'POST_BYTES=%s\n' "$postBytes" >&2
 
-		## The body is emitted ONLY on a 2xx, and discarded on every failure path.
-		## Measured: a server's own error page echoes the request URL back inside
-		## the body, so printing it on failure would publish the bearer capability
-		## through the payload after every diagnostic here has carefully withheld it.
 		if [ "$postRc" -ne 0 ] ; then
 			rm -f "$postBodyOut"
 			echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: POST transport failure, curl exit status $postRc. Neither the URL nor curl's own message is quoted: the URL is a bearer capability and curl's message can carry it." >&2

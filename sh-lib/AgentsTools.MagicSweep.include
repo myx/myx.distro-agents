@@ -6,53 +6,13 @@
 ## --magic-sweep-* operation group for DistroAgentsTools.fn.sh's dispatcher.
 ## Sourced lazily from the `--magic-sweep-*)` wildcard arm via the standard
 ## $MDLT_ORIGIN-based path. Not standalone: relies on being dot-sourced for
-## $1/$@/$MDSC_CMD. Same "own dedicated namespace/.include per routine"
-## convention as AgentsTools.MagicGrooming.include -- one op today, room for
-## more of this routine's own ops later.
+## $1/$@/$MDSC_CMD.
 ##
 
 case "$1" in
 
-	## Takes no arguments -- read-only discovery, same document shape as
-	## --magic-grooming-input-scan (thin wrapper over
-	## --intern-op-session-context-scan). Verified directly against
-	## routine-communication-sweep.routine.md's own "Enumeration mechanism
-	## for every open thread" text: always scans backlog/pending/running/
-	## blocked -- deliberately NOT parked, unlike --magic-grooming-input-
-	## scan's own list (that routine text is explicit: the tracked set is
-	## board-items "currently open", i.e. not yet processed/archived,
-	## and parked items are not part of the live comms-thread
-	## tracking set either). Fixed, hardcoded state-list -- no caller-facing
-	## --state override flag: dedicated wrappers are fixed, not flexible; a
-	## caller wanting a different scan shape calls --intern-op-session-context-scan
-	## directly instead. Always --all-types (no board-item-type restriction
-	## stated anywhere in that text) and always every frontmatter field on
-	## the final display -- the phase-1/phase-2 split below needs full
-	## access to communication-channel-id regardless, and no
-	## narrower-header need has been identified for this op.
-	##
-	## Two-call pattern, same shape --routine-coworking-session-input-scan
-	## uses (see AgentsTools.RoutineCoworking.include): phase 1 asks the
-	## primitive for communication-channel-id only, across the
-	## fixed state-list, --all-types, no --item restriction (a genuine
-	## whole-folder scan); AgentsMagicSweepSlackThreadNames.awk (external,
-	## per this package's own externalize-awk/py convention) reads that
-	## document and prints the bare filename of every item whose value is
-	## the three-field `slack:<channel>:<ts>` form -- only those items are
-	## "tracking a live, reply-pending Slack thread" per the routine's own
-	## text; a bare `slack:<channel>` has no thread to reply into, and a
-	## non-slack service is not a Slack thread at all. Phase 2
-	## re-calls the primitive restricted to exactly those survivors via
-	## --item (same state-list, --all-types), for the real, full-headers
-	## display output. An empty survivor set returns cleanly (no phase-2
-	## call, no output, not an error) -- no live Slack-tracked thread is a
-	## normal outcome.
 	--magic-sweep-input-scan)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## tooling operation discipline convention, this session's own new
-		## ops. The op's own "no arguments" nature now means exactly one: the
-		## calling member.
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
@@ -60,19 +20,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## The ONE option this stub accepts. Everything else the comms scan
-		## needs -- which services to read, which scopes to include -- is
-		## hardcoded below, because this stub wraps exactly one step of exactly
-		## one routine and that step's shape is not the caller's to vary. Same
-		## rule as the --magic-*-to-* family: the op NAME is the stable
-		## interface a routine declares; the argument list behind it is that
-		## routine's own detail, free to change without renegotiating with
-		## anyone.
-		##
-		## The cut-off is the sole exception because it is genuinely per-call
-		## data, not shape: routine-communication-sweep's Check step resumes
-		## from where the member itself last got to. The caller passes it; this
-		## stub does not go reading anyone's state note to find it.
 		local commsCutoffArgs=()
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -85,10 +32,6 @@ case "$1" in
 						echo "⛔ ERROR: $MDSC_CMD --magic-sweep-input-scan: --comms-since-date-time and --comms-since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
 						set +e ; return 1
 					fi
-					## Shape validation is NOT duplicated here -- the intern-op
-					## owns it and rejects a malformed value with its own
-					## message. Re-checking it in the stub would be a second
-					## copy to drift.
 					commsCutoffArgs=( "$1" "$2" )
 					shift 2
 				;;
@@ -114,18 +57,6 @@ case "$1" in
 		survivorsFile="$MMDAPP/.local/temp/mdat-magic-sweep-survivors.$$"
 		mkdir -p "$MMDAPP/.local/temp" && : > "$survivorsFile" || { set +e ; return 1 ; }
 		trap 'rm -f "$survivorsFile"' EXIT
-		## Captured, THEN guarded, THEN sorted. Written as
-		## `awk ... | sort -u > "$survivorsFile"` this had NO guard at all: with
-		## no `pipefail`, a failing awk left the pipeline reporting sort's own 0,
-		## the file empty, and control falling into the `! -s` branch below --
-		## which then reported "no board item currently tracks an open thread".
-		## A failed extraction and a genuinely empty board became
-		## indistinguishable, the exact empty-versus-not-scanned confusion the
-		## `! -s` branch's own comment says this document exists to prevent.
-		## Failing loud is the only honest outcome here: this stub emits no
-		## document of its own, so it has nowhere to put a `**NOTE:** partial`
-		## line -- the intern-op below owns the document, and by then the
-		## survivor set is already settled.
 		local survivorNames
 		survivorNames="$( printf '%s\n' "$phaseAOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMagicSweepSlackThreadNames.awk" )" || {
 			rm -f "$survivorsFile"
@@ -135,28 +66,11 @@ case "$1" in
 		}
 		[ -z "$survivorNames" ] || printf '%s\n' "$survivorNames" | sort -u > "$survivorsFile"
 
-		## The hardcoded half of this stub's own contract:
-		## routine-communication-sweep's Check step reads the watched set across
-		## all three services, so the stub says so once, here, rather than
-		## letting a caller choose a subset. Passed on the DISPLAY call only --
-		## phase A is a pure board-discovery scan, and asking for comms there
-		## too would read every service twice per sweep.
 		local commsArgs=( --comms-do-all "${commsCutoffArgs[@]}" )
 
 		if [ ! -s "$survivorsFile" ] ; then
 			rm -f "$survivorsFile"
 			trap - EXIT
-			## No board item currently tracks an open thread. That bounds the
-			## ITEM half of this document to nothing -- it says nothing at all
-			## about comms, which still have to be read. Returning early here
-			## (as this branch did before comms existed) would have made "no
-			## open threads" silently mean "no sweep", the exact
-			## empty-versus-not-scanned confusion this document exists to
-			## prevent.
-			## The inbox scopes ride on the DISPLAY calls, both of them, and
-			## never on phase A: phase A is a pure discovery scan whose output
-			## is consumed by a line-anchored awk with no notion of the body
-			## framing, and full bodies fed into it could forge matches.
 			DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 				--state backlog --state pending --state running --state blocked \
 				--all-types "${commsArgs[@]}" \
@@ -181,28 +95,7 @@ case "$1" in
 		return $?
 	;;
 
-	##
-	## --magic-sweep-state-* -- routine-communication-sweep's own persisted
-	## state (that routine's own "sweep-state-note"): last_swept_ts,
-	## watched_slack_conversations, known_comms_gaps -- exactly the 3 fields
-	## TEAM-COMMS.md's own 2026-07-29 retirement note scoped as comms-sweep's
-	## own state, previously folded into routine-heartbeat's
-	## --magic-heartbeat-state-* record instead of getting this routine's own
-	## namespace -- a real SOLID violation (main-loop managing a different
-	## routine's own internal bookkeeping), corrected here. Storage is
-	## tool-owned/tool-resolved (via --intern-config-board-location),
-	## deliberately outside ~/.claude/skills/, same convention as
-	## --magic-heartbeat-state-*. Singleton, not member-keyed, same reasoning
-	## as that sibling pair.
-	##
 
-	## Content via stdin, --from-file <path>, or --edit-patch-from-stdin (a
-	## JSON array of {"old": <text>, "new": <text>, "replace_all": <bool,
-	## default false>} patch objects, applied in order against the existing
-	## record as an exact literal substring match-and-replace) -- same
-	## externalized AgentsBoardItemPatchApply.py, same semantics, as
-	## --magic-heartbeat-state-upsert's own --edit-patch-from-stdin. The
-	## three body-input modes are mutually exclusive.
 	--magic-sweep-state-upsert)
 		shift
 		local callingMember="$1"
@@ -220,11 +113,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
 		}
-		## Fixed literal filename, same shape and same "stamped once, reused
-		## verbatim forever" mechanism as the sibling routines' own lock/state
-		## notes (e.g. note-20260809T155000Z-heartbeat-state-and-lock.md) --
-		## same inboxes/magic-coordinator/ home, same naming convention, not a
-		## new one invented for this file.
 		local target="$stateDir/note-20260812T231137Z-sweep-state.md"
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
 		while [ $# -gt 0 ] ; do
@@ -279,9 +167,6 @@ case "$1" in
 		return 0
 	;;
 
-	## Read-only. Prints the record on stdout, or NO_STATE when nothing is
-	## stored yet -- same "absent is not an error" contract as
-	## --magic-heartbeat-state-read/--magic-heartbeat-lock-status.
 	--magic-sweep-state-read)
 		shift
 		local callingMember="$1"

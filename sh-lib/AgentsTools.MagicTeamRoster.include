@@ -8,55 +8,9 @@
 ## via the standard $MDLT_ORIGIN-based path. Not standalone: relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
-## NAMED AFTER THE RECORD, NOT AFTER A ROUTINE -- and deliberately NOT
-## --magic-<x>-state-*. That family's `<x>` slot holds a routine every time
-## (heartbeat, sweep, advance, daily, grooming, retro), and its `-state-`
-## infix means "this routine's own state" -- for advance/daily/grooming/retro
-## that same record is also the routine's lock, carried as frontmatter
-## (state:/session-id:/recheck-date:). The roster cache is neither a routine's
-## state nor a lock: it is a cache of what members declare about themselves,
-## held by magic-coordinator. So it takes the --magic-<subject>-<verb> shape
-## the non-routine ops already use (--magic-comms-slack-resolve-ids,
-## --magic-comms-trello-post-comment) rather than putting a non-routine token
-## into the routine slot.
-##
-## ONE RECORD, TWO KINDS OF CACHED DATA. The record holds the member/domain/
-## posture rows and the per-member persona subsections together, as sections
-## of one document. They were two separate notes before, split on the claim
-## that long-form persona prose does not fit beside short table cells -- a
-## file holds two sections, so that was never a reason. Both are caches of
-## member-declared data, refreshed at the same cadence by the same owner;
-## they differ only in which source section they read: rows come from each
-## member's live SKILL.md description, persona subsections from each member's
-## own <name>.basic.md "## Public Information" section. Those two remain the
-## source of truth; this record is only their cache.
-##
-## Storage is tool-owned and tool-resolved (via
-## --intern-config-board-location), deliberately outside ~/.claude/skills/: a
-## skillset file must never be rewritten by ordinary routine iteration.
-## Callers name the operation, never a path -- hence no filename argument. The
-## filename is stated here and nowhere else; with no operation owning it, it
-## was restated in skillset prose instead, and drifted there into a retired
-## date format that matched no real record.
-##
-## Singleton, not member-keyed: <team-member> is captured for future
-## logging/validation, unused today, exactly as the sibling
-## --magic-heartbeat-state-*/--magic-sweep-state-* ops treat it. One shared
-## record -- a per-member path would hand a second caller a fresh empty cache.
-##
 
 case "$1" in
 
-	## Content via stdin, --from-file <path>, or --edit-patch-from-stdin (a
-	## JSON array of {"old": <text>, "new": <text>, "replace_all": <bool,
-	## default false>} patch objects, applied in order against the existing
-	## record as an exact literal substring match-and-replace) -- same
-	## externalized AgentsBoardItemPatchApply.py, same semantics, as
-	## --magic-heartbeat-state-upsert's/--magic-sweep-state-upsert's own
-	## --edit-patch-from-stdin. Lets a refresh update one member's row without
-	## regenerating the whole cache; the full-overwrite mode stays available
-	## for a genuine whole-record rewrite. The three body-input modes are
-	## mutually exclusive.
 	--magic-team-roster-upsert)
 		shift
 		local callingMember="$1"
@@ -74,10 +28,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
 		}
-		## Fixed literal filename, same "stamped once, reused verbatim forever"
-		## mechanism as the sibling state/lock records under this same
-		## inboxes/magic-coordinator/ home -- an existing real record this
-		## operation adopts, not a new one invented here.
 		local target="$stateDir/note-20260804T0000Z-team-roster.md"
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
 		while [ $# -gt 0 ] ; do
@@ -123,9 +73,6 @@ case "$1" in
 		else
 			[ "$contentFromFile" = "true" ] || content="$( cat )"
 		fi
-		## An empty write erases the roster cache, which then reads back as
-		## "no roster known" -- every caller that trusts the cache instead of
-		## re-deriving the roster loses its whole input.
 		if [ -z "$content" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-upsert: empty content -- refusing to erase the stored team roster" >&2
 			set +e ; return 1
@@ -135,12 +82,6 @@ case "$1" in
 		return 0
 	;;
 
-	## Read-only. Prints the record on stdout, or NO_RECORD when nothing is
-	## stored yet -- same "absent is not an error" contract as
-	## --magic-heartbeat-state-read's own NO_STATE and
-	## --magic-heartbeat-lock-status's own NO_LOCK. The sentinel says RECORD,
-	## not STATE: this is not a routine's state, and reusing that word here
-	## would reimport the very distinction the op name drops.
 	--magic-team-roster-read)
 		shift
 		local callingMember="$1"

@@ -4,68 +4,12 @@
 ##
 ## AgentsTools.MemberCommsEmail.include -- the raw per-member email comms
 ## operations (IMAP check, read, mark-seen and SMTP send).
-## Split out of the former single comms include, which carried Slack, email
-## and Trello in one file and no longer exists; the Slack and Trello arms now
-## live in AgentsTools.MemberCommsSlack.include and AgentsTools.MemberCommsTrello.include.
-##
-## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced
-## for $1/$@/$MDSC_CMD.
-##
-## EVERY OP HERE TAKES <team-member> FIRST, and that member IS the acting
-## identity -- which is why `comms` is a namespace layer UNDER the member
-## prefix, --member-comms-<service>-<verb>, rather than a prefix of its own.
-## The name says who acts before it says through which service. A mailbox
-## belongs to one identity, so the member decides which account is read from
-## and which account the mail is sent from.
-##
-## THE DISPATCHER REACHES THIS FILE BY THE --member-comms-email-* GLOB, and
-## that route is only correct because EVERY op of that name lives here now.
-## --member-comms-email-send used to sit inline in DistroAgentsTools.fn.sh
-## instead, ahead of the --member-* glob arm that would otherwise have
-## swallowed it; that placement is what the move retires. Adding a
-## --member-comms-email-* op therefore costs no dispatcher line; moving one
-## back out to another include would silently break the glob's one
-## precondition.
-##
-## Supported operations:
-##   --member-comms-email-check   --member-comms-email-read
-##   --member-comms-email-mark-seen   --member-comms-email-send
-##
-## THE API'S STATUS CODE IS NOT THE ANSWER TO THE QUESTION THE CALLER ASKED.
-## An empty result must not read as success: a failed IMAP STATUS means the
-## unseen count is UNKNOWN, not zero, and a failed UID SEARCH means the unseen
-## UID list is UNKNOWN, not empty. Each arm therefore reports the outcome of
-## the QUESTION its caller asked, and curl's own exit status is only evidence
-## toward that answer, never the answer itself. Outcomes are told apart by
-## POSITIVE tests on what is present, never by a negation against an empty
-## result, which is indistinguishable from "could not see anything".
 ##
 
 case "$1" in
 
-		## IMAP STATUS check (unseen count) plus a UID SEARCH UNSEEN (which
-		## UIDs those are) -- not a full fetch, matches what the comms-sweep
-		## routine's Check step needs. STATUS alone gives a count with no way
-		## to discover which UID(s) to hand to --member-comms-email-read. UID SEARCH
-		## returns a clean single-line response through curl --request
-		## (unlike UID FETCH's literal-string body, which does not come
-		## through this way at all -- that's why --member-comms-email-read does not
-		## use curl for its fetch, see that arm's own comment).
 		--member-comms-email-check)
 			shift
-			## <team-member> IS THE ACTING IDENTITY, AND IT IS WHY THIS OP TAKES ONE.
-			## A mailbox belongs to one identity, so the member decides WHICH inbox is
-			## checked at all. This arm used to name `magic-coordinator` literally at
-			## every config read below, which made every member-facing check report
-			## magic-coordinator's own unseen mail as the caller's. The member is
-			## supplied by the caller now, exactly as every other --member-comms-* op
-			## already does.
-			##
-			## Validated with the same helper, the same routine-* carve-out and the
-			## same skill-directory check --member-comms-slack-read uses, so one name
-			## shape is accepted across this package rather than a second spelling per
-			## op -- and all of it runs BEFORE any network call, so a bad name never
-			## reaches a server.
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
@@ -75,9 +19,6 @@ case "$1" in
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-check || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
-					## A routine acting as caller has no skill directory and is not
-					## expected to grow one -- same treatment, same reason, as
-					## --member-comms-slack-read's own carve-out.
 				;;
 				*)
 					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
@@ -86,13 +27,6 @@ case "$1" in
 					fi
 				;;
 			esac
-			## STRICTLY THE ACTING MEMBER'S OWN SCOPE -- no fallback to another
-			## member's credentials. A fallback would mean the <team-member>
-			## argument makes no observable difference for any member that holds no
-			## EMAIL_* keys of its own, which is precisely the accepted-and-ignored
-			## defect this argument exists to end. A member without its own
-			## credentials is refused, and the refusal NAMES the scope that was
-			## searched so the answer is checkable rather than merely stated.
 			local imapHost imapUser imapPass
 			imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )"
 			imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
@@ -101,34 +35,11 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
 				set +e ; return 1
 			fi
-			## THE PASSWORD NEVER APPEARS ON A COMMAND LINE. argv is world-readable
-			## through `ps`, so `curl --user "user:pass"` publishes the credential to
-			## every process on the box for the call's lifetime. It goes to a
-			## mode-600 temp file read via --netrc-file instead -- the same mechanism
-			## --member-comms-email-send already uses for SMTP, not a new one invented
-			## here. The file is removed on EVERY exit path below: `rm -f` on each
-			## return path, the early failure returns included, plus a `trap ... EXIT`
-			## backstop for the interrupt window between `mktemp` and that `rm`. The
-			## return-path `rm -f`s alone do not cover a signal, and a leaked
-			## credential file outlives the process that made it.
 			local netrcFile
 			netrcFile="$( mktemp )" || { set +e ; return 1 ; }
 			chmod 600 "$netrcFile"
 			trap 'rm -f "$netrcFile"' EXIT
 			printf 'machine %s login %s password %s\n' "$imapHost" "$imapUser" "$imapPass" > "$netrcFile"
-			## Both IMAP calls run -sS, not -s, and each one's own exit status
-			## is checked separately. -s suppressed curl's own error text, and
-			## the STATUS call's status was discarded entirely -- only the
-			## SEARCH call's reached the caller -- so a failed check returned
-			## empty stdout that a caller reads as "no unseen mail".
-			## Could-not-check and nothing-there are distinct states and must
-			## never render the same way.
-			## The rc is collected with "|| rc=$?", never a bare call followed by
-			## "local rc=$?": set -e is active here (the dispatcher sets it
-			## around op dispatch), so a bare failing curl aborts the whole
-			## script before any following rc check can run, and that check
-			## becomes dead code. The || form is what keeps errexit off this
-			## call long enough to read its status and report it.
 			local statusRc=0
 			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file "$netrcFile" \
 				--request "STATUS INBOX (UNSEEN)" || statusRc=$?
@@ -150,44 +61,8 @@ case "$1" in
 			return 0
 		;;
 
-		## Full IMAP fetch (complete RFC822 message: headers + body + MIME
-		## multipart, attachments included as their raw MIME parts) for one
-		## specific message by UID -- contrast with --member-comms-email-check's
-		## STATUS-only unread count. Does not go through curl at all: neither
-		## of curl's two IMAP fetch routes can return a peeked message body --
-		## `--request "UID FETCH..."` never consumes the literal-string body,
-		## and URL-based ;UID= addressing consumes it but sets \Seen. The
-		## fetch itself is in AgentsImapFetchMessage.py; the full reasoning is
-		## at the curl call site that used to be here.
-		## Reading is NOT a decision about the message. By default this op
-		## leaves \Seen untouched: it fetches with BODY.PEEK[], which is the
-		## IMAP-level way to say "give me the body without marking it read".
-		## Marking seen is a separate, explicit choice the caller makes once it
-		## knows what the message actually is -- which is why
-		## --member-comms-email-mark-seen exists as its own op. Before this, the fetch
-		## marked seen as a protocol side effect, so the two ops contradicted
-		## each other and one of them was redundant.
-		##
-		## --seen is that choice expressed inline, for the common case where a
-		## caller reads and immediately concludes. It runs AFTER a successful
-		## read and delegates to --member-comms-email-mark-seen rather than issuing
-		## its own STORE -- one mechanism for the mutation, already proven,
-		## with this op owning only the decision to invoke it.
-		##
-		## Deliberately a decision applied after the read, not a fetch mode:
-		## that is what keeps the extensible shape reachable. A later
-		## "mark seen everything matching <subject pattern>" selector is the
-		## same decision applied to a set, and can call the same mark step
-		## without this op changing. A --seen implemented as a fetch flag
-		## (BODY[] instead of BODY.PEEK[]) would have foreclosed that, by
-		## welding the decision to the retrieval.
 		--member-comms-email-read)
 			shift
-			## <team-member> IS THE ACTING IDENTITY, for the same reason and with the
-			## same validation shape as --member-comms-email-check above: a UID is
-			## only meaningful inside one mailbox, so the member decides which
-			## mailbox this UID is even looked up in. All of it runs BEFORE any
-			## network call.
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
@@ -197,9 +72,6 @@ case "$1" in
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-read || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
-					## A routine acting as caller has no skill directory and is not
-					## expected to grow one -- same treatment, same reason, as
-					## --member-comms-slack-read's own carve-out.
 				;;
 				*)
 					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
@@ -227,9 +99,6 @@ case "$1" in
 				esac
 			done
 
-			## Strictly the acting member's own scope, no fallback -- see
-			## --member-comms-email-check's own note for why a fallback would
-			## recreate the accepted-and-ignored defect this argument exists to end.
 			local imapHost imapUser imapPass
 			imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )"
 			imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
@@ -240,30 +109,6 @@ case "$1" in
 			fi
 
 			echo "# $MDSC_CMD --member-comms-email-read: fetching full message UID=$uid (EXAMINE + BODY.PEEK -- \\Seen not set by this read)" >&2
-			## NOT curl. Both of curl's IMAP fetch routes are wrong for this op,
-			## and the previous code used the one that returns no message at all:
-			##   --request "UID FETCH <uid> BODY.PEEK[]" printed the untagged
-			##   response header line and stopped -- curl's custom-request path
-			##   never consumes the IMAP literal that follows, so a 38263-byte
-			##   message came back as 44 bytes of "{38263}" marker and "* * *",
-			##   with rc=0 because curl itself had not failed.
-			##   imaps://host/INBOX;UID=<uid> URL addressing does consume the
-			##   literal, but issues a plain FETCH BODY[] with no peek variant,
-			##   which sets \Seen as a protocol side effect -- it would consume
-			##   the very unseen state --member-comms-email-check reports on and
-			##   --member-comms-email-mark-seen exists to change deliberately.
-			## AgentsImapFetchMessage.py uses EXAMINE (read-only mailbox, so the
-			## server cannot set \Seen at all) plus BODY.PEEK[], and speaks the
-			## literal properly. Externalized as a .py helper per this package's
-			## own externalize-awk/py convention, same shape as the other
-			## Agents*.py helpers.
-			## Credentials go over the environment, never argv: argv is visible
-			## in the process list. This also drops the previous --user
-			## "user:pass" command line.
-			## Collected with "|| rc=$?" because set -e is active here (the
-			## dispatcher sets it around op dispatch): a bare failing command
-			## aborts the script outright, which made the check below dead code
-			## and turned a failed fetch into a silent empty read.
 			local readRc=0
 			AGENTS_IMAP_HOST="$imapHost" \
 			AGENTS_IMAP_USER="$imapUser" \
@@ -271,9 +116,6 @@ case "$1" in
 			AGENTS_IMAP_MAILBOX="INBOX" \
 			AGENTS_IMAP_UID="$uid" \
 				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsImapFetchMessage.py" || readRc=$?
-			## rc 4 is "no such UID" -- a real answer, not a failure, and
-			## deliberately still non-zero so it can never be mistaken for a
-			## successful read that happened to return nothing.
 			if [ "$readRc" -eq 4 ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: UID=$uid does not exist in INBOX on imaps://${imapHost} -- nothing was read and nothing was changed; the reason is on the line above" >&2
 				set +e ; return "$readRc"
@@ -285,9 +127,6 @@ case "$1" in
 			## Mutation strictly after a successful read, never before: a
 			## failed read must leave the message exactly as it was found.
 			if [ "$markSeen" = "true" ] ; then
-				## The member is FORWARDED, never re-defaulted: the mark must land
-				## in exactly the mailbox the read came from, and a mark step that
-				## resolved its own identity could set \Seen in a different one.
 				DistroAgentsTools --member-comms-email-mark-seen "$memberName" "$uid" || {
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: message was read, but --seen failed to mark UID=$uid -- the read output above is still valid" >&2
 					set +e ; return 1
@@ -296,19 +135,8 @@ case "$1" in
 			return 0
 		;;
 
-		## Marks a message read after it's been processed -- otherwise every
-		## comms-sweep pass keeps re-seeing the same UIDs as unseen. IMAP UID
-		## STORE with the \Seen flag, same curl --request pattern
-		## --member-comms-email-check already uses for STATUS/SEARCH (not the URL-based ;UID=
-		## addressing --member-comms-email-read uses, since this is a STORE command, not a
-		## fetch).
 		--member-comms-email-mark-seen)
 			shift
-			## <team-member> IS THE ACTING IDENTITY, for the same reason and with the
-			## same validation shape as --member-comms-email-check above, and it
-			## matters more here than anywhere else in this file: this is the one
-			## MUTATING arm of the email set, and a wrong identity would set \Seen on
-			## somebody else's mail. All of it runs BEFORE any network call.
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
@@ -318,9 +146,6 @@ case "$1" in
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-mark-seen || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
-					## A routine acting as caller has no skill directory and is not
-					## expected to grow one -- same treatment, same reason, as
-					## --member-comms-slack-read's own carve-out.
 				;;
 				*)
 					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
@@ -336,9 +161,6 @@ case "$1" in
 				set +e ; return 1
 			fi
 
-			## Strictly the acting member's own scope, no fallback -- see
-			## --member-comms-email-check's own note for why a fallback would
-			## recreate the accepted-and-ignored defect this argument exists to end.
 			local imapHost imapUser imapPass
 			imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )"
 			imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
@@ -349,20 +171,11 @@ case "$1" in
 			fi
 
 			echo "# $MDSC_CMD --member-comms-email-mark-seen: marking UID=$uid as \\Seen in ${memberName}'s INBOX" >&2
-			## The password never appears on a command line -- mode-600 netrc file
-			## read via --netrc-file, exactly as --member-comms-email-check and
-			## --member-comms-email-send do, and removed on every exit path below. See
-			## --member-comms-email-check's own note for the full reason.
 			local netrcFile
 			netrcFile="$( mktemp )" || { set +e ; return 1 ; }
 			chmod 600 "$netrcFile"
 			trap 'rm -f "$netrcFile"' EXIT
 			printf 'machine %s login %s password %s\n' "$imapHost" "$imapUser" "$imapPass" > "$netrcFile"
-			## A bare "return $?" carried the failure code out with no statement
-			## of what was attempted: the caller saw a number and no subject.
-			## The flag either got set or it did not, and a failure says which.
-			## Collected with "|| rc=$?" because set -e is active here -- a bare
-			## failing curl would abort before any following check could run.
 			local storeRc=0
 			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file "$netrcFile" \
 				--request "UID STORE ${uid} +FLAGS (\Seen)" || storeRc=$?
@@ -375,55 +188,8 @@ case "$1" in
 			return 0
 		;;
 
-		## Real, standalone op -- not just an internal-only fallback. Direct
-		## curl SMTP send (matches the curl --url smtp://... --ssl-reqd pattern
-		## already verified working in this environment for outbound mail, not
-		## a new untested mechanism), reusing the same EMAIL_* keys the comms
-		## sweep already reads for IMAP. --member-comms-slack-send-message's
-		## exhausted-retry fallback calls this same branch via self-recursion.
-		##
-		## Named --member-comms-email-send: it sits in the same
-		## --member-comms-<service>-<verb> namespace its own siblings
-		## --member-comms-email-check/-read/-mark-seen already moved into, and
-		## mirrors --member-comms-slack-send-message exactly. The older, namespace-
-		## less spelling this op used to answer to is deleted rather than aliased --
-		## an alias would keep the op reachable under a name that says nothing about
-		## whose mailbox it sends from, which is the very thing the <team-member>
-		## argument below exists to make explicit.
-		##
-		## THE ARM LIVES HERE, in AgentsTools.MemberCommsEmail.include, alongside the
-		## rest of the --member-comms-email-* family, and the dispatcher reaches
-		## it by the --member-comms-email-* glob rather than by name. It used to
-		## sit inline in DistroAgentsTools.fn.sh precisely because that glob
-		## could not exist while one op of that name lived somewhere else;
-		## bringing it home is what made the glob safe. Moving it back out would
-		## break the route silently, not loudly.
-		##
-		## POSITION IS STILL LOAD-BEARING, BUT IN THE DISPATCHER, NOT IN THIS
-		## FILE. DistroAgentsTools.fn.sh lists --member-comms-slack-*,
-		## --member-comms-email-* and --member-comms-trello-* AHEAD of its
-		## --member-* glob arm, and that ordering is the only thing keeping
-		## --member-* from swallowing every op the three of them match. Within
-		## this file the arms may be reordered freely; in the dispatcher those
-		## three routes may not be moved below --member-*.
 		--member-comms-email-send)
 			shift
-			## <team-member> IS THE ACTING IDENTITY, AND IT IS WHY THIS OP TAKES ONE.
-			## A mailbox belongs to one identity, so the member decides which account
-			## the mail is actually sent from. This arm used to name `magic-coordinator`
-			## literally at every config read below, so every member-facing send went
-			## out as magic-coordinator no matter who called it. The member is supplied
-			## by the caller now, exactly as every other --member-comms-* op already
-			## does.
-			##
-			## Validated with the same helper, the same routine-* carve-out and the
-			## same skill-directory check --member-comms-email-check uses, so one name
-			## shape is accepted across this package rather than a second spelling per
-			## op -- and all of it runs BEFORE any network call, so a bad name never
-			## reaches a server.
-			##
-			## Consumed by a plain `shift` here, BEFORE the recipients/subject/body
-			## state machine below is entered, so recipient parsing is untouched by it.
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
@@ -433,9 +199,6 @@ case "$1" in
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-send || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
-					## A routine acting as caller has no skill directory and is not
-					## expected to grow one -- same treatment, same reason, as
-					## --member-comms-email-check's own carve-out.
 				;;
 				*)
 					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
@@ -454,14 +217,6 @@ case "$1" in
 						shift
 					;;
 					--in-reply-to)
-						## DRAFT/UNAPPROVED FLAG NAME -- see AgentsTools.MemberCommsEmail.include's
-						## header comment block above the --member-comms-email-send arm for the MVP
-						## threading-header scope this exists for. Recognized in any state (unlike
-						## --from-stdin/--from-file, which are only meaningful in the body state)
-						## because it is not a body-content source -- it sets a header, so it must
-						## never be swallowed as literal recipient/subject/body text. Validated and
-						## consumed directly here, at point of use, same as --from-file's own
-						## <path> argument.
 						if [ -n "$inReplyTo" ] ; then
 							echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --in-reply-to given more than once" >&2
 							set +e ; return 1
@@ -474,15 +229,6 @@ case "$1" in
 						shift 2
 					;;
 					--from-stdin)
-						## Standardized stdin-content flag (same name as
-						## --member-comms-slack-send-message's), only meaningful in the body state --
-						## reads the whole body from stdin instead of trailing argv
-						## lines, avoiding shell-escaping/quoting fragility from
-						## multi-line free text as separate argv words. Outside the
-						## body state it's treated as ordinary literal content
-						## (matches this loop's existing catch-all behavior for any
-						## other unrecognized token) since recipients/subject aren't
-						## meant to come from stdin.
 						if [ "$state" = "body" ] ; then
 							if [ "$bodyFromFile" = "true" ] ; then
 								echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-stdin given alongside --from-file -- use one or the other, not both" >&2
@@ -498,16 +244,6 @@ case "$1" in
 						fi
 					;;
 					--from-file)
-						## Same motivation as --member-comms-slack-send-message's own --from-file (lets a
-						## caller write the body to a plain temp file first, a normal
-						## Write tool call, and still invoke this op as one
-						## single-line command). Validated and consumed
-						## directly here, at point of use, into the existing
-						## bodyLines variable -- a separate bodyFromFile flag (not a
-						## bodyFromFile="" sentinel checked later) records the source
-						## only to gate the conflict checks against --from-stdin/
-						## trailing argv above/below; bodyLines itself is never held
-						## as an empty-default placeholder.
 						if [ "$state" = "body" ] ; then
 							if [ "$bodyFromStdin" = "true" ] ; then
 								echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-file given alongside --from-stdin -- use one or the other, not both" >&2
@@ -533,20 +269,6 @@ case "$1" in
 							recipients) recipients="$recipients $1" ;;
 							subject) subject="$subject $1" ;;
 							body)
-								## Same guard --member-comms-slack-send-message already carries
-								## against an unrecognized flag-shaped token falling through to
-								## a catch-all and being sent as literal content -- narrowed
-								## here to the FIRST body position, the one place where a
-								## "--"-prefixed token is unambiguously a mistake rather than
-								## content. A stray "--file /tmp/x" would otherwise become the
-								## entire body and come back rc 0, so it wouldn't even be a
-								## visible failure. Later body lines are NOT checked: a real
-								## body legitimately carries "-- " signature separators,
-								## "--- a/file" diff fragments and quoted command lines.
-								## "First body position" is bodyLines still empty AND no
-								## --from-file content -- the flag is tested as well as the
-								## value because an empty --from-file file also leaves
-								## bodyLines empty.
 								if [ -z "$bodyLines" ] && [ "$bodyFromFile" != "true" ] ; then
 									case "$1" in
 										--*)
@@ -586,13 +308,6 @@ case "$1" in
 				set +e ; return 1
 			fi
 
-			## STRICTLY THE ACTING MEMBER'S OWN SCOPE -- no fallback to another
-			## member's credentials. A fallback would mean the <team-member>
-			## argument makes no observable difference for any member that holds no
-			## EMAIL_* keys of its own, which is precisely the accepted-and-ignored
-			## defect this argument exists to end. A member without its own
-			## credentials is refused, and the refusal NAMES the scope that was
-			## searched so the answer is checkable rather than merely stated.
 			local emailUser emailPass smtpHost smtpPort
 			emailUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
 			emailPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )"
@@ -610,11 +325,6 @@ case "$1" in
 				printf 'From: %s\n' "$emailUser"
 				printf 'To: %s\n' "$( printf '%s' "$recipients" | tr ' ' ',' )"
 				printf 'Subject: %s\n' "$subject"
-				## MVP threading support: a single-level chain only -- In-Reply-To and
-				## References both carry just the immediate parent's Message-Id, not an
-				## accumulated multi-hop References history. Only emitted when the caller
-				## actually passed --in-reply-to; an ordinary non-reply send carries neither
-				## header, exactly as before this change.
 				if [ -n "$inReplyTo" ] ; then
 					printf 'In-Reply-To: %s\n' "$inReplyTo"
 					printf 'References: %s\n' "$inReplyTo"
@@ -623,15 +333,6 @@ case "$1" in
 				printf '%s\n' "$bodyLines"
 			} > "$msgFile"
 
-			## THE CREDENTIAL FILE IS REMOVED ON EVERY EXIT PATH, a signal included.
-			## The `rm -f` on the normal return path alone does not cover the
-			## interrupt window between `mktemp` and that `rm`: this arm once left
-			## three netrc files holding a live SMTP app password sitting in $TMPDIR
-			## for about fourteen hours that way. The `trap ... EXIT` is the backstop,
-			## armed before the credential is ever written and cleared with
-			## `trap - EXIT` beside the `rm -f` -- the same mechanism
-			## --member-comms-email-check already uses, not a new one invented here.
-			## $msgFile rides the same trap so neither temp file outlives the process.
 			local netrcFile
 			netrcFile="$( mktemp )" || { rm -f "$msgFile" ; set +e ; return 1 ; }
 			chmod 600 "$netrcFile"
@@ -644,13 +345,6 @@ case "$1" in
 			done
 
 			echo "# $MDSC_CMD --member-comms-email-send: sending via smtp://${smtpHost}:${smtpPort} to: $recipients" >&2
-			## The rc is collected with "|| rc=$?", never a bare call followed by
-			## "local rc=$?": set -e is active here (the dispatcher sets it around op
-			## dispatch), so a bare failing curl aborts the whole script before any
-			## following rc check can run, and both that check and the FAILED branch
-			## below become dead code. The || form is what keeps errexit off this call
-			## long enough to read its status and report it -- the same fix the
-			## --member-comms-email-* arms already carry.
 			local rc=0
 			## --max-time 300, not the 120 an API call here gets: this one uploads the whole message.
 			curl -sS --connect-timeout 10 --max-time 300 --url "smtp://${smtpHost}:${smtpPort}" --ssl-reqd \

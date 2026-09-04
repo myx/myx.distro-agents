@@ -7,18 +7,11 @@
 ## dot-sourced for $1/$@/$MDSC_CMD. Generic internal file-read primitive
 ## with optional line-range selection.
 ##
-## Supported form (the only mode):
-##   --intern-op-data-read <document-name> --lookup-folder <absolute-folder> [--lookup-folder <absolute-folder>]... [--start-line <N> --end-line <N>]
-##
 
 case "$1" in
 
 	--intern-op-data-read)
 		shift
-		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
-		## own copy of this block for the full reasoning. Pre-scanned before any
-		## validation so every message here can name the invoking operation;
-		## the option loop below consumes it again as an ordinary option.
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do

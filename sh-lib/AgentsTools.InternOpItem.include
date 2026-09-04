@@ -8,140 +8,7 @@
 ## the standard $MDLT_ORIGIN-based path. Not standalone: relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
-## Replaces AgentsTools.InternOpLock.include (four verbs: acquire/refresh/
-## release/status) and AgentsTools.InternOpStateAndLockUpsert.include (one
-## verb) with two generic primitives, per
-## board/backlog/proposal-20260813T0032Z-item-read-upsert-consolidation-design.md.
-## Consolidation, not a behavior change to the documented external contract:
-## every --magic-{heartbeat,advance,grooming,daily,retro}-lock-*/
-## -state-and-lock-upsert stub keeps its own name, syntax and stdout contract
-## (ACQUIRED/RECLAIMED_STALE/ACTIVE/REFRESHED/NO_LOCK_HELD/RELEASED/NO_LOCK)
-## unchanged; only what those stubs call underneath moves.
-##
-## No --help entry: internal plumbing, same as the two files this replaces.
-##
-## WHAT MOVED WHERE
-##
-## - The staleness-check logic (parse state/recheck-date/session-id, convert
-##   recheck-date to epoch, compare against now-60s) was written out in full
-##   TWICE across the old files (once in --intern-op-lock-acquire, once in
-##   --intern-op-lock-status). ONE implementation now: AgentsToolsItemStaleCheck
-##   below, called by both the plain-read and --acquire-lock paths of
-##   --intern-op-item-read.
-## - The --context pre-scan boilerplate was repeated SIX times across the two
-##   old files (four verbs in InternOpLock.include, one each in
-##   InternOpStateAndLockUpsert.include and InternOpDataRead.include -- that
-##   last one is untouched, see AgentsTools.InternOpDataRead.include, section 8
-##   of the design doc explains why it stays separate). ONE implementation now
-##   for this file's own two ops: AgentsToolsItemContextScan below.
-## - The fixed inbox storage path (`$MDAT_DATA_ROOT/inboxes/magic-coordinator/
-##   <item-filename>`) was asserted independently in both old files
-##   (AgentsToolsLockResolve in one, the inboxDir assignment in the other).
-##   ONE implementation now: AgentsToolsItemResolvePaths below, generalized to
-##   all four item categories (board/vault/audit/inbox), of which the fixed
-##   inbox path is one case.
-##
-## ITEM-CATEGORY ADDRESSING
-##
-## Both ops below accept ONE of:
-##   --from-board <state> <item-filename>   -- board/<state>/, state mandatory,
-##                                              no all-8-states fallback (a
-##                                              settled human-owner decision,
-##                                              see the design doc section 3).
-##   --from-vault <item-filename>           -- vault/ (single fixed folder).
-##   --from-audit <item-filename>           -- audit/<YYYY-MM>/ derived from a
-##                                              transcript-YYYY-MM-... name,
-##                                              else the current UTC
-##                                              year-month; audit/ itself as a
-##                                              read fallback.
-##   --from-inbox <team-member> <item-filename> -- inboxes/<team-member>/.
-##   <item-filename> alone, no selector     -- LEGACY DEFAULT, preserved
-##                                              unconditionally: every one of
-##                                              this consolidation's 24
-##                                              migrated stub call sites passes
-##                                              a bare <team-member>
-##                                              <item-filename> pair with no
-##                                              selector, exactly as it did
-##                                              against the old fixed-path
-##                                              --intern-op-lock-*/
-##                                              --intern-op-state-and-lock-upsert
-##                                              ops. A bare item-filename is
-##                                              therefore treated as shorthand
-##                                              for `--from-inbox
-##                                              magic-coordinator
-##                                              <item-filename>` -- the exact
-##                                              path AgentsToolsLockResolve
-##                                              hardcoded before this file
-##                                              existed. This is what makes
-##                                              the migration in section 7 of
-##                                              the design doc mechanical: the
-##                                              op name (and, for
-##                                              acquire/refresh, one flag)
-##                                              changes; the stub's own
-##                                              argument shape does not.
-##
-## board/vault/audit/inbox mirror exactly the four sources
-## --intern-op-agent-spawn-proxy already distinguishes (see
-## AgentsTools.InternOpAgentSpawnProxy.include's own board/vault/audit
-## resolution) plus the one category that resolution never covered: the fixed
-## lock/state-note storage path, which is neither board/, vault/, nor audit/.
-##
-## LOCK FLAGS ARE SCOPED TO board+inbox ONLY
-##
-## --acquire-lock/--update-lock/--unlock-lock are refused (LOCK_UNSUPPORTED)
-## against the vault/audit categories -- a settled design decision (section 4
-## of the design doc), not a frontmatter limitation: there is no
-## concurrent-write/mutual-exclusion use case for those two categories yet.
-## Plain --intern-op-item-read/--intern-op-item-upsert with no lock flag can
-## still read/write vault and audit content generically.
-##
-## ARGUMENTS
-##
-##   --intern-op-item-read <team-member> <item-selector>
-##       [--acquire-lock <owner-label> [--commit-message <text>] [--header:<upsert|append|remove>:name[:value]]...]
-##       --context <caller-op>
-##   --intern-op-item-upsert <team-member> <item-selector>
-##       [--header:<upsert|append|remove>:name[:value]]...
-##       [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-##       [--update-lock|--unlock-lock] [--commit-message <text>] [--no-push]
-##       --context <caller-op>
-##
-## --commit-message/--no-push (both optional, both narrow passthroughs, added
-## for --magic-advance-lock-acquire/--magic-advance-close-state-and-unlock's
-## own scoped commit-message/single-push-covers-two-commits needs -- a
-## human-owner-ruled narrow addition, not a general mechanism): --commit-message
-## overrides the default "$MDSC_CMD: item-upsert: $itemName" git commit
-## message when given; every other call site is unaffected since the default
-## is unchanged. --no-push stops --intern-op-item-upsert's own git half right
-## after the local commit -- skips push/cloneSync/session-id-readback
-## entirely, so a caller doing several of its own commits in sequence (e.g.
-## a GC-deletion commit then a lock-state commit) can push once itself
-## afterward instead of pushing after each one. --intern-op-item-read's
-## --acquire-lock path forwards --commit-message into the
-## --intern-op-item-upsert call it makes internally; it has no --no-push of
-## its own -- an acquire always wants the normal single push+readback.
-##
-## <item-selector> is one of the five forms under ITEM-CATEGORY ADDRESSING
-## above. No option name is introduced beyond what the two ops this file
-## replaces already established, plus the settled selector/lock-flag names
-## themselves (--from-board/--from-vault/--from-audit/--from-inbox,
-## --acquire-lock/--update-lock/--unlock-lock -- all human-owner-final,
-## verbatim, no alternatives, per the design doc section 2).
-##
-## ACCEPTED TRADEOFF: NO ATOMIC CREATE-OR-FAIL WITHOUT A CONFIGURED REMOTE
-##
-## Unchanged from AgentsTools.InternOpLock.include's own header: a plain file
-## write is not atomic; the git path gets real atomicity from the remote ref
-## update (a rejected non-fast-forward push, then a session-id read-back
-## verdict). With no remote configured there is no atomic primitive in play,
-## and no replacement lock-file mechanism is introduced to manufacture one.
-##
 
-## --context <caller-op> prescan -- see AgentsTools.InternOpBoardUpsertMoveEdit.include's
-## own copy of this block for the full reasoning. Pre-scanned before any
-## validation so every message here can name the invoking operation; the
-## option loop below consumes it again as an ordinary option. Sets: opContext.
-## Never prints, never mutates $@.
 AgentsToolsItemContextScan(){
 	opContext="<no --context given>"
 	local ctxWanted="" ctxArg
@@ -151,22 +18,6 @@ AgentsToolsItemContextScan(){
 	done
 }
 
-## Resolves one item's storage location(s) from already-parsed selector
-## fields. Both ops below parse their own selector tokens inline (each
-## already runs its own option loop for --header:/--acquire-lock/etc, so a
-## second nested loop just for the selector would be an odd split) and then
-## call this once. Sets:
-##   itemWriteDir      -- the single folder --intern-op-item-upsert writes
-##                         into (created with mkdir -p if missing).
-##   itemLookupFolders -- array, ordered, of folders --intern-op-item-read
-##                         searches. More than one only for the audit
-##                         category (derived year-month first, then audit/
-##                         itself as a fallback), mirroring
-##                         --intern-op-agent-spawn-proxy's own audit
-##                         resolution.
-##   itemLockable       -- "true" for board/inbox, "false" for vault/audit.
-## Never prints. $1=category $2=board-state (board only, else ignored)
-## $3=inbox-member (inbox only, else ignored) $4=item-filename.
 AgentsToolsItemResolvePaths(){
 	local category="$1" boardState="$2" inboxMember="$3" name="$4"
 	itemLookupFolders=()
@@ -182,10 +33,6 @@ AgentsToolsItemResolvePaths(){
 			itemLockable="false"
 		;;
 		audit)
-			## Same derivation --intern-op-agent-spawn-proxy's own audit
-			## branch uses for a read fallback order; the derived folder is
-			## also this op's own write target so a first write lands beside
-			## where later reads (including this op's own) expect it.
 			local auditYearMonth=""
 			case "$name" in
 				transcript-[0-9][0-9][0-9][0-9]-[0-9][0-9]-*)
@@ -205,24 +52,6 @@ AgentsToolsItemResolvePaths(){
 	esac
 }
 
-## Staleness check -- ONE implementation now, replacing the two duplicate
-## copies --intern-op-lock-acquire and --intern-op-lock-status each carried
-## in AgentsTools.InternOpLock.include. Reads state/recheck-date/session-id
-## from $1 (a path that may not exist) and sets:
-##   itemState   -- empty when unheld (missing file, no state line, or a
-##                  `*-finished` state).
-##   itemRecheck, itemSession -- raw frontmatter values, empty if unheld.
-##   itemHeld    -- "true" only when a non-finished state exists AND the
-##                  60s-tolerant recheck-date has not passed.
-##   itemRecheckEpoch -- itemRecheck converted to epoch seconds, empty if
-##                  unparsable. Exposed so a caller computing
-##                  RECLAIMED_STALE:...:age=...s (today's --intern-op-lock-acquire
-##                  contract) does not re-run the same AgentsIsoToEpoch.awk
-##                  conversion a second time for the value this function
-##                  already computed internally to decide itemHeld.
-## Never prints, never fails -- an unparsable recheck-date reads as stale
-## (itemHeld="false"), the same fail-open behaviour both duplicate copies
-## already had.
 AgentsToolsItemStaleCheck(){
 	local path="$1"
 	itemState="" itemRecheck="" itemSession="" itemHeld="false" itemRecheckEpoch=""
@@ -243,21 +72,6 @@ AgentsToolsItemStaleCheck(){
 
 case "$1" in
 
-	##
-	## Default (no --acquire-lock): today's --intern-op-lock-status behavior,
-	## unchanged -- resolves the item, reads state/recheck-date/session-id,
-	## applies the staleness check once, returns NO_LOCK or
-	## ACTIVE:owner=...:state=...:recheck_date=.... Always returns 0.
-	##
-	## --acquire-lock <owner-label>: today's --intern-op-lock-acquire
-	## behavior -- runs the SAME staleness check first (not a second copy),
-	## then: free or stale, echoes RECLAIMED_STALE:prev_owner=...:age=...s
-	## when reclaiming (informational, not a stop -- falls through to the
-	## write exactly as today's code does), calls --intern-op-item-upsert
-	## with --header:upsert:session-id:<owner-label> plus whatever
-	## --header:upsert:... the caller passed, and echoes ACQUIRED on success;
-	## held (not stale), returns 1, echoes ACTIVE:... -- no write attempted.
-	##
 	--intern-op-item-read)
 		shift
 		local opContext ; AgentsToolsItemContextScan "$@"
@@ -321,9 +135,6 @@ case "$1" in
 					shift 2
 				;;
 				*)
-					## Legacy bare positional: <item-filename>, no selector.
-					## Shorthand for --from-inbox magic-coordinator
-					## <item-filename> -- see this file's own header comment.
 					if [ -z "$category" ] && [ -z "$itemName" ] ; then
 						category="inbox" ; inboxMember="magic-coordinator" ; itemName="$1" ; shift
 					else
@@ -369,9 +180,6 @@ case "$1" in
 		AgentsToolsItemStaleCheck "$itemPath"
 
 		if [ "$acquireLock" != "true" ] ; then
-			## Read-only, ALWAYS returns 0 -- including when nothing is
-			## held. Live callers (e.g. routine-heartbeat's own `main`)
-			## depend on that; NO_LOCK is a normal answer, not an error.
 			if [ "$itemHeld" = "true" ] ; then
 				echo "ACTIVE:owner=$itemSession:state=$itemState:recheck_date=$itemRecheck"
 			else
@@ -385,12 +193,6 @@ case "$1" in
 			echo "ACTIVE:owner=$itemSession:state=$itemState:recheck_date=$itemRecheck"
 			set +e ; return 1
 		fi
-		## A prior (now-stale, non-`*-finished`) holder existed --
-		## informational, not a stop: falls through to the write below,
-		## exactly as today's --intern-op-lock-acquire does. itemState is
-		## only non-empty here when the file exists and its own state line
-		## was neither missing nor `*-finished` (see AgentsToolsItemStaleCheck
-		## above), so this also implies -f "$itemPath".
 		if [ -n "$itemState" ] ; then
 			local reclaimAge=""
 			[ -n "$itemRecheckEpoch" ] && reclaimAge=$(( $( date +%s ) - itemRecheckEpoch ))
@@ -413,42 +215,12 @@ case "$1" in
 			--context "$opContext"
 		local acquireRc=$?
 		if [ "$acquireRc" -ne 0 ] ; then
-			## The upsert lost the race (git configured) or otherwise
-			## failed. Nothing to unwind: no separate lock primitive was
-			## taken above.
 			set +e ; return 1
 		fi
 		echo "ACQUIRED"
 		return 0
 	;;
 
-	##
-	## Default (neither --update-lock nor --unlock-lock): today's
-	## --intern-op-state-and-lock-upsert behavior, unchanged -- frontmatter
-	## skeleton on first creation, header-ops apply, and the
-	## TEAM_DATA_GIT_REMOTE-conditional git half: commit-path-limited,
-	## retry-once-on-network-failure, read-back verdict via session-id
-	## comparison, closing-tolerant behavior on a `*-finished` state. Carried
-	## into every item category unchanged (section 6 of the design doc).
-	##
-	## --update-lock: today's --intern-op-lock-refresh -- checks the item
-	## already exists first (NO_LOCK_HELD if missing; a bare upsert
-	## otherwise CREATES on first write, and this explicit check is what a
-	## refresh needs instead -- see the design doc section 6's own note on
-	## this real behavioral fork), then calls the same base upsert, echoes
-	## REFRESHED. NOTE: verified against all 20 real refresh call sites
-	## (4 routines x lock-refresh, since heartbeat's own set has no
-	## state-and-lock-upsert stub) -- none of them pass a session-id header
-	## on refresh, so this op does not fold one in either; the design doc's
-	## own section 5 describes session-id being "folded in" on --update-lock,
-	## which does not match any verified call site and is not implemented
-	## here -- flagged in this task's own report rather than silently guessed
-	## at.
-	##
-	## --unlock-lock: today's --intern-op-lock-release/
-	## close-state-and-unlock -- if the item exists, calls the base upsert
-	## (tolerates failure, || true), always echoes RELEASED.
-	##
 	--intern-op-item-upsert)
 		shift
 		local opContext ; AgentsToolsItemContextScan "$@"
@@ -623,19 +395,11 @@ case "$1" in
 		local itemStoreRoot="$MDAT_DATA_ROOT/$category"
 		[ "$category" = "inbox" ] && itemStoreRoot="$MDAT_DATA_ROOT/inboxes"
 
-		## --update-lock: refuse on a missing item -- a bare upsert CREATES
-		## on first write, and a refresh of a lock nobody holds must not
-		## silently succeed as one. Explicit special case, not inherited
-		## from the base op's create-on-missing behavior (design doc section
-		## 6's own real-behavioral-fork note).
 		if [ "$updateLock" = "true" ] && [ ! -f "$target" ] ; then
 			echo "NO_LOCK_HELD"
 			rm -f "$headerOpsFile" ; set +e ; return 1
 		fi
 
-		## --unlock-lock: if nothing is there, still always echo RELEASED
-		## (today's --intern-op-lock-release contract), and skip the write
-		## entirely -- there is nothing to close.
 		if [ "$unlockLock" = "true" ] && [ ! -f "$target" ] ; then
 			rm -f "$headerOpsFile"
 			echo "RELEASED"
@@ -661,10 +425,6 @@ case "$1" in
 		elif [ -f "$target" ] ; then
 			content="$( cat "$target" )"
 		else
-			## First creation. Minimal skeleton -- real values only, no empty
-			## placeholder lines (see AgentsTools.InternOpStateAndLockUpsert.include's
-			## own header comment, carried unchanged, for why a pre-seeded
-			## `state:` line would break the very first upsert).
 			content="$( printf '%s\n' \
 				'---' \
 				'type: note' \
@@ -689,13 +449,6 @@ case "$1" in
 
 		printf '%s\n' "$content" > "$target"
 
-		##
-		## Git half. Everything above this point has already happened on
-		## disk and is not undone by a lock failure: the note IS the state
-		## record. Unchanged from AgentsTools.InternOpStateAndLockUpsert.include
-		## across every item category -- see this op's own header comment,
-		## design doc section 6.
-		##
 		local repoRoot="" originUrl=""
 		set +e
 		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
@@ -728,11 +481,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## --allow-empty is MANDATORY -- see
-		## AgentsTools.InternOpStateAndLockUpsert.include's own header
-		## comment for the measured defect this fixes (a same-minute
-		## byte-identical note produces "nothing to commit", so an early
-		## return would hand back SUCCESS having never contested the lock).
 		local commitMessage="$MDSC_CMD: item-upsert: $itemName"
 		[ -n "$commitMessageOverride" ] && commitMessage="$commitMessageOverride"
 		set +e
@@ -745,13 +493,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## --no-push: stop right here, right after the local commit -- skips
-		## push/cloneSync/session-id-readback entirely. For a caller doing
-		## several of its own commits in sequence (e.g.
-		## --magic-advance-close-state-and-unlock's GC-deletion commit then
-		## its own lock-state commit) that wants to push once itself
-		## afterward, not once per commit. See this file's own ARGUMENTS
-		## section above.
 		if [ "$noPush" = "true" ] ; then
 			echo "# $MDSC_CMD: item-upsert: committed (no-push) ${target#"$itemStoreRoot"/}" >&2
 			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
@@ -759,10 +500,6 @@ case "$1" in
 			return 0
 		fi
 
-		## PUSH, THEN PULL AGAIN -- THE READ-BACK IS THE VERDICT. Unchanged
-		## from AgentsTools.InternOpStateAndLockUpsert.include; see that
-		## file's own header comment (NETWORK FAILURE vs REJECTION) for the
-		## full reasoning this op carries forward as-is.
 		local pushAttempt=1 pushOut="" pushRc=0
 		while : ; do
 			set +e
@@ -786,10 +523,6 @@ case "$1" in
 			break
 		done
 
-		## Step 5: pull again -- EVERYTHING, via git/cloneSync. Unchanged
-		## from AgentsTools.InternOpStateAndLockUpsert.include; see that
-		## file's own header comment for the full reasoning (why not a
-		## one-file read, why --no-push is load-bearing).
 		local localSessionId="" remoteSessionId="" syncOut="" syncRc=0 lockBranch=""
 		set +e
 		lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )"
@@ -800,9 +533,6 @@ case "$1" in
 		syncRc=$?
 		set -e
 		if [ "$syncRc" -ne 0 ] ; then
-			## Losing acquirer: only OUR OWN commit and OUR OWN one file are
-			## undone. Never `git reset --hard` -- see
-			## AgentsTools.InternOpStateAndLockUpsert.include's own header.
 			local relPath="${target#"$repoRoot"/}"
 			set +e
 			git -C "$repoRoot" reset --soft HEAD~1 >/dev/null 2>&1

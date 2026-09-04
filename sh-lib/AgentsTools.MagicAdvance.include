@@ -6,74 +6,14 @@
 ## operation group for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily
 ## from the `--magic-advance-*)` wildcard arm via the standard
 ## $MDLT_ORIGIN-based path. Not standalone: relies on being dot-sourced for
-## $1/$@/$MDSC_CMD. Same "own dedicated namespace/.include per routine"
-## convention as AgentsTools.MagicGrooming.include -- one op today, room for
-## more of this routine's own ops later.
-##
-## Two routines consume this one namespace, deliberately: routine-advance
-## (the owning routine, whose name the prefix echoes) and
-## routine-update-board, which reads the same board state to recompute
-## dependency edges. That second consumer is the human-owner's own explicit
-## call -- update-board's board-read tooling lives under advance's
-## operation-namespace rather than getting a separately-named wrapper of its
-## own. No --magic-update-board-* namespace exists, and none should be added
-## for this read.
-##
-## State-list, investigated directly against routine-advance.routine.md's own
-## "Scope" section rather than copied off a sibling: that routine's in-scope
-## set is running (every item, every pass), backlog + pending (every item,
-## every pass), and blocked + parked narrowly (only items whose recorded
-## recheck-date has arrived, per its own step 3e). The recheck-date narrowing
-## is a judgment that step applies to already-loaded rows -- a date
-## comparison the scan primitive cannot make -- so all five states load here
-## and the routine narrows afterwards. This lands on the same "active work"
-## backlog/pending/running/blocked/parked five-state list already established
-## for --magic-grooming-input-scan/--member-work-session-input-scan/
-## --magic-heartbeat-input-scan; sharing that shape is convergence on the
-## board's own active/terminal split, not a copied default.
-##
-## routine-update-board's own narrower need (running + blocked only, its step
-## 1's "states that represent real, current, unresolved work") is a genuine
-## subset of the five above, so that routine consumes this same document and
-## ignores the backlog/pending/parked rows it does not use -- every row is
-## already labelled <state>/<item-filename>, so a caller narrowing by state
-## needs nothing from the op to do it. Note the subset relation holds only
-## because blocked is in this list: routine-advance's own step 1 prose names
-## just running/backlog/pending, which would NOT cover update-board's blocked
-## rows, and would not cover advance's own step 3e either.
-##
-## Fixed, hardcoded state-list/header-list -- no caller-facing --state/
-## --header override flags, and specifically none added for the second
-## consumer's narrower view: dedicated wrappers are fixed, not flexible; a
-## caller wanting a different scan shape calls --intern-op-session-context-scan
-## directly instead. Contrast --routine-coworking-session-input-scan's own
-## positional <item-name> list, which is that op's real defining input rather
-## than an override of an already-fixed default. Always --all-types -- neither
-## consuming routine filters by board-item type prefix -- and always every
-## frontmatter field: update-board reads blocks/blocked-by/references while
-## advance reads recheck-date/condition/session-id/restart-session/
-## approved-by/approved-at, and no narrower union has been identified.
+## $1/$@/$MDSC_CMD.
 ##
 
 case "$1" in
 
-	## Takes no arguments -- read-only discovery, same document shape as
-	## --magic-grooming-input-scan (thin wrapper over
-	## --intern-op-session-context-scan). See this file's own header comment for the
-	## state-list's derivation and for the second consuming routine.
-	##
-	## This op's arguments are byte-identical to --magic-grooming-input-scan's
-	## and --magic-heartbeat-input-scan's, so all three return identical output.
-	## Deliberate, ruled so by the human-owner -- these ops exist per consuming
-	## routine, not per scan scope. DO NOT collapse or deduplicate them. Full
-	## reasoning: the CANONICAL NOTE in AgentsTools.InternOpSessionContextScan.include's
-	## own header.
 	--magic-advance-input-scan)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## tooling operation discipline convention, same as every sibling
-		## input-scan op. The op's own "no arguments" nature now means exactly
-		## one: the calling member.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
@@ -96,31 +36,10 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		## This routine's own state-and-lock note comes back as part of the
-		## digest, because a scan returns the routine's COMPLETE prepared
-		## input and this note is where the previous pass recorded what the
-		## next one needs to continue from. Without it there is no read path
-		## for that content at all: --magic-advance-lock-status reports lock
-		## METADATA, not the note's body.
-		##
-		## CONTENT ONLY -- this is deliberately NOT the lock gate returning in
-		## another form. Nothing here evaluates state or recheck-date, decides
-		## contention, or fails. The lock check is its own operation
-		## (--magic-advance-lock-acquire), called BEFORE this scan; a scan
-		## reporting a lock verdict would put the two concerns back in one
-		## call, which is exactly what the -lock- / -state- split exists to
-		## prevent.
-		##
-		## A note that does not exist yet is ordinary, not special: it reports
-		## as a source with nothing to report, the same as any other, and the
-		## scan still succeeds. The first-ever pass is not a distinct outcome.
 		printf '%s\n\n' "## state-and-lock (routine-advance)"
 		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 		printf '\n%s\n\n' "## board digest"
-		## The calling member's OWN inbox, with bodies, per the per-operation
-		## matrix -- its own leading positional decides whose, and no
-		## operation in this family reads another member's.
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--state backlog --state pending --state running --state blocked --state parked \
 			--all-types \
@@ -130,35 +49,8 @@ case "$1" in
 		return $?
 	;;
 
-	## <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...
-	##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-	## Closes the real tooling gap found live in routine-heartbeat next-iteration
-	## cycle 15 (2026-08-05): check-execute-board's own "basic task: start now,
-	## move to board-running" branch had no sanctioned one-call op to do that
-	## move (--write-board-item's own move recipe never had a paired removal
-	## step; --magic-grooming-to-* only covers backlog/pending/processed).
-	## Deliberately its own --magic-advance-* op, not a fourth
-	## --magic-grooming-to-* sibling: this move is check-execute-board's/
-	## routine-advance's own action, not routine-grooming's -- the grooming
-	## ops' groomed-at/groomed-from/track auto-stamps are grooming-specific
-	## concepts that do not apply here. Auto-stamps started-at instead
-	## (magic-team.armed.md's own global header list) -- --header:*/
-	## --upsert-from-stdin/--edit-script-from-stdin/--edit-patch-from-stdin
-	## pass straight through for anything else a caller wants to set, same
-	## convention as the grooming ops. Thin logic over
-	## --intern-op-board-upsert-move-edit -- this op owns only the
-	## started-at auto-stamp, the intern-op owns the generic mechanics.
-	## --from-state:running also works (same-state, not a real transition)
-	## -- closes a second gap found live in cycle 16: patching
-	## session-id/recheck-date bookkeeping onto an item already in
-	## board-running, with no relocation and existing content preserved,
-	## since --intern-op-board-upsert-move-edit already reads-and-preserves
-	## the current body whenever --from-state equals the target state.
 	--magic-advance-to-running)
 		shift
-		## <team-member> is every calling routine's own name/identity, captured
-		## even though unused here today -- reserved for logging/validation
-		## (tooling operation discipline convention), not this op's own logic.
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -194,37 +86,9 @@ case "$1" in
 		return $?
 	;;
 
-	## <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...
-	##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-	## Target state fixed to parked. routine-advance's own check-execute-board
-	## fallback: the autonomous (unattended) spawn branch that must keep or move
-	## an item to board-parked in the same pass when a required spawn could not
-	## be executed -- magic-coordinator.advance.routine.md's own step, which
-	## until now named an operation the dispatcher could not reach at all.
-	##
-	## One of three separate --*-to-parked stubs, deliberately: this one is
-	## routine-advance's, --magic-grooming-to-parked is routine-grooming's, and
-	## --magic-board-to-parked is check-process-board's. Each lives in its own
-	## routine's namespace/.include, each carries its own independent validation
-	## even where identical today, and all three share the one
-	## --intern-op-board-upsert-move-edit implementation -- the same "own
-	## dedicated case arm per calling routine" convention this file's own
-	## --magic-advance-to-running already follows.
-	##
-	## No auto-stamp at all, unlike --magic-advance-to-running's started-at.
-	## started-at is auto-stampable precisely because it is unambiguously "now",
-	## tool-knowable, and already in magic-team.armed.md's own global header
-	## list. Nothing on a parked item has those properties: the calling step
-	## supplies condition/handoff-action/recheck-date/execution-receipt itself,
-	## and recheck-date specifically is a caller-computed offset. Fabricating a
-	## recheck-date here would be a behavior change, not a convenience -- an
-	## item the caller deliberately left without one falls to routine-grooming's
-	## own slower cadence, and a tool-invented value would silently pull it into
-	## the fast recheck loop instead.
 	--magic-advance-to-parked)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-advance-to-running's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -258,48 +122,8 @@ case "$1" in
 		return $?
 	;;
 
-	## <team-member> [--header:<upsert|append|remove>:name[:value]]...
-	##   [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-	## routine-advance's own state-and-lock note: state and lock in one
-	## document, and this routine's session tracking document between
-	## iterations (tactical status needed to continue the next iterative call
-	## -- explicitly NOT a transcript). Prefers REFERENCING TEAM-DATA over
-	## copying it, to stay compact.
-	##
-	## One of four stubs over --intern-op-item-upsert's default (no-flag)
-	## behavior, the others being --magic-grooming-state-and-lock-upsert/
-	## --magic-daily-state-and-lock-upsert/--magic-retro-state-and-lock-upsert
-	## (heartbeat has no stub of this kind -- its own state note is a
-	## separate mechanism, see AgentsTools.MagicHeartbeat.include's own
-	## header): same "own dedicated stub per
-	## calling routine, each carrying its own validation even where identical
-	## today" convention this file's own --magic-advance-to-running/-to-parked
-	## already follow. The note filename is fixed and hardcoded here -- it is
-	## this routine's own identity, never a caller argument, so no caller can
-	## point this routine's lock at another routine's note.
-	##
-	## Introduces no option of its own. The state values and the +10-minute
-	## recheck offset are properties of THIS ROUTINE, so they are hardcoded
-	## here and expressed through the ordinary --header:upsert vocabulary.
-	## There is deliberately no "closing" flag: a closing call is this stub
-	## being handed --header:upsert:state:advance-finished by its caller.
-	##
 	## HEADER ORDER IS LOAD-BEARING, and deliberately NOT the uniform
 	## stamp-first order --magic-advance-to-running uses.
-	## AgentsBoardItemHeaderOpsApply.awk resolves repeat upserts on one field
-	## as last-wins, so position decides overridability, and these two fields
-	## want opposite answers:
-	##   - `state` goes BEFORE the caller's headers, so a closing call can
-	##     override it to advance-finished. Closure has no other way to say so.
-	##   - `recheck-date` goes AFTER them, so it always wins. The spec re-sets
-	##     it on EVERY update, and a caller able to override it could pin the
-	##     lock open indefinitely -- turning the one bound on a crashed or
-	##     wedged holder into a caller-supplied suggestion.
-	## That asymmetry is a lock-correctness property, not a style choice.
-	## Measured, not assumed: the awk's own header documents the last-wins
-	## rule, and --header:'s parser takes headerValue as everything after the
-	## first colon following the name, so a date-time value keeps its own
-	## colons intact. Don't normalize these two back to one order.
 	--magic-advance-state-and-lock-upsert)
 		shift
 		local callingMember="$1"
@@ -325,15 +149,6 @@ case "$1" in
 				;;
 			esac
 		done
-		## +10 minutes, UTC, in the team's own `date-time` shape
-		## (`YYYY-MM-DD HH:MM ±HHMM`). Composed from AgentsEpochToIsoDate.awk
-		## plus integer arithmetic rather than date(1) arithmetic: BSD spells
-		## the offset `date -v+10M`, GNU spells it `date -d '+10 min'`, and
-		## POSIX specifies neither -- date(1) is standardised only as a reader
-		## of the CURRENT time. `date +%s` is the one portable primitive here,
-		## already relied on by --magic-heartbeat-lock-*. Cross-platform
-		## correctness is a hard requirement in this tree, so there is one code
-		## path exercised on Darwin, FreeBSD and Linux alike.
 		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
 		nowEpoch="$( date +%s )"
 		targetEpoch=$(( nowEpoch + 10 * 60 ))
@@ -349,25 +164,6 @@ case "$1" in
 		return $?
 	;;
 
-	## <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]
-	## Batch outcome bookkeeping for board-running items -- same header-upsert
-	## method as --magic-advance-to-running/-to-parked (--header:upsert: via
-	## --intern-op-board-upsert-move-edit, same-state running->running), just
-	## looped over several items in one call instead of one call per item.
-	## Not the lock/unlock mechanism -- unrelated, no lock touched here.
-	## No state move, no spawn: pure bookkeeping only, so no
-	## --magic-advance-sleep-run pacing needed after it (that's for
-	## side-effecting calls -- spawns/Slack posts/console sends).
-	## outcome enum: nudged/respawned/redispatched/flagged-once/
-	## no-action (advance.routine.md's own Scope list; valid only for two
-	## reasons -- no per-type handler for this item's prefix, or a temporary
-	## error this pass -- never for "not due yet"/"below threshold", which
-	## get no record at all instead. parked-spawn-failed excluded -- that's
-	## a state move, not bookkeeping).
-	## execution-receipt is everything after the entry's 2nd colon (so
-	## inline:<ts>/no-action:<reason>/slack:<ch>:<ts> pass through intact);
-	## must not contain a comma.
-	## One bad entry fails loud but doesn't abort the rest of the batch.
 	--magic-advance-batch-outcome)
 		shift
 		local callingMember="$1"
@@ -470,25 +266,6 @@ case "$1" in
 		return 0
 	;;
 
-	##
-	## --magic-advance-lock-* -- routine-advance's own lock: four stubs over
-	## the shared --intern-op-item-read/--intern-op-item-upsert primitives
-	## (AgentsTools.InternOpItem.include), same unified mechanism every
-	## routine now uses -- frontmatter + git when TEAM_DATA_GIT_REMOTE is
-	## configured, local-only when it is not. -lock-refresh/-lock-status stay
-	## thin; -lock-acquire and -close-state-and-unlock carry real logic of
-	## their own beyond the pass-through (a literal remote-published-head
-	## verification on acquire, GC-deletion integration + single-push
-	## batching on unlock) -- see each arm's own header comment.
-	##
-	## Position in the routine is fixed: lock before all, unlock in closure.
-	## Not inside --magic-advance-input-scan -- that op's contract is "return
-	## this routine's prepared input", and a lock is not input. The `-lock-` /
-	## `-state-` infix split says the same thing about the two namespaces.
-	##
-	## The +10-minute recheck offset is this routine's own, matching its own
-	## state-and-lock cadence.
-	##
 
 	--magic-advance-lock-acquire)
 		shift
@@ -498,11 +275,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: <team-member> <owner-label> required" >&2
 			set +e ; return 1
 		fi
-		## Rejects any argument beyond this op's own positionals --
-		## an unknown flag AND an unexpected extra positional alike.
-		## Silently ignoring them let a typo through as a successful
-		## call: `--magic-heartbeat-lock-status <member> owner-x
-		## --bogus` returned 0 and acted as if nothing were wrong.
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: invalid option: $1" >&2
 			set +e ; return 1
@@ -523,16 +295,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		##
-		## Human-owner ruling (stricter than the cloneSync-based local
-		## readback --intern-op-item-upsert already does above): explicitly
-		## verify the lock note's content is genuinely present and matching
-		## in the REMOTE PUBLISHED ref itself, not merely trusted from a
-		## local post-cloneSync file. Skipped when no remote is configured
-		## or the data root isn't a git repo -- nothing published to check
-		## against, and --intern-op-item-upsert already went local-only
-		## silently in that case.
-		##
 		local originUrl="" repoRoot=""
 		set +e
 		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
@@ -573,11 +335,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-refresh: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		## Rejects any argument beyond this op's own positionals --
-		## an unknown flag AND an unexpected extra positional alike.
-		## Silently ignoring them let a typo through as a successful
-		## call: `--magic-heartbeat-lock-status <member> owner-x
-		## --bogus` returned 0 and acted as if nothing were wrong.
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-refresh: invalid option: $1" >&2
 			set +e ; return 1
@@ -603,26 +360,23 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-close-state-and-unlock: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		## Rejects any argument beyond this op's own positionals --
-		## an unknown flag AND an unexpected extra positional alike.
-		## Silently ignoring them let a typo through as a successful
-		## call: `--magic-heartbeat-lock-status <member> owner-x
-		## --bogus` returned 0 and acted as if nothing were wrong.
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-close-state-and-unlock: invalid option: $1" >&2
-			set +e ; return 1
-		fi
-		##
-		## Ordering (human-owner ruling): GC-deletion first (own commit, only
-		## if it actually deleted anything), then the lock-state write (own
-		## commit), then ONE push covering both -- not one push per commit.
-		##
-		## GC-deletion failure is PROVISIONAL -- fails loud, aborting the
-		## whole unlock, rather than degrading to a best-effort skip. Matches
-		## this team's general "no silent degrade" convention, but this
-		## specific choice is NOT yet human-owner-confirmed -- flagged here
-		## and in this task's own report, easily reversible.
-		##
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
+				--from-file)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-advance-close-state-and-unlock: --from-file: value required" >&2
+						set +e ; return 1
+					fi
+					passthrough+=( "$1" "$2" ) ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-advance-close-state-and-unlock: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
 		local gcRc=0
 		DistroAgentsTools --intern-team-data-final-gc-deletion "$callingMember" \
 			--context --magic-advance-close-state-and-unlock || gcRc=$?
@@ -634,6 +388,7 @@ case "$1" in
 
 		if ! DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
+			"${passthrough[@]}" \
 			--unlock-lock \
 			--header:upsert:state:advance-finished \
 			--no-push \
@@ -643,16 +398,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		##
-		## ONE push covering both commits above. --intern-op-item-upsert's
-		## own push/cloneSync/session-id-readback is intentionally skipped
-		## via --no-push above: closing is always best-effort/tolerant
-		## (mirrors --intern-op-item-upsert's own isClosing "closing anyway"
-		## warning-not-failure behavior for a closing write), so unlock does
-		## not need a post-push readback verdict the way lock-acquire does.
-		## Skipped entirely when no remote is configured -- matches
-		## --intern-op-item-upsert's own git-half gate.
-		##
 		local originUrl="" repoRoot=""
 		set +e
 		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
@@ -661,12 +406,6 @@ case "$1" in
 		fi
 		set -e
 		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
-			## Retry-once-on-network-failure, same shape as
-			## --intern-op-item-upsert's own push loop (AgentsTools.InternOpItem.include)
-			## -- duplicated here rather than factored out, matching this
-			## codebase's own established convention of a dedicated stub per
-			## calling routine carrying its own literal mechanics even where
-			## identical to a sibling's.
 			local pushAttempt=1 pushOut="" pushRc=0
 			while : ; do
 				set +e
@@ -700,11 +439,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-status: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		## Rejects any argument beyond this op's own positionals --
-		## an unknown flag AND an unexpected extra positional alike.
-		## Silently ignoring them let a typo through as a successful
-		## call: `--magic-heartbeat-lock-status <member> owner-x
-		## --bogus` returned 0 and acted as if nothing were wrong.
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-status: invalid option: $1" >&2
 			set +e ; return 1

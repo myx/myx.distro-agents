@@ -6,14 +6,6 @@
 ## operations (identity, JQL search, issue read, comment read). READ SIDE ONLY:
 ## nothing here creates or edits an issue, a comment or a field.
 ##
-## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced for
-## $1/$@/$MDSC_CMD, and reached by the --member-comms-jira-* glob, which is
-## correct only while every op of that name lives here.
-##
-## Supported operations:
-##   --member-comms-jira-whoami        --member-comms-jira-issue-read
-##   --member-comms-jira-issue-search  --member-comms-jira-comment-read
-##
 
 ## Assigns into the CALLER's already-declared locals: jiraSite jiraUser jiraToken
 AgentsToolsJiraResolveMember() {
@@ -71,9 +63,6 @@ AgentsToolsJiraCall() {
 
 case "$1" in
 
-		## Which Atlassian account this member's credential resolves to. First thing
-		## to run after a token is filed: a wrong one produces no error, only
-		## somebody else's name on the work.
 		--member-comms-jira-whoami)
 			shift
 			local memberName="$1"
@@ -97,10 +86,6 @@ case "$1" in
 			return 0
 		;;
 
-		## JQL search -- the discovery entry point, since the issue ops need a key.
-		## The JQL is passed through as given, the way the Confluence family passes
-		## CQL: it is the documented surface a caller writes, and it has no single
-		## safe general wrapping.
 		--member-comms-jira-issue-search)
 			shift
 			local memberName="$1"
@@ -139,12 +124,6 @@ case "$1" in
 			return 0
 		;;
 
-		## One issue's description to stdout, its metadata to stderr.
-		##
-		## FORMAT IS `adf` BY DEFAULT. ADF is the document Jira accepts back on a
-		## write, so read -> edit -> write stays possible once the write side
-		## exists; `rendered` is Jira's own HTML for a human reader and cannot be
-		## written back.
 		--member-comms-jira-issue-read)
 			shift
 			local memberName="$1"

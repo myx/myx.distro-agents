@@ -44,7 +44,6 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Inbox: this scan returns the calling member's own inbox items too, with their bodies. That does not stand in for each participating member reading its own inbox at session start (see `magic-team.process-inbox.routine`) — both happen, and neither replaces the other.
    - Mechanically, this read is the `--magic-grooming-input-scan` operation — a fixed, read-only scan returning the open board items this step works from, each with its current state and frontmatter.
    - **Session tracking**: this routine's own `state-and-lock` note comes back with that scan, as part of this routine's own input; it is this pass's tracking document — the tactical status, and whatever the next pass needs to pick up from here. Steps:
-     - reference `TEAM-DATA` rather than copying it, to keep it compact.
      - write it via the `--magic-grooming-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close.
      - call `--magic-grooming-lock-refresh` periodically to hold the lock across a long pass, a separate obligation — writing content does not itself hold the lock.
    - This is the same real backlog `magic-coordinator`'s Prioritize section already points to; grooming is where that backlog gets actively worked, not just consulted.
@@ -241,9 +240,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - All apply here — grooming is coworking-like.
    - No status-file GC step exists in `magic-team.coworking.routine`'s Closure Steps; this routine's own triage pass (**triage-per-item**) is where drop/split decisions actually happen.
 2. **close-state-and-unlock**
-   - rule: that order is required — the release is what sets `state: grooming-finished`, and a content write after it would put the note back to running; until the release lands, the next pass sees this one as still running.
-   - step: write the pass's closing status into the `state-and-lock` note via `--magic-grooming-state-and-lock-upsert`.
-   - step: release the lock via `--magic-grooming-close-state-and-unlock`.
+   - rule: reference the board/inbox items themselves rather than copying their content, to keep it compact.
+   - step: release the lock via `--magic-grooming-close-state-and-unlock`, passing the pass's closing status inline — content, `state: grooming-finished`, and the unlock all land in one call now, not two.
 
 # Routine's local procedures
 

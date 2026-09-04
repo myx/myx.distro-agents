@@ -2556,15 +2556,31 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-advance-close-state-and-unlock <team-member>
-		--magic-grooming-close-state-and-unlock <team-member>
-		--magic-daily-close-state-and-unlock <team-member>
-		--magic-retro-close-state-and-unlock <team-member>
+		--magic-advance-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
+		--magic-grooming-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
+		--magic-daily-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
+		--magic-retro-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
 			Releases the lock in routine closure, setting the note's own
 			`state: advance-finished`, `state: grooming-finished`,
 			`state: daily-finished` or `state: retro-finished`
-			respectively. Prints `RELEASED` and returns 0 always. Takes no
-			options; any further argument is rejected.
+			respectively. Prints `RELEASED` and returns 0 always.
+
+			Closing content is optional. Given, it is written into the SAME
+			upsert call that sets the finished state and releases the lock
+			-- one call closes a pass, not two: a caller no longer writes
+			closing content via `--magic-*-state-and-lock-upsert` first and
+			then calls this op second. Omitted, the note's existing body is
+			preserved unchanged, only headers/lock change. A narrower subset
+			of the sibling `--magic-*-state-and-lock-upsert` ops' three body
+			sources -- no `--upsert-from-stdin` here, closing content is
+			expected prepared rather than typed inline.
+
+			--from-file <path>
+				Replace the note body with this file's contents.
+
+			--edit-patch-from-stdin
+				Apply a JSON array of {"old","new","replace_all"} patches to
+				the existing body. Mutually exclusive with --from-file.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

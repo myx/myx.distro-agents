@@ -8,27 +8,6 @@
 ## standard $MDLT_ORIGIN-based path.
 ## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
-## That arm lives in Member.include rather than in the outer dispatcher
-## because --member-help matches the dispatcher's own earlier --member-*
-## wildcard arm, which wins -- an exact --member-help route in the outer case
-## could never be reached. See that arm's own comment for the full reasoning.
-##
-## Two-section output:
-## - `# Duty instructions` -- the raw operation-name list this specific
-##   member's own <name>.armed.md declares in its own "## DistroAgentsTools
-##   magic-tooling operations" bullet list ("what this member is on duty to
-##   use", straight from its own file).
-## - `# Tooling help output` -- the filtered real syntax lines from
-##   Help.DistroAgentsTools.include matching: the shared/floor operations
-##   every member gets (magic-team.armed.md's own tooling section), this
-##   member's own declared list above, and this member's own role-family
-##   common-prefix filter (below) -- never the whole, unfiltered
-##   Help.DistroAgentsTools.help.md.
-##
-## Data source is the deployed skillset, $HOME/.claude/skills/<name>/<name>.armed.md
-## -- same skill-root convention --librarian-list-team-files already uses,
-## not a new one invented here.
-##
 
 case "$1" in
 
@@ -45,23 +24,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## Every recognized role-family prefix its own hardcoded arm (not one
-		## combined `a|b|c)` line) -- never a directory-existence test, since
-		## oncall-*/expert-*/warden-* currently have zero live members, so
-		## testing for a real folder would wrongly reject a valid,
-		## just-not-yet-created name. Each arm sets $commonPrefixes,
-		## this role-family's own common tooling filter -- one prefix per
-		## line, vertical/array-shaped so the actual list is readable at a
-		## glance, not buried in a long horizontal string. `--member-*` is
-		## common to every arm (confirmed). Console ops are a hard
-		## requirement for keeper-*/warden-* specifically (their own
-		## contract's console-session rule, magic-team.shared.md's "Armed &
-		## Routine contracts") -- not for magic-*/partner-*/client-*/oncall-*/
-		## expert-* (partner-*/client-* do get console ops, but per-member,
-		## via their own .armed.md's declared list -- their own contract
-		## makes those available, not a standing requirement; oncall-*/
-		## expert-* are external billed resources that don't touch this
-		## tool's own console-session machinery at all).
 		local commonPrefixes
 		case "$targetMember" in
 			magic-coordinator)
@@ -111,12 +73,6 @@ case "$1" in
 				)
 			;;
 			human-owner)
-				## Investigated: human-owner.armed.md's own tooling section
-				## exists but is currently empty -- non-acting, "MUST NOT
-				## execute tooling directly -- escalate via the coordinator
-				## flow." `--owner-*` is obviously theirs regardless of that
-				## empty list: the whole namespace exists to manage the
-				## human-owner's own workspace registry.
 				commonPrefixes=(
 					"--help"
 					"--member-*"
@@ -136,13 +92,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## Extracts bare `--op-name`/`--op-prefix-*` tokens from a file's own
-		## "## DistroAgentsTools magic-tooling operations" bullet list --
-		## stops at the next "## " heading, same block a human reads. Every
-		## closing `}` below is preceded by a `;` even on a single-statement
-		## line (magic-developer's reference/shell.md axiom: some AWK
-		## implementations reject the missing-semicolon form as a hard parse
-		## error).
 		ExtractOpNames(){
 			awk '
 				/^## DistroAgentsTools magic-tooling operations/ { inBlock=1; next; }
@@ -178,11 +127,6 @@ case "$1" in
 			' "$1"
 		}
 
-		## A member declaring zero ops of its own is legitimate, not fatal --
-		## e.g. human-owner, non-acting, real zero-bullet tooling section.
-		## Floor + this member's own role-family common filter (set above)
-		## still apply regardless, so there's still real content to show
-		## even when $ownOpNames comes back empty.
 		local ownOpNames
 		ownOpNames="$( ExtractOpNames "$memberFile" | sort -u )"
 
@@ -205,23 +149,7 @@ case "$1" in
 		echo "# Tooling help output" >&2
 		echo >&2
 
-		## A name matching nothing in either help file is silently skipped,
-		## not an error: an op named in a member's own tooling list or a
-		## common-prefix filter that isn't yet help-documented is that op's
-		## own pairing gap, not this filter's problem to raise. Every
-		## closing `}` below is preceded by a `;` even on a single-statement
-		## line (magic-developer's reference/shell.md axiom: some AWK
-		## implementations reject the missing-semicolon form as a hard parse
-		## error).
 
-		## Short syntax lines (Help.DistroAgentsTools.include), one op per
-		## real line there, deduped -- a name may legitimately match more
-		## than one real line (an exact floor entry and a `--member-*`
-		## common-prefix entry can both match the same op), so that line
-		## must not print twice. Passed to AWK via ENVIRON, not `-v`: `-v`
-		## chokes on a raw embedded newline ("newline in string"), ENVIRON
-		## reads the process environment directly and doesn't have that
-		## limitation.
 		export MDAT_MEMBER_HELP_NAMES="$allNames"
 		awk '
 			BEGIN {
@@ -253,19 +181,6 @@ case "$1" in
 
 		echo >&2
 
-		## Full multi-line manual entries (Help.DistroAgentsTools.help.md).
-		## Op-header lines are two real tabs then `--op-name` -- everything
-		## from there up to (not including) the next such header line, or a
-		## bare `## ` heading (the file's own trailing Notes:/Examples:
-		## appendix after the last op entry -- same termination pattern
-		## ExtractOpNames already uses, otherwise the last matched entry
-		## bleeds into that trailing content all the way to EOF), belongs to
-		## that one entry, same block a human reading the raw file sees.
-		## State machine: a new header line decides match/no-match for
-		## `inBlock`; every other line just inherits whatever `inBlock` the
-		## last header line set. `printed[]` dedupes the same reason as the
-		## short-syntax pass above. Same ENVIRON passing as the short-syntax
-		## pass above, same reason.
 		awk '
 			BEGIN {
 				count = split(ENVIRON["MDAT_MEMBER_HELP_NAMES"], arr, "\n");

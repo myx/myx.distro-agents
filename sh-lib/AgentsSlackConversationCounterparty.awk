@@ -7,7 +7,7 @@
 # single counterparty (a public/private channel, an mpim).
 #
 # WHY THIS FILE EXISTS AT ALL, i.e. why the counterparty is parsed and not
-# pattern-matched. The control in AgentsTools.InternOpSlackCall.include used
+# pattern-matched. The control in AgentsTools.CommsSlack.include used
 # to read the counterparty with
 #     sed -n 's/.*"user":"\([UW][^"]*\)".*/\1/p' | head -1
 # and that is wrong by construction: BRE `.*` is greedy, so the leading

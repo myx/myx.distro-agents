@@ -55,7 +55,6 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Skip only if this exact session has already loaded it earlier in the same continuous run.
 4. **session-start**:
    - goal: this routine's own `state-and-lock` note is this pass's tracking document — the tactical status, and whatever the next pass needs to pick up from here.
-   - rule: reference `TEAM-DATA` rather than copying it, to keep it compact.
    - rule: holding the lock across a long pass is a separate obligation — call `--magic-daily-lock-refresh` periodically; writing content does not itself hold the lock.
    - step: write it via the `--magic-daily-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close.
    - step: execute `magic-team.coworking.routine`'s **session-start** group:
@@ -122,9 +121,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - rule: `magic-coordinator.advance.routine`'s **advance-run-process-board** repeats the `check-process-board` pass **run-check-process-board** already ran. That is a deliberate second reconciliation over a board the main sequence has since changed, not an accident — `check-process-board` executes only already-decided moves, so re-running it is safe.
 2. **close-out**: once agents finish (or are wrapped up at the timebox), compact what happened into a short summary for the user. Execute `magic-team.coworking.routine`'s Closure Steps in full — this is a coworking-like session, so its continuity step, `slack-magic-team`/status-card broadcast, and skill-update-discussion offer all apply; context compaction does not. `magic-team.process-reflections.routine` already ran at **fold-in-learned-lessons**, not here. Meeting finished.
 3. **close-state-and-unlock**:
-   - rule: that order is required — the release is what sets `state: daily-finished`, and a content write after it would put the note back to running; last, every time — until the release lands, the next pass sees this one as still running.
-   - step: write the pass's closing status into the `state-and-lock` note via `--magic-daily-state-and-lock-upsert`.
-   - step: release this routine's own lock via `--magic-daily-close-state-and-unlock`, setting `state: daily-finished`.
+   - rule: reference the board/inbox items themselves rather than copying their content, to keep it compact.
+   - step: release this routine's own lock via `--magic-daily-close-state-and-unlock`, passing the pass's closing status inline — content, `state: daily-finished`, and the unlock all land in one call now, not two.
 
 # Routine's local procedures
 

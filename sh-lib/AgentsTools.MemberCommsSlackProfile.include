@@ -7,9 +7,6 @@
 ## on being dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism:
 ## myx.distro-agents/MAGIC.md.
 ##
-## Supported operations:
-##   --member-comms-slack-profile-set    --member-comms-slack-profile-get
-##
 
 ## One field emitter for both ops. Own copy rather than the file-info one:
 ## that emitter names files.info in its own failure message.
@@ -115,9 +112,6 @@ case "$1" in
 			;;
 		esac
 
-		## A counter, never a test on the values: an empty string is a legitimate
-		## clear for display-name, status-text and status-emoji, so emptiness
-		## cannot stand in for absence anywhere in this arm.
 		local profileFieldCount=0
 		local profileDisplayNameGiven="false" profileDisplayName=""
 		local profileStatusTextGiven="false" profileStatusText=""
@@ -230,10 +224,6 @@ case "$1" in
 						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --avatar: value required (a path to an image file). There is no empty value here: Slack has no 'clear the photo' form of this call, so an avatar is replaced, never unset." >&2
 						set +e ; return 1
 					fi
-					## Both checks are HOISTED from the upload call to parse time,
-					## not duplicated: this operation writes four facets, and a path
-					## fault found at call time surfaces only after the profile
-					## fields have already landed.
 					case "$2" in
 						*';'*|*','*)
 							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --avatar: the path must not contain ';' or ',': $2. Those two characters are not this tool's restriction and not Slack's -- curl's own multipart value syntax reads ';' as the start of part metadata and ',' as a multi-file separator, so such a path is consumed as syntax instead of as a filename and the upload fails at transport as a generic error naming nothing. Refused here, where the cause is still visible. Nothing was changed." >&2
@@ -273,9 +263,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## Every field parsed and validated before the first request leaves the
-		## host: with three calls in one operation, a bad value found after
-		## users.profile.set already landed leaves the persona half-written.
 		local profileFieldsJson="" profileEscaped=""
 		if [ "$profileDisplayNameGiven" = "true" ] ; then
 			profileEscaped="$( printf '%s' "$profileDisplayName" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
@@ -319,9 +306,6 @@ case "$1" in
 			printf '%s\n' PROFILE_SET_STATE=not-requested
 		fi
 
-		## Its own call, never folded into the profile facet above: upload wins at
-		## the transport, so a users.setPhoto carrying the profile's --json-body
-		## would discard every profile field and still answer ok:true.
 		if [ "$profileAvatarGiven" = "true" ] ; then
 			profileRc=0
 			profileResponse="$( AgentsToolsCommsSlackProfileCall --member-comms-slack-profile-set avatar \
@@ -547,10 +531,6 @@ case "$1" in
 			profileFailed=$(( profileFailed + 1 ))
 		fi
 
-		## Custom fields need BOTH bodies: the workspace's definitions carry the
-		## labels, the account's own profile carries the values. Ids are workspace-
-		## defined, so neither body alone answers "which fields exist and what does
-		## this account hold in them".
 		local profileTeamResponse=""
 		profileRc=0
 		profileTeamResponse="$( AgentsToolsCommsSlackProfileCall --member-comms-slack-profile-get custom-fields \
@@ -584,9 +564,6 @@ case "$1" in
 				profileFailed=$(( profileFailed + 1 ))
 			else
 				printf '%s\n' PROFILE_GET_STATE=read
-				## A count line, then one ordinal group per field. Zero is a real
-				## answer: an account may legitimately have filled none, and a
-				## workspace may define none.
 				printf 'PROFILE_FIELDS_COUNT=%s\n' "$( grep -c . "$profileCfFile" )"
 				while IFS=$'\t' read -r profileCfId profileCfLabel profileCfValue profileCfAlt ; do
 					[ -n "$profileCfId" ] || continue

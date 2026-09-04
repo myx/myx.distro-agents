@@ -6,59 +6,9 @@
 ## --intern-team-data-final-gc-deletion op for DistroAgentsTools.fn.sh's
 ## dispatcher. Sourced lazily from that exact op's own dispatcher arm via the
 ## standard $MDLT_ORIGIN-based path. Not standalone: relies on being
-## dot-sourced for $1/$@/$MDSC_CMD. One intern-op primitive per file, same
-## convention as AgentsTools.InternOpBoardTrash.include -- not bundled with
-## it, and NOT built on top of it: this op permanently deletes on a
-## retention clock, --intern-op-board-trash relocates one named item on
-## request; different mechanism, different contract, human-owner-ruled not
-## to share an implementation.
-##
-## Scans inboxes/*/processed/ and board/processed/ for items past their
-## type's retention threshold and `rm -f`s them. Thresholds are this op's
-## own final-GC retention scheme per the human-owner's final GC-deletion
-## spec: 7-day default, warning-*/reflection-* 1 day, no other exceptions --
-## "default" is a genuine catch-all (`*) thresholdDays=7`), not an
-## enumerated whitelist of known type prefixes: ANY filename (any prefix,
-## including one not in the old 9-row scheme) gets a real 7-day threshold
-## unless it's warning-*/reflection-*. There is deliberately no more
-## "unmatched prefix is skipped forever" safety case -- every *.md file
-## under a scanned processed/ dir is eventually eligible for deletion on
-## this clock, per the human-owner's own explicit correction to an earlier
-## draft of this table that kept the old enumerated-whitelist shape.
-## This DELIBERATELY NO LONGER mirrors magic-team.board.md's own "Per-type
-## retention thresholds" table (still the old 9-row scheme as of this
-## edit); the human-owner's spec explicitly supersedes it for this op only.
-## Reconciling/superseding magic-team.board.md's own table is separate
-## scope, already flagged to magic-librarian, not done here.
-##
-## mtime is the spec'd retention clock, taken literally. FLAGGED, not
-## silently worked around: a git checkout/merge (this data root gets
-## resynced by every routine's own lock traffic) does not guarantee
-## preserving a file's original mtime, which could silently reset an old
-## item's retention clock after a resync. Left as specified pending
-## human-owner confirmation -- see this task's own report.
-##
-## Local-commit gate is `.git`-PRESENCE ONLY (independent of
-## TEAM_DATA_GIT_REMOTE) -- deliberately diverging from
-## --intern-op-item-upsert's combined originUrl+repoRoot gate. This op never
-## pushes/syncs at all; that is always the caller's own job.
-##
-## No --help entry: internal plumbing, called from
-## --magic-advance-close-state-and-unlock and directly by magic-tester for
-## scratch-fixture verification.
+## dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
-## Scans one already-resolved processed/ directory, `rm -f`ing anything whose
-## filename prefix matches the retention table and whose mtime is past that
-## row's threshold. Reused across every inbox member's own processed/ dir
-## plus board/processed/ -- same algorithm, different directory each call.
-## Sets (accumulates into, never resets): gcDeletedCount, gcDeletedPaths[]
-## (both `local` in the caller, dynamic-scoped here, same convention as
-## AgentsToolsItemResolvePaths/AgentsToolsItemStaleCheck in
-## AgentsTools.InternOpItem.include). Never prints. An unreadable mtime is
-## skipped, not guessed at; a failed `rm -f` is the one real failure -- returns
-## 1 with gcScanFailedPath set rather than an unreadable mtime, which is
-## normal and skipped instead.
 AgentsToolsFinalGcScanDir(){
 	local scanDir="$1" nowEpoch="$2"
 	local path fileBase thresholdDays fileMtime ageSeconds thresholdSeconds
@@ -75,13 +25,6 @@ AgentsToolsFinalGcScanDir(){
 		thresholdSeconds=$(( thresholdDays * 86400 ))
 		[ "$ageSeconds" -lt "$thresholdSeconds" ] && continue
 		if ! rm -f -- "$path" ; then
-			## Explicit rc check, not left to `set -e` -- an untested `rm -f`
-			## failing here would abort the whole op via `set -e` mid-scan,
-			## before the summary line ever prints, leaking a raw OS error
-			## instead of this codebase's own wrapped ⛔ ERROR: message. Sets
-			## gcScanFailedPath (dynamic-scoped into the caller, same
-			## convention as gcDeletedCount/gcDeletedPaths) so the caller can
-			## report which path failed.
 			gcScanFailedPath="$path"
 			return 1
 		fi
@@ -95,10 +38,6 @@ case "$1" in
 
 	--intern-team-data-final-gc-deletion)
 		shift
-		## --context <caller-op>: see AgentsTools.InternOpBoardTrash.include's
-		## own copy of this block for the full reasoning. Pre-scanned before
-		## any validation so a future message here could name the invoking
-		## operation.
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do
@@ -133,13 +72,6 @@ case "$1" in
 		local gcDeletedPaths=() gcDeletedCount=0 gcScanFailedPath=""
 		local inboxDeletedCount=0 boardDeletedCount=0
 
-		## Inbox source: every member's own processed/, resolved the same
-		## cd+pwd -P / containment-checked way as
-		## AgentsTools.InternOpBoardTrash.include's own --from-inbox: arm
-		## (lines ~118-148 there). A member escaping containment (e.g. a
-		## symlink) is skipped with a warning rather than aborting the whole
-		## scan across every other member -- this op covers many members in
-		## one call, unlike board-trash's single-item contract.
 		local inboxBase=""
 		inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 		if [ -n "$inboxBase" ] ; then

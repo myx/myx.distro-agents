@@ -6,102 +6,14 @@
 ## --magic-heartbeat-* operation group for DistroAgentsTools.fn.sh's
 ## dispatcher. Sourced lazily from the `--magic-heartbeat-*)` wildcard arm
 ## via the standard $MDLT_ORIGIN-based path. Not standalone: relies on being
-## dot-sourced for $1/$@/$MDSC_CMD. Name deliberately does NOT echo the
-## owning routine's own name (routine-heartbeat) -- confirmed
-## intentional, not a defect.
-##
-## Three op families share this one file/namespace: --magic-heartbeat-input-
-## scan (board-scan, documented right below), --magic-heartbeat-lock-*
-## (the single-instance lock, documented near its own case arms further
-## down), and --magic-heartbeat-state-* (the day-rhythm state record,
-## documented near its own case arms at the end). Op names carry a "-lock-"
-## / "-state-" infix precisely so --magic-heartbeat-* stays available as the
-## bare namespace for un-infixed ops too. This is the
-## only namespace these lock ops exist under -- no --main-loop-lock-*
-## compatibility names remain (AgentsTools.MainLoop.include is gone).
-##
-## State-list/header-list, investigated directly against
-## routine-heartbeat.routine.md's own real text (its full "One
-## process-flow iteration" step list, read end to end) rather than guessed:
-## unlike --magic-sweep-input-scan/--member-work-session-input-scan/
-## --routine-coworking-session-input-scan, that routine's own text has NO
-## step that names a board-scan-shaped need the way routine-communication-
-## sweep's "Enumeration mechanism" text or routine-daily's "Roll call" step
-## do -- every place that routine touches board content today already
-## delegates to a sub-routine with its own scan (Comms -> sweep's own
-## --magic-sweep-input-scan; First-today-only grooming ->
-## --magic-grooming-input-scan; Later-today -> routine-daily's
-## --member-work-session-input-scan per member) or uses a different, simpler
-## mechanism entirely (the Test-email-report step's own live find/wc
-## board-statistics counts, not a document-shaped scan).
-##
-## That finding is now RESOLVED, not interim. The earlier resolution -- the
-## five-state backlog/pending/running/blocked/parked list with every header,
-## a broad "pulse of the whole active board" reading -- returned 44230 bytes
-## and 141 items that no step of routine-heartbeat.routine.md ever read, and
-## byte-for-byte duplicated what --magic-advance-input-scan returns later in
-## the same iteration. Ruled by the human-owner: a routine's own input-scan
-## stub is crafted for its own step, and what the stubs sweep is split so it
-## does not intersect. So this op now returns exactly the two things that
-## routine's own text names, and nothing kept defensively:
-##   1. the state-and-lock note (see the case arm's own comment below), the
-##      one board-shaped thing that routine genuinely consumes per pass;
-##   2. an item-name + state + `status:` index of board-running and
-##      board-blocked, which is exactly the Test-email-report sub-step's own
-##      "Active processes -- one line per active/blocked item naming it and
-##      its state (in-work/blocked/etc.), not just a number." Its sibling
-##      Board-statistics section stays on its own live find/wc counts, per
-##      that step's own text, and is deliberately NOT served from here.
-## backlog/pending/parked are out: that sub-step says active/blocked, and
-## those three are untriaged, undispatched and deliberately-deferred
-## respectively -- none of them an active process. --all-types stays (an
-## active process is any board-item type; no type restriction has any
-## textual basis here).
-##
-## NOT served from --magic-heartbeat-input-scan, deliberately: the GC
-## sub-step's own retention check reads board-processed (and, for its
-## reference check, board-archived) items, which that op has never returned
-## and still does not. Growing that scan to cover it would re-create the
-## exact defect above -- content with no consumer that asked for it.
-##
-## GC's own gap is served by a SEPARATE, dedicated wrapper instead --
-## --magic-heartbeat-processed-scan, its own case arm further down -- rather
-## than folded into --magic-heartbeat-input-scan. Same "per-consumer, not
-## per-scan-scope" convention this whole file already follows: the GC
-## sub-step's board-processed/board-archived read is a distinct need from
-## run-one-bounded-substep's own running/blocked "pulse" read, on a different
-## cadence (once per pass, inbox-processing sub-step only) and a different
-## shape (full frontmatter, no --header narrowing -- retention thresholds are
-## type-dependent and the still-depended-on check reads `blocked-by:`/
-## `spawned-by:`, neither of which a fixed single-header scan could serve).
-##
-## Fixed, hardcoded state-list/header-list -- no caller-facing --state/
-## --header override flags: dedicated wrappers are fixed, not flexible; a
-## caller wanting a different scan shape calls --intern-op-session-context-scan
-## directly instead.
+## dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
 case "$1" in
 
-	## Takes no arguments -- read-only discovery, thin wrapper over
-	## --intern-op-session-context-scan. See this file's own header comment for
-	## why this exact state-list/header-list, traced to the routine text that
-	## asks for it.
-	##
-	## This op's arguments are NO LONGER byte-identical to
-	## --magic-advance-input-scan's and --magic-grooming-input-scan's, and its
-	## output is no longer identical to theirs. That divergence is the point:
-	## these ops exist per consuming routine, not per scan scope, so each is
-	## free to narrow to its own routine's own need without negotiating with
-	## the other two -- which is exactly what happened here. DO NOT collapse or
-	## deduplicate them; this divergence is now the demonstration of why, where
-	## before it was only an argument. Full reasoning: the CANONICAL NOTE in
-	## AgentsTools.InternOpSessionContextScan.include's own header.
 	--magic-heartbeat-input-scan)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## tooling operation discipline convention, this session's own new
-		## ops.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
@@ -124,43 +36,11 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-input-scan: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		## This routine's own state-and-lock note comes back as part of the
-		## digest, because a scan returns the routine's COMPLETE prepared
-		## input and this note is where the previous pass recorded what the
-		## next one needs to continue from. Without it there is no read path
-		## for that content at all: --magic-heartbeat-lock-status reports lock
-		## METADATA, not the note's body.
-		##
-		## THIS IS THE LOCK NOTE, NOT THE `heartbeat-state-note`. Two
-		## different documents, and conflating them is the expensive mistake
-		## here. The state record (--magic-heartbeat-state-read/-upsert,
-		## inboxes/magic-coordinator/note-20260812T231137Z-heartbeat-state.md)
-		## has at least six readers outside this routine and is untouched by
-		## any of this; what this scan gained is the lock document, which
-		## only this routine writes.
-		##
-		## CONTENT ONLY -- this is deliberately NOT the lock gate living here
-		## in another form. Nothing here evaluates state or recheck-date,
-		## decides contention, or fails. The lock check is its own operation
-		## (--magic-heartbeat-lock-acquire), called BEFORE this scan; a scan
-		## reporting a lock verdict would put the two concerns back in one
-		## call, which is exactly what the -lock- / -state- split exists to
-		## prevent.
-		##
-		## A note that does not exist yet is ordinary, not special: it reports
-		## as a source with nothing to report, the same as any other, and the
-		## scan still succeeds. The first-ever pass is not a distinct outcome.
+		## THIS IS THE LOCK NOTE, NOT THE `heartbeat-state-note`.
 		printf '%s\n\n' "## state-and-lock (routine-heartbeat)"
 		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 		printf '\n%s\n\n' "## board digest"
-		## The calling member's OWN inbox, with bodies, per the per-operation
-		## matrix. The board half stays deliberately narrow -- running/blocked
-		## carrying `status` alone, the active-processes list this routine's
-		## own sub-step consumes -- and the inbox half is a separate section,
-		## so the narrowing is unaffected. `--header status` bounds the BOARD
-		## blocks only; an inbox block is framed content, not a header
-		## selection.
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--state running --state blocked \
 			--all-types \
@@ -171,10 +51,6 @@ case "$1" in
 		return $?
 	;;
 
-	## Spawn proxy for routine-heartbeat/routine-advance autonomous passes:
-	## caller validation. Accepts both:
-	## - magic-coordinator (real team-member)
-	## - routine-heartbeat (meta-name used by routine flow)
 	--magic-heartbeat-spawn-proxy)
 		shift
 		local callingMember="$1"
@@ -195,28 +71,6 @@ case "$1" in
 		return $?
 	;;
 
-	## routine-heartbeat step 0: thin wrapper over --intern-op-check-configs
-	## (no <team-member> arg -- only call site). Two calls, one per config scope
-	## the step actually verifies: magic-coordinator for the team-data and
-	## per-service keys, magic-team for SLACK_BOT_TOKEN, which is the TEAM's own
-	## credential and lives in the team's scope. One call cannot span both -- the
-	## intern-op checks one entity scope per invocation.
-	## --required (gates exit code): TEAM_DATA_DIRECTORY plus the four channel
-	## keys. All four channels are needed and exist -- declaring a needed key
-	## --optional lets this check pass while something required is missing,
-	## which is the exact shape of the failure that produced the original
-	## event-track outage. The remaining keys stay --optional (reported,
-	## informational only -- each already fails loud on its own at point of use).
-	##
-	## The --expect-id-kind declarations below are THIS STUB'S contract, stated
-	## explicitly as call options -- the intern-op infers nothing from the key
-	## names or from the <hint> strings. Note SLACK_CHANNEL_HUMAN_OWNER is
-	## declared `user` despite its CHANNEL_ name: a per-person target must be
-	## stored as a user id so each identity can open its own DM, and the name is
-	## historical (a rename is tracked separately). That mismatch between name
-	## and contract is exactly why the contract is declared and never inferred.
-	## The three genuine channel keys are declared `channel` and must stay
-	## silent -- if any of them ever WARNs, the check is wrong, not the config.
 	--magic-heartbeat-config-check)
 		shift
 		if [ $# -gt 0 ] ; then
@@ -244,30 +98,12 @@ case "$1" in
 			--expect-secret TRELLO_TOKEN \
 			--context --magic-heartbeat-config-check
 		local configRc=$?
-		## THE TEAM'S OWN SCOPE, CHECKED SEPARATELY -- because SLACK_BOT_TOKEN is
-		## the team's credential, not the coordinator's. The intern-op checks one
-		## entity scope per call, so the key's declaration follows the key to its
-		## own call rather than the key being checked where it no longer lives.
-		## Checking it in the coordinator's scope reported FAIL for a value that
-		## was correctly present, in the correct place -- a check that is wrong
-		## about a config that is right, which is worse than no check at all.
-		##
-		## Non-gating, and deliberately NOT folded into configRc: the gating
-		## contract of this step is TEAM_DATA_DIRECTORY plus the four channel
-		## keys, and SLACK_BOT_TOKEN is none of them -- an --optional
-		## key must not start gating a heartbeat just because it moved scope.
 		DistroAgentsTools --intern-op-check-configs magic-team \
 			--optional "SLACK_BOT_TOKEN:<token>" \
 			--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \
 			--expect-secret SLACK_BOT_TOKEN \
+			--resolve-slack-workspace-into SLACK_WORKSPACE_DOMAIN \
 			--context --magic-heartbeat-config-check || true
-		## Slack granted-scope check. The op list is declared HERE, by the stub;
-		## the intern-op holds no scope list and no op list of its own. Each named
-		## op answers --print-required-scopes with its own declaration.
-		##
-		## Non-gating, like every other WARN in this step: a missing scope is a
-		## real finding but not a reason to fail a heartbeat, and the check
-		## verifies GRANTED SCOPES only -- never effective access.
 		DistroAgentsTools --intern-op-check-slack-scopes magic-coordinator \
 			--scope-source --member-comms-slack-send-message \
 			--scope-source --intern-op-slack-check \
@@ -279,8 +115,7 @@ case "$1" in
 		return $?
 	;;
 
-	## Explicit board-item->trash relocation for this routine's own GC step
-	## (routine-heartbeat.routine.md's GC sub-step).
+	## Explicit board-item->trash relocation for this routine's own GC step.
 	--magic-heartbeat-board-item-trash)
 		shift
 		local callingMember="$1"
@@ -301,34 +136,6 @@ case "$1" in
 		return $?
 	;;
 
-	##
-	## --magic-heartbeat-lock-* plus --magic-heartbeat-close-state-and-unlock
-	## -- routine-heartbeat's own single-instance lock, now four thin stubs
-	## over the shared --intern-op-item-read/--intern-op-item-upsert
-	## primitives (AgentsTools.InternOpItem.include). The mechanism moved there when the
-	## `mkdir` mutex and the fixed `*-state-and-lock.md` documents were
-	## unified into one lock: frontmatter + git when TEAM_DATA_GIT_REMOTE is
-	## configured, the same `mkdir` mutex as before when it is not. The stdout
-	## contract callers already depend on is unchanged -- ACQUIRED /
-	## RECLAIMED_STALE:... / ACTIVE:... / NO_LOCK_HELD / RELEASED / NO_LOCK.
-	##
-	## RENAMED: --magic-heartbeat-lock-heartbeat is now
-	## --magic-heartbeat-lock-refresh. `heartbeat` could not stay as the verb:
-	## it is also this routine's own name, so the unified siblings would have
-	## read --magic-advance-lock-heartbeat -- a verb slot carrying another
-	## routine's name. This is the only forced rename in the unification.
-	##
-	## This routine locks against its OWN fixed note, never the
-	## `heartbeat-state-note`. That note is a STATE record with at least six
-	## readers outside this routine, and routing every acquire and refresh
-	## through it would make lock traffic rewrite a document those readers
-	## consume. State and lock stay separate documents, exactly as the
-	## `-state-` / `-lock-` infix split says they are separate concerns.
-	##
-	## The +15-minute recheck offset is this routine's own, and matches the
-	## 900s stale threshold the mechanism this replaces already published, so
-	## a crashed holder frees its lock on the timing callers already expect.
-	##
 
 	--magic-heartbeat-lock-acquire)
 		shift
@@ -338,11 +145,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-acquire: <team-member> <owner-label> required" >&2
 			set +e ; return 1
 		fi
-		## Rejects any argument beyond this op's own positionals --
-		## an unknown flag AND an unexpected extra positional alike.
-		## Silently ignoring them let a typo through as a successful
-		## call: `--magic-heartbeat-lock-status <member> owner-x
-		## --bogus` returned 0 and acted as if nothing were wrong.
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-acquire: invalid option: $1" >&2
 			set +e ; return 1
@@ -368,11 +170,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-refresh: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		## Rejects any argument beyond this op's own positionals --
-		## an unknown flag AND an unexpected extra positional alike.
-		## Silently ignoring them let a typo through as a successful
-		## call: `--magic-heartbeat-lock-status <member> owner-x
-		## --bogus` returned 0 and acted as if nothing were wrong.
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-refresh: invalid option: $1" >&2
 			set +e ; return 1
@@ -398,11 +195,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-close-state-and-unlock: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		## Rejects any argument beyond this op's own positionals --
-		## an unknown flag AND an unexpected extra positional alike.
-		## Silently ignoring them let a typo through as a successful
-		## call: `--magic-heartbeat-lock-status <member> owner-x
-		## --bogus` returned 0 and acted as if nothing were wrong.
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-close-state-and-unlock: invalid option: $1" >&2
 			set +e ; return 1
@@ -422,11 +214,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-status: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		## Rejects any argument beyond this op's own positionals --
-		## an unknown flag AND an unexpected extra positional alike.
-		## Silently ignoring them let a typo through as a successful
-		## call: `--magic-heartbeat-lock-status <member> owner-x
-		## --bogus` returned 0 and acted as if nothing were wrong.
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-status: invalid option: $1" >&2
 			set +e ; return 1
@@ -437,33 +224,7 @@ case "$1" in
 		return $?
 	;;
 
-	##
-	## --magic-heartbeat-state-* -- routine-heartbeat's own day-rhythm state
-	## record (that routine's `heartbeat-state-note`). Storage is tool-owned
-	## and tool-resolved (via
-	## --intern-config-board-location), deliberately outside
-	## ~/.claude/skills/: a skillset file must never be rewritten by ordinary
-	## routine iteration, and this record is rewritten every next-iteration.
-	## Callers name the operation, never a path -- hence no filename argument.
-	##
-	## Singleton, not member-keyed: <team-member> is captured for future
-	## logging/validation, unused today, exactly as the sibling
-	## --magic-heartbeat-lock-* ops treat it. One shared record, the same way
-	## the lock is one shared mutex -- a per-member path would hand a
-	## non-magic-coordinator executor of this routine a fresh empty state.
-	##
 
-	## Content via stdin, --from-file <path>, or --edit-patch-from-stdin (a
-	## JSON array of {"old": <text>, "new": <text>, "replace_all": <bool,
-	## default false>} patch objects, applied in order against the existing
-	## record as an exact literal substring match-and-replace) -- same
-	## externalized AgentsBoardItemPatchApply.py, same semantics, as
-	## --intern-op-member-inbox-upsert/--intern-op-board-upsert-move-edit's
-	## own --edit-patch-from-stdin. Lets a pass update one field (e.g.
-	## last_swept_ts) without reading/regenerating this whole record from
-	## scratch -- the full-overwrite mode below stays available for a
-	## genuine whole-record rewrite. The three body-input modes are mutually
-	## exclusive.
 	--magic-heartbeat-state-upsert)
 		shift
 		local callingMember="$1"
@@ -481,12 +242,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
 		}
-		## Fixed literal filename, same shape and same "stamped once, reused
-		## verbatim forever" mechanism as this routine's own lock note
-		## (note-20260809T155000Z-heartbeat-state-and-lock.md, see the
-		## --magic-heartbeat-lock-* case arms above) -- a different logical
-		## document, same inboxes/magic-coordinator/ home, same naming
-		## convention, not a new one invented for this file.
 		local target="$stateDir/note-20260812T231137Z-heartbeat-state.md"
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
 		while [ $# -gt 0 ] ; do
@@ -544,8 +299,7 @@ case "$1" in
 	;;
 
 	## Read-only. Prints the record on stdout, or NO_STATE when nothing is
-	## stored yet -- same "absent is not an error" contract as
-	## --magic-heartbeat-lock-status's own NO_LOCK.
+	## stored yet.
 	--magic-heartbeat-state-read)
 		shift
 		local callingMember="$1"

@@ -8,42 +8,10 @@
 ## $MDLT_ORIGIN-based path, same as every other operation group.
 ## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
-## These four arms previously sat inline in the dispatcher behind
-## exact-match routes. They are a glob route now, matching every
-## other family here -- so a new --librarian-* op needs no dispatcher
-## edit, which is exactly what the exact-match form cost.
-##
 
 case "$1" in
 
 
-		## No sanctioned read-only listing op existed for skill-folder files
-		## before this (the --member-upsert-* family covers different,
-		## specific
-		## write targets, not this). find-based (not a hand-rolled directory
-		## walk), pure path listing -- no per-file stat call, so this stays
-		## fast even across the whole skill-root (measured: the mtime variant
-		## below took ~3s over 678 files; this one is the no-stat fast path,
-		## sub-second). Takes zero or more optional scope arguments, each
-		## either a bare path relative to the skill-root
-		## ($HOME/.claude/skills/) or an absolute path that must resolve
-		## inside it (anything outside is rejected, not silently ignored); a
-		## bare file scopes to just that file, a directory scopes
-		## recursively. No arguments means the whole skill-root. Only `*.md`
-		## files are listed -- a deliberate whitelist (the human-owner's own
-		## design call), never a blacklist of known strays like .DS_Store, so
-		## the next non-markdown file to appear needs no code change. Corner
-		## worth knowing: a bare non-`*.md` path passed as a scope argument
-		## passes the existence check above and then contributes nothing to
-		## the listing -- it is filtered out silently, not reported as an
-		## error, so an empty result for such an argument is expected, not a
-		## fault. Prints one
-		## skill-root-relative path per matched file (never absolute),
-		## sorted alphabetically. A missing or outside-skill-root scope
-		## argument is reported and skipped, not a hard abort -- so one bad
-		## argument among several doesn't lose the rest of the listing. See
-		## --librarian-list-team-files-dates below for the same listing with
-		## per-file modification dates (slower, real stat overhead).
 		--librarian-list-team-files)
 			shift
 			local skillRoot="$HOME/.claude/skills"
@@ -52,23 +20,6 @@ case "$1" in
 			pathsTmp="$( mktemp )" || { set +e ; return 1 ; }
 			trap 'rm -f "$pathsTmp"' EXIT
 
-			## INVARIANT: all four `find` calls in this file (both here and in
-			## --librarian-list-team-files-dates below) carry the identical
-			## `-name '*.md'` filter. They are a deliberate copy of one
-			## another, so they can silently drift -- change one, change all
-			## four, or the two ops start reporting different file sets.
-			##
-			## ACCEPTANCE PREDICATE, stated RELATIONALLY and never as a literal
-			## count: the correct test is
-			##
-			##     (files under skill-root) - (non-`*.md` files) == (lines emitted)
-			##
-			## An absolute number ("this must return 116") is wrong on a tree the
-			## team edits continuously -- it was already invalidated once by a
-			## single new reference file. A stale absolute manufactures a false
-			## failure, and a team trained to expect it will either chase a
-			## non-bug or quietly edit the number until it matches. Both are
-			## worse than the defect the filter fixed. Compare the relation.
 			if [ $# -eq 0 ] ; then
 				find -L "$skillRoot" -type f -name '*.md' 2>/dev/null > "$pathsTmp" || true
 			else
@@ -110,30 +61,6 @@ case "$1" in
 			return 0
 		;;
 
-		## Same as --librarian-list-team-files above (find-based scope
-		## resolution/error handling, identical argument grammar), but with
-		## a per-file modification date printed alongside each path -- the
-		## real reason this is a separate op rather than a flag on the plain
-		## version: the per-file stat call this needs is real, measured
-		## overhead (~3s over the full 678-file skill-root vs. sub-second for
-		## the plain listing), so a caller who only needs paths (the more
-		## common case) shouldn't pay for dates it isn't asking for. BSD stat
-		## then GNU stat fallback, inlined directly here rather than factored
-		## into a shared helper function, per this file's actual convention:
-		## logic stays inline within the case arm; a `source`d include file,
-		## never a function, is the answer if an arm gets too long. Normalized to a common
-		## "YYYY-MM-DD HH:MM:SS" width on both platforms -- GNU stat's own
-		## %y includes sub-second precision + a timezone offset by default,
-		## trimmed to the same 19 characters as BSD's explicit -t format so
-		## output sorts/compares consistently regardless of which stat
-		## flavor actually answered. Carries the same `*.md`-only whitelist as
-		## --librarian-list-team-files above, and must stay identical to it --
-		## see that op's own note for the reasoning and for the
-		## non-`*.md`-scope-argument corner. Prints one line per matched file: mtime
-		## ("YYYY-MM-DD HH:MM:SS") then two spaces then the path relative to
-		## the skill-root (never absolute), sorted newest-first -- the most
-		## useful order for the actual trigger case (confirming a
-		## just-edited batch of files really did just change).
 		--librarian-list-team-files-dates)
 			shift
 			local skillRoot="$HOME/.claude/skills"
@@ -142,9 +69,6 @@ case "$1" in
 			pathsTmp="$( mktemp )" || { set +e ; return 1 ; }
 			trap 'rm -f "$pathsTmp"' EXIT
 
-			## INVARIANT: see --librarian-list-team-files above -- all four
-			## `find` calls in this file carry the identical `-name '*.md'`
-			## filter and must stay identical to one another.
 			if [ $# -eq 0 ] ; then
 				find -L "$skillRoot" -type f -name '*.md' 2>/dev/null > "$pathsTmp" || true
 			else
@@ -189,48 +113,9 @@ case "$1" in
 			return 0
 		;;
 
-		##
-		## magic-librarian's own inbox-clearing pair. The dispatcher reaches
-		## this whole file by a single `--librarian-*)` glob arm, so a third op
-		## added later needs an arm HERE and no dispatcher edit at all -- the
-		## reverse of the exact-match routing these ops were originally written
-		## under.
-		##
-		## One stub per routine step, each carrying its own validation even
-		## where the two overlap, both over the one shared --intern-op-*
-		## implementation -- the same convention --magic-board-to-* and
-		## --magic-grooming-to-* already follow.
-		##
 
-		## <team-member> <item-filename> --from-inbox:<member>
-		##
-		## Discards one already-processed inbox item:
-		## inboxes/<member>/processed/<item-filename>. Git-gated in
-		## --intern-op-board-trash's own inbox arm, per the human-owner's
-		## final GC-deletion spec: team-data git-tracked -> deletes it
-		## outright and commits the deletion (message "- <op name>,
-		## <team-member>"); not git-tracked -> moves it to trash/ instead,
-		## same as a board-sourced item.
-		##
-		## The OPERATION has no inverse either way -- --intern-op-board-trash
-		## refuses --untrash for an inbox-sourced item outright, since it
-		## restores into board/<state> and an item taken out of
-		## inboxes/<member>/processed/ has no board state to return to.
-		##
-		## Stated this way deliberately: a reader deciding how carefully to
-		## check a batch before running it must not read this op's name, or
-		## any claim that the file survives, as the tooling's word that a
-		## mistake is trivially recoverable. Once team-data is git-tracked
-		## there genuinely is no recovery at all; not git-tracked, only a
-		## manual trash/ recovery exists, and this op will never do it for
-		## you. Per-item trash provenance would change the --untrash half of
-		## this, and is deliberately not added with this arm.
 		--librarian-inbox-item-trash)
 			shift
-			## <team-member> forwarded to --intern-op-board-trash as its own
-			## leading positional -- the acting member for its git-commit
-			## message once team-data is git-tracked (see
-			## AgentsTools.InternOpBoardTrash.include).
 			local callingMember="$1"
 			shift || true
 			local itemName="$1"
@@ -267,31 +152,8 @@ case "$1" in
 			return $?
 		;;
 
-		## <team-member> <item-filename>
-		##   [--header:<upsert|append|remove>:name[:value]]...
-		##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-		##
-		## Moves one item OUT of <team-member>'s own live inbox ROOT into
-		## that same inbox's processed/ -- the step the sibling above does
-		## not cover, since it already assumes processed/ as its own
-		## starting point (see AgentsTools.InternOpInboxToProcessed.include's
-		## own header for the full reasoning).
-		##
-		## No --from-inbox:<member> here, unlike the sibling above: the
-		## source and the member are the same one positional
-		## (<team-member>), because the source is that member's own inbox
-		## root -- there is no cross-member "move FROM inbox" shape to
-		## disambiguate the way --from-inbox:<member> disambiguates a
-		## processed/-sourced item from a board-state-sourced one.
-		##
-		## The original root file is DELETED once the new content is written
-		## into processed/ -- not relocated, so the processed/ copy is then
-		## the only copy of that item.
 		--librarian-inbox-to-processed)
 			shift
-			## <team-member> captured as both the acting member and the
-			## inbox this op operates on -- same convention as the sibling
-			## above (captured for future logging/validation).
 			local callingMember="$1"
 			shift || true
 			local itemName="$1"

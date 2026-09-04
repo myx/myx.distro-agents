@@ -6,12 +6,6 @@
 ## operation group. Sourced lazily from DistroAgentsTools.fn.sh; relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD. Rationale: myx.distro-agents/MAGIC.md.
 ##
-## Named for the board-mechanical-moves concept, not a caller: check-process-board
-## is callable by any routine, so its tooling fits no single routine's namespace.
-##
-## Every arm captures <team-member> as callingMember -- validated, then unused,
-## reserved for logging/validation.
-##
 
 case "$1" in
 
@@ -171,9 +165,6 @@ case "$1" in
 		return $?
 	;;
 
-	## Same shape as the -to-<state> siblings above, target fixed to processed
-	## -- the only one stamping processed-at, and it sets a default
-	## execution-receipt.
 	--magic-board-to-processed)
 		shift
 		local callingMember="$1"
@@ -229,9 +220,6 @@ case "$1" in
 		return $?
 	;;
 
-	## The create half of check-process-board's approval branch; the move half is
-	## --magic-board-to-blocked. Stamps nothing: groomed-* are routine-grooming's
-	## own provenance, and stamping them here would assert a pass that never ran.
 	--magic-board-create-running)
 		shift
 		local callingMember="$1"

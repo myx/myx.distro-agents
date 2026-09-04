@@ -8,35 +8,11 @@
 ## standard $MDLT_ORIGIN-based path. Not standalone: relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
-## Each --magic-grooming-to-<state> op is its OWN separate, explicit case
-## arm -- deliberately NOT a wildcard match and NOT a shared/parameterized
-## helper deriving <state> from an argument, even though today they're
-## near-identical. Same reasoning already established in this package for
-## --member-upsert-member-inquiry/--member-inbox-reflection-upsert (see
-## AgentsTools.Member.include): each op is expected to grow its own
-## state-specific validation later, which only works cleanly if each
-## already has its own independent code path now. Thin logic over
-## --intern-op-board-upsert-move-edit -- this file owns routine-grooming's
-## own policy (mandatory owner, auto groomed-at/groomed-from/track), the
-## intern-op owns the generic mechanics.
-##
 
 case "$1" in
 
-	## <item-filename> --from-state:<state> --owner-header-value <value>
-	##   [--header:<upsert|append|remove>:name[:value]]...
-	##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-	## Target state is backlog (fixed by this op's own name). --owner-header-value and
-	## --from-state:<state> are both required; groomed-at (today, UTC),
-	## groomed-from (the --from-state value), and track (true) are always
-	## auto-stamped, never caller-supplied. --header:*/--upsert-from-stdin/
-	## --edit-script-from-stdin:*/--edit-patch-from-stdin pass straight
-	## through to the intern-op.
 	--magic-grooming-to-backlog)
 		shift
-		## <team-member> is every calling routine's own name/identity, captured
-		## even though unused here today -- reserved for logging/validation
-		## (tooling operation discipline convention), not this op's own logic.
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -87,13 +63,9 @@ case "$1" in
 		return $?
 	;;
 
-	## Same shape as --magic-grooming-to-backlog, target state fixed to
-	## pending. Deliberately its own full copy, not a shared helper -- see
-	## this file's own header note.
 	--magic-grooming-to-pending)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -144,13 +116,9 @@ case "$1" in
 		return $?
 	;;
 
-	## Same shape as --magic-grooming-to-backlog, target state fixed to
-	## processed. Deliberately its own full copy, not a shared helper -- see
-	## this file's own header note.
 	--magic-grooming-to-processed)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -190,19 +158,6 @@ case "$1" in
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
-		## processed-at records when the item ENTERED board-processed, which is
-		## the one fact age-based cleanup needs and which nothing else carries.
-		## Not the same as groomed-at: a same-state patch re-stamps groomed-at
-		## every time it touches the item, so groomed-at drifts forward and
-		## cannot answer "how long has this been processed". Deliberately
-		## auto-stamped and never caller-supplied, same rule as its siblings.
-		##
-		## Measured 2026-08-10, which is why this exists: of 115 board-processed
-		## items, groomed-at covered 3 and resolved-at covered 9. Filesystem
-		## mtime was no help either -- a reference sweep had rewritten 726 files
-		## that day, so every mtime recorded the sweep rather than the work. A
-		## cleanup pass therefore had to fall back to the date in the filename,
-		## which is the item's own date and not when it was processed at all.
 		local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
 			"$fromStateArg" \
@@ -216,33 +171,9 @@ case "$1" in
 		return $?
 	;;
 
-	## Same shape as --magic-grooming-to-backlog, target state fixed to
-	## parked. Deliberately its own full copy, not a shared helper -- see
-	## this file's own header note. routine-grooming's own Defer outcome
-	## (deliberate deferral by the team's own choice, distinct from blocked/'s
-	## external stall), which until now had no dedicated op and fell back to
-	## --write-board-item's own two-call move recipe.
-	##
-	## One of three separate --*-to-parked stubs, deliberately: this one is
-	## routine-grooming's, --magic-advance-to-parked is routine-advance's, and
-	## --magic-board-to-parked is check-process-board's. Each lives in its own
-	## routine's namespace/.include, each carries its own independent
-	## validation even where identical today, and all three share the one
-	## --intern-op-board-upsert-move-edit implementation.
-	##
-	## Carries this file's full grooming policy (mandatory --owner-header-value, auto
-	## groomed-at/groomed-from/track) exactly as its three siblings do --
-	## parked being a deferred state is not a reason to withhold it: the
-	## -to-processed sibling stamps the same set onto a terminal state, and
-	## track is a grooming provenance marker, not a scheduler input, so it
-	## creates none of the periodic action board-parked's own "pure passivity"
-	## definition forbids. recheck-date/condition, the fields a parked item
-	## actually needs, stay caller-supplied via --header:* -- they are triage
-	## judgments this op cannot compute.
 	--magic-grooming-to-parked)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -293,43 +224,9 @@ case "$1" in
 		return $?
 	;;
 
-	## Same shape as --magic-grooming-to-backlog, target state fixed to
-	## blocked. Deliberately its own full copy, not a shared helper -- see
-	## this file's own header note. routine-grooming's own stalled-on-
-	## something-external outcome, distinct from parked/ (which is the team
-	## deliberately choosing to stop pushing). Retires the two-call
-	## --write-board-item recipe that routine-grooming prescribed for this
-	## move at four separate sites -- the same non-atomic half-write pattern
-	## every other --*-to-* op in this family was built to replace.
-	##
-	## Deliberately its own grooming-family op rather than a caller of the
-	## already-existing --magic-board-to-blocked: routine-grooming calls its
-	## own family throughout, so every grooming-driven move carries grooming's
-	## own policy stamps by construction rather than by the caller
-	## remembering to pass them. Consistency of family over reuse of an
-	## existing op -- the human-owner's own call.
-	##
-	## Carries this file's full grooming policy (mandatory --owner-header-value, auto
-	## groomed-at/groomed-from/track) exactly as its four siblings do. That
-	## stamping is precisely what distinguishes this op from
-	## --magic-board-to-blocked, which stamps nothing: same target state,
-	## different owning routine, different recorded provenance.
-	## recheck-date/condition, the fields a blocked item needs, stay
-	## caller-supplied via --header:* -- they are triage judgments this op
-	## cannot compute.
-	##
-	## EXECUTION-RECEIPT AUTO-STAMP, same rule as --magic-board-to-blocked's
-	## own copy in AgentsTools.MagicBoard.include -- board-running->
-	## board-blocked always carries an execution-receipt now, auto-stamped
-	## blocked:<timestamp> here UNLESS the caller already supplied one via
-	## --header:upsert:execution-receipt:*/--header:append:execution-receipt:*,
-	## in which case the caller's value stands. Independent case arm, own
-	## copy of the check, per this file's own standing "each op owns its own
-	## validation" rule.
 	--magic-grooming-to-blocked)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -392,32 +289,9 @@ case "$1" in
 		return $?
 	;;
 
-	## Same shape as --magic-grooming-to-backlog, target state fixed to
-	## running. Deliberately its own full copy, not a shared helper -- see
-	## this file's own header note. routine-grooming's own check-backlog-promote
-	## dispatch: "once the thread is genuinely active, move the item to
-	## board-running", which that step once described as a two-call move
-	## (write the new state, remove the old file) -- the non-atomic
-	## half-write every op in this family exists to retire.
-	##
-	## Distinct from --magic-advance-to-running, which targets the same state:
-	## that one is routine-advance's/check-execute-board's own dispatch and
-	## owns the started-at auto-stamp; this one is routine-grooming's, and
-	## carries grooming's own provenance stamps instead. Same target state,
-	## different owning routine, different recorded provenance -- the same
-	## split already established between --magic-grooming-to-blocked and
-	## --magic-board-to-blocked. routine-grooming calls its own family
-	## throughout, so a grooming-driven move carries grooming's stamps by
-	## construction rather than by the caller remembering to pass them.
-	##
-	## Carries this file's full grooming policy (mandatory --owner-header-value, auto
-	## groomed-at/groomed-from/track) exactly as its siblings do. Anything
-	## this op does not own -- started-at included -- stays caller-supplied
-	## via --header:*.
 	--magic-grooming-to-running)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -468,26 +342,9 @@ case "$1" in
 		return $?
 	;;
 
-	## Same shape as --magic-grooming-to-backlog, target state fixed to
-	## archived. Deliberately its own full copy, not a shared helper -- see
-	## this file's own header note. routine-grooming's own Drop outcome
-	## (dropped with no future intent), plus the two archived exits from its
-	## re-check steps: a parked item whose trigger the group concludes is
-	## never coming, and a blocked item the group decides is not worth even
-	## waiting on. That routine once named this move as having no stub and
-	## staying a two-call recipe -- this op is what retired it.
-	##
-	## board-archived is terminal, which is not a reason to withhold the
-	## grooming stamps: --magic-grooming-to-processed already stamps the same
-	## set onto a terminal state, and the provenance of who archived an item
-	## and out of which state is exactly what a later reader of an archived
-	## item needs. archive:/the archived item's own reason text stay
-	## caller-supplied via --header:*/the body-input modes -- judgments this
-	## op cannot compute.
 	--magic-grooming-to-archived)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -538,40 +395,11 @@ case "$1" in
 		return $?
 	;;
 
-	## Same shape as --magic-grooming-to-backlog, target state fixed to
-	## retained. Deliberately its own full copy, not a shared helper -- see
-	## this file's own header note.
-	##
-	## READ THIS BEFORE INFERRING ANYTHING FROM THIS OP'S EXISTENCE:
 	## routine-grooming does NOT move items into board-retained, and this op
-	## is not evidence that it does. Moving an item into board-retained is
-	## routine-heartbeat's own GC diversion (magic-team.board.md's GC
-	## sub-step: a board-processed item still referenced by another live
-	## board-item diverts to board-retained instead of being removed).
-	## Grooming's only involvement with board-retained is its
-	## recheck-and-exit step, and this op serves exactly one case from it.
-	##
-	## That case is a SAME-STATE PATCH, not a move: routine-grooming's
-	## board-retained recheck-and-exit, "still referenced -> stays,
-	## recheck-date renewed", which that step described as a --write-board-item
-	## single call in the same state. Called as --from-state:retained, so
-	## source and target match --
-	## --intern-op-board-upsert-move-edit reads-and-preserves the existing body
-	## whenever --from-state equals the target state, so nothing relocates and
-	## the item's content survives untouched. Same same-state mechanism
-	## --magic-advance-to-running already uses with --from-state:running.
-	## The renewed recheck-date itself is caller-supplied via --header:* -- it
-	## is a scheduling judgment this op cannot compute.
-	##
-	## Carries this file's full grooming policy (mandatory --owner-header-value, auto
-	## groomed-at/groomed-from/track) exactly as its siblings do. On a
-	## same-state call groomed-from records retained, which is correct and
-	## intended: it says this item was groomed while sitting in retained, not
-	## that it arrived from somewhere else.
+	## is not evidence that it does.
 	--magic-grooming-to-retained)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -622,54 +450,12 @@ case "$1" in
 		return $?
 	;;
 
-	## --magic-grooming-create-<state>: routine-grooming's own FIRST WRITE of a
-	## board-item, as against the --magic-grooming-to-<state> family above,
-	## which moves an item that already exists. Separate ops because they are
-	## separate steps, not because the intern-op needs it: a create has no
-	## source state, so --from-state: is meaningless here and every one of
-	## these arms rejects it outright rather than quietly ignoring it.
-	##
-	## Five arms because routine-grooming has five creating landings, derived
-	## from the routine itself:
-	##   backlog   -- Promoted, the default landing for an inbox item the
-	##                authority group promotes ("a fresh file, one write")
-	##   processed -- a promoted-or-denied item landing with its resolution
-	##                text attached
-	##   pending   -- the same promotion when the group's own context already
-	##                warrants approved-by/approved-at at creation
-	##   blocked   -- the same promotion when it instead needs human-owner
-	##                approval, so the promoted item lands blocked
-	##   running   -- the approval-* item that negotiation runs in
-	## check-process-board's own approval-* creation is NOT one of these: it is
-	## that procedure's step, so it gets its own --magic-board-create-running
-	## in AgentsTools.MagicBoard.include.
-	##
-	## groomed-from is deliberately NOT stamped by any create arm. It records
-	## the state an item moved FROM, and a created item moved from nowhere;
-	## a sentinel value there would be a false record of a transition that
-	## never happened, which is exactly the class of silent-wrong-value defect
-	## this family exists to avoid. owner/groomed-at/track are stamped as
-	## everywhere else in this file.
-	##
-	## A body-input mode is REQUIRED on create, unlike on a move. A move
-	## carries the existing body forward when none is given; a create has no
-	## existing body, so omitting one would file an empty board-item. Each arm
-	## enforces that itself.
-	##
-	## communication-channel-id, blocks/blocked-by, approved-by/
-	## approved-at and references all ride the ordinary --header:* passthrough
-	## at creation time -- the routine requires them set in the same single
-	## write, and this shape is what makes that one call rather than two.
-	## Target fixed to backlog -- the Promoted default landing. Its own full
-	## copy, not shared with its four create siblings: same standing rule as
-	## the --magic-grooming-to-* family, each op owning its own validation so
-	## it can grow state-specific checks without disturbing the others.
+	## groomed-from is deliberately NOT stamped by any create arm.
 	--magic-grooming-create-backlog)
 		local createOp="$1"
 		local createState="backlog"
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -725,15 +511,11 @@ case "$1" in
 		return $?
 	;;
 
-	## Target fixed to processed -- a promoted-or-denied item landing with its
-	## resolution text attached at the same single write. Its own full copy, same standing rule as every
-	## sibling in this file: each op owns its own validation.
 	--magic-grooming-create-processed)
 		local createOp="$1"
 		local createState="processed"
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -779,10 +561,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
-		## processed-at: same contract as the --magic-grooming-to-processed
-		## arm above -- when the item entered board-processed, auto-stamped,
-		## never caller-supplied. A created item enters processed at the
-		## moment it is written, so creation time is its entry time.
 		local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
@@ -795,15 +573,11 @@ case "$1" in
 		return $?
 	;;
 
-	## Target fixed to pending -- promotion where the authority group's own
-	## context already warrants approved-by/approved-at at creation. Its own full copy, same standing rule as every
-	## sibling in this file: each op owns its own validation.
 	--magic-grooming-create-pending)
 		local createOp="$1"
 		local createState="pending"
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -859,15 +633,11 @@ case "$1" in
 		return $?
 	;;
 
-	## Target fixed to blocked -- promotion that needs human-owner approval,
-	## so the promoted item lands blocked while approval runs. Its own full copy, same standing rule as every
-	## sibling in this file: each op owns its own validation.
 	--magic-grooming-create-blocked)
 		local createOp="$1"
 		local createState="blocked"
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -923,15 +693,11 @@ case "$1" in
 		return $?
 	;;
 
-	## Target fixed to running -- the approval-* item that the human-owner
-	## approval negotiation itself runs in. Its own full copy, same standing rule as every
-	## sibling in this file: each op owns its own validation.
 	--magic-grooming-create-running)
 		local createOp="$1"
 		local createState="running"
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
@@ -987,36 +753,9 @@ case "$1" in
 		return $?
 	;;
 
-	## Takes no arguments -- read-only discovery, shaped as a real
-	## structured text document meant to be one of routine-grooming's own
-	## actual inputs (not a diagnostic dump). Thin wrapper over
-	## --intern-op-session-context-scan with a fixed, hardcoded state-list/header-list
-	## -- no caller-facing --state/--header override flags: dedicated
-	## wrappers are fixed, not flexible; a caller wanting a different scan
-	## shape calls --intern-op-session-context-scan directly instead. Always
-	## backlog/pending (not yet dispatched) plus running/blocked/parked
-	## (routine-grooming.routine.md's own step 1 "Gather the backlog"
-	## wording) -- processed/archived/retained are settled/
-	## terminal, never scanned here. Always every frontmatter field -- safe
-	## interim choice until a separate investigation narrows it to just
-	## what grooming Stage 1 actually needs. Always --all-types -- grooming
-	## has never filtered by board-item type prefix. Default scan output
-	## unchanged from this op's own pre-primitive implementation; the
-	## override-flag capability that implementation had is not (removed
-	## once this fixed-wrapper convention was established, applied here
-	## retroactively).
-	##
-	## This op's arguments are byte-identical to --magic-advance-input-scan's
-	## and --magic-heartbeat-input-scan's, so all three return identical output.
-	## Deliberate, ruled so by the human-owner -- these ops exist per consuming
-	## routine, not per scan scope. DO NOT collapse or deduplicate them. Full
-	## reasoning: the CANONICAL NOTE in AgentsTools.InternOpSessionContextScan.include's
-	## own header.
 	--magic-grooming-input-scan)
 		shift
-		## <team-member> captured for future logging/validation, unused today --
-		## see --magic-grooming-to-backlog's own comment above. The op's own
-		## "no arguments" nature now means exactly one: the calling member.
+		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
@@ -1039,55 +778,12 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		## This routine's own state-and-lock note comes back as part of the
-		## digest, because a scan returns the routine's COMPLETE prepared
-		## input and this note is where the previous pass recorded what the
-		## next one needs to continue from. Without it there is no read path
-		## for that content at all: --magic-grooming-lock-status reports lock
-		## METADATA, not the note's body.
-		##
-		## CONTENT ONLY -- this is deliberately NOT the lock gate returning in
-		## another form. Nothing here evaluates state or recheck-date, decides
-		## contention, or fails. The lock check is its own operation
-		## (--magic-grooming-lock-acquire), called BEFORE this scan; a scan
-		## reporting a lock verdict would put the two concerns back in one
-		## call, which is exactly what the -lock- / -state- split exists to
-		## prevent.
-		##
-		## A note that does not exist yet is ordinary, not special: it reports
-		## as a source with nothing to report, the same as any other, and the
-		## scan still succeeds. The first-ever pass is not a distinct outcome.
 		printf '%s\n\n' "## state-and-lock (routine-grooming)"
 		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154332Z-grooming-state-and-lock.md"
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
-		## The team roster cache comes back as its own section, for the same
-		## reason the state-and-lock note above does: a scan returns this
-		## routine's COMPLETE prepared input, and this routine's own
-		## roster/tooling-recheck sub-step works from that cache -- it
-		## re-derives the roster from the members' own live skill files and
-		## refreshes the cache when the two have drifted, which needs the
-		## stored cache in hand to compare against.
-		##
-		## THIS ROUTINE ONLY. routine-communication-sweep also touches the
-		## same record, but on the write side (folding identity/routing data
-		## in), and its own scan is about open comms threads -- so the record
-		## is NOT added there. What each routine's own input-scan sweeps stays
-		## split so the stubs do not intersect; content with no step of that
-		## routine asking for it is the defect that split exists to prevent.
-		##
-		## CONTENT ONLY, same as the section above -- delegated to
-		## --magic-team-roster-read so the record's filename stays stated in
-		## exactly one place in this tool. An absent record reports as a
-		## source with nothing to report (NO_RECORD) and the scan still
-		## succeeds.
 		printf '\n%s\n\n' "## team-roster (cache)"
 		DistroAgentsTools --magic-team-roster-read "$callingMember"
 		printf '\n%s\n\n' "## board digest"
-		## The calling member's OWN inbox, with bodies -- its own leading
-		## positional decides whose, and no operation in this family reads
-		## another member's. This routine's own step text used to say "No
-		## inbox reads here"; that is now false and is corrected in the
-		## routine file, or code and routine text disagree.
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--state backlog --state pending --state running --state blocked --state parked \
 			--all-types \
@@ -1097,45 +793,7 @@ case "$1" in
 		return $?
 	;;
 
-	## <team-member> [--header:<upsert|append|remove>:name[:value]]...
-	##   [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-	## routine-grooming's own state-and-lock note: state and lock in one
-	## document, and this routine's session tracking document between
-	## iterations (tactical status needed to continue the next iterative call
-	## -- explicitly NOT a transcript). Prefers REFERENCING TEAM-DATA over
-	## copying it, to stay compact.
-	##
-	## One of four stubs over --intern-op-item-upsert's default (no-flag)
-	## behavior, the others being --magic-advance-state-and-lock-upsert/
-	## --magic-daily-state-and-lock-upsert/--magic-retro-state-and-lock-upsert:
-	## same "own dedicated stub per
-	## calling routine, each carrying its own validation even where identical
-	## today" convention this file's own --magic-grooming-to-* arms already
-	## follow. The note filename is fixed and hardcoded here -- it is this
-	## routine's own identity, never a caller argument, so no caller can point
-	## this routine's lock at another routine's note.
-	##
-	## Introduces no option of its own. The state values and the +30-minute
-	## recheck offset are properties of THIS ROUTINE, so they are hardcoded
-	## here and expressed through the ordinary --header:upsert vocabulary.
-	## There is deliberately no "closing" flag: a closing call is this stub
-	## being handed --header:upsert:state:grooming-finished by its caller.
-	##
 	## HEADER ORDER IS LOAD-BEARING.
-	## AgentsBoardItemHeaderOpsApply.awk resolves repeat upserts on one field
-	## as last-wins, so position decides overridability, and these two fields
-	## want opposite answers:
-	##   - `state` goes BEFORE the caller's headers, so a closing call can
-	##     override it to grooming-finished. Closure has no other way to say so.
-	##   - `recheck-date` goes AFTER them, so it always wins. The spec re-sets
-	##     it on EVERY update, and a caller able to override it could pin the
-	##     lock open indefinitely -- turning the one bound on a crashed or
-	##     wedged holder into a caller-supplied suggestion.
-	## That asymmetry is a lock-correctness property, not a style choice.
-	## Measured, not assumed: the awk's own header documents the last-wins
-	## rule, and --header:'s parser takes headerValue as everything after the
-	## first colon following the name, so a date-time value keeps its own
-	## colons intact. Don't normalize these two back to one order.
 	--magic-grooming-state-and-lock-upsert)
 		shift
 		local callingMember="$1"
@@ -1161,15 +819,6 @@ case "$1" in
 				;;
 			esac
 		done
-		## +30 minutes, UTC, in the team's own `date-time` shape
-		## (`YYYY-MM-DD HH:MM ±HHMM`). Composed from AgentsEpochToIsoDate.awk
-		## plus integer arithmetic rather than date(1) arithmetic: BSD spells
-		## the offset `date -v+30M`, GNU spells it `date -d '+30 min'`, and
-		## POSIX specifies neither -- date(1) is standardised only as a reader
-		## of the CURRENT time. `date +%s` is the one portable primitive here,
-		## already relied on by --magic-heartbeat-lock-*. Cross-platform
-		## correctness is a hard requirement in this tree, so there is one code
-		## path exercised on Darwin, FreeBSD and Linux alike.
 		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
 		nowEpoch="$( date +%s )"
 		targetEpoch=$(( nowEpoch + 30 * 60 ))
@@ -1185,21 +834,6 @@ case "$1" in
 		return $?
 	;;
 
-	##
-	## --magic-grooming-lock-* -- routine-grooming's own lock: four thin stubs
-	## over the shared --intern-op-item-read/--intern-op-item-upsert
-	## primitives (AgentsTools.InternOpItem.include), same unified mechanism
-	## every routine now uses -- frontmatter + git when TEAM_DATA_GIT_REMOTE
-	## is configured, local-only when it is not.
-	##
-	## Position in the routine is fixed: lock before all, unlock in closure.
-	## Not inside --magic-grooming-input-scan -- that op's contract is "return
-	## this routine's prepared input", and a lock is not input. The `-lock-` /
-	## `-state-` infix split says the same thing about the two namespaces.
-	##
-	## The +30-minute recheck offset is this routine's own, matching its own
-	## state-and-lock cadence.
-	##
 
 	--magic-grooming-lock-acquire)
 		shift
@@ -1209,11 +843,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-acquire: <team-member> <owner-label> required" >&2
 			set +e ; return 1
 		fi
-		## Rejects any argument beyond this op's own positionals --
-		## an unknown flag AND an unexpected extra positional alike.
-		## Silently ignoring them let a typo through as a successful
-		## call: `--magic-heartbeat-lock-status <member> owner-x
-		## --bogus` returned 0 and acted as if nothing were wrong.
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-acquire: invalid option: $1" >&2
 			set +e ; return 1
@@ -1239,11 +868,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-refresh: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		## Rejects any argument beyond this op's own positionals --
-		## an unknown flag AND an unexpected extra positional alike.
-		## Silently ignoring them let a typo through as a successful
-		## call: `--magic-heartbeat-lock-status <member> owner-x
-		## --bogus` returned 0 and acted as if nothing were wrong.
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-refresh: invalid option: $1" >&2
 			set +e ; return 1
@@ -1269,17 +893,26 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-close-state-and-unlock: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		## Rejects any argument beyond this op's own positionals --
-		## an unknown flag AND an unexpected extra positional alike.
-		## Silently ignoring them let a typo through as a successful
-		## call: `--magic-heartbeat-lock-status <member> owner-x
-		## --bogus` returned 0 and acted as if nothing were wrong.
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-close-state-and-unlock: invalid option: $1" >&2
-			set +e ; return 1
-		fi
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
+				--from-file)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-close-state-and-unlock: --from-file: value required" >&2
+						set +e ; return 1
+					fi
+					passthrough+=( "$1" "$2" ) ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-close-state-and-unlock: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
 		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
+			"${passthrough[@]}" \
 			--unlock-lock \
 			--header:upsert:state:grooming-finished \
 			--context --magic-grooming-close-state-and-unlock
@@ -1293,11 +926,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-status: <team-member> required" >&2
 			set +e ; return 1
 		fi
-		## Rejects any argument beyond this op's own positionals --
-		## an unknown flag AND an unexpected extra positional alike.
-		## Silently ignoring them let a typo through as a successful
-		## call: `--magic-heartbeat-lock-status <member> owner-x
-		## --bogus` returned 0 and acted as if nothing were wrong.
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-status: invalid option: $1" >&2
 			set +e ; return 1

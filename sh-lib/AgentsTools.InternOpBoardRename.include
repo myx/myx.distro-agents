@@ -5,44 +5,13 @@
 ## AgentsTools.InternOpBoardRename.include -- the --intern-op-board-rename op
 ## for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily from that exact
 ## op's own dispatcher arm via the standard $MDLT_ORIGIN-based path. Not
-## standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD. One
-## intern-op primitive per file, same convention as
-## AgentsTools.InternOpBoardUpsertMoveEdit.include -- not bundled with it.
-##
-## No --help entry: internal plumbing, non-default/rare utility.
+## standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
 case "$1" in
 
-	## <old-name> <new-name> [--do-not-track] -- rare fixup/backfill only
-	## (normal rename-like outcomes go through the Merge pattern: new item,
-	## supersedes/superseded-by, old item retired -- not this). Steps, in
-	## this order so the fresh supersedes field is never itself rewritten
-	## by the first step:
-	##   1. Bulk literal-string fix-up of every OTHER board item's own
-	##      cross-references to <old-name>, so they point at <new-name>.
-	##   2. If a real item file is named exactly <old-name>, rename it to
-	##      <new-name> (same state) and stamp
-	##      `supersedes: <old-name> (renamed)` on it -- always, in every
-	##      scenario, same audit trail the Merge pattern already keeps.
-	##   3. Unless --do-not-track: leave a minimal husk item at
-	##      board/processed/<old-name> carrying
-	##      `superseded-by: <new-name> (renamed)`, so a stale reference
-	##      that missed step 1 still resolves forward. --do-not-track
-	##      skips this -- <old-name> then stops existing anywhere.
-	##
-	## gsub's one-line inline AWK (below): a single-line literal
-	## substitution, not extracted by this pass -- whether it belongs in
-	## scope for this package's own externalize-awk/py convention is open,
-	## not decided by this comment.
 	--intern-op-board-rename)
 		shift
-		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
-		## own copy of this block for the full reasoning. Pre-scanned before any
-		## validation so every message here can name the invoking operation.
-		## This op takes positionals rather than an option loop, so the
-		## consumption is the explicit --context branch further down, after
-		## --do-not-track.
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do
@@ -64,9 +33,6 @@ case "$1" in
 			doNotTrack="true"
 			shift
 		fi
-		## Consumes the --context pair the pre-scan above already read. Placed
-		## after --do-not-track so callers append it last, same order the
-		## pre-scan and the trailing arity guard below both expect.
 		if [ "$1" = "--context" ] ; then
 			if [ -z "${2:-}" ] ; then
 				echo "$MDSC_CMD: board-rename: ⛔ ERROR: --context: value required" >&2
@@ -84,24 +50,6 @@ case "$1" in
 			set +e ; return 1
 		}
 		local boardRoot="$MDAT_DATA_ROOT/board"
-		## A board-item name is LITERAL DATA, never a pattern. It was previously
-		## regex-escaped and fed to gsub(), which was the wrong instrument
-		## twice over: `awk -v` performs its own escape processing on the value
-		## before the program ever sees it, so the escaping was consumed in
-		## transit and an unescaped `.` reached gsub() as regex any-char --
-		## renaming task-2026-08-09-a.b then rewrote task-2026-08-09-aXbYmd in
-		## every referencing file, on every rename. The tell was already in the
-		## code: line 94 SELECTS with `grep -F` (literal) while this line
-		## EDITED with a regex -- detection and mutation using different
-		## matching semantics on the same data.
-		##
-		## Fixed by instrument, not by more escaping: an index()/substr() loop
-		## is a literal search-and-replace with no pattern language involved,
-		## so there is nothing to escape, no regex-dialect question, and no
-		## `&`-in-replacement hazard either. Values arrive via ENVIRON[] rather
-		## than -v precisely because -v is what ate the escaping -- the same
-		## reason and idiom already documented at
-		## AgentsTools.MemberHelp.include's own ENVIRON[] use.
 		local f touched=0
 		export MDAT_RENAME_OLD="$oldName"
 		export MDAT_RENAME_NEW="$newName"
@@ -128,11 +76,6 @@ case "$1" in
 						print out line ;
 					}
 				' "$f" > "$tmp"
-				## Content copied back rather than `mv`-ed: mv would give the
-				## board item the scratch file's own mode. A redirect keeps
-				## the target's existing mode and ownership, and needs no
-				## stat(1), whose flags differ between Darwin/FreeBSD (-f) and
-				## Linux (-c).
 				cat "$tmp" > "$f"
 				rm -f "$tmp"
 				touched=$(( touched + 1 ))
@@ -140,13 +83,6 @@ case "$1" in
 		done
 		unset MDAT_RENAME_OLD MDAT_RENAME_NEW
 
-		## Plain `mv` does the actual filename change first (same state) --
-		## the intern-op's <item-filename> is shared by both its from- and
-		## to-path construction, so it has no way to rename a file, only to
-		## move/edit one under a FIXED name. Once the file is already sitting
-		## under <new-name>, the intern-op call below is a legal in-place
-		## edit (--from-state == <to-state>, same filename both sides) --
-		## purely to stamp `supersedes`, not a second rename attempt.
 		local state oldFile renamed="false"
 		for state in backlog pending running blocked parked processed archived retained ; do
 			oldFile="$boardRoot/$state/$oldName"

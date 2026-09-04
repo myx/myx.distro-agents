@@ -9,22 +9,6 @@
 ## VSCodeTasksFragment is sourced from inside its "tasks" array. Every line
 ## emitted here therefore needs its own trailing comma.
 ##
-## It makes this workspace's magic-team members discoverable by the VS Code
-## chat client, without installing any extension.
-##
-## The key names the workspace root's own integration directory, which
-## `--install-skillset-symlinks` fills and which the generator lists as a
-## workspace folder. `.github/skills` and `.claude/skills` hold that same
-## member set under two more names, so naming them here would scan one
-## directory three times.
-##
-## The key buys no discovery of its own: the listed root is already scanned
-## without it, and measured against build 1.134.0 the skill-location
-## validator rejects an absolute value, so VS Code does not scan from this
-## key. It is emitted because AgentsTools.Install.include fails the install
-## when the setting is absent, and that check reads the key name only. Full
-## platform behaviour: MAGIC.md, "VS Code skill discovery".
-##
 
 {
 	echo '		"chat.agentSkillsLocations": {'

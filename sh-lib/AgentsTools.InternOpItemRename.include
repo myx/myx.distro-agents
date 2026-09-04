@@ -5,74 +5,13 @@
 ## AgentsTools.InternOpItemRename.include -- the --intern-op-item-rename op
 ## for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily from that exact
 ## op's own dispatcher arm via the standard $MDLT_ORIGIN-based path. Not
-## standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD. One intern-op
-## primitive per file, same convention as
-## AgentsTools.InternOpBoardRename.include -- deliberately NOT bundled with
-## it, and deliberately not an extension of it.
-##
-## PATH-ADDRESSED, not name-searched, and that is the whole point of the op.
-## --intern-op-board-rename takes a bare <old-name> and hunts for it across
-## the eight board/<state>/ directories. That cannot reach inboxes/ or audit/
-## at all, and worse, when it fails to resolve a row it does not error: it
-## rewrites cross-references anyway, leaves a husk, logs item-renamed=false
-## and returns 0. This op takes the file's own path and every unresolvable
-## condition is a hard error that touches nothing. It does not inherit the
-## silent-fail behaviour and must never be "harmonised" with it.
-##
-## Bare-name addressing was also measurably ambiguous here: 17 basenames
-## exist in more than one store on the live tree. The rename manifest already
-## carries a full absolute path per row, so the ambiguity never needs to be
-## resolved by guessing -- the caller passes the path it already has.
-##
-## <absolute-source-path> <new-bare-name> [--context <caller-op>]
-##
-## Stores: board/<state>/, inboxes/<member>/ (and its processed/
-## subdirectory), audit/<YYYY-MM>/. The source file must resolve inside one
-## of them. The rename is always in place -- same directory, new basename --
-## so no store-to-store move is possible through this op.
-##
-## NO HUSK, NO supersedes: STAMP outside board/. A husk lives at
-## board/processed/<old-name>, so leaving one for an inbox or audit item
-## would deposit a non-board item into a board state; and stamping
-## supersedes: into an audit/ transcript mutates an audit record rather than
-## a pointer. Both omissions are deliberate rulings, not gaps to be filled in
-## later.
-##
-## EXIT STATUS IS DELIBERATELY BINARY: 0 renamed, non-zero did not. There is
-## no separate "refused" code, and adding one is a decision that was made and
-## reversed, not an omission.
-##
-## A refusal code (2 for "declined, nothing touched", 1 for genuine failure)
-## was proposed and built, so that a batch loop could skip refusals while
-## still aborting on real failures. It was overruled, and the reasoning is
-## worth keeping because it constrains the CALLER rather than this file:
-## NONE OF THE REFUSALS BELOW SHOULD EVER FIRE IN A BATCH. Pre-flight is
-## required to establish, for every row, that the source exists, the target is
-## free, the path is absolute and inside a store, the extension is preserved
-## and the new name differs from the old -- before the first invocation. A
-## refusal firing therefore means the tree is not in the state pre-flight
-## said it was, and the correct response to that is to stop, not to skip.
-##
-## The consequence is intended: a batch caller must NOT write `|| continue`,
-## and must not use `||` at all here. Under `set -e` an unguarded non-zero
-## aborts the run, which is the desired behaviour. `|| continue` would let the
-## loop survive a refusal AND silently swallow a genuine failure -- the same
-## number means both -- running all 526 rows and reporting success over an
-## unknown count of failures. Dying mid-run is strictly better: it stops, and
-## someone asks why a refusal fired that pre-flight said could not.
-##
-## So the guarantee lives in the pre-flight, not in this file's exit codes.
-##
-## No --help entry: internal plumbing, same as every sibling --intern-op-*.
+## standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
 case "$1" in
 
 	--intern-op-item-rename)
 		shift
-		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
-		## own copy of this block for the full reasoning. Pre-scanned before any
-		## validation so every message here can name the invoking operation.
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do
@@ -132,15 +71,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## Extension equality, rather than a hardcoded `.md` requirement. The
-		## store is not .md-only: a census of all three stores found 807 .md
-		## and 2 .jsonl (audit/2026-07/transcript-...harness-chat-verbatim
-		## .part1/.part2), and those two are in scope for renaming by the same
-		## convention as everything else. Requiring the extension to be
-		## PRESERVED is the invariant that actually matters -- it blocks an
-		## .md item being renamed into a .jsonl one by a mistyped row, which a
-		## fixed `*.md` test would have allowed in the other direction and
-		## rejected the .jsonl pair outright.
 		local oldExt="${oldName##*.}" newExt="${newName##*.}"
 		if [ "$oldName" = "$oldExt" ] || [ "$newName" = "$newExt" ] ; then
 			echo "$MDSC_CMD: item-rename: ⛔ ERROR: both names must carry a file extension: $oldName -> $newName" >&2
@@ -152,17 +82,10 @@ case "$1" in
 		fi
 
 		if [ "$oldName" = "$newName" ] ; then
-			## Live case, not hypothetical: the rename manifest carries a row
-			## whose new name equals its old name (note-team-roster.md,
-			## status SKIP-no-dated-name). Renaming it would be a no-op that
-			## still ran a full reference sweep replacing a name with itself.
 			echo "$MDSC_CMD: item-rename: ⛔ ERROR: <new-bare-name> is identical to the current name, nothing to do: $oldName" >&2
 			set +e ; return 1
 		fi
 
-		## Containment tested WITH the separator against each store root --
-		## "$root"/* , never a bare "$root"* prefix: a sibling directory named
-		## inboxes-evil/ passes the bare prefix test and correctly fails this.
 		local storeRoot="" storeName="" root candidate
 		for candidate in board inboxes audit ; do
 			root="" ; root="$( cd "$MDAT_DATA_ROOT/$candidate" 2>/dev/null && pwd -P )" || root=""
@@ -183,13 +106,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## Reference sweep BEFORE the rename, so the item's own fresh name is
-		## never itself rewritten by the pass -- same ordering rule as
-		## AgentsTools.InternOpBoardRename.include's own sweep.
-		##
-		## Both citation forms are rewritten (`<name>.md` and bare <name>) by
-		## AgentsItemRenameSweep.awk; see that file for why .md-only was
-		## measured wrong. Values travel via ENVIRON[], never `awk -v`.
 		local sweepOldStem="${oldName%.*}"
 		export MDAT_RENAME_OLD="$oldName"
 		export MDAT_RENAME_NEW="$newName"
@@ -198,11 +114,6 @@ case "$1" in
 
 		local touched=0 f tmp sweepTarget
 
-		## EVERY regular file, not just *.md. The stores are not .md-only (2
-		## .jsonl audit transcripts), and a sweep narrower than the claim it
-		## serves is exactly how those two came to be missed in the first
-		## place. One uniform rule now: every file, every occurrence, both
-		## name forms -- no per-tree mode, no field whitelist.
 		for sweepTarget in "$MDAT_DATA_ROOT/board" "$MDAT_DATA_ROOT/inboxes" "$MDAT_DATA_ROOT/audit" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" ; do
 			[ -d "$sweepTarget" ] || continue
 			while IFS= read -r f ; do
@@ -223,10 +134,6 @@ case "$1" in
 					rm -f "$tmp"
 					continue
 				fi
-				## Content copied back rather than `mv`-ed: mv would give the
-				## file the scratch file's own mode. A redirect keeps the
-				## target's existing mode and ownership, and needs no stat(1),
-				## whose flags differ between Darwin/FreeBSD (-f) and Linux (-c).
 				cat "$tmp" > "$f"
 				rm -f "$tmp"
 				touched=$(( touched + 1 ))

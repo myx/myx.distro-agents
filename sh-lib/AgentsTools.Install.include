@@ -8,9 +8,7 @@ case "$1" in
 		shift
 
 		local scope="workspace" workspaceArg scopeExplicit="false" removeMode="false" targetRootArg
-		##
 		while [ $# -gt 0 ] ; do
-			## 
 			case "$1" in
 				--remove)
 					removeMode="true" ; shift
@@ -66,15 +64,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## Bundle-relative rules files also exposed at $workspace/.claude/rules/
-		## (workspace scope only, only while processing the .claude/skills
-		## targetRoot -- see below). One line per file; add an entry here to
-		## link the next one, no other code changes needed.
 		local rulesFiles="magic-team/magic-team.basic.md"
-		## Plain basenames of the above, precomputed once -- used both to keep
-		## a rules-file row out of the skill-member report table further down
-		## (a rules file is not a skill member) and, inline further below, to
-		## classify a registry row's type.
 		local rulesNames="" rulesNamesInit
 		for rulesNamesInit in $rulesFiles ; do
 			rulesNames="${rulesNames}$( basename "$rulesNamesInit" ) "
@@ -152,9 +142,6 @@ case "$1" in
 				if [ "$memberActual" != "$memberBundled" ] ; then
 					keptMembers="${keptMembers}${memberName} "
 				fi
-				## register where the link actually points, not where it would have been
-				## pointed: a kept link we did not create is not ours to claim, and a later
-				## --remove pass must not act on a stale claim to the bundled path.
 				ownedMembers="${ownedMembers}${memberName} ${memberActual}"$'\n'
 				continue
 			fi
@@ -176,12 +163,6 @@ case "$1" in
 		workspaceName="$( basename "$workspace" )"
 		registryFile="$targetRoot/.linked.magic-team.members.txt"
 		compositeRoot="$workspace/.local/agents/magic-team-composite"
-		## $bundleRoot is itself rooted in MDLT_ORIGIN, so a link into MDLT_ORIGIN is the
-		## intended install -- classified below rather than left to the catch-all. A workspace
-		## that does not vendor its own myx.distro-* copy resolves MDLT_ORIGIN to a sibling
-		## workspace, which is normal and not a conflict. Fall back to $compositeRoot when
-		## MDLT_ORIGIN is empty: that duplicates an existing arm (harmless) instead of
-		## degrading the pattern to "/*", which would swallow every path.
 		originRoot="${MDLT_ORIGIN:-}"
 		[ -n "$originRoot" ] || originRoot="$compositeRoot"
 
@@ -362,23 +343,6 @@ case "$1" in
 			done
 		fi
 
-		## Rules files (see $rulesFiles above): a Claude-Code-specific mechanism
-		## (unconditional .claude/rules/*.md load into every session), so this is
-		## workspace-scope-only and deliberately NOT fanned to $HOME or to
-		## .agents/skills -- fires only while processing the .claude/skills
-		## targetRoot, which happens exactly once per --install-skillset-symlinks
-		## pass regardless of scope/fan-out. Rows feed into $ownedMembers, same as
-		## a bundled/declared member, so the existing registry-write and
-		## reconciliation-removal loops below pick them up automatically; only
-		## their own type classification (further down) and reconciliation path
-		## resolution (in the removal loop) need to know about them specially.
-		## $scope is checked explicitly, not inferred from $targetRoot alone: when
-		## $workspace is not a set-up distro workspace, --scope falls back from
-		## "workspace" to "user-home" (see the fallback above), and in that
-		## fallback state $workspace can coincide with $HOME -- which would make
-		## the user-home fan-out's own "$HOME/.claude/skills" targetRoot
-		## string-match this guard by coincidence. Requiring scope=workspace too
-		## keeps the rules link workspace-only even in that coincidence.
 		if [ "$scope" = "workspace" ] && [ "$targetRoot" = "$workspace/.claude/skills" ] && [ "$removeMode" != "true" ] ; then
 			local rulesDir="$workspace/.claude/rules"
 			mkdir -p "$rulesDir" || {
@@ -453,13 +417,6 @@ case "$1" in
 				regName="${regEntry%% *}"
 				regResolved="${regEntry#* }"
 
-				## A rules-file row (see $rulesFiles above) resolves under $originRoot
-				## exactly like an origin-symlink member would -- checked explicitly,
-				## before the generic path-prefix classification below, since its
-				## registry type has to stay distinguishable from an ordinary member's
-				## so the reconciliation-removal loop further down can resolve its real
-				## link location ($workspace/.claude/rules/, a sibling of $targetRoot)
-				## instead of a member slot under $targetRoot.
 				local regRulesMatch="false" regRulesEntry
 				for regRulesEntry in $rulesFiles ; do
 					if [ "$regResolved" = "$bundleRoot/$regRulesEntry" ] ; then
@@ -590,9 +547,6 @@ case "$1" in
 		## members another workspace registered into this same root: present and real, not ours to touch,
 		## but they are in the root and the count has to say so
 		if [ -f "$registryFile" ] ; then
-			## the same root is often shared by several workspaces (e.g. two workspaces both
-			## registering into ~/.claude/skills under their own workspace name) -- one registry
-			## line per registering workspace, but it is still one real slot: dedupe by name
 			while IFS=: read -r regLineName regLineWs regLineRest ; do
 				[ -n "$regLineName" ] || continue
 				[ "$regLineWs" != "$workspaceName" ] || continue
@@ -601,9 +555,6 @@ case "$1" in
 				## a rules file is not a skill member -- keep it out of the
 				## foreign-members table/count the same as everywhere else below
 				case " $rulesNames " in *" $regLineName "*) continue ;; esac
-				## already reported via ownedMembers -- this workspace registers it too,
-				## a second (foreign) registry line for the same name is not a second slot.
-				## ownedMembers is "name path" pairs, one per line -- match the name field, not a substring.
 				printf '%s\n' "$ownedMembers" | awk -v m="$regLineName" 'NF && $1 == m { hit = 1 } END { exit !hit }' && continue
 				foreignMembers="${foreignMembers}${regLineName} "
 			done < "$registryFile"
@@ -622,10 +573,6 @@ case "$1" in
 						[ -n "$reportEntry" ] || continue
 						reportName="${reportEntry%% *}"
 						case " $errorMembers " in *" $reportName "*) continue ;; esac
-						## a rules file (see $rulesNames above) is not a skill member --
-						## it was folded into $ownedMembers only so the registry-write and
-						## reconciliation loops above pick it up for free; it does not
-						## belong in this member-table report or its count below.
 						case " $rulesNames " in *" $reportName "*) continue ;; esac
 						## `status: reference-only` marks the non-acting human record; every acting member is `active`
 						reportWho="🤖"
@@ -705,9 +652,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## $HOME-scoped: Claude Code's own global settings file, same scope as
-		## --install-vscode-integrations' ~/.claude.json write above. The Slack
-		## deny below must hold in every workspace, which only this file gives.
 		local settingsFile="$HOME/.claude/settings.json"
 		if [ ! -f "$settingsFile" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: not found: $settingsFile" >&2
@@ -722,10 +666,6 @@ case "$1" in
 		fi
 		local boardRoot="$MDAT_DATA_ROOT/board"
 
-		## Every acting (non reference-only) member's real skillset directory,
-		## enumerated fresh from $HOME/.claude/skills -- same reference-only
-		## test --install-skillset-symlinks uses, same cd+pwd -P resolution
-		## idiom used elsewhere in this file.
 		local skillsRoot="$HOME/.claude/skills"
 		local memberPathsFile
 		memberPathsFile="$( mktemp "${TMPDIR:-/tmp}/agents-claude-permissions-members.XXXXXX" )" || {
@@ -755,10 +695,6 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		## mcp__myx_distro__execute: mandated by this workspace's own CLAUDE.md.
-		## Agent/Task: coordinator dispatch/fan-out. No Bash grant: nothing here
-		## needs one; a future pass adding one should prefer scoped prefixes
-		## (e.g. `Bash(git status:*)`) over a bare `Bash` grant.
 		local staticAllowJson='["mcp__myx_distro__execute", "Agent", "Task"]'
 		## Native Slack MCP tool, hard-blocked -- separate path from the team's
 		## own sanctioned --member-comms-slack-* Bash ops, which this cannot reach.
@@ -819,19 +755,6 @@ case "$1" in
 		fi
 		workspace="$( cd "$workspace" && pwd )"
 
-		## Same root-check every console script performs on itself at startup
-		## (byte-identical across all five Make.Distro*ConsoleShellScript.include
-		## generators -- Source, Deploy, Local, Remote, Agents): a genuine
-		## workspace root is "$workspace/.local" existing as a directory, the
-		## exact test those generated scripts run on themselves, nothing newly
-		## invented here. A nested sub-project/repo living inside a real
-		## workspace has no .local of its own and fails this the same way a
-		## console launched from inside it would. Deliberately NOT a
-		## console-script-presence check: DistroRemoteConsole.sh was added to
-		## some workspaces after Source/Deploy/Local (this workspace's own
-		## CLAUDE.md notes this), so a real workspace can legitimately be
-		## missing one or more console scripts -- checking .local sidesteps
-		## "which subset of four" entirely.
 		if [ ! -d "$workspace/.local" ] ; then
 			local wsRootWalk="$workspace" wsRootFound=""
 			while [ "$wsRootWalk" != "/" ] ; do
@@ -863,14 +786,6 @@ case "$1" in
 			}
 		fi
 
-		## Two hook scripts, kept separate from each other and from the
-		## already hand-verified protect-memory-md.sh (Edit/Write on
-		## MEMORY.md, untouched by this op): the plain permissions.deny
-		## array cannot carry a custom denial reason (only a PreToolUse
-		## hook's permissionDecisionReason can), so every one of these
-		## restrictions needs hook logic, not a deny-array entry alone.
-		## Regenerated every run (tmp+cmp+mv, like the mcp.json upserts
-		## above) so drift is corrected but a no-op run touches nothing.
 		local hooksFailed=0
 
 		local readHookFile="$hooksDir/deny-memory-md-read.sh"
@@ -954,21 +869,6 @@ HOOKEOF
 			set +e ; return 1
 		fi
 
-		## permissions.deny: bare "Bash" denies the whole tool (same shape as
-		## --install-claude-permissions' own bare "mcp__claude_ai_Slack"
-		## entry), which already fully covers every command run through
-		## Bash -- python3, rm, mv, everything -- since none of them are
-		## reachable any other way. The three scoped patterns underneath are
-		## deliberate defense-in-depth, not required for the block to hold
-		## today: if the wholesale "Bash" entry (or the PreToolUse hook
-		## above) is ever loosened or removed later, these narrower
-		## patterns keep python3/rm/mv denied on their own. "Bash(rm *)"
-		## and "Bash(mv *)" mirror this same workspace's own
-		## $HOME/.claude/settings.json global deny-array pattern shape
-		## (space before the wildcard); that global entry has no custom
-		## reason and denies user-scope only, so it does not substitute for
-		## either the workspace-scoped entry here or the reason-bearing
-		## hook above.
 		local denyAddJson='["Bash", "Bash(mv *)", "Bash(python3*)", "Bash(rm *)"]'
 
 		local hooksDescFile
@@ -988,30 +888,8 @@ HOOKEOF
 			set +e ; return 1
 		}
 
-		## Standing Read allow-grant on this workspace's own source/ tree --
-		## covers every source-symlinked skillset file (--install-skillset-symlinks
-		## links a member's skills-dir slot into here), so a plain skillset/
-		## MAGIC.md read never triggers an interactive permission prompt.
-		## Resolved per-target-workspace, same as $claudeDir/$hooksDir above --
-		## never hardcoded to one workspace.
 		local sourceRoot="$workspace/source"
 
-		## Fixed extra reference roots -- real, external filesystem locations
-		## outside any target workspace's own source/ tree that this
-		## ecosystem's agents routinely need plain Read access to, the SAME
-		## roots for every target workspace (unlike $sourceRoot above, never
-		## workspace-derived). Kept short and evidenced, not speculative --
-		## add an entry here only once live use actually hits the permission
-		## prompt for it, the same way this one was found.
-		##   /Volumes/workspace/myx -- the canonical, editable AE3 legacy
-		##   Eclipse-project checkout (keeper-ae3's own Domain anchor; distinct
-		##   from ws-myx.ae3-devel, which is pull-only and already reached via
-		##   its own vendored source/ tree). A separate filesystem mount, so
-		##   $sourceRoot above never covers it. Confirmed live, 2026-08-30:
-		##   AE3/XHTML investigation work reading files under it (e.g.
-		##   CurrentValues.js, show.xsl.tpl, HTMLEmitter.java,
-		##   SerializerFactoryHtmlScriptStyleFix.java) hit the interactive
-		##   permission prompt every time.
 		local allowExtraRootsJson='["/Volumes/workspace/myx"]'
 
 		if ! MYX_WSRESTRICT_DENY_ADD_JSON="$denyAddJson" \
@@ -1099,19 +977,6 @@ HOOKEOF
 
 		DistroAgentsTools --install-claude-permissions || { set +e ; return 1 ; }
 
-		## Standing Read allow-grant on this workspace's own source/ tree -- same
-		## mechanism --install-workspace-restrictions uses for its own allow
-		## entry, called here too (deny-add/hooks/extra-roots all empty) so this
-		## lands for EVERY workspace that runs plain integration setup, not only
-		## the ones that separately opt into --install-workspace-restrictions.
-		## Originally landed restrictions-only by mistake: most workspaces never
-		## run --install-workspace-restrictions (an opt-in hardening op), so the
-		## original 2026-08-14 ask ("pre-grant skillset read permission... after
-		## all setup") was never actually solved for them. Extra reference roots
-		## (e.g. /Volumes/workspace/myx) stay restrictions-only, deliberately:
-		## those are evidenced needs specific to a hardened workspace's own real
-		## work, not something every workspace running plain setup should get by
-		## default.
 		local claudeDir="$workspace/.claude"
 		mkdir -p "$claudeDir" || { echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: cannot create $claudeDir" >&2 ; set +e ; return 1 ; }
 		local settingsFile="$claudeDir/settings.json"

@@ -27,7 +27,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - invokes `magic-team.process-reflections.routine` for this project/workspace
    - processes own inbox
    - posts an opening broadcast to `slack-magic-team`/Trello (coworking-only, applies here)
-   - **Session tracking**: this routine's own `state-and-lock` note is this pass's tracking document — the tactical status, and whatever the next pass needs to pick up from here. Reference `TEAM-DATA` rather than copying it, to keep it compact. Write it via the `--magic-retro-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close. Holding the lock across a long pass is a separate obligation: call `--magic-retro-lock-refresh` periodically — writing content does not itself hold the lock.
+   - **Session tracking**: this routine's own `state-and-lock` note is this pass's tracking document — the tactical status, and whatever the next pass needs to pick up from here. Write it via the `--magic-retro-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close. Holding the lock across a long pass is a separate obligation: call `--magic-retro-lock-refresh` periodically — writing content does not itself hold the lock.
 3. **gather-recent-history**, steps:
    - read `board-processed` `reflection-*` items and any other recent board Items
    - recall the last several daily meetings' worth of entries (results, recurring blockers, anything flagged more than once) — raw material for reflection, not something to re-narrate verbatim
@@ -49,10 +49,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **close-session**: execute `magic-team.coworking.routine`'s Closure Steps — the skill-update-discussion offer, etc. Retro stays reflection, not action, but ends with exactly **one** concrete, actionable improvement (not several vague ones) -- log it into `board-running` as a pending item for the *next daily meeting* to actually pick up and apply. That daily's **run-check-process-board**/**update-todos** steps must surface it.
 2. **close-state-and-unlock**, steps:
-   - write the pass's closing status into the `state-and-lock` note via `--magic-retro-state-and-lock-upsert`
-   - release this routine's own lock via `--magic-retro-close-state-and-unlock`, setting `state: retro-finished`
-
-   That order is required: the release is what sets `state: retro-finished`, and a content write after it would put the note back to running. Last, every time: until the release lands, the next pass sees this one as still running.
+   - reference the board/inbox items themselves rather than copying their content, to keep it compact
+   - release this routine's own lock via `--magic-retro-close-state-and-unlock`, passing the pass's closing status inline — content, `state: retro-finished`, and the unlock all land in one call now, not two
 
 # Routine's local procedures
 

@@ -245,7 +245,7 @@ function parseArray(path,   idx, c) {
 # per leg ("## dm=<id> ... status=ok"), printed before ANY blob content,
 # followed by the inline marker immediately before each leg's own raw JSON
 # ("## dm=<id> ... (this DM's own raw API response follows)"). Verified
-# against the real emission order in AgentsTools.InternOpSlackCheck.include.
+# against the real emission order in AgentsTools.CommsSlack.include.
 # Both shapes share the "## dm=<id>" prefix this rule matches, and the extra,
 # earlier (provenance) matches are harmless: flushDoc()'s own linesSeen guard
 # makes closing an empty/not-yet-started document a no-op, so the two

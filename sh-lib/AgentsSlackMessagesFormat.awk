@@ -17,7 +17,7 @@
 # Lives here (myx.distro-agents/sh-lib, not myx.common) because it's
 # Slack/DistroAgentsTools-specific: the only consumers are the two
 # `--intern-op-slack-check` call sites in
-# sh-lib/AgentsTools.InternOpSlackCheck.include (per-DM fan-out leg,
+# sh-lib/AgentsTools.CommsSlack.include (per-DM fan-out leg,
 # single-conversation path). NOT --magic-sweep-input-scan, which never
 # invokes this file -- that op feeds AgentsSessionContextCommsItems.awk.
 #

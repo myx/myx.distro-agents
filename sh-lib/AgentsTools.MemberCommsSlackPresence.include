@@ -6,10 +6,6 @@
 ## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced
 ## for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
 ##
-## Supported operations:
-##   --member-comms-slack-presence-keep    --member-comms-slack-presence-status
-##   --member-comms-slack-presence-stop
-##
 
 case "$1" in
 
@@ -45,6 +41,8 @@ case "$1" in
 				;;
 			esac
 		done
+
+		AgentsToolsEmitRequestDetailHeader "$memberName" "<none>"
 
 		local presenceToken
 		presenceToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null )" || presenceToken=""
@@ -130,9 +128,6 @@ if d.get("ok"): print(d.get("url",""))' )"
 			set +e ; return 4
 		fi
 
-		## The url carries its own authorisation, so the holder needs no token
-		## and none is passed to it. Argv carries the identity key only; ps is
-		## world-readable.
 		PRESENCE_TTL="$presenceTtl" PRESENCE_WSS_URL="$presenceUrl" \
 			nohup python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackWebsocketPresence.py" "$presenceKey" \
 			>/dev/null 2>&1 &

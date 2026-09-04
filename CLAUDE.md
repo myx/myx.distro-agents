@@ -78,7 +78,8 @@ loop mechanically builds a wrapper function named `Distro<ITEM>Tools` per subsys
 tool above. Confirmed safe (subshell-scoped, install-time-only, never coexists at runtime
 with the real tool) and deliberately kept rather than special-cased, per the
 myx.distro-agents build session's own quorum review (magic-architect + magic-developer).
-See `AgentsTools.Make.include`'s own header comment for the full reasoning.
+See `myx.distro-agents/MAGIC.md`'s "Writing new code here" section for the full
+reasoning.
 
 `DistroAgentsConsole.sh` starts the selected CLI directly when `--cli` is given
 explicitly, and hard-fails if that CLI is not on `PATH`. With no explicit `--cli`, it

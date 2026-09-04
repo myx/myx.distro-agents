@@ -4,69 +4,11 @@
 ## AgentsTools.InternOpAgentSpawnProxy.include -- internal spawn-proxy
 ## primitive for agent/routine wrappers. No --help entry.
 ##
-## Syntax:
-##   DistroAgentsTools.fn.sh --intern-op-agent-spawn-proxy <agent-or-meta-name>
-##     [--from-file <path>]
-##     [--from-board <board-item-name> [--board-state <state>]...]
-##     [--from-vault <vault-item-name>]
-##     [--from-audit <audit-item-name>]
-##     [--wait]
-##
-## Body source is exactly one of: stdin (default), --from-file, --from-board,
-## --from-vault, --from-audit.
-##
-## No more private package-storage receipt triplet -- unconditionally, same
-## "document IS the tracking, always" principle as
-## AgentsTools.InternOpItem.include. Two tracking variants instead:
-##   1. --from-board/--from-vault/--from-audit: already names a tracking
-##      document. Nothing new written -- reports TRACKING_ITEM=<name>.
-##   2. stdin/--from-file: ad-hoc. A `dispatch-*` board-item is created in
-##      board-running up front (magic-team.armed.md's dispatch-* type),
-##      carrying the verbatim prompt as its "## Brief". On completion, same
-##      item, same-state update (--from-state: running), `status:` header
-##      dispatch-started -> dispatch-succeeded/-failed, `resolved-at`
-##      stamped, real "## Result" section appended -- mirrors
-##      board/running/dispatch-20260806T0000Z-skillset-storage-path-sweep.md's
-##      own narrative-section shape. Async spawns close this from their own
-##      background subshell once the child exits -- fire-and-forget for the
-##      caller, not for the tracking document.
-##
-## Raw stdout/stderr of the spawned process is process mechanics, not board
-## state: lands under $MDAT_DATA_ROOT/audit/<YYYY-MM>/, same dated-folder
-## convention as --member-append-session-transcript. The prompt-content
-## scratch file is an ordinary scratch file, never persisted.
-##
 
-## Closes one ad-hoc dispatch-* item once its spawned process has exited.
-## Called from --wait (sync) and from async's own background subshell.
-## Same-state update (--from-state: == running), appends "## Result", never
-## fails the caller -- a closure failure only warns.
 AgentsToolsSpawnProxyCloseDispatch(){
 	local itemName="$1" briefBody="$2" childExit="$3" childOutputFile="$4"
 	local outcome currentBody resultBody
 	outcome="$( [ "$childExit" -eq 0 ] && echo succeeded || echo failed )"
-	## --upsert-from-stdin below takes stdin verbatim as the WHOLE file, so
-	## whatever is composed here has to be a complete board document,
-	## frontmatter included -- exactly the same requirement the create side
-	## has. Reading the item's current on-disk content is what makes that
-	## true here: rebuilding from the in-memory $briefBody captured before
-	## the spawn would write back a document whose frontmatter is only the
-	## empty skeleton plus the two headers upserted right here, silently
-	## dropping `owner` and `session-id` (and anything the spawned session
-	## itself recorded meanwhile). `session-id` in particular IS the receipt
-	## evidence -- a closed item that lost it no longer says which spawn
-	## produced it.
-	##
-	## The $briefBody fallback below is unreachable by construction as this
-	## stands: the read looks in board/running and the upsert that follows
-	## uses --from-state:running, the same folder, so a failed read implies a
-	## failed upsert and the fallback changes no outcome. It is kept only as
-	## a guard, and named here because it is the one remaining path that
-	## would write a DEGRADED body -- frontmatter reduced to the empty
-	## skeleton plus the two headers upserted right here. It carries that
-	## skeleton, so the header ops do still land on it. If either lookup is
-	## ever changed independently of the other, this path comes alive and
-	## silently reintroduces the frontmatter loss; change them together.
 	currentBody="$( DistroAgentsTools --intern-op-data-read "$itemName" \
 		--lookup-folder "$MDAT_DATA_ROOT/board/running" \
 		--context --intern-op-agent-spawn-proxy )" || currentBody="$briefBody"
@@ -94,10 +36,6 @@ case "$1" in
 
 	--intern-op-agent-spawn-proxy)
 		shift
-		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
-		## own copy of this block for the full reasoning. Pre-scanned before any
-		## validation so every message here can name the invoking operation;
-		## the option loop below consumes it again as an ordinary option.
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do
@@ -207,10 +145,6 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		## trackedMode="true" for the three source selectors that already name
-		## a real tracking document (board/vault/audit); "false" for stdin/
-		## --from-file, the two ad-hoc sources with no document behind them
-		## yet. See this file's own header comment for the two-variant design.
 		local trackedMode="false" trackedItemName=""
 		local auditReadYearMonth=""
 		case "$sourceMode" in
@@ -227,10 +161,6 @@ case "$1" in
 				if [ ${#boardStates[@]} -eq 0 ] ; then
 					boardStates=( backlog pending running blocked parked processed archived retained )
 				fi
-				## Propagates this op's own $opContext rather than naming itself:
-				## the point of --context is the operation the caller actually
-				## invoked, and that survives the extra intern-op hop only if it
-				## is passed along.
 				local readArgs=( --intern-op-data-read "$fromBoardName" --context "$opContext" ) boardState
 				for boardState in "${boardStates[@]}" ; do
 					readArgs+=( --lookup-folder "$MDAT_DATA_ROOT/board/$boardState" )
@@ -277,12 +207,6 @@ case "$1" in
 		timestamp="$( date +%Y%m%dT%H%M%S )"
 		receiptId="spawn-proxy-$timestamp-$$"
 
-		## Raw process stdout/stderr -- actual process mechanics, not board
-		## state -- lands under audit/<YYYY-MM>/, the same dated-folder
-		## convention --member-append-session-transcript already uses
-		## (AgentsTools.Member.include). Current UTC year-month, the same
-		## fallback that op uses when a target name carries no date of its
-		## own.
 		local auditDir outputFile
 		auditDir="$MDAT_DATA_ROOT/audit/$( date -u +%Y-%m )"
 		mkdir -p "$auditDir" || {
@@ -291,10 +215,6 @@ case "$1" in
 		}
 		outputFile="$auditDir/$receiptId.output.log"
 
-		## Prompt-content scratch file: an ordinary scratch file, never
-		## persisted -- it exists only long enough for the spawned process's
-		## own stdin redirect to read it, and is removed once that process has
-		## exited (both wait and async paths).
 		local contextFile
 		contextFile="$MMDAPP/.local/temp/mdat-spawn-proxy-prompt.$$"
 		mkdir -p "$MMDAPP/.local/temp" && : > "$contextFile" || {
@@ -303,28 +223,9 @@ case "$1" in
 		}
 		printf '%s\n' "$spawnContext" > "$contextFile"
 
-		## Ad-hoc sources only: create the dispatch-* tracking document BEFORE
-		## the spawn runs, so a crash mid-spawn still leaves a real record of
-		## what was asked. Body is title + "## Brief" (the verbatim prompt) --
-		## the dispatch-* content-shape magic-team.armed.md documents: "body
-		## holds the dispatch brief ... plus an update log". The "## Result"
-		## section is the update-log entry, appended at closure below.
 		local dispatchItemName="" dispatchBriefBody=""
 		if [ "$trackedMode" = "false" ] ; then
 			dispatchItemName="dispatch-$timestamp-spawn-proxy-$$.md"
-			## Opens with the empty `---`/`---` frontmatter skeleton on
-			## purpose. --intern-op-board-upsert-move-edit synthesizes that
-			## skeleton itself ONLY when no body-input mode is given; the call
-			## below passes --upsert-from-stdin, which takes stdin verbatim as
-			## the whole file. Without the skeleton the --header:upsert: ops
-			## have nowhere to land, AgentsBoardItemHeaderOpsApply.awk hits its
-			## END guard ("header operation(s) requested, but this body has no
-			## complete `---` frontmatter block") and fails the create -- which
-			## aborted every stdin/--from-file spawn before it spawned
-			## anything, unconditionally and independently of $spawnContext's
-			## own content. Composing the complete document here, frontmatter
-			## included, keeps the create a single atomic write rather than a
-			## create-then-patch pair that would reintroduce the same split.
 			dispatchBriefBody="$( printf '%s\n' \
 				"---" \
 				"---" \
@@ -334,18 +235,6 @@ case "$1" in
 				"## Brief" \
 				"" \
 				"$spawnContext" )"
-			## Calls --intern-op-board-upsert-move-edit directly rather than
-			## through the --magic-board-create-running wrapper
-			## (AgentsTools.MagicBoard.include): that wrapper's own arg-parsing
-			## loop has no --context case (every --magic-board-* op in that file
-			## sets its own fixed --context literal internally instead of
-			## accepting one from its caller), so passing this op's own
-			## --context $opContext through it always failed with "invalid
-			## option: --context" -- unconditionally, regardless of
-			## $spawnContext's own content. Going straight to the shared
-			## intern-op primitive (which --magic-board-create-running itself
-			## also just wraps) avoids that mismatch instead of working around
-			## it.
 			printf '%s\n' "$dispatchBriefBody" | DistroAgentsTools --intern-op-board-upsert-move-edit running "$dispatchItemName" \
 				--create \
 				--context "$opContext" \
@@ -385,11 +274,6 @@ case "$1" in
 			return 0
 		fi
 
-		## Async: fire-and-forget for the CALLER only. The subshell closes the
-		## dispatch tracking document itself once the child actually exits, so
-		## "document is updated and unlocked on completion" holds on the
-		## common (non---wait) path too, not only when a caller happens to
-		## block for it.
 		(
 			set +e
 			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto --non-interactive < "$contextFile"

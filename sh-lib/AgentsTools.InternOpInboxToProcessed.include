@@ -4,60 +4,14 @@
 ##
 ## AgentsTools.InternOpInboxToProcessed.include -- the
 ## --intern-op-inbox-to-processed op for DistroAgentsTools.fn.sh's
-## dispatcher. Sourced lazily from that exact op's own dispatcher arm (not a
-## wildcard -- one intern-op primitive per file, same convention as
-## AgentsTools.InternOpBoardUpsertMoveEdit.include / InternOpBoardTrash.include
-## / InternOpBoardRename.include) via the standard $MDLT_ORIGIN-based path.
+## dispatcher. Sourced lazily from that exact op's own dispatcher arm
 ## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
-##
-## No --help entry: internal plumbing, called by --librarian-inbox-to-processed.
-##
-## Fills the one gap those two intern-ops don't cover: neither
-## --intern-op-board-upsert-move-edit's --from-inbox: source (reads
-## inboxes/<member>/processed/, writes board/<state>/) nor
-## --intern-op-board-trash's --from-inbox: source (reads
-## inboxes/<member>/processed/, deletes it) can move an item OUT of a
-## member's live inbox/ ROOT -- both already assume processed/ as the
-## starting point. This op is that missing first step:
-## inboxes/<member>/<item-filename> (root) -> inboxes/<member>/processed/<item-filename>.
-##
-## Body/header mechanics deliberately mirror
-## AgentsTools.InternOpBoardUpsertMoveEdit.include's own --from-inbox arm as
-## closely as the different source/target allow -- same three mutually
-## exclusive body-input modes, same --header:* upsert/append/remove parsing
-## (including approved-by's shape check), same externalized
-## AgentsBoardItemHeaderOpsApply.awk / AgentsBoardItemPatchApply.py, same
-## atomic mv-into-place. One deliberate difference: the target directory is
-## not caller-supplied (there is exactly one destination -- this member's own
-## inboxes/<member>/processed/), so there is no <to-state> positional and no
-## board-state whitelist here.
-##
-## Old-source handling: once the new content is written to
-## inboxes/<member>/processed/<item-filename>, the ORIGINAL root file is
-## DELETED outright -- not relocated. The processed/ copy is then the only
-## copy of that item.
 ##
 
 case "$1" in
 
-	## <member> <item-filename>
-	##   [--header:<upsert|append|remove>:name[:value]]...
-	##   [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-	##
-	## Source: inboxes/<member>/<item-filename> (the live inbox ROOT --
-	## never processed/, trash/, or any other subdirectory). Target:
-	## inboxes/<member>/processed/<item-filename>.
-	##
-	## Body resolution identical to
-	## AgentsTools.InternOpBoardUpsertMoveEdit.include's own: none of the
-	## three modes given means the body is the existing (root) file's
-	## content, unchanged. --header:* ops apply on top, in the order given.
 	--intern-op-inbox-to-processed)
 		shift
-		## --context <caller-op>: see
-		## AgentsTools.InternOpBoardUpsertMoveEdit.include's own copy of this
-		## block for the full reasoning. Pre-scanned before any validation so
-		## every message here can name the invoking operation.
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do
@@ -117,11 +71,6 @@ case "$1" in
 								echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: --header:$headerOp:$headerName requires a value" >&2
 								set +e ; return 1
 							fi
-							## approved-by's required shape -- same check,
-							## same reasoning, as
-							## AgentsTools.InternOpBoardUpsertMoveEdit.include's
-							## own copy: not duplicated policy, a fact about
-							## the field itself.
 							if [ "$headerName" = "approved-by" ] ; then
 								if ! printf '%s' "$headerValue" | grep -Eq '^[A-Za-z][A-Za-z0-9_-]* \([^,()]+, [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z\)$' ; then
 									echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: --header:$headerOp:approved-by: value must match '<team-member> (<session-id>, <date-time>)' (ISO UTC date-time, suffix Z): $headerValue" >&2
@@ -175,23 +124,11 @@ case "$1" in
 			esac
 		done
 
-		## Three-way check via a counter, same idiom as
-		## AgentsTools.InternOpBoardUpsertMoveEdit.include's own copy -- a
-		## pairwise scriptLang/bodyMode comparison only catches one of the
-		## six possible orderings across three flags.
 		if [ "$bodyModeCount" -gt 1 ] ; then
 			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: --upsert-from-stdin, --edit-script-from-stdin, and --edit-patch-from-stdin are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 
-		##
-		## Source resolution. Root of the member's inbox ONLY -- never
-		## processed/, trash/, or any other subdirectory. `cd` + `pwd -P`
-		## rather than `realpath` (not POSIX) or `readlink -f` (absent on
-		## macOS before Monterey) -- same idiom as the --from-inbox: sources
-		## in AgentsTools.InternOpBoardUpsertMoveEdit.include /
-		## AgentsTools.InternOpBoardTrash.include.
-		##
 		local inboxBase="" inboxDirResolved=""
 		inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 		if [ -z "$inboxBase" ] ; then
@@ -203,9 +140,6 @@ case "$1" in
 			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: no such inbox: $MDAT_DATA_ROOT/inboxes/$inboxMember" >&2
 			set +e ; return 1
 		fi
-		## Containment tested WITH the separator -- "$inboxBase"/* , never a
-		## bare "$inboxBase"* prefix. Same reasoning as both sibling
-		## intern-ops' own copy of this check.
 		case "$inboxDirResolved" in
 			"$inboxBase"/*) ;;
 			*)

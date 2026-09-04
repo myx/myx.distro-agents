@@ -9,124 +9,27 @@
 ## cross-file source in this family (see --agents-config-option and the
 ## --pretty AgentsSlackMessagesFormat.awk reference in the same file).
 ##
-## Not standalone-executable: relies on being dot-sourced into
-## DistroAgentsTools's own function scope for $1/$@, the $MDSC_CMD local,
-## and self-recursive calls back into the DistroAgentsTools function name.
-##
-## Owns a complete, self-contained `case "$1" in ... esac` -- the only
-## shape that externalizes a whole multi-arm operation group without
-## reintroducing the reverted per-op-function pattern (a separate
-## DistroAgentsTools<OpName> function per op) that caused a real bare
-## self-call bug; see myx.distro-agents/CLAUDE.md's "DistroAgentsTools --
-## gotchas" section. Splitting these 8 arms into 8 separate functions is
-## the one thing NOT to do here, even though this file only holds one
-## group -- consistency with the reverted-pattern lesson, not a
-## per-file judgment call.
-##
-## Carries its own `*)` default arm, deliberately duplicating the outer
-## dispatcher's own catch-all error text: once the outer dispatcher routes
-## every --member-* invocation into this file via its own wildcard arm, an
-## unrecognized --member-<typo> would otherwise be swallowed here silently
-## instead of falling through to the outer case's catch-all -- this
-## default arm is what keeps that failure mode identical to every other
-## invalid option.
-##
 
 case "$1" in
 
-	## Verb-suffixed name matches the existing
-	## --owner-workspace-upsert/-forget/-list/-current convention for the
-	## --owner-* prefix. Backs magic-team.armed.md's Process/dynamics rule
-	## formulation "note it for later" no-approval-available fallback --
-	## unlike the board, inbox write access is NOT exclusive to one member;
-	## any member may post a note into any other member's inbox (that's the
-	## whole cross-member handoff mechanism). Thin wrapper over the shared
-	## --intern-op-member-inbox-upsert primitive -- not called by, and does
-	## not call, its sibling --member-upsert-member-inquiry/
-	## --member-inbox-reflection-upsert ops below. Renamed from
-	## --member-upsert-inbox-note (human-owner decision, D0BSVA10285:
-	## 1788441812.769849) -- the old name still works, unchanged, as a
-	## thin backward-compatible shim matched alongside the new one below,
-	## per MAGIC.md's "Deprecated operation names".
 	--member-inbox-note-upsert|--member-upsert-inbox-note)
 		shift
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-inbox-note-upsert || return 1
 		return 0
 	;;
 
-	## The real op backing magic-team.armed.md's Process/dynamics rule
-	## formulation's other no-approval-available fallback, "pass it to
-	## another member" (as distinct from that section's "note it for
-	## later," which --member-inbox-note-upsert backs). Thin wrapper over
-	## the shared --intern-op-member-inbox-upsert primitive, same as
-	## --member-inbox-note-upsert -- does not call that sibling op directly.
-	## --edit-patch-from-stdin passes straight through to the shared
-	## primitive, same as every other option -- no special-case rejection
-	## (human-owner decision 2026-08-27, reversing the earlier carve-out).
 	--member-upsert-member-inquiry)
 		shift
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-upsert-member-inquiry || return 1
 		return 0
 	;;
 
-	## For reflection-type inbox items specifically -- kept as its own
-	## distinctly-named op because reflection notes are a real,
-	## already-established content family in this team's inboxes (see e.g.
-	## this team's own reflection-note examples: a frontmatter block --
-	## source/type/from/posted_at/owner/approved_by/references -- followed
-	## by a "# Reflection: <title>" heading and "## What happened"/"## Why
-	## this is worth keeping"-style sections), distinct from a plain
-	## free-form note or a passed inquiry. <item-filename> is conventionally
-	## expected to contain "reflection-" in its slug, matching every
-	## existing example, but this is a naming convention to follow, not
-	## something enforced here. Thin wrapper over the shared
-	## --intern-op-member-inbox-upsert primitive, same as
-	## --member-inbox-note-upsert -- does not call that sibling op directly.
-	## Renamed from --member-upsert-inbox-reflection (human-owner decision,
-	## D0BSVA10285:1788441812.769849) -- the old name still works, unchanged,
-	## as a thin backward-compatible shim matched alongside the new one
-	## below, per MAGIC.md's "Deprecated operation names".
 	--member-inbox-reflection-upsert|--member-upsert-inbox-reflection)
 		shift
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-inbox-reflection-upsert || return 1
 		return 0
 	;;
 
-	## Append one transcript entry into a transcript file under the shared
-	## audit tree. Writes exactly one canonical entry block per call:
-	##
-	##   <speaker-name> (<timestamp>):
-	##
-	##   > <message line 1>
-	##   > <message line 2>
-	##
-	## Target path is fixed to:
-	##   <team-data-directory>/audit/<YYYY-MM>/<transcript-file-name>
-	##   (team-data-directory resolved via --intern-config-board-location)
-	##
-	## Per magic-team.shared.md's transcript-* location predicate -- not a
-	## board/*/ state folder. transcript-* is a named board-item type by
-	## filename/frontmatter convention (magic-team.armed.md), but unlike
-	## task-/project-/inquiry- it is not walked through the board's lifecycle
-	## states (magic-team.board.md). <YYYY-MM> is derived from the date
-	## embedded in <transcript-file-name> (transcript-YYYY-MM-DD-*), falling
-	## back to the current UTC year-month if the name doesn't carry one.
-	## <team-member>'s own skill directory must still exist (sanity check that
-	## the member is real) even though the transcript itself no longer lives
-	## under it. audit/ and its <YYYY-MM>/ subfolder are created on demand
-	## (lazily, same convention as --member-inbox-note-upsert's inbox/
-	## handling). --workspace-root stays required/validated (caller-
-	## environment sanity check) but does not feed the target path.
-	##
-	## Missing target file is an error unless --create is passed.
-	##
-	## <team-member> is an enforced first positional argument -- same
-	## convention every other --magic-*/--routine-*/--member-* op in this
-	## family already uses (e.g. --member-inbox-note-upsert's <member>
-	## <item-filename>, --magic-grooming-to-backlog's <team-member>
-	## <item-filename>): consumed immediately after shift, validated before
-	## any flag parsing, never an order-independent --member <name> flag
-	## sitting alongside the rest.
 	--member-append-session-transcript)
 		shift
 		local memberName="$1"
@@ -154,9 +57,6 @@ case "$1" in
 					messageArgProvided="true"
 					shift 2
 				;;
-				## --message-from-stdin/--message-file are the superseded spellings,
-				## kept as working shims per MAGIC.md's "Deprecated operation names" --
-				## removed from help output, --from-stdin/--from-file are what's shown.
 				--message-from-stdin|--from-stdin)
 					messageFromStdin="true"
 					shift
@@ -291,9 +191,6 @@ case "$1" in
 		return 0
 	;;
 
-	## Read-only audit-item access without exposing raw path handling to
-	## callers. The caller supplies only document name, plus optional
-	## line range.
 	--member-read-audit-item)
 		shift
 		local memberName="$1"
@@ -458,23 +355,6 @@ case "$1" in
 		return $?
 	;;
 
-	## Read-only, owner-scoped access to one item in a member's own inbox,
-	## by bare <item-filename>. <member> is both the sanity-checked caller
-	## identity and the actual lookup scope (the inbox searched) -- same
-	## convention --member-inbox-note-upsert already uses for whose inbox
-	## a write targets, and distinct from --member-read-board-item/
-	## --member-read-audit-item, where <team-member> is a caller sanity
-	## check only and lookup spans a shared, not per-member, store.
-	## Searches the live inbox root first, then its own processed/
-	## subfolder, first match wins -- same "current before archive" order
-	## --member-read-audit-item uses for its own year-month subfolder.
-	## <item-filename> must carry one of the four legitimate personal-inbox
-	## type prefixes (magic-team.armed.md's "Document-type prefix ->
-	## meaning list": note-/inquiry-/reflection-/warning-), enforcing the
-	## type policy directly from the filename -- same shape as
-	## --member-read-audit-item's own transcript-* restriction. Closes the
-	## gap tracked by the (retracted-on-a-separate-point) proposal
-	## proposal-20260901T1835Z-inbox-item-body-read-op, approach D.
 	--member-inbox-item-read)
 		shift
 		local memberName="$1"
@@ -540,31 +420,6 @@ case "$1" in
 		return $?
 	;;
 
-	## <member> -- read-only discovery, same document shape as
-	## --magic-grooming-input-scan (thin wrapper over
-	## --intern-op-session-context-scan; see that file for the actual scan/filter/
-	## format mechanics). Personal, not routine-dictated -- see
-	## magic-team.armed.md's Engineering & operating discipline section:
-	## every member runs this against its own name as it becomes armed,
-	## regardless of which routine triggered the arming. <member> is this
-	## op's real defining input (not an override of some other fixed
-	## default) and stays; no --state/--header flags alongside it --
-	## dedicated wrappers are fixed, not flexible, a caller wanting a
-	## different scan shape calls --intern-op-session-context-scan directly instead.
-	## Fixed filters: --filter-owner <member> (this op's whole point -- "what's
-	## currently assigned to me") and --all-types (no board-item-type
-	## restriction; a member's own work spans every type). Always
-	## backlog/pending/running/blocked/parked -- same "active work" list as
-	## --magic-grooming-input-scan, this op's own closest analog (no
-	## textual basis yet for a narrower one; an implementation choice to
-	## flag for review, not independently re-derived from a routine's own
-	## text the way grooming's/sweep's lists were). Always every
-	## frontmatter field. Appends this same member's own inbox/ contents as
-	## a second section, identical `## inbox/<item-filename>` + frontmatter
-	## shape (the shared AgentsBoardItemFrontmatterPrint.awk, reused rather
-	## than duplicated) -- a lazily-created, possibly-absent inbox/ is a
-	## silent empty section, not an error (same laziness as
-	## --member-inbox-note-upsert's own inbox/ handling).
 	--member-work-session-input-scan)
 		shift
 		local memberName="$1"
@@ -592,21 +447,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## ONE MECHANISM FOR THIS MEMBER'S OWN INBOX, NOT TWO. The four typed
-		## --do-inbox-* sections REPLACE the hand-rolled uncapped
-		## `## inbox/<file>` walk that used to follow this call; they are not
-		## run alongside it. Two sections describing one folder -- one with
-		## bodies and one without, disagreeing on order and on membership --
-		## is the double-description this document exists to prevent, and it
-		## would render the same items twice.
-		##
-		## The earlier ruling that kept the hand-rolled walk rested on two
-		## premises that no longer hold: that the typed sections dropped most
-		## of a large inbox to a cap the human-owner had not set, and that they
-		## carried no bodies. He has since set the cap himself and required
-		## full bodies. The replacement is lossless only because of
-		## `## Other Inbox Items` -- the old walk's one unique contribution was
-		## exactly the items whose prefix is none of the typed three.
 		DistroAgentsTools --intern-op-session-context-scan "$memberName" \
 			--state backlog --state pending --state running --state blocked --state parked \
 			--all-types --filter-owner "$memberName" \
@@ -616,15 +456,6 @@ case "$1" in
 		return $?
 	;;
 
-	## Lives here, not in the outer dispatcher, because --member-help matches
-	## the dispatcher's own --member-* wildcard arm -- and that arm is earlier
-	## in dispatch order, so it wins. An exact --member-help route further down
-	## the outer case could never fire: bash takes the first matching arm, and
-	## every string --member-help matches, --member-* matches too. The arm has
-	## to exist where the glob actually lands, which is this file. Same lazy
-	## $MDLT_ORIGIN-based source as the dispatcher used, and no shift before it
-	## -- AgentsTools.MemberHelp.include does its own $1 match and its own
-	## shift, unchanged by the move.
 	--member-help)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberHelp.include"
 		return $?

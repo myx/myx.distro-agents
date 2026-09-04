@@ -6,46 +6,10 @@
 ## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced
 ## for $1/$@/$MDSC_CMD.
 ##
-## Named ConsoleSession, not Console: sh-lib/AgentsConsole.include is a
-## different thing entirely (the interactive console UI this family is
-## driven FROM). These are the ops that start/send/stop/list a driven
-## console session.
-##
-## Routed by the dispatcher's `--console-*)` glob, in the same shape as
-## every other family here -- so a new --console-* op needs no dispatcher
-## edit.
-##
-## Supported operations:
-##   --console-start   --console-send   --console-stop   --console-list
-##
 
-## Channel dirs live at $MMDAPP/.local/temp/$MDAT_CHANNEL_PREFIX.<workspace-slug>.<console> —
-## a DETERMINISTIC id (workspace absolute path + console name, hashed with
-## `cksum`), NOT a `mktemp -d` random suffix: the same (workspace, console)
-## pair always resolves to the same channel dir/log path across restarts, so
-## that path can be added once to an allowlist (e.g. Claude Code's
-## settings.json) and stay valid forever — a random-per-invocation name can
-## never be allowlisted. `--console-start` is idempotent: called again for a
-## (workspace, console) pair that's already alive, it reuses the existing
-## channel instead of minting a new one; if the channel dir exists but its
-## processes are dead, it's wiped and recreated. One channel is naturally
-## shared by all concurrent callers against the same workspace+console — safe
-## since read/scan sessions are explicitly not ownership-gated. Default
-## workspace is the tool's own ($MMDAPP);
-## `--override-workspace` (on --console-start and --console-list alike) is
-## the only escape hatch to point at a different workspace.
 MDAT_CHANNEL_PREFIX="myx.distro-agent-console"
 MDAT_DEFAULT_TTL="3600"
 
-##
-## Helpers below are console-only and live here rather than in
-## DistroAgentsTools.fn.sh's always-parsed prologue: that file is sourced
-## for EVERY operation, including the tiniest, so nothing used by one
-## family alone belongs in it. Two former helpers are gone entirely --
-## a single-call-site one-liner is inlined at its call site, not hidden
-## behind a name you have to go read another part of the file to
-## understand.
-##
 
 DistroAgentsToolsResolveChannelDir(){
 	local ref="$1"
@@ -66,10 +30,6 @@ DistroAgentsToolsResolveChannelDir(){
 	return 1
 }
 
-## Resolves a workspace argument (or $MMDAPP if empty) to an absolute path,
-## erroring if it's not a directory. Used by both --console-start's
-## --override-workspace and --console-list' --override-workspace so the two
-## agree on what "own workspace" means.
 DistroAgentsToolsResolveWorkspace(){
 	local workspace="${1:-$MMDAPP}"
 	if [ ! -d "$workspace" ] ; then
@@ -134,9 +94,6 @@ case "$1" in
 				set +e ; return 1
 			fi
 
-			## Short name for the channel id. Inlined rather than hidden behind a
-			## helper: the only two consoles this op accepts are established
-			## right above, so the mapping is two cases readable in place.
 			local consoleShortName
 			case "$consoleName" in
 				DistroSourceConsole.sh) consoleShortName="source" ;;
@@ -144,20 +101,12 @@ case "$1" in
 				*) echo "⛔ ERROR: $MDSC_CMD --console-start: unrecognized console: $consoleName" >&2 ; set +e ; return 1 ;;
 			esac
 
-			## Deterministic workspace identity: the same absolute path always
-			## yields the same short slug, so channel ids stay stable across
-			## processes and restarts. `cksum` is POSIX and present on both
-			## macOS and Linux, so this needs no extra tooling.
 			local slug ; slug="$( printf '%s' "$workspace" | cksum | awk '{print $1}' )"
 			local channelId="${MDAT_CHANNEL_PREFIX}.${slug}.${consoleShortName}"
 			local channelDir="$MMDAPP/.local/temp/$channelId"
 			local fifo="$channelDir/fifo"
 			local log="$channelDir/console.log"
 
-			## Idempotent reuse: if this workspace+console already has a live
-			## channel, hand back its details instead of minting a duplicate.
-			## If the dir exists but its processes are dead, wipe and recreate —
-			## never silently leave a half-dead channel behind.
 			if [ -d "$channelDir" ] ; then
 				local oldConsolePid oldHolderPid
 				if [ -f "$channelDir/console.pid" ] ; then oldConsolePid="$( cat "$channelDir/console.pid" 2>/dev/null )" ; fi
@@ -180,10 +129,6 @@ case "$1" in
 					return 0
 				fi
 				echo "# $MDSC_CMD --console-start: stale channel found (no live processes), recreating: $channelDir" >&2
-				## NOTE: under `set -e` (active for this whole function), a bare
-				## `kill` on an already-dead pid returns non-zero and would
-				## silently abort here mid-recreate — hence the explicit
-				## `|| true` guards, not just a redirected stderr.
 				if [ -n "$oldConsolePid" ] ; then kill -9 "$oldConsolePid" 2>/dev/null || true ; fi
 				if [ -n "$oldHolderPid" ] ; then kill -9 "$oldHolderPid" 2>/dev/null || true ; fi
 				rm -rf "$channelDir"
@@ -201,22 +146,11 @@ case "$1" in
 			}
 			: > "$log"
 
-			## Keep-alive FIFO-holder: opens the write end and sleeps, so the
-			## console's read end never sees EOF between rounds. Same mechanism as
-			## console-sessions.md's documented manual recipe. `sh -c`, not
-			## `bash -c`: this subshell body is plain POSIX (fd-9 `exec`
-			## redirect, `sleep`) with no bash-specific syntax, so it doesn't
-			## need this file's own bash requirement -- this file's shebang
-			## stays bash regardless, this is only about the disposable child
-			## process's own interpreter.
 			nohup sh -c "exec 9>\"$fifo\"; sleep \"$ttl\"" >/dev/null 2>&1 &
 			local holderPid=$!
 			disown 2>/dev/null || true
 			echo "$holderPid" > "$channelDir/holder.pid"
 
-			## Console self-locates its own workspace root from $0 (see
-			## DistroSourceConsole.sh's own MMDAPP bootstrap), so an absolute path
-			## here doesn't require changing this shell's cwd.
 			nohup env MMDAPP="$workspace" "$workspace/$consoleName" --non-interactive < "$fifo" >> "$log" 2>&1 &
 			local consolePid=$!
 			disown 2>/dev/null || true
@@ -253,21 +187,6 @@ case "$1" in
 			local channelDir
 			channelDir="$( DistroAgentsToolsResolveChannelDir "$ref" )" || { set +e ; return 1 ; }
 
-			## Checks liveness and restarts rather than trusting the channel is
-			## alive: a dead console still leaves its directory and FIFO special
-			## file behind (only --console-stop's rm -rf removes them), so
-			## writing here with no liveness check doesn't fail loud -- POSIX
-			## FIFO semantics mean opening the write end with no reader on the
-			## other end blocks indefinitely (see --console-stop's own comment
-			## below for that exact hang). Same liveness test --console-start's own
-			## idempotent-reuse logic already uses (kill -0 on both stored
-			## PIDs); same recreate mechanism too (self-recursion into
-			## --console-start, which already wipes a stale channel and mints a
-			## fresh one under the same deterministic channel id -- not a
-			## second, parallel restart implementation). meta.env (written by
-			## --console-start) is the source of truth for which
-			## workspace/console/ttl to restart with, since $ref may have been
-			## a raw path rather than a channel id.
 			local consolePid holderPid
 			if [ -f "$channelDir/console.pid" ] ; then consolePid="$( cat "$channelDir/console.pid" 2>/dev/null )" ; fi
 			if [ -f "$channelDir/holder.pid" ] ; then holderPid="$( cat "$channelDir/holder.pid" 2>/dev/null )" ; fi
@@ -314,20 +233,6 @@ case "$1" in
 			local channelDir
 			channelDir="$( DistroAgentsToolsResolveChannelDir "$ref" )" || { set +e ; return 1 ; }
 
-			## NOTE: under `set -e`, a bare `[ test ] && command` used as a plain
-			## statement aborts this whole branch the moment the test (or the
-			## command) fails — e.g. no fifo, or the process already exited on
-			## its own. Every check below is an `if`/`|| true`, never a bare
-			## `&&`, so a partial/already-dead session still reaches the final
-			## `rm -rf` instead of leaving a half-cleaned channel dir behind.
-			## Opening a FIFO for writing blocks indefinitely if there's no
-			## reader on the other end (POSIX FIFO semantics, not a bash
-			## quirk). A channel whose console process already died still
-			## leaves the FIFO special file behind, so an unconditional write
-			## here can hang --console-stop forever. Only attempt the graceful
-			## "exit" nudge while the console process is confirmed alive -- if
-			## it's already dead there's no reader to nudge, and the hard-kill
-			## path below still runs either way.
 			local pid
 			if [ -f "$channelDir/console.pid" ] ; then
 				pid="$( cat "$channelDir/console.pid" 2>/dev/null )"
@@ -374,9 +279,6 @@ case "$1" in
 				esac
 			done
 
-			## Default scope is the tool's own workspace — per design direction,
-			## --console-list must not surface every workspace's channels by
-			## default, only this one's (or an explicitly overridden one).
 			local workspace
 			workspace="$( DistroAgentsToolsResolveWorkspace "$workspaceArg" )" || { set +e ; return 1 ; }
 

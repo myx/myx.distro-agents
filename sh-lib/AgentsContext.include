@@ -3,17 +3,6 @@
 
 ## Origin-detection context for myx.distro-agents.
 ##
-## Structurally aligned with sibling contexts (RemoteContext.include /
-## SystemContext.include): this file now defines an interactive `Require`/
-## `Agents` dispatcher pair used by `console-agents-bashrc.rc` fallback
-## sessions. DistroAgentsConsole.sh still execs `claude`/`copilot` directly
-## when `--cli` is given (see AgentsTools.Make.include's --make-console-script);
-## when no CLI is available, the bash fallback uses the dispatcher surface
-## defined here.
-##
-## As with sibling contexts, origin-detection callers may also use this file's
-## stable path as an origin marker. `DistroAgentsContext` remains the context
-## initializer entrypoint for that role.
 
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 

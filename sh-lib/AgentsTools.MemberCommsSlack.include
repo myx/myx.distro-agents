@@ -4,75 +4,6 @@
 ##
 ## AgentsTools.MemberCommsSlack.include -- the raw per-member Slack comms
 ## operations (read, search, react, send, edit, delete, file info/fetch).
-## Split out of the former single comms include, which carried Slack, email
-## and Trello in one file and no longer exists; the email and Trello arms now
-## live in AgentsTools.MemberCommsEmail.include and AgentsTools.MemberCommsTrello.include.
-##
-## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced
-## for $1/$@/$MDSC_CMD and for the shared helper
-## DistroAgentsToolsResolveTarget, which stays in the dispatcher because
-## AgentsTools.MagicComms.include, AgentsTools.Member.include and
-## AgentsTools.InternOpSessionContextScan.include all call it too.
-##
-## EVERY OP HERE TAKES <team-member> FIRST, and that member IS the acting
-## identity -- which is why `comms` is a namespace layer UNDER the member
-## prefix, --member-comms-<service>-<verb>, rather than a prefix of its own.
-## The name says who acts before it says through which service.
-##
-## THE DISPATCHER REACHES THIS FILE BY THE --member-comms-slack-* GLOB, and
-## that route is only correct because EVERY op of that name lives here now.
-## --member-comms-slack-send-message used to sit in AgentsTools.Member.include
-## instead, and that one absence was the whole reason the old route had to be
-## a by-name enumeration: a glob would have stolen the op from the file that
-## implemented it. Bringing it home is what retires the enumeration. Adding a
-## --member-comms-slack-* op therefore costs no dispatcher line; moving one
-## back out to another include would silently break the glob's one
-## precondition.
-##
-## NOTE that --magic-comms-slack-resolve-ids is deliberately NOT here: it
-## matches neither route, and it already has its own include
-## (AgentsTools.MagicComms.include). --intern-op-slack-check is likewise not
-## here: it carries the --intern-op-* prefix, is the sweep machinery's own
-## internal reader rather than a member-facing op, and has its own include
-## (AgentsTools.InternOpSlackCheck.include) exactly as every other
-## --intern-op-* primitive does.
-##
-## Supported operations:
-##   --member-comms-slack-read   --member-comms-slack-search-messages
-##   --member-comms-slack-react  --member-comms-slack-send-message
-##   --member-comms-slack-delete-message  --member-comms-slack-edit-message
-##   --member-comms-slack-file-info    --member-comms-slack-file-fetch
-##
-## --member-comms-slack-delete-message and --member-comms-slack-edit-message are the only MUTATING Slack
-## operations here, and they differ from everything else in this file in one
-## specific way: Slack permits deleting or editing only a message the ACTING
-## IDENTITY itself authored, so the same call succeeds or fails purely on who
-## is asking. Both therefore carry a refusal branch of their own that names the
-## acting identity and the authorship rule, and neither ever retries under the
-## other identity to make a destructive call succeed.
-##
-## THE API'S STATUS CODE IS NOT THE ANSWER TO THE QUESTION THE CALLER ASKED.
-## For reads, an empty result must not read as success. For react, an
-## `already_reacted` error must not read as failure.
-##
-## This is ONE rule with two faces, stated here once so no arm has to
-## rediscover it: what an arm reports is the outcome of the QUESTION its caller
-## asked ("is there a reply?", "is the reaction on that message?"), and Slack's
-## own ok:true/ok:false is only evidence toward that answer, never the answer
-## itself. Both faces are already live in this file -- --member-comms-slack-read fails
-## loud on a successful call that carried no such message, and
-## --member-comms-slack-react reports `already_reacted` as a distinct success -- and
-## each arm's own comment points back here rather than restating the rule.
-##
-## Two consequences that follow from it, and hold for any arm added later:
-##   - The tolerance or the loud failure lives in the ARM, interpreting the
-##     result. --intern-op-slack-call's contract, that an ok:false never
-##     surfaces as rc 0, stays exactly as it is: bending the shared call to
-##     suit one caller's question would soften every other caller's failure
-##     detection.
-##   - Outcomes are told apart by POSITIVE tests on what is present -- a found
-##     element, a named error code -- never by a negation against an empty
-##     result, which is indistinguishable from "could not see anything".
 ##
 
 AgentsToolsCommsSlackFileInfoEmitField(){
@@ -105,6 +36,8 @@ AgentsToolsCommsSlackFileInfoEmitField(){
 	echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: the field reader could not parse the files.info response body while reading '$emitPath' (rc=$emitRc -- 1: the body is not a parseable Slack API response, 2: no key path was given). Nothing about this file is known from this call, and the fields printed before this line are NOT a complete metadata set." >&2
 	return 1
 }
+
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 
 case "$1" in
 
@@ -1364,18 +1297,8 @@ case "$1" in
 			shareDiagFile="$( mktemp )" || { set +e ; return 1 ; }
 			chmod 600 "$shareDiagFile"
 
-			## No EXIT trap anywhere in this arm: --intern-op-slack-call installs its
-			## own and clears it, which would silently take ours with it. Every exit
-			## path below cleans up explicitly. See MAGIC.md.
 			local shareStdinFile=""
 
-			## conversations.info reaches the conversation id through
-			## --resolve-target's own lexical rule -- a party id is opened as a DM
-			## under the acting identity, a conversation id passes through, and
-			## anything else is its hard error with no guessing fallback.
-			## SLACK_CHANNEL_HUMAN_OWNER holds a USER id, and completeUploadExternal
-			## needs a conversation: passing the user id straight through is the
-			## exact failure --intern-op-slack-call's own header documents.
 			local shareInfoArgs=( "$memberName" --api conversations.info --resolve-target "$shareChannel" )
 			[ "$shareAsBot" = "false" ] || shareInfoArgs+=( --identity bot )
 			shareInfoArgs+=( --context "--member-comms-slack-file-share" )
@@ -1395,10 +1318,6 @@ case "$1" in
 				set +e ; return 1
 			fi
 
-			## thread_ts must be the thread's PARENT ts, unlike chat.postMessage which
-			## also accepts a reply's. The value a caller most easily holds is a
-			## reply's, so it is normalised rather than refused -- and silently,
-			## because a normalisation gives nothing up and has nothing to report.
 			local shareParentTs="$shareThreadTs"
 			if [ -n "$shareThreadTs" ] ; then
 				local shareRepliesArgs=( "$memberName" --api conversations.replies --form "channel=$shareConversation" --form "ts=$shareThreadTs" --form limit=1 )
@@ -1484,9 +1403,6 @@ case "$1" in
 				set +e ; return 1
 			fi
 
-			## ---- step 2 of 3: POST the bytes, with NO credential ----
-			## The URL never appears in this arm's own diagnostics either; the op
-			## called here withholds it from all of its own.
 			local shareStep2Rc=0
 			DistroAgentsTools --intern-op-url-post-bytes --url "$shareUploadUrl" --body-file "$shareBodyFile" --context "--member-comms-slack-file-share" >/dev/null 2>"$shareDiagFile" || shareStep2Rc=$?
 			cat "$shareDiagFile" >&2
@@ -1520,11 +1436,6 @@ case "$1" in
 			printf 'SHARE_CONVERSATION=%s\n' "$shareConversation" >&2
 			printf 'SHARE_BYTES=%s\n' "$shareBytes" >&2
 
-			## The comment is a REAL MESSAGE, posted after the share through the
-			## ordinary message path -- never the upload's own initial_comment, which
-			## accepts text or blocks and silently ignores blocks when both are given.
-			## Share first, message second: a message posted first would announce a
-			## file that is not there. Two visible items in one thread is the cost.
 			if [ "$shareCommentGiven" = "true" ] ; then
 				local shareCommentTarget="$shareConversation"
 				[ -z "$shareParentTs" ] || shareCommentTarget="$shareConversation:$shareParentTs"
@@ -1573,6 +1484,8 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		AgentsToolsEmitRequestDetailHeader "$memberName" "$target"
+
 		local resolved rc channel="" threadTs=""
 		resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
 		case "$rc" in
@@ -1610,9 +1523,6 @@ case "$1" in
 
 		local format="markdown" fromStdin="false" identityAsBot="false"
 		local textArgs stdinContent
-		## Body source is tracked as a NAME, because the format registry below
-		## declares which sources each format accepts as an entry field rather
-		## than as a bespoke guard.
 		local bodySourceKind="argv"
 		## The text version of a caller-supplied blocks payload. Not a
 		## transcription of their blocks -- what the message SAYS, in text.
@@ -1680,25 +1590,8 @@ case "$1" in
 			sourceText="${textArgs# }"
 		fi
 
-		## In-body "@name" resolution map for the blocks generator, as
-		## "name=Uxxx;name2=Uyyy". Empty today: team members hold no Slack user
-		## accounts (settled with a positive control), so every in-body @name
-		## currently resolves to nobody and stays literal in BOTH versions --
-		## which is the ruled failover, not a failure. The blocks generator
-		## reads this; the text generator has no @ branch to read it with.
 		local slackMentionMap=""
 
-		## ================= FORMAT REGISTRY, NOT A BRANCH ==================
-		## One row per accepted input format:
-		##   <name>|<blocks generator>|<text generator>|<accepted body sources>
-		## The set is OPEN by ruling: adding a format is adding a row here, and
-		## never a new arm bolted onto a converter. Do not restate this set
-		## anywhere as closed -- dispatch AND the error message below both read
-		## THIS table, which is what stops them drifting apart. The drift is not
-		## hypothetical: the manual documented a `text` value the code never
-		## implemented, and named neither the value it actually defaulted to.
-		##
-		## `text` is deliberately NOT a row. It was dropped as an input format.
 		local slackFormatRegistry="markdown|converter|body|argv stdin file
 blocks|verbatim|caller|stdin file"
 
@@ -1706,9 +1599,6 @@ blocks|verbatim|caller|stdin file"
 		formatValidSet="$( printf '%s\n' "$slackFormatRegistry" | LC_ALL=C awk -F'|' 'NF { printf "%s%s", sep, $1 ; sep="|" }' )"
 		formatEntry="$( printf '%s\n' "$slackFormatRegistry" | LC_ALL=C awk -F'|' -v want="$format" '$1 == want { print ; exit }' )"
 
-		## Unrecognised format fails by LOOKUP MISS. Previously this dispatch
-		## had no else arm at all: an unknown value left blocksJson empty and
-		## fell through to a plain-text send that returned success.
 		if [ -z "$formatEntry" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: unrecognized --format '$format' -- accepted: $formatValidSet" >&2
 			set +e ; return 1
@@ -1717,10 +1607,6 @@ blocks|verbatim|caller|stdin file"
 		formatTextGen="$( printf '%s\n' "$formatEntry" | LC_ALL=C awk -F'|' '{ print $3 }' )"
 		formatBodySources="$( printf '%s\n' "$formatEntry" | LC_ALL=C awk -F'|' '{ print $4 }' )"
 
-		## The body-source restriction is the ENTRY'S OWN FIELD, not a bespoke
-		## guard. This is what rejects a block array pasted as a trailing argv
-		## word -- which previously fell through and was posted, verbatim JSON
-		## and all, as the visible message body.
 		case " $formatBodySources " in
 			*" $bodySourceKind "*) ;;
 			*)
@@ -1768,24 +1654,11 @@ blocks|verbatim|caller|stdin file"
 			;;
 		esac
 
-		## Sender attribution is a FORMAL FIELD, resolved here -- before either
-		## generator runs -- so both can inject it. It used to be prepended to
-		## the text half after the blocks half had already been built, which is
-		## precisely why it reached one version and never the other.
 		local attributionLine=""
 		if [ "$sendIdentity" = "bot" ] || [ "$relayedForMember" = "true" ] ; then
 			attributionLine="@$memberName:"
 		fi
 
-		## ============ THE ADDRESSED LINE, A FORMAL FIELD ==================
-		## Resolved here -- before either generator -- so both can inject it in
-		## their own form, exactly like the attribution above.
-		##
-		## The argument form is RESOLVED, never chosen by the caller. Resolution
-		## is a registry rather than a branch and THE SET IS OPEN: recognition
-		## is lexical, on the argument's own first character, the same rule
-		## --resolve-target already uses. The caller never writes mention
-		## syntax and never needs to know who holds a Slack account.
 		local addressedText="" addressedElems=""
 		local addrWho addrFile addrAlias addrEmoji addrIcon addrMark
 		for addrWho in $addressToList ; do
@@ -1801,25 +1674,15 @@ blocks|verbatim|caller|stdin file"
 					addressedElems="$addressedElems{\"type\":\"channel\",\"channel_id\":\"$addrWho\"},"
 				;;
 				*@*)
-					## Recorded in the design as a declared direction so the
-					## registry accommodates it. Not built -- and it fails
-					## loudly rather than being guessed at as a member name.
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': an email addressee is a declared direction that is not built yet. Pass a team member name, a Slack user id, or a conversation id." >&2
 					set +e ; return 1
 				;;
 				*)
-					## A team member: bring that member's own identity marks
-					## into the message. Path is CONSTRUCTED, never discovered
-					## -- ~/.claude/skills entries are symlinks, and find/grep -r
-					## do not follow them and return a confident empty.
 					addrFile="$HOME/.claude/skills/$addrWho/$addrWho.basic.md"
 					if [ ! -f "$addrFile" ] ; then
 						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': no such team member -- expected $addrFile" >&2
 						set +e ; return 1
 					fi
-					## A backtick in a field value is presentation, not data,
-					## and the format permits commentary after a value, so each
-					## parse takes the value up to the first whitespace.
 					addrAlias="$( LC_ALL=C awk -F": " '/^- \*\*Alias\*\*:/ { v=$2 ; gsub(/`/, "", v) ; sub(/[[:space:]].*$/, "", v) ; sub(/\.$/, "", v) ; print v ; exit }' "$addrFile" )"
 					addrEmoji="$( LC_ALL=C awk -F": " '/^- \*\*Unicode character\*\*:/ { v=$2 ; sub(/[[:space:]].*$/, "", v) ; print v ; exit }' "$addrFile" )"
 					addrIcon="$( LC_ALL=C awk -F": " '/^- \*\*Slack shortcode\*\*:/ { v=$2 ; gsub(/`/, "", v) ; sub(/[[:space:]].*$/, "", v) ; print v ; exit }' "$addrFile" )"
@@ -1842,22 +1705,12 @@ blocks|verbatim|caller|stdin file"
 							;;
 						esac
 					fi
-					## No team member holds a Slack account (settled with a
-					## positive control), so the tag can only ever be the
-					## look-alike -- the SAME characters in both versions.
 					addressedText="$addressedText@$addrAlias "
 					addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"@$addrAlias \"},"
 				;;
 			esac
 		done
 
-		## ============ TWO GENERATORS OVER THE ONE INPUT ===================
-		## Each reads the input independently. NEITHER reads the other's
-		## output, in either direction. This is not a preference: an escape-form
-		## mention inside rich_text stays inert plain text while the same form
-		## in the `text` field survives byte-identically, so the same field is a
-		## text sequence on one side and a structural element on the other, and
-		## nothing can carry it across.
 
 		## ---- blocks generator ----
 		case "$formatBlocksGen" in
@@ -1872,25 +1725,9 @@ blocks|verbatim|caller|stdin file"
 		## ---- text generator ----
 		case "$formatTextGen" in
 			body)
-				## The body itself -- close to the input rather than a
-				## transformation of it. No "@" branch lives here at all, which
-				## is what makes "the text version does not change" true by
-				## construction rather than by care.
 				rawText="$sourceText"
 			;;
 			caller)
-				## The caller's own text version wins, verbatim, whenever given
-				## -- nothing is generated over the top of it.
-				##
-				## When it is absent we GENERATE one rather than failing: a hard
-				## error here would break every existing blocks caller on the
-				## team's own tool. That is a ruled reversal of an earlier
-				## decision, and it is NOT the deleted fallback renderer coming
-				## back. That one collected each node's own "text" key and so
-				## dropped every structured element; this generator emits each
-				## element in its own text form. Simplified is fine; lossy is
-				## not, and an element it cannot render is reported and made
-				## visible rather than silently lost.
 				if [ "$messageTextGiven" = "true" ] ; then
 					rawText="$messageText"
 				else
@@ -1928,20 +1765,7 @@ blocks|verbatim|caller|stdin file"
 
 		fi
 
-		## NOTHING DERIVES THE TEXT VERSION. Both versions were generated above,
-		## independently, from the one input. The fallback renderer that used to
-		## stand here -- deriving the text half by walking the blocks array and
-		## collecting each node's own "text" key -- is deleted, not fixed: a
-		## structured element carries no "text" key, so the derivation silently
-		## dropped exactly the elements that mattered ("ping <@U75H0DK43>" came
-		## back as "ping"). It was not a component with a bug; it was the reason
-		## the two halves could never disagree correctly.
 
-		## The addressed line, injected into BOTH versions, each in that
-		## version's own form. Construction on both sides -- never text
-		## parsing, and never one side copied from the other. Injected BEFORE
-		## the attribution below so the finished message reads attribution,
-		## then addressees, then body.
 		if [ -n "$addressedText" ] ; then
 			if [ -n "$rawText" ] ; then
 				rawText="$( printf '%s\n%s' "${addressedText% }" "$rawText" )"
@@ -1959,9 +1783,6 @@ blocks|verbatim|caller|stdin file"
 			fi
 		fi
 
-		## Sender attribution, injected into BOTH versions, each in that
-		## version's own form. Construction on both sides -- never text parsing,
-		## and never one side copied from the other.
 		if [ -n "$attributionLine" ] ; then
 			## text version: the characters that version uses.
 			if [ -n "$rawText" ] ; then
@@ -2084,10 +1905,6 @@ blocks|verbatim|caller|stdin file"
 					continue
 				fi
 			fi
-			## Reached only once every recovery arm above has declined this
-			## response. A permanent verdict is not retried: no number of
-			## attempts clears an unreachable or archived conversation, and the
-			## ~30s ladder hides the cause behind a generic timeout-shaped wait.
 			case "$response" in
 				*'"error":"not_in_channel"'*|*'"error":"channel_not_found"'*|*'"error":"is_archived"'*)
 					echo "# $MDSC_CMD --member-comms-slack-send-message: permanent verdict under $sendIdentity identity and no recovery applies -- not retried -- $response" >&2

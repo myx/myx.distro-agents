@@ -9,32 +9,11 @@
 ## $MDLT_ORIGIN-based path. Not standalone: relies on being dot-sourced for
 ## $1/$@/$MDSC_CMD.
 ##
-## No --help entry: this is internal plumbing. The generic write mechanism
-## every --member-inbox-note-upsert/--member-upsert-member-inquiry/
-## --member-inbox-reflection-upsert wrapper calls -- each wrapper validates
-## and forwards its own allowed argument set, none of them call each other.
-##
-## <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
-##
-## Content resolution: stdin by default; --from-file <path> reads the given
-## file instead; --edit-patch-from-stdin reads a JSON array of
-## {"old": <text>, "new": <text>, "replace_all": <bool, default false>}
-## patch objects from stdin and applies each, in order, against the
-## existing target content (empty if the target doesn't exist yet) as an
-## exact literal (non-regex) substring match-and-replace -- same semantics,
-## same externalized AgentsBoardItemPatchApply.py, as
-## --intern-op-board-upsert-move-edit's own --edit-patch-from-stdin. The
-## three body-input modes are mutually exclusive.
-##
 
 case "$1" in
 
 	--intern-op-member-inbox-upsert)
 		shift
-		## --context <caller-op>: see AgentsTools.InternOpBoardUpsertMoveEdit.include's
-		## own copy of this block for the full reasoning. Pre-scanned before any
-		## validation so every message here can name the invoking operation;
-		## the option loop below consumes it again as an ordinary option.
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do

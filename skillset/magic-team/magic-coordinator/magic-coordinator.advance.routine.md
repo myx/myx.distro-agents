@@ -55,7 +55,6 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **advance-process-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — the whole inbox, not `check-pending-comms-actions`'s narrow slice. New items get handled this pass, not only already-decided moves (a landed approval, a finished or stalled dispatch).
 3. **advance-read-board-state**: Call the `--magic-advance-input-scan` operation. This routine's own `state-and-lock` note comes back with that scan, as part of this routine's own input:
    - goal: keep this pass's own tracking document current — the tactical status, and whatever the next iteration needs to continue.
-   - rule: reference `TEAM-DATA` rather than copying it, to keep it compact.
    - rule: holding the lock across a long pass is a separate obligation from writing content — call `--magic-advance-lock-refresh` periodically.
    - step: write the note via the `--magic-advance-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close.
 4. **advance-process-comms**: run `magic-coordinator.communication-sweep.routine`'s own Steps in full, inline, this same pass, against this pass's own board read from **advance-read-board-state** — messages can't be assessed without the current process-flow state, so this step never runs before the board is loaded. Reused by reference, not duplicated logic, steps:
@@ -67,10 +66,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
 # Closure steps
 
 1. **advance-report**: Post `check-execute-board`'s own findings (redispatches performed, interview threads opened/continued) to `slack-event-track` via `--member-comms-slack-send-message` (target `event-track`).
-2. **advance-close-state-and-unlock**: release the lock only after the closing status is recorded:
-   - rule: order is required — the release is what sets `state: advance-finished`, and a content write after it would put the note back to running; until the release lands, the next iteration sees this pass as still running.
-   - step: write the pass's closing status into the `state-and-lock` note via `--magic-advance-state-and-lock-upsert`.
-   - step: release the lock via `--magic-advance-close-state-and-unlock`.
+2. **advance-close-state-and-unlock**: release the lock, recording the pass's closing status in that same call:
+   - rule: reference the board/inbox items themselves rather than copying their content, to keep it compact.
+   - step: release the lock via `--magic-advance-close-state-and-unlock`, passing the pass's closing status inline — content, `state: advance-finished`, and the unlock all land in one call now, not two.
 
 # Routine's local procedures
 
