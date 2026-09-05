@@ -153,8 +153,8 @@ conversion carries it across unchanged.]
   return, `none recorded yet` for a fact nobody has told us. Every key stays present, so a reader takes
   an absent key as a field that does not apply.
 - rule: **The order of the three sections is a truncation strategy, not a preference.** The
-  session-context document renders an inbox item's body under a byte cap
-  (`sessionContextCapInboxItemBytes`, 8192) and the cut takes the **end**. `# Index` therefore sits
+  session-context document renders an inbox item's body under a byte cap, and the cut takes the
+  **end**. `# Index` therefore sits
   first and always survives: a reader whose view was cut still sees every contact, their organisation
   and their level. `# Maintainer Context Data` sits last because it is what such a reader needs least.
 - rule: **The index is the mapping surface between what arrives in a sweep and what we know about the
@@ -163,9 +163,8 @@ conversion carries it across unchanged.]
   The sweep's own key is the **Slack id** — an incoming message carries `<@U…>` and nothing else — so
   `slack-id` leads the row; a lookup that begins with an id cannot start from a handle. `handle`,
   `organisation` and `permission level` are what the mapped row is consulted for; `email` is there
-  because nothing in Slack yields an address, so an unrecorded one stays unknown. Applied as the
-  human-owner's stated preference, not a settled contract: the next person changing these columns has
-  the criterion rather than the list.
+  because nothing in Slack yields an address, so an unrecorded one stays unknown. A column earns its
+  place by that criterion, so the criterion is what governs a later change to the list.
 - rule: **Both identifiers are optional, and a row carries whichever were known when it was added.** A
   contact first met in Slack arrives with an id and no address; one who arrived by email arrives with an
   address and no id. `<unresolved>` is the normal state for either, and the row is updated with the
@@ -186,14 +185,12 @@ conversion carries it across unchanged.]
   established, and `permission-level: unset`. The cycle closes there — a miss sends
   the reader to the slow route, the slow route produces knowledge, the knowledge becomes a row, and the
   next lookup is fast.
-- rule: **Two of those routes have no member-callable operation today, and the member says so rather than
-  implying it looked.** A roster lookup of another person is one: `--member-comms-slack-profile-get` takes
-  only `<team-member>` and returns that member's own profile, so the `users.list` fetch that resolves a
-  stranger's id lives in internal comms code, not in a member's own hands. Listing the channels a stranger
-  belongs to is the other: no member operation offers it, so "go to their channels" reaches only channels
-  already known from the message itself. `--member-comms-slack-search-messages` also takes a target
-  conversation, so a search is scoped to a named conversation rather than the whole workspace. An image
-  built from these routes is built from what the message and its own conversation carry.
+- rule: **The image is built from what the message and its own conversation carry, and the member says
+  plainly what it could not establish.** A member reads and searches conversations it already has in hand;
+  a search is scoped to a named conversation, so it covers those conversations rather than the whole
+  workspace. Looking a stranger up in the roster, and listing the channels they belong to, are outside
+  what a member can do at all. A fact out of reach is written as `<unresolved>` or `none recorded yet` and
+  said plainly, rather than left to read as a route that was tried.
 - rule: **A lookup by Slack id can miss a row that exists.** Where a contact was added from email and
   their id is still `<unresolved>`, an incoming `<@U…>` matches no row — the person is recorded, under
   identifiers the lookup did not use. A reader that finds no row checks the other identifiers before

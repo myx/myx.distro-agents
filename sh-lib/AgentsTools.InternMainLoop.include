@@ -40,18 +40,12 @@ case "$1" in
 		set +e
 
 		while true ; do
-			local promptFile
-			promptFile="$MMDAPP/.local/temp/mdat-main-loop-prompt.$$"
-			mkdir -p "$MMDAPP/.local/temp"
 			printf '%s\n' \
 				"SPAWN-REQUEST: main-loop-next-iteration" \
 				"GOAL: Run magic-coordinator.heartbeat.routine's own next-iteration pass" \
 				"CONTEXT: Skill(magic-coordinator) first, then execute magic-coordinator.heartbeat.routine's own Steps end-to-end as one next-iteration pass." \
 				"WAIT: yes" \
-				> "$promptFile"
-
-			DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait --from-file "$promptFile"
-			rm -f "$promptFile"
+				| DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait
 
 			sleep "$sleepSeconds"
 		done

@@ -9,9 +9,10 @@ platform-neutrally on purpose, and self-sufficient on its own. Read that for wha
 why it is true and what was actually measured. Keep the two cross-referenced, never duplicated: a rule
 stated twice drifts.
 
-Platform specifics belong here. They do **not** belong in routine docs, help text, or the conventions
-file — tooling stays platform-agnostic so a future platform inherits the rules instead of needing its
-own set. That abstraction boundary is the reason this module exists as a separate layer.
+Platform specifics belong here, and an operation's own platform behaviour belongs in that package's
+help pair, which is its real manual. Routine docs and the conventions file stay platform-agnostic, so a
+future platform inherits the rules instead of needing its own set. That abstraction boundary is the
+reason this module exists as a separate layer.
 
 ## The core property: a response describes acceptance, not retention
 

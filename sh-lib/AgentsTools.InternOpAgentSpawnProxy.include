@@ -215,14 +215,6 @@ case "$1" in
 		}
 		outputFile="$auditDir/$receiptId.output.log"
 
-		local contextFile
-		contextFile="$MMDAPP/.local/temp/mdat-spawn-proxy-prompt.$$"
-		mkdir -p "$MMDAPP/.local/temp" && : > "$contextFile" || {
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create prompt scratch file" >&2
-			set +e ; return 1
-		}
-		printf '%s\n' "$spawnContext" > "$contextFile"
-
 		local dispatchItemName="" dispatchBriefBody=""
 		if [ "$trackedMode" = "false" ] ; then
 			dispatchItemName="dispatch-$timestamp-spawn-proxy-$$.md"
@@ -243,7 +235,6 @@ case "$1" in
 				--header:upsert:status:dispatch-started \
 				--header:upsert:session-id:"$receiptId" \
 				--log-verb:created || {
-				rm -f "$contextFile"
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: could not create dispatch tracking item $dispatchItemName" >&2
 				set +e ; return 1
 			}
@@ -252,10 +243,9 @@ case "$1" in
 		if [ "$waitMode" = "true" ] ; then
 			local exitCode
 			set +e
-			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto --non-interactive < "$contextFile" > "$outputFile" 2>&1
+			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1
 			exitCode=$?
 			set -e
-			rm -f "$contextFile"
 			if [ "$trackedMode" = "false" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile"
 			fi
@@ -276,10 +266,9 @@ case "$1" in
 
 		(
 			set +e
-			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto --non-interactive < "$contextFile"
+			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto --non-interactive <<< "$spawnContext"
 			bgExitCode=$?
 			set -e
-			rm -f "$contextFile"
 			if [ "$trackedMode" = "false" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile"
 			fi

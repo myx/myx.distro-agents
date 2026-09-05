@@ -24,9 +24,25 @@
 
 import json, sys
 
-TOPLEVELTYPES = {"section","divider","header","context","image","actions","input","video","rich_text","file"}
+TOPLEVELTYPES = {"section","divider","header","context","image","actions","input","video","rich_text","file","table"}
+
+# A table's own three documented maxima. Unlike the 50-block cap they ARE
+# visible here -- a row count and a cell count are properties of the node, and
+# the character budget is a sum over the array this walk already holds.
+TABLEROWMAX = 100
+TABLECELLMAX = 20
+TABLECHARMAX = 10000
 
 problemList = []
+tableCharTotal = 0
+
+
+def cellTextLength(nodeValue):
+	if isinstance(nodeValue, dict):
+		return sum(len(itemValue) if keyName == "text" and isinstance(itemValue, str) else cellTextLength(itemValue) for keyName, itemValue in nodeValue.items())
+	if isinstance(nodeValue, list):
+		return sum(cellTextLength(itemValue) for itemValue in nodeValue)
+	return 0
 
 
 def walkNode(nodeValue, nodePath):
@@ -57,10 +73,24 @@ try:
 		if not isinstance(blockValue, dict) or blockValue.get("type") not in TOPLEVELTYPES:
 			problemList.append('%s: invalid or missing top-level "type" -- mrkdwn/plain_text and the rest are TEXT-OBJECT types, valid only nested inside a block\'s own "text" field, never as a block\'s own "type" (valid top-level types: %s)' % (blockPath, ", ".join(sorted(TOPLEVELTYPES))))
 			continue
+		if blockValue.get("type") == "table":
+			rowList = blockValue.get("rows")
+			if not isinstance(rowList, list) or not rowList:
+				problemList.append('%s: a table carries no row -- Slack rejects a table with nothing in it' % blockPath)
+			else:
+				if len(rowList) > TABLEROWMAX:
+					problemList.append("%s: %d rows -- Slack accepts at most %d in one table" % (blockPath, len(rowList), TABLEROWMAX))
+				for rowIndex, rowValue in enumerate(rowList):
+					if isinstance(rowValue, list) and len(rowValue) > TABLECELLMAX:
+						problemList.append("%s.rows[%d]: %d cells -- Slack accepts at most %d in one row" % (blockPath, rowIndex, len(rowValue), TABLECELLMAX))
+			tableCharTotal += cellTextLength(rowList)
 		walkNode(blockValue, blockPath)
 except Exception as walkFailure:
 	print("blocks: the validator could not finish its own walk, so the payload is unchecked: %s" % walkFailure)
 	sys.exit(1)
+
+if tableCharTotal > TABLECHARMAX:
+	problemList.append("blocks: %d characters across this message's table cells -- Slack accepts at most %d per message, so the content has to be split across messages" % (tableCharTotal, TABLECHARMAX))
 
 for problemLine in problemList:
 	print(problemLine)

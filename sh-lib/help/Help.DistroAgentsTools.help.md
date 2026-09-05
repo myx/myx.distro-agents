@@ -417,6 +417,74 @@
 			way to protect one: a code span's content is taken verbatim and
 			never rescanned.
 
+			**A backslash escapes the punctuation character after it.**
+			CommonMark's own rule, over the full ASCII punctuation set and
+			taken ahead of every other inline construct: `\*` is a literal
+			asterisk that opens no emphasis, `` \` `` a literal backtick
+			that opens no code span, `\@` a literal `@` that resolves no
+			mention, and `\[` a literal bracket that starts no link. A
+			backslash before anything else — a letter, a digit, a space —
+			is left exactly as written. `\|` in a table cell is this same
+			rule reaching the cell splitter first, which is how a literal
+			pipe is written there; it is not a table-only form. The text
+			version of a `markdown` body is that body itself, so the
+			backslash is what reaches the `text` field.
+
+			**`[text](url)` becomes a real link.** Slack already turns a
+			bare url or a bare email address into a clickable one at
+			display time, but only ever labelled with the url itself; this
+			is the way to write one whose visible text differs. That
+			inference is untouched — a bare url beside an explicit link
+			still auto-links. Label and url are consumed in one step, so
+			the url's own `_` and `*` never open emphasis and parentheses
+			inside it nest; the label is taken verbatim, since Slack's link
+			element carries one flat text field. A link works anywhere
+			inline text does, a table cell and a bullet included, and stays
+			literal inside a code span, a fenced block, or a `# ` header.
+			Anything malformed stays literal text and never fails the send:
+			a missing `]`, a `]` with no `(` right behind it, a missing
+			`)`, an empty label or url, or whitespace in the url — that
+			last is CommonMark's own rule for a bare destination, and what
+			keeps `the array [1](see below)` out of a link. The text
+			version of a `markdown` body is that body itself, so the raw
+			`[text](url)` is what reaches the `text` field.
+
+			**A pipe table becomes a real Slack `table` block.** GitHub's
+			pipe shape: a header row, a `|---|---|` delimiter row under it,
+			then one row per line, every line opened by a `|`. The delimiter
+			row is the whole recogniser — a run of pipe lines without one
+			stays plain paragraph text, pipes and all, which is what keeps a
+			line quoting a shell pipeline from becoming a one-column table.
+			A `:` on either side of a delimiter field sets that column's
+			alignment (`:---` left, `:---:` centre, `---:` right); every
+			column is emitted wrapped, so a long cell wraps inside its
+			column instead of being clipped.
+
+			Cells are `rich_text`, not `raw_text`, so a cell takes the same
+			inline grammar as any other line: emphasis, `code` spans, emoji
+			and mentions all render inside a cell. Cells are split before
+			inline styles are parsed, so a `|` inside a code span still ends
+			the cell — `\|` is the one way to write a literal pipe in a
+			cell, and it works inside a code span too. That is GFM's own
+			rule, verified against pandoc's GFM reader, not a local choice.
+
+			**A ragged table is squared off, never refused.** Rows are
+			padded with empty cells to the widest row in the table — the
+			widest row, not the header's width, so a header shorter than its
+			body gains columns rather than deleting them. Nothing is
+			truncated and nothing is rejected: strict GFM would refuse the
+			whole table when the header and delimiter cell counts disagree
+			and hand back a line of literal pipes, which is a far worse
+			answer for a message that is otherwise fine.
+
+			Slack's own table maxima — 100 rows, 20 cells per row, and
+			10,000 characters across every table cell in one message — are
+			checked before the send and fail it by name if exceeded, rather
+			than being silently truncated here or rejected by Slack after
+			the fact. The text version of a `markdown` body is that body
+			itself, so a table reaches the `text` field and the notification
+			as written, pipes and all.
+
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-contact-digest-send <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>

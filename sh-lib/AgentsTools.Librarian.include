@@ -16,14 +16,11 @@ case "$1" in
 			shift
 			local skillRoot="$HOME/.claude/skills"
 			local hadError="false"
-			local pathsTmp
-			pathsTmp="$( mktemp )" || { set +e ; return 1 ; }
-			trap 'rm -f "$pathsTmp"' EXIT
+			local findRoots=()
 
 			if [ $# -eq 0 ] ; then
-				find -L "$skillRoot" -type f -name '*.md' 2>/dev/null > "$pathsTmp" || true
+				findRoots=( "$skillRoot" )
 			else
-				: > "$pathsTmp"
 				while [ $# -gt 0 ] ; do
 					local argPath="$1"
 					shift
@@ -45,16 +42,17 @@ case "$1" in
 						hadError="true"
 						continue
 					fi
-					find -L "$resolvedPath" -type f -name '*.md' 2>/dev/null >> "$pathsTmp" || true
+					findRoots+=( "$resolvedPath" )
 				done
 			fi
 
-			while IFS= read -r f ; do
-				printf '%s\n' "${f#"$skillRoot"/}"
-			done < "$pathsTmp" | sort
+			## No roots survived validation: find with no path would walk the cwd.
+			if [ ${#findRoots[@]} -gt 0 ] ; then
+				find -L "${findRoots[@]}" -type f -name '*.md' 2>/dev/null | while IFS= read -r foundPath ; do
+					printf '%s\n' "${foundPath#"$skillRoot"/}"
+				done | sort
+			fi
 
-			rm -f "$pathsTmp"
-			trap - EXIT
 			if [ "$hadError" = "true" ] ; then
 				set +e ; return 1
 			fi
@@ -65,14 +63,11 @@ case "$1" in
 			shift
 			local skillRoot="$HOME/.claude/skills"
 			local hadError="false"
-			local pathsTmp
-			pathsTmp="$( mktemp )" || { set +e ; return 1 ; }
-			trap 'rm -f "$pathsTmp"' EXIT
+			local findRoots=()
 
 			if [ $# -eq 0 ] ; then
-				find -L "$skillRoot" -type f -name '*.md' 2>/dev/null > "$pathsTmp" || true
+				findRoots=( "$skillRoot" )
 			else
-				: > "$pathsTmp"
 				while [ $# -gt 0 ] ; do
 					local argPath="$1"
 					shift
@@ -94,19 +89,20 @@ case "$1" in
 						hadError="true"
 						continue
 					fi
-					find -L "$resolvedPath" -type f -name '*.md' 2>/dev/null >> "$pathsTmp" || true
+					findRoots+=( "$resolvedPath" )
 				done
 			fi
 
-			while IFS= read -r f ; do
-				local mtime relPath
-				mtime="$( stat -f '%Sm' -t '%Y-%m-%d %H:%M:%S' "$f" 2>/dev/null || stat -c '%y' "$f" 2>/dev/null | cut -c1-19 )"
-				relPath="${f#"$skillRoot"/}"
-				printf '%s  %s\n' "$mtime" "$relPath"
-			done < "$pathsTmp" | sort -r
+			## No roots survived validation: find with no path would walk the cwd.
+			if [ ${#findRoots[@]} -gt 0 ] ; then
+				find -L "${findRoots[@]}" -type f -name '*.md' 2>/dev/null | while IFS= read -r foundPath ; do
+					local mtime relPath
+					mtime="$( stat -f '%Sm' -t '%Y-%m-%d %H:%M:%S' "$foundPath" 2>/dev/null || stat -c '%y' "$foundPath" 2>/dev/null | cut -c1-19 )"
+					relPath="${foundPath#"$skillRoot"/}"
+					printf '%s  %s\n' "$mtime" "$relPath"
+				done | sort -r
+			fi
 
-			rm -f "$pathsTmp"
-			trap - EXIT
 			if [ "$hadError" = "true" ] ; then
 				set +e ; return 1
 			fi

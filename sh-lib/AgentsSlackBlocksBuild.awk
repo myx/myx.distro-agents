@@ -27,6 +27,11 @@
 #                    for bold/italic" treatment the inline "`text`" code span
 #                    already gets below) and flushed as one real Slack
 #                    `rich_text_preformatted` block on close.
+#   "| a | b |"   -> a pipe-table row, but only once a "|---|---|" delimiter
+#                    line arrives under it; without one the pipe lines stay
+#                    plain paragraph text. Emits one Slack `table` block --
+#                    see Help.DistroAgentsTools.help.md for the cell grammar
+#                    and MAGIC.md for why the delimiter row is the recogniser.
 #   ""            -> ends the current paragraph/list run
 #   anything else -> a plain-paragraph line
 # Deeper indents (6+ leading spaces) aren't a supported bullet shape -- they
@@ -36,39 +41,33 @@
 # Recognized inline, within a paragraph or bullet-item line's own text (never
 # inside a "# " header line -- Slack's `header` block is `plain_text`, which
 # has no rich-text/style support at all):
-#   "**text**" / "*text*" -> bold (any run of one-or-more "*" on both sides;
-#                            "**" and "*" are interchangeable, not two
-#                            separate levels)
-#   "_text_"               -> italic (single "_" only, and only where it
-#                            sits at a word boundary -- an "_" with a
-#                            letter/digit immediately on its outward side,
-#                            e.g. "some_var_name", never opens or closes a
-#                            span, so identifier-shaped text stays literal)
-#   "`text`"               -> code (single "`" only, no word-boundary rule --
-#                            unlike "_", a bare "`" isn't part of ordinary
-#                            word-shaped text, so it's always delimiter-
-#                            significant; its content is taken verbatim, not
-#                            re-scanned for bold/italic, same as any other
-#                            span's content below)
-#   "**_text_**"            -> bold+italic combined (one specific pattern,
-#                            not general nesting): EXACTLY a "**" run (not 1,
-#                            not 3+) immediately wrapping a word-boundary-
-#                            respecting "_..._" span, closed by EXACTLY "**"
-#                            right after the closing "_". A single "*"
-#                            wrapping "_text_" (e.g. "*_text_*") does NOT
-#                            combine -- it stays today's plain-bold-with-
-#                            literal-underscores behavior, since only the
-#                            exact double-asterisk shape is recognized here.
-#                            Because the "_" always sits immediately against
-#                            an asterisk on its outward side in this shape,
-#                            italic's own word-boundary rule is trivially
-#                            satisfied by construction and never rejects it.
-# An unmatched delimiter, or a delimiter pair with nothing between (e.g.
-# "****"), is never consumed as a span -- it passes through as literal text.
-# No nesting beyond the one "**_text_**" combined case above (bold-inside-
-# italic any other way, code-inside-either, or vice versa) and no escaping
-# ("\*") -- same "restricted, not general" floor as the per-line syntax
-# above.
+#   "\*"                   -> a literal "*": CommonMark's backslash escape,
+#                            over the full ASCII punctuation set, taken
+#                            AHEAD of every branch below -- so "\`" opens no
+#                            code span and "\*" opens no delimiter run.
+#   "`text`"               -> code, first branch after the escape; content is
+#                            taken verbatim, never re-scanned for emphasis.
+#   "@name"                -> a real rich_text mention where the name resolves.
+#   "[text](url)"          -> a real rich_text `link` element, the label in
+#                            "text" and the target in "url". Both consumed in
+#                            ONE step, so the url's own "_" and "*" never
+#                            open a delimiter run and the label is verbatim.
+#   "*x*" / "_x_"          -> italic; "**x**" / "__x__" -> bold. CommonMark
+#                            emphasis, not an invented subset: delimiter
+#                            runs and the left/right-flanking predicates, in
+#                            processEmphasis() below. ONE delimiter is
+#                            italic, TWO is bold, and BOTH "*" and "_" carry
+#                            both meanings. "_" takes the spec's stricter
+#                            open/close predicates, which is why an
+#                            intra-word run ("some_var_name") stays literal
+#                            by the spec rather than by a guard of ours.
+# An unmatched delimiter, or a pair with nothing between (e.g. "****"), is
+# never consumed as a span and passes through as literal text. Slack's
+# rich_text cannot nest emphasis, so nested emphasis flattens into one
+# combined style set rather than nesting. Full grammar (the one ruled
+# flanking departure, the malformed-link rules): see
+# Help.DistroAgentsTools.help.md's --member-comms-slack-send-message section;
+# for why each is shaped that way, MAGIC.md's own headings for this file.
 #
 # Consecutive lines of the same kind merge into ONE run, same "paragraph/
 # list run" concept the help text uses: consecutive plain lines join
@@ -105,6 +104,8 @@ BEGIN {
 	listRun = ""    # rich_text_list elements accumulated for the whole current list run
 	inFence = 0     # 0 | 1 -- inside a ``` ... ``` fenced code block
 	fenceLineCount = 0
+	tableRowCount = 0
+	tableSepLine = ""
 	## In-body mention map, supplied by the send path as "name=Uxxx;name2=Uyyy"
 	## via -v mentionMap=. A name absent from it renders as a literal "@name"
 	## and NEVER fails the send -- same failover family as a missing icon
@@ -146,6 +147,14 @@ function styledElem(text, style) {
 ## version cannot be derived from this one.
 function mentionElem(userId) {
 	return "{\"type\":\"user\",\"user_id\":\"" jsonEscapeLine(userId) "\"}"
+}
+
+## A real Slack link: the structured "link" element, target in "url" and
+## visible label in "text". Both are optional to Slack and neither is optional
+## here -- an element with no label renders as the bare url, which is what
+## Slack's own auto-linkification already produces from plain text.
+function linkElem(labelText, targetUrl) {
+	return "{\"type\":\"link\",\"url\":\"" jsonEscapeLine(targetUrl) "\",\"text\":\"" jsonEscapeLine(labelText) "\"}"
 }
 
 function appendElem(list, elem) {
@@ -261,6 +270,7 @@ function emitTokens(   t, out, curText, curB, curI) {
 		if (curText != "") { out = appendElem(out, styleElem(curText, curB, curI)) ; curText = "" }
 		if (tkType[t] == "code") out = appendElem(out, styledElem(tkText[t], "code"))
 		else if (tkType[t] == "mention") out = appendElem(out, mentionElem(tkText[t]))
+		else if (tkType[t] == "link") out = appendElem(out, linkElem(tkText[t], tkUrl[t]))
 	}
 	if (curText != "") out = appendElem(out, styleElem(curText, curB, curI))
 	return out
@@ -291,12 +301,13 @@ function emitTokens(   t, out, curText, curB, curI) {
 ## different things and neither constrains the other -- nested emphasis has no
 ## Block Kit representation, so it flattens into a combined style set.
 function parseInlineStyles(line,   n, i, j, k, c, closeIdx, spanText, mname, runLen,
-                                   prevCh, nextCh, beforeSp, beforePu, afterSp, afterPu, lf, rf) {
+                                   prevCh, nextCh, beforeSp, beforePu, afterSp, afterPu, lf, rf,
+                                   labelEnd, urlEnd, parenDepth, linkLabel, linkTarget) {
 	n = length(line)
 	nTok = 0
 	split("", tkType) ; split("", tkText) ; split("", tkChar)
 	split("", tkLen) ; split("", tkOrigLen) ; split("", tkOpen)
-	split("", tkClose) ; split("", tkB) ; split("", tkI)
+	split("", tkClose) ; split("", tkB) ; split("", tkI) ; split("", tkUrl)
 	i = 1
 	while (i <= n) {
 		c = substr(line, i, 1)
@@ -329,6 +340,44 @@ function parseInlineStyles(line,   n, i, j, k, c, closeIdx, spanText, mname, run
 			while (k <= n && substr(line, k, 1) != " " && substr(line, k, 1) != "\t") k++
 			mname = substr(line, i + 1, k - i - 1)
 			if (mname != "" && (mname in mention)) { addTok("mention", mention[mname], "", 0) ; i = k ; continue }
+			addTok("text", c, "", 0) ; i++
+			continue
+		}
+		## Link AFTER the code-span branch too, and inheriting its exclusion the
+		## same way the mention branch does: a "[a](b)" inside a code span never
+		## reaches here, because the backtick arrives first and takes the span
+		## verbatim. Ahead of the emphasis branch is where the url's own "_" and
+		## "*" are settled -- the whole construct is consumed in ONE step, so
+		## they never become delimiter runs at all and "http://x/a_b_c" cannot
+		## italicise. Parens nest, so a url ending in "(bar)" closes correctly.
+		if (c == "[") {
+			labelEnd = 0
+			k = i + 1
+			while (k <= n) { if (substr(line, k, 1) == "]") { labelEnd = k ; break ; } ; k++ ; }
+			urlEnd = 0
+			if (labelEnd > 0 && substr(line, labelEnd + 1, 1) == "(") {
+				parenDepth = 1
+				k = labelEnd + 2
+				while (k <= n) {
+					if (substr(line, k, 1) == "(") parenDepth++
+					else if (substr(line, k, 1) == ")") { parenDepth-- ; if (parenDepth == 0) { urlEnd = k ; break ; } }
+					k++
+				}
+			}
+			linkLabel = (urlEnd > 0) ? substr(line, i + 1, labelEnd - i - 1) : ""
+			linkTarget = (urlEnd > 0) ? substr(line, labelEnd + 2, urlEnd - labelEnd - 2) : ""
+			## Anything malformed stays literal text and never fails the send --
+			## same posture as an unresolvable mention. That covers a missing
+			## "]", a "]" with no "(" right behind it, a missing ")", an empty
+			## label and an empty url. Whitespace in the url is CommonMark's own
+			## rule for a bare destination, and it is what keeps ordinary prose
+			## such as "the array [1](see below)" out of a link to "see below".
+			if (linkLabel != "" && linkTarget != "" && linkTarget !~ /[ \t]/) {
+				addTok("link", linkLabel, "", 0)
+				tkUrl[nTok] = linkTarget
+				i = urlEnd + 1
+				continue
+			}
 			addTok("text", c, "", 0) ; i++
 			continue
 		}
@@ -432,9 +481,94 @@ function flushFence(    i, elems) {
 	emitBlock("{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_preformatted\",\"elements\":[" elems "]}]}")
 }
 
+## Splits one raw table row into rowCell[1..rowCellCount] on unescaped "|",
+## dropping the outer pipes and trimming each cell. This splitter knows nothing
+## about code spans on purpose: GFM's own table extension splits on a pipe even
+## inside one, and gives "\|" as the single way to write a literal pipe in a
+## cell -- so "\|" is consumed HERE, which is what makes it work inside a code
+## span too, where parseInlineStyles takes content verbatim and would leave the
+## backslash showing. Every other escape passes through untouched for
+## parseInlineStyles to resolve. Verified against pandoc's GFM reader.
+function splitRowCells(rowText,   charPos, rowLen, curChar, cellText, cellIndex) {
+	rowCellCount = 0
+	split("", rowCell)
+	if (substr(rowText, 1, 1) == "|") rowText = substr(rowText, 2)
+	cellText = ""
+	rowLen = length(rowText)
+	for (charPos = 1; charPos <= rowLen; charPos++) {
+		curChar = substr(rowText, charPos, 1)
+		if (curChar == "\\" && charPos < rowLen) {
+			cellText = cellText ((substr(rowText, charPos + 1, 1) == "|") ? "|" : curChar substr(rowText, charPos + 1, 1))
+			charPos++
+			continue ;
+		}
+		if (curChar == "|") { rowCell[++rowCellCount] = cellText ; cellText = "" ; continue ; }
+		cellText = cellText curChar
+	}
+	rowCell[++rowCellCount] = cellText
+	## A trailing "|" leaves one empty field behind it -- punctuation, not a cell.
+	if (rowCellCount > 1 && rowCell[rowCellCount] == "") rowCellCount--
+	for (cellIndex = 1; cellIndex <= rowCellCount; cellIndex++) {
+		sub(/^[ \t]+/, "", rowCell[cellIndex])
+		sub(/[ \t]+$/, "", rowCell[cellIndex])
+	}
+}
+
+## The "|---|:--:|" line under a header row: every field a run of dashes, with
+## an optional ":" on either side selecting that column's alignment.
+function isSeparatorRow(rowText,   cellIndex) {
+	if (substr(rowText, 1, 1) != "|") return 0
+	splitRowCells(rowText)
+	if (rowCellCount < 1) return 0
+	for (cellIndex = 1; cellIndex <= rowCellCount; cellIndex++) {
+		if (rowCell[cellIndex] !~ /^:?-+:?$/) return 0
+	}
+	return 1
+}
+
+## Emits the accumulated table run as one Slack `table` block. Cells are
+## rich_text, not raw_text, so bold, a "`code`" span, an emoji and a mention
+## keep working inside a cell -- raw_text would render every one of them as
+## literal characters. Rows are PADDED to the widest row's own cell count:
+## real tables arrive ragged, and padding is the only reshaping that neither
+## drops a column of data nor refuses the whole message over it.
+function flushTable(    rowIndex, cellIndex, colCount, rowsJson, cellsJson, cellElems, alignJson, alignName) {
+	if (tableRowCount == 0) return
+	colCount = 0
+	for (rowIndex = 1; rowIndex <= tableRowCount; rowIndex++) {
+		splitRowCells(tableRows[rowIndex])
+		if (rowCellCount > colCount) colCount = rowCellCount
+	}
+	if (colCount < 1) colCount = 1
+	splitRowCells(tableSepLine)
+	alignJson = ""
+	for (cellIndex = 1; cellIndex <= colCount; cellIndex++) {
+		alignName = "left"
+		if (cellIndex <= rowCellCount && rowCell[cellIndex] ~ /^:-+:$/) alignName = "center"
+		else if (cellIndex <= rowCellCount && rowCell[cellIndex] ~ /^-+:$/) alignName = "right"
+		alignJson = appendElem(alignJson, "{\"align\":\"" alignName "\",\"is_wrapped\":true}")
+	}
+	rowsJson = ""
+	for (rowIndex = 1; rowIndex <= tableRowCount; rowIndex++) {
+		splitRowCells(tableRows[rowIndex])
+		cellsJson = ""
+		for (cellIndex = 1; cellIndex <= colCount; cellIndex++) {
+			cellElems = (cellIndex <= rowCellCount) ? parseInlineStyles(rowCell[cellIndex]) : ""
+			## A padded or empty cell still carries one element: Slack rejects a
+			## childless "elements" array wherever it sits.
+			if (cellElems == "") cellElems = "{\"type\":\"text\",\"text\":\" \"}"
+			cellsJson = appendElem(cellsJson, "{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[" cellElems "]}]}")
+		}
+		rowsJson = appendElem(rowsJson, "[" cellsJson "]")
+	}
+	tableRowCount = 0
+	emitBlock("{\"type\":\"table\",\"column_settings\":[" alignJson "],\"rows\":[" rowsJson "]}")
+}
+
 function flushRun() {
 	if (runKind == "para") flushPara()
 	else if (runKind == "list") flushList()
+	else if (runKind == "table") flushTable()
 	runKind = ""
 }
 
@@ -465,6 +599,25 @@ function emitHeader(text) {
 
 	if (line == "") {
 		flushRun()
+		next
+	}
+
+	if (runKind == "table" && substr(line, 1, 1) == "|") {
+		tableRows[++tableRowCount] = line
+		next
+	}
+
+	## A table is recognised by its "|---|---|" line, looking BACK at the row
+	## already sitting in the open paragraph run -- which is what lets a pipe
+	## line that never gets one stay ordinary paragraph text, with no
+	## lookahead and no run to roll back. The header row leaves the paragraph
+	## and any prose above it flushes as its own block.
+	if (runKind == "para" && paraLineCount > 0 && substr(paraLines[paraLineCount], 1, 1) == "|" && isSeparatorRow(line)) {
+		tableRowCount = 0
+		tableRows[++tableRowCount] = paraLines[paraLineCount--]
+		flushPara()
+		runKind = "table"
+		tableSepLine = line
 		next
 	}
 

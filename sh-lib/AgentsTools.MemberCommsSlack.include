@@ -1657,7 +1657,35 @@ case "$1" in
 			sourceText="${textArgs# }"
 		fi
 
-		local slackMentionMap=""
+		## In-body "@name" mentions, through the same resolver and the same
+		## per-lock-cycle cache the header's addressee field uses. Only names
+		## this body carries are resolved; one absent from the map stays
+		## literal text, and never fails the send.
+		local slackMentionMap="" mentionName mentionId
+		for mentionName in $( printf '%s\n' "$sourceText" | LC_ALL=C awk '
+			{
+				rest = $0 ;
+				while ( ( at = index( rest, "@" ) ) > 0 ) {
+					rest = substr( rest, at + 1 ) ;
+					## The same "@"-to-next-space run the converter itself
+					## takes: a shorter one keys the map on a name it never
+					## looks up. Code spans and fences are excluded by the
+					## converter itself, so an over-wide scan converts nothing.
+					name = rest ;
+					sub( /[[:space:]].*$/, "", name ) ;
+					if ( name ~ /^[A-Za-z0-9._-]+$/ && name !~ /^[-.]/ && !( name in seen ) ) {
+						seen[name] = 1 ;
+						print name ;
+					}
+					rest = substr( rest, length( name ) + 1 ) ;
+				}
+			}
+		' ) ; do
+			[ -d "$HOME/.claude/skills/$mentionName" ] || continue
+			mentionId="$( AgentsToolsCommsSlackMentionUserId "$mentionName" )" || mentionId=""
+			[ -n "$mentionId" ] || continue
+			slackMentionMap="$slackMentionMap${slackMentionMap:+;}$mentionName=$mentionId"
+		done
 
 		local slackFormatRegistry="markdown|converter|body|argv stdin file
 blocks|verbatim|caller|stdin file"

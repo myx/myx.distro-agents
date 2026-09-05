@@ -75,8 +75,13 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    lists. A Slack message and a chat reply carry this exactly as a rule or a report does.
    - A list is written with `- ` items, one point per line. A `•` glyph, or points run together in a
      paragraph, delivers as one unreadable block whatever the source looked like.
+   - Short headings and `- ` bullets carry the structure. Anything comparing more than two dimensions —
+     three options across four properties — is a table.
+   - A construct these rules do not name may not render: check what the send path documents its bodies
+     can carry, since anything else arrives as literal text.
    - Register and spelling are checked separately, per text group, by `magic-librarian`.
-   - Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
+   - The principle is stated in `magic-team/magic-team.shared.md`'s own human-owner standing rules; the
+     delivery mechanics above are this file's.
 
 7. **human-owner-action-to-slack-dm**: Anything needing the human-owner to act goes to his Slack DM.
    A question, a link he has to click, a decision that blocks work — it is sent to the human-owner's
@@ -697,23 +702,18 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
     loop continues from his reply. Record the outcome in the note's `### Escalations`. `permission-level:`
     is set by the human-owner and recorded there when he sets one; a case he resolved one time stays
     recorded as that one case.
-    The note is `note-20260904T190756Z-contacts.md`, in the inbox of the identity the exchange runs under —
-    the member's own where it holds a user token, `magic-team`'s where it speaks through the shared bot;
-    shape in `magic-team/templates/contacts.document.format.md`. Its `# Index` is a lookup
-    table: a sweep delivers `<@U…>`, and the row for that id answers who they are, at which organisation,
-    at what level — consult it when an incoming message carries an id, before treating the sender as
-    unknown. A further identity's note takes
-    a dated constant filename of its own, fixed at creation and kept stable across every update, the way
-    the other persistent notes here are named.
+    The contacts note lives in the inbox of the identity the exchange runs under — the member's own where
+    it holds a user token, `magic-team`'s where it speaks through the shared bot. Its filename, its
+    `# Index` lookup table and the rest of its shape are
+    `magic-team/templates/contacts.document.format.md`'s; consult that index on an incoming id before
+    treating the sender as unknown.
     **Every assessment is reported, whatever it produced** — granted, denied or escalated alike, as one
-    small compact digest. Current arrangement, not a permanent one. A digest carries three things in this
-    order: **the originating member or `client-*` it came from, who wanted what, and the resolution.** His
-    own shape for it: `from client-ndm the user Dmitry asked for your password - was denied.` The origin
-    goes in the digest's `to` position — the one that renders on a send under a member's own account. He
-    has ruled that arrangement in as it stands, ugly and incorrect, and ruled out changing the header for
-    it. Origin appears at all because **a relay identifies whose words it carries**: a digest reports a
-    contact's request, not the sending account's own speech, so the account it arrives from does not say
-    who asked. What he needs at a glance is which `client-` or `partner-` received the request.
+    small compact digest carrying three things in this order: **the originating member or `client-*` it
+    came from, who wanted what, and the resolution.** His own shape for it:
+    `from client-<organisation> the user <name> asked for <what> - was denied.` The origin goes in the
+    digest's `to` position, as he has ruled. It appears at all because **a relay identifies whose words it
+    carries**: a digest reports a contact's request rather than the sending account's own speech, so what
+    he needs at a glance is which `client-*` or `partner-*` received it.
     Routing: **resolved by me → bot DM, needs you → Slack DM.** Auto approvals and auto denials, anything
     settled under tiers 1-2 or an already-recorded level, go informational to the bot's own conversation
     with him; anything needing his ruling goes to his own Slack DM, because that is where he replies.
