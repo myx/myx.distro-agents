@@ -3044,30 +3044,39 @@
 			its whole stdin and is not parsed here -- no field inside it
 			selects a mode, `--wait` included.
 
-			Two tracking outcomes. The two input-path groups differ by
-			design, not by oversight, and neither writes a private receipt
-			file. A --from-board/--from-vault/--from-audit call already
-			names an existing tracking document, so NO new item is
-			written and the call prints `TRACKING_ITEM=<name>` instead. A
-			stdin/--from-file call is ad-hoc, with no document behind it
-			yet, so it DOES create one: a `dispatch-*` board-item in
+			Dispatch-document handling is an explicit choice on the
+			underlying --intern-op-agent-spawn-proxy primitive
+			(--dispatch-doc:create|reuse|none), decoupled from the input
+			source; this relay crafts the value its own call needs, so no
+			extra flag is passed here, and neither path writes a private
+			receipt file. A --from-board/--from-vault/--from-audit call
+			reuses the board item it already names as its tracking
+			document: NO new item is written, and the call prints
+			`DISPATCH_DOC=reuse` with `TRACKING_ITEM=<name>`. A
+			stdin/--from-file call — the main-loop relay path — creates NO
+			dispatch document at all: it prints `DISPATCH_DOC=none` and no
+			item key (this is what cleared the board-running
+			`dispatch-*-spawn-proxy` pile-up). The primitive also offers a
+			`create` mode — a fresh `dispatch-*` board-item in
 			board-running up front (verbatim prompt as its own "## Brief",
 			under a frontmatter block carrying `owner`, `status` and
-			`session-id`), and the same item is updated in place on
-			completion — a `status:` header moving from `dispatch-started`
-			to `dispatch-succeeded`/`dispatch-failed`, `resolved-at`
-			stamped, and a real "## Result" section appended — printed as
-			`DISPATCH_ITEM=<name>`. Async spawns close their own dispatch
-			item from a background subshell once the child exits, so
-			closure happens even though the call itself already returned.
+			`session-id`), updated in place on completion (a `status:`
+			moving from `dispatch-started` to
+			`dispatch-succeeded`/`dispatch-failed`, `resolved-at` stamped,
+			a "## Result" section appended), printed as
+			`DISPATCH_ITEM=<name>`, with async spawns closing it from a
+			background subshell once the child exits — but this relay never
+			selects `create`; that is for a stub crafted to want a fresh
+			dispatch document.
 
 			Default mode is async (returns STATUS=started + PID); --wait
 			blocks for completion and returns non-zero on failure. Printed
-			keys in full: RECEIPT_ID (a correlation id) always; exactly
-			one of TRACKING_ITEM/DISPATCH_ITEM, per the two outcomes
-			above; STATUS always, accompanied by PID on the async path and
-			by EXIT_CODE on the --wait path; and OUTPUT_FILE always — the
-			spawned process's own raw stdout/stderr, written under
+			keys in full: RECEIPT_ID (a correlation id) always; DISPATCH_DOC
+			(create|reuse|none) always; then TRACKING_ITEM on the reuse
+			path or DISPATCH_ITEM on the create path (none-mode prints
+			neither); STATUS always, accompanied by PID on the async path
+			and by EXIT_CODE on the --wait path; and OUTPUT_FILE always —
+			the spawned process's own raw stdout/stderr, written under
 			`$MDAT_DATA_ROOT/audit/<YYYY-MM>/`. No RECEIPT_FILE key is
 			written or printed on any path.
 

@@ -46,9 +46,9 @@ Named procedure blocks. Steps below call them by name. Not separate routines —
 ## `daily-idle-task` - pick and run one idle activity, log the outcome
 
 Steps:
-1. Pick one at random from `idle-tasks/*.idle.md`.
-2. Run only that candidate's own instructions.
-3. Log the activity and its outcome as a new dated file under `processed/`.
+1. Select one eligible idle-run routine from this member's own `## Idle-Tasks` section (weighted-random by `weight`, honoring each entry's `min-interval` cap and `scope`); the universal research-own-duties activity is always one more eligible candidate.
+2. Run that routine's own procedure — its `<member>.<name>.routine.md` file — following its Steps and Closure steps.
+3. Logging the activity and its outcome as a new dated file under `processed/` is the selected routine's own Closure step.
 
 ## `<local-procedure-name>` — [goal+intent short summary]
 
@@ -68,6 +68,10 @@ All statements apply at the same time, always. These rules override a magic-team
 # Domain knowledge: <topic>
 
 [This member's own reference material, or `: none`.]
+
+## Idle-Tasks
+
+[Scheduling policy for this member's idle-run routines — one entry per idle-run `<member>.<name>.routine`, each stating its relative `weight`, its `min-interval` (wall-clock "not more frequent than" cap), and its `scope`. The `## daily-idle-task` procedure selects from this list — weighted-random among eligible entries — never from a directory listing; a routine not listed here is not idle-run. The universal research-own-duties activity is always one more eligible candidate beyond the listed routines. Omit this subsection only if the member has no idle-run routines at all.]
 
 # Team-Member's (-specific) tooling
 

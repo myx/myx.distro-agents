@@ -42,17 +42,13 @@ No member-specific glossary terms for this member.
 
 Named procedure blocks. Steps below call them by name. Not separate routines - not visible outside this file.
 
-## `grooming-scores-review` - review open backlog items and set/refine RICE-style scores in this skill's own domain
+## `grooming-scores-review` - select and run this skill's idle-run scoring routine
 
 Standing idle-activity, triggered when nothing else is pending — the coordinator dispatches it, or this skill runs it solo.
 
 Steps:
-1. Load `idle-tasks/grooming-scores.idle.md` (this skill's own idle-task file).
-2. Review open backlog items under `board-running` (and `blocked/`/`parked/`) that fall in this skill's own domain of judgment — the board is the sole live backlog source.
-3. Set or refine RICE-style scores for those items, per the scoring model in `magic-coordinator/RICE-SCORING.md`. For a structural score (risk, coupling, blast radius):
-   - rule: that scenario + sensitivity point IS the one line of reasoning recorded on the item -- not the score alone.
-   - step: name the concrete scenario this item affects (what breaks, under what condition) -- not "this is risky," the actual failure mode.
-   - step: identify the sensitivity point -- which single design choice, if changed, most affects that scenario's outcome.
+1. Read this file's own `## Idle-Tasks` section (below) and select one eligible idle-run routine from it: weighted-random by each entry's `weight`, considering only entries whose `min-interval` has elapsed since that routine's last run and whose `scope` fits the current duty context. The universal research-own-duties activity is always one more eligible candidate beyond the listed routines.
+2. Run that routine's own procedure — currently `magic-architect.grooming-scores.routine` (the RICE-scoring pass over open board items in this skill's domain) — following its Steps and Closure steps.
 
 # Team-Member's (-specific) local rules
 
@@ -67,9 +63,16 @@ All statements apply at the same time, always. These rules override a magic-team
 - MUST NOT execute any `DistroAgentsTools` operation not listed in this file's own Tooling section below, in `magic-team`'s own shared/floor tooling, or in the "Routine-specific tooling" section of a routine this member is currently participating in.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way — never Bash, Python, or any other direct-execution tool.
 
-# Domain knowledge: none
+# Domain knowledge: idle-run scheduling
 
-No additional reference material beyond what's already in Goals/Scope.
+No domain reference material beyond what's already in Goals/Scope; this section carries only this member's idle-run scheduling policy.
+
+## Idle-Tasks
+
+Scheduling policy for this member's idle-run routines: which routine may fire during duty time when no active board item is assigned to run, its relative selection `weight`, its `min-interval` (wall-clock "not more frequent than" cap, measured from that routine's last run), and the `scope` it runs against. The `## grooming-scores-review` procedure selects from this list — weighted-random among eligible entries — never from a directory listing; a routine not listed here is not idle-run. Weights and min-intervals are provisional defaults pending human-owner ratification (the source idle activity stated a "standing daily" cadence but no explicit weights).
+
+- `magic-architect.grooming-scores.routine` — weight: 1, min-interval: 24h, scope: open `board-backlog`/`board-running`/`board-blocked`/`board-parked` items in this skill's architecture-level domain of judgment
+- universal research-own-duties activity (web-search per `magic-team/magic-team.armed.md`'s "Duties: three kinds, plus reflection") — weight: 1, min-interval: 24h, scope: this member's own macro-design domain — the always-available "one more candidate," not a `.routine.md` file
 
 # Team-Member's (-specific) tooling
 
@@ -110,7 +113,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `idle-tasks/grooming-scores.idle.md` — the daily-idle RICE-scoring activity.
+- `magic-architect.grooming-scores.routine` — the idle-run RICE-scoring routine; its scheduling policy is this file's own `## Idle-Tasks` section.
 - `magic-tester` — security/CRA-style due-diligence overlap.
 - The relevant `partner-*` — infra/deployment topology questions that still fall under this skill's own lens.
 - `magic-team/magic-team.armed.md` — "Duties: three kinds, plus reflection" section (shared web-search idle-duty shape/definition).
@@ -118,4 +121,4 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Conventions
 
-- `idle-tasks/*.idle.md` and `inbox/*.md` are work-queue/idle-picker state, not baseline active-duty knowledge — don't fold them into this member's own conventions.
+- Idle-run routines (`magic-architect.*.routine.md`) are designated idle-run solely by this file's own `## Idle-Tasks` section, and `inbox/*.md` is work-queue state — neither is baseline active-duty knowledge to fold into this member's own conventions.

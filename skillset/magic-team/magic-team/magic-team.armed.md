@@ -23,7 +23,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Define the `board-item`/inbox entity model, the team's shared terminology, escalation/chain-of-command, and the cross-cutting operating-discipline rules every member follows.
 - Doesn't:
   - Do domain work itself, or make decisions — not a domain skill.
-  - Restate the routine-\*-as-virtual-member model or the typed-suffix skill-folder file-format spec — that is `magic-team.shared.md`'s own territory.
+  - Restate the typed-suffix skill-folder file-format model (routines are one typed suffix in it) — that is `magic-team.shared.md`'s own territory.
   - Restate the full board-state model and transition rules — that is `magic-team.board.md`'s own territory.
   - Restate the per-acting-member roster/persona data — that is `roster-note` / `personas-note`'s own territory (`magic-coordinator`'s own inbox notes).
   - Resolve either of the two deliberately-deferred items above.
@@ -61,6 +61,7 @@ When a term below appears quoted, especially `` `like-this` ``, it carries the s
 - `magic-team.interview.routine` — precise, collection-only capture of another party's vision, routine name.
 - `magic-team.process-inbox.routine` — general per-owner inbox processing, routine name.
 - `magic-team.process-reflections.routine` — learned-lesson memory-file consolidation, routine name.
+- `magic-team.proposal.routine` — propose→work-out→approve to the human-owner in one standing thread, routine name.
 - `main-loop-mode` — `magic-coordinator`'s own persistent autonomous-iteration mode, kept working without a human prompting each step. Mechanics are `magic-coordinator`'s own local detail.
 - `slack-magic-team` — the `#magic-team` Slack channel. Use `magic-tooling`, or relay through `magic-coordinator` if present.
 - `slack-event-track` — the `#bot-messages` Slack channel. Use `magic-tooling`, or relay through `magic-coordinator` if present.
@@ -204,7 +205,7 @@ Standing behavioral rules for any member doing implementation, investigation, or
 Every member's own work is exactly one of three kinds, plus a universal step that follows any of them.
 
 - **Assigned work** — normal daily tasks and explicit dispatches, from the board or a direct instruction. The default source of work — nothing to pick, just done.
-- **Idle-task work** — only when a member is idle (no active, non-blocked todos). Pick one candidate at random: this skill's own idle-task menu, or the universal research-own-duties activity every member carries. Work it in small steps — find candidates → investigate a bit → propose, never self-approved into action. A menu running dry is a normal, reportable outcome, not a failure.
+- **Idle-task work** — only when a member is idle (no active, non-blocked todos). Select one eligible idle-run routine from this member's own `## Idle-Tasks` section (weighted by `weight`, honoring each entry's `min-interval` cap and `scope`), or the universal research-own-duties activity every member carries as one more candidate. Work it in small steps — find candidates → investigate a bit → propose, never self-approved into action. A menu running dry is a normal, reportable outcome, not a failure.
 - **Activity-scoped duties** — obligations that apply only while a specific activity is under way (a review, a testing round) — not scheduled, not menu-picked. A concern raised this way opens an investigation subtask resolving to exactly one of **escalate** (a decision is needed before the parent activity can proceed) or **solve** (a fix lands, the parent's own check repeats in place) — never left open unaddressed.
 - **Reflection**: after finishing any activity, whichever of the three kinds produced it, capture what was actually learned as a `reflection-*` item filed to this member's own inbox.
 
@@ -254,7 +255,7 @@ No skill file, this one included, ever states a workspace's real path directly �
 - **Called inline**: run that routine's steps, or call that member's procedure, inside the session already running.
 - **Dispatched as a session**: spawning `magic-coordinator.daily.routine` or `magic-coordinator.advance.routine` from `magic-coordinator.heartbeat.routine` spawns a coworking session *carrying that routine as its task* — not an abstract routine call. Where the task warrants it, a simplified ad-hoc session instead: coworking-alike, following the coworking instructions wherever they apply.
 
-Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`):
+Routines (one typed suffix in the typed-suffix skill-folder file-format — full model in `magic-team.shared.md`):
 - `magic-team.brainstorm.routine` — description in `magic-team.brainstorm.routine`.
 - `magic-team.coworking.routine` — description in `magic-team.coworking.routine`.
 - `magic-team.discuss.routine` — description in `magic-team.discuss.routine`.
@@ -262,6 +263,7 @@ Routines (routine-\*-as-virtual-member — full model in `magic-team.shared.md`)
 - `magic-team.interview.routine` — description in `magic-team.interview.routine`.
 - `magic-team.process-inbox.routine` — description in `magic-team.process-inbox.routine`.
 - `magic-team.process-reflections.routine` — description in `magic-team.process-reflections.routine`.
+- `magic-team.proposal.routine` — description in `magic-team.proposal.routine`.
 
 # The board
 
@@ -594,7 +596,7 @@ How the three item kinds relate. Extends their Terminology definitions above; do
 Distinct from the board (coordinator-owned, continuous) — these are static-ish, librarian-produced-and-maintained, runnable on request as their own pass, not tied to the board's cadence:
 
 - This file's own "Team-Member's tooling" section below — the Keep-Alive Workspace Console Session batching technique (mandatory for any real execution per this file's own Engineering & operating discipline) plus the workspace/tooling quick-reference. A pure tooling technique, not a routine (nobody spawns a session specifically to "do console-sessions"; every routine/member applies it while doing its own thing) — same property as `_duties.md`/`magic-team.authority.keeper.contract.md`.
-- `magic-team.shared.md` (stays a separate file) — the routine-\*-as-virtual-member model: folder shape, the typed-suffix naming-scheme formats, the executors-vs-maintainers quorum rule. Per-routine-specific content (executor/maintainer notes, special-care details) lives natively in each routine's own typed files, not here.
+- `magic-team.shared.md` (stays a separate file) — the typed-suffix skill-folder file-format model: folder shape, the typed-suffix naming-scheme formats, the executors-vs-maintainers quorum rule. Per-routine-specific content (executor/maintainer notes, special-care details) lives natively in each routine's own typed files, not here.
 
 # Non-acting owners
 
@@ -731,7 +733,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - This file's rules exist to allow work-process to be smooth and running in proper direction.
 - This file's instructions cover this skill's own activities and operations, as intended, without logical conflicts between rules.
 - This file governs form and control points, not strategy.
-- `magic-team.shared.md` carries the durable, cross-cutting model of how the team's skill folders and routines work — every acting member's own skill folder (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`), plus every `routine-*` virtual member hosted inside one of them: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule.
+- `magic-team.shared.md` carries the durable, cross-cutting model of how the team's skill folders and routines work — every acting member's own skill folder (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`), plus every `routine-*` typed-suffix routine hosted inside one of them: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule.
 - This file is the member-specific option set for `magic-team`.
 - `magic-team` acts on this file's own instructions, never on a separate instruction source.
 - Any process-flow/mechanics action (Slack post, board write, inbox filing) routes through the real DistroAgentsTools.fn.sh op via mcp__myx_distro__execute — never a raw Bash call, never a Write/Edit shortcut standing in for the op. This includes reflection-* filing specifically — --member-inbox-reflection-upsert, never a raw Write of the file. Direct editing of a file's own content (an armed.md's prose, a tooling.md's option list) is not process-flow/mechanics and stays a plain Read/Edit action.
@@ -762,7 +764,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-team.board.md` — the full board-state model and transition rules; stays a separate live file. This file's own "The board" section only carries the ownership/folder-state summary.
-- `magic-team.shared.md` — the routine-\*-as-virtual-member model, the typed-suffix skill-folder file-format spec, the executors-vs-maintainers quorum rule; stays a separate live file.
+- `magic-team.shared.md` — the typed-suffix skill-folder file-format spec (routines are one typed suffix in it), the executors-vs-maintainers quorum rule; stays a separate live file.
 - `roster-note` / `personas-note` — the team's member/domain/posture and per-member persona-data caches (`magic-coordinator`'s own inbox notes); live outside this file.
 - `board/` — the actual `board-item` files (`backlog/`, `pending/`, `running/`, `blocked/`, `parked/`, `processed/`, `archived/`, `retained/`).
 - `magic-coordinator` — the board's primary executor/owner; this skill's default pass-through target. Owns `main-loop-mode` and `harness-session`, both defined in this file's own Terminology sections above.

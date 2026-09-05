@@ -323,7 +323,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - A `reference/` module serving one member's own domain stays with that member — same shape as `magic-devops`'s and `magic-developer`'s own `reference/` modules, not this file's own cross-cutting protocol/format reference.
 - `magic-librarian.conventions-check.routine` / `magic-librarian.morning-review.routine` — this skill's two named routines; files named in `# Domain knowledge`'s `## Routines (index)`.
 - `magic-developer` — per-language `reference/` modules, same shape as this skill's own protocol/format modules.
-- `magic-team/magic-team.shared.md` — the `routine-*` virtual-member model and the typed-suffix file-format conventions.
+- `magic-team/magic-team.shared.md` — the typed-suffix skill-folder file-format model and its file-format conventions.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — this skill's tooling baseline: calling convention, sole-sanctioned Slack-posting mechanism, Keep-Alive Workspace Console Session mechanics.
 - The `heartbeat-state-note` — the team shared-state file this skill's scope exception covers.
 

@@ -1585,7 +1585,7 @@ case "$1" in
 
 		AgentsToolsEmitRequestDetailHeader "$memberName" "$target"
 
-		local resolved rc channel="" threadTs=""
+		local resolved rc channel="" threadTs="" failoverRouting=""
 		resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
 		case "$rc" in
 			0)

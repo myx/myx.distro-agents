@@ -83,10 +83,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - step: where several say the same thing, replace them with one or two current ones — retire what is resolved, promote what has formed into an `inquiry-*`/proposal.
    - Anything a member's status raises that needs real discussion doesn't get resolved inline here — flag it for **questions-then-conclude** or the backlog instead.
 9. **update-todos**: reflect what the roll call surfaced in the current session's `TodoWrite` (today's working list) for the members about to get a work session.
-   - **Held until further notice — a temporary hold, not a removal; only the human-owner lifts it.** No idle task is assigned while the hold stands. Held instruction: member with nothing assigned but an idle-task menu of more than one file, steps:
-     - randomly pick one `idle-tasks/*.idle.md` file now
-     - put *that specific file* in the todo — don't leave "run the idle menu" as a vague item
-   - Every member — acting members and `routine-*` virtual members alike — always has one more idle-task candidate available beyond whatever `idle-tasks/*.idle.md` files it happens to have.
+   - **Held until further notice — a temporary hold, not a removal; only the human-owner lifts it.** No idle task is assigned while the hold stands. Held instruction: member with nothing assigned but more than one eligible idle-run routine in its `## Idle-Tasks` section, steps:
+     - select one eligible idle-run routine now — weighted-random by `weight`, honoring each entry's `min-interval` cap and `scope` — from that member's own `## Idle-Tasks` section
+     - put *that specific routine* in the todo — don't leave "run the idle menu" as a vague item
+   - Every member always has one more idle-task candidate available beyond the idle-run routines its own `## Idle-Tasks` section lists — and so does every `routine-*` typed-suffix routine a member executes, beyond that member's listed idle-run routines.
      - That candidate: a short, iterative "research the web a bit on a topic of this member's own duties, detect good proposals to assess at the next `magic-team.grooming.routine`" pass.
 10. **run-check-process-board**: run the `check-process-board` procedure (`magic-coordinator.armed.md`) directly. Never `magic-coordinator.advance.routine`.
 11. **librarian-updates-context**: today's new task details already live on the board directly (via **run-check-process-board**'s pass and **fan-out-work-sessions**' dispatched agents' own board moves) — no separate write-back step exists.
@@ -105,7 +105,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - Move it to `board-blocked` as part of this same work session (note *why*, including a `blocked-by` pointer if it's blocked on another item), rather than leaving it sitting in `board-running` looking active, or silently deferring the discovery to the next grooming pass.
    - **Claimed-completion trigger**: if instead an agent finishes its assigned `board-running` item's implementation this session — nothing left to do, not stuck — that's a claimed completion, not a finished item yet.
      - Note the claim in place (item stays `board-running`); the actual verification happens per the board's own `board-running` entry, dispatching `magic-tester`, not inline in this same work session unless `magic-tester` itself is one of today's dispatched agents.
-   - If the assigned item is the randomly-picked idle-task file from **update-todos**, tell the agent explicitly which `idle-tasks/*.idle.md` file to load and execute.
+   - If the assigned item is the selected idle-run routine from **update-todos**, tell the agent explicitly which `<member>.<name>.routine.md` routine to load and execute (per that member's own `## Idle-Tasks` section).
    - Use `ScheduleWakeup` at that mark as the check-in signal rather than polling.
    - Call `--magic-daily-lock-refresh` at each check-in — a fan-out this long outlives a single acquire, and a concurrent check must not mistake a slow-but-alive pass for a crashed one.
    - While these run, stay in the main conversation talking with the user about live progress — that's supervision, not silence.
@@ -155,7 +155,7 @@ All statements apply at the same time, always. These rules override a participan
 - `magic-coordinator` holds exclusive write authority over the board.
 - A member's status is ambiguous, or the roll call can't tell what they need (**roll-call**): don't guess a work assignment from a thin signal — flag it for **questions-then-conclude**, or leave it for the backlog.
 - Nothing-to-report is a normal, valid outcome for a member.
-- A member has more than one plausible idle-task file and no assigned work (**update-todos**): the random pick is held until further notice — a temporary hold, not a removal, lifted only by the human-owner. Held instruction: pick one at random and name it explicitly.
+- A member has more than one eligible idle-run routine and no assigned work (**update-todos**): the selection is held until further notice — a temporary hold, not a removal, lifted only by the human-owner. Held instruction: select one (weighted-random, honoring each entry's `min-interval` cap and `scope`) and name it explicitly.
 - Do not let "figure out priorities among idle tasks" become its own mid-routine investigation — that is out of scope for a daily roll call.
 - A dispatched agent (**fan-out-work-sessions**) reports something ambiguous — not clearly stuck, not clearly done: default to treating it as still `board-running` (no state change) rather than guessing.
 - Ask the agent directly for a clearer status if there's time left in the work-session window.

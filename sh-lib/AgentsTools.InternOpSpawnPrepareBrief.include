@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpSpawnPrepareBrief.include -- --intern-op-spawn-prepare-brief.
+## Read-only. Emits the MECHANICAL parts of a spawn-prepare-brief that a
+## dispatch brief currently hand-carries, so agent-carried config moves into
+## tooling ("handle most by tooling, simpler life for the agent"):
+##   - tool-routing:    the constant standard value for this team's tooling
+##   - execution-gate:  derived from the target member's own .armed.md
+##                      (a `<!-- execution-gate: <value> -->` marker; none
+##                      declared -> `execution-gate: none`)
+##   - open warning-*:  a filtered board read of the currently-open warning set
+## The spawning agent still supplies the JUDGEMENT parts (which warnings are
+## relevant, held-context, checked). No writes, no side effects.
+## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. No --help entry (internal primitive).
+##
+
+case "$1" in
+
+	--intern-op-spawn-prepare-brief)
+		shift
+		local targetMember="$1"
+		shift || true
+		if [ -z "$targetMember" ] ; then
+			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: syntax is <target-member> [--context <ctx>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$targetMember" "<target-member>" spawn-prepare-brief || { set +e ; return 1 ; }
+
+		## Only --context is accepted after the member; anything else is a
+		## malformed call and fails cleanly rather than being absorbed silently.
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: invalid option: $1 -- syntax is <target-member> [--context <ctx>]" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+
+		local armedFile="$HOME/.claude/skills/$targetMember/$targetMember.armed.md"
+		if [ ! -f "$armedFile" ] ; then
+			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: no such member .armed.md: $armedFile" >&2
+			set +e ; return 1
+		fi
+
+		## execution-gate: derived from the target's own .armed.md marker.
+		## Absent -> none (the receiving member's rules put no gate on the work).
+		local executionGate
+		executionGate="$( grep -o '<!--[[:space:]]*execution-gate:[^>]*' "$armedFile" 2>/dev/null | head -1 | sed 's/.*execution-gate:[[:space:]]*//; s/[[:space:]-]*$//' )"
+		[ -n "$executionGate" ] || executionGate="none"
+
+		printf 'SPAWN-PREPARE-BRIEF: %s\n' "$targetMember"
+		printf 'tool-routing: mcp__myx_distro__execute only, never Bash/direct execution\n'
+		printf 'execution-gate: %s\n' "$executionGate"
+
+		## open warning-* set: the currently-open board warnings only (active
+		## states, never processed/archived/retained). The agent filters these
+		## for relevance itself -- this emits the raw open set to filter from.
+		printf '## open warning-* items\n'
+		local warnState warnFile warnBase warnCount=0
+		for warnState in backlog pending running blocked parked ; do
+			for warnFile in "$MDAT_DATA_ROOT/board/$warnState"/warning-*.md ; do
+				[ -e "$warnFile" ] || continue
+				warnBase="$( basename "$warnFile" )"
+				printf -- '- %s [%s]\n' "$warnBase" "$warnState"
+				warnCount=$(( warnCount + 1 ))
+			done
+		done
+		[ "$warnCount" -gt 0 ] || printf '(none open)\n'
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

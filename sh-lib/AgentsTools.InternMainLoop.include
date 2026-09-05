@@ -22,7 +22,7 @@ case "$1" in
 			printf '%s\n' "      Spawn one heartbeat next-iteration, sleep, repeat -- forever, until killed." >&2
 			printf '%s\n' "      This is the basement layer that RUNS own-service mode, not merely gated behind it already being up." >&2
 			printf '%s\n' "" >&2
-			printf '%s\n' "Requires own-service mode already configured -- fails loud on --magic-heartbeat-config-check before the loop is ever entered." >&2
+			printf '%s\n' "Runs a short readiness check first and prints a compact report; the loop is entered only when all required settings are present." >&2
 			set +e ; return 1
 		fi
 		shift
@@ -32,12 +32,29 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		DistroAgentsTools --magic-heartbeat-config-check
+		set +e
+
+		## Short readiness check, run from here and shown as a compact,
+		## plain-language report before the loop is entered. check-configs only
+		## PROBES presence here (every key --optional); the readiness report owns
+		## the floor policy -- which items gate, and how Basic comms is satisfied
+		## by any one transport -- and its own exit (PIPESTATUS[1]) is the gate.
+		## The floor is TEAM_DATA_DIRECTORY + Basic comms; the event-track and
+		## event-alert channels are probed for the report but never gate.
+		DistroAgentsTools --intern-op-check-configs magic-coordinator \
+			--optional "TEAM_DATA_DIRECTORY:<path>" \
+			--optional "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
+			--optional "SLACK_CHANNEL_HUMAN_OWNER:<user-id>" \
+			--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
+			--optional "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
+			--context --intern-main-loop 2>&1 \
+			| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMainLoopReadinessReport.awk"
+		if [ 0 -ne "${PIPESTATUS[1]}" ] ; then
+			return 1
+		fi
 
 		local sleepSeconds
 		sleepSeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
-
-		set +e
 
 		while true ; do
 			printf '%s\n' \

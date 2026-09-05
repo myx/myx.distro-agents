@@ -380,6 +380,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--intern-op-spawn-prepare-brief)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSpawnPrepareBrief.include"
+			return $?
+		;;
+
 		## THE NAME IS LOAD-BEARING: this op is not a Slack op, so its include never
 		## sources AgentsTools.CommsSlack.include and no credential resolver enters
 		## its shell. Renaming it toward the Slack family undoes that. See MAGIC.md.

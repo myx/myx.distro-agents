@@ -5,10 +5,16 @@
 ## primitive for agent/routine wrappers. No --help entry.
 ##
 
+## Success proof: the launcher prints DISTRO_CONSOLE_EXEC= only on a real exec.
+## Its absence in captured output = silent no-op (rc=0 included) = failure.
+AgentsToolsSpawnProxySawSentinel(){
+	[ -n "$1" ] && grep -q '^DISTRO_CONSOLE_EXEC=' "$1" 2>/dev/null
+}
+
 AgentsToolsSpawnProxyCloseDispatch(){
 	local itemName="$1" briefBody="$2" childExit="$3" childOutputFile="$4"
 	local outcome currentBody resultBody
-	outcome="$( [ "$childExit" -eq 0 ] && echo succeeded || echo failed )"
+	outcome="$( AgentsToolsSpawnProxySawSentinel "$childOutputFile" && echo succeeded || echo failed )"
 	currentBody="$( DistroAgentsTools --intern-op-data-read "$itemName" \
 		--lookup-folder "$MDAT_DATA_ROOT/board/running" \
 		--context --intern-op-agent-spawn-proxy )" || currentBody="$briefBody"
@@ -50,6 +56,10 @@ case "$1" in
 		local fromBoardName="" fromVaultName="" fromAuditName="" fromFilePath=""
 		local sourceMode="stdin"
 		local boardStates=()
+		## Dispatch/tracking-document mode -- explicit, decoupled from the input
+		## source (stdin vs --from-board no longer determines it). Each stub passes
+		## exactly what its call needs; no default -- required below.
+		local dispatchDocMode=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-file)
@@ -105,6 +115,17 @@ case "$1" in
 					fromAuditName="$2"
 					sourceMode="audit"
 					shift 2
+				;;
+				--dispatch-doc:*)
+					dispatchDocMode="${1#--dispatch-doc:}"
+					case "$dispatchDocMode" in
+						create|reuse|none) ;;
+						*)
+							echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --dispatch-doc: must be create|reuse|none: $dispatchDocMode" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift
 				;;
 				--wait)
 					waitMode="true"
@@ -194,6 +215,15 @@ case "$1" in
 			;;
 		esac
 
+		if [ -z "$dispatchDocMode" ] ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --dispatch-doc:create|reuse|none is required (each stub passes its own; no default)" >&2
+			set +e ; return 1
+		fi
+		if [ "$dispatchDocMode" = "reuse" ] && [ "$trackedMode" != "true" ] ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --dispatch-doc:reuse requires a --from-board/--from-vault/--from-audit source naming an existing tracking item" >&2
+			set +e ; return 1
+		fi
+
 		if [ -z "$spawnContext" ] ; then
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: empty spawn context" >&2
 			set +e ; return 1
@@ -216,7 +246,7 @@ case "$1" in
 		outputFile="$auditDir/$receiptId.output.log"
 
 		local dispatchItemName="" dispatchBriefBody=""
-		if [ "$trackedMode" = "false" ] ; then
+		if [ "$dispatchDocMode" = "create" ] ; then
 			dispatchItemName="dispatch-$timestamp-spawn-proxy-$$.md"
 			dispatchBriefBody="$( printf '%s\n' \
 				"---" \
@@ -246,19 +276,21 @@ case "$1" in
 			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1
 			exitCode=$?
 			set -e
-			if [ "$trackedMode" = "false" ] ; then
+			local sawSentinel="false"
+			AgentsToolsSpawnProxySawSentinel "$outputFile" && sawSentinel="true"
+			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile"
 			fi
 			echo "RECEIPT_ID=$receiptId"
-			if [ "$trackedMode" = "true" ] ; then
-				echo "TRACKING_ITEM=$trackedItemName"
-			else
-				echo "DISPATCH_ITEM=$dispatchItemName"
-			fi
-			echo "STATUS=$( [ "$exitCode" -eq 0 ] && echo succeeded || echo failed )"
+			echo "DISPATCH_DOC=$dispatchDocMode"
+			case "$dispatchDocMode" in
+				create) echo "DISPATCH_ITEM=$dispatchItemName" ;;
+				reuse)  echo "TRACKING_ITEM=$trackedItemName" ;;
+			esac
+			echo "STATUS=$( [ "$sawSentinel" = "true" ] && echo succeeded || echo failed )"
 			echo "EXIT_CODE=$exitCode"
 			echo "OUTPUT_FILE=$outputFile"
-			if [ "$exitCode" -ne 0 ] ; then
+			if [ "$sawSentinel" != "true" ] ; then
 				set +e ; return 1
 			fi
 			return 0
@@ -269,17 +301,17 @@ case "$1" in
 			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto --non-interactive <<< "$spawnContext"
 			bgExitCode=$?
 			set -e
-			if [ "$trackedMode" = "false" ] ; then
+			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile"
 			fi
 		) > "$outputFile" 2>&1 &
 		local spawnPid=$!
 		echo "RECEIPT_ID=$receiptId"
-		if [ "$trackedMode" = "true" ] ; then
-			echo "TRACKING_ITEM=$trackedItemName"
-		else
-			echo "DISPATCH_ITEM=$dispatchItemName"
-		fi
+		echo "DISPATCH_DOC=$dispatchDocMode"
+		case "$dispatchDocMode" in
+			create) echo "DISPATCH_ITEM=$dispatchItemName" ;;
+			reuse)  echo "TRACKING_ITEM=$trackedItemName" ;;
+		esac
 		echo "STATUS=started"
 		echo "PID=$spawnPid"
 		echo "OUTPUT_FILE=$outputFile"

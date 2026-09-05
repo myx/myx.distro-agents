@@ -67,7 +67,18 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
-		DistroAgentsTools --intern-op-agent-spawn-proxy "$callingMember" "$@" --context --magic-heartbeat-spawn-proxy
+		## Craft the dispatch-doc mode this relay needs -- not an agent-facing flag.
+		## Main-loop's stdin/--from-file relay wants NO dispatch document (this was
+		## the board-running dispatch-*-spawn-proxy pile-up); advance's --from-board/
+		## --from-vault/--from-audit relay reuses the named board item as its own
+		## tracking document.
+		local spawnDispatchDoc="none" spawnProxyArg
+		for spawnProxyArg in "$@" ; do
+			case "$spawnProxyArg" in
+				--from-board|--from-vault|--from-audit) spawnDispatchDoc="reuse" ; break ;;
+			esac
+		done
+		DistroAgentsTools --intern-op-agent-spawn-proxy "$callingMember" "$@" --dispatch-doc:"$spawnDispatchDoc" --context --magic-heartbeat-spawn-proxy
 		return $?
 	;;
 
@@ -79,10 +90,10 @@ case "$1" in
 		fi
 		DistroAgentsTools --intern-op-check-configs magic-coordinator \
 			--required "TEAM_DATA_DIRECTORY:<path>" \
-			--required "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
-			--required "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
 			--required "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
 			--required "SLACK_CHANNEL_HUMAN_OWNER:<channel-id>" \
+			--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
+			--optional "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
 			--optional "EMAIL_IMAP_HOST:<host>" \
 			--optional "EMAIL_USER:<email-address>" \
 			--optional "EMAIL_APP_PASSWORD:<app-password>" \
