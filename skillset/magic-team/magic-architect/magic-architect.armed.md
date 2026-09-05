@@ -69,7 +69,7 @@ No domain reference material beyond what's already in Goals/Scope; this section 
 
 ## Idle-Tasks
 
-Scheduling policy for this member's idle-run routines: which routine may fire during duty time when no active board item is assigned to run, its relative selection `weight`, its `min-interval` (wall-clock "not more frequent than" cap, measured from that routine's last run), and the `scope` it runs against. The `## grooming-scores-review` procedure selects from this list — weighted-random among eligible entries — never from a directory listing; a routine not listed here is not idle-run. Weights and min-intervals are provisional defaults pending human-owner ratification (the source idle activity stated a "standing daily" cadence but no explicit weights).
+Scheduling policy for this member's idle-run routines: which routine may fire during duty time when no active board item is assigned to run, its relative selection `weight`, its `min-interval` (wall-clock "not more frequent than" cap, measured from that routine's last run), and the `scope` it runs against. The `## grooming-scores-review` procedure selects from this list — weighted-random among eligible entries — never from a directory listing; a routine not listed here is not idle-run.
 
 - `magic-architect.grooming-scores.routine` — weight: 1, min-interval: 24h, scope: open `board-backlog`/`board-running`/`board-blocked`/`board-parked` items in this skill's architecture-level domain of judgment
 - universal research-own-duties activity (web-search per `magic-team/magic-team.armed.md`'s "Duties: three kinds, plus reflection") — weight: 1, min-interval: 24h, scope: this member's own macro-design domain — the always-available "one more candidate," not a `.routine.md` file
