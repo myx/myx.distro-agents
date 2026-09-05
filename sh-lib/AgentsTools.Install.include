@@ -710,25 +710,18 @@ case "$1" in
 		fi
 		local boardRoot="$MDAT_DATA_ROOT/board"
 
-		local skillsRoot="$HOME/.claude/skills"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
+
 		local memberPathsFile
 		memberPathsFile="$( mktemp "${TMPDIR:-/tmp}/agents-claude-permissions-members.XXXXXX" )" || {
 			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: mktemp failed" >&2
 			set +e ; return 1
 		}
-		local memberEntry memberName memberReal
-		for memberEntry in "$skillsRoot"/*/ ; do
-			[ -d "${memberEntry%/}" ] || continue
-			memberName="$( basename "${memberEntry%/}" )"
-			[ "$memberName" != "trash" ] || continue
-			memberReal="$( cd "${memberEntry%/}" 2>/dev/null && pwd -P )" || continue
-			[ -n "$memberReal" ] || continue
-			if [ -f "$memberReal/SKILL.md" ] && grep -q '^status: reference-only' "$memberReal/SKILL.md" 2>/dev/null ; then
-				continue
-			fi
-			printf '%s\n' "$memberReal" >> "$memberPathsFile"
-		done
-		sort -u -o "$memberPathsFile" "$memberPathsFile"
+		## Member real dirs come from the single access-root source
+		## (AgentsTools.ClientAccessRoots.include), shared with the copilot launch
+		## fragment -- not a loop inlined here. It already emits sorted-unique
+		## real dirs, skipping trash and reference-only members.
+		AgentsToolsClientAccessRootsMembers > "$memberPathsFile"
 		local memberCount
 		memberCount="$( grep -c '' "$memberPathsFile" )"
 
@@ -934,7 +927,19 @@ HOOKEOF
 
 		local sourceRoot="$workspace/source"
 
-		local allowExtraRootsJson='["/Volumes/workspace/myx"]'
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
+
+		## Extra reference roots come from the single access-root source
+		## (AgentsTools.ClientAccessRoots.include), built into the JSON array the
+		## merge awk expects -- so adding/changing a reference root is one edit
+		## there, shared with the copilot launch fragment. An empty reference
+		## list yields "[]" (no extra grants), never a malformed value.
+		local allowExtraRootsJson
+		allowExtraRootsJson="$( AgentsToolsClientAccessReferenceRoots | LC_ALL=C awk '
+			BEGIN { printf "["; }
+			{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\"%s\"", (NR > 1 ? "," : ""), $0; }
+			END { printf "]"; }
+		' )"
 
 		if ! MYX_WSRESTRICT_DENY_ADD_JSON="$denyAddJson" \
 			MYX_WSRESTRICT_HOOKS_FILE="$hooksDescFile" \
@@ -961,6 +966,117 @@ HOOKEOF
 		fi
 
 		echo "✅ workspace restrictions installed: $settingsFile" >&2
+		return 0
+	;;
+
+	## NOTE: op name PROPOSED, pending human-owner approval (uncommitted).
+	## Siblings for the naming decision: --install-claude-permissions,
+	## --install-workspace-restrictions, --install-workspace-integrations.
+	## Reached by the single --install-*) glob like every sibling install op --
+	## no own dispatcher arm, no own include. Prepares the copilot launch
+	## fragment: the per-client `--add-dir <root>` tokens granting copilot the
+	## same read/write directory access the claude settings writers grant
+	## (member real dirs, board path, workspace source tree, reference roots).
+	## Copilot only; `--add-dir` is read/write, not read-only. The root set is
+	## the single source in AgentsTools.ClientAccessRoots.include; this op only
+	## formats what it yields.
+	--install-copilot-access-fragment)
+		shift
+
+		local workspaceArg
+		while [ "$#" -gt 0 ] ; do
+			case "$1" in
+				--workspace)
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: --workspace requires a value" >&2
+						set +e ; return 1
+					fi
+					workspaceArg="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local workspace="${workspaceArg:-$MMDAPP}"
+		if [ ! -d "$workspace" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: workspace not found: $workspace" >&2
+			set +e ; return 1
+		fi
+		workspace="$( cd "$workspace" && pwd )"
+
+		if [ ! -d "$workspace/.local" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: not a workspace root: $workspace -- expected '$workspace/.local' to exist. This looks like a sub-project/repo living inside a real workspace, not the workspace root itself." >&2
+			set +e ; return 1
+		fi
+
+		## Board must be resolvable, same refusal the claude permissions writer
+		## makes: a fragment without a real board grant is a broken fragment.
+		if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: MDAT_DATA_ROOT could not be resolved (TEAM_DATA_DIRECTORY not configured) -- refusing to write a copilot fragment without a real board path" >&2
+			set +e ; return 1
+		fi
+
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
+
+		## Single source of the root set; this op only formats what it yields.
+		local rootsList
+		rootsList="$( AgentsToolsClientAccessRoots "$workspace" )"
+
+		## Catch a bad/empty root set BEFORE emitting a broken launch line: an
+		## empty fragment is a setup failure, not a valid "grant nothing".
+		if [ -z "$rootsList" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: computed an empty access-root set -- refusing to write an empty/broken copilot fragment" >&2
+			set +e ; return 1
+		fi
+		local memberCount
+		memberCount="$( AgentsToolsClientAccessRootsMembers | grep -c '' )"
+		if [ "$memberCount" -lt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: no member skill directories resolved under \$HOME/.claude/skills -- refusing to write a copilot fragment with no member grants" >&2
+			set +e ; return 1
+		fi
+
+		local claudeDir="$workspace/.claude"
+		mkdir -p "$claudeDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: cannot create $claudeDir" >&2
+			set +e ; return 1
+		}
+		local fragmentFile="$claudeDir/copilot-add-dir.fragment"
+
+		local fragmentTmp
+		fragmentTmp="$( mktemp "$fragmentFile.XXXXXX" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: mktemp failed beside $fragmentFile" >&2
+			set +e ; return 1
+		}
+
+		local rootCount
+		rootCount="$( printf '%s\n' "$rootsList" | grep -c '' )"
+
+		## One `--add-dir` flag and its root on separate lines, so the launcher
+		## reads them back one token per line into its argv array intact.
+		printf '%s\n' "$rootsList" | LC_ALL=C awk '{ print "--add-dir"; print $0; }' > "$fragmentTmp"
+
+		if ! chmod 0644 "$fragmentTmp" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: could not write $fragmentFile" >&2
+			rm -f "$fragmentTmp"
+			set +e ; return 1
+		fi
+
+		if cmp -s "$fragmentTmp" "$fragmentFile" ; then
+			rm -f "$fragmentTmp"
+			echo "✅ copilot access fragment already current: $fragmentFile (${rootCount:-?} root(s))" >&2
+			return 0
+		fi
+
+		if ! mv -f "$fragmentTmp" "$fragmentFile" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: could not install $fragmentFile" >&2
+			rm -f "$fragmentTmp"
+			set +e ; return 1
+		fi
+
+		echo "✅ copilot access fragment installed: $fragmentFile (${rootCount:-?} root(s))" >&2
 		return 0
 	;;
 
@@ -1056,6 +1172,12 @@ HOOKEOF
 			rm -f "$allowSettingsTmp"
 			set +e ; return 1
 		fi
+
+		## Prepare the copilot launch fragment from the same single access-root
+		## source, so a workspace set up here has copilot's --add-dir access
+		## ready for the generated console -- installer prepares it, launcher
+		## uses it. Copilot only; harmless where copilot is never run.
+		DistroAgentsTools --install-copilot-access-fragment --workspace "$workspace" || { set +e ; return 1 ; }
 
 		## --quiet used to drop the step narration that is now gone; the op's one outcome line always prints
 		echo "✅ workspace integrations installed" >&2

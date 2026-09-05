@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ClientAccessRoots.include -- the single source of the client
+## access-root set.
+##
+## ONE place names which absolute filesystem roots a client (a dispatched
+## agent CLI running in a workspace) is granted read/write access to. Every
+## consumer -- the claude settings writers AND the copilot launch fragment --
+## takes whatever this yields, so adding or changing a root is a single edit
+## HERE, never a change rippling across the installer, the launcher and the
+## awk merge scripts.
+##
+## The set is deliberately NOT treated as fixed or complete: reference roots
+## and member/board/source derivations can be added or changed over time.
+## Keep the pieces below simple and independent so the settings side and the
+## fragment side can be refactored in parallel without colliding.
+##
+## Output contract: each function prints raw absolute paths, one per line,
+## with NO formatting, quoting or flags -- the raw material each consumer
+## formats its own way (a JSON `Read(...)`/`Edit(...)`/`Write(...)` grant on
+## the settings side, an `--add-dir <root>` token on the copilot side).
+##
+## Dot-sourced (relies on $HOME / $MDAT_DATA_ROOT already resolved by the
+## caller, exactly as the claude settings writers already require).
+##
+
+## Active member skill directories, resolved to their real (symlink-followed)
+## locations under $HOME/.claude/skills -- the same enumeration the claude
+## permissions writer grants, factored out here as the single source.
+## Skips `trash` and any `status: reference-only` member. Sorted-unique.
+AgentsToolsClientAccessRootsMembers(){
+	local skillsRoot="$HOME/.claude/skills"
+	local memberEntry memberName memberReal
+	for memberEntry in "$skillsRoot"/*/ ; do
+		[ -d "${memberEntry%/}" ] || continue
+		memberName="$( basename "${memberEntry%/}" )"
+		[ "$memberName" != "trash" ] || continue
+		memberReal="$( cd "${memberEntry%/}" 2>/dev/null && pwd -P )" || continue
+		[ -n "$memberReal" ] || continue
+		if [ -f "$memberReal/SKILL.md" ] && grep -q '^status: reference-only' "$memberReal/SKILL.md" 2>/dev/null ; then
+			continue
+		fi
+		printf '%s\n' "$memberReal"
+	done | sort -u
+}
+
+## Fixed extra reference roots granted to every client in addition to the
+## resolved member/board paths and the workspace source tree. THIS is the one
+## place a standing reference root is added or changed -- both the workspace
+## settings writer and the copilot launch fragment pick it up from here.
+AgentsToolsClientAccessReferenceRoots(){
+	printf '%s\n' "/Volumes/workspace/myx"
+}
+
+## The complete flat root set one client is granted, for the copilot launch
+## fragment: board path, active member real dirs, the workspace source tree,
+## and the fixed reference roots -- matching the union of what the two claude
+## settings writers grant. One absolute path per line.
+##   $1 = target workspace root (its source/ tree is granted).
+## Board/source are emitted only when their input is present; the CALLER is
+## responsible for rejecting an empty or under-populated set (see the copilot
+## fragment op), exactly as the claude permissions writer rejects a missing
+## board root rather than writing a grant without one.
+AgentsToolsClientAccessRoots(){
+	local workspace="$1"
+	if [ -n "${MDAT_DATA_ROOT:-}" ] ; then
+		printf '%s\n' "$MDAT_DATA_ROOT/board"
+	fi
+	AgentsToolsClientAccessRootsMembers
+	if [ -n "$workspace" ] ; then
+		printf '%s\n' "$workspace/source"
+	fi
+	AgentsToolsClientAccessReferenceRoots
+}

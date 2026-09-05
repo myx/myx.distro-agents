@@ -152,6 +152,24 @@ cat <<- 'DISTROCONSOLE'
 		MYX_AGENTMCP_TARGET_CWD="$MMDAPP" myx.common setup/agentMcp >/dev/null 2>&1 || :
 	fi
 
+	## Copilot only: read the prepared access fragment (the installer wrote it
+	## via DistroAgentsTools --install-copilot-access-fragment) into copilot's
+	## launch argv as `--add-dir <root>` tokens, granting the same read/write
+	## directory access the claude settings writers grant. Absent/empty
+	## fragment -> no tokens added; non-copilot CLIs get nothing (claude reads
+	## its own settings.json, grok is out of scope). One token per line, so a
+	## root containing spaces survives being read back into the array intact.
+	DAGC_COPILOT_ADDDIR=()
+	if [ "$DAGC_CLI" = "copilot" ] ; then
+		DAGC_COPILOT_FRAGMENT="$MMDAPP/.claude/copilot-add-dir.fragment"
+		if [ -f "$DAGC_COPILOT_FRAGMENT" ] ; then
+			while IFS= read -r DAGC_COPILOT_TOKEN ; do
+				[ -n "$DAGC_COPILOT_TOKEN" ] || continue
+				DAGC_COPILOT_ADDDIR+=( "$DAGC_COPILOT_TOKEN" )
+			done < "$DAGC_COPILOT_FRAGMENT"
+		fi
+	fi
+
 	if [ "$1" == "--non-interactive" ] ; then
 		shift
 		case "$DAGC_CLI" in
@@ -159,10 +177,10 @@ cat <<- 'DISTROCONSOLE'
 			*) DAGC_NONINTERACTIVE_PERM_FLAGS="" ;;
 		esac
 		if [ $# -gt 0 ] ; then
-			exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS -p "$*"
+			exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" -p "$*"
 		fi
-		exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS -p "$( cat )"
+		exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" -p "$( cat )"
 	fi
 
-	exec "$DAGC_CLI" "$@"
+	exec "$DAGC_CLI" "${DAGC_COPILOT_ADDDIR[@]}" "$@"
 DISTROCONSOLE
