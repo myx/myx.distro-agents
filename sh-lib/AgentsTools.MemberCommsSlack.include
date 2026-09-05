@@ -146,15 +146,24 @@ case "$1" in
 			local target="$1"
 			shift || true
 			if [ -z "$target" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: target required -- <channel>:<ts> only. Unlike --intern-op-slack-check, this op does not accept the magic-team/human-owner/event-track/event-alert channel shortcuts, nor a bare <conversation-id>: each of those names a conversation, and this op retrieves one specific message, which needs its own <ts>. That constraint is enforced further down by this same arm's own '<ts> is required' check." >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: target required -- <channel>:<ts> for one message, or a bare <channel>/<conversation-id>/magic-team/human-owner/event-track/event-alert for that conversation's own messages." >&2
 				set +e ; return 1
 			fi
 
-			local wantThread="false" identityAsBot="false"
+			local wantThread="false" identityAsBot="false" readOldest=""
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					--thread)
 						wantThread="true" ; shift
+					;;
+					## Bare-channel form only: a conversation is paged to its end,
+					## so a busy channel needs a floor or the page cap ends the read.
+					--oldest)
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: --oldest: value required (<epoch>[.<micros>])" >&2
+							set +e ; return 1
+						fi
+						readOldest="$2" ; shift 2
 					;;
 					--identity-bot)
 						identityAsBot="true" ; shift
@@ -176,12 +185,29 @@ case "$1" in
 					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: could not resolve target '$target' -- pass <channel>:<ts> for a specific message" >&2
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: could not resolve target '$target' -- pass <channel>:<ts> for one message, or a bare channel/conversation for its own messages" >&2
 					set +e ; return 1
 				;;
 			esac
+			## No <ts>: the target names a conversation, not a message. Read the
+			## conversation itself -- the case a caller is in when it wants the ts
+			## of something just posted and so cannot supply one. --intern-op-slack-check
+			## already reads a whole conversation through the paged reader; this is
+			## that read, reached under the member-facing name.
 			if [ -z "$threadTs" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: a specific <ts> is required (magic-team/human-owner alone identify a channel, not one message) -- use <channel>:<ts>" >&2
+				if [ "$wantThread" = "true" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: --thread reads one thread and needs that thread's parent <ts> -- pass <channel>:<ts> --thread, or drop --thread to read the conversation" >&2
+					set +e ; return 1
+				fi
+				echo "# $MDSC_CMD --member-comms-slack-read: GET conversations.history channel=$channel${readOldest:+ oldest=$readOldest} (whole conversation, acting member $memberName)" >&2
+				local conversationArgs=( "$memberName" "$channel" )
+				[ "$identityAsBot" = "false" ] || conversationArgs+=( --identity-bot )
+				[ -z "$readOldest" ] || conversationArgs+=( --oldest "$readOldest" )
+				DistroAgentsTools --intern-op-slack-check "${conversationArgs[@]}" || { set +e ; return 1 ; }
+				return 0
+			fi
+			if [ -n "$readOldest" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: --oldest bounds how far back a conversation is read, and '$target' names one message -- drop --oldest, or drop the :<ts>" >&2
 				set +e ; return 1
 			fi
 
@@ -1771,20 +1797,33 @@ blocks|verbatim|caller|stdin file"
 		fromElems="$fromElems{\"type\":\"text\",\"text\":\"$memberName\",\"style\":{\"bold\":true,\"italic\":true}},{\"type\":\"text\",\"text\":\" @$fromAlias \"},"
 
 		## Nothing named, and the conversation is a DM or a group DM: its own
-		## participants are the addressees, minus the sender. "@here" names
-		## nobody there. Keyed on the conversation's type, never on who the
-		## counterpart is. A `U…` target IS the party and a `C…` one is never
-		## a DM, so neither costs a call; anything else asks Slack. A lookup
-		## that answers nothing leaves the old "@here" rather than failing a
-		## send over a header field.
+		## participants are the addressees, minus the sender. Keyed on the
+		## conversation's type, never on who the counterpart is.
+		##
+		## THE TYPE COMES FROM SLACK, NOT FROM THE ID. Only the `U…` shortcut
+		## below is sound -- that target IS the party, so it can never be
+		## anything else. Every other prefix is an assumption Slack does not
+		## honour: a modern mpim is issued a `C…` id, so the arm that used to
+		## read `C…` as "a channel, never a DM" and skip the lookup made the
+		## mpim branch UNREACHABLE -- measured live on two real mpims, both
+		## `C…`, both rendering "@here". `conversations.info` is asked instead
+		## and its own `is_im`/`is_mpim` answer routes the rest.
+		##
+		## The cost is one `conversations.info` per send that names no
+		## addressee, a real channel included -- there is no cheaper test that
+		## is also correct, because the id prefix is precisely the thing that
+		## turned out not to carry the type. Worth paying: the fallback it
+		## replaces is "@here", which in an mpim pings every participant in a
+		## live client conversation on behalf of a message addressed to nobody.
+		## That is the harm this lookup buys off, not merely a vaguer header.
+		## A lookup that answers nothing still leaves "@here" rather than
+		## failing a send over a header field.
 		if [ -z "$addressToList" ] ; then
-			local dmParties="" dmInfo="" dmIsMpim="" dmSelfId="" dmParty="" dmIndex=0
+			local dmParties="" dmInfo="" dmIsMpim="" dmSelfId="" dmParty="" dmIndex=0 dmKept=""
 			local dmArgs
 			case "$channel" in
 				U[A-Z0-9][A-Z0-9]*)
 					dmParties=" $channel"
-				;;
-				C[A-Z0-9][A-Z0-9]*)
 				;;
 				*)
 					dmArgs=( "$memberName" --api conversations.info --resolve-target "$channel" )
@@ -1802,16 +1841,46 @@ blocks|verbatim|caller|stdin file"
 						[ "$sendIdentity" != "bot" ] || dmArgs+=( --identity bot )
 						dmArgs+=( --context "--member-comms-slack-send-message" )
 						dmInfo="$( DistroAgentsTools --intern-op-slack-call "${dmArgs[@]}" )" || dmInfo=""
-						dmSelfId="$( AgentsToolsCommsSlackMentionUserId "$memberName" )" || dmSelfId=""
 						while : ; do
 							dmParty="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -v path="members.$dmIndex" -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || dmParty=""
 							[ -n "$dmParty" ] || break
-							[ "$dmParty" = "$dmSelfId" ] || dmParties="$dmParties $dmParty"
+							dmParties="$dmParties $dmParty"
 							dmIndex=$(( dmIndex + 1 ))
 						done
 					fi
 				;;
 			esac
+
+			## The sender is not addressed to itself, in ANY conversation type.
+			## Compared against the account this send actually posts under --
+			## auth.test on the identity the send itself uses, the same identity
+			## selection the two calls above make -- never the member's roster
+			## id, which is a different account whenever the posting one is not
+			## the member's own: under --identity bot, and for a member holding
+			## no user token at all, which falls back to the bot with no flag
+			## involved and whose roster id reads back empty, so the old test
+			## matched nobody and the sender addressed itself. In a one-to-one
+			## DM the counterpart is the other party by construction and this is
+			## a no-op, which is why it is written once for every shape rather
+			## than once per shape. Exception: a token-less member's human-owner
+			## send relays under magic-coordinator's token, so the id read here
+			## is not that one -- that target is a one-to-one DM, where the
+			## filter has nothing to do either way.
+			if [ -n "$dmParties" ] ; then
+				dmArgs=( "$memberName" --api auth.test )
+				[ "$sendIdentity" != "bot" ] || dmArgs+=( --identity bot )
+				dmArgs+=( --context "--member-comms-slack-send-message" )
+				dmInfo="$( DistroAgentsTools --intern-op-slack-call "${dmArgs[@]}" )" || dmInfo=""
+				dmSelfId="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -v path=user_id -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || dmSelfId=""
+				if [ -z "$dmSelfId" ] ; then
+					echo "# $MDSC_CMD --member-comms-slack-send-message: auth.test did not answer with the posting account's user id, so the addressee list for $channel is NOT known to exclude the sender -- it is sent as inferred rather than failing the send over a header field." >&2
+				else
+					for dmParty in $dmParties ; do
+						[ "$dmParty" = "$dmSelfId" ] || dmKept="$dmKept $dmParty"
+					done
+					dmParties="$dmKept"
+				fi
+			fi
 			addressToList="$dmParties"
 		fi
 

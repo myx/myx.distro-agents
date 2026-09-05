@@ -644,8 +644,29 @@ case "$1" in
 								done <<- MENTIONEOF
 								$mentionHits
 								MENTIONEOF
+								## ONE page is read on purpose -- the query carries `in:`
+								## and `after:`, so exceeding 100 matches should be rare.
+								## Slack's own `messages.paging.pages` says how many pages
+								## the query really has (0 when it matched nothing), and a
+								## query that DOES exceed one page says so on the line
+								## below rather than passing a page size off as a match
+								## count. A count that cannot be shown complete is not
+								## reported as complete.
+								local mentionPages="" mentionPagesRc=0 mentionMore=""
+								mentionPages="$( printf '%s\n' "$mentionResponse" | LC_ALL=C awk \
+									-v path=messages.paging.pages \
+									-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" 2>/dev/null )" || mentionPagesRc=$?
+								case "$mentionPagesRc:$mentionPages" in
+									0:0|0:1)	;;
+									0:[2-9]|0:[1-9][0-9]*)
+										mentionMore=" -- TRUNCATED, THIS IS PAGE 1 OF $mentionPages: that is page 1's hits, NOT the number of mentions; the later pages were not read and nothing here says what is on them"
+									;;
+									*)
+										mentionMore=" -- COUNT NOT KNOWN COMPLETE: Slack's own messages.paging.pages could not be read from this response (rc=$mentionPagesRc, value '$mentionPages'), so whether mentions exist past the one page read is unknown"
+									;;
+								esac
 								imSourcesScanned=$(( imSourcesScanned + 1 ))
-								imInstrument="$imInstrument; mentions of <@$ownSlackId> searched since $mentionAfter ($mentionCount hit(s), read through the same per-conversation pipeline as everything else)"
+								imInstrument="$imInstrument; mentions of <@$ownSlackId> searched since $mentionAfter ($mentionCount hit(s)$mentionMore, read through the same per-conversation pipeline as everything else)"
 							fi
 						fi
 					fi

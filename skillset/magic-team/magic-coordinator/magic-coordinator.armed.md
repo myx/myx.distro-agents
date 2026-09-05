@@ -527,7 +527,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## `--owner-workspace-list` Operation Reference
 
-`DistroAgentsTools.fn.sh --owner-workspace-list` — prints every currently-tracked workspace path, one per line, in file order; reads only lines that look like an absolute path (start with `/`), so any stray non-data content in `human-owner/human-owner.workspaces.md` is never treated as data. Takes no arguments. `magic-coordinator` is granted this op directly, on its own authority — read-only, no other `--owner-*` op included, human-owner-granted.
+`DistroAgentsTools.fn.sh --owner-workspace-list` — prints every currently-tracked workspace path, one per line, in file order; reads only lines that look like an absolute path (start with `/`), so any stray non-data content in `~/.claude/skills/.human-owner.workspaces.md` is never treated as data. Takes no arguments. `magic-coordinator` is granted this op directly, on its own authority — read-only, no other `--owner-*` op included, human-owner-granted.
 
 ## `--magic-sweep-input-scan` Operation Reference
 

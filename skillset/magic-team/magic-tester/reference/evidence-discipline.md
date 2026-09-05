@@ -112,6 +112,47 @@ two populations that merely look interchangeable. The check is one step: find
 where the number is produced, read the unit off the code, and restate the claim
 in that unit.
 
+A negative that comes back identical for every subject is the same question
+asked of the instrument. An earlier probe read `.local/.agents/*/` as
+directories, where the configs are `<member>.agent.env` files, and concluded
+that no member held a `SLACK_USER_TOKEN`; every member with real configuration
+held one. **A uniform "none anywhere" — none configured, none matching, none
+present — is a finding about the instrument until one subject with a known
+positive answer has been put through the same probe.** That positive control is
+the cheap half: a single known-yes case through the identical command shape,
+before the sweep's result is offered as a result.
+`magic-developer/reference/shell.md` carries the shell-side form of this under
+its Principles, for recursive searches whose empty output looks the same either
+way.
+
+## A probe answers its own predicate, not the question it was asked
+
+A check that runs cleanly reports on the condition it actually evaluates, and
+the distance between that condition and the claim it gets quoted for is where a
+false positive lives. Two confirmed instances, each of which produced a wrong
+report to the owner:
+
+- **Existence is not configuration.** `[ -f ]` passes on a zero-byte file. Of 33
+  `.agent.env` files in `ws-myx.prv-farm`, 30 were empty, and a `[ -f ]` probe
+  reported every one of them as configured — `client-ndm` in
+  `ws-l.infanti-repos-camunda` included, where all 12 files are 0 bytes. The
+  discriminator is `[ -s ]`, or parsing the file for the key the claim is about.
+  Where a layer creates the file on first access, existence carries no
+  information at all by construction; `myx.distro-agents`' `MAGIC.md` records
+  that as a contract of `--agents-config-option`.
+- **A pipeline's exit status is the last command's.** `op | tail -2 ; echo
+  "rc=$?"` reports `tail`'s status, so a rejected call reads back as `rc=0` —
+  which is how "the op accepted it" got reported for a call the op had refused.
+  Capture the status of the command whose success is the claim, ahead of any
+  pipe or substitution. `magic-developer/reference/shell.md` carries the
+  adjacent `cmd ; rc=$?` under `set -e` case in "Shell constructs that fail
+  quietly": a different cause with the same result, a status that reads clean
+  for something else.
+
+So state the claim, read the predicate the probe evaluates, and check the two
+are the same sentence. Where they differ, the fix is the stronger probe rather
+than a caveat attached to the report.
+
 ## A measurement carries its timestamp
 
 Where several sessions edit one tree concurrently, a file read is true of a
@@ -143,6 +184,26 @@ postcondition directly instead of the command's status — that the destination 
 holds what was moved, that the returned count sits below the cap rather than
 equal to it. A result whose size equals the cap is a signal to re-run with a
 larger one before quoting it.
+
+## Establish which way a check errs before deciding whether it needs a fallback
+
+A pre-check wrong in one direction only is adoptable on its own; one that can be
+wrong in either direction needs something behind it. Which of the two it is gets
+measured before the design is settled, not assumed from how accurate it feels.
+
+Confirmed case, from the workspace-resolution vote: the members table can answer
+"don't know" where the true answer is yes, and cannot answer "stay" where the
+true answer is a different workspace. That was measured — `client-ndm` carries
+one row and operates correctly from three workspaces, which is exactly the false
+"don't know". The costs sit the same way round: a false "don't know" spends an
+unnecessary workspace switch, a false "stay" would aim work at the wrong target,
+and it is unreachable. That one-directional failure mode is what made the
+table-check adoptable with no fallback path behind it.
+
+So enumerate a proposed check's wrong answers and price each one before arguing
+about its hit rate. Errors that all land on the expensive-but-safe side need no
+fallback; a check that can be confidently wrong in the costly direction needs
+one however rarely it is.
 
 ## An oracle settles what opinions divide
 

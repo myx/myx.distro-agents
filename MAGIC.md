@@ -45,6 +45,7 @@ Team-owned notes for the magic-* team.
 - Closing that gap is a release step. A session does not sync, copy or hand-edit anything under `.local`.
 - Every other piece of state local to this machine — its config, allowlists, caches, settings — is the same case: it reaches no client, so changing it is not a fix and not the work.
 - **Reaching `--agents-config-option` at all creates that scope's file, `--select` reads included.** `myx.distro-.local/sh-lib/LocalTools.Config.include` `touch`es `$MMDAPP/.local/.agents/<name>.agent.env` before it even reads the sub-command, so a read against a name nobody has ever heard of leaves a phantom scope on disk that later looks like a configured member.
+- **That created file is empty, mode 600 under a 700 directory, so existence alone separates nothing.** A member nobody has configured and a fully configured one give `[ -f ]` the same answer, and the directory accumulates one empty placeholder per member ever named in an op. Content is what discriminates: `[ -s ]`, or parsing the file for the key the question is actually about.
 - **Guard at the caller, never by making the config layer stop touching.** `AgentsToolsAssertBareName` checks a name's shape and says nothing about whether that member exists; the existence check is `[ -d "$HOME/.claude/skills/<member>" ]`, the same one every `--member-comms-*` op already carries, and it belongs ahead of the first config read in any op that takes a member name.
 
 ## All non-member Slack code lives in one file, and that file is not the dispatcher
@@ -586,3 +587,24 @@ External product behaviour, read out of the installed build (1.134.0, `Visual St
 - `.agents/skills`, `.github/skills` and `.claude/skills` at the workspace root hold one member set under three names: `--install-skillset-symlinks` fans the same members into all three. Naming more than one of them in `chat.agentSkillsLocations` scans one directory repeatedly rather than adding a location.
 
 Consequence for this package: the members installed at the workspace root cannot be named by this setting, so the generated `.code-workspace` lists the workspace root as a folder and the built-in defaults find them there. The emitted key is `$MMDAPP/.agents/skills`, one absolute path naming that one directory. It adds no discovery: the validator above rejects an absolute value, and measured with the root listed and no key at all the members are found regardless. It is emitted because `AgentsTools.Install.include` fails the install when the setting is absent, and that check greps for the key name without reading its value.
+
+## The workspace list is machine data, and this repository is public
+
+`~/.claude/skills/human-owner` is a symlink into this package's own working tree, so anything written
+into the human-owner skill folder is written into a checkout of `git@github.com:myx/myx.distro-agents.git`.
+The `--owner-workspace-*` ops write the human-owner's tracked workspace paths, which are absolute paths
+on one machine and belong to that machine rather than to the package.
+
+Those ops therefore keep their file at `$HOME/.claude/skills/.human-owner.workspaces.md`, beside the
+skill symlinks rather than inside any of them. `.linked.magic-team.members.txt` already sits there for
+the same reason, and the two are the same class of data: local, machine-specific, read by the tooling,
+owned by no package.
+
+The shape of the mistake generalises past this one file: a skill folder reached through a symlink is a
+writable path pointing into a git working tree, so an op that writes to `$HOME/.claude/skills/<name>/…`
+is committing to whichever repository publishes that skill. Data an op maintains goes beside the
+symlinks; the folders behind them hold package content.
+
+`skillset/magic-team/human-owner/human-owner.workspaces.md` is listed in `.gitignore` so a stale copy
+cannot re-enter the tree. That rule governs untracked paths only, so it takes effect once the file's
+deletion is committed.

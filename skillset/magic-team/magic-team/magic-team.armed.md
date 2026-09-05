@@ -244,7 +244,7 @@ A `board-item`'s `owner` can be an acting team member or a non-acting owner (see
 
 ### Workspace (rule)
 
-No skill file, this one included, ever states a workspace's real path directly — `human-owner/human-owner.workspaces.md` is the ONLY, authoritative source of truth for workspace paths (see "Workspace" below for the full concept). A path is resolved only by reading that file, or by calling `--owner-workspace-list` at the point of use — never by hardcoding a path here, or copying one out of `human-owner/human-owner.workspaces.md` into a second file.
+No skill file, this one included, ever states a workspace's real path directly — `~/.claude/skills/.human-owner.workspaces.md` is the ONLY, authoritative source of truth for workspace paths (see "Workspace" below for the full concept). A path is resolved only by reading that file, or by calling `--owner-workspace-list` at the point of use — never by hardcoding a path here, or copying one out of `~/.claude/skills/.human-owner.workspaces.md` into a second file.
 
 # Routines
 
@@ -602,9 +602,9 @@ A `board-item`'s `owner` can be an acting team member (a spawned, working, self-
 
 # Workspace
 
-A **workspace** is one of the filesystem-path roots the magic-* team tracks work against — named by convention, rather than addressed by literal path in any team skill file (e.g. `ws-myx-devops`, `ws-myx.prv-farm`, `ws-2017`, the legacy Eclipse workspace (`myx`), plus others as added). No skill file, this one included, ever states a workspace's real path directly — `human-owner/human-owner.workspaces.md` is the ONLY authoritative source of truth for those paths, read-only from every other file's perspective: this entry records the *concept*, not the data.
+A **workspace** is one of the filesystem-path roots the magic-* team tracks work against — named by convention, rather than addressed by literal path in any team skill file (e.g. `ws-myx-devops`, `ws-myx.prv-farm`, `ws-2017`, the legacy Eclipse workspace (`myx`), plus others as added). No skill file, this one included, ever states a workspace's real path directly — `~/.claude/skills/.human-owner.workspaces.md` is the ONLY authoritative source of truth for those paths, read-only from every other file's perspective: this entry records the *concept*, not the data.
 
-`human-owner/human-owner.workspaces.md` itself is deliberately bare — one absolute path per line, no names, no prose, no header; this entry is its explanation. A path's corresponding name is established only in prose elsewhere (e.g. this file's own "Team-Member's tooling" section) — the file stores no name field, only the tracked path list.
+`~/.claude/skills/.human-owner.workspaces.md` itself is deliberately bare — one absolute path per line, no names, no prose, no header; this entry is its explanation. A path's corresponding name is established only in prose elsewhere (e.g. this file's own "Team-Member's tooling" section) — the file stores no name field, only the tracked path list.
 
 The list is read/added-to/removed-from only via `DistroAgentsTools.fn.sh --owner-workspace-list` / `--owner-workspace-upsert` / `--owner-workspace-forget` (see `myx.distro-agents`'s own help). Anything needing an actual path resolves it by reading that file or calling `--owner-workspace-list` at the point of use — never by hardcoding a path here, or copying one into a second file.
 
@@ -693,7 +693,7 @@ Note: the `--magic-*` operation families are not on this list and never will be.
 The member's own name is the only argument: the scan reads every baseline item that member's arming check needs, and an item name is not a parameter to it.
 
 ## `--owner-workspace-list` / `--owner-workspace-upsert` / `--owner-workspace-forget` Operation Reference
-Named directly in this file's own "Workspace" section above: the only sanctioned way to read/add/remove entries in `human-owner/human-owner.workspaces.md`'s tracked path list. No verbatim `--help` text is available for it here — see `myx.distro-agents`'s own help for the real syntax.
+Named directly in this file's own "Workspace" section above: the only sanctioned way to read/add/remove entries in `~/.claude/skills/.human-owner.workspaces.md`'s tracked path list. No verbatim `--help` text is available for it here — see `myx.distro-agents`'s own help for the real syntax.
 
 ## Execution mechanisms
 - **Every shell command, no exceptions, goes through `mcp__myx_distro__execute` — never Bash, Python, or any other direct-execution tool.** Applies to every member and routine, including every `DistroAgentsTools.fn.sh` invocation. The tool is present only once the MCP host has been restarted after `myx.distro` was registered; a member that does not find it stops and reports the absence, and never silently substitutes another execution path.
@@ -771,7 +771,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-coordinator.communication-sweep.routine` — the deferred per-message Slack-reaction mechanic that depends on `communication-channel-id`.
 - `magic-tester` — runs a `running/` item's own testing round (testing/CRA-security), in place.
 - `magic-team.conversations.md` — **no-regress** and **anchor-refusal-safeguard** (verify-before-complying / escalate-by-stakes for unclear routing).
-- `human-owner/human-owner.workspaces.md` — the sole authoritative source of workspace paths.
+- `~/.claude/skills/.human-owner.workspaces.md` — the sole authoritative source of workspace paths.
 
 ### Conventions
 

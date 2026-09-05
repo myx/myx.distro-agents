@@ -29,7 +29,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> [text...]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-stdin
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-read <team-member> <uid> [--seen]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-read <team-member> <notification-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-whoami <team-member>
@@ -592,6 +592,18 @@
 			threads included" -- a different question from "what is new at
 			the top level of this conversation", and neither replaces the
 			other.
+
+			**This search reads Slack's search index, and that index lags
+			posting.** A message is in `conversations.history` immediately
+			and can be missing here for some minutes afterwards, so nothing
+			this op returns -- or fails to return -- says anything about a
+			message posted moments ago. An empty result for a just-posted
+			message is the index being behind, not a malformed query: do not
+			re-word the query and search again, read the conversation with
+			`--member-comms-slack-read <team-member> <channel>` instead. This
+			op is the instrument for a sweep over older traffic by date; the
+			conversation read is what finds what just happened. The two are
+			not interchangeable in either direction.
 
 			Target grammar is the same vocabulary the rest of the
 			family takes -- `magic-team`/`human-owner`/`event-track`/
@@ -1898,7 +1910,7 @@
 
 		--owner-workspace-upsert <path>
 			Adds one filesystem path to the human-owner's tracked workspace
-			list at $HOME/.claude/skills/human-owner/human-owner.workspaces.md
+			list at $HOME/.claude/skills/.human-owner.workspaces.md
 			-- a bare, one-absolute-path-per-line file that is the ONLY
 			authoritative source of truth for the workspace paths the
 			magic-* team tracks (see magic-team.armed.md's "Workspace" term
@@ -1909,9 +1921,12 @@
 			-- upserting an already-tracked path is a harmless no-op, not an
 			error. Existence of <path> on disk is not checked (a tracked
 			workspace may live on a currently-unmounted volume). The
-			human-owner skill directory itself must already exist (it does,
-			as a standing skill folder) -- this op does not create that
-			directory, only the workspaces.md file inside it on first use.
+			$HOME/.claude/skills directory itself must already exist (it
+			does, as the standing skills folder) -- this op does not create
+			that directory, only the .human-owner.workspaces.md file inside
+			it on first use. The file sits beside the skill symlinks rather
+			than inside the human-owner skill folder, which is a working
+			tree of a public git repository.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1927,7 +1942,8 @@
 			Prints every currently-tracked workspace path, one per line, in
 			file order -- reads only lines that look like an absolute path
 			(start with `/`), so any stray non-data content in
-			human-owner.workspaces.md is never treated as data. Takes no
+			.human-owner.workspaces.md is read as commentary rather than as
+			a tracked path. Takes no
 			arguments. Prints nothing (and does not error) if the file
 			doesn't exist yet or has no tracked paths.
 
@@ -3128,7 +3144,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]
+		--member-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
 			`<team-member>` is the member this read acts as, and it comes
 			first, ahead of the target. It is required, for the reason the
 			identity paragraph below already gives: the acting member decides
@@ -3144,6 +3160,27 @@
 			Thread replies are covered: a `<ts>` naming a reply inside a
 			thread reads back that reply, exactly as a thread parent or a
 			plain non-threaded message does.
+
+			**A target with no `:<ts>` names a conversation, and reads that
+			conversation's own messages** -- pretty-formatted, newest first,
+			paged to the end. That is the form to use when the `<ts>` is the
+			thing being looked for: a message just posted has no `<ts>` in
+			the caller's hand, and this read is where it comes from.
+			`--oldest <epoch>[.<micros>]` puts a floor under how far back
+			the paging walks; a busy channel needs one, since a conversation
+			longer than the page cap is a hard failure rather than a
+			truncated answer. `--thread` belongs to the `<channel>:<ts>`
+			form only -- a thread is named by its parent's `<ts>` -- and
+			`--oldest` to this one only.
+
+			**This, not --member-comms-slack-search-messages, is what finds
+			something posted moments ago.** Search reads Slack's search
+			index, which lags posting; this read goes to the conversation
+			itself and sees a message as soon as it is there. A search
+			returning nothing for a just-posted message is the index being
+			behind, not a malformed query -- do not re-word the query, read
+			the conversation. Search is the instrument for a sweep over
+			older traffic by date; this one for what just happened.
 
 			Uses the same credential resolution as
 			--member-comms-slack-send-message; `--identity-bot` reads as the team

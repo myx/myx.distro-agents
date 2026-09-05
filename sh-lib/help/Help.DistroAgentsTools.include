@@ -121,7 +121,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-share <team
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-get <team-member> [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set <team-member> [--display-name <v>] [--title <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [text...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]" >&2

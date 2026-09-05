@@ -19,12 +19,14 @@ case "$1" in
 			;;
 		esac
 		[ "$wsPath" = "/" ] || wsPath="${wsPath%/}"
-		local ownerDir="$HOME/.claude/skills/human-owner"
+		## Local machine data, held beside the skill symlinks rather than inside
+		## the packaged skill folder, which is a public git working tree. See MAGIC.md.
+		local ownerDir="$HOME/.claude/skills"
 		if [ ! -d "$ownerDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: no such skill directory: $ownerDir" >&2
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: no such skills directory: $ownerDir" >&2
 			set +e ; return 1
 		fi
-		local ownerFile="$ownerDir/human-owner.workspaces.md"
+		local ownerFile="$ownerDir/.human-owner.workspaces.md"
 		touch "$ownerFile"
 		if grep -Fxq -- "$wsPath" "$ownerFile" ; then
 			echo "# $MDSC_CMD --owner-workspace-upsert: already tracked: $wsPath" >&2
@@ -47,7 +49,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		[ "$wsPath" = "/" ] || wsPath="${wsPath%/}"
-		local ownerFile="$HOME/.claude/skills/human-owner/human-owner.workspaces.md"
+		local ownerFile="$HOME/.claude/skills/.human-owner.workspaces.md"
 		if [ ! -f "$ownerFile" ] ; then
 			echo "# $MDSC_CMD --owner-workspace-forget: $ownerFile does not exist -- nothing to forget" >&2
 			return 0
@@ -73,7 +75,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-list: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		local ownerFile="$HOME/.claude/skills/human-owner/human-owner.workspaces.md"
+		local ownerFile="$HOME/.claude/skills/.human-owner.workspaces.md"
 		if [ ! -f "$ownerFile" ] ; then
 			echo "# $MDSC_CMD --owner-workspace-list: $ownerFile does not exist -- no workspaces tracked yet" >&2
 			return 0
