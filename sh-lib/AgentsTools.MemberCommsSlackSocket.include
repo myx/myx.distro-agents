@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberCommsSlackSocket.include -- --member-comms-slack-socket-*.
+## Sourced lazily from AgentsTools.MemberCommsSlack.include; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism:
+## myx.distro-agents/MAGIC.md.
+##
+
+case "$1" in
+
+	--member-comms-slack-socket-start|--member-comms-slack-socket-status|--member-comms-slack-socket-stop)
+		local socketOp="${1#--member-comms-slack-socket-}"
+		shift
+
+		if [ "${1:-}" = "--print-required-scopes" ] ; then
+			printf '%s\n' app_mentions:read
+			return 0
+		fi
+
+		local memberName="$1"
+		shift || true
+		if [ -z "$memberName" ] ; then
+			echo "$MDSC_CMD: socket-$socketOp: ⛔ ERROR: syntax is <team-member>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" "socket-$socketOp" || { set +e ; return 1 ; }
+		if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+			echo "$MDSC_CMD: socket-$socketOp: ⛔ ERROR: no such team member: $memberName" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "$MDSC_CMD: socket-$socketOp: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+
+		AgentsToolsEmitRequestDetailHeader "$memberName" "<none>"
+
+		## The scope holding the app-level token IS the app, one to one, so it is
+		## the receiver's identity key: two members falling back to the shared
+		## scope must not open two connections onto one app and split its events.
+		local socketScope="magic-team" socketToken=""
+		if [ "$memberName" != "magic-team" ] ; then
+			socketToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_APP_TOKEN 2>/dev/null )" || socketToken=""
+			[ -z "$socketToken" ] || socketScope="$memberName"
+		fi
+		if [ -z "$socketToken" ] ; then
+			socketToken="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_APP_TOKEN 2>/dev/null )" || socketToken=""
+		fi
+		if [ -z "$socketToken" ] ; then
+			echo "$MDSC_CMD: socket-$socketOp: ⛔ ERROR: no SLACK_APP_TOKEN for $memberName -- read from that member's own scope first and magic-team's after it; socket mode is opened by an app-level token and neither a bot nor a user token can stand in for it" >&2
+			set +e ; return 1
+		fi
+
+		local socketMatch socketPids
+		socketMatch="AgentsSlackSocketMode.py $socketScope"
+		socketPids="$( pgrep -f "$socketMatch" 2>/dev/null | tr '\n' ' ' )"
+
+		case "$socketOp" in
+			status)
+				if [ -n "$socketPids" ] ; then
+					echo "socket[$memberName] app=$socketScope receiver=alive pids=${socketPids% } log=$MMDAPP/.local/temp/slack-socket.$socketScope.log"
+					return 0
+				fi
+				echo "socket[$memberName] app=$socketScope receiver=none log=$MMDAPP/.local/temp/slack-socket.$socketScope.log"
+				return 0
+			;;
+			stop)
+				if [ -z "$socketPids" ] ; then
+					echo "socket[$memberName] app=$socketScope receiver=none, nothing to stop"
+					return 0
+				fi
+				pkill -TERM -f "$socketMatch" 2>/dev/null || true
+				echo "socket[$memberName] app=$socketScope stopped pids=${socketPids% }"
+				return 0
+			;;
+		esac
+
+		## Idempotent, and it does not extend anything: a receiver runs until it
+		## is stopped, so there is no deadline to push out the way presence has.
+		if [ -n "$socketPids" ] ; then
+			echo "socket[$memberName] app=$socketScope already receiving pids=${socketPids% }"
+			return 0
+		fi
+
+		## Atomic guard: two callers reaching the probe together would otherwise
+		## both start, and Slack sends one event to only one open connection.
+		local socketLockDir="${TMPDIR:-/tmp}/myx-slack-socket.$socketScope.lock"
+		if ! mkdir "$socketLockDir" 2>/dev/null ; then
+			echo "socket[$memberName] app=$socketScope start already in progress elsewhere"
+			return 0
+		fi
+
+		mkdir -p "$MMDAPP/.local/temp" 2>/dev/null || true
+		SOCKET_MODE_APP_TOKEN="$socketToken" \
+			SOCKET_MODE_TOOL_PATH="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
+			nohup python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackSocketMode.py" "$socketScope" \
+			>> "$MMDAPP/.local/temp/slack-socket.$socketScope.log" 2>&1 &
+		disown 2>/dev/null || true
+		sleep 2
+		rmdir "$socketLockDir" 2>/dev/null || true
+
+		socketPids="$( pgrep -f "$socketMatch" 2>/dev/null | tr '\n' ' ' )"
+		if [ -z "$socketPids" ] ; then
+			echo "$MDSC_CMD: socket-$socketOp: ⛔ ERROR: receiver for $socketScope did not stay up -- its own last words: $( tail -n 3 "$MMDAPP/.local/temp/slack-socket.$socketScope.log" 2>/dev/null )" >&2
+			set +e ; return 4
+		fi
+		## A refused token does not stop the receiver -- it retries -- so a bare
+		## "started" could never report one. Its own first words do.
+		echo "socket[$memberName] app=$socketScope started pids=${socketPids% } log=$MMDAPP/.local/temp/slack-socket.$socketScope.log"
+		tail -n 2 "$MMDAPP/.local/temp/slack-socket.$socketScope.log" 2>/dev/null
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

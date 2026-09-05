@@ -37,6 +37,7 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    not it was delivered intact. Communication intent outranks platform mechanics: there is no point
    sending something that is harder to read or harder to respond to. A wall of text is a failed
    message even when every byte arrives.
+   - Flat text fails its reader.
    - One point per message — so a reader can react to *that* point, and so it can be forwarded,
      quoted, or answered on its own. Distinct sub-topics together, only within a report.
    - Long content — code, diffs, plans, anything awaiting approval — goes in a snippet or attachment,
@@ -73,6 +74,7 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    points in one text blob become a nested list, by the conversion test in `magic-team/magic-team.shared.md`'s
    own `## Nested-item grammar`, applied to any message and not only to a skillset file's instruction
    lists. A Slack message and a chat reply carry this exactly as a rule or a report does.
+   - Format richly; formatting helps reading.
    - A list is written with `- ` items, one point per line. A `•` glyph, or points run together in a
      paragraph, delivers as one unreadable block whatever the source looked like.
    - Short headings and `- ` bullets carry the structure. Anything comparing more than two dimensions —

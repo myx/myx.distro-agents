@@ -120,6 +120,12 @@ case "$1" in
 			return $?
 		;;
 
+		## Own file for size only; the service keeps one dispatcher arm.
+		--member-comms-slack-socket-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlackSocket.include"
+			return $?
+		;;
+
 		--member-comms-slack-read)
 			shift
 			if [ "$1" = "--print-required-scopes" ] ; then
