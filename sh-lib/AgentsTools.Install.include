@@ -1,6 +1,105 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
+## Root-independent member enumeration for --install-skillset-symlinks: the
+## bundled member names plus the workspace-declared team-member sources. Both are
+## identical for every target root, so the fan branch computes them ONCE and
+## threads the result into each per-root pass instead of re-deriving them per
+## root -- the declared-member discovery shells out to ListDistroProjects /
+## ListDistroDeclares, which is the actual redundant per-root cost. A direct
+## single --target-root invocation calls this for itself. Sets caller vars
+## scanMemberNames / scanMemberSources / scanDiscoveryTrusted / scanDiscoveryError
+## (same assign-to-caller pattern as AgentsToolsItemResolvePaths); diagnostics go
+## to stderr and the outcome is carried in those vars, so it always returns 0.
+## Relies on being called while DistroAgentsTools() is on the stack for $MDSC_CMD
+## and $MDLT_ORIGIN, same as the other AgentsTools* helpers.
+AgentsToolsInstallScanMembers(){
+	local scanWorkspace="$1" scanRemoveMode="$2" scanBundleRoot="$3"
+	local scanMemberDir
+
+	scanMemberNames=""
+	scanMemberSources=""
+	scanDiscoveryTrusted="true"
+	scanDiscoveryError="false"
+
+	if [ "$scanRemoveMode" = "true" ] ; then
+		echo "# $MDSC_CMD --install-skillset-symlinks --remove: removing every line owned by this workspace, linking skipped" >&2
+	else
+		scanMemberNames="$(
+			for scanMemberDir in "$scanBundleRoot"/*/ ; do
+				[ -d "${scanMemberDir%/}" ] || continue
+				basename "${scanMemberDir%/}"
+			done | sort -u
+		)"
+	fi
+
+	local declaresTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroDeclares.fn.sh"
+	local projectsTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroProjects.fn.sh"
+	local selectedProjects selectStatus declaredMembers declaredStatus
+
+	if [ "$scanRemoveMode" = "true" ] ; then
+		scanMemberSources=""
+	elif [ ! -f "$declaresTool" ] || [ ! -f "$projectsTool" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: missing ListDistroDeclares.fn.sh ($declaresTool) or ListDistroProjects.fn.sh ($projectsTool)" >&2
+		scanDiscoveryError="true" ; scanDiscoveryTrusted="false"
+	else
+		local selectErrFile declaredErrFile
+		selectErrFile="$( mktemp "${TMPDIR:-/tmp}/agents-install-select.XXXXXX" )" || selectErrFile=""
+		declaredErrFile="$( mktemp "${TMPDIR:-/tmp}/agents-install-declared.XXXXXX" )" || declaredErrFile=""
+
+		selectStatus=0
+		selectedProjects="$( MMDAPP="$scanWorkspace" "$projectsTool" --distro-source-only --select-all 2>"${selectErrFile:-/dev/null}" )" || selectStatus=$?
+
+		declaredStatus=0
+		declaredMembers="$( MMDAPP="$scanWorkspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --distro-source-only --select-from-env --filter-and-cut 'magic-team:team-member' 2>"${declaredErrFile:-/dev/null}" )" || declaredStatus=$?
+
+		if [ "$selectStatus" != "0" ] || [ "$( printf '%s' "$selectedProjects" | grep -c '' )" = "0" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: no projects could be selected in workspace $scanWorkspace (ListDistroProjects --distro-source-only --select-all exited $selectStatus)" >&2
+			[ -z "$selectErrFile" ] || [ ! -s "$selectErrFile" ] || sed 's/^/#   ListDistroProjects: /' "$selectErrFile" >&2
+			scanDiscoveryError="true" ; scanDiscoveryTrusted="false"
+		elif [ "$declaredStatus" != "0" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroDeclares --filter-and-cut exited $declaredStatus for workspace $scanWorkspace" >&2
+			[ -z "$declaredErrFile" ] || [ ! -s "$declaredErrFile" ] || sed 's/^/#   ListDistroDeclares: /' "$declaredErrFile" >&2
+			scanDiscoveryError="true" ; scanDiscoveryTrusted="false"
+		else
+
+				local dLine dProject dRest dSkillsetPath dHostGlob dMember dHostShort dHostFull
+				dHostShort="$( hostname -s 2>/dev/null )" || dHostShort=""
+				dHostFull="$( hostname 2>/dev/null )" || dHostFull=""
+				while IFS= read -r dLine ; do
+					[ -n "$dLine" ] || continue
+					dProject="${dLine%% *}"
+					dRest="${dLine#* }"
+					dHostGlob="${dRest##*:}"
+					dSkillsetPath="${dRest%:*}"
+					dMember="$( basename "$dSkillsetPath" )"
+					if [ -z "$dHostGlob" ] || [ "$dSkillsetPath" = "$dRest" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: malformed team-member declare in $dProject: magic-team:team-member:$dRest (expected skillset/<name>:<host-glob>)" >&2
+						scanDiscoveryError="true"
+						continue
+					fi
+					case "$dHostShort" in
+						$dHostGlob) ;;
+						*)
+							case "$dHostFull" in
+								$dHostGlob) ;;
+								*)
+									continue
+								;;
+							esac
+						;;
+					esac
+					if [ ! -d "$scanWorkspace/source/$dProject/$dSkillsetPath" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $dProject declares team-member $dMember but its skillset directory is missing: $scanWorkspace/source/$dProject/$dSkillsetPath" >&2
+						scanDiscoveryError="true"
+						continue
+					fi
+					scanMemberSources="${scanMemberSources}${dMember} ${scanWorkspace}/source/${dProject}/${dSkillsetPath}"$'\n'
+				done <<< "$declaredMembers"
+		fi
+		rm -f "$selectErrFile" "$declaredErrFile" 2>/dev/null || true
+	fi
+}
 
 case "$1" in
 
@@ -86,6 +185,24 @@ case "$1" in
 				MDSC_SKILLSET_REPORT="$( mktemp "${TMPDIR:-/tmp}/magic-skillset.XXXXXX" )" || { set +e ; return 1 ; }
 				export MDSC_SKILLSET_REPORT ; ownsReport="true"
 			fi
+
+			## Scan the member enumeration ONCE for the whole fan and thread it into
+			## every per-root pass via the environment, so each root's linking below
+			## consumes this pre-scanned set instead of re-running the declared-member
+			## discovery per root. The fan loop itself stays serial. PRESCAN is
+			## exported last, after the data vars, so a consumer never sees the flag
+			## set with the data not yet populated.
+			local ownsPrescan="false"
+			if [ -z "$MDSC_SKILLSET_PRESCAN" ] ; then
+				local scanMemberNames scanMemberSources scanDiscoveryTrusted scanDiscoveryError
+				AgentsToolsInstallScanMembers "$workspace" "$removeMode" "$bundleRoot"
+				export MDSC_SKILLSET_MEMBERNAMES="$scanMemberNames"
+				export MDSC_SKILLSET_MEMBERSOURCES="$scanMemberSources"
+				export MDSC_SKILLSET_DISCOVERY_TRUSTED="$scanDiscoveryTrusted"
+				export MDSC_SKILLSET_DISCOVERY_ERROR="$scanDiscoveryError"
+				export MDSC_SKILLSET_PRESCAN="1" ; ownsPrescan="true"
+			fi
+
 			while IFS= read -r fanRoot ; do
 				[ -n "$fanRoot" ] || continue
 				if [ "$removeMode" = "true" ] ; then
@@ -94,6 +211,10 @@ case "$1" in
 					DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" --target-root "$fanRoot" || fanStatus=1
 				fi
 			done <<< "$fanRoots"
+
+			if [ "$ownsPrescan" = "true" ] ; then
+				unset MDSC_SKILLSET_PRESCAN MDSC_SKILLSET_MEMBERNAMES MDSC_SKILLSET_MEMBERSOURCES MDSC_SKILLSET_DISCOVERY_TRUSTED MDSC_SKILLSET_DISCOVERY_ERROR
+			fi
 			if [ "$ownsReport" = "true" ] ; then
 				DistroAgentsTools --install-skillset-report-render
 				rm -f "$MDSC_SKILLSET_REPORT" ; unset MDSC_SKILLSET_REPORT
@@ -110,20 +231,27 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		local memberNames memberDir
-		if [ "$removeMode" = "true" ] ; then
-			memberNames=""
-			echo "# $MDSC_CMD --install-skillset-symlinks --remove: removing every line owned by this workspace, linking skipped" >&2
+		## Consume the member enumeration the fan branch scanned once; a direct
+		## single --target-root invocation (no fan parent) scans for itself here
+		## via the same helper. Either way the linking below never re-scans per
+		## root -- it works only from memberNames / memberSources / discoveryTrusted.
+		local hadError="false"
+		local memberNames memberSources discoveryTrusted
+		if [ -n "$MDSC_SKILLSET_PRESCAN" ] ; then
+			memberNames="$MDSC_SKILLSET_MEMBERNAMES"
+			memberSources="$MDSC_SKILLSET_MEMBERSOURCES"
+			discoveryTrusted="$MDSC_SKILLSET_DISCOVERY_TRUSTED"
+			[ "$MDSC_SKILLSET_DISCOVERY_ERROR" = "true" ] && hadError="true"
 		else
-			memberNames="$(
-				for memberDir in "$bundleRoot"/*/ ; do
-					[ -d "${memberDir%/}" ] || continue
-					basename "${memberDir%/}"
-				done | sort -u
-			)"
+			local scanMemberNames scanMemberSources scanDiscoveryTrusted scanDiscoveryError
+			AgentsToolsInstallScanMembers "$workspace" "$removeMode" "$bundleRoot"
+			memberNames="$scanMemberNames"
+			memberSources="$scanMemberSources"
+			discoveryTrusted="$scanDiscoveryTrusted"
+			[ "$scanDiscoveryError" = "true" ] && hadError="true"
 		fi
 
-		local hadError="false" memberName memberTarget memberBundled memberActual
+		local memberName memberTarget memberBundled memberActual
 		local ownedMembers="" newLinks="" regChanges="" keptMembers="" deletedMembers="" errorMembers=""
 		while IFS= read -r memberName ; do
 			[ -n "$memberName" ] || continue
@@ -166,75 +294,8 @@ case "$1" in
 		originRoot="${MDLT_ORIGIN:-}"
 		[ -n "$originRoot" ] || originRoot="$compositeRoot"
 
-		local declaresTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroDeclares.fn.sh"
-		local projectsTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroProjects.fn.sh"
-		local selectedProjects selectStatus declaredMembers declaredStatus
-		local memberSources=""
-
-		local discoveryTrusted="true"
-
-		if [ "$removeMode" = "true" ] ; then
-			memberSources=""
-		elif [ ! -f "$declaresTool" ] || [ ! -f "$projectsTool" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: missing ListDistroDeclares.fn.sh ($declaresTool) or ListDistroProjects.fn.sh ($projectsTool)" >&2
-			hadError="true" ; discoveryTrusted="false"
-		else
-			local selectErrFile declaredErrFile
-			selectErrFile="$( mktemp "${TMPDIR:-/tmp}/agents-install-select.XXXXXX" )" || selectErrFile=""
-			declaredErrFile="$( mktemp "${TMPDIR:-/tmp}/agents-install-declared.XXXXXX" )" || declaredErrFile=""
-
-			selectStatus=0
-			selectedProjects="$( MMDAPP="$workspace" "$projectsTool" --distro-source-only --select-all 2>"${selectErrFile:-/dev/null}" )" || selectStatus=$?
-
-			declaredStatus=0
-			declaredMembers="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --distro-source-only --select-from-env --filter-and-cut 'magic-team:team-member' 2>"${declaredErrFile:-/dev/null}" )" || declaredStatus=$?
-
-			if [ "$selectStatus" != "0" ] || [ "$( printf '%s' "$selectedProjects" | grep -c '' )" = "0" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: no projects could be selected in workspace $workspace (ListDistroProjects --distro-source-only --select-all exited $selectStatus)" >&2
-				[ -z "$selectErrFile" ] || [ ! -s "$selectErrFile" ] || sed 's/^/#   ListDistroProjects: /' "$selectErrFile" >&2
-				hadError="true" ; discoveryTrusted="false"
-			elif [ "$declaredStatus" != "0" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroDeclares --filter-and-cut exited $declaredStatus for workspace $workspace" >&2
-				[ -z "$declaredErrFile" ] || [ ! -s "$declaredErrFile" ] || sed 's/^/#   ListDistroDeclares: /' "$declaredErrFile" >&2
-				hadError="true" ; discoveryTrusted="false"
-			else
-
-					local dLine dProject dRest dSkillsetPath dHostGlob dMember dHostShort dHostFull
-					dHostShort="$( hostname -s 2>/dev/null )" || dHostShort=""
-					dHostFull="$( hostname 2>/dev/null )" || dHostFull=""
-					while IFS= read -r dLine ; do
-						[ -n "$dLine" ] || continue
-						dProject="${dLine%% *}"
-						dRest="${dLine#* }"
-						dHostGlob="${dRest##*:}"
-						dSkillsetPath="${dRest%:*}"
-						dMember="$( basename "$dSkillsetPath" )"
-						if [ -z "$dHostGlob" ] || [ "$dSkillsetPath" = "$dRest" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: malformed team-member declare in $dProject: magic-team:team-member:$dRest (expected skillset/<name>:<host-glob>)" >&2
-							hadError="true"
-							continue
-						fi
-						case "$dHostShort" in
-							$dHostGlob) ;;
-							*)
-								case "$dHostFull" in
-									$dHostGlob) ;;
-									*)
-										continue
-									;;
-								esac
-							;;
-						esac
-						if [ ! -d "$workspace/source/$dProject/$dSkillsetPath" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $dProject declares team-member $dMember but its skillset directory is missing: $workspace/source/$dProject/$dSkillsetPath" >&2
-							hadError="true"
-							continue
-						fi
-						memberSources="${memberSources}${dMember} ${workspace}/source/${dProject}/${dSkillsetPath}"$'\n'
-					done <<< "$declaredMembers"
-			fi
-			rm -f "$selectErrFile" "$declaredErrFile" 2>/dev/null || true
-		fi
+		## Declared-member discovery (memberSources / discoveryTrusted) is hoisted to
+		## AgentsToolsInstallScanMembers and consumed in the scan block above.
 
 		local dcMember dcSources dcCount dcLinkTarget dcSrc
 		for dcMember in $( printf '%s' "$memberSources" | awk 'NF { print $1 }' | sort -u ) ; do
