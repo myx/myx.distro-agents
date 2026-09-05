@@ -1130,7 +1130,7 @@ HOOKEOF
 
 		if cmp -s "$fragmentTmp" "$fragmentFile" ; then
 			rm -f "$fragmentTmp"
-			echo "✅ copilot access fragment already current: $fragmentFile (${rootCount:-?} root(s))" >&2
+			echo "✅ copilot access already configured (${rootCount:-?} root(s))" >&2
 			return 0
 		fi
 
@@ -1140,7 +1140,7 @@ HOOKEOF
 			set +e ; return 1
 		fi
 
-		echo "✅ copilot access fragment installed: $fragmentFile (${rootCount:-?} root(s))" >&2
+		echo "✅ copilot access configured (${rootCount:-?} root(s))" >&2
 		return 0
 	;;
 

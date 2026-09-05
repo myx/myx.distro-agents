@@ -47,7 +47,7 @@ case "$1" in
 					export MDLT_ORIGIN="$MDLC_INMODE"
 					export MDLC_INMODE="extern"
 					export MDLT_OPTION="--run-from-path $MDLT_ORIGIN"
-					echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+					echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION" >&2
 					return 0
 				fi
 				export MDLT_ORIGIN="$MMDAPP/.local"
@@ -72,7 +72,7 @@ case "$1" in
 			export MDLC_INMODE="extern"
 			export MDLT_OPTION="--run-from-path $2"
 
-			echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION, origin: $MDLT_ORIGIN" >&2
+			echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION" >&2
 			return 0
 		fi
 		echo "🙋 WARNING: AgentsContext.SetInputSpec: $1 requested but source is not available at '$2', defaulting to --run-from-.local" >&2
