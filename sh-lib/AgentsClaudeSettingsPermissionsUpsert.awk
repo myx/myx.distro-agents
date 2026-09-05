@@ -272,8 +272,13 @@ function buildDesiredAllow(   dCount, k) {
 	## (each carries its own leading "/"), so exactly ONE more "/" here
 	## yields the required "//" -- prepending "//" would double it.
 	dCount = 0
-	DESIRED[dCount++] = "Edit(/" boardRoot "/**)"
-	DESIRED[dCount++] = "Write(/" boardRoot "/**)"
+	## A board is not configured in most installations. Add the board grant
+	## pair only when a board path was actually supplied; an empty boardRoot
+	## contributes no grant (and any stale board grant is still dropped below).
+	if (boardRoot != "") {
+		DESIRED[dCount++] = "Edit(/" boardRoot "/**)"
+		DESIRED[dCount++] = "Write(/" boardRoot "/**)"
+	}
 	for (i = 0; i < staticAllowCount; i++) DESIRED[dCount++] = staticAllow[i]
 	for (k = 0; k < MEMBERPATHCOUNT; k++) {
 		DESIRED[dCount++] = "Edit(/" MEMBERPATH[k] "/**)"
@@ -287,7 +292,8 @@ BEGIN {
 	membersFile = ENVIRON["MYX_CLAUDEPERMS_MEMBERS_FILE"]
 	staticAllowRaw = ENVIRON["MYX_CLAUDEPERMS_STATIC_ALLOW_JSON"]
 	denyAddRaw = ENVIRON["MYX_CLAUDEPERMS_DENY_ADD_JSON"]
-	if (boardRoot == "" || membersFile == "" || staticAllowRaw == "" || denyAddRaw == "") fail("usage")
+	## boardRoot is optional (no board in most installations); the other three are required.
+	if (membersFile == "" || staticAllowRaw == "" || denyAddRaw == "") fail("usage")
 	if (!validJson(staticAllowRaw, "[")) fail("static-allow-not-a-json-array")
 	if (!validJson(denyAddRaw, "[")) fail("deny-add-not-a-json-array")
 

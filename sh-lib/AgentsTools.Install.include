@@ -764,12 +764,13 @@ case "$1" in
 		fi
 
 		## $MDAT_DATA_ROOT is already resolved by DistroAgentsTools() at entry
-		## (from TEAM_DATA_DIRECTORY) -- reused as-is, never re-derived.
-		if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: MDAT_DATA_ROOT could not be resolved (TEAM_DATA_DIRECTORY not configured) -- refusing to write $settingsFile without a real board path" >&2
-			set +e ; return 1
-		fi
-		local boardRoot="$MDAT_DATA_ROOT/board"
+		## (from TEAM_DATA_DIRECTORY) -- reused as-is, never re-derived. A board
+		## is not configured in most installations: when it is absent, proceed
+		## with an empty boardRoot -- never a fabricated path and never a refusal.
+		## The permissions writer omits the board grant on an empty boardRoot and
+		## still drops any stale board grant it finds.
+		local boardRoot=""
+		[ -z "${MDAT_DATA_ROOT:-}" ] || boardRoot="$MDAT_DATA_ROOT/board"
 
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
 
@@ -783,8 +784,10 @@ case "$1" in
 		## fragment -- not a loop inlined here. It already emits sorted-unique
 		## real dirs, skipping trash and reference-only members.
 		AgentsToolsClientAccessRootsMembers > "$memberPathsFile"
-		local memberCount
-		memberCount="$( grep -c '' "$memberPathsFile" )"
+		## Zero members is a legitimate empty result -- grep -c '' then exits 1.
+		## Keep the declaration and assignment on one line so `local` reports its
+		## own (success) status, not the substitution's, and set -e does not abort.
+		local memberCount="$( grep -c '' "$memberPathsFile" )"
 
 		local settingsTmp
 		settingsTmp="$( mktemp "$settingsFile.XXXXXX" )" || {
@@ -812,7 +815,7 @@ case "$1" in
 
 		if cmp -s "$settingsTmp" "$settingsFile" ; then
 			rm -f "$settingsTmp"
-			echo "✅ claude permissions already current: $settingsFile (board: $boardRoot, $memberCount member grant(s))" >&2
+			echo "✅ claude permissions already current: $settingsFile ($memberCount member grant(s))" >&2
 			return 0
 		fi
 
@@ -822,7 +825,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		echo "✅ claude permissions installed: $settingsFile (board: $boardRoot, $memberCount member grant(s))" >&2
+		echo "✅ claude permissions installed: $settingsFile ($memberCount member grant(s))" >&2
 		return 0
 	;;
 
