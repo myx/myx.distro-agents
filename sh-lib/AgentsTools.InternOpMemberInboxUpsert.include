@@ -84,17 +84,10 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ "$bodyMode" = "patch" ] ; then
-			local patchJson existingContent contentFile patchFile
+			local patchJson existingContent
 			patchJson="$( cat )"
 			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
-			contentFile="$MMDAPP/.local/temp/mdat-member-inbox-patch-content.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$contentFile" || { set +e ; return 1 ; }
-			patchFile="$MMDAPP/.local/temp/mdat-member-inbox-patch-spec.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$patchFile" || { set +e ; return 1 ; }
-			printf '%s' "$existingContent" > "$contentFile"
-			printf '%s' "$patchJson" > "$patchFile"
-			content="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" "$contentFile" "$patchFile" )" || { rm -f "$contentFile" "$patchFile" ; set +e ; return 1 ; }
-			rm -f "$contentFile" "$patchFile"
+			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" )" || { set +e ; return 1 ; }
 		else
 			[ "$contentFromFile" = "true" ] || content="$( cat )"
 		fi
@@ -102,8 +95,35 @@ case "$1" in
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: empty content -- refusing to write an empty inbox item" >&2
 			set +e ; return 1
 		fi
+		## created vs updated is decided before the write, while the target's
+		## prior presence still tells the two apart.
+		local existedBefore="false"
+		if [ -f "$target" ] ; then existedBefore="true" ; fi
 		printf '%s\n' "$content" > "$target"
 		echo "# $MDSC_CMD: member-inbox-upsert: wrote ${target#"$inboxDir"/} ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+
+		## Commit gate: .git presence in the team-data root, presence only --
+		## this op never pushes. Mirrors --intern-op-board-upsert-move-edit.
+		local repoRoot=""
+		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+		if [ -n "$repoRoot" ] ; then
+			local msgPrefix="+" msgAction="created"
+			if [ "$existedBefore" = "true" ] ; then msgPrefix="*" ; msgAction="updated" ; fi
+			local ctxForMsg="$opContext"
+			if [ "$ctxForMsg" = "<no --context given>" ] ; then ctxForMsg="--intern-op-member-inbox-upsert" ; fi
+			local gitOut="" gitRc=0
+			gitOut="$( git -C "$repoRoot" add -- "$target" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: git add failed for $target: $gitOut" >&2
+				set +e ; return 1
+			fi
+			gitOut="$( git -C "$repoRoot" commit -m "$msgPrefix $msgAction: $ctxForMsg" -- "$target" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: git commit failed for $target: $gitOut" >&2
+				set +e ; return 1
+			fi
+			echo "# $MDSC_CMD: member-inbox-upsert: committed ${target#"$MDAT_DATA_ROOT"/}" >&2
+		fi
 		return 0
 	;;
 

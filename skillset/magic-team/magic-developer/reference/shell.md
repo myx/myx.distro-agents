@@ -52,6 +52,15 @@ Written to the bash standard: the process substitution below is a bash-ism, and 
   - **A real file another process must open** — a credential header handed to `curl -H @file` keeps the token out of `argv` and out of `ps`. Create it with `mktemp`, then `chmod 600` it.
   - **A whole document buffered before any of it is emitted**, so a run that fails partway leaves nothing on stdout that reads as a finished result. It only works if every byte is written inside the redirect: one header printed before the redirect defeats the entire mechanism.
 
+### Worked example: a temp dir with a trap against `<<< "$( … )"`
+
+Set a `mktemp -d`, several files inside it, a trap and an `rm -rf` beside a herestring fed one command substitution, for a producer whose whole output a consumer reads once:
+
+- The apparatus exists only to get data from a producer to a consumer: `mktemp -d`, several files inside it, a trap, an `rm -rf`, plus the error branches each of those needs. `<<< "$( … )"` does the same job with none of it — nothing created, nothing named, nothing tracked, nothing to clean, nothing to leak if the shell dies between two of those steps.
+- It scores on all three of the criteria rather than trading one against another: faster — no filesystem I/O, no forks for `mkdir`/`rm`; readable — the data flow is visible at the point of use instead of split across four places; simpler — there is no lifecycle at all, so nothing to reason about.
+
+The dir earns its place only when it is genuinely one of the two cases above — a real file another process must open, or a whole document buffered before any of it is emitted — never as a staging area for a value that already fits in a variable.
+
 ## Principles
 
 - **All three platforms are fully supported — none is a fallback or a lesser target**: FreeBSD carries the majority of the servers this software runs on; Darwin is the majority of its users; Linux is fully supported alongside both. That gives a non-portable construct two distinct worst cases: a FreeBSD break hits the largest number of servers, a Darwin break hits the largest number of people. The three named platforms mean their current versions — the latest LTS Linux, the latest RELEASE FreeBSD, a modern Darwin — and that set is a ceiling on effort as much as it is a floor on support: a construct that is sound on those three is portable enough, full stop. Don't contort code for an obsolete shell, an ancient utility or a long-superseded OS release, don't add compatibility shims for versions outside that set, and don't reject a clean construct because some historical version lacked it. Testing on whichever platform you happen to be developing on proves nothing about the other two — verifying a construct on Darwin and Linux does not establish it works on FreeBSD, and FreeBSD is where the servers are.

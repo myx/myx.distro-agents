@@ -407,17 +407,10 @@ case "$1" in
 		fi
 
 		if [ "$bodyMode" = "patch" ] ; then
-			local patchJson existingContent contentFile patchFile
+			local patchJson existingContent
 			patchJson="$( cat )"
 			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
-			contentFile="$MMDAPP/.local/temp/mdat-item-upsert-patch-content.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$contentFile" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
-			patchFile="$MMDAPP/.local/temp/mdat-item-upsert-patch-spec.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$patchFile" || { rm -f "$headerOpsFile" "$contentFile" ; set +e ; return 1 ; }
-			printf '%s' "$existingContent" > "$contentFile"
-			printf '%s' "$patchJson" > "$patchFile"
-			content="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" "$contentFile" "$patchFile" )" || { rm -f "$headerOpsFile" "$contentFile" "$patchFile" ; set +e ; return 1 ; }
-			rm -f "$contentFile" "$patchFile"
+			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" )" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
 		elif [ "$bodyMode" = "stdin" ] ; then
 			content="$( cat )"
 		elif [ "$contentFromFile" = "true" ] ; then

@@ -228,17 +228,10 @@ case "$1" in
 		elif [ "$bodyMode" = "stdin" ] ; then
 			body="$( cat )"
 		elif [ "$bodyMode" = "patch" ] ; then
-			local patchJson existingContent contentFile patchFile
+			local patchJson existingContent
 			patchJson="$( cat )"
 			if [ "$isCreate" = "true" ] ; then existingContent="" ; else existingContent="$( cat "$sourcePath" )" ; fi
-			contentFile="$MMDAPP/.local/temp/mdat-intern-op-patch-content.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$contentFile" || { set +e ; return 1 ; }
-			patchFile="$MMDAPP/.local/temp/mdat-intern-op-patch-spec.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$patchFile" || { set +e ; return 1 ; }
-			printf '%s' "$existingContent" > "$contentFile"
-			printf '%s' "$patchJson" > "$patchFile"
-			body="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" "$contentFile" "$patchFile" )"
-			rm -f "$contentFile" "$patchFile"
+			body="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" )"
 		else
 			if [ "$isCreate" = "true" ] ; then
 				body="---"$'\n'"---"

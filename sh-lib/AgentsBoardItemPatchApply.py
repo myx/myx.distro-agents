@@ -6,14 +6,17 @@
 # externalized per this package's own externalize-awk/py convention (see
 # AgentsBoardItemFrontmatterPrint.awk's own header comment for that name).
 #
-# argv[1]: path to a file holding the existing board-item body text (empty
-#   file on --create). argv[2]: path to a file holding a JSON array of patch
-#   objects: {"old": <text>, "new": <text>, "replace_all": <bool, default
-#   false>}. Both are files, not stdin/a single combined argv, because a
-#   large/arbitrary body or patch set as a bare argv string risks ARG_MAX
-#   and shell-escaping problems -- this script takes the same two-temp-
-#   file-plus-argv-paths shape the caller .include already uses for its own
-#   headerOpsFile/tmpFile plumbing.
+# Reads both inputs from a single stdin stream, in this framing: the JSON
+#   array of patch objects first, the existing board-item body text (empty
+#   on --create) immediately after it. A JSON array is self-delimiting, so
+#   the array is decoded from the front of the stream and everything past
+#   its closing bracket is taken verbatim as the body -- one unambiguous
+#   stream, no separator the body could collide with, and nothing for the
+#   caller to create and clean up. stdin also sidesteps the ARG_MAX and
+#   shell-escaping limits a bare-argv body/patch set would otherwise hit.
+#
+#   Each patch object: {"old": <text>, "new": <text>, "replace_all": <bool,
+#   default false>}.
 #
 # Applies each patch in order against the result of the previous one --
 # same as running several literal-substring edits in sequence. Each `old`
@@ -40,22 +43,18 @@ def fail(message):
 
 
 def main():
-	if len(sys.argv) != 3:
-		fail("internal error: expected <content-file> <patch-file> as argv")
+	raw = sys.stdin.read()
 
-	content_path, patch_path = sys.argv[1], sys.argv[2]
-
-	with open(content_path, "r", encoding="utf-8") as f:
-		text = f.read()
-
-	with open(patch_path, "r", encoding="utf-8") as f:
-		raw = f.read()
-
+	# Patch array leads the stream; the body follows its closing bracket.
+	# Decode the array from the front, keep the remainder verbatim as body.
+	start = len(raw) - len(raw.lstrip(" \t\r\n"))
 	try:
-		patches = json.loads(raw) if raw.strip() else []
+		patches, end = json.JSONDecoder().raw_decode(raw, start)
 	except Exception as e:
 		fail("invalid JSON: {}".format(e))
 		return
+
+	text = raw[end:]
 
 	if not isinstance(patches, list):
 		fail("patch input must be a JSON array")

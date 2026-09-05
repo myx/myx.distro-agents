@@ -68,6 +68,7 @@ case "$1" in
 		}
 		local boardRoot="$MDAT_DATA_ROOT/board"
 		local f touched=0
+		local boardRenameCommitPaths=()
 		export MDAT_RENAME_OLD="$oldName"
 		export MDAT_RENAME_NEW="$newName"
 		for f in "$boardRoot"/*/*.md ; do
@@ -96,9 +97,35 @@ case "$1" in
 				cat "$tmp" > "$f"
 				rm -f "$tmp"
 				touched=$(( touched + 1 ))
+				boardRenameCommitPaths+=( "$f" )
 			fi
 		done
 		unset MDAT_RENAME_OLD MDAT_RENAME_NEW
+
+		## Fold-in: the item move and the husk commit through
+		## --intern-op-board-upsert-move-edit below, but these cross-reference
+		## rewrites do not -- give them their own commit. .git-gated, never
+		## pushes; the sweep is confined to board/, so team-data only.
+		if [ "${#boardRenameCommitPaths[@]}" -gt 0 ] ; then
+			local repoRoot=""
+			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+			if [ -n "$repoRoot" ] ; then
+				local ctxForMsg="$opContext"
+				if [ "$ctxForMsg" = "<no --context given>" ] ; then ctxForMsg="--intern-op-board-rename" ; fi
+				local gitOut="" gitRc=0
+				gitOut="$( git -C "$repoRoot" add -- "${boardRenameCommitPaths[@]}" 2>&1 )" || gitRc=$?
+				if [ "$gitRc" -ne 0 ] ; then
+					echo "$MDSC_CMD: board-rename: ⛔ ERROR: git add failed for sweep: $gitOut" >&2
+					set +e ; return 1
+				fi
+				gitOut="$( git -C "$repoRoot" commit -m "* renamed: $oldName -> $newName, $ctxForMsg" -- "${boardRenameCommitPaths[@]}" 2>&1 )" || gitRc=$?
+				if [ "$gitRc" -ne 0 ] ; then
+					echo "$MDSC_CMD: board-rename: ⛔ ERROR: git commit failed for sweep: $gitOut" >&2
+					set +e ; return 1
+				fi
+				echo "# $MDSC_CMD: board-rename: committed sweep ($touched reference file(s))" >&2
+			fi
+		fi
 
 		local state oldFile renamed="false"
 		for state in backlog pending running blocked parked processed archived retained ; do

@@ -95,6 +95,77 @@ case "$1" in
 		return 0
 	;;
 
+	## --owner-setup-<domain> -- per-domain setup op family. Interface (human-owner):
+	## a bare call, or --check, runs the READ-ONLY diagnosis for that domain and
+	## applies NOTHING. Diagnosis wraps --intern-op-check-configs, which checks each
+	## required setting's VALUE at its use site (an unset or empty KEY= is FAIL, never
+	## an OK) -- never a file-existence check. The apply/guide half is a separate
+	## design item, deliberately not built here. The family is open and grows: a
+	## domain with no defined required-set reports "no checks defined yet", never an
+	## invented check.
+	--owner-setup-*)
+		local setupDomain="${1#--owner-setup-}"
+		shift
+		case "${1:-}" in
+			"") ;;
+			--check) shift ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: only a bare call or --check is supported here (read-only diagnosis); apply/install is not built yet. Got: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: no further arguments accepted" >&2
+			set +e ; return 1
+		fi
+		echo "# $MDSC_CMD --owner-setup-$setupDomain --check: read-only diagnosis (nothing applied)"
+		case "$setupDomain" in
+			slack)
+				local setupRc=0
+				DistroAgentsTools --intern-op-check-configs magic-coordinator \
+					--required "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
+					--required "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
+					--required "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
+					--required "SLACK_CHANNEL_HUMAN_OWNER:<user-id>" \
+					--expect-id-kind SLACK_CHANNEL_EVENT_TRACK:channel \
+					--expect-id-kind SLACK_CHANNEL_EVENT_ALERT:channel \
+					--expect-id-kind SLACK_CHANNEL_MAGIC_TEAM:channel \
+					--expect-id-kind SLACK_CHANNEL_HUMAN_OWNER:user \
+					--context --owner-setup-slack || setupRc=$?
+				DistroAgentsTools --intern-op-check-configs magic-team \
+					--optional "SLACK_BOT_TOKEN:<token>" \
+					--expect-secret SLACK_BOT_TOKEN \
+					--context --owner-setup-slack || true
+				return "$setupRc"
+			;;
+			storage)
+				local setupRc=0
+				DistroAgentsTools --intern-op-check-configs magic-coordinator \
+					--required "TEAM_DATA_DIRECTORY:<path>" \
+					--expect-path-exists "TEAM_DATA_DIRECTORY:${MDAT_DATA_ROOT:-}" \
+					--context --owner-setup-storage || setupRc=$?
+				DistroAgentsTools --intern-op-check-configs magic-team \
+					--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \
+					--context --owner-setup-storage || true
+				return "$setupRc"
+			;;
+			copilot|claude)
+				echo "$setupDomain: no checks defined yet"
+				echo "  note: this domain's access is granted through the filesystem access-roots"
+				echo "        (AgentsToolsClientAccessRoots), not through --agents-config-option"
+				echo "        settings -- there is no config-key required-set to diagnose here yet,"
+				echo "        and a directory-existence check is deliberately not used for this."
+				return 0
+			;;
+			*)
+				echo "$setupDomain: no checks defined yet"
+				echo "  note: no required settings are defined for this domain -- the"
+				echo "        --owner-setup-* family is open and grows as domains are defined."
+				return 0
+			;;
+		esac
+	;;
+
 
 	*)
 		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2

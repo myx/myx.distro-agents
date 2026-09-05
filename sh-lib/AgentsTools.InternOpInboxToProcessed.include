@@ -185,17 +185,10 @@ case "$1" in
 		elif [ "$bodyMode" = "stdin" ] ; then
 			body="$( cat )"
 		elif [ "$bodyMode" = "patch" ] ; then
-			local patchJson existingContent contentFile patchFile
+			local patchJson existingContent
 			patchJson="$( cat )"
 			existingContent="$( cat "$sourcePath" )"
-			contentFile="$MMDAPP/.local/temp/mdat-inbox-to-processed-patch-content.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$contentFile" || { set +e ; return 1 ; }
-			patchFile="$MMDAPP/.local/temp/mdat-inbox-to-processed-patch-spec.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$patchFile" || { set +e ; return 1 ; }
-			printf '%s' "$existingContent" > "$contentFile"
-			printf '%s' "$patchJson" > "$patchFile"
-			body="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" "$contentFile" "$patchFile" )"
-			rm -f "$contentFile" "$patchFile"
+			body="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" )"
 		else
 			body="$( cat "$sourcePath" )"
 		fi
@@ -226,9 +219,41 @@ case "$1" in
 		printf '%s\n' "$body" > "$tmpFile"
 		mv "$tmpFile" "$targetPath"
 
+		## Commit gate: .git presence in the team-data root, presence only --
+		## this op never pushes. Mirrors --intern-op-board-upsert-move-edit's
+		## both-ends move commit. Tracked-state is read before the source is
+		## removed: git add on a vanished untracked path would fail the op
+		## after the move already happened.
+		local repoRoot="" sourceTracked="false"
+		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+		if [ -n "$repoRoot" ] ; then
+			[ -z "$( git -C "$repoRoot" ls-files -- "$sourcePath" 2>/dev/null )" ] || sourceTracked="true"
+		fi
+
 		## `--` guards a later edit that bypasses validation.
 		rm -f -- "$sourcePath"
 		echo "# $MDSC_CMD: inbox-to-processed: wrote ${targetPath#"$inboxDirResolved"/}, previous ${sourcePath#"$inboxDirResolved"/} deleted" >&2
+
+		## Both ends of the move in one commit: the processed/ copy that now
+		## holds the item, and the source whose removal git must record.
+		if [ -n "$repoRoot" ] ; then
+			local ctxForMsg="$opContext"
+			if [ "$ctxForMsg" = "<no --context given>" ] ; then ctxForMsg="--intern-op-inbox-to-processed" ; fi
+			local commitPaths=( "$targetPath" )
+			[ "$sourceTracked" = "true" ] && commitPaths+=( "$sourcePath" )
+			local gitOut="" gitRc=0
+			gitOut="$( git -C "$repoRoot" add -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: git add failed for ${commitPaths[*]}: $gitOut" >&2
+				rm -f "$headerOpsFile" ; trap - EXIT ; set +e ; return 1
+			fi
+			gitOut="$( git -C "$repoRoot" commit -m "* processed: $ctxForMsg" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: git commit failed for ${commitPaths[*]}: $gitOut" >&2
+				rm -f "$headerOpsFile" ; trap - EXIT ; set +e ; return 1
+			fi
+			echo "# $MDSC_CMD: inbox-to-processed: committed ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
+		fi
 
 		rm -f "$headerOpsFile"
 		trap - EXIT

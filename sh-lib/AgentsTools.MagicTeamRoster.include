@@ -59,17 +59,10 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ "$bodyMode" = "patch" ] ; then
-			local patchJson existingContent contentFile patchFile
+			local patchJson existingContent
 			patchJson="$( cat )"
 			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
-			contentFile="$MMDAPP/.local/temp/mdat-team-roster-patch-content.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$contentFile" || { set +e ; return 1 ; }
-			patchFile="$MMDAPP/.local/temp/mdat-team-roster-patch-spec.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$patchFile" || { set +e ; return 1 ; }
-			printf '%s' "$existingContent" > "$contentFile"
-			printf '%s' "$patchJson" > "$patchFile"
-			content="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" "$contentFile" "$patchFile" )" || { rm -f "$contentFile" "$patchFile" ; set +e ; return 1 ; }
-			rm -f "$contentFile" "$patchFile"
+			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" )" || { set +e ; return 1 ; }
 		else
 			[ "$contentFromFile" = "true" ] || content="$( cat )"
 		fi

@@ -113,6 +113,7 @@ case "$1" in
 		export MDAT_RENAME_NEW_STEM="${newName%.*}"
 
 		local touched=0 f tmp sweepTarget
+		local renameCommitPaths=()
 
 		for sweepTarget in "$MDAT_DATA_ROOT/board" "$MDAT_DATA_ROOT/inboxes" "$MDAT_DATA_ROOT/audit" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" ; do
 			[ -d "$sweepTarget" ] || continue
@@ -137,14 +138,51 @@ case "$1" in
 				cat "$tmp" > "$f"
 				rm -f "$tmp"
 				touched=$(( touched + 1 ))
+				## Only team-data rewrites are committed; skillset/ is in the
+				## source tree (a different repo) and is never staged from an op.
+				case "$sweepTarget" in
+					"$MDAT_DATA_ROOT"/*) renameCommitPaths+=( "$f" ) ;;
+				esac
 			done <<EOF
 $( find "$sweepTarget" -type f )
 EOF
 		done
 		unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM
 
+		## Commit gate: .git presence in the team-data root, presence only --
+		## this op never pushes. Mirrors --intern-op-board-upsert-move-edit's
+		## both-ends move commit. Source tracked-state is read before the mv
+		## removes it.
+		local repoRoot="" sourceTracked="false"
+		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+		if [ -n "$repoRoot" ] ; then
+			[ -z "$( git -C "$repoRoot" ls-files -- "$sourcePath" 2>/dev/null )" ] || sourceTracked="true"
+		fi
+
 		mv -- "$sourcePath" "$targetPath"
 		echo "# $MDSC_CMD: item-rename: $storeName/: $oldName -> $newName ($touched reference file(s) rewritten)" >&2
+
+		## The move (old removed, new added) plus the team-data reference
+		## rewrites, one commit. skillset/ paths are excluded above.
+		if [ -n "$repoRoot" ] ; then
+			local ctxForMsg="$opContext"
+			if [ "$ctxForMsg" = "<no --context given>" ] ; then ctxForMsg="--intern-op-item-rename" ; fi
+			local commitPaths=( "$targetPath" )
+			[ "$sourceTracked" = "true" ] && commitPaths+=( "$sourcePath" )
+			[ "${#renameCommitPaths[@]}" -gt 0 ] && commitPaths+=( "${renameCommitPaths[@]}" )
+			local gitOut="" gitRc=0
+			gitOut="$( git -C "$repoRoot" add -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: item-rename: ⛔ ERROR: git add failed for ${commitPaths[*]}: $gitOut" >&2
+				set +e ; return 1
+			fi
+			gitOut="$( git -C "$repoRoot" commit -m "* renamed: $oldName -> $newName, $ctxForMsg" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: item-rename: ⛔ ERROR: git commit failed for ${commitPaths[*]}: $gitOut" >&2
+				set +e ; return 1
+			fi
+			echo "# $MDSC_CMD: item-rename: committed ${targetPath#"$MDAT_DATA_ROOT"/} (+$touched reference file(s))" >&2
+		fi
 		return 0
 	;;
 
