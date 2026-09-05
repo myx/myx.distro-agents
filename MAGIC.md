@@ -590,21 +590,16 @@ Consequence for this package: the members installed at the workspace root cannot
 
 ## The workspace list is machine data, and this repository is public
 
-`~/.claude/skills/human-owner` is a symlink into this package's own working tree, so anything written
-into the human-owner skill folder is written into a checkout of `git@github.com:myx/myx.distro-agents.git`.
-The `--owner-workspace-*` ops write the human-owner's tracked workspace paths, which are absolute paths
-on one machine and belong to that machine rather than to the package.
+`~/.claude/skills/<name>` is a symlink into the working tree of whichever repository publishes that
+skill, so a write to `$HOME/.claude/skills/<name>/…` is a write into that repository. For this package
+the repository is `git@github.com:myx/myx.distro-agents.git`, which is public.
 
-Those ops therefore keep their file at `$HOME/.claude/skills/.human-owner.workspaces.md`, beside the
-skill symlinks rather than inside any of them. `.linked.magic-team.members.txt` already sits there for
-the same reason, and the two are the same class of data: local, machine-specific, read by the tooling,
-owned by no package.
+The `--owner-workspace-*` ops maintain the human-owner's tracked workspace paths: absolute paths on one
+machine, belonging to that machine rather than to any package. They keep that data at
+`$HOME/.claude/skills/.human-owner.workspaces.md`, beside the skill symlinks rather than inside one.
+`.linked.magic-team.members.txt` sits there for the same reason — both are local, machine-specific,
+read by the tooling, owned by no package.
 
-The shape of the mistake generalises past this one file: a skill folder reached through a symlink is a
-writable path pointing into a git working tree, so an op that writes to `$HOME/.claude/skills/<name>/…`
-is committing to whichever repository publishes that skill. Data an op maintains goes beside the
-symlinks; the folders behind them hold package content.
-
-`skillset/magic-team/human-owner/human-owner.workspaces.md` is listed in `.gitignore` so a stale copy
-cannot re-enter the tree. That rule governs untracked paths only, so it takes effect once the file's
-deletion is committed.
+The rule the two share: data an op maintains lives beside the symlinks, and the folders behind them
+hold package content. `.gitignore` carries
+`skillset/magic-team/human-owner/human-owner.workspaces.md` so the packaged path stays free of it.
