@@ -50,7 +50,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **close-session**: execute `magic-team.coworking.routine`'s Closure Steps — the skill-update-discussion offer, etc. Retro stays reflection, not action, but ends with exactly **one** concrete, actionable improvement (not several vague ones) -- log it into `board-running` as a pending item for the *next daily meeting* to actually pick up and apply. That daily's **run-check-process-board**/**update-todos** steps must surface it.
 2. **close-state-and-unlock**, steps:
    - reference the board/inbox items themselves rather than copying their content, to keep it compact
-   - release this routine's own lock via `--magic-retro-close-state-and-unlock`, passing the pass's closing status inline — content, `state: retro-finished`, and the unlock all land in one call now, not two
+   - release this routine's own lock via `--magic-retro-close-state-and-unlock`, passing the pass's closing status inline — content, `state: retro-finished`, and the unlock all land in one call, not two
 
 # Routine's local procedures
 

@@ -96,5 +96,5 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Conventions
 
-- This routine's executor scope is `magic-librarian` only — narrower than most `routine-*` folders' open `magic-team`/`*` scope. Preserve this exactly during any edit; do not widen it to `magic-coordinator` or `magic-team/*` even if a future edit elsewhere in the team's docs seems to imply broader involvement — this narrowness is deliberate (folding a lesson into a source file is `magic-librarian`'s own established authoring territory).
+- This routine's executor scope is `magic-librarian` only — narrower than most routines' open `magic-team`/`*` scope. Preserve this exactly during any edit; do not widen it to `magic-coordinator` or `magic-team/*` even if a future edit elsewhere in the team's docs seems to imply broader involvement — this narrowness is deliberate (folding a lesson into a source file is `magic-librarian`'s own established authoring territory).
 - The distinction from `magic-team.process-inbox.routine` (different input category entirely — auto-memory `feedback_*.md` files, not board-adjacent inbox items) is easy to blur in a compressed summary — preserve it explicitly.

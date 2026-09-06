@@ -68,7 +68,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **advance-report**: Post `check-execute-board`'s own findings (redispatches performed, interview threads opened/continued) to `slack-event-track` via `--member-comms-slack-send-message` (target `event-track`).
 2. **advance-close-state-and-unlock**: release the lock, recording the pass's closing status in that same call:
    - rule: reference the board/inbox items themselves rather than copying their content, to keep it compact.
-   - step: release the lock via `--magic-advance-close-state-and-unlock`, passing the pass's closing status inline — content, `state: advance-finished`, and the unlock all land in one call now, not two.
+   - step: release the lock via `--magic-advance-close-state-and-unlock`, passing the pass's closing status inline — content, `state: advance-finished`, and the unlock all land in one call, not two.
 
 # Routine's local procedures
 

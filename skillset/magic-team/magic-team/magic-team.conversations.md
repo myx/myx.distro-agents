@@ -7,7 +7,7 @@ Cross-routine mechanics for live exchanges (Slack threads, email threads, cowork
 This file governs form, methodology and control points, not strategy. Goal-reaching strategy stays in
 `magic-team.interview.routine` / `magic-team.discuss.routine` / `magic-team.brainstorm.routine` / related routine files.
 
-Referenced from each member's `.basic.md`. Not a `routine-*` member.
+Referenced from each member's `.basic.md`. Not a routine.
 
 This file's own content is binding and obligatory on every team member who reads it — not merely informational or reference material.
 

@@ -86,7 +86,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **Held until further notice — a temporary hold, not a removal; only the human-owner lifts it.** No idle task is assigned while the hold stands. Held instruction: member with nothing assigned but more than one eligible idle-run routine in its `## Idle-Tasks` section, steps:
      - select one eligible idle-run routine now — weighted-random by `weight`, honoring each entry's `min-interval` cap and `scope` — from that member's own `## Idle-Tasks` section
      - put *that specific routine* in the todo — don't leave "run the idle menu" as a vague item
-   - Every member always has one more idle-task candidate available beyond the idle-run routines its own `## Idle-Tasks` section lists — and so does every `routine-*` typed-suffix routine a member executes, beyond that member's listed idle-run routines.
+   - Every member always has one more idle-task candidate available beyond the idle-run routines its own `## Idle-Tasks` section lists — and so does every `.routine.md` procedure a member executes, beyond that member's listed idle-run routines.
      - That candidate: a short, iterative "research the web a bit on a topic of this member's own duties, detect good proposals to assess at the next `magic-team.grooming.routine`" pass.
 10. **run-check-process-board**: run the `check-process-board` procedure (`magic-coordinator.armed.md`) directly. Never `magic-coordinator.advance.routine`.
 11. **librarian-updates-context**: today's new task details already live on the board directly (via **run-check-process-board**'s pass and **fan-out-work-sessions**' dispatched agents' own board moves) — no separate write-back step exists.
@@ -122,7 +122,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **close-out**: once agents finish (or are wrapped up at the timebox), compact what happened into a short summary for the user. Execute `magic-team.coworking.routine`'s Closure Steps in full — this is a coworking-like session, so its continuity step, `slack-magic-team`/status-card broadcast, and skill-update-discussion offer all apply; context compaction does not. `magic-team.process-reflections.routine` already ran at **fold-in-learned-lessons**, not here. Meeting finished.
 3. **close-state-and-unlock**:
    - rule: reference the board/inbox items themselves rather than copying their content, to keep it compact.
-   - step: release this routine's own lock via `--magic-daily-close-state-and-unlock`, passing the pass's closing status inline — content, `state: daily-finished`, and the unlock all land in one call now, not two.
+   - step: release this routine's own lock via `--magic-daily-close-state-and-unlock`, passing the pass's closing status inline — content, `state: daily-finished`, and the unlock all land in one call, not two.
 
 # Routine's local procedures
 
