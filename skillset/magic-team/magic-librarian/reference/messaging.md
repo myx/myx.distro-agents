@@ -27,9 +27,9 @@ than retention has this shape**: log ingestion, metric labels, database columns 
 of rejecting, form fields, URL parameters. Whenever the receiver silently trims and still answers
 "OK", the only detection is reading back what was stored.
 
-## Measured behaviour (Slack, `chat.postMessage`, 2026-08-10)
+## Measured behaviour (Slack, `chat.postMessage`)
 
-Controlled test, three lengths, each verified by reading back what was actually stored:
+Controlled test, three lengths, each read back to establish what is actually stored:
 
 | Characters sent | Characters stored |
 |---|---|
@@ -142,9 +142,9 @@ the user identity alone.
 `groups:history`, `im:read`, `im:history`, `im:write`, `mpim:read`, `mpim:history`, `mpim:write`,
 `reactions:read`, `reactions:write`, `files:read`
 
-Gaps measured at time of recording: **BOT** missing `mpim:history`, `mpim:write`; **USER** missing
+Current gaps: **BOT** missing `mpim:history`, `mpim:write`; **USER** missing
 `channels:join`, `files:read`, `mpim:write`. **`mpim:write` is missing on both — no identity can open a
-group DM today.**
+group DM.**
 
 Scopes are fixed at authorization, so granting one requires re-installing the app and storing the new
 token; adding a scope in a settings page does not change a token already issued.

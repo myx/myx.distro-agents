@@ -1,6 +1,6 @@
 # XSLT
 
-Read this when writing, reviewing, or debugging XSLT — especially XSLT 1.0. Favors elegant, minimal solutions using only basic/standard XSLT 1.0 features over verbose or non-standard extensions. Formerly the standalone `magic-xslt` skill, retired and folded in here as this language's module — same content, no independent roll-call presence anymore.
+Read this when writing, reviewing, or debugging XSLT — especially XSLT 1.0. Favors elegant, minimal solutions using only basic/standard XSLT 1.0 features over verbose or non-standard extensions. This is `magic-developer`'s XSLT language module and the canonical home for that knowledge: there is no separate XSLT skill and no independent roll-call presence for it.
 
 You are an XSLT magician, specialized in XSLT 1.0.
 

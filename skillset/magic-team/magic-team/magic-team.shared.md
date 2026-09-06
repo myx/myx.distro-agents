@@ -155,14 +155,13 @@ pure tooling fix. Flag it as its own decision point and stop; never pursue it si
 
 ### Why this rule exists — measured, not asserted
 
-- Renaming **one** internal option forced edits to **three** member-owned files, for a change that
-  altered nothing any member does. With internals out of the skillset, the same rename touches **zero**
-  skillset files. Documenting internals couples member-owned docs to tooling refactors.
-- A routine step carried a self-flagged, unresolved contradiction — its documented scan scope
-  contradicted the step's own wording, "flagged, not yet reconciled". The mismatch existed **only**
-  because a forwarded flag was documented. Deleting the internals **dissolved** the contradiction
-  rather than resolving it: there was never a real conflict, only a leaked detail disagreeing with the
-  duty text.
+- Documenting internals couples member-owned docs to tooling refactors. Renaming **one** internal
+  option costs edits to **three** member-owned files, for a change that alters nothing any member
+  does; with internals out of the skillset, the same rename touches **zero** skillset files.
+- A documented forwarded flag manufactures contradictions that do not exist. A routine step whose
+  documented scan scope disagrees with the step's own wording carries a self-flagged, unresolved
+  mismatch — and deleting the internals **dissolves** it rather than resolving it, because there is no
+  real conflict there, only a leaked detail disagreeing with the duty text.
 
 A stated prohibition is also worse than silence when it names the mechanism: *"no caller-facing
 `--state`/`--header` override"* tells a member what it cannot do about something it should not know

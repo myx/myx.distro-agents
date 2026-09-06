@@ -34,7 +34,7 @@ stored is a second question, answered by reading it back through the independent
 read path. What a reader sees is a third, answered by inspecting the rendered
 surface.
 
-The three diverge routinely. Confirmed instances of each divergence: emoji
+The three diverge routinely, one divergence per pair: emoji
 submitted as glyphs and stored as shortcodes; line breaks submitted as newlines
 and stored as spaces; a bare email address stored as plain text and rendered as a
 link at display time.
@@ -106,8 +106,8 @@ it. Before a number is quoted as evidence, establish what the tool actually
 counted: which unit (a thread against a conversation, a file against a record, a
 row against an entity), over which population, after which filters.
 
-Confirmed shape of the failure: "137 of 139 sources" quoted as coverage of a
-message class, where the counter's unit was threads rather than conversations —
+The shape of the failure: "137 of 139 sources" quoted as coverage of a
+message class, where the counter's unit is threads rather than conversations —
 two populations that merely look interchangeable. The check is one step: find
 where the number is produced, read the unit off the code, and restate the claim
 in that unit.
@@ -129,20 +129,20 @@ way.
 
 A check that runs cleanly reports on the condition it actually evaluates, and
 the distance between that condition and the claim it gets quoted for is where a
-false positive lives. Two confirmed instances, each of which produced a wrong
+false positive lives. Two shapes it takes, each producing a wrong
 report to the owner:
 
-- **Existence is not configuration.** `[ -f ]` passes on a zero-byte file. Of 33
-  `.agent.env` files in `ws-myx.prv-farm`, 30 were empty, and a `[ -f ]` probe
-  reported every one of them as configured — `client-ndm` in
-  `ws-l.infanti-repos-camunda` included, where all 12 files are 0 bytes. The
+- **Existence is not configuration.** `[ -f ]` passes on a zero-byte file. Where
+  30 of 33 `.agent.env` files in a workspace are empty, a `[ -f ]` probe reports
+  every one of them as configured, and a member whose files are all 0 bytes reads
+  the same as a fully configured one. The
   discriminator is `[ -s ]`, or parsing the file for the key the claim is about.
   Where a layer creates the file on first access, existence carries no
   information at all by construction; `myx.distro-agents`' `MAGIC.md` records
   that as a contract of `--agents-config-option`.
 - **A pipeline's exit status is the last command's.** `op | tail -2 ; echo
   "rc=$?"` reports `tail`'s status, so a rejected call reads back as `rc=0` —
-  which is how "the op accepted it" got reported for a call the op had refused.
+  which is how "the op accepted it" gets reported for a call the op refused.
   Capture the status of the command whose success is the claim, ahead of any
   pipe or substitution. `magic-developer/reference/shell.md` carries the
   adjacent `cmd ; rc=$?` under `set -e` case in "Shell constructs that fail
@@ -191,13 +191,13 @@ A pre-check wrong in one direction only is adoptable on its own; one that can be
 wrong in either direction needs something behind it. Which of the two it is gets
 measured before the design is settled, not assumed from how accurate it feels.
 
-Confirmed case, from the workspace-resolution vote: the members table can answer
+Worked case — workspace resolution: the members table can answer
 "don't know" where the true answer is yes, and cannot answer "stay" where the
-true answer is a different workspace. That was measured — `client-ndm` carries
-one row and operates correctly from three workspaces, which is exactly the false
+true answer is a different workspace. A member carrying one row while operating
+correctly from three workspaces is exactly that false
 "don't know". The costs sit the same way round: a false "don't know" spends an
 unnecessary workspace switch, a false "stay" would aim work at the wrong target,
-and it is unreachable. That one-directional failure mode is what made the
+and it is unreachable. That one-directional failure mode is what makes the
 table-check adoptable with no fallback path behind it.
 
 So enumerate a proposed check's wrong answers and price each one before arguing
@@ -209,9 +209,9 @@ one however rarely it is.
 
 Where the question is conformance to a specification — a markup dialect, a date
 format, an escaping rule, a protocol frame — and a reference implementation
-exists, run the input through it and read the answer off the output. Confirmed
-use: `pandoc` settling a GitHub-Flavored-Markdown question two members had
-answered differently from reading alone.
+exists, run the input through it and read the answer off the output. `pandoc`
+settles a GitHub-Flavored-Markdown question that reading the spec alone leaves
+two members answering differently.
 
 The same move covers the class: a validator for a schema, a parser from the
 spec's own project, the actual consuming product where rendering is the question.

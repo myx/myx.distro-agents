@@ -13,10 +13,10 @@ repos, run its preview/dry-run flag first if one exists (`myx.distro-*`'s
 convention: a `--print-*` twin next to the `--execute-*` verb, e.g.
 `DistroImageSync --all-tasks --print-source-prepare-pull` before
 `--execute-source-prepare-pull`). **A static grep for the declare/config pattern
-is not the same as the tool's actual resolved task list** — confirmed case: a
-`project.inf` grep estimated ~5 target repos, but the real preview showed 12,
-because `util.workspace-myx.devops`'s `project.inf` re-declares 11 of the 15
-sync-task lines itself. Declares can be transitively re-asserted by other
+is not the same as the tool's actual resolved task list** — a
+`project.inf` grep estimating ~5 target repos sits against a real preview
+resolving 12, because one workspace project's own `project.inf` re-declares 11 of
+the 15 sync-task lines itself. Declares can be transitively re-asserted by other
 projects, not just self-registered by the project they describe. When blast
 radius matters, ask the tool (preview mode), don't trust a grep-based estimate.
 
@@ -28,8 +28,8 @@ session with zero diagnostic output. Wrap every reproduction attempt in a hard
 wall-clock limit before doing anything else, so a real hang fails loud and fast
 instead of stalling the session.
 
-**Gotcha confirmed on at least one dev box: no `timeout`/`gtimeout` binary
-available.** Working substitute:
+**Gotcha: a dev box may carry no `timeout`/`gtimeout` binary at all.** Working
+substitute:
 ```
 perl -e 'alarm shift; exec @ARGV' <secs> <cmd...>
 ```

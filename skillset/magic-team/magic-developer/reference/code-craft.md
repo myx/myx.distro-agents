@@ -67,8 +67,8 @@ Three things follow:
 
 **Hidden problems.** Indirection conceals both the construct in use and the place it acts on, and review then passes over defects that would have been visible written out:
 - A helper is not inherited by a spawned subprocess, so code that works inline breaks silently the moment the same path is forked or exec'd.
-- An MCP server's capture bug survived review because the `$( ... )` was buried behind a helper and a variable chain: nobody could see that the server was waiting on a pipe's writers rather than on the command, and the defect was invisible precisely because it was named.
-- A location hidden behind a chain hides its own wrongness with it — an imported `mktemp -d "${TMPDIR:-/tmp}/..."`, matching nothing in any sibling project of the family it was added to, sat unnoticed behind one variable name.
+- A capture bug survives review when the `$( ... )` sits behind a helper and a variable chain: that a server waits on a pipe's writers rather than on the command is unreadable from the call site, and the defect is invisible precisely because it is named.
+- A location hidden behind a chain hides its own wrongness with it — an imported `mktemp -d "${TMPDIR:-/tmp}/..."` matching nothing in any sibling project of its family passes unnoticed behind one variable name.
 
 ## The counter-rule
 

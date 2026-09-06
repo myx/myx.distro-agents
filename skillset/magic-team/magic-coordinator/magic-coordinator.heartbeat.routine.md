@@ -127,7 +127,7 @@ Named procedure blocks. Steps above call them by name. Not separate routines - n
 ## `single-instance-lock` procedure
 
 - This routine's own concern — it protects itself, since the lock must hold across separate OS processes.
-- Implemented as the `--magic-heartbeat-lock-*` operation group — call these ops via `mcp__myx_distro__execute`, the same way as every other `DistroAgentsTools.fn.sh` call, never raw Bash, and never a hand-rolled lock alongside them.
+- The lock is the `--magic-heartbeat-lock-*` operation group — call these ops via `mcp__myx_distro__execute`, the same way as every other `DistroAgentsTools.fn.sh` call, never raw Bash, and never a hand-rolled lock alongside them.
 - Acquire before anything else in this routine runs. Contention means another `next-iteration` is live: this pass does not start.
 - Refresh periodically while the pass runs — a long first-today grooming + daily-meeting fan-out outlives a single acquire, and a concurrent check must not mistake a slow-but-alive run for a crashed one.
 - Release in Closure steps, every time.

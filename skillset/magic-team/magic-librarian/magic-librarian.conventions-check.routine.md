@@ -93,9 +93,9 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Conventions
 
-- This file's section shape is confirmed canonical for every `routine-*/*.routine.md` file.
+- This file's section shape is canonical for every `<owning-member>.<short-name>.routine.md` file.
   - `owner-guaranteed`.
-  - This file is correctly a full `routine-*`-style member.
+  - This file is a full routine definition — a procedure, not a team-member. A team-member is its executor and executes it.
   - Not a draft.
 - `(draft)` markers are load-bearing provenance, not decoration. Remove one only once the human-owner confirms that specific section directly: a real chat reply in their own voice, or a real accept/reject on the file — and only that section's own label, not the others. None remain open in this file.
 - The multi-candidate comparison method (**find-best-replacement-wording**) is this routine's real mechanism for judging "was this the best formulation."

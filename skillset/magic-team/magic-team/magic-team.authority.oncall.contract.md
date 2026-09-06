@@ -31,7 +31,7 @@ silently drift apart.
 This applies uniformly across every oncall engagement — none gets a wider or narrower default than
 another; only an explicit per-task grant changes that.
 
-**No real `oncall-*` member exists yet** as of this writing — this file states the policy in advance,
+**No real `oncall-*` member exists yet** — this file states the policy in advance,
 the same way the contract shape itself is a copyable skeleton before any instance exists. Do not
 manufacture an `oncall-*` engagement to justify this file; it is settled policy, waiting for a real
 instance.
