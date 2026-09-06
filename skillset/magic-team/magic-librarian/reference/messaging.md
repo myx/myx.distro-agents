@@ -1,18 +1,44 @@
 # Messaging platforms — size limits, silent truncation, identity-scoped access
 
-Read this when sending, reading, or storing messages through any chat/messaging platform, and when
-writing or revising the conventions that govern how the team composes messages.
+Read this when sending, reading, or storing messages through any chat/messaging platform, when
+composing a message that asks the human-owner for something, and when writing or revising the
+conventions that govern how the team reaches him and how it composes messages.
 
-This module carries the **evidence and reasoning**. The **operative rule** members follow lives in
-`magic-team/magic-team.conversations.md`, "Message and reaction discipline", **message-shape-is-correctness** — written
-platform-neutrally on purpose, and self-sufficient on its own. Read that for what to do; read this for
-why it is true and what was actually measured. Keep the two cross-referenced, never duplicated: a rule
-stated twice drifts.
+This module carries the **evidence and reasoning**. The **operative rules** members follow live in
+`magic-team/magic-team.conversations.md`, "Message and reaction discipline" — **message-shape-is-correctness**,
+**one-message-one-speech-act**, and **human-owner-action-to-slack-dm** — written platform-neutrally on
+purpose, and self-sufficient on their own. Read those for what to do; read this for why it is true and
+what was actually measured. Keep the two layers cross-referenced, never duplicated: a rule stated twice
+drifts.
 
 Platform specifics belong here, and an operation's own platform behaviour belongs in that package's
 help pair, which is its real manual. Routine docs and the conventions file stay platform-agnostic, so a
 future platform inherits the rules instead of needing its own set. That abstraction boundary is the
 reason this module exists as a separate layer.
+
+## Why a session reply does not reach the human-owner
+
+- **A request that needs him goes to his own direct channel** — a decision, a ratification, an answer,
+  a blocker — whatever the installation has configured as that channel. No rule names a transport.
+- **He answers in a live session when he is in one, but he does not go there to look.** A question
+  raised only in a session does not reach him, and the work stalls silently while it looks, from the
+  agent's side, as though it was asked. This is the module's core property seen from the other side: the
+  send succeeded, so nothing reports that the ask never arrived.
+- **The ask goes out when it becomes open**, not batched into a later summary and not left sitting in a
+  session reply.
+
+## Why an ask leads its own message
+
+- **Bundling unrelated topics is the fault, not a shape to be tested for.** The split tests decide when
+  a related, decomposable message needs splitting; unrelated matters never reach a test.
+- **The ask leads, and the work that produced it is not sent with it.** A one-line question inside a
+  screen of status and findings has not been asked — he had to do the finding, which is the work the
+  message existed to save him.
+- **Brevity is the instrument, not the standard.** No rule carries a word count. An ask that will not
+  state itself briefly identifies a choice not yet found, and the work owed is finding it.
+- **An intent given is a thing to act on, not a subject to write about.** Generating text about an ask,
+  in place of putting the ask, is the failure these rules catch — and it binds a session relaying
+  someone else's ask as much as one raising its own.
 
 ## The core property: a response describes acceptance, not retention
 

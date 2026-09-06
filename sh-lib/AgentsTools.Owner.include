@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 
+## One readable status row, `<label> ..... <status>`. The dot run is a fixed
+## field so a column of rows aligns; a label longer than the field gets no dots
+## rather than pushing its own status out of the column.
+## Rows belong to the readable mode alone, so the row calls can sit beside the
+## detail blocks they summarise rather than in a second pass over the same
+## facts; $setupOperation is the caller's own, which bash scopes dynamically.
+AgentsToolsOwnerSetupRow(){
+	[ -z "$setupOperation" ] || return 0
+	local rowLabel="$1" rowStatus="$2"
+	local rowDots="........................"
+	printf '  %s %s %s\n' "$rowLabel" "${rowDots:${#rowLabel}}" "$rowStatus"
+}
+
 case "$1" in
 
 	--owner-workspace-upsert)
@@ -95,36 +108,70 @@ case "$1" in
 		return 0
 	;;
 
-	## --owner-setup-<domain> -- per-domain setup op family. Interface (human-owner):
-	## a bare call, or --check, runs the READ-ONLY diagnosis for that domain and
-	## applies NOTHING. Diagnosis wraps --intern-op-check-configs, which checks each
-	## required setting's VALUE at its use site (an unset or empty KEY= is FAIL, never
-	## an OK) -- never a file-existence check. The apply/guide half is a separate
-	## design item, deliberately not built here. The family is open and grows: a
-	## domain with no defined required-set reports "no checks defined yet", never an
-	## invented check.
+	## --owner-setup-<domain> -- per-domain setup op family, one domain per macro
+	## part of a working installation. Three modes: a bare call writes the readable
+	## status and names the command that sets the domain up; --check writes the
+	## per-setting detail; --apply and --wizard carry out the setup and are not
+	## built yet. Argument grammar, family-wide: options and their values first,
+	## then at most one sub-operation LAST -- anything after one is an error.
+	## A config-key domain wraps --intern-op-check-configs; a domain whose subject
+	## is not config keys checks that subject itself. Either way a config setting is
+	## judged by its VALUE at its own use site -- unset or empty is FAIL, never OK,
+	## and a config file existing is never the check. An artifact the installation
+	## is made of -- a console script, an access fragment -- is a different subject,
+	## and there its own presence is exactly what is being asked.
+	## A diagnosis answers about the current $MMDAPP; a domain that can also report
+	## every registered workspace offers that behind --all-workspaces, never as the
+	## default. The family is open and grows: a domain with no defined check set
+	## reports "no checks defined yet", never an invented check.
 	--owner-setup-*)
 		local setupDomain="${1#--owner-setup-}"
 		shift
-		case "${1:-}" in
-			"") ;;
-			--check) shift ;;
-			*)
-				echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: only a bare call or --check is supported here (read-only diagnosis); apply/install is not built yet. Got: $1" >&2
+		local setupAllWorkspaces="" setupOperation=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--check|--apply|--wizard)
+					setupOperation="$1"
+					shift
+					if [ $# -gt 0 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: $setupOperation is a sub-operation and takes the LAST position -- every option and its value comes before it. Found after it: $1" >&2
+						set +e ; return 1
+					fi
+				;;
+				--all-workspaces) setupAllWorkspaces="yes" ; shift ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: unknown argument: $1 -- options first, then one of --check, --apply or --wizard last" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		case "$setupOperation" in
+			--apply|--wizard)
+				echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: $setupOperation is not built yet -- a bare call writes the readable status and names the command that sets this domain up, and --check writes the per-setting detail" >&2
 				set +e ; return 1
 			;;
 		esac
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: no further arguments accepted" >&2
-			set +e ; return 1
+		## A domain whose diagnosis cannot span workspaces rejects --all-workspaces
+		## rather than accepting a flag it would then ignore.
+		if [ -n "$setupAllWorkspaces" ] ; then
+			case "$setupDomain" in
+				claude) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --all-workspaces is accepted only by a domain whose diagnosis spans workspaces" >&2
+					set +e ; return 1
+				;;
+			esac
 		fi
-		echo "# $MDSC_CMD --owner-setup-$setupDomain --check: read-only diagnosis (nothing applied)"
+		[ "$setupOperation" != "--check" ] || echo "# $MDSC_CMD --owner-setup-$setupDomain --check: read-only diagnosis (nothing applied)"
 		case "$setupDomain" in
 			slack)
 				local setupRc=0
+				## Activity-log and alert channels never gate: with neither set the
+				## traffic they carry falls back to the team channel, so an absent
+				## one costs routing, not a working installation.
 				DistroAgentsTools --intern-op-check-configs magic-coordinator \
-					--required "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
-					--required "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
+					--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
+					--optional "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
 					--required "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
 					--required "SLACK_CHANNEL_HUMAN_OWNER:<user-id>" \
 					--expect-id-kind SLACK_CHANNEL_EVENT_TRACK:channel \
@@ -149,13 +196,459 @@ case "$1" in
 					--context --owner-setup-storage || true
 				return "$setupRc"
 			;;
-			copilot|claude)
+			copilot)
 				echo "$setupDomain: no checks defined yet"
 				echo "  note: this domain's access is granted through the filesystem access-roots"
 				echo "        (AgentsToolsClientAccessRoots), not through --agents-config-option"
 				echo "        settings -- there is no config-key required-set to diagnose here yet,"
 				echo "        and a directory-existence check is deliberately not used for this."
 				return 0
+			;;
+			claude)
+				local setupRc=0
+				local setupRegistry="$HOME/.claude/skills/.linked.magic-team.members.txt"
+				## Trailing slash stripped once, because every basename and prefix
+				## test below reads this: "$MMDAPP/" yields an empty basename, and a
+				## run keyed on it diagnoses nothing while still exiting 0.
+				local setupHere="${MMDAPP%/}"
+
+				## The console's own two sets. A spawned agent is always launched
+				## --non-interactive, and the console narrows its scan to the second
+				## set there, so a CLI outside it can be configured and still never
+				## run. Both sets are interim: which CLI gets selected is meant to
+				## come from config options that are not settled yet.
+				local setupKnownClis="copilot claude grok"
+				local setupSpawnClis="copilot claude"
+				local setupAutoCli="" setupCliName
+				for setupCliName in $setupSpawnClis ; do
+					command -v "$setupCliName" >/dev/null 2>&1 || continue
+					setupAutoCli="$setupCliName"
+					break
+				done
+
+				local setupClaudePath="$( command -v claude || : )"
+				if [ -z "$setupClaudePath" ] ; then
+					setupRc=1
+					[ "$setupOperation" != "--check" ] || {
+						echo "CLAUDE_CLI_INSTALLED: FAIL"
+						echo "  warn: claude is not in PATH, so no workspace on this machine runs it"
+						echo "  fix:  myx.common install/claude"
+					}
+					AgentsToolsOwnerSetupRow "Claude CLI" "NOT INSTALLED"
+				else
+					[ "$setupOperation" != "--check" ] || echo "CLAUDE_CLI_INSTALLED: OK"
+					AgentsToolsOwnerSetupRow "Claude CLI" "installed"
+				fi
+
+				## Every root actually diagnosed, one absolute path per line, and the
+				## registered names no live member link reaches. Resolving to roots
+				## rather than iterating names is what keeps two workspaces sharing a
+				## basename apart, since the registry records only the basename.
+				local setupTargets="" setupUnresolved="" setupLabels="" setupSlot setupWalk setupPick
+				if [ -z "$setupAllWorkspaces" ] ; then
+					setupTargets="$setupHere"$'\n'
+				else
+					if [ ! -s "$setupRegistry" ] ; then
+						echo "WORKSPACE_REGISTRY: FAIL"
+						echo "  warn: the skillset installer's own workspace registry is missing or empty,"
+						echo "        so there is no list of workspaces to diagnose"
+						echo "  path: $setupRegistry"
+						echo "  fix:  $setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-workspace-integrations"
+						set +e ; return 1
+					fi
+					setupLabels=" $( awk -F: 'NF >= 4 { print $2 ; }' "$setupRegistry" | sort -u | tr '\n' ' ' )"
+					if [ "$setupLabels" = " " ] ; then
+						echo "WORKSPACE_REGISTRY: FAIL"
+						echo "  warn: the registry holds no line carrying a workspace name, so it names"
+						echo "        nothing to diagnose -- a non-empty file is not a readable one"
+						echo "  path: $setupRegistry"
+						echo "  fix:  $setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-workspace-integrations"
+						set +e ; return 1
+					fi
+					[ "$setupOperation" != "--check" ] || echo "WORKSPACE_REGISTRY: OK"
+
+					## A root is recovered by walking a live member link up to an
+					## ancestor carrying a registered name, preferring the innermost
+					## one that is a workspace: a bare innermost match picks a mid-path
+					## directory that merely shares a name. Where no candidate is a
+					## workspace the innermost match still stands, so an unmounted
+					## volume reports as unreachable instead of as unknown. The glob
+					## carries no trailing slash for the same reason -- that form
+					## matches directories, and a link into an unmounted volume dangles.
+					for setupSlot in "$HOME"/.claude/skills/* ; do
+						[ -L "$setupSlot" ] || continue
+						setupWalk="$( readlink "$setupSlot" || : )"
+						case "$setupWalk" in /*) ;; *) continue ;; esac
+						setupPick=""
+						while [ -n "$setupWalk" ] ; do
+							setupWalk="${setupWalk%/*}"
+							case "$setupLabels " in
+								*" ${setupWalk##*/} "*)
+									[ -n "$setupPick" ] || setupPick="$setupWalk"
+									if [ -d "$setupWalk/.local" ] ; then setupPick="$setupWalk" ; break ; fi
+								;;
+							esac
+						done
+						[ -n "$setupPick" ] || continue
+						case "$setupTargets" in
+							*$'\n'"$setupPick"$'\n'*) ;;
+							"$setupPick"$'\n'*) ;;
+							*) setupTargets="${setupTargets}${setupPick}"$'\n' ;;
+						esac
+					done
+
+					## A registered name nothing resolved to is reported by name, since
+					## its root is exactly what could not be established.
+					local setupSeen
+					for setupPick in $setupLabels ; do
+						setupSeen=""
+						while IFS= read -r setupWalk ; do
+							[ "${setupWalk##*/}" = "$setupPick" ] || continue
+							setupSeen="yes"
+						done <<< "$setupTargets"
+						[ -n "$setupSeen" ] || setupUnresolved="$setupUnresolved $setupPick"
+					done
+				fi
+
+				local setupLabel setupRoot setupToolPath setupDiagnosed=0
+				local setupTrustLine setupCliValue setupConsole setupFragment
+				local setupMemberSlot setupMemberReal setupGrant setupGrantReal
+				local setupCovered setupUncovered setupMemberCount
+				local setupWillRun setupBlockers setupVerdict="" setupSetupSteps setupValueHelp
+
+				for setupLabel in $setupUnresolved ; do
+					echo ""
+					echo "## workspace $setupLabel"
+					echo "WORKSPACE_ROOT: WARN"
+					echo "  warn: registered, but no live member symlink resolves into a workspace of"
+					echo "        this name, so its root path is unknown and nothing about it can be"
+					echo "        diagnosed"
+					echo "  why:  the registry records only basename(workspace); the root itself is"
+					echo "        recovered from where a member symlink actually points"
+					echo "  fix:  drop its lines from $setupRegistry if no such workspace exists any"
+					echo "        more; otherwise run --make-workspace-integrations from it, so that"
+					echo "        a member links into it again"
+					setupVerdict="${setupVerdict}$( printf '  %-28s not diagnosed -- workspace root unknown' "$setupLabel" )"$'\n'
+				done
+
+				while IFS= read -r setupRoot ; do
+					[ -n "$setupRoot" ] || continue
+					setupLabel="${setupRoot##*/}"
+					setupBlockers="" ; setupWillRun="" ; setupSetupSteps="" ; setupValueHelp=""
+
+					if [ "$setupOperation" = "--check" ] || [ -n "$setupAllWorkspaces" ] ; then
+						echo ""
+						echo "## workspace $setupLabel"
+					fi
+
+					if [ ! -d "$setupRoot" ] ; then
+						[ "$setupOperation" != "--check" ] || {
+							echo "WORKSPACE_ROOT: WARN"
+							echo "  warn: not reachable right now -- an unmounted volume reads exactly like"
+							echo "        this, so this is not a misconfiguration and nothing was checked"
+							echo "  path: $setupRoot"
+							echo "  fix:  mount it and re-run, or drop its lines from $setupRegistry"
+						}
+						AgentsToolsOwnerSetupRow "Workspace root" "NOT REACHABLE"
+						setupVerdict="${setupVerdict}$( printf '  %-28s not diagnosed -- %s is not reachable' "$setupLabel" "$setupRoot" )"$'\n'
+						continue
+					fi
+					if [ ! -d "$setupRoot/.local" ] ; then
+						[ "$setupOperation" != "--check" ] || {
+							echo "WORKSPACE_ROOT: WARN"
+							echo "  warn: this is a directory but not a myx.distro workspace -- it carries no"
+							echo "        .local, so it has no console, no config scope and no installation"
+							echo "  path: $setupRoot"
+							echo "  fix:  drop its lines from $setupRegistry, or set a workspace up there"
+						}
+						AgentsToolsOwnerSetupRow "Workspace root" "NOT A WORKSPACE"
+						setupVerdict="${setupVerdict}$( printf '  %-28s not diagnosed -- %s is not a workspace' "$setupLabel" "$setupRoot" )"$'\n'
+						continue
+					fi
+					setupDiagnosed=$(( setupDiagnosed + 1 ))
+					[ "$setupOperation" != "--check" ] || echo "WORKSPACE_ROOT: OK"
+					setupToolPath="$setupRoot/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+
+					## One boolean, through the settings verifier this package already
+					## owns: its output is OK/MISSING per asserted setting and it never
+					## echoes a value, so no other content of that file can escape. A
+					## structural failure prints no such line at all, which is what
+					## separates "not trusted" from "could not be read".
+					setupTrustLine=""
+					if [ -f "$HOME/.claude.json" ] ; then
+						setupTrustLine="$( MYX_CLAUDEVERIFY_PROJECT_PATH="$setupRoot" \
+							MYX_CLAUDEVERIFY_PROJECT_TRUE="hasTrustDialogAccepted" \
+							LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeSettingsVerify.awk" \
+							< "$HOME/.claude.json" 2>/dev/null || : )"
+					fi
+					case "$setupTrustLine" in
+						*": OK")
+							[ "$setupOperation" != "--check" ] || echo "WORKSPACE_TRUSTED: OK"
+							AgentsToolsOwnerSetupRow "Workspace trust" "accepted"
+						;;
+						*": MISSING")
+							[ "$setupOperation" != "--check" ] || {
+								echo "WORKSPACE_TRUSTED: FAIL"
+								echo "  warn: claude discards EVERY permissions.allow entry of this workspace's"
+								echo "        .claude/settings.json while it is untrusted, so nothing else here"
+								echo "        can take effect -- this one comes before all of them"
+								echo "  fix:  start claude once in $setupRoot and accept the trust prompt"
+							}
+							AgentsToolsOwnerSetupRow "Workspace trust" "NOT ACCEPTED"
+							setupSetupSteps="${setupSetupSteps}  start claude once in $setupRoot and accept the trust prompt -- no command can do this one for you"$'\n'
+							setupBlockers="$setupBlockers WORKSPACE_TRUSTED"
+							setupRc=1
+						;;
+						*)
+							[ "$setupOperation" != "--check" ] || {
+								echo "WORKSPACE_TRUSTED: WARN"
+								echo "  warn: undetermined -- claude's own state file is absent or could not be"
+								echo "        parsed, so trust is neither confirmed nor denied here"
+								echo "  path: $HOME/.claude.json"
+								echo "  fix:  start claude in $setupRoot; an untrusted workspace says so on"
+								echo "        startup, naming the permissions.allow entries it is ignoring"
+							}
+							AgentsToolsOwnerSetupRow "Workspace trust" "unknown"
+						;;
+					esac
+
+					## Read only where the scope file already exists: a --select through
+					## --agents-config-option creates the file it reads, and this
+					## operation applies nothing.
+					setupCliValue=""
+					if [ -f "$setupRoot/.local/.agents/magic-team.agent.env" ] ; then
+						setupCliValue="$( MMDAPP="$setupRoot" ; DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE || : )"
+					fi
+					setupWillRun="$setupCliValue"
+					if [ -z "$setupCliValue" ] ; then
+						setupWillRun="${setupAutoCli:-nothing}"
+						[ "$setupOperation" != "--check" ] || {
+							echo "SPAWN_CLI_SERVICE: FAIL"
+							echo "  warn: unset here, so the console falls back to the first installed of"
+							echo "        '$setupSpawnClis' and this workspace runs ${setupAutoCli:-no CLI at all}"
+							echo "  why:  the setting lives in $setupRoot/.local/.agents/, so setting it in"
+							echo "        one workspace does nothing for any other"
+							echo "  fix:  $setupToolPath --member-config-option magic-team --upsert SPAWN_CLI_SERVICE claude"
+						}
+						AgentsToolsOwnerSetupRow "CLI selection" "NOT SET (runs ${setupAutoCli:-nothing})"
+						setupSetupSteps="${setupSetupSteps}  $setupToolPath --member-config-option magic-team --upsert SPAWN_CLI_SERVICE claude"$'\n'
+						setupValueHelp="${setupValueHelp}  SPAWN_CLI_SERVICE   the agent CLI this workspace starts -- one of '$setupKnownClis'; a spawned agent runs non-interactively and the console accepts only '$setupSpawnClis' there"$'\n'
+						setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
+						setupRc=1
+					else
+						setupCliName=""
+						case " $setupKnownClis " in *" $setupCliValue "*) setupCliName="known" ;; esac
+						if [ -z "$setupCliName" ] ; then
+							[ "$setupOperation" != "--check" ] || {
+								echo "SPAWN_CLI_SERVICE: FAIL"
+								echo "  warn: set to '$setupCliValue', which the console does not accept -- it"
+								echo "        exits on an unsupported CLI rather than choosing another"
+								echo "  fix:  $setupToolPath --member-config-option magic-team --upsert SPAWN_CLI_SERVICE claude"
+							}
+							AgentsToolsOwnerSetupRow "CLI selection" "REJECTED ($setupCliValue)"
+							setupSetupSteps="${setupSetupSteps}  $setupToolPath --member-config-option magic-team --upsert SPAWN_CLI_SERVICE claude"$'\n'
+							setupValueHelp="${setupValueHelp}  SPAWN_CLI_SERVICE   the agent CLI this workspace starts -- one of '$setupKnownClis'"$'\n'
+							setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
+							setupRc=1
+						elif ! command -v "$setupCliValue" >/dev/null 2>&1 ; then
+							[ "$setupOperation" != "--check" ] || {
+								echo "SPAWN_CLI_SERVICE: FAIL"
+								echo "  warn: set to '$setupCliValue', which is not in PATH -- an explicitly"
+								echo "        selected CLI is never substituted, so the console exits instead"
+								echo "        of falling back to another one or to a shell"
+								echo "  fix:  myx.common install/$setupCliValue"
+							}
+							AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue NOT INSTALLED"
+							setupSetupSteps="${setupSetupSteps}  myx.common install/$setupCliValue"$'\n'
+							setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
+							setupRc=1
+						else
+							setupCliName=""
+							case " $setupSpawnClis " in *" $setupCliValue "*) setupCliName="spawnable" ;; esac
+							if [ -z "$setupCliName" ] ; then
+								[ "$setupOperation" != "--check" ] || {
+									echo "SPAWN_CLI_SERVICE: WARN"
+									echo "  warn: set to '$setupCliValue', which runs interactively but not for a"
+									echo "        spawned agent -- those are launched non-interactively, where the"
+									echo "        console accepts only '$setupSpawnClis'"
+									echo "  fix:  $setupToolPath --member-config-option magic-team --upsert SPAWN_CLI_SERVICE claude"
+								}
+								AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue (cannot be spawned)"
+							elif [ "$setupCliValue" = "claude" ] ; then
+								[ "$setupOperation" != "--check" ] || echo "SPAWN_CLI_SERVICE: OK"
+								AgentsToolsOwnerSetupRow "CLI selection" "claude"
+							else
+								[ "$setupOperation" != "--check" ] || {
+									echo "SPAWN_CLI_SERVICE: WARN"
+									echo "  warn: set to '$setupCliValue', so this workspace runs $setupCliValue, not claude"
+									echo "  fix:  $setupToolPath --member-config-option magic-team --upsert SPAWN_CLI_SERVICE claude"
+								}
+								AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue"
+							fi
+						fi
+					fi
+
+					setupConsole="$setupRoot/DistroAgentsConsole.sh"
+					if [ ! -f "$setupConsole" ] ; then
+						[ "$setupOperation" != "--check" ] || {
+							echo "AGENTS_CONSOLE_SCRIPT: FAIL"
+							echo "  warn: this workspace has no agents console, so nothing here starts an"
+							echo "        agent at all"
+							echo "  path: $setupConsole"
+							echo "  fix:  $setupToolPath --make-workspace-integrations"
+						}
+						AgentsToolsOwnerSetupRow "Agents console" "MISSING"
+						setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+						setupWillRun="nothing"
+						setupBlockers="$setupBlockers AGENTS_CONSOLE_SCRIPT"
+						setupRc=1
+					elif ! grep -q 'SPAWN_CLI_SERVICE' "$setupConsole" 2>/dev/null || ! grep -q 'DISTRO_CONSOLE_EXEC' "$setupConsole" 2>/dev/null ; then
+						[ "$setupOperation" != "--check" ] || {
+							echo "AGENTS_CONSOLE_SCRIPT: FAIL"
+							echo "  warn: generated before the console could read SPAWN_CLI_SERVICE or announce"
+							echo "        DISTRO_CONSOLE_EXEC, so it ignores the selection above, starts"
+							echo "        whichever CLI its own older default names, and reports neither which"
+							echo "        one ran nor that anything went wrong"
+							echo "  path: $setupConsole"
+							echo "  fix:  $setupToolPath --make-workspace-integrations"
+						}
+						AgentsToolsOwnerSetupRow "Agents console" "STALE"
+						setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+						setupWillRun="unknown"
+						setupBlockers="$setupBlockers AGENTS_CONSOLE_SCRIPT"
+						setupRc=1
+					else
+						[ "$setupOperation" != "--check" ] || echo "AGENTS_CONSOLE_SCRIPT: OK"
+						AgentsToolsOwnerSetupRow "Agents console" "current"
+					fi
+
+					setupFragment="$setupRoot/.claude/copilot-add-dir.fragment"
+					setupUncovered="" ; setupMemberCount=0
+					if [ ! -d "$setupRoot/.agents/skills" ] ; then
+						[ "$setupOperation" != "--check" ] || {
+							echo "CLIENT_ACCESS_ROOTS: FAIL"
+							echo "  warn: this workspace has no .agents/skills directory, so an agent spawned"
+							echo "        here finds no team member to load"
+							echo "  fix:  $setupToolPath --make-workspace-integrations"
+						}
+						AgentsToolsOwnerSetupRow "Skill access roots" "NO MEMBERS"
+						setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+						setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
+						setupRc=1
+					elif [ ! -s "$setupFragment" ] ; then
+						[ "$setupOperation" != "--check" ] || {
+							echo "CLIENT_ACCESS_ROOTS: FAIL"
+							echo "  warn: no access fragment, so the console launches the CLI with no --add-dir"
+							echo "        root at all and a spawned agent is denied on its very first read of"
+							echo "        .agents/skills/<member>/<member>.basic.md"
+							echo "  path: $setupFragment"
+							echo "  fix:  $setupToolPath --make-workspace-integrations"
+						}
+						AgentsToolsOwnerSetupRow "Skill access roots" "NO GRANTS"
+						setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+						setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
+						setupRc=1
+					else
+						for setupMemberSlot in "$setupRoot"/.agents/skills/* ; do
+							[ -L "$setupMemberSlot" ] || continue
+							## The grant builder skips a reference-only member, so no grant
+							## for one is intended rather than missing.
+							if [ -f "$setupMemberSlot/SKILL.md" ] && grep -q '^status: reference-only' "$setupMemberSlot/SKILL.md" 2>/dev/null ; then
+								continue
+							fi
+							## Compared as resolved directories, never as link text: a
+							## relative link, and two paths reaching one directory through
+							## different symlinked parents, both read as uncovered otherwise
+							## -- and the advice that follows would be to re-point a link
+							## that is already correct.
+							setupMemberReal="$( cd "$setupMemberSlot" 2>/dev/null && pwd -P || : )"
+							[ -n "$setupMemberReal" ] || continue
+							setupMemberCount=$(( setupMemberCount + 1 ))
+							setupCovered=""
+							while IFS= read -r setupGrant ; do
+								case "$setupGrant" in /*) ;; *) continue ;; esac
+								setupGrantReal="$( cd "$setupGrant" 2>/dev/null && pwd -P || : )"
+								[ -n "$setupGrantReal" ] || continue
+								case "$setupMemberReal/" in "$setupGrantReal"/*) setupCovered="yes" ;; esac
+							done < "$setupFragment"
+							[ -n "$setupCovered" ] || setupUncovered="${setupUncovered}$setupMemberSlot|$setupMemberReal "
+						done
+						if [ "$setupMemberCount" -eq 0 ] ; then
+							[ "$setupOperation" != "--check" ] || {
+								echo "CLIENT_ACCESS_ROOTS: FAIL"
+								echo "  warn: .agents/skills holds no member link that resolves, so nothing was"
+								echo "        inspected -- an empty member tree is not a granted one"
+								echo "  fix:  $setupToolPath --make-workspace-integrations"
+							}
+							AgentsToolsOwnerSetupRow "Skill access roots" "NO MEMBERS"
+							setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+							setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
+							setupRc=1
+						elif [ -z "$setupUncovered" ] ; then
+							[ "$setupOperation" != "--check" ] || echo "CLIENT_ACCESS_ROOTS: OK"
+							AgentsToolsOwnerSetupRow "Skill access roots" "complete"
+						else
+							[ "$setupOperation" != "--check" ] || {
+								echo "CLIENT_ACCESS_ROOTS: FAIL"
+								echo "  warn: an agent spawned here is denied on its first read of each member"
+								echo "        below, because the copy its workspace link resolves to is not one"
+								echo "        of the directories the grant set names:"
+								for setupMemberSlot in $setupUncovered ; do
+									echo "        ${setupMemberSlot%%|*}"
+									echo "          -> ${setupMemberSlot#*|}"
+								done
+								echo "  why:  the grant names each member's directory as \$HOME/.claude/skills"
+								echo "        resolves it. A link reaching a second copy of the same member is a"
+								echo "        different directory, and regenerating the fragment does not move"
+								echo "        it -- an existing link is kept exactly as it is."
+								echo "  fix:  re-point each link above at the directory \$HOME/.claude/skills/<member>"
+								echo "        resolves to, then run $setupToolPath --make-workspace-integrations"
+							}
+							AgentsToolsOwnerSetupRow "Skill access roots" "INCOMPLETE"
+							setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
+							setupRc=1
+						fi
+					fi
+
+					if [ -n "$setupBlockers" ] ; then
+						setupVerdict="${setupVerdict}$( printf '  %-28s runs %-8s -- blocked by:%s' "$setupLabel" "$setupWillRun" "$setupBlockers" )"$'\n'
+					else
+						setupVerdict="${setupVerdict}$( printf '  %-28s runs %-8s -- ready' "$setupLabel" "$setupWillRun" )"$'\n'
+					fi
+
+					## The pointer, and it is the point of this mode: what to run, and
+					## where each value it takes comes from.
+					if [ -z "$setupOperation" ] && [ -z "$setupAllWorkspaces" ] ; then
+						echo ""
+						if [ -z "$setupBlockers" ] ; then
+							echo "This workspace is set up for claude."
+						else
+							echo "To set this workspace up, run:"
+							printf '%s' "$setupSetupSteps"
+							if [ -n "$setupValueHelp" ] ; then
+								echo ""
+								echo "Where each value comes from:"
+								printf '%s' "$setupValueHelp"
+							fi
+						fi
+					fi
+				done <<< "$setupTargets"
+
+				## Nothing diagnosed is not a pass: every workspace unreachable, or a
+				## registry naming none that resolve, otherwise exits 0 having checked
+				## nothing at all.
+				if [ "$setupDiagnosed" -eq 0 ] ; then
+					echo ""
+					echo "⛔ no workspace could be diagnosed -- none of the registered names resolved to a reachable workspace" >&2
+					setupRc=1
+				fi
+
+				if [ -n "$setupAllWorkspaces" ] ; then
+					echo ""
+					echo "## which workspace runs what"
+					printf '%s' "$setupVerdict"
+				fi
+				return "$setupRc"
 			;;
 			*)
 				echo "$setupDomain: no checks defined yet"

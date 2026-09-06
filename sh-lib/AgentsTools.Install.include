@@ -990,6 +990,7 @@ HOOKEOF
 			MYX_WSRESTRICT_DENY_ADD_JSON="$denyAddJson" \
 				MYX_WSRESTRICT_HOOKS_FILE="$hooksDescFile" \
 				MYX_WSRESTRICT_ALLOW_SOURCE_ROOT="$sourceRoot" \
+				MYX_WSRESTRICT_ALLOW_AGENTS_ROOT="$workspace/.claude/skills" \
 				MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON="$allowExtraRootsJson" \
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeWorkspaceRestrictionsUpsert.awk" \
 				"$settingsFile" > "$settingsTmp"
@@ -1186,6 +1187,7 @@ HOOKEOF
 			MYX_WSRESTRICT_DENY_ADD_JSON='[]' \
 				MYX_WSRESTRICT_HOOKS_FILE="$allowHooksDescFile" \
 				MYX_WSRESTRICT_ALLOW_SOURCE_ROOT="$workspace/source" \
+				MYX_WSRESTRICT_ALLOW_AGENTS_ROOT="$workspace/.claude/skills" \
 				MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON='[]' \
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeWorkspaceRestrictionsUpsert.awk" \
 				"$settingsFile" > "$allowSettingsTmp"

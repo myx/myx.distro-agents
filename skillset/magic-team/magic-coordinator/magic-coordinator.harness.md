@@ -139,7 +139,12 @@ Root-only.
 
 Root-only.
 
-- Root does direct edits/mechanical application inline itself, never spawned for that part. For any
+- Root does direct edits/mechanical application inline itself, never spawned for that part — applying
+  content already decided, never authoring it. Source is outside this mode's reach: writing or changing
+  code happens in a spawned coworking session whatever mode is running, and this mode's licence to edit
+  inline does not extend to it. The drift being bounded is from applying an approved change to authoring
+  a new one, which reads identically from inside the session — the test is whether the content being
+  written was decided somewhere other than here. For any
   assess→investigate→analyse→validate→propose stage of work, this mode still re-spawns a new one-time
   co-working session per `harness-session-rules` above — "never spawns" here means never a nested
   self-directing `magic-coordinator` instance running its own mode loop (`armed-harness-mode`'s shape), not

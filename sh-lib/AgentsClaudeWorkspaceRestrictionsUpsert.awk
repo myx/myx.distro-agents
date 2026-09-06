@@ -39,6 +39,18 @@
 #                                        same pattern
 #                                        AgentsClaudeSettingsPermissionsUpsert.awk's
 #                                        own board-grant replace uses.
+#   MYX_WSRESTRICT_ALLOW_AGENTS_ROOT  -- resolved `<workspace>/.agents` absolute
+#                                        path (raw, not JSON-escaped -- escaped
+#                                        here via jsonEscape() same as every
+#                                        other value this script writes).
+#                                        Upserted into permissions.allow as
+#                                        `Read(//<this>/**)`, Read alone -- the
+#                                        member entries beneath it are symlinks,
+#                                        and writing through one is refused
+#                                        whatever the permissions say. A prior
+#                                        grant for a DIFFERENT .agents root is
+#                                        replaced, same as
+#                                        MYX_WSRESTRICT_ALLOW_SOURCE_ROOT's own.
 #   MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON -- fixed extra permissions.allow Read
 #                                        roots, JSON string array (literal,
 #                                        same shape as MYX_WSRESTRICT_DENY_ADD_JSON).
@@ -303,8 +315,9 @@ BEGIN {
 	denyAddRaw = ENVIRON["MYX_WSRESTRICT_DENY_ADD_JSON"]
 	hooksFile = ENVIRON["MYX_WSRESTRICT_HOOKS_FILE"]
 	allowSourceRoot = ENVIRON["MYX_WSRESTRICT_ALLOW_SOURCE_ROOT"]
+	allowAgentsRoot = ENVIRON["MYX_WSRESTRICT_ALLOW_AGENTS_ROOT"]
 	allowExtraRootsRaw = ENVIRON["MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON"]
-	if (denyAddRaw == "" || hooksFile == "" || allowSourceRoot == "" || allowExtraRootsRaw == "") fail("usage")
+	if (denyAddRaw == "" || hooksFile == "" || allowSourceRoot == "" || allowAgentsRoot == "" || allowExtraRootsRaw == "") fail("usage")
 	if (!validJson(denyAddRaw, "[")) fail("deny-add-not-a-json-array")
 	if (!validJson(allowExtraRootsRaw, "[")) fail("allow-extra-roots-not-a-json-array")
 
@@ -370,30 +383,44 @@ END {
 	## permissions docs, "Read and Edit" pattern table). allowSourceRoot is
 	## already absolute (carries its own leading "/"), so exactly ONE more
 	## "/" here yields the required "//" -- prepending "//" would double it.
-	## Read, Edit AND Write are all granted -- Read-only left every Edit/Write
-	## under these roots still prompting, which is the greater part of what
-	## dispatched agents actually do here (create/modify files, not just read
-	## them). Same replace-not-accumulate shape, per verb.
+	## Read and Edit only, never Write: a Write rule is not matched by file
+	## permission checks at all, and Claude reports each one as a warning at
+	## startup. An Edit rule covers every file-editing tool, Write included.
+	## The keep-filter still recognises Write, so a stale entry from a moved
+	## workspace is dropped and one already present for the current root is
+	## left standing -- clearing those is its own separate change.
+	## Same replace-not-accumulate shape, per verb.
 	newAllowCount = 0
 	for (i = 0; i < oldAllowCount; i++) {
 		v = oldAllow[i]
 		if ((v ~ /^(Read|Edit|Write)\(\/\/.*\/source\/\*\*\)$/) && v != ("Read(/" allowSourceRoot "/**)") && v != ("Edit(/" allowSourceRoot "/**)") && v != ("Write(/" allowSourceRoot "/**)")) continue
+		## Anchored on Read alone: no other verb is ever written on a .agents
+		## path here, so a wider pattern could only drop a hand-added grant.
+		if ((v ~ /^Read\(\/\/.*\/\.agents\/\*\*\)$/) && v != ("Read(/" allowAgentsRoot "/**)")) continue
 		newAllow[newAllowCount++] = v
 	}
-	for (verbIdx = 0; verbIdx < 3; verbIdx++) {
-		verb = (verbIdx == 0) ? "Read" : (verbIdx == 1) ? "Edit" : "Write"
+	for (verbIdx = 0; verbIdx < 2; verbIdx++) {
+		verb = (verbIdx == 0) ? "Read" : "Edit"
 		desiredAllowEntry = verb "(/" allowSourceRoot "/**)"
 		if (!inList(newAllow, newAllowCount, desiredAllowEntry)) newAllow[newAllowCount++] = desiredAllowEntry
 	}
+
+	## The workspace's own .agents root, where a spawned agent reads the skill
+	## files it needs before it can arm at all. Those entries are symlinks into
+	## the source trees, and an allow rule has to match the literal symlink path
+	## as well as its target, so the source-root grant above never reaches them.
+	## Read alone: writing through a symlink is refused whatever is granted.
+	desiredAllowEntry = "Read(/" allowAgentsRoot "/**)"
+	if (!inList(newAllow, newAllowCount, desiredAllowEntry)) newAllow[newAllowCount++] = desiredAllowEntry
 
 	## Fixed extra reference roots (MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON) --
 	## unlike allowSourceRoot above, these are NOT derived from the target
 	## workspace, so there is no stale "workspace moved" entry to replace:
 	## add-if-missing only, same shape MYX_WSRESTRICT_DENY_ADD_JSON's own merge
-	## below uses. Same three verbs as above, same reason.
+	## below uses. Same two verbs as above, same reason.
 	for (i = 0; i < allowExtraRootsCount; i++) {
-		for (verbIdx = 0; verbIdx < 3; verbIdx++) {
-			verb = (verbIdx == 0) ? "Read" : (verbIdx == 1) ? "Edit" : "Write"
+		for (verbIdx = 0; verbIdx < 2; verbIdx++) {
+			verb = (verbIdx == 0) ? "Read" : "Edit"
 			desiredExtraAllowEntry = verb "(/" allowExtraRoots[i] "/**)"
 			if (!inList(newAllow, newAllowCount, desiredExtraAllowEntry)) newAllow[newAllowCount++] = desiredExtraAllowEntry
 		}

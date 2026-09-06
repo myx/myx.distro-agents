@@ -3413,5 +3413,5 @@
 		# Regression-test permission hardening under a deliberately permissive umask
 		`DistroAgentsTools.fn.sh --self-test`
 
-		# Audit .local/.agents for anything not chmod 700/600
+		# Audit .local/.agents for anything not chmod 770/660
 		`DistroAgentsTools.fn.sh --verify-permissions`

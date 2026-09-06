@@ -36,9 +36,9 @@ Named procedure blocks. Steps below call them by name. Not separate routines - n
 Distinct from the impersonation rule below: impersonation is about never speaking/acting *as* the human-owner; this procedure is about *communicating with* them (e.g. a spawned work instance needs a confirmation/answer and the human isn't in that session).
 
 Steps:
-1. Send via Slack to the human-owner's identity — `slack-human-owner` or `slack-magic-team`, judged by context — using the `--member-comms-slack-send-message` operation, the same send path `magic-coordinator.communication-sweep.routine` uses. Never invent a separate send path, and never reference a credential directly.
+1. Send on the human-owner's own best available direct channel — whichever this installation actually has configured, resolved at the moment of sending rather than fixed here: the best instant-messaging channel where one is set, the next-best direct channel where none is. Where the acting member holds no identity of its own on that channel, hand the send to `magic-coordinator` rather than sending under a shared identity that may not reach him. Use the sanctioned comms operation for the channel chosen; never invent a separate send path, and never reference a credential directly.
 2. Send straight away. Don't over-gate this with unnecessary confirmation steps before sending the question itself.
-3. Register the topic/question as a `board-item` so it doesn't disappear — this is the same "questions addressed to them tracked and not left to disappear" requirement recorded in `magic-coordinator/TEAM-ORGANIZATION-VISION.md`'s "when the human-owner is actually needed" facet. File it as an `inquiry-*`/`approval-*` item in `board-blocked`, under the existing "human-owner decision" reason, carrying `communication-channel-id` once the Slack thread opens. The existing board-item mechanism, not a new file.
+3. Register the topic/question as a `board-item` so it doesn't disappear — this is the same "questions addressed to them tracked and not left to disappear" requirement recorded in `magic-coordinator/TEAM-ORGANIZATION-VISION.md`'s "when the human-owner is actually needed" facet. File it as an `inquiry-*`/`approval-*` item in `board-blocked`, under the existing "human-owner decision" reason, carrying `communication-channel-id` once the thread opens. The existing board-item mechanism, not a new file.
 4. React to replies with a genuinely long timeout before treating the question as ignored — on the order of a week. Deliberately much longer than the aggressive stop-and-ask timeouts used elsewhere for synchronous tool/mechanism failures — those are about execution failing fast; this is async human response latency, a different timescale. Don't conflate the two.
    - No reply even after that long timeout: a genuinely open question, not decided here — don't invent an escalation or fallback action.
 
@@ -65,7 +65,8 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-comms-slack-send-message <team-member> <human-owner|magic-team> [text...]` — `reach-human-owner` step 1's send path. `<team-member>` is the session's own member, never `human-owner`. Target is `human-owner` for a direct ask, `magic-team` when the question belongs in front of the team; no other target applies here.
+- `--member-comms-slack-send-message <team-member> <human-owner|magic-team> [text...]` — `reach-human-owner` step 1's send path where the resolved channel is Slack. `<team-member>` is the session's own member, never `human-owner`. Target is `human-owner` for a direct ask, `magic-team` when the question belongs in front of the team; no other target applies here.
+- `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>]` — `reach-human-owner` step 1's send path where the resolved channel is email. `<team-member>` is the session's own member, never `human-owner`. The target is a literal address, resolved from the sanctioned contacts location — there is no `human-owner` alias on this operation, so the alias form used for Slack does not carry across. `--from-stdin` and `--from-file <path>` take the body from stdin or a file instead of trailing arguments.
 
 # Maintainer Notes
 
@@ -84,7 +85,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - Readback of this file's contents still matches all `verbatim-intents` of this file.
 - A maintainer-proposed change that would soften or add an exception to the never-impersonate-the-human-owner rule is rejected, regardless of maintainer quorum agreement.
 - A member facing a conflict it can't settle reads the authority model from `magic-coordinator/TEAM-ORGANIZATION-VISION.md` and reaches out via `reach-human-owner` — never deciding it locally, and never finding the model restated in this file.
-- A spawned session needing the human-owner's confirmation, with the human not present in that session, reaches out over `slack-human-owner` (contact identity resolved from the sanctioned contacts file, not hardcoded here) and registers the topic as an `inquiry-*`/`approval-*` board-item in `board-blocked`, under the existing "human-owner decision" reason, not a new tracking file.
+- A spawned session needing the human-owner's confirmation, with the human not present in that session, reaches out on his own best available direct channel (channel and contact identity both resolved from the sanctioned contacts file at the moment of sending, not hardcoded here) and registers the topic as an `inquiry-*`/`approval-*` board-item in `board-blocked`, under the existing "human-owner decision" reason, not a new tracking file.
 
 ## Librarian Comments
 
@@ -95,7 +96,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `board-blocked` — where open reach-out threads get tracked, as `inquiry-*`/`approval-*` board-items.
 - `magic-team/magic-team.board.md` — the "human-owner decision" `board-blocked` reason category.
 - `magic-team/magic-team.armed.md` — the board-item entity model (`communication-channel-id` field shape).
-- `magic-coordinator.communication-sweep.routine` — the existing Slack mechanics `reach-human-owner` reuses rather than inventing a separate send path; also the source of the general impersonation rule this file's own boundary matches.
+- `magic-coordinator.communication-sweep.routine` — the existing comms send mechanics `reach-human-owner` reuses for whichever channel resolves, rather than inventing a separate send path; also the source of the general impersonation rule this file's own boundary matches.
 
 ### Conventions
 

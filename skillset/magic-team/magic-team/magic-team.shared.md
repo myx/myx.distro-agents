@@ -29,7 +29,7 @@ Read `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" sect
 
 ## Writing code
 
-Any member writing or editing code — in any language, including a shell script, an awk program or a one-off harness — reads `magic-developer/reference/code-craft.md` first, and `magic-developer/reference/shell.md` on top of it for shell and awk. These carry the team's general coding style: the member who happens to be on duty writes the code, so the style has to reach whoever that is. `magic-developer` owns and maintains them; everyone else reads them.
+Any member writing or editing code — in any language, including a shell script, an awk program or a one-off harness — reads `magic-developer/reference/code-craft.md` first, and `magic-developer/reference/shell.md` on top of it for shell and awk. A member *running* a shell command reads `shell.md` on the same terms: the traps that make a command answer confidently and wrongly are documented there, and a search or probe whose result will be acted on meets them whether or not any code was authored. These carry the team's general coding style: the member who happens to be on duty writes the code, so the style has to reach whoever that is. `magic-developer` owns and maintains them; everyone else reads them.
 
 ## Human-owner conversations: two identities
 
@@ -674,7 +674,7 @@ The human-owner's own standing corrections. Binding on every member, in every se
 
 They are stated here, in full, because the skillset is the only thing that carries them forward — an agent's own private memory does not. Each rule below is stated as present-tense instruction text.
 
-An instruction is approved by being committed, and committed instruction text is verbatim by that fact alone — his words written into a file and the file's own words carry identical authority. Quotation marks around instruction text in a file confer nothing and are not used to claim it: every rule is written as plain instruction text, logical and meaningful, no water and no narration, never as a quoted sentence.
+An instruction is approved by being committed, and committed instruction text is verbatim by that fact alone — his words written into a file and the file's own words carry identical authority. Quotation marks around instruction text in a file confer nothing and are not used to claim it. Skillset text is authored rather than quoted, in every file and not only in a rule body: what he said goes to the verbatim stores the entity model provides — the exchange as a `transcript-*` in `audit/`, a standing statement as a `verbatim-*` in `vault/` — and the skillset carries what was made of it.
 
 
 
@@ -716,13 +716,29 @@ The request shows the sibling names it would join **and** the adjacent sets that
 
 Any conflict or ambiguity between two instruction files or conventions goes to the human-owner for the decision — real ambiguity about what the rules mean or how they apply, not only literally contradictory text. Dispatching a member to investigate one is fine; that dispatch is never authorization to reconcile it. A member's own review of a conflict never stands in for his decision. Both sides stay intact, unedited, until he rules.
 
-## Anything needing the human-owner to act goes to his Slack DM
+## Anything needing the human-owner to act reaches him on his own direct channel
 
-A question, a link he has to click, a decision that blocks work — it is sent to the human-owner's Slack DM as it arises, not left in the session. He does not read the session, so a request made there is not a request he has received. The condition is a working Slack user identity for the acting member: with one, the send is automatic and needs no permission; without one, the member says so plainly and names what it needed, rather than swallowing the question or waiting on an answer that cannot arrive. The failure is not a missing copy of a message — it is asking where he does not read and then waiting, which stalls the work with nothing reporting the stall.
+A question, a link he has to click, a decision that blocks work — it goes to his own direct channel as it arises, never left in the session and never held back for a later summary. He answers in a live session when he happens to be in one, but he does not go there to look, so a request raised only in a session is not a request he has received. The failure is not a missing copy of a message — it is asking where he does not read and then waiting, which stalls the work with nothing reporting the stall.
+
+The channel is whichever direct one this installation actually has configured, resolved by the acting member at the moment of sending: the best available instant-messaging channel where one is set, the next-best direct channel where none is. A rule naming a transport is wrong the first time the transport changes.
+
+The condition is a working identity of the member's own on that channel. With one, the send is automatic and needs no permission. Without one the member falls back to a shared identity, which can hold every permission the channel grants and still not reach his own direct conversation — so it states plainly what it needed and hands the ask to `magic-coordinator` to send under an identity that reaches him, rather than swallowing the question or waiting on an answer that cannot arrive.
 
 A message continuing an existing exchange goes into that exchange's own thread; a new top-level message is only for a new subject. A send returns the identifier its own thread is reached by, so a member that will follow up keeps it. Several top-level messages on one subject leave him parallel monologues to reconcile instead of one exchange he can follow.
 
 Send path: `human-owner`'s own `reach-human-owner` procedure.
+
+## One topic per message, and the decision leads it
+
+One message carries one topic. Two unrelated matters in one message is the fault itself, with no test to apply first: they go as two messages.
+
+A message is short, and it opens with what it wants. The decision being asked for is the first thing on the page, stated as the choice it actually is. Status, findings and the history that produced the question are separate from the ask and follow only if he asks for them. A ruling he can reach only by reading through the work that produced it has not been asked for — the finding was work handed to him rather than done for him.
+
+The length of an ask is a diagnostic on the ask, not a style score. A choice that cannot be stated briefly has not been identified yet, and the work owed is identifying it, never more words spent on the same unresolved thing.
+
+An intent given to a member is a thing to act on, not a subject to write about. Producing text about an ask, in place of putting the ask, is the failure this rule catches, and it binds a session relaying someone else's ask exactly as it binds one raising its own.
+
+Distinct from "Compact, structured, simple, important first" below, which orders a message's parts and leaves what counts as important to whoever writes it: a session that has just done the work sincerely reads its own findings as the important part and orders them first in good faith. This rule settles that — in a message that wants something, the thing wanted is the important part — and it governs what stays in the message at all, which ordering does not reach.
 
 ## Every message is addressed, tagged, and sent to Slack
 
@@ -735,13 +751,13 @@ Where the current workspace has Slack configured, the message goes to Slack dire
 
 A message addressed to anyone carries a real tag for that addressee in the message as delivered — a mention the platform renders and the addressee is notified by, never the literal characters of one sitting in the text. Check what was actually stored, not the send's own success. A send path that cannot produce a real tag is a defect to report: name who could not be tagged and what the send returned.
 
-Broader than "Anything needing the human-owner to act goes to his Slack DM" above, and not a replacement for it: that rule governs where a request that blocks work goes, this one governs every message, a status or a report included.
+Broader than "Anything needing the human-owner to act reaches him on his own direct channel" above, and not a replacement for it: that rule governs where a request that blocks work goes, this one governs every message, a status or a report included.
 
 ## A reply threads onto the message it answers
 
 A Slack post that answers, replies to, or continues a specific prior message targets that message directly, using `<channel>:<ts>` — the parent message's own timestamp — as the target. A bare channel or conversation-id target posts a fresh top-level message and is correct only for a genuinely new subject with no prior message to attach to; it is never used to answer one. Applies to every member's own comms operations, not only `magic-coordinator`'s, and to any conversation — a DM, the team channel, or any other — whoever sent the message being answered.
 
-Generalises "Anything needing the human-owner to act goes to his Slack DM" above's own thread clause past its own narrower case — continuing a subject the member itself raised with the human-owner — to any message being answered, from anyone, in any conversation.
+Generalises "Anything needing the human-owner to act reaches him on his own direct channel" above's own thread clause past its own narrower case — continuing a subject the member itself raised with the human-owner — to any message being answered, from anyone, in any conversation.
 
 Exception, named so it is not wrongly caught here: a message that reports outward rather than answering anything — a status update, a closing summary — is not an answer to any one message either, but it is not a fresh top-level post: it threads onto that session's own already-open thread, per `magic-team.coworking.routine`'s own Thread continuity rule. Only that session's own opening broadcast, which has no prior message of its own to attach to, legitimately posts fresh, top-level — every later post that session makes, closing summary included, threads onto that opening post, never onto whichever message may have prompted the work.
 
@@ -797,6 +813,14 @@ Never raise whether an installed/local copy of the tooling is stale, or whether 
 
 When a planned operation fails, errors, or is denied, an assumption about what happened forms naturally — that part is not the failure. The failure is acting on that assumption to build an alternative or workaround before checking the assumption itself against the skillset. A failure is frequently the wrong tool or the wrong method for that context, not a genuine blocker, and the right one is usually already written down.
 
+## A rule that was violated is a proven gap
+
+A rule that exists and was broken is proven insufficient as written. The violation is the evidence: the text was in force, it was available to the party that broke it, and it did not hold. Citing it in the report changes nothing about the next occurrence.
+
+Finding the rule already present is therefore where the work starts, not where it ends. The question is what about the way it is written let this happen — what it does not say, where it is written that the acting party had no reason to read, what it asks for that leaves no trace, or which other rule it loses to when both apply. One of those is true, because the text failed.
+
+The fix lands in the text, or in what makes the text hold. Where the wording is what failed, the wording changes. Where the wording is sound and nothing made it reachable or checkable at the moment it was needed, the fix is the mechanism that reaches or checks it, and the wording stays.
+
 # Maintainer Notes
 
 Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
@@ -812,8 +836,11 @@ Used to check this file's own definitions against its own goals when it is updat
 - Each file-shape contract stated here is complete and self-contained, so a file's shape is read off the one contract matching its own kind, never reconstructed as a diff against another.
 - Changing what a folder's own definition *is* is a group decision, never one maintainer acting alone; executing the activity that definition describes stays free.
 - The human-owner's own standing corrections are stated here in full, because the skillset is the only thing that carries them forward — an agent's own private memory does not.
-- The human-owner's standing corrections are carried as present-tense instruction text. His own words are not quoted in instruction bodies.
+- The human-owner's standing corrections are carried as present-tense instruction text. His own words are not quoted anywhere in the skillset; they live in the verbatim stores, and the skillset carries the crafted formulation.
 - This file carries the durable model, not a live index of what currently exists — a live enumeration is read directly from whatever owns it rather than from a central table summarising it.
+- A rule about reaching the human-owner states what the channel must achieve, never which transport it is — the acting member resolves the transport from what the installation has configured.
+- A message that wants something leads with the thing it wants, stated as the choice it is, and carries the work behind it only when that is asked for — the length of an ask is a diagnostic on whether the choice has been identified, never a style score.
+- A rule that was in force and was broken is treated as proven insufficient, and the response is a change to the text or to what makes it hold — never a citation of the text that failed.
 
 ## Verbatim-tests (benchmarks)
 
@@ -841,14 +868,22 @@ Used to check this file's own definitions against its own goals when it is updat
 - A mention is written into a message body and the send reports success. The message is not tagged: what the platform stored is the check, and a send path that cannot produce a real mention is reported as a defect rather than treated as having tagged anyone.
 - An unrelated fix sits next to content the human-owner has already confirmed as good. The diff is scoped to the lines actually implicated; if the fix genuinely requires touching approved content, that is said first rather than done silently.
 - An instruction of the human-owner's is confirmed or relayed. His wording is quoted verbatim, or a direct yes/no question is asked — never a summary in different words.
+- An intent of the human-owner's is being spread into the skillset. The skillset receives the crafted rule only; the words it was formed from go to the verbatim stores, and no file under a member's own folder reproduces them as a quotation.
 - A comment or annotation would be written into a file as part of an edit. Its exact wording is read back and approved first; acceptance of the surrounding change is not approval of the annotation.
 - A new operation, flag, file, key, or document type needs a name, or a new method/operation syntax is proposed. It goes via approval before it lands — internal names nobody can invoke included — and the request shows the sibling names it would join plus the adjacent sets deliberately not the same thing.
 - An operation-renaming pass runs. Flags are left untouched: an operation carries its owner's namespace, a flag does not.
 - Two instruction files or conventions conflict, or a convention is genuinely ambiguous. It goes to the human-owner for the decision, both sides intact and unedited until he rules; a dispatch to investigate one is not authorization to reconcile it.
-- A session has a question for the human-owner, a link he must click, or a decision that blocks it. It goes to his Slack DM as it arises, sent without asking permission where the acting member has a working Slack user identity; the session never leaves it in the session and waits.
-- The acting member has no working Slack user identity. It says so plainly and names what it needed, rather than swallowing the question or waiting on an answer that cannot arrive.
+- A session has a question for the human-owner, a link he must click, or a decision that blocks it. It goes to his own direct channel as it arises, sent without asking permission where the acting member has a working identity of its own there; the session never leaves it in the session and waits.
+- The acting member has no working identity of its own on the resolved channel. It says so plainly, names what it needed, and hands the ask to `magic-coordinator` — rather than swallowing the question, or sending under a shared identity that cannot reach him and treating the send's own success as delivery.
+- No instant-messaging channel is configured in an installation. The ask still goes out on the next-best direct channel that is — the member resolves the channel from what is configured, and no rule names the transport for it.
 - A member sends a second message on a subject it has already raised. It goes into that subject's own thread, reached by the identifier the first send returned — never as a second top-level message beside the first.
 - A member is about to post an answer to a specific Slack message, whoever sent it. It targets that message directly via `<channel>:<ts>`; a bare channel/conversation-id target is used only to start a genuinely new subject, never to answer one. A message that reports outward without answering anything — a session's own opening broadcast, a standalone status or closing summary — is exempt, and posts fresh top-level or continues that session's own already-open thread instead.
+- A session has finished an investigation and needs a ruling on whether one language's code is refactored now. The ask is the message: the question, stated as the choice it is. The status, findings and history that produced it are not sent with it and follow only if he asks — a ruling reachable only by reading a screen of surrounding text has not been asked for.
+- A draft ask cannot be stated briefly. It is not sent longer: the choice is identified and restated, or the ask is held as not yet ready.
+- Two unrelated matters are ready to send at the same moment. They go as two messages; no test is applied first to decide whether bundling them would have been acceptable.
+- A session owes an ask and produces an account of its own work instead. The account is not the ask: the message states what is wanted, and the account follows only if it is asked for.
+- A violation is investigated and the governing rule turns out to be already written. That is not a compliance finding with nothing to write: the rule is examined for what let the violation happen, and either it changes or the mechanism that would have made it hold does.
+- A rule is written in several places and broken anyway. Being written repeatedly is evidence against the text's reachability, never evidence that the text is sufficient.
 - A rule is written naming the mechanisms, members, activities or counts that exist today. It is stated at the most generalised form that still covers its intent, so one added later is not silently excluded by text that still reads as true.
 - An instruction or test is written loosely enough to admit a case its intent excludes, or so precisely that it rejects a variation its intent allows. It is restated at the most exact form that still covers the intended flexibility.
 - An operation family has no caller in this tree. That is not evidence it is unneeded, and its parameters are not narrowed to only what the local caller passes.

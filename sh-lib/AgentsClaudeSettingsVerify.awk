@@ -27,6 +27,18 @@
 #                                        `hooks.PreToolUse`. Same dedupe-key
 #                                        mechanism the restrictions writer uses
 #                                        to decide a hook is already installed.
+#   MYX_CLAUDEVERIFY_PROJECT_PATH     -- one key of the root `projects` object,
+#                                        i.e. a workspace root, asserted against
+#                                        together with the param below
+#   MYX_CLAUDEVERIFY_PROJECT_TRUE     -- newline-separated member names required
+#                                        to be literally `true` on that project
+#                                        entry. This reads ~/.claude.json rather
+#                                        than a settings.json, which is why the
+#                                        pair names its object explicitly instead
+#                                        of assuming this package wrote it.
+#
+# Params arrive through ENVIRON, never `-v`: `-v` backslash-decodes its value,
+# which corrupts a path, and a project key IS a path.
 
 function skipws(   c) {
 	while (p <= n) {
@@ -271,6 +283,34 @@ END {
 			seenHook = (hooksSlice != "" && index(hooksSlice, wantHook[i]) > 0)
 			printf "%s %s: %s\n", "hooks.PreToolUse", wantHook[i], (seenHook ? "OK" : "MISSING")
 			if (!seenHook) missingTotal++
+		}
+	}
+
+	projectPath = ENVIRON["MYX_CLAUDEVERIFY_PROJECT_PATH"]
+	wantTrueCount = split(ENVIRON["MYX_CLAUDEVERIFY_PROJECT_TRUE"], wantTrue, "\n")
+	if (projectPath != "" && wantTrueCount > 0) {
+		projectFound = 0
+		if (!findKeyInObjectAt(rootStart, "projects")) fail("unparsable")
+		if (FOUND) {
+			projectsStart = VALUE_START
+			if (substr(s, projectsStart, 1) != "{") fail("projects-not-an-object")
+			if (!findKeyInObjectAt(projectsStart, projectPath)) fail("unparsable")
+			if (FOUND) {
+				projectStart = VALUE_START
+				if (substr(s, projectStart, 1) != "{") fail("project-entry-not-an-object")
+				projectFound = 1
+			}
+		}
+		for (i = 1; i <= wantTrueCount; i++) {
+			seenTrue = 0
+			if (projectFound) {
+				if (!findKeyInObjectAt(projectStart, wantTrue[i])) fail("unparsable")
+				## Only the literal `true` counts: absent, false, and any other
+				## value are one answer here, and it is not "asserted".
+				if (FOUND) seenTrue = (substr(s, VALUE_START, VALUE_END - VALUE_START) == "true")
+			}
+			printf "projects %s: %s\n", wantTrue[i], (seenTrue ? "OK" : "MISSING")
+			if (!seenTrue) missingTotal++
 		}
 	}
 

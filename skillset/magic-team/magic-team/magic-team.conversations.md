@@ -31,6 +31,7 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    own. Split the message if either holds:
    - One reaction would leave part of the message unaddressed.
    - The message fits more than one clause of **address-messages-clearly**.
+   - The message carries two unrelated matters — the fault itself, needing no further test.
 
 3. **message-shape-is-correctness**: Message shape is a correctness constraint, not a style preference.
    A message the recipient cannot read, or cannot react to point by point, has **failed** — whether or
@@ -38,6 +39,8 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    sending something that is harder to read or harder to respond to. A wall of text is a failed
    message even when every byte arrives.
    - Flat text fails its reader.
+   - Length is its own failure. Structure does not buy a long message off — a well-organised long
+     message still buries the part that mattered.
    - One point per message — so a reader can react to *that* point, and so it can be forwarded,
      quoted, or answered on its own. Distinct sub-topics together, only within a report.
    - Long content — code, diffs, plans, anything awaiting approval — goes in a snippet or attachment,
@@ -85,18 +88,25 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    - The principle is stated in `magic-team/magic-team.shared.md`'s own human-owner standing rules; the
      delivery mechanics above are this file's.
 
-7. **human-owner-action-to-slack-dm**: Anything needing the human-owner to act goes to his Slack DM.
-   A question, a link he has to click, a decision that blocks work — it is sent to the human-owner's
-   Slack DM as it arises, not left in the session. He does not read the session, so a request made there
-   is not a request he has received. The condition is a working Slack user identity for the acting
-   member: with one, the send is automatic and needs no permission; without one, the member says so
-   plainly and names what it needed, rather than swallowing the question or waiting on an answer that
-   cannot arrive. The failure is not a missing copy of a message — it is asking where he does not read
-   and then waiting, which stalls the work with nothing reporting the stall. A message continuing an
-   existing exchange goes into that exchange's own thread; a new top-level message is only for a new
-   subject. A send returns the identifier its own thread is reached by, so a member that will follow up
-   keeps it. Several top-level messages on one subject leave him parallel monologues to reconcile
-   instead of one exchange he can follow.
+7. **human-owner-action-to-slack-dm**: Anything needing the human-owner to act reaches him on his own
+   direct channel.
+   A question, a link he has to click, a decision that blocks work — it goes to his own direct channel
+   as it arises, never left in the session and never held back for a later summary. He answers in a live
+   session when he happens to be in one, but he does not go there to look, so a request raised only in a
+   session is not a request he has received. The channel is whichever direct one this installation
+   actually has configured, resolved by the acting member at the moment of sending: the best available
+   instant-messaging channel where one is set, the next-best direct channel where none is — a rule
+   naming a transport is wrong the first time the transport changes. The condition is a working identity
+   of the member's own on that channel: with one, the send is automatic and needs no permission; without
+   one the member falls back to a shared identity, which can hold every permission the channel grants
+   and still not reach his own direct conversation, so it states plainly what it needed and hands the
+   ask to `magic-coordinator` to send under an identity that reaches him, rather than swallowing the
+   question or waiting on an answer that cannot arrive. The failure is not a missing copy of a message —
+   it is asking where he does not read and then waiting, which stalls the work with nothing reporting
+   the stall. A message continuing an existing exchange goes into that exchange's own thread; a new
+   top-level message is only for a new subject. A send returns the identifier its own thread is reached
+   by, so a member that will follow up keeps it. Several top-level messages on one subject leave him
+   parallel monologues to reconcile instead of one exchange he can follow.
    - Send path: `human-owner`'s own `reach-human-owner` procedure.
    - Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
 
@@ -778,6 +788,9 @@ explicitly specified parameter (e.g. a required participant/quorum list).
 7. **approval-ask-is-one-finished-message**: Approval ask must be one finished sentence/line/message.
    If an incoming approval ask is multi-line, normalize it to one finished sentence/line/message before
    requesting approval. If normalization would alter intent, do not execute and request a fresh one-line ask.
+   - An approval ask put to the human-owner also leads with the decision and carries its supporting
+     material separately, per `magic-team/magic-team.armed.md`'s Engineering & operating discipline —
+     normalising to one finished message and putting the choice where he finds it first are the same work.
 
 8. **replacing-approved-point-needs-approval**: Replacing an already-approved point needs explicit approval first.
    If a new proposal conflicts with something already approved, mark it blocked until the human-owner
