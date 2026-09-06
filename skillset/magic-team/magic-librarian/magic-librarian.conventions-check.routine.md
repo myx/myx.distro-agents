@@ -82,6 +82,8 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - A reviewed formulation fails review if a readback of it drops any intent, important detail, or benchmark the original had, even if it reads cleanly on its own.
 - Once a blocking finding is addressed, this same check re-runs on the fix before it lands — a fix isn't clean just because someone says it's fixed.
+- A proposed section is modelled on one in another file and carries several times its lead-in, prose and element count. It fails **compare-against-analog** on shape and verbosity alone, even where naming, placement and header style all match.
+- A new element is added to a file. It is measured against the siblings it joins at its own level — a section against that file's other sections, a list item against the list it enters — never against the file as a whole.
 
 ## Librarian Comments
 

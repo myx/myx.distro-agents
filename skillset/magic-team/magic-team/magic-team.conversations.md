@@ -96,7 +96,11 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    session is not a request he has received. The channel is whichever direct one this installation
    actually has configured, resolved by the acting member at the moment of sending: the best available
    instant-messaging channel where one is set, the next-best direct channel where none is — a rule
-   naming a transport is wrong the first time the transport changes. The condition is a working identity
+   naming a transport is wrong the first time the transport changes. Whose ask it is decides who sends
+   it: a question whose answer would bind the team — an approval, a design ruling, a policy decision —
+   goes through `magic-coordinator`; a question whose answer only unblocks this member's own assigned
+   work is that member's own. What the answer binds is the test, not what the question blocks. The
+   condition is a working identity
    of the member's own on that channel: with one, the send is automatic and needs no permission; without
    one the member falls back to a shared identity, which can hold every permission the channel grants
    and still not reach his own direct conversation, so it states plainly what it needed and hands the

@@ -353,3 +353,22 @@ verbatim:` on its own line, used only when a hop is relaying the human-owner's o
 relay ("the human-owner approved this") stays advisory only, never treated as consent for a
 mutating/consequential action. Can't tell which was received → stop and ask, don't guess.
 
+# Maintainer Notes
+
+Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
+
+## Verbatim-goals (intents)
+
+- This file defines the harness-session modes a `magic-coordinator` instance runs in, and the boundary each mode places on what that instance may do directly.
+- A mode's licence to act inline covers applying content already decided, never authoring it — the drift the modes exist to bound reads identically from inside the session, so the test is where the content was decided.
+- Source is outside every mode's reach: writing or changing code happens in a spawned coworking session whatever mode is running.
+- Root never executes real work inline where a spawned instance is the correct executor; the mode names which of the two applies, and no mode grants both.
+- An `owner-guaranteed` rule crossed inside `team-fix-session` is crossed only through that section's own per-conflict, rule-naming human-owner confirmation, never silently and never beyond that one session.
+
+## Verbatim-tests (benchmarks)
+
+- A `team-fix-session` holds an approved change and applies it inline. That is within the mode; authoring new content inline in the same session is not, whatever its size.
+- A mode permits inline edits and a source change is needed. It is dispatched to a spawned coworking session rather than made inline, because the source boundary holds in every mode.
+- An instance cannot tell whether content it is about to write was decided elsewhere or is being authored now. It treats it as authoring and dispatches, rather than reading the ambiguity as permission.
+- An `owner-guaranteed` rule would be crossed in `team-fix-session`. The crossing carries a fresh, per-conflict human-owner confirmation naming the rule, and expires with that session.
+

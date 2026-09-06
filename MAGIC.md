@@ -20,6 +20,18 @@ Team-owned notes for the magic-* team.
 - The no-target "sweep everything" mode is a macro-operation for the main-loop Comms step specifically, not a generic convenience loop: it combines both watched Slack targets, `--comms-email-check` and `--comms-trello-check` into one call. Keep that framing when extending it, and check whether the comms sweep actually needs a platform before adding one.
 - `--purge-cleanup` takes no arguments and always purges exactly one fixed directory, `$MMDAPP/.local/.cleanup`, leaving the folder itself in place. No caller-supplied path means no traversal surface to guard, so it needs no canonicalisation. It exists to route around a permission-engine limitation — a blanket `rm ` deny cannot be carved out by a more specific allow, because deny wins regardless of specificity — not as a general `rm` wrapper.
 
+## The `--owner-setup-*` family
+
+- One domain per macro part of a working installation, and the family is open: a domain with no defined check set reports "no checks defined yet" rather than an invented check.
+- Four states. A bare call writes the readable status and names the command that sets the domain up; `--check` writes the per-setting detail; `--apply` carries the setup out non-interactively; `--wizard` is the interactive form and is not built.
+- Argument grammar, family-wide: options and their values first, then at most one sub-operation last. Anything after a sub-operation is an error, and so is an option whose meaning depends on a sub-operation that is absent.
+- An option is accepted only by a domain that declares it. A flag taken and then ignored is the failure this rule exists to stop, so a domain gone from one of those gates has stopped declaring the option rather than been overlooked.
+- A domain declares; `--intern-op-owner-setup` carries out. The option machinery lives in that one primitive so an option two domains share is applied in one place, not once per domain.
+- A config setting is judged by its VALUE at its own use site — unset or empty is FAIL, never OK, and a config file existing is never the check. An artifact the installation is made of, such as a console script or an access fragment, is a different subject, and there its own presence is exactly what is being asked.
+- Settings and preconditions are separate lists and stay that way. A setting can be applied; a precondition is diagnosed and reported. For `claude` the settings are the workspace root and the service selection, while workspace trust, the CLI install, console freshness and access-root completeness are preconditions — trust in particular can only ever be accepted by a person.
+- A diagnosis answers about the current `$MMDAPP`. A domain that can also report every registered workspace offers that behind `--all-workspaces`, never as the default: someone running it in a workspace is asking about that workspace.
+- Every finding that blocks contributes a setup step, including one no single command closes — the step then says in prose what has to happen. A blocker with no step strands the reader, who runs what he is given and is still not set up.
+
 ## Which help a reader needs
 
 - A member is authorised for the operations its own armed file declares, not for the tool's whole surface. `DistroAgentsTools.fn.sh --member-help <team-member>` reports that member's declared operations together with their syntax — that is what a member reads to decide what it may call.
@@ -44,9 +56,9 @@ Team-owned notes for the magic-* team.
 - `.local` is the installed release, not a tree a session maintains. It can lag `source` after a source-side rename, and a lookup against a lagging release returns empty rather than failing — an empty result is not evidence that the configuration is missing.
 - Closing that gap is a release step. A session does not sync, copy or hand-edit anything under `.local`.
 - Every other piece of state local to this machine — its config, allowlists, caches, settings — is the same case: it reaches no client, so changing it is not a fix and not the work.
-- **A write to `--agents-config-option` creates that scope's file; a read does not.** `myx.distro-.local/sh-lib/LocalTools.Config.include` checks the sub-command first: `--select`, `--select-all` and `--select-default` read an absent scope as empty and touch nothing. An unrecognised sub-command still creates the file before erroring, so a typo'd operation leaves a phantom scope on disk that later looks like a configured member.
+- **A write to `--agents-config-option` creates that scope's file; a read does not.** `myx.distro-.local/sh-lib/LocalTools.Config.include` answers a read against an absent scope directly — nothing for `--select` and `--select-all`, the caller's own default for `--select-default` — and creates the file only on the way to a write. A typo'd or omitted operation falls through to that same creation and errors afterwards, leaving a phantom scope on disk that later looks like a configured member.
 - **A created file is empty, mode 660 under a 770 directory — owner and group — so existence alone separates nothing.** A member nobody has configured and one a write has already reached give `[ -f ]` the same answer. Content is what discriminates: `[ -s ]`, or parsing the file for the key the question is actually about.
-- **The config layer stops touching on a read, and the caller guards still earn their keep.** They now cover the residual cases rather than every call: a write against an unchecked name, and a typo'd sub-command creating the file before it errors. `AgentsToolsAssertBareName` checks a name's shape and says nothing about whether that member exists; the existence check is `[ -d "$HOME/.claude/skills/<member>" ]`, the same one every `--member-comms-*` op already carries, and it belongs ahead of the first config access in any op that takes a member name.
+- **The config layer creates nothing on a read, and the caller guards still earn their keep.** They cover the residual cases: a write against an unchecked name, and a typo'd or omitted sub-command creating the file before it errors. `AgentsToolsAssertBareName` checks a name's shape and says nothing about whether that member exists; the existence check is `[ -d "$HOME/.claude/skills/<member>" ]`, the same one every `--member-comms-*` op already carries, and it belongs ahead of the first config access in any op that takes a member name.
 
 ## All non-member Slack code lives in one file, and that file is not the dispatcher
 
@@ -225,7 +237,7 @@ Team-owned notes for the magic-* team.
 
 ## Permission checks are regression guards, not re-fixes
 
-- `--verify-permissions` walks `.local/.agents/*` and flags anything not 700 for dirs, 600 for files. It is the standing guard against one bug class: an upsert chmod-ing the touched file instead of the temp that `mv` replaces it with, which lands the result at 644.
+- `--verify-permissions` walks `.local/.agents/*.agent.env` and flags anything not 770 for the directory, 660 for a scope file — owner and group. The glob is the tool's subject: a config scope is exactly an `*.agent.env` file, and a cache or any other non-scope file sharing that directory is not this tool's to judge. It is the standing guard against one bug class: an upsert chmod-ing the touched file instead of the temp that `mv` replaces it with, which lands the result at 644.
 - `--self-test` exercises that chain under a deliberately permissive `umask 022` rather than the caller's ambient umask, because a coincidentally restrictive ambient umask hides a chmod regression. It uses a disposable probe key, never a real credential, and cleans the probe up pass or fail.
 
 ## Board-item list-shaped header fields are comma-separated, no brackets
