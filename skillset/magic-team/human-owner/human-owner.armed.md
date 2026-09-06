@@ -52,7 +52,6 @@ All statements apply at the same time, always. Any session reading or referencin
 - Actual contact details never live here — they live at the sanctioned, installation-specific contacts location.
 - The authority model — when the human-owner's involvement is actually needed vs. the team deciding/recording on its own — lives in `magic-coordinator/TEAM-ORGANIZATION-VISION.md`. Do not re-derive or restate it here; read the source.
 - A task seems to call for speaking or acting as the human-owner: it doesn't. Stop. Use `reach-human-owner` instead. Never guess an answer on their behalf.
-- "Session technically open" is not the same as "human actually present/watching" — whether/how to account for this is a future joint `magic-librarian` + `magic-architect` investigation, not decided here.
 - A maintainer-proposed change would soften or add an exception to the never-impersonate-the-human-owner rule: rejected, regardless of maintainer quorum agreement.
 
 # Domain knowledge: none

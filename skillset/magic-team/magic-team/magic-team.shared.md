@@ -33,7 +33,7 @@ Any member writing or editing code — in any language, including a shell script
 
 ## Human-owner conversations: two identities
 
-- The team bot and a member's own IM account are two separate conversations with the human-owner. A member with no account of its own reaches the human-owner in the bot's conversation.
+- The team bot and a member's own IM account are two separate conversations with the human-owner. The team bot is the shared identity a member with no account of its own falls back to, and its conversation carries what is informational — an outcome already settled, a report he does not have to act on. Anything needing him to act reaches him on his own direct channel instead, by this file's own human-owner standing rules, and a shared identity may be unable to reach that conversation at all.
 - Identity defaults to the member's own where it exists, the team bot otherwise; `--identity-bot` is the only modifier, and it selects the bot's conversation on reads, checks and reactions as well as sends — that is how a member with its own account works in the bot's conversation. There is no opposite flag. One exception: message search runs under the member's own identity only and refuses `--identity-bot` outright.
 
 ## Identifier and identity
@@ -712,6 +712,8 @@ The request shows the sibling names it would join **and** the adjacent sets that
 
 **An operation carries its owner's namespace; a flag does not.** An operation is prefixed by the member or routine owning it — `--member-comms-<platform>-<verb>`, `--magic-<routine>-<verb>`, `--intern-op-<verb>` for internal ones — however long that makes the name. A flag is not an operation: it modifies one, keeps its own shorter prefix (the `--comms-*` scope selectors and cut-off arguments), and an operation-renaming pass leaves it untouched. A pass asked for on operations changes operations only: flags are neither renamed nor removed as part of it.
 
+A major sub-operation is a third thing again, and it is short where an option is compound. It selects which mode of one operation runs — `--check`, `--apply`, `--wizard` — and it is written last, after every option and value the call carries, so nothing follows it and anything that does is an error. The self-describing multi-word form the naming rule asks for binds options (`--set-as-default`) and not these: a sub-operation earns its brevity by its fixed position, and lengthening one is a change to the grammar rather than a tidy-up.
+
 ## Conflicts and ambiguities go to the human-owner
 
 Any conflict or ambiguity between two instruction files or conventions goes to the human-owner for the decision — real ambiguity about what the rules mean or how they apply, not only literally contradictory text. Dispatching a member to investigate one is fine; that dispatch is never authorization to reconcile it. A member's own review of a conflict never stands in for his decision. Both sides stay intact, unedited, until he rules.
@@ -848,6 +850,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - A member is asked to run a routine owned by a different member. It reads the procedure out of the owning member's file and applies its own identity while executing the steps; no separate skill folder appears for that routine.
 - A member that is not `magic-developer` is about to write an awk program. It reads `magic-developer/reference/code-craft.md` first, and `magic-developer/reference/shell.md` on top of it for shell and awk.
 - An acting member's skill folder is resolved for editing. The real source path is resolved first, because the folder under `<skillset>/` may be a symlink rather than the canonical location.
+- One member's skills are linked into more than one harness folder at once. The folder holding the rules and hooks is the primary one and is what a grant, a permission and a path are stated against; reaching the same files through a second link is the same content under a name nothing was granted to, which is how an action passes one check and fails another for no visible reason.
 - A sentence in a skill file names a flag a stub forwards, an internal operation name, what a tool does beneath its own interface, unsettled design rationale, or a vendor-specific caveat. It is removed from the skill file and filed where it belongs — the package's own help pair, the package's `CLAUDE.md`/`README.md`, the owning `keeper-*`'s reference material or a board item, or the tooling implementation's own source comments.
 - A paragraph is 90% duty content and 10% internals. It is not exempt: the "can a member perform this step without this sentence?" test is applied to the sentence, not the section.
 - A step cannot do something because the tooling cannot yet do it. The gap is closed in the tooling so the skillset never needs awareness of it; the doc's wording is not softened instead. A gap needing a real external account or infrastructure action is flagged as its own decision point and pursuit stops there.
