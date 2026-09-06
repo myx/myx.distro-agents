@@ -144,7 +144,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `reference/code-craft.md` — cross-language writing-style axiom, read before writing code in any language. Also the home of the human-owner's own standing words on this subject, the one-fault-three-shapes statement, and the comment quantity-versus-content pair.
 - `reference/shell.md` — shell/AWK cross-platform portability, fully populated, canonical home. Also the two shell standards and their determinant, the bash 3.2 baseline and the three-part test for using it, and the cost of a scratch file.
-- `reference/xslt.md` — XSLT (especially 1.0), fully populated, former standalone `magic-xslt` skill.
+- `reference/xslt.md` — XSLT (especially 1.0), fully populated, canonical home.
 - `reference/java.md` — seeded with a first real axiom, otherwise still thin.
 - `reference/go.md`, `reference/javascript.md` — starter stubs, not yet populated.
 - `reference/css.md` — starter stub, tentative placement.

@@ -52,7 +52,7 @@ Not a bucket every test must land in — a suite, and what it carries is: a
 **testbed** (the environment a test runs against), a **harness** (the machinery
 that drives it), **fake data** (fixtures standing in for the real thing), and
 **some infra** (whatever those need to exist and run). `magic-tester` and
-`keeper-ae3` run one for the AE3 domain, and it is proven in practice there. The
+`keeper-ae3` run one for the AE3 domain. The
 dependency direction is why it is a project of its own: a workspace contains it,
 and it does not depend on the workspace. Test machinery placed inside a package
 inverts that.
@@ -106,17 +106,17 @@ it. Before a number is quoted as evidence, establish what the tool actually
 counted: which unit (a thread against a conversation, a file against a record, a
 row against an entity), over which population, after which filters.
 
-The shape of the failure: "137 of 139 sources" quoted as coverage of a
+The shape of the failure: a coverage figure quoted for a
 message class, where the counter's unit is threads rather than conversations —
 two populations that merely look interchangeable. The check is one step: find
 where the number is produced, read the unit off the code, and restate the claim
 in that unit.
 
 A negative that comes back identical for every subject is the same question
-asked of the instrument. An earlier probe read `.local/.agents/*/` as
-directories, where the configs are `<member>.agent.env` files, and concluded
-that no member held a `SLACK_USER_TOKEN`; every member with real configuration
-held one. **A uniform "none anywhere" — none configured, none matching, none
+asked of the instrument. A probe that enumerates a config directory's
+subdirectories, where the configuration is held in files inside it, finds
+nothing and concludes no member holds the key — while every member with real
+configuration holds one. **A uniform "none anywhere" — none configured, none matching, none
 present — is a finding about the instrument until one subject with a known
 positive answer has been put through the same probe.** That positive control is
 the cheap half: a single known-yes case through the identical command shape,
@@ -133,7 +133,7 @@ false positive lives. Two shapes it takes, each producing a wrong
 report to the owner:
 
 - **Existence is not configuration.** `[ -f ]` passes on a zero-byte file. Where
-  30 of 33 `.agent.env` files in a workspace are empty, a `[ -f ]` probe reports
+  most `.agent.env` files in a workspace are empty, a `[ -f ]` probe reports
   every one of them as configured, and a member whose files are all 0 bytes reads
   the same as a fully configured one. The
   discriminator is `[ -s ]`, or parsing the file for the key the claim is about.

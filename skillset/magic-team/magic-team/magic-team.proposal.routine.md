@@ -105,7 +105,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-team/magic-team.conversations.md` — the proposal-thread lifecycle clause and its cross-references lived here before this consolidation; a short pointer remains there, and this routine is the single home now.
+- `magic-team/magic-team.conversations.md` — carries a short pointer to this routine, which is the single home for the proposal-thread mechanic.
 - `magic-team/magic-team.board.md` — the Slack-originated-item reaction convention **proposal-thread-mechanic**'s root-reaction clause uses.
 - `magic-team/magic-team.shared.md` — **A rule statement stays a rule statement**, the body discipline the in-thread-proposal clause reuses.
 - `magic-team.discuss.routine` — convergence/decision among members, distinct from this routine's human-owner-proposal purpose; its **keep-tracking-item-current** shares the clean-statement discipline.

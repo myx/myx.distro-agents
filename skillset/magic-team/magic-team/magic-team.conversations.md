@@ -730,7 +730,7 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
 
 ### Proposal-to-human-owner thread lifecycle
 
-The propose→work-out→approve process to the human-owner is a routine — see `magic-team.proposal.routine`. It is the single home for the proposal-thread mechanic (root = the invariant question that stays · in-thread proposal clean/logic-only · delete-and-replace on revision · root reaction on close) and the clean-proposal discipline (present/future-tense, proposed form plus its tight reasoning only — no history, narrative, how-reached, or precedent/tension recounting). Consolidated out of this file.
+The propose→work-out→approve process to the human-owner is a routine — see `magic-team.proposal.routine`. It is the single home for the proposal-thread mechanic (root = the invariant question that stays · in-thread proposal clean/logic-only · delete-and-replace on revision · root reaction on close) and the clean-proposal discipline (present/future-tense, proposed form plus its tight reasoning only — no history, narrative, how-reached, or precedent/tension recounting).
 
 ## Interview-alike checkpoint mode
 

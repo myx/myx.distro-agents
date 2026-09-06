@@ -69,7 +69,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
          - whichever comes first
        - don't file a batched record of the pending decisions and assume some other routine will later notice and pick it up (no routine's Steps currently do that)
        - the note is still filed in `board-processed` afterward, as the record of what was asked and when — not as the trigger mechanism itself
-     - **Process own inbox** (every grooming pass, not cadence-gated like the roster recheck): run `magic-team.process-inbox.routine magic-coordinator` (the confirmed default executor for this joint-executor routine) — inline execution (own identity). Fresh inbox items not yet on the board, gathered here so **triage-per-item** triages them alongside the open backlog. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
+     - **Process own inbox** (every grooming pass, not cadence-gated like the roster recheck): run `magic-team.process-inbox.routine magic-coordinator` (the default executor for this joint-executor routine) — inline execution (own identity). Fresh inbox items not yet on the board, gathered here so **triage-per-item** triages them alongside the open backlog. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 4. **triage-per-item**
    - The existing backlog IS the work, regardless of whether anything new came in since the last pass -- "focus on today's new items, skip the older backlog" is not a valid scoping decision here. No new signal is not a reason to leave old backlog items untouched.
    - Time-boxed per item: don't let one item consume the pass. For each open item, narrate its owning member deciding what happens to it -- via this decision tree, not a free-form pick:
@@ -241,7 +241,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - No status-file GC step exists in `magic-team.coworking.routine`'s Closure Steps; this routine's own triage pass (**triage-per-item**) is where drop/split decisions actually happen.
 2. **close-state-and-unlock**
    - rule: reference the board/inbox items themselves rather than copying their content, to keep it compact.
-   - step: release the lock via `--magic-grooming-close-state-and-unlock`, passing the pass's closing status inline — content, `state: grooming-finished`, and the unlock all land in one call now, not two.
+   - step: release the lock via `--magic-grooming-close-state-and-unlock`, passing the pass's closing status inline — content, `state: grooming-finished`, and the unlock all land in one call, not two.
 
 # Routine's local procedures
 

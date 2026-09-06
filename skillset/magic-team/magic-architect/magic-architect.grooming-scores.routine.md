@@ -3,7 +3,7 @@ executors: magic-architect
 maintainers: magic-coordinator, magic-librarian, magic-architect
 invitees: none
 ---
-# routine-grooming-scores — the actual procedure
+# magic-architect.grooming-scores.routine — the actual procedure
 
 Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contracts" → Routine. This file is a derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins.
 
@@ -85,7 +85,6 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `magic-architect.armed.md`'s `## Idle-Tasks` section — the scheduling policy governing when this routine fires.
 - `magic-coordinator/RICE-SCORING.md` — the four-dimension scoring model.
-- Migrated to routine form in the 2026-09 idle-task-to-routine refactor.
 
 ### Conventions
 

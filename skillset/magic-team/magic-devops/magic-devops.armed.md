@@ -13,7 +13,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - This skill spans two sub-domains, each detailed in its own reference file — read the one(s) relevant to the task at hand:
   - **`reference/myxdistro-pipeline.md`** — operating `myx.distro-*`: a workspace's console entry points (`DistroSourceConsole.sh`/`Local`/`Deploy`/`Remote`), `ExecuteParallel`/`ShellTo` fleet-execution gotchas, baseline ownership of the `lib`/`myx`/`acm` namespace roots, `ws-2017/myx-work` as the full-breadth reference workspace, and treating named action scripts as composable pipeline building blocks.
   - **`reference/recipe-driven-deploy.md`** — `BuildDistroFromSource.fn.sh` has no project scoping (use `DistroSourcePrepare.fn.sh --ingest-distro-index-from-source` for a single project's local edit instead); this tooling family has multiple distinct, purpose-specific deploy tools (`DeployProjectSsh.fn.sh` for hosts/projects, `DeployRouting.fn.sh` for routing/`*-structure.json`, likely others) — match the tool to the actual target category rather than assuming one mechanism covers everything, worked through via `DeployRouting.fn.sh` as a concrete example (its own `--project`/config-path interface, the bare-name PATH gotcha, why a regular per-host deploy won't also push routing config).
-- For POSIX `sh`/AWK language mechanics when a fix does require touching a script, see `magic-developer`'s `reference/shell.md` — though most day-to-day authorship now runs through the owning `keeper-*`.
+- For POSIX `sh`/AWK language mechanics when a fix does require touching a script, see `magic-developer`'s `reference/shell.md` — though most day-to-day authorship runs through the owning `keeper-*`.
 - **Extended tooling knowledge, and engaging on it**: this skill is responsible for the `myx.distro-*` tool family's own extended mechanics generally — not limited to any one fixed list. When a coworking session you're participating in touches CDCI/fleet-execution/console-tooling topics, proactively engage with what you actually know rather than waiting to be asked (concrete example: see "Domain knowledge" below).
 
 ## Scope
@@ -24,7 +24,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Doesn't:
   - Edit or author `myx.common`/`myx.distro-*` source itself — hand off to the owning `keeper-*`. This skill owns running/deploying it, not authoring it.
   - Handle hand-rolled MCP server work (JSON-RPC, tools/resources, async/cancellation) — hand off to `magic-librarian`'s `reference/mcp.md` module instead.
-  - Run the user's own private-fleet health sweep — that's the owning `keeper-*`'s daily-iteration duty now, not this skill's.
+  - Run the user's own private-fleet health sweep — that's the owning `keeper-*`'s daily-iteration duty, not this skill's.
   - Run help-pairing-gap or legacy-shim `+x`-bit checks as part of its own daily iteration — that's the owning `keeper-*`'s idle-task territory, a source-content concern.
 
 # Terminology: none
@@ -47,7 +47,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - **Choose the narrowest tool that fits the job.** Narrow tools fail safe: one that must resolve to exactly one target refuses an ambiguous selector instead of acting on all of it, which is what catches a selector looser than assumed. What a selector actually resolves to is answered by a read-only listing call before acting, never by reasoning about it.
 - A task turns out to be about `myx.common`/`myx.distro-*` *source content* itself, rather than running or deploying it: hand off to the owning `keeper-*`. Do not edit source here.
 - A task is hand-rolled MCP server work (JSON-RPC, tools/resources, async/cancellation): hand off to `magic-librarian`'s `reference/mcp.md` module instead.
-- A fix does require touching a script during real operation: consult `magic-developer`'s `reference/shell.md` for POSIX `sh`/AWK language mechanics. Most day-to-day authorship now runs through the owning `keeper-*` though.
+- A fix does require touching a script during real operation: consult `magic-developer`'s `reference/shell.md` for POSIX `sh`/AWK language mechanics. Most day-to-day authorship runs through the owning `keeper-*` though.
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way.
 - Don't touch Claude Code's own application state — anything under `~/.claude/`, `~/.claude.json`, or a generator whose own name/purpose is Claude-permissions-specific — even while chasing a real, related-seeming bug. Only a task explicitly naming one of these brings it into scope. This ecosystem's own workspace-level `.claude/settings.json` is different: real in-scope tooling (`--install-workspace-restrictions`/`--install-workspace-integrations`) manages that one, owned by the owning `keeper-*`.
 - Web-search is one of this skill's own idle-task activities too — research something relevant to this domain, then propose it via `--member-inbox-note-upsert` (this member's own inbox).

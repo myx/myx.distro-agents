@@ -110,13 +110,11 @@ investigation with nothing at the end of it.
 inode means one file, different means two. Reasoning about how the layout must be set
 up does not substitute for those two commands.
 
-## Worked example: a detection check with only negative results, run for real against live traffic
+## A detection check with only negative results, run for real against live traffic
 
-Reinforces the existing rule in `magic-team/magic-team.armed.md`'s "Engineering
-& operating discipline" section — "a check you would act on is not a result
-until it has been shown able to fail," including its positive-control-alongside-
-the-result requirement — rather than restating it; this is a concrete instance,
-not new rule text.
+Applies `magic-team/magic-team.armed.md`'s "Engineering & operating discipline"
+rule — a check you would act on is not a result until it has been shown able to
+fail — including its positive-control-alongside-the-result requirement.
 
 Concrete magnitude of the risk: a live multi-hour fleet traffic-inspection
 detector (`tcpdump`-based, scanning for a specific protocol signature) can run

@@ -3,8 +3,8 @@ maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 <!-- MAINTAINED BY magic-librarian — do not edit directly.
      This is the durable, cross-cutting model doc for how the team's skill folders and routines work —
-     every acting member's own skill folder (magic-*/keeper-*/warden-*/partner-*/client-*), plus every routine-* virtual
-     member hosted inside one of them: the folder-shape spec, the
+     every acting member's own skill folder (magic-*/keeper-*/warden-*/partner-*/client-*), plus every `.routine.md`
+     procedure hosted inside one of them and the member executing it: the folder-shape spec, the
      typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule. Named
      `magic-team.shared.md` because it's hosted in magic-team's own folder, the same "<owning-folder-
      name>.<type>.md" pattern every other typed file follows. Per-routine-specific content (executor/
@@ -13,15 +13,15 @@ maintainers: magic-librarian, magic-coordinator, human-owner
      It also hosts the human-owner's own standing rules (last root section) — the one place they are
      stated in full, because the skillset is the only thing that persists across machines. -->
 
-# Skill-folder model: routine-\* virtual members and the typed-suffix file scheme
+# Skill-folder model: the typed-suffix file scheme, and routines as procedures with executors
 
 This file's own content is binding and obligatory on every team member who reads it — not merely informational or reference material.
 
 ## Core idea
 
-Every team routine/activity (`daily`, `grooming`, `retro`, `one-on-one`, `heartbeat`, ..., plus conversational ones like `interview`/`discuss`/`brainstorm`) is a named procedure, not its own Claude Code skill folder. Its full definition lives in one self-contained `.routine.md` file, hosted inside its owning/executing team member's own skill folder (one of `magic-coordinator`, `magic-team`, `magic-librarian`, a `partner-*`), named following that member's own typed-file convention: `<owning-member>.<short-name>.routine.md`. Only acting members (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) are real, separate Claude Code skill folders under `<skillset>/`, each with its own `SKILL.md` — a routine is not, and has no `SKILL.md` of its own.
+Every team routine/activity (`daily`, `grooming`, `retro`, `one-on-one`, `heartbeat`, ..., plus conversational ones like `interview`/`discuss`/`brainstorm`) is a named procedure, carried in one typed-suffix `.routine.md` file and executed by a team-member — never a member itself, and never its own Claude Code skill folder. Its full definition lives in one self-contained `.routine.md` file, hosted inside its owning/executing team member's own skill folder (one of `magic-coordinator`, `magic-team`, `magic-librarian`, a `partner-*`), named following that member's own typed-file convention: `<owning-member>.<short-name>.routine.md`. Only acting members (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) are real, separate Claude Code skill folders under `<skillset>/`, each with its own `SKILL.md` — a routine is not, and has no `SKILL.md` of its own.
 
-A routine is executed by whichever member actually runs it — most often its own owning member, but any other member may run it too, by reading that routine's procedure directly out of the owning member's file and applying its own identity/skills while executing the steps. This is what makes `"magic-architect, ingest the task"` a real, distinct thing from `"Magic, ingest the task"` — the same procedure, performed by a different member, produces member-appropriate results.
+A routine's executor is whichever member actually runs it — most often its own owning member, but any other member may run it too, by reading that routine's procedure directly out of the owning member's file and applying its own identity/skills while executing the steps. This is what makes `"magic-architect, ingest the task"` a real, distinct thing from `"Magic, ingest the task"` — the same procedure, performed by a different member, produces member-appropriate results.
 
 ## Tooling
 
@@ -201,9 +201,9 @@ Copyable skeleton: `magic-team/templates/routine.contract.format.md`.
 - No `SKILL.md`.
 - No `.basic.md`/`.armed.md` split.
 - No separate `.access.md`/`.reference.md`/`.librarian.md`.
-- `# routine-<name> — the actual procedure`
+- `# <owning-member>.<short-name>.routine — the actual procedure`
   - The file's own title line, before `# Summary` — every existing routine file carries one.
-  - `<name>` is the routine's own short name, matching its `routine-<name>` identity.
+  - The title is the file's own name minus `.md`: a routine is named by its file, never by an identity of its own.
 - `# Summary`
   - One short sentence, names the routine.
   - `## Goals`
@@ -630,7 +630,7 @@ A folder can still declare finer-grained, folder-specific rules (rate limits, co
 ### Executors vs. maintainers, and the maintainer quorum rule
 
 **Two distinct roles, not one "who may run it" field:**
-- **Executors** — who may actually run/execute the folder's activity day to day. For most current structured routines this is `magic-coordinator` alone, since they're coordinator-orchestrated. A routine states this as a real `executors:` frontmatter field; an acting member states it in prose (`Scope`/`Local rules`) instead, since `.armed.md` carries no `executors:` field.
+- **Executors** — who may actually run/execute the routine's own procedure, or the folder's activity, day to day. For most current structured routines this is `magic-coordinator` alone, since they're coordinator-orchestrated. A routine states this as a real `executors:` frontmatter field; an acting member states it in prose (`Scope`/`Local rules`) instead, since `.armed.md` carries no `executors:` field.
 - **Maintainers** — who may change/update the definition itself (a member's `.armed.md`, or a routine's own `.routine.md`, or anything else that defines its behavior) — always a **group**, never a single owner acting unilaterally. Reasonable default group: `magic-coordinator` + `magic-librarian` + `magic-architect` (the same three-perspective shape already used for triage/grooming authority) — adjust per folder/routine when a different group genuinely makes more sense (e.g. one deeply specific to one domain might reasonably add that domain's keeper/partner to its maintainer group), using judgment, not a rigid one-size-fits-all list.
 
 **A quorum change is run as a coworking session, not as a poll.** Spawn `magic-team.coworking.routine` with the quorum group as its participants and the involved specialists as invitees — never dispatch one member to collect approvals from the others one at a time. The agreement is reached in the session, in one visible thread.
@@ -658,7 +658,7 @@ If the human-owner flags a doc/disk mismatch directly, or a session notices stal
 
 ## Two independent dimensions (pointer, not duplicated)
 
-Full write-up lives in `magic-team.board.md`'s "Two independent dimensions: item types vs. routines/activities" section — workflow queue item *types* (`task-`, `inquiry-`, `reflection-`, ...) and team routines/activities (`daily`, `grooming`, `interview`, ...) are orthogonal axes, not one taxonomy. The `routine-<name>` term-family is this file's territory; item types stay `magic-team.board.md`'s.
+Full write-up lives in `magic-team.board.md`'s "Two independent dimensions: item types vs. routines/activities" section — workflow queue item *types* (`task-`, `inquiry-`, `reflection-`, ...) and team routines/activities (`daily`, `grooming`, `interview`, ...) are orthogonal axes, not one taxonomy. The routine-naming term-family (`<owning-member>.<short-name>.routine`) is this file's territory; item types stay `magic-team.board.md`'s.
 
 ## Where the roster lives
 
@@ -802,7 +802,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- This file is the durable, cross-cutting model of how the team's skill folders and routines work — every acting member's own skill folder (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`), plus every `routine-*` virtual member hosted inside one of them: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule.
+- This file is the durable, cross-cutting model of how the team's skill folders and routines work — every acting member's own skill folder (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`), plus every `.routine.md` procedure hosted inside one of them and the member executing it: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule.
 - This file's own content is binding and obligatory on every team member who reads it, never merely informational or reference material.
 - A routine is a named procedure hosted inside its owning member's own folder, never a skill folder of its own — so the same procedure performed by a different member yields member-appropriate results instead of a second identity.
 - The team's general coding style reaches whoever is actually on duty writing the code, never only the member that owns and maintains it.
