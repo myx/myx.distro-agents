@@ -25,6 +25,9 @@
 #   MYX_CLAUDEPERMS_DENY_ADD_JSON     -- fixed deny-grant JSON string array (literal)
 #   MYX_CLAUDEPERMS_MEMBERS_FILE      -- path to a plain text file, one acting
 #                                        member's real skillset directory per line
+#   MYX_CLAUDEPERMS_MCP_SERVERS_JSON  -- optional JSON string array of project
+#                                        `.mcp.json` server names to persist as
+#                                        approved in root `enabledMcpjsonServers`
 
 function skipws(   c) {
 	while (p <= n) {
@@ -259,9 +262,9 @@ function upsertKeyValue(objStart, targetKey, newValueJson,   head, tail, sep) {
 }
 
 # Every string this op always wants present in permissions.allow: the board
-# grant pair (against the resolved $MDAT_DATA_ROOT/board path), the fixed
-# static tool grants, then one Edit/Write pair per acting member path (from
-# MEMBERPATH[], loaded once by loadMembers() before this runs).
+# grant (against the resolved $MDAT_DATA_ROOT/board path), the fixed static
+# tool grants, then one grant per acting member path (from MEMBERPATH[],
+# loaded once by loadMembers() before this runs).
 function buildDesiredAllow(   dCount, k) {
 	## `//` (not a single `/`) is required for an absolute filesystem path --
 	## a single leading slash anchors at the settings source ($HOME, for this
@@ -271,19 +274,19 @@ function buildDesiredAllow(   dCount, k) {
 	## documents and applies). boardRoot/MEMBERPATH[] are already absolute
 	## (each carries its own leading "/"), so exactly ONE more "/" here
 	## yields the required "//" -- prepending "//" would double it.
+	##
+	## Edit(...) only, never Write(...): a Write rule is not matched by file
+	## permission checks at all, and Claude reports each one as a warning at
+	## startup. An Edit rule covers every file-editing tool, Write included.
+	## Any Write grant already present is dropped by the keep-filter that
+	## reads this list's own grant shapes, and never re-added here.
 	dCount = 0
 	## A board is not configured in most installations. Add the board grant
-	## pair only when a board path was actually supplied; an empty boardRoot
+	## only when a board path was actually supplied; an empty boardRoot
 	## contributes no grant (and any stale board grant is still dropped below).
-	if (boardRoot != "") {
-		DESIRED[dCount++] = "Edit(/" boardRoot "/**)"
-		DESIRED[dCount++] = "Write(/" boardRoot "/**)"
-	}
+	if (boardRoot != "") DESIRED[dCount++] = "Edit(/" boardRoot "/**)"
 	for (i = 0; i < staticAllowCount; i++) DESIRED[dCount++] = staticAllow[i]
-	for (k = 0; k < MEMBERPATHCOUNT; k++) {
-		DESIRED[dCount++] = "Edit(/" MEMBERPATH[k] "/**)"
-		DESIRED[dCount++] = "Write(/" MEMBERPATH[k] "/**)"
-	}
+	for (k = 0; k < MEMBERPATHCOUNT; k++) DESIRED[dCount++] = "Edit(/" MEMBERPATH[k] "/**)"
 	return dCount
 }
 
@@ -391,6 +394,33 @@ END {
 	}
 	sortList(newDeny, newDenyCount)
 	s = upsertKeyValue(permStart, "deny", arrayJson(newDeny, newDenyCount))
+
+	## --- enabledMcpjsonServers ---
+	## Claude Code gates a project `.mcp.json` server behind approval, and this
+	## root key in this file is where an approval persists -- without it a
+	## headless session starts with none of those servers' tools.
+	mcpServersRaw = ENVIRON["MYX_CLAUDEPERMS_MCP_SERVERS_JSON"]
+	if (mcpServersRaw != "") {
+		if (!validJson(mcpServersRaw, "[")) fail("mcp-servers-not-a-json-array")
+		savedDoc = s
+		s = mcpServersRaw; n = length(s); p = 1; skipws()
+		mcpServersCount = stringArrayAt(p)
+		for (i = 0; i < mcpServersCount; i++) mcpServers[i] = ELEMS[i]
+		s = savedDoc; n = length(s); p = 1; skipws()
+		rootStart = p
+		oldMcpCount = 0
+		if (findKeyInObjectAt(rootStart, "enabledMcpjsonServers") && FOUND) {
+			if (substr(s, VALUE_START, 1) != "[") fail("enabled-mcp-servers-not-an-array")
+			oldMcpCount = stringArrayAt(VALUE_START)
+		}
+		newMcpCount = oldMcpCount
+		for (i = 0; i < oldMcpCount; i++) newMcp[i] = ELEMS[i]
+		for (i = 0; i < mcpServersCount; i++) {
+			if (!inList(newMcp, newMcpCount, mcpServers[i])) newMcp[newMcpCount++] = mcpServers[i]
+		}
+		sortList(newMcp, newMcpCount)
+		s = upsertKeyValue(rootStart, "enabledMcpjsonServers", arrayJson(newMcp, newMcpCount))
+	}
 
 	if (!validJson(s, "{")) fail("generated-config-would-not-parse")
 	## the doc/record join above drops the source file's own trailing
