@@ -92,6 +92,13 @@ template renderer — a regression net is cheap to build and reusable afterwards
 3. Run the post-change implementation over the same corpus and diff byte for
    byte.
 
+Where the change is an addition to a shared index rather than a transformation of
+an input, the same three steps hold with the "before" manufactured rather than
+found: hold the new thing out, ingest, and snapshot every existing entry; put it
+back, ingest again, snapshot again; diff the two snapshots. A single snapshot
+taken after the fact cannot answer "did anything else change" — it has nothing to
+be compared against, and the question it appears to answer is a different one.
+
 A byte-identical diff bounds the change to what it was meant to touch. The net's
 strength is exactly its corpus coverage, so grow the corpus by the constructs a
 change touches rather than by volume. A change designed to be purely additive is
@@ -125,6 +132,37 @@ before the sweep's result is offered as a result.
 its Principles, for recursive searches whose empty output looks the same either
 way.
 
+## A system's enforcement path and its reporting path are different surfaces
+
+Neither one's silence describes the other. Reading the code that enforces a rule
+establishes what that code does when the rule is broken. It establishes nothing
+about whether the system reports that condition somewhere else, through a listing
+command, a query option, a log line or a help entry.
+
+The gap is easy to miss because the first reading is genuinely correct. A resolver
+that accepts a malformed state without complaint is a true finding about the
+resolver; "the tooling has no diagnostic for that state" is a claim about every
+surface the tooling has, resting on a search that was never run. The second is
+what a reader plans around.
+
+So name the surface that was actually read, in the sentence stating the result,
+and check the reporting surfaces before generalising to the system. Where a
+pre-flight check does exist, it is usually cheaper than the failure it prevents.
+
+## A refusal for want of privilege reads exactly like an empty result
+
+An instrument answering under insufficient rights reports absence in the words of
+a genuine negative, and nothing that counts rows can tell the two apart. `vm list`
+under a non-root identity answers that virtual machines can only be managed by
+root; recorded as "no guests, vmm not loaded", every conclusion drawn downstream
+was wrong.
+
+This is the authorisation case of the positive-control family above, and it takes
+the same instrument: one known-positive subject, through the identical command
+shape, under the identical identity. Establish that the identity used actually had
+the rights to see the thing before reporting that the thing is absent — the output
+alone never carries that difference.
+
 ## A probe answers its own predicate, not the question it was asked
 
 A check that runs cleanly reports on the condition it actually evaluates, and
@@ -148,6 +186,13 @@ report to the owner:
   adjacent `cmd ; rc=$?` under `set -e` case in "Shell constructs that fail
   quietly": a different cause with the same result, a status that reads clean
   for something else.
+- **A clean exit and an empty answer share one exit status.** A project that was
+  never indexed resolves as exit 0 with an empty sequence, shaped exactly like a
+  successful resolution of a project that genuinely requires nothing. A console
+  can mask the other half: the failing call prints `exited with error status (1)`
+  on stderr while the pipeline still returns 0. Assert the exit status *and* a
+  non-empty result — neither alone separates the two, and a baseline captured
+  before an ingest is worth nothing whichever it was.
 
 So state the claim, read the predicate the probe evaluates, and check the two
 are the same sentence. Where they differ, the fix is the stronger probe rather

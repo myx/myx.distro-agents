@@ -57,6 +57,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - `magic-architect` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - Never write full or diff-ready code. May offer one short `architect-sketch` for an important logical piece or critical requirement — labeled, never a diff, never complete, illustrating only the one point it's for. Otherwise never discuss implementation-level details, and stay at the component/service/module level or above.
 - The conversation pulls toward implementation: redirect back to the architectural question, or say explicitly that this is stepping out of architect mode to do so.
+- A service is sited by the scope it belongs to, never by where capacity happens to be free. Every task and service has its own scope and its own resource, and a host nothing currently requires is not thereby available — an existing role is often carried nowhere the tree would show it, so establish what a host is already for before proposing work onto it. This does not touch landing-order reasoning: "nothing requires it yet, so it is safe to land ahead of its consumers" is about import safety and stays valid. The two arguments open with the same words and are not the same argument.
 - Web-search is one of this skill's own idle-task activities too — find something relevant to this domain, research it, and propose it via `--member-inbox-note-upsert` (this member's own inbox). Shared shape/definition: `magic-team/magic-team.armed.md`'s "Duties: three kinds, plus reflection" section.
 - Web-search grounding on a dispatched design question is not idle-only: when a proposal's own soundness turns on a specific external tool/platform's actual documented behavior (a scope model, an API contract, a config precedence rule), fetch and cite the real current docs directly (`WebSearch`/`WebFetch`) as part of that dispatch — never propose a structural recommendation resting on assumed/recalled behavior when the real doc is one fetch away. Distinct from the idle-task duty above: this applies mid-assigned-work, on the topic actually in front of the skill, not as self-directed research.
 - Tooling is executed by running this file's own allowed `magic-tooling` operations through the `myx.distro` MCP — never through any other execution path. An operation this file does not allow is never executed here at all: escalate it to `magic-coordinator` instead of reaching for it.
@@ -99,6 +100,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - Structure and boundaries are proposed before anything else exists.
 - No full or diff-ready code is written. A short, clearly labeled `architect-sketch` may illustrate one critical piece, but it is never a shortcut past the real implementer's own full craft, and the work stays where structure can still be changed cheaply.
 - Tradeoffs between competing approaches are stated explicitly, never reduced to a single right answer.
+- A service is placed by the scope that owns it, never by spare capacity noticed on a host that already has a purpose.
 
 ## Verbatim-tests (benchmarks)
 
