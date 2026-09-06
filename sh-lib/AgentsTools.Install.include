@@ -543,14 +543,10 @@ case "$1" in
 					continue
 				fi
 				if awk -F: -v m="$regName" -v w="$workspaceName" '$1 == m && $2 == w { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
-					if ! regTmp="$( mktemp "$registryFile.XXXXXX" )" ; then
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: mktemp failed beside $registryFile" >&2
-						hadError="true"
-						continue
-					fi
+					regTmp="$registryFile.tmp.$$"
 					if awk -F: -v m="$regName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$regTmp" ; then
 						printf '%s\n' "$regLine" >> "$regTmp"
-						if ! chmod 0644 "$regTmp" || ! mv -f "$regTmp" "$registryFile" ; then
+						if ! mv -f "$regTmp" "$registryFile" ; then
 							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed for $regLine" >&2
 							rm -f "$regTmp" 2>/dev/null || true
 							hadError="true"
@@ -596,18 +592,14 @@ case "$1" in
 						continue
 					fi
 
-					if ! rcTmp="$( mktemp "$registryFile.XXXXXX" )" ; then
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: mktemp failed beside $registryFile" >&2
-						hadError="true"
-						continue
-					fi
+					rcTmp="$registryFile.tmp.$$"
 					if ! awk -F: -v m="$rcName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$rcTmp" ; then
 						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while removing $rcName:$workspaceName -- registry left untouched" >&2
 						rm -f "$rcTmp" 2>/dev/null || true
 						hadError="true"
 						continue
 					fi
-					if ! chmod 0644 "$rcTmp" || ! mv -f "$rcTmp" "$registryFile" ; then
+					if ! mv -f "$rcTmp" "$registryFile" ; then
 						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed removing $rcName:$workspaceName" >&2
 						rm -f "$rcTmp" 2>/dev/null || true
 						hadError="true"
@@ -773,13 +765,12 @@ case "$1" in
 
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
 
-		local settingsTmp
-		settingsTmp="$( mktemp "$settingsFile.XXXXXX" )" || {
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: mktemp failed beside $settingsFile" >&2
-			set +e ; return 1
-		}
+		local settingsTmp="$settingsFile.tmp.$$"
 
-		local staticAllowJson='["mcp__myx_distro__execute", "Agent", "Task"]'
+		## SendMessage sits alongside Agent/Task for the same reason those two do:
+		## a dispatched member has to be able to reach the session that dispatched
+		## it, and a spawn it made, without a prompt interrupting an unattended run.
+		local staticAllowJson='["mcp__myx_distro__execute", "Agent", "Task", "SendMessage"]'
 		## Native Slack MCP tool, hard-blocked -- separate path from the team's
 		## own sanctioned --member-comms-slack-* Bash ops, which this cannot reach.
 		local denyAddJson='["mcp__claude_ai_Slack"]'
@@ -819,7 +810,7 @@ case "$1" in
 			return 0
 		fi
 
-		if ! chmod 0644 "$settingsTmp" || ! mv -f "$settingsTmp" "$settingsFile" ; then
+		if ! mv -f "$settingsTmp" "$settingsFile" ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: could not install $settingsFile" >&2
 			rm -f "$settingsTmp"
 			set +e ; return 1
@@ -890,10 +881,8 @@ case "$1" in
 		local hooksFailed=0
 
 		local readHookFile="$hooksDir/deny-memory-md-read.sh"
-		local readHookTmp
-		readHookTmp="$( mktemp "$readHookFile.XXXXXX" )" || { hooksFailed=1 ; }
-		if [ -n "$readHookTmp" ] ; then
-			cat > "$readHookTmp" <<'HOOKEOF'
+		local readHookTmp="$readHookFile.tmp.$$"
+		cat > "$readHookTmp" <<'HOOKEOF'
 #!/bin/bash
 # Denies Read on the memory-system's MEMORY.md index file, with a reason,
 # since the plain permissions.deny array cannot carry a custom denial
@@ -916,26 +905,21 @@ fi
 
 exit 0
 HOOKEOF
-			if [ "$?" != "0" ] || ! chmod 0755 "$readHookTmp" ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not write $readHookFile" >&2
-				rm -f "$readHookTmp"
-				hooksFailed=1
-			elif cmp -s "$readHookTmp" "$readHookFile" 2>/dev/null ; then
-				rm -f "$readHookTmp"
-			elif ! mv -f "$readHookTmp" "$readHookFile" ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $readHookFile" >&2
-				rm -f "$readHookTmp"
-				hooksFailed=1
-			fi
-		else
-			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: mktemp failed beside $readHookFile" >&2
+		if [ "$?" != "0" ] || ! chmod 0755 "$readHookTmp" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not write $readHookFile" >&2
+			rm -f "$readHookTmp"
+			hooksFailed=1
+		elif cmp -s "$readHookTmp" "$readHookFile" 2>/dev/null ; then
+			rm -f "$readHookTmp"
+		elif ! mv -f "$readHookTmp" "$readHookFile" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $readHookFile" >&2
+			rm -f "$readHookTmp"
+			hooksFailed=1
 		fi
 
 		local bashHookFile="$hooksDir/deny-bash-tool.sh"
-		local bashHookTmp
-		bashHookTmp="$( mktemp "$bashHookFile.XXXXXX" )" || { hooksFailed=1 ; }
-		if [ -n "$bashHookTmp" ] ; then
-			cat > "$bashHookTmp" <<'HOOKEOF'
+		local bashHookTmp="$bashHookFile.tmp.$$"
+		cat > "$bashHookTmp" <<'HOOKEOF'
 #!/bin/bash
 # Denies all Bash tool usage wholesale -- git, rm, mv, python3, every command
 # -- with a reason, since the plain permissions.deny array cannot carry a
@@ -951,19 +935,16 @@ echo '{
 }'
 exit 0
 HOOKEOF
-			if [ "$?" != "0" ] || ! chmod 0755 "$bashHookTmp" ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not write $bashHookFile" >&2
-				rm -f "$bashHookTmp"
-				hooksFailed=1
-			elif cmp -s "$bashHookTmp" "$bashHookFile" 2>/dev/null ; then
-				rm -f "$bashHookTmp"
-			elif ! mv -f "$bashHookTmp" "$bashHookFile" ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $bashHookFile" >&2
-				rm -f "$bashHookTmp"
-				hooksFailed=1
-			fi
-		else
-			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: mktemp failed beside $bashHookFile" >&2
+		if [ "$?" != "0" ] || ! chmod 0755 "$bashHookTmp" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not write $bashHookFile" >&2
+			rm -f "$bashHookTmp"
+			hooksFailed=1
+		elif cmp -s "$bashHookTmp" "$bashHookFile" 2>/dev/null ; then
+			rm -f "$bashHookTmp"
+		elif ! mv -f "$bashHookTmp" "$bashHookFile" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $bashHookFile" >&2
+			rm -f "$bashHookTmp"
+			hooksFailed=1
 		fi
 
 		if [ "$hooksFailed" != "0" ] ; then
@@ -972,11 +953,7 @@ HOOKEOF
 
 		local denyAddJson='["Bash", "Bash(mv *)", "Bash(python3*)", "Bash(rm *)"]'
 
-		local settingsTmp
-		settingsTmp="$( mktemp "$settingsFile.XXXXXX" )" || {
-			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: mktemp failed beside $settingsFile" >&2
-			set +e ; return 1
-		}
+		local settingsTmp="$settingsFile.tmp.$$"
 
 		local sourceRoot="$workspace/source"
 
@@ -1028,7 +1005,7 @@ HOOKEOF
 			return 0
 		fi
 
-		if ! chmod 0644 "$settingsTmp" || ! mv -f "$settingsTmp" "$settingsFile" ; then
+		if ! mv -f "$settingsTmp" "$settingsFile" ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $settingsFile" >&2
 			rm -f "$settingsTmp"
 			set +e ; return 1
@@ -1100,19 +1077,13 @@ HOOKEOF
 		}
 		local fragmentFile="$claudeDir/copilot-add-dir.fragment"
 
-		local fragmentTmp
-		fragmentTmp="$( mktemp "$fragmentFile.XXXXXX" )" || {
-			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: mktemp failed beside $fragmentFile" >&2
-			set +e ; return 1
-		}
+		local fragmentTmp="$fragmentFile.tmp.$$"
 
 		local rootCount="$( printf '%s\n' "$rootsList" | grep -c '' )"
 
 		## One `--add-dir` flag and its root on separate lines, so the launcher
 		## reads them back one token per line into its argv array intact.
-		printf '%s\n' "$rootsList" | LC_ALL=C awk '{ print "--add-dir"; print $0; }' > "$fragmentTmp"
-
-		if ! chmod 0644 "$fragmentTmp" ; then
+		if ! printf '%s\n' "$rootsList" | LC_ALL=C awk '{ print "--add-dir"; print $0; }' > "$fragmentTmp" ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: could not write $fragmentFile" >&2
 			rm -f "$fragmentTmp"
 			set +e ; return 1
@@ -1199,11 +1170,7 @@ HOOKEOF
 		if [ ! -f "$settingsFile" ] ; then
 			printf '{}\n' > "$settingsFile" || { echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: cannot create $settingsFile" >&2 ; set +e ; return 1 ; }
 		fi
-		local allowSettingsTmp
-		allowSettingsTmp="$( mktemp "$settingsFile.XXXXXX" )" || {
-			echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: mktemp failed beside $settingsFile" >&2
-			set +e ; return 1
-		}
+		local allowSettingsTmp="$settingsFile.tmp.$$"
 		## The hooks description is empty on purpose -- this op adds allow-grants
 		## and installs no hooks -- but the merge .awk still reads it by path. Same
 		## subshell-scoped trap as --install-workspace-restrictions above: armed
@@ -1229,7 +1196,7 @@ HOOKEOF
 		fi
 		if cmp -s "$allowSettingsTmp" "$settingsFile" ; then
 			rm -f "$allowSettingsTmp"
-		elif ! chmod 0644 "$allowSettingsTmp" || ! mv -f "$allowSettingsTmp" "$settingsFile" ; then
+		elif ! mv -f "$allowSettingsTmp" "$settingsFile" ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: could not install $settingsFile" >&2
 			rm -f "$allowSettingsTmp"
 			set +e ; return 1
@@ -1333,11 +1300,7 @@ HOOKEOF
 				local mcpSource mcpTmp mcpErr mcpRc=0
 				mcpSource="$mcpFile"
 				[ -f "$mcpSource" ] || mcpSource=/dev/null
-				if ! mcpTmp="$( mktemp "$mcpFile.XXXXXX" )" ; then
-					echo "⛔ ERROR: mcp-tmp beside $mcpFile" >&2
-					failed=1
-					continue
-				fi
+				mcpTmp="$mcpFile.tmp.$$"
 				mcpErr="$( MYX_MCPUPSERT_TOPKEY="$mcpKey" \
 					MYX_MCPUPSERT_ENTRYKEY="myx.common" \
 					MYX_MCPUPSERT_COMMAND="$serverScript" \
@@ -1353,15 +1316,11 @@ HOOKEOF
 				if [ "$mcpSource" != /dev/null ] && cmp -s "$mcpTmp" "$mcpSource" ; then
 					rm -f "$mcpTmp"
 				else
-					if ! chmod 0644 "$mcpTmp" || ! mv -f "$mcpTmp" "$mcpFile" ; then
+					if ! mv -f "$mcpTmp" "$mcpFile" ; then
 						echo "⛔ ERROR: mcp-install $mcpFile" >&2
 						rm -f "$mcpTmp"
 						failed=1
 						continue
-					fi
-					if ! chmod 0644 "$mcpFile" ; then
-						echo "⛔ ERROR: mcp-chmod $mcpFile" >&2
-						failed=1
 					fi
 				fi
 				local mcpVerdict
@@ -1391,11 +1350,7 @@ HOOKEOF
 					local distroFile="${distroTarget%%:*}"
 					local distroKey="${distroTarget#*:}"
 					local distroTmp distroErr distroRc=0
-					if ! distroTmp="$( mktemp "$distroFile.XXXXXX" )" ; then
-						echo "⛔ ERROR: mcp-distro-tmp beside $distroFile" >&2
-						failed=1
-						continue
-					fi
+					distroTmp="$distroFile.tmp.$$"
 					distroErr="$( MYX_MCPUPSERT_TOPKEY="$distroKey" \
 						MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
 						MYX_MCPUPSERT_COMMAND="$distroServerScript" \
@@ -1411,7 +1366,7 @@ HOOKEOF
 					if cmp -s "$distroTmp" "$distroFile" ; then
 						rm -f "$distroTmp"
 					else
-						if ! chmod 0644 "$distroTmp" || ! mv -f "$distroTmp" "$distroFile" ; then
+						if ! mv -f "$distroTmp" "$distroFile" ; then
 							echo "⛔ ERROR: mcp-distro-install $distroFile" >&2
 							rm -f "$distroTmp"
 							failed=1

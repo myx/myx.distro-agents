@@ -17,7 +17,7 @@ case "$1" in
 		shift
 		set -e
 		# shortcut for: `DistroAgentsTools --make-console-script`
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Make.DistroAgentsConsoleShellScript.include" \
+		cat "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsoleShellScript.template.sh" \
 		> "$MMDAPP/DistroAgentsConsole.sh"
 		chmod 770 "$MMDAPP/DistroAgentsConsole.sh"
 
@@ -33,7 +33,7 @@ case "$1" in
 	;;
 	--make-console-script)
 		shift
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Make.DistroAgentsConsoleShellScript.include"
+		cat "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsoleShellScript.template.sh"
 		return 0
 	;;
 	*)

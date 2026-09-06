@@ -11,6 +11,28 @@ AgentsToolsSpawnProxySawSentinel(){
 	[ -n "$1" ] && grep -q '^DISTRO_CONSOLE_EXEC=' "$1" 2>/dev/null
 }
 
+## The agent CLI this spawn actually ran on, read back out of the same
+## DISTRO_CONSOLE_EXEC= sentinel the launcher prints immediately before it
+## execs. Deliberately read from the child's own output rather than recomputed
+## here: the console owns the --cli/SPAWN_CLI_SERVICE/auto-scan resolution, so
+## anything computed on this side could disagree with what actually ran, and an
+## announcement that can disagree with the run is worse than none. Empty when
+## no exec happened, which is the same condition SawSentinel calls a failure.
+AgentsToolsSpawnProxyExecutedCli(){
+	[ -n "$1" ] || return 0
+	LC_ALL=C sed -n 's/^DISTRO_CONSOLE_EXEC=//p' "$1" 2>/dev/null | head -n 1
+}
+
+## One line, on stderr, naming the AI service this spawn actually used -- so a
+## watcher of a --wait spawn (the main loop's own case) can see which service
+## the iteration ran on. Prefix shape matches --intern-main-loop's own
+## per-iteration lines: "# <command> <operation>: <message>".
+AgentsToolsSpawnProxyAnnounceCli(){
+	local announceOutputFile="$1" announceCli
+	announceCli="$( AgentsToolsSpawnProxyExecutedCli "$announceOutputFile" )"
+	echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: 🤖 AI service used: ${announceCli:-none -- no agent CLI was launched}" >&2
+}
+
 AgentsToolsSpawnProxyCloseDispatch(){
 	local itemName="$1" briefBody="$2" childExit="$3" childOutputFile="$4"
 	local outcome currentBody resultBody
@@ -278,6 +300,7 @@ case "$1" in
 			set -e
 			local sawSentinel="false"
 			AgentsToolsSpawnProxySawSentinel "$outputFile" && sawSentinel="true"
+			AgentsToolsSpawnProxyAnnounceCli "$outputFile"
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile"
 			fi
@@ -301,6 +324,7 @@ case "$1" in
 			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto --non-interactive <<< "$spawnContext"
 			bgExitCode=$?
 			set -e
+			AgentsToolsSpawnProxyAnnounceCli "$outputFile"
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile"
 			fi

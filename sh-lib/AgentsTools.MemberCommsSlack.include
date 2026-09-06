@@ -71,6 +71,9 @@ AgentsToolsCommsSlackMentionUserId(){
 		2>/dev/null | cksum )"
 	if [ "$lockGen" != "$( head -n 1 "$cacheFile" 2>/dev/null )" ] ; then
 		printf '%s\n' "$lockGen" > "$cacheFile" 2>/dev/null || true
+		## Holds resolved Slack user ids, so it carries the 600 every sibling in
+		## this directory does -- a plain redirect would leave it at the umask.
+		chmod 600 "$cacheFile" 2>/dev/null || true
 	fi
 	local cachedId
 	cachedId="$( LC_ALL=C awk -F= -v who="$1" '$1 == who { cachedId = $2 ; } END { print cachedId ; }' "$cacheFile" 2>/dev/null )" || cachedId=""

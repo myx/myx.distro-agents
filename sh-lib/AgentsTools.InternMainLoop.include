@@ -41,6 +41,11 @@ case "$1" in
 		## by any one transport -- and its own exit (PIPESTATUS[1]) is the gate.
 		## The floor is TEAM_DATA_DIRECTORY + Basic comms; the event-track and
 		## event-alert channels are probed for the report but never gate.
+		## The report goes to STDERR, like the per-iteration lines below: this
+		## operation is a daemon loop whose whole life is watched on stderr, so
+		## the readiness verdict belongs on the same stream as everything else
+		## it says. Nothing consumes this report on stdout -- the awk's exit is
+		## the machine-readable half, and PIPESTATUS[1] survives the redirect.
 		DistroAgentsTools --intern-op-check-configs magic-coordinator \
 			--optional "TEAM_DATA_DIRECTORY:<path>" \
 			--optional "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
@@ -48,7 +53,7 @@ case "$1" in
 			--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
 			--optional "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
 			--context --intern-main-loop 2>&1 \
-			| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMainLoopReadinessReport.awk"
+			| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMainLoopReadinessReport.awk" >&2
 		if [ 0 -ne "${PIPESTATUS[1]}" ] ; then
 			return 1
 		fi
@@ -57,6 +62,8 @@ case "$1" in
 		sleepSeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
 
 		while true ; do
+			## The spawn runs --wait, so without these two lines the loop is silent for a whole iteration.
+			echo "# $MDSC_CMD --intern-main-loop: heartbeat iteration starting" >&2
 			printf '%s\n' \
 				"SPAWN-REQUEST: main-loop-next-iteration" \
 				"GOAL: Run magic-coordinator.heartbeat.routine's own next-iteration pass" \
@@ -64,6 +71,7 @@ case "$1" in
 				"WAIT: yes" \
 				| DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait
 
+			echo "# $MDSC_CMD --intern-main-loop: iteration ended, sleeping ${sleepSeconds}s before the next one" >&2
 			sleep "$sleepSeconds"
 		done
 	;;
