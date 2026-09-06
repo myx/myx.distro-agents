@@ -99,10 +99,11 @@ Team-owned notes for the magic-* team.
 
 ## Installing a generated config over its target
 
-- The writer emits, the caller installs: `mktemp` in the target's own directory, `chmod` the temp, then `mv` it over the target.
+- The writer emits, the caller installs: a temp beside the target, named `"<target>.$$"`, then `mv -f` over the target. `myx.distro-.local`'s `sh-lib/LocalTools.Config.include`, `myx.distro-source`'s `sh-scripts/RebuildKnownHosts.fn.sh` and `myx.distro-system`'s `sh-lib/system-context/Index*.include` all carry that form.
 - Same directory, so the rename is a same-filesystem `rename(2)` and therefore atomic. A temp under `/tmp` trades atomicity for a cross-device copy.
-- `mktemp`, never a fixed `<file>.tmp`: a predictable name beside the target can be pre-planted as a symlink, and both the `chmod` and the rename would follow it. `mktemp` creates exclusively, under a name nothing can guess.
-- Mode is asserted, not inherited. A temp takes the ambient umask, so the same config lands 0644 under `umask 022` and 0600 under `umask 077`. These files carry a path and a flag, no secret, and every client of the workspace has to read them.
+- The pid separates concurrent runs, and `$$` expands where `mktemp` forks. In this family `mktemp` names a scratch directory, `mktemp -d -t "<prefix>-XXXXXXXX"`, and never a file beside a target — no such site exists in `myx.distro-source` or `myx.distro-deploy`.
+- A predictable name is a hazard in a world-writable directory, not beside a target inside the workspace. The pre-planted symlink is one more thing `/tmp` costs, and keeping the temp beside its own target is what avoids it.
+- Mode is inherited from the ambient umask, and `mv -f` carries the temp's own mode onto the target. A mode that matters is therefore set on the temp before the rename, never on the target. These files carry a path and a flag, no secret, and every client of the workspace has to read them, so none of them asserts one.
 - Assert the entry landed, separately from the exit status of the command that wrote it. Re-running an idempotent writer over the installed file and comparing proves it, and needs neither a temp file nor a second tool.
 
 ## Writing new code here
@@ -121,7 +122,8 @@ Team-owned notes for the magic-* team.
 - A scratch location is either `mktemp -d -t "<prefix>-XXXXXXXX"`, the form `myx.distro-deploy` and `myx.distro-source` use, or a literal workspace path under `$MMDAPP/.local/temp/<name>` written out at each use site.
 - `mktemp -d "${TMPDIR:-/tmp}/..."` is `myx.common`'s own form. A hand-derived `${TMPDIR:-/tmp}` scratch path appears nowhere in this family and is not written here.
 - `$MMDAPP/.local/temp/<name>.$$` is this package's own general form, carrying 23 named paths across 15 files. The pid keeps concurrent runs apart, and the path is spelled out in full at every use so the location is on the line itself. The MCP server's scratch root — `$MMDAPP/.local/temp/agent-mcp.$$/`, holding `wire.lock`, `req/<field>` and `out.<seq>` — is one instance of that form, not a rule of its own.
-- Scratch is not the only shape a temp file takes here, and the two are not interchangeable. A temp that has a destination it is about to REPLACE follows "Installing a generated config over its target" above instead: `mktemp` in the target's own directory, `chmod` the temp, then `mv` it over the target. That form carries 12 sites in this package and is deliberately none of the scratch forms above — a scratch path has no destination, whereas an install temp IS the destination in progress, which is what makes its rename atomic and what makes a predictable name beside the target the symlink hazard that section describes.
+- Scratch is not the only shape a temp file takes here, and the two are not interchangeable. A temp that has a destination it is about to REPLACE follows "Installing a generated config over its target" above instead: `"<target>.$$"` beside the target, then `mv -f`. A scratch path has no destination, whereas an install temp IS the destination in progress, which is what makes its rename atomic.
+- A count of sites in this package is not evidence of a convention. This package is the drifted one, so a form holds once a daily-used sibling confirms it and not before, however many times it appears here.
 
 ## Environment init in `DistroAgentsTools.fn.sh`
 

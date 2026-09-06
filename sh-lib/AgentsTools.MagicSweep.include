@@ -174,16 +174,21 @@ case "$1" in
 		done
 
 		## Every client-* member is swept in this same pass, under its own credentials.
-		## A worker is a separate process, so its document needs a real path to be read
-		## back from; naming that path after the member is what keeps the combined
-		## document tagged by whose sweep it was rather than by who finished first, and
-		## is why the loop below becomes
-		## `| Parallel --workers-x2 MagicSweepOneClientMember` unchanged.
-		local clientSweepDir="$MMDAPP/.local/temp/mdat-magic-sweep-clients.$callingMember.$$"
-		rm -rf "$clientSweepDir" && mkdir -p "$clientSweepDir" || { set +e ; return 1 ; }
-		trap 'rm -rf "$clientSweepDir"' EXIT
-
+		## The sweep runs inside a subshell, so each member's document needs a real path
+		## to be read back from; naming it after the member keeps the combined document
+		## tagged by whose sweep it was rather than by who finished first.
+		##
+		## The directory's whole life is the subshell below, so its trap is the
+		## SUBSHELL'S own: it cannot replace the caller's -- a console session and
+		## the MCP server both keep one -- and it fires on every way out, including
+		## a failure not enumerated here. The pass's own 0/3/4 verdict leaves as the
+		## subshell's exit status, which is what lets the cleanup sit inside it.
+		local sweepRc=0
 		(
+			clientSweepDir="$MMDAPP/.local/temp/mdat-magic-sweep-clients.$callingMember.$$"
+			rm -rf "$clientSweepDir" && mkdir -p "$clientSweepDir" || exit 1
+			trap 'rm -rf "$clientSweepDir"' EXIT
+
 			## NO CUT-OFF IS FORWARDED, deliberately. This pass's own cut-off is a
 			## position in the TEAM's traffic; a client-* member's conversations are
 			## a different stream under different credentials, and the two have no
@@ -201,40 +206,42 @@ case "$1" in
 
 			for clientMember in $clientMembers ; do printf '%s\n' "$clientMember" ; done \
 			| while IFS= read -r clientMember ; do MagicSweepOneClientMember "$clientMember" ; done
-		)
 
-		## A member that recorded no coverage of its own is a member nothing was read
-		## for, never one with nothing new, and it is said in that member's own place:
-		## a silently absent member is the one gap a reader cannot see.
-		local memberStatus sweepComplete="true" sweepScannedSomething="false"
-		if [ "$magicSweepStatus" != 0 ] ; then sweepComplete="false" ; fi
-		case "$magicSweepStatus" in 0|3) sweepScannedSomething="true" ;; esac
-		for clientMember in $clientMembers ; do
-			memberStatus="$( cat "$clientSweepDir/$clientMember.status" 2>/dev/null )" || memberStatus=""
-			case "$memberStatus" in
-				0|3|4)
-					cat "$clientSweepDir/$clientMember.document"
-				;;
-				*)
-					memberStatus=4
-					printf '# Incoming Communications Sweep -- %s\n\nmember: %s\nmember-kind: client\n**NOTE:** no scan was made -- this member recorded no coverage of its own; its sources enter no source total\n\n' "$clientMember" "$clientMember"
-				;;
-			esac
-			if [ "$memberStatus" != 0 ] ; then sweepComplete="false" ; fi
-			case "$memberStatus" in 0|3) sweepScannedSomething="true" ;; esac
-		done
-		rm -rf "$clientSweepDir"
+			## A member that recorded no coverage of its own is a member nothing was read
+			## for, never one with nothing new, and it is said in that member's own place:
+			## a silently absent member is the one gap a reader cannot see.
+			memberStatus="" ; sweepComplete="true" ; sweepScannedSomething="false"
+			if [ "$magicSweepStatus" != 0 ] ; then sweepComplete="false" ; fi
+			case "$magicSweepStatus" in 0|3) sweepScannedSomething="true" ;; esac
+			for clientMember in $clientMembers ; do
+				memberStatus="$( cat "$clientSweepDir/$clientMember.status" 2>/dev/null )" || memberStatus=""
+				case "$memberStatus" in
+					0|3|4)
+						## Tested: a document that cannot be read is no coverage, and
+						## bash suppresses `set -e` inside a subshell whose status is
+						## tested, so an unchecked read here would pass as a scan.
+						cat "$clientSweepDir/$clientMember.document" || memberStatus=4
+					;;
+					*)
+						memberStatus=4
+						printf '# Incoming Communications Sweep -- %s\n\nmember: %s\nmember-kind: client\n**NOTE:** no scan was made -- this member recorded no coverage of its own; its sources enter no source total\n\n' "$clientMember" "$clientMember"
+					;;
+				esac
+				if [ "$memberStatus" != 0 ] ; then sweepComplete="false" ; fi
+				case "$memberStatus" in 0|3) sweepScannedSomething="true" ;; esac
+			done
 
-		## Complete only when every member's own scan was, empty only when none of them
-		## read anything, partial everywhere in between -- so a sweep one member failed
-		## can never be read as one that covered them all.
-		if [ "$sweepComplete" = "true" ] ; then
-			return 0
+			## Complete only when every member's own scan was, empty only when none of them
+			## read anything, partial everywhere in between -- so a sweep one member failed
+			## can never be read as one that covered them all.
+			if [ "$sweepComplete" = "true" ] ; then exit 0 ; fi
+			if [ "$sweepScannedSomething" = "true" ] ; then exit 3 ; fi
+			exit 4
+		) || sweepRc=$?
+		if [ "$sweepRc" != "0" ] ; then
+			set +e ; return "$sweepRc"
 		fi
-		if [ "$sweepScannedSomething" = "true" ] ; then
-			set +e ; return 3
-		fi
-		set +e ; return 4
+		return 0
 	;;
 
 

@@ -82,12 +82,9 @@ AgentsToolsCommsSlackMentionUserId(){
 	local memberId="" memberToken
 	memberToken="$( DistroAgentsTools --member-config-option "$1" --select SLACK_USER_TOKEN 2>/dev/null )" || memberToken=""
 	if [ -n "$memberToken" ] ; then
-		local headerFile authResp
-		headerFile="$( mktemp )" || return 0
-		chmod 600 "$headerFile"
-		printf 'Authorization: Bearer %s\n' "$memberToken" > "$headerFile"
-		authResp="$( curl -sS --connect-timeout 10 --max-time 30 https://slack.com/api/auth.test -H @"$headerFile" 2>/dev/null )" || authResp=""
-		rm -f "$headerFile"
+		## Token on curl's stdin, never argv -- keeps it out of ps.
+		local authResp
+		authResp="$( curl -sS --connect-timeout 10 --max-time 30 https://slack.com/api/auth.test -H @- <<< "Authorization: Bearer $memberToken" 2>/dev/null )" || authResp=""
 		memberId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || memberId=""
 	elif [ "$1" = "human-owner" ] ; then
 		memberId="$( DistroAgentsToolsResolveTarget human-owner | sed -n 's/^CHANNEL=//p' )" || memberId=""
@@ -579,19 +576,12 @@ case "$1" in
 			fi
 			opArgs+=( --context "--member-comms-slack-react" )
 
-			local diagFile
-			diagFile="$( mktemp )" || { set +e ; return 1 ; }
-			chmod 600 "$diagFile"
-			trap 'rm -f "$diagFile"' EXIT
-
 			echo "# $MDSC_CMD --member-comms-slack-react: POST reactions.add channel=$channel timestamp=$threadTs name=$emoji (acting member $memberName)" >&2
-			local response callRc=0
-			response="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
-
-			local diag
-			diag="$( cat "$diagFile" )"
-			rm -f "$diagFile"
-			trap - EXIT
+			## The response goes straight out on stdout and the DIAGNOSTIC is what is
+			## captured -- a substitution yields one capture, and only the diagnostic
+			## is read back here. The op writes nothing to stdout when it fails.
+			local diag="" callRc=0
+			{ diag="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" 2>&1 1>&3 3>&- )" || callRc=$? ; } 3>&1
 			[ -z "$diag" ] || printf '%s\n' "$diag" >&2
 
 			if [ "$callRc" != "0" ] ; then
@@ -624,7 +614,6 @@ case "$1" in
 				esac
 			fi
 
-			printf '%s\n' "$response"
 			return 0
 		;;
 
@@ -675,6 +664,14 @@ case "$1" in
 				set +e ; return 1
 			fi
 
+			## BOTH the response and the diagnostic are needed as values here -- the
+			## documented stdout contract is DELETE_TARGET, DELETE_STATE, then the raw
+			## response -- and a substitution yields one capture, so the second stream
+			## needs a real sink. One for the whole run, not one per target.
+			local diagFile="$MMDAPP/.local/temp/mdat-slack-delete-diag.$$"
+			mkdir -p "$MMDAPP/.local/temp" && : > "$diagFile" || { set +e ; return 1 ; }
+			chmod 600 "$diagFile"
+
 			local deleteTotal="${#deleteTargets[@]}" deleteDone=0 deleteFailed=0
 			local oneTarget
 			for oneTarget in "${deleteTargets[@]}" ; do
@@ -706,19 +703,14 @@ case "$1" in
 				fi
 				opArgs+=( --context "--member-comms-slack-delete-message" )
 
-				local diagFile
-				diagFile="$( mktemp )" || { set +e ; return 1 ; }
-				chmod 600 "$diagFile"
-				trap 'rm -f "$diagFile"' EXIT
-
 				echo "# $MDSC_CMD --member-comms-slack-delete-message: chat.delete channel=$channel ts=$threadTs (acting member $memberName, target $(( deleteDone + deleteFailed + 1 )) of $deleteTotal)" >&2
 				local response callRc=0
 				response="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
 
 				local diag
-				diag="$( cat "$diagFile" )"
-				rm -f "$diagFile"
-				trap - EXIT
+				## Tested, so nothing between the file's creation and its removal can
+				## abort under `set -e` and leave it behind.
+				diag="$( cat "$diagFile" )" || diag=""
 				[ -z "$diag" ] || printf '%s\n' "$diag" >&2
 
 				if [ "$callRc" != "0" ] ; then
@@ -753,6 +745,7 @@ case "$1" in
 				printf '%s\n' "$response"
 				deleteDone=$(( deleteDone + 1 ))
 			done
+			rm -f "$diagFile"
 
 			echo "# $MDSC_CMD --member-comms-slack-delete-message: $deleteDone of $deleteTotal target(s) deleted, $deleteFailed not deleted (acting member $memberName)" >&2
 			if [ "$deleteFailed" != "0" ] ; then
@@ -860,19 +853,10 @@ case "$1" in
 			fi
 			opArgs+=( --context "--member-comms-slack-edit-message" )
 
-			local diagFile
-			diagFile="$( mktemp )" || { set +e ; return 1 ; }
-			chmod 600 "$diagFile"
-			trap 'rm -f "$diagFile"' EXIT
-
 			echo "# $MDSC_CMD --member-comms-slack-edit-message: chat.update channel=$channel ts=$threadTs (acting member $memberName)" >&2
-			local response callRc=0
-			response="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
-
-			local diag
-			diag="$( cat "$diagFile" )"
-			rm -f "$diagFile"
-			trap - EXIT
+			## Response straight out on stdout, diagnostic captured -- as in --react.
+			local diag="" callRc=0
+			{ diag="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" 2>&1 1>&3 3>&- )" || callRc=$? ; } 3>&1
 			[ -z "$diag" ] || printf '%s\n' "$diag" >&2
 
 			if [ "$callRc" != "0" ] ; then
@@ -900,7 +884,6 @@ case "$1" in
 				set +e ; return 1
 			fi
 
-			printf '%s\n' "$response"
 			return 0
 		;;
 
@@ -963,19 +946,23 @@ case "$1" in
 			fi
 			opArgs+=( --context "--member-comms-slack-file-info" )
 
-			local diagFile
-			diagFile="$( mktemp )" || { set +e ; return 1 ; }
+			## BOTH the response and the diagnostic are needed as values here -- the
+			## response is parsed field by field, and RESPONSE_BODY= in the diagnostic
+			## is what maps file_not_found/file_deleted to rc 3/4 -- and a substitution
+			## yields one capture, so the second stream needs a real sink.
+			local diagFile="$MMDAPP/.local/temp/mdat-slack-file-info-diag.$$"
+			mkdir -p "$MMDAPP/.local/temp" && : > "$diagFile" || { set +e ; return 1 ; }
 			chmod 600 "$diagFile"
-			trap 'rm -f "$diagFile"' EXIT
 
 			echo "# $MDSC_CMD --member-comms-slack-file-info: GET files.info file=$fileId (metadata only -- no file content is retrieved by this op, acting member $memberName)" >&2
 			local response callRc=0
 			response="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
 
 			local diag
-			diag="$( cat "$diagFile" )"
+			## Tested, so nothing between the file's creation and its removal can
+			## abort under `set -e` and leave it behind.
+			diag="$( cat "$diagFile" )" || diag=""
 			rm -f "$diagFile"
-			trap - EXIT
 			[ -z "$diag" ] || printf '%s\n' "$diag" >&2
 
 			if [ "$callRc" != "0" ] ; then
@@ -1148,23 +1135,16 @@ case "$1" in
 				set +e ; return 1
 			fi
 
-			local infoOut="" infoRc=0 infoDiagFile=""
-			infoDiagFile="$( mktemp )" || { set +e ; return 1 ; }
-			chmod 600 "$infoDiagFile"
-			trap 'rm -f "$infoDiagFile"' EXIT
-
+			local infoOut="" infoRc=0
 			local infoIdentityArgs=()
 			if [ "$fetchAsBot" = "true" ] ; then
 				infoIdentityArgs+=( --identity-bot )
 			fi
 
 			echo "# $MDSC_CMD --member-comms-slack-file-fetch: reading metadata for $fetchFileId before fetching (expected size and type come from there)" >&2
-			infoOut="$( DistroAgentsTools --member-comms-slack-file-info "$memberName" "$fetchFileId" "${infoIdentityArgs[@]}" 2>"$infoDiagFile" )" || infoRc=$?
-			local infoDiag=""
-			infoDiag="$( cat "$infoDiagFile" )"
-			rm -f "$infoDiagFile"
-			trap - EXIT
-			[ -z "$infoDiag" ] || printf '%s\n' "$infoDiag" >&2
+			## The metadata op's own diagnostic goes straight to stderr rather than
+			## through a capture: it was only ever re-emitted there.
+			infoOut="$( DistroAgentsTools --member-comms-slack-file-info "$memberName" "$fetchFileId" "${infoIdentityArgs[@]}" )" || infoRc=$?
 
 			case "$infoRc" in
 				0) ;;
@@ -1208,83 +1188,86 @@ case "$1" in
 				set +e ; return 1
 			fi
 
-			local fetchTmp=""
-			fetchTmp="$( mktemp "$fetchDestDirAbs/.$fetchDestBase.fetch.XXXXXX" )" || {
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: could not create a temporary file in '$fetchDestDirAbs'. Nothing was fetched and '$fetchDestAbs' was not created or modified." >&2
-				set +e ; return 1
-			}
-			chmod 600 "$fetchTmp"
+			## The partial download's whole life is this subshell, so the trap is the
+			## SUBSHELL'S own: it cannot replace the caller's -- a console session
+			## and the MCP server both keep one -- and it fires on every way out,
+			## including a failure not enumerated here. Every check below therefore
+			## states only what went wrong; none of them removes the file itself,
+			## and after the mv there is nothing left at that path to remove.
+			local fetchRc=0
+			(
+				fetchTmp="$( mktemp "$fetchDestDirAbs/.$fetchDestBase.fetch.XXXXXX" )" || {
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: could not create a temporary file in '$fetchDestDirAbs'. Nothing was fetched and '$fetchDestAbs' was not created or modified." >&2
+					exit 1
+				}
+				trap 'rm -f "$fetchTmp"' EXIT
+				chmod 600 "$fetchTmp" || exit 1
 
-			local fetchDiagFile=""
-			fetchDiagFile="$( mktemp )" || { rm -f "$fetchTmp" ; set +e ; return 1 ; }
-			chmod 600 "$fetchDiagFile"
-			trap 'rm -f "$fetchDiagFile" "$fetchTmp"' EXIT
+				fetchOpArgs=( "$memberName" --fetch-url "$fetchUrlChosen" --fetch-to "$fetchTmp" )
+				if [ "$fetchAsBot" = "true" ] ; then
+					fetchOpArgs+=( --identity bot )
+				fi
+				fetchOpArgs+=( --context "--member-comms-slack-file-fetch" )
 
-			local fetchOpArgs=( "$memberName" --fetch-url "$fetchUrlChosen" --fetch-to "$fetchTmp" )
-			if [ "$fetchAsBot" = "true" ] ; then
-				fetchOpArgs+=( --identity bot )
+				echo "# $MDSC_CMD --member-comms-slack-file-fetch: GET $fetchUrlWhich for $fetchFileId (${infoName:-<no name>}, ${infoMimetype:-<no mimetype>}, expecting $infoSize bytes, acting member $memberName)" >&2
+				## Fetch mode writes the bytes to --fetch-to and nothing to stdout, so
+				## the merged stream is the diagnostic entire -- re-emitted here, and
+				## read below for the content type the server actually sent.
+				fetchDiag="" ; fetchCallRc=0
+				fetchDiag="$( DistroAgentsTools --intern-op-slack-call "${fetchOpArgs[@]}" 2>&1 )" || fetchCallRc=$?
+				[ -z "$fetchDiag" ] || printf '%s\n' "$fetchDiag" >&2
+
+				if [ "$fetchCallRc" != "0" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT FETCHED -- the authenticated GET for $fetchFileId did not complete (see the op's own diagnostic above, which carries the HTTP status it saw). Whatever arrived was discarded with the temporary file, and '$fetchDestAbs' was not created or modified." >&2
+					exit 1
+				fi
+
+				fetchContentType="$( printf '%s\n' "$fetchDiag" | LC_ALL=C sed -n 's/^FETCH_CONTENT_TYPE=//p' | head -1 )"
+
+				case "$fetchContentType" in
+					text/html*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT THE FILE -- the fetch of $fetchFileId returned HTTP 200 but the server sent Content-Type '$fetchContentType', which is a WEB PAGE and not $fetchFileId's content (files.info reports it as '${infoMimetype:-<no mimetype>}'). This is Slack's sign-in page: the request reached Slack but was not accepted as authenticated for this file, which answers 200 with a login form rather than an error. A 200 is NOT evidence the bytes are the file. Nothing was written to '$fetchDestAbs'." >&2
+						exit 1
+					;;
+				esac
+
+				if LC_ALL=C head -c 1024 "$fetchTmp" | LC_ALL=C tr -d '\000' | LC_ALL=C grep -qiE '<!doctype[[:space:]]+html|<html[[:space:]>]' ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT THE FILE -- the fetch of $fetchFileId returned HTTP 200 and Content-Type '$fetchContentType', but the bytes themselves begin as an HTML document. This is Slack's sign-in page wearing the right content type: an unauthenticated or under-scoped fetch of a url_private is answered with a login form at HTTP 200, and only reading the bytes catches it. files.info reports this file as '${infoMimetype:-<no mimetype>}'. Nothing was written to '$fetchDestAbs'." >&2
+					exit 1
+				fi
+
+				## Every step states its own failure rather than leaning on `set -e`:
+				## bash 3.2 suppresses errexit inside a subshell whose status is
+				## tested, so an unchecked step here would be skipped in silence.
+				## Digits enumerated, never a bracket range -- see MAGIC.md.
+				fetchActualBytes="$( wc -c < "$fetchTmp" | tr -d '[:space:]' )"
+				case "$fetchActualBytes" in
+					''|*[!0123456789]*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT FETCHED -- the bytes that arrived for $fetchFileId could not be counted, so the size check that decides whether this is the file never ran. An uncounted body is never treated as a verified one. Nothing was written to '$fetchDestAbs'." >&2
+						exit 1
+					;;
+				esac
+				if [ "$fetchActualBytes" -ne "$infoSize" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT THE FILE -- the fetch of $fetchFileId returned HTTP 200 and $fetchActualBytes bytes, but files.info reports this file as $infoSize bytes. The sizes must match EXACTLY: a short body is a truncated or interrupted transfer, and a body of any other length is not this file's content at all. Nothing was written to '$fetchDestAbs'." >&2
+					exit 1
+				fi
+
+				if ! mv -f "$fetchTmp" "$fetchDestAbs" ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: the fetch of $fetchFileId succeeded and passed every check, but the verified result could not be moved into place at '$fetchDestAbs'. The temporary file has been removed; the destination was not modified." >&2
+					exit 1
+				fi
+				chmod 600 "$fetchDestAbs" || exit 1
+
+				printf '%s\n' FETCH_STATE=fetched
+				printf 'FILE_ID=%s\n' "$fetchFileId"
+				printf 'DESTINATION=%s\n' "$fetchDestAbs"
+				printf 'VERIFIED_BYTES=%s\n' "$fetchActualBytes"
+				printf 'MIMETYPE=%s\n' "$infoMimetype"
+				printf 'SOURCE_URL_KIND=%s\n' "$fetchUrlWhich"
+			) || fetchRc=$?
+			if [ "$fetchRc" != "0" ] ; then
+				set +e ; return "$fetchRc"
 			fi
-			fetchOpArgs+=( --context "--member-comms-slack-file-fetch" )
-
-			echo "# $MDSC_CMD --member-comms-slack-file-fetch: GET $fetchUrlWhich for $fetchFileId (${infoName:-<no name>}, ${infoMimetype:-<no mimetype>}, expecting $infoSize bytes, acting member $memberName)" >&2
-			local fetchCallRc=0
-			DistroAgentsTools --intern-op-slack-call "${fetchOpArgs[@]}" 2>"$fetchDiagFile" || fetchCallRc=$?
-
-			local fetchDiag=""
-			fetchDiag="$( cat "$fetchDiagFile" )"
-			rm -f "$fetchDiagFile"
-			[ -z "$fetchDiag" ] || printf '%s\n' "$fetchDiag" >&2
-
-			if [ "$fetchCallRc" != "0" ] ; then
-				rm -f "$fetchTmp"
-				trap - EXIT
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT FETCHED -- the authenticated GET for $fetchFileId did not complete (see the op's own diagnostic above, which carries the HTTP status it saw). Whatever arrived was discarded with the temporary file, and '$fetchDestAbs' was not created or modified." >&2
-				set +e ; return 1
-			fi
-
-			local fetchContentType=""
-			fetchContentType="$( printf '%s\n' "$fetchDiag" | LC_ALL=C sed -n 's/^FETCH_CONTENT_TYPE=//p' | head -1 )"
-
-			case "$fetchContentType" in
-				text/html*)
-					rm -f "$fetchTmp"
-					trap - EXIT
-					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT THE FILE -- the fetch of $fetchFileId returned HTTP 200 but the server sent Content-Type '$fetchContentType', which is a WEB PAGE and not $fetchFileId's content (files.info reports it as '${infoMimetype:-<no mimetype>}'). This is Slack's sign-in page: the request reached Slack but was not accepted as authenticated for this file, which answers 200 with a login form rather than an error. A 200 is NOT evidence the bytes are the file. Nothing was written to '$fetchDestAbs'." >&2
-					set +e ; return 1
-				;;
-			esac
-
-			if LC_ALL=C head -c 1024 "$fetchTmp" | LC_ALL=C tr -d '\000' | LC_ALL=C grep -qiE '<!doctype[[:space:]]+html|<html[[:space:]>]' ; then
-				rm -f "$fetchTmp"
-				trap - EXIT
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT THE FILE -- the fetch of $fetchFileId returned HTTP 200 and Content-Type '$fetchContentType', but the bytes themselves begin as an HTML document. This is Slack's sign-in page wearing the right content type: an unauthenticated or under-scoped fetch of a url_private is answered with a login form at HTTP 200, and only reading the bytes catches it. files.info reports this file as '${infoMimetype:-<no mimetype>}'. Nothing was written to '$fetchDestAbs'." >&2
-				set +e ; return 1
-			fi
-
-			local fetchActualBytes=""
-			fetchActualBytes="$( wc -c < "$fetchTmp" | tr -d '[:space:]' )"
-			if [ "$fetchActualBytes" -ne "$infoSize" ] ; then
-				rm -f "$fetchTmp"
-				trap - EXIT
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: NOT THE FILE -- the fetch of $fetchFileId returned HTTP 200 and $fetchActualBytes bytes, but files.info reports this file as $infoSize bytes. The sizes must match EXACTLY: a short body is a truncated or interrupted transfer, and a body of any other length is not this file's content at all. Nothing was written to '$fetchDestAbs'." >&2
-				set +e ; return 1
-			fi
-
-			if ! mv -f "$fetchTmp" "$fetchDestAbs" ; then
-				rm -f "$fetchTmp"
-				trap - EXIT
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: the fetch of $fetchFileId succeeded and passed every check, but the verified result could not be moved into place at '$fetchDestAbs'. The temporary file has been removed; the destination was not modified." >&2
-				set +e ; return 1
-			fi
-			trap - EXIT
-			chmod 600 "$fetchDestAbs"
-
-			printf '%s\n' FETCH_STATE=fetched
-			printf 'FILE_ID=%s\n' "$fetchFileId"
-			printf 'DESTINATION=%s\n' "$fetchDestAbs"
-			printf 'VERIFIED_BYTES=%s\n' "$fetchActualBytes"
-			printf 'MIMETYPE=%s\n' "$infoMimetype"
-			printf 'SOURCE_URL_KIND=%s\n' "$fetchUrlWhich"
 			return 0
 		;;
 
@@ -1392,27 +1375,22 @@ case "$1" in
 				;;
 			esac
 
-			local shareDiagFile=""
-			shareDiagFile="$( mktemp )" || { set +e ; return 1 ; }
-			chmod 600 "$shareDiagFile"
-
 			local shareStdinFile=""
 
+			## Every call below leaves its diagnostic on stderr rather than through
+			## a capture: it was only ever re-emitted there.
 			local shareInfoArgs=( "$memberName" --api conversations.info --resolve-target "$shareChannel" )
 			[ "$shareAsBot" = "false" ] || shareInfoArgs+=( --identity bot )
 			shareInfoArgs+=( --context "--member-comms-slack-file-share" )
 			local shareInfoResp="" shareInfoRc=0
-			shareInfoResp="$( DistroAgentsTools --intern-op-slack-call "${shareInfoArgs[@]}" 2>"$shareDiagFile" )" || shareInfoRc=$?
-			cat "$shareDiagFile" >&2
+			shareInfoResp="$( DistroAgentsTools --intern-op-slack-call "${shareInfoArgs[@]}" )" || shareInfoRc=$?
 			if [ "$shareInfoRc" != "0" ] ; then
-				rm -f "$shareDiagFile"
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: could not resolve target '$shareTarget' to a conversation (see the op's own diagnostic above) -- nothing was uploaded." >&2
 				set +e ; return 1
 			fi
 			local shareConversation="" shareConvRc=0
 			shareConversation="$( printf '%s\n' "$shareInfoResp" | LC_ALL=C awk -v path=channel.id -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || shareConvRc=$?
 			if [ "$shareConvRc" != "0" ] || [ -z "$shareConversation" ] ; then
-				rm -f "$shareDiagFile"
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: the conversation lookup for '$shareTarget' returned no usable channel.id (field reader rc=$shareConvRc -- 3: that path is absent, 1: the body was not a parseable API response) -- nothing was uploaded." >&2
 				set +e ; return 1
 			fi
@@ -1423,10 +1401,8 @@ case "$1" in
 				[ "$shareAsBot" = "false" ] || shareRepliesArgs+=( --identity bot )
 				shareRepliesArgs+=( --context "--member-comms-slack-file-share" )
 				local shareRepliesResp="" shareRepliesRc=0
-				shareRepliesResp="$( DistroAgentsTools --intern-op-slack-call "${shareRepliesArgs[@]}" 2>"$shareDiagFile" )" || shareRepliesRc=$?
-				cat "$shareDiagFile" >&2
+				shareRepliesResp="$( DistroAgentsTools --intern-op-slack-call "${shareRepliesArgs[@]}" )" || shareRepliesRc=$?
 				if [ "$shareRepliesRc" != "0" ] ; then
-					rm -f "$shareDiagFile"
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: could not read the thread at $shareThreadTs to find its parent (see the op's own diagnostic above) -- nothing was uploaded. A share is anchored to a thread's parent, and this call could not establish one." >&2
 					set +e ; return 1
 				fi
@@ -1441,7 +1417,6 @@ case "$1" in
 						## it is its own parent and the caller's ts already is one.
 					;;
 					*)
-						rm -f "$shareDiagFile"
 						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: the thread read for $shareThreadTs was not a parseable API response (field reader rc=$shareParentRc) -- nothing was uploaded." >&2
 						set +e ; return 1
 					;;
@@ -1451,7 +1426,8 @@ case "$1" in
 			## --from-stdin is buffered because step 1 needs the byte length up front.
 			local shareBodyFile="$shareFromFile"
 			if [ "$shareFromStdin" = "true" ] ; then
-				shareStdinFile="$( mktemp )" || { rm -f "$shareDiagFile" ; set +e ; return 1 ; }
+				shareStdinFile="$MMDAPP/.local/temp/mdat-slack-share-stdin.$$"
+				mkdir -p "$MMDAPP/.local/temp" && : > "$shareStdinFile" || { set +e ; return 1 ; }
 				chmod 600 "$shareStdinFile"
 				cat > "$shareStdinFile"
 				shareBodyFile="$shareStdinFile"
@@ -1462,7 +1438,7 @@ case "$1" in
 			local shareBytes=""
 			shareBytes="$( LC_ALL=C wc -c < "$shareBodyFile" | tr -d '[:space:]' )"
 			if [ -z "$shareBytes" ] || [ "$shareBytes" = "0" ] ; then
-				rm -f "$shareDiagFile" ; [ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+				[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: the content is empty -- there is nothing to share." >&2
 				set +e ; return 1
 			fi
@@ -1482,10 +1458,9 @@ case "$1" in
 			[ "$shareAsBot" = "false" ] || shareStep1Args+=( --identity bot )
 			shareStep1Args+=( --context "--member-comms-slack-file-share" )
 			local shareStep1Resp="" shareStep1Rc=0
-			shareStep1Resp="$( DistroAgentsTools --intern-op-slack-call "${shareStep1Args[@]}" 2>"$shareDiagFile" )" || shareStep1Rc=$?
-			cat "$shareDiagFile" >&2
+			shareStep1Resp="$( DistroAgentsTools --intern-op-slack-call "${shareStep1Args[@]}" )" || shareStep1Rc=$?
 			if [ "$shareStep1Rc" != "0" ] ; then
-				rm -f "$shareDiagFile" ; [ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+				[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
 				if [ -n "$shareSnippetType" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: STEP 1 OF 3 FAILED (asking for an upload URL) -- see the op's own diagnostic above. This call passed --snippet-type '$shareSnippetType'; if that value is not one this platform supports, that is what the diagnostic reports. Nothing was uploaded." >&2
 				else
@@ -1497,16 +1472,15 @@ case "$1" in
 			shareUploadUrl="$( printf '%s\n' "$shareStep1Resp" | LC_ALL=C awk -v path=upload_url -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || shareUploadUrlRc=$?
 			shareFileId="$( printf '%s\n' "$shareStep1Resp" | LC_ALL=C awk -v path=file_id -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || shareFileIdRc=$?
 			if [ "$shareUploadUrlRc" != "0" ] || [ -z "$shareUploadUrl" ] || [ "$shareFileIdRc" != "0" ] || [ -z "$shareFileId" ] ; then
-				rm -f "$shareDiagFile" ; [ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+				[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: STEP 1 OF 3 answered ok:true but without a usable upload_url and file_id (field reader rc=$shareUploadUrlRc and rc=$shareFileIdRc -- 3: that path is absent, 1: the body was not a parseable API response). The upload URL is not quoted here: it is a bearer capability. Nothing was uploaded." >&2
 				set +e ; return 1
 			fi
 
 			local shareStep2Rc=0
-			DistroAgentsTools --intern-op-url-post-bytes --url "$shareUploadUrl" --body-file "$shareBodyFile" --context "--member-comms-slack-file-share" >/dev/null 2>"$shareDiagFile" || shareStep2Rc=$?
-			cat "$shareDiagFile" >&2
+			DistroAgentsTools --intern-op-url-post-bytes --url "$shareUploadUrl" --body-file "$shareBodyFile" --context "--member-comms-slack-file-share" >/dev/null || shareStep2Rc=$?
 			if [ "$shareStep2Rc" != "0" ] ; then
-				rm -f "$shareDiagFile" ; [ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
+				[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: STEP 2 OF 3 FAILED (sending the bytes) -- see the op's own POST_HTTP_STATUS and POST_BYTES above. The upload was begun and not completed; Slack abandons an uncompleted upload, so there is nothing to clean up and nothing was shared." >&2
 				set +e ; return 1
 			fi
@@ -1521,9 +1495,7 @@ case "$1" in
 			[ "$shareAsBot" = "false" ] || shareStep3Args+=( --identity bot )
 			shareStep3Args+=( --context "--member-comms-slack-file-share" )
 			local shareStep3Resp="" shareStep3Rc=0
-			shareStep3Resp="$( DistroAgentsTools --intern-op-slack-call "${shareStep3Args[@]}" 2>"$shareDiagFile" )" || shareStep3Rc=$?
-			cat "$shareDiagFile" >&2
-			rm -f "$shareDiagFile"
+			shareStep3Resp="$( DistroAgentsTools --intern-op-slack-call "${shareStep3Args[@]}" )" || shareStep3Rc=$?
 			[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
 			if [ "$shareStep3Rc" != "0" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: STEP 3 OF 3 FAILED (completing the upload into the conversation) -- see the op's own diagnostic above. The bytes were sent but the upload was never completed; Slack abandons an uncompleted upload, so there is nothing to clean up and nothing was shared. THIS IS A FAILURE, not a partial success." >&2
@@ -2065,23 +2037,19 @@ blocks|verbatim|caller|stdin file"
 			set +e ; return 1
 		fi
 
-		local headerFile
-		headerFile="$( mktemp )" || { set +e ; return 1 ; }
-		chmod 600 "$headerFile"
-		trap 'rm -f "$headerFile"' EXIT
-		printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
+		## Token on curl's stdin, never argv -- keeps it out of ps. Reassigned
+		## in place at the identity swap below, as the header file was rewritten.
+		local authHeader="Authorization: Bearer $token"
 
 		local authUserId=""
 		if [ "$sendIdentity" = "user" ] ; then
 			local authResp
-			authResp="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @"$headerFile" 2>&1 )"
+			authResp="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @- <<< "$authHeader" 2>&1 )"
 			local authUserIdRc=0
 			authUserId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || authUserIdRc=$?
 			if [ "$authUserIdRc" != "0" ] || [ -z "$authUserId" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: could not confirm auth.test user_id for $memberName SLACK_USER_TOKEN (user_id reader rc=$authUserIdRc)" >&2
 				echo "# Response: $authResp" >&2
-				rm -f "$headerFile"
-				trap - EXIT
 				set +e ; return 1
 			fi
 		fi
@@ -2089,9 +2057,9 @@ blocks|verbatim|caller|stdin file"
 		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false" identitySwapped="false" permanentVerdict=""
 		while [ "$attempt" -le "$maxAttempts" ] ; do
 			response="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/chat.postMessage" \
-				-H @"$headerFile" \
+				-H @- \
 				-H "Content-type: application/json" \
-				-d "$payload" 2>&1 )"
+				-d "$payload" <<< "$authHeader" 2>&1 )"
 			if printf '%s' "$response" | grep -q '"ok":true' ; then
 				sent="true"
 				break
@@ -2100,9 +2068,9 @@ blocks|verbatim|caller|stdin file"
 				joinAttempted="true"
 				local joinResponse
 				joinResponse="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/conversations.join" \
-					-H @"$headerFile" \
+					-H @- \
 					-H "Content-type: application/x-www-form-urlencoded" \
-					--data-urlencode "channel=$channel" 2>&1 )"
+					--data-urlencode "channel=$channel" <<< "$authHeader" 2>&1 )"
 				echo "# $MDSC_CMD --member-comms-slack-send-message: auto-join attempt for bot token on channel=$channel -- $joinResponse" >&2
 				if printf '%s' "$joinResponse" | grep -q '"ok":true' ; then
 					continue
@@ -2118,7 +2086,7 @@ blocks|verbatim|caller|stdin file"
 					botTokenSource="$swapTokenSource"
 					sendIdentity="bot"
 					token="$botToken"
-					printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
+					authHeader="Authorization: Bearer $token"
 					## Attribution only under the shared bot -- a member's own bot is already itself.
 					## A relayed send already carries the sender, and reaches here still
 					## marked user identity, so without this guard it would get it twice.
@@ -2152,9 +2120,6 @@ blocks|verbatim|caller|stdin file"
 			attempt=$(( attempt + 1 ))
 			backoff=$(( backoff * 2 ))
 		done
-
-		rm -f "$headerFile"
-		trap - EXIT
 
 		if [ "$sent" = "true" ] ; then
 			if [ "$sendIdentity" = "user" ] ; then

@@ -60,93 +60,56 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
-			##
-			## DELIBERATELY ABSENT: no inbox type-prefix whitelist. The types an
-			## inbox is *written* with are note-/inquiry-/reflection-, but the
-			## items this op exists to relocate are task-/proposal-/change-/
-			## interview-. A prefix whitelist would reject exactly the files the
-			## operation was built to move -- it would make the item whose
-			## removal is least in doubt (a misfiled board-type document, which
-			## magic-team.shared.md's "## Other Inbox Items" section exists to
-			## surface) the one item that cannot be removed. Do not add one.
-			## (Recovered from this file's own history; re-affirmed by the
-			## magic-developer consult that cleared this arm's widening.)
-			##
+			## DELIBERATELY ABSENT: no inbox type-prefix whitelist. An inbox is
+			## written with note-/inquiry-/reflection- items, but the ones this op
+			## relocates are task-/proposal-/change-/interview-. A whitelist would
+			## reject exactly the misfiled board-type document this arm exists to
+			## remove. Do not add one.
 			[ -n "${MDAT_DATA_ROOT:-}" ] || {
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 				set +e ; return 1
 			}
-			## Git-tracked gate, same .git-presence-only test as the board arm
-			## below and as AgentsTools.InternTeamDataFinalGcDeletion.include's
-			## own -- independent of TEAM_DATA_GIT_REMOTE.
+			## Git-tracked gate: .git presence only, independent of TEAM_DATA_GIT_REMOTE.
 			local repoRoot=""
 			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
 
-			##
 			## Source resolution. BOTH path segments are FIXED LITERALS this op
-			## appends -- the inbox root itself, and `processed/` under it.
-			## Neither is caller-supplied, and widening the searched set from one
-			## literal to two does not change that: a caller still passes a bare
-			## item name and never a path segment. (The original single-literal
-			## note is recovered from this file's history; it measured that 6 of
-			## the 13 inboxes carry a `processed` subdirectory, nothing else, no
-			## deeper nesting. That measurement is what makes a two-entry fixed
-			## list sufficient -- it is still not a parameter.)
+			## appends -- the inbox root, and `processed/` under it. A caller
+			## passes a bare item name, never a path segment. `cd` + `pwd -P`
+			## rather than `realpath` (not POSIX) or `readlink -f` (absent on
+			## macOS before Monterey).
 			##
-			## `cd` + `pwd -P` rather than `realpath` (not POSIX) or
-			## `readlink -f` (absent on macOS before Monterey).
-			##
-			## `archive: true` IS NOT CONSULTED HERE, deliberately.
-			## magic-team.board.md's GC spec diverts an item carrying it to
-			## board-archived instead of removing it -- but that guard governs
-			## the heartbeat GC's automatic retention CLOCK, not a member naming
-			## one file. Two reasons it is not replayed here. First, the
-			## diversion is structurally unavailable: an inbox item has no board
-			## state to be diverted into, so "honouring" it could only mean
-			## refusing outright. Second, a
-			## refusal on a header is the deadlock this arm exists to break --
-			## no tooling edits an item's frontmatter in place once it sits in
-			## processed/, so a refusal would be terminal, and it would land on
-			## exactly the misfiled board-type document (the only kind carrying
-			## board frontmatter at all) that the absent type-whitelist above
-			## exists to keep removable. The explicit, named, single-item call
-			## therefore overrides the guard; the automatic clock must not.
-			##
+			## `archive: true` IS NOT CONSULTED HERE, deliberately: it governs the
+			## heartbeat GC's automatic retention clock, not a member naming one
+			## file. An inbox item has no board state to be diverted into, so
+			## honouring it could only mean refusing -- and a refusal on a header
+			## is the deadlock this arm exists to break, since no tooling edits
+			## frontmatter in place once an item sits in processed/.
 			local inboxBase="" inboxDirResolved=""
 			inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 			if [ -z "$inboxBase" ] ; then
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
 				set +e ; return 1
 			fi
-			## Both the live inbox ROOT and its own processed/ are searched,
-			## ROOT FIRST. A member's only inspection path resolves the same
-			## way (root, then processed/, first match wins), so inverting the
-			## order would delete a copy the caller could never have read. A
-			## basename held in both is therefore the ROOT copy: the drain path
-			## refuses a processed/ basename collision, so the only producer of
-			## the pair is a re-upsert into the root after an earlier same-named
-			## item was drained -- which makes the root copy the live item.
-			## Refusing instead would re-create the exact deadlock this arm
-			## exists to break, on an ordinary name shape.
+			## Both the live inbox ROOT and its own processed/ are searched, ROOT
+			## FIRST: a member's own inspection path resolves the same way, so
+			## inverting the order would delete a copy the caller could never
+			## have read. A basename held in both is the root copy -- the drain
+			## path refuses a processed/ collision, so only a re-upsert into the
+			## root produces the pair.
 			local inboxRootDir="$MDAT_DATA_ROOT/inboxes/$inboxMember"
 			local inboxProcessedDir="$MDAT_DATA_ROOT/inboxes/$inboxMember/processed"
 			local inboxSourcePath="" inboxCandidateDir=""
 			for inboxCandidateDir in "$inboxRootDir" "$inboxProcessedDir" ; do
 				inboxDirResolved="$( cd "$inboxCandidateDir" 2>/dev/null && pwd -P )" || inboxDirResolved=""
 				if [ -z "$inboxDirResolved" ] ; then continue ; fi
-				## Per candidate, never once for the pair: each is resolved on
-				## its own, so each has to clear the inbox root on its own. A
-				## processed/ reached through a symlink out of the tree is not
-				## vouched for by its parent having been fine.
-				##
-				## Containment tested WITH the separator -- "$inboxBase"/* ,
-				## never a bare "$inboxBase"* prefix: /data/inboxes-evil/x
-				## passes the bare prefix test and correctly fails this one.
-				## $inboxBase is proven non-empty above, and that check is
-				## load-bearing rather than defensive: with an empty base this
-				## pattern is "/*", which matches /etc -- measured on bash 3.2.
-				## The guard degenerates to "any absolute path" the moment that
-				## emptiness check is dropped.
+				## Per candidate, never once for the pair: a processed/ reached
+				## through a symlink out of the tree is not vouched for by its
+				## parent having been fine. Containment tested WITH the separator
+				## -- "$inboxBase"/* , never a bare "$inboxBase"* prefix, which
+				## /data/inboxes-evil/x passes. The non-empty check above is
+				## load-bearing: with an empty base the pattern is "/*", which
+				## matches /etc -- measured on bash 3.2.
 				case "$inboxDirResolved" in
 					"$inboxBase"/*) ;;
 					*)
@@ -156,19 +119,15 @@ case "$1" in
 				esac
 				## `if`, never `[ -f x ] && { ... ; break ; }`: the AND-OR form
 				## leaves the loop's exit status at 1 when the last candidate
-				## misses (measured on bash 3.2, `if` form exits 0 in the same
-				## position), which is a live fault wherever such a loop is the
-				## last command of a function.
+				## misses, a live fault where such a loop ends a function.
 				if [ -f "$inboxDirResolved/$inboxItemName" ] ; then
 					inboxSourcePath="$inboxDirResolved/$inboxItemName"
 					break
 				fi
 			done
 			if [ -z "$inboxSourcePath" ] ; then
-				## Both searched directories are named. On a total miss there is
-				## no resolved path to print, and an error whose colon is
-				## followed by nothing tells the caller neither where it looked
-				## nor what it looked for.
+				## Both searched directories are named: on a total miss there is
+				## no resolved path to print.
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found in $inboxRootDir or $inboxProcessedDir: $inboxItemName" >&2
 				set +e ; return 1
 			fi

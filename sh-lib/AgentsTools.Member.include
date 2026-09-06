@@ -164,27 +164,19 @@ case "$1" in
 			}
 		fi
 
-		local tmpEntry
-		tmpEntry="$MMDAPP/.local/temp/mdat-session-transcript-entry.$$"
-		mkdir -p "$MMDAPP/.local/temp" && : > "$tmpEntry" || {
-			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: failed to create temp file" >&2
-			set +e ; return 1
-		}
-		trap 'rm -f -- "$tmpEntry"' EXIT
-
-		printf '%s (%s):\n\n' "$speakerName" "$timestampUtc" > "$tmpEntry"
-		printf '%s' "$messageText" | awk '{ print "> " $0 } END { if (NR == 0) print "> " }' >> "$tmpEntry"
-		printf '\n' >> "$tmpEntry"
+		## One small entry, built in a variable and appended once. $( ) drops the
+		## trailing newlines, which the `\n\n` below puts back -- the blank line
+		## that separates one transcript entry from the next.
+		local entryText
+		entryText="$( printf '%s (%s):\n\n' "$speakerName" "$timestampUtc" ; printf '%s' "$messageText" | awk '{ print "> " $0 } END { if (NR == 0) print "> " }' )"
 
 		local addedBytes addedLines
-		addedBytes="$( wc -c < "$tmpEntry" | tr -d '[:space:]' )"
-		addedLines="$( wc -l < "$tmpEntry" | tr -d '[:space:]' )"
-		cat "$tmpEntry" >> "$target" || {
+		addedBytes="$( printf '%s\n\n' "$entryText" | wc -c | tr -d '[:space:]' )"
+		addedLines="$( printf '%s\n\n' "$entryText" | wc -l | tr -d '[:space:]' )"
+		printf '%s\n\n' "$entryText" >> "$target" || {
 			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: failed to append to transcript: $target" >&2
 			set +e ; return 1
 		}
-		rm -f -- "$tmpEntry"
-		trap - EXIT
 
 		echo "# $MDSC_CMD --member-append-session-transcript: appended ${target#"$MDAT_DATA_ROOT/audit"/} (+${addedLines} lines, +${addedBytes} bytes)" >&2
 		echo "$target"

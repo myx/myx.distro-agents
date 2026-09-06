@@ -51,28 +51,19 @@ case "$1" in
 			--header blocks --header blocked-by --all-types \
 			--context --routine-coworking-session-input-scan )" || return 1
 
-		local unionNames=() already seen
+		local unionNames=()
 		for n in "${names[@]}" ; do unionNames+=( "$n" ) ; done
-
-		local relatedFile
-		relatedFile="$MMDAPP/.local/temp/mdat-routine-coworking-related.$$"
-		mkdir -p "$MMDAPP/.local/temp" && : > "$relatedFile" || { set +e ; return 1 ; }
-		trap 'rm -f "$relatedFile"' EXIT
-		printf '%s\n' "$phaseAOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRoutineCoworkingReferenceNames.awk" | sort -u > "$relatedFile"
 
 		## blocks:/blocked-by: carry bare names while --item compares against
 		## the filename -- without this every reached item is dropped.
 		while IFS= read -r n ; do
 			[ -z "$n" ] && continue
 			case "$n" in *.md) ;; *) n="$n.md" ;; esac
-			already="false"
-			for seen in "${unionNames[@]}" ; do
-				if [ "$seen" = "$n" ] ; then already="true" ; break ; fi
-			done
-			[ "$already" = "true" ] || unionNames+=( "$n" )
-		done < "$relatedFile"
-		rm -f "$relatedFile"
-		trap - EXIT
+			case " ${unionNames[*]} " in
+				*" $n "*) ;;
+				*) unionNames+=( "$n" ) ;;
+			esac
+		done < <( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRoutineCoworkingReferenceNames.awk" <<< "$phaseAOutput" | sort -u )
 
 		if [ ${#unionNames[@]} -eq 0 ] ; then
 			return 0

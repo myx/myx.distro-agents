@@ -41,16 +41,12 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
-			local headerFile
-			headerFile="$( mktemp )" || { set +e ; return 1 ; }
-			chmod 600 "$headerFile"
-			trap 'rm -f "$headerFile"' EXIT
-			printf 'Authorization: OAuth oauth_consumer_key="%s", oauth_token="%s"\n' "$trelloKey" "$trelloToken" > "$headerFile"
+			## Token on curl's stdin, never argv -- keeps it out of ps.
+			local trelloHeader=""
+			printf -v trelloHeader 'Authorization: OAuth oauth_consumer_key="%s", oauth_token="%s"' "$trelloKey" "$trelloToken"
 			local trelloRc=0
-			curl -sS --connect-timeout 10 --max-time 120 -H @"$headerFile" \
-				"https://api.trello.com/1/members/me/notifications?read_filter=unread" || trelloRc=$?
-			rm -f "$headerFile"
-			trap - EXIT
+			curl -sS --connect-timeout 10 --max-time 120 -H @- \
+				"https://api.trello.com/1/members/me/notifications?read_filter=unread" <<< "$trelloHeader" || trelloRc=$?
 			if [ "$trelloRc" -ne 0 ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-check: Trello members/me/notifications?read_filter=unread failed as $memberName (curl rc=$trelloRc) -- the unread notification list is UNKNOWN, not empty; curl's own error is on the line above" >&2
 				set +e ; return "$trelloRc"

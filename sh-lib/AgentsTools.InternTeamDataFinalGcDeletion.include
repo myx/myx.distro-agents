@@ -9,21 +9,16 @@
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
 ## Three locations, one retention table: inboxes/*/processed/,
-## board/processed/ and trash/. trash/ is simply absent in a root that has
-## never trashed anything, which is ordinary and never an error. The table is
-## keyed on the item's own document type -- `warning-*` and `reflection-*` at
-## one day, everything else at seven -- and applies identically wherever the
-## item is found. A folder is a location to scan, never a threshold of its own.
+## board/processed/ and trash/. The table is keyed on the item's own document
+## type -- `warning-*` and `reflection-*` at one day, everything else at seven
+## -- and applies identically wherever the item is found. A folder is a
+## location to scan, never a threshold of its own. trash/ is simply absent in a
+## root that has never trashed anything, which is ordinary and never an error.
 ##
 ## The clock is the file's own mtime, or, where git already holds a commit for
 ## that path, that commit's date. A checkout does not preserve mtime and this
 ## root is resynced by routine lock traffic, so an mtime-only clock restarts an
 ## old item's retention on every resync.
-##
-## trash/ alone answers to TEAM_DATA_GIT_REMOTE instead of the table: with a
-## remote configured the trashed copy's bytes are already reachable in pushed
-## history, so it goes on this pass; with no remote that copy is the only one
-## left and takes the ordinary retention.
 ##
 ## An item git does not know is deleted but never handed to git -- a pathspec
 ## matching nothing is an error, and an item passed to one is destroyed on a
@@ -33,40 +28,11 @@
 ## just put there. An item staged and never committed is in the first and not
 ## the second.
 ##
-## Two diversions, checked in this order, only one ever applying, and BOARD
-## POPULATION ONLY:
-##   1. `archive: true` -- checked first, always wins, diverts to
-##      board/archived/. Read bounded to the frontmatter block, so a body line
-##      reading `archive: true` cannot divert an item.
-##   2. Failing that, an item still named by a LIVE board-item's
-##      `blocked-by`/`spawned-by` diverts to board/retained/ -- something else
-##      still points at it, so it is not destroyed.
-## Both are automatic, no caller opt-in, and both SUBSTITUTE FOR THE DELETION
-## rather than preempting the clock: an item not yet due sits in processed/ like
-## any other and is diverted at the moment it would otherwise be destroyed, so a
-## diverted item is never removed however old, and never leaves processed/ early
-## either.
-##
-## Neither is consulted outside board/processed/. An inbox log entry ages out on
-## the ordinary table whatever its frontmatter says -- `archive: true` means
-## something on a board-item and nothing here -- and carries no typed relation
-## field for anything to point at. trash/ is not processed cleanup at all, and
-## an item reaches it only by having been deliberately trashed -- reading a
-## retention marker off something already discarded would make it immortal.
-##
-## A DIVERSION IS NOT A DELETION and is never counted as one. It stays out of
-## the deletion counts, and it does not turn rc 2 into rc 0 -- rc is "0 if
-## something was actually deleted, 2 if nothing was", so a run that only
-## diverted deleted nothing and answers 2. It is not silent either: the summary
-## line gains its own sentence for whatever was archived or retained.
-##
-## The summary's trash segment is carried only when trash/ HELD something at
-## scan time. Absent or empty, and the line is the two-segment form. The test is
-## what the scan found, never how much of it was deleted.
-##
-## Longer reasoning -- why the git clock and the index probe are batched per
-## directory, and what the trash gate is really asking -- lives in MAGIC.md
-## under this operation's own heading.
+## Two diversions apply to board/processed/ only, and each SUBSTITUTES FOR the
+## deletion rather than preempting the clock. Both are decided in the scan
+## loop, which is where they are documented. Longer reasoning -- why the git
+## clock and the index probe are batched per directory, and what the trash gate
+## is really asking -- lives in MAGIC.md under this operation's own heading.
 ##
 ## No --help entry: internal plumbing, called from
 ## --magic-advance-close-state-and-unlock and directly by magic-tester for
@@ -77,9 +43,7 @@
 ## history walk rather than one per file. Newline/tab-delimited with a leading
 ## and a trailing newline, so one `*"$LF<name>$TAB"*` case pattern reads it
 ## back with no fork per candidate.
-## Sets (overwrites each call): gcGitTimes -- `local` in the caller,
-## dynamic-scoped here, same convention as AgentsToolsItemResolvePaths in
-## AgentsTools.InternOpItem.include.
+## Sets (overwrites each call): gcGitTimes -- `local` in the caller, dynamic-scoped here.
 AgentsToolsFinalGcGitTimes(){
 	local scanDir="$1"
 	gcGitTimes="$LF"
@@ -101,9 +65,8 @@ AgentsToolsFinalGcGitTimes(){
 
 ## What one directory holds in git's index, and what it holds in HEAD, as bare
 ## newline-delimited name sets read back by the same case pattern. Batched
-## `git ls-files`/`git ls-tree` rather than a `git ls-files --error-unmatch` per
-## candidate: same question, same command family, one fork for a whole
-## directory instead of one per item across every processed/ folder in the tree.
+## `git ls-files`/`git ls-tree` rather than a `--error-unmatch` per candidate:
+## one fork for a whole directory instead of one per item.
 ## Sets (overwrites each call): gcIndexNames, gcHeadNames.
 AgentsToolsFinalGcGitNames(){
 	local scanDir="$1"
@@ -152,13 +115,11 @@ AgentsToolsFinalGcMtimes(){
 }
 
 ## Reads the one frontmatter field this op diverts on, from one item. Bounded
-## to the block between the first two `---` lines -- not the `/^field: /`
-## -anywhere one-liners used elsewhere in this package, because a body line
-## reading `archive: true` must not spoof the guard. Pure shell, no fork, which
-## is also why AgentsBoardItemFrontmatterFieldProbe.awk is not used here.
-## Presence-only, the form magic-team.board.md records and the only form the
-## tree ever writes -- a marked item erring toward retention is the safe
-## direction for an operation whose default outcome is deletion.
+## to the block between the first two `---` lines, because a body line reading
+## `archive: true` must not spoof the guard. Pure shell, no fork, which is why
+## AgentsBoardItemFrontmatterFieldProbe.awk is not used here. Presence-only: a
+## marked item erring toward retention is the safe direction for an operation
+## whose default outcome is deletion.
 ## Sets (overwrites each call): gcItemArchived.
 AgentsToolsFinalGcReadArchiveFlag(){
 	local path="$1"
@@ -182,15 +143,12 @@ AgentsToolsFinalGcReadArchiveFlag(){
 ## own board-move primitive; this op does not hand-roll a move. One helper for
 ## both destinations -- archived/ and retained/ differ in which question sent
 ## the item there, never in how it travels.
-## THE PRIMITIVE COMMITS BOTH ENDS ITSELF, so neither end is recorded here. By
-## the time this returns, the source is gone from the index and the destination
-## is already in HEAD -- handing either to this op's own `git add` would be a
-## pathspec matching nothing, which is the failure that destroys an item and
-## then reports it. A board move no longer touches trash/ either: trash/ is not
-## a board state, so a diversion leaves no leftover copy behind at all.
-## The destination state directory is created if missing -- the primitive errors
-## out on it, and a diversion the human-owner made automatic cannot be allowed to
-## fail because a directory it needs itself was never created.
+## THE PRIMITIVE COMMITS BOTH ENDS ITSELF, so neither end is recorded here: by
+## the time this returns the source is gone from the index and the destination
+## is in HEAD, so handing either to this op's own `git add` would be a pathspec
+## matching nothing -- the failure that destroys an item and then reports it.
+## The destination directory is created if missing: the primitive errors out on
+## a missing one, and an automatic diversion cannot be allowed to fail for that.
 ## Sets: nothing on success; on failure gcScanFailedPath and gcScanFailedWhat.
 AgentsToolsFinalGcDivertBoardItem(){
 	local itemName="$1" toState="$2"
@@ -213,17 +171,15 @@ AgentsToolsFinalGcDivertBoardItem(){
 ## Every bare item name a LIVE board-item points at through its own
 ## `blocked-by`/`spawned-by` frontmatter. One awk pass over all live states at
 ## once, `.md`-normalised there (both fields carry bare names, with or without
-## the extension -- the same normalisation AgentsTools.RoutineCoworking.include
-## applies to the same field family) and `sort -u`'d.
+## the extension) and `sort -u`'d.
 ## Live is board/{backlog,pending,running,blocked,parked,archived}. processed/
 ## and retained/ are excluded BY SPECIFICATION, not by omission: a pointer from
-## a concluded or already-diverted item never qualifies, which is exactly what
-## stops two concluded items retaining each other forever. Built once per run,
-## before the board scan -- an item still sitting in processed/ is not live, so
-## its own pointers do not count until a later pass sees it somewhere live.
-## Sets gcDependedNames: newline-delimited, ALWAYS carrying a leading and a
-## trailing newline, so one `*"$LF<name>$LF"*` case pattern tests membership
-## with no fork per candidate.
+## a concluded or already-diverted item never qualifies, which is what stops two
+## concluded items retaining each other forever. Built once per run, before the
+## board scan -- an item still in processed/ is not live, so its own pointers do
+## not count until a later pass sees it somewhere live.
+## Sets gcDependedNames: newline-delimited, ALWAYS with a leading and a trailing
+## newline, so one `*"$LF<name>$LF"*` case pattern tests membership fork-free.
 AgentsToolsFinalGcDependedNames(){
 	local boardRoot="$1"
 	local depState depFile depFiles=()
@@ -279,10 +235,9 @@ AgentsToolsFinalGcLookup(){
 ## Sets (accumulates into, never resets): gcSeenCount, gcDeletedCount,
 ## gcDeletedPaths[], gcAddPaths[], gcCommitPaths[], gcArchivedCount,
 ## gcRetainedCount (all `local` in the caller, dynamic-scoped here). Never
-## prints. A failed `rm -f`
-## and a failed diversion are the two real failures -- returns 1 with
-## gcScanFailedPath/gcScanFailedWhat set. An item whose date cannot be
-## established is neither: it is kept.
+## prints. A failed `rm -f` and a failed diversion are the two real failures --
+## returns 1 with gcScanFailedPath/gcScanFailedWhat set. An item whose date
+## cannot be established is neither: it is kept.
 AgentsToolsFinalGcScanDir(){
 	local scanDir="$1" nowEpoch="$2" mode="$3" population="$4"
 	local path fileBase thresholdDays ageSeconds thresholdSeconds
@@ -331,16 +286,15 @@ AgentsToolsFinalGcScanDir(){
 			[ "$ageSeconds" -lt "$thresholdSeconds" ] && continue
 		fi
 
-		## From here the item is due, and a diversion substitutes for the deletion
-		## about to happen -- neither marker is a second clock and neither pulls
-		## the move forward: an item not yet due sits in processed/ like any
-		## other, and is diverted at the moment it would otherwise be destroyed.
-		## Asking here rather than per candidate also confines the frontmatter
-		## read to the few items a pass actually acts on.
-		## Board population only. An inbox log entry ages out on the ordinary
-		## table whatever its frontmatter says, and carries no typed relation
-		## field for anything to point at; trash/ is not processed cleanup, and
-		## a marker read off an already-discarded item would make it immortal.
+		## From here the item is due, and a diversion SUBSTITUTES FOR the deletion
+		## about to happen: neither marker is a second clock, so an item not yet
+		## due sits in processed/ like any other and is diverted only at the moment
+		## it would otherwise be destroyed. Asking here rather than per candidate
+		## also confines the frontmatter read to the few items a pass acts on.
+		## Board population only: an inbox log entry ages out on the ordinary
+		## table whatever its frontmatter says and carries no typed relation field
+		## for anything to point at, and a marker read off something already
+		## trashed would make it immortal.
 		if [ "$population" = "board" ] ; then
 			## 1. `archive: true` -- checked first and always wins.
 			AgentsToolsFinalGcReadArchiveFlag "$path"
@@ -384,10 +338,8 @@ case "$1" in
 
 	--intern-team-data-final-gc-deletion)
 		shift
-		## --context <caller-op>: see AgentsTools.InternOpBoardTrash.include's
-		## own copy of this block for the full reasoning. Pre-scanned before
-		## any validation so a future message here could name the invoking
-		## operation.
+		## --context <caller-op>, pre-scanned before any validation so a message
+		## here can name the invoking operation.
 		local opContext="<no --context given>"
 		local ctxWanted="" ctxArg
 		for ctxArg in "$@" ; do
@@ -418,12 +370,10 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		## The maps below are read back through `case` patterns that have to
-		## match a whole record, so they need a newline and a tab inside a
-		## pattern. $'\n'/$'\t' rather than literal control characters in a
-		## quoted string: an embedded control character is silently corrupted by
-		## any reindent or autoformatter pass, and $'...' is available on the
-		## bash 3.2 baseline.
+		## The maps below are read back through `case` patterns matching a whole
+		## record, so a newline and a tab have to sit inside a pattern. $'\n'/$'\t'
+		## rather than literal control characters, which any reindent or
+		## autoformatter pass silently corrupts.
 		local LF=$'\n'
 		local TAB=$'\t'
 		local nowEpoch ; nowEpoch="$( date +%s )"
@@ -450,23 +400,21 @@ case "$1" in
 		local gcRepoRoot=""
 		gcRepoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || gcRepoRoot=""
 
-		## trash/'s own retention gate, and deliberately not the `.git` test the
-		## commit below uses: what a trashed copy raises is whether its bytes are
-		## already reachable somewhere else, which is what a remote answers and a
-		## local `.git` does not.
+		## trash/'s own retention gate, deliberately not the `.git` test the commit
+		## below uses: what a trashed copy raises is whether its bytes are already
+		## reachable elsewhere, which a remote answers and a local `.git` does not.
+		## With a remote the trashed copy goes on this pass; without one it is the
+		## only copy left and takes the ordinary retention.
 		local gcTrashMode="" gcTrashRemote=""
 		set +e
 		gcTrashRemote="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
 		set -e
 		if [ -n "$gcTrashRemote" ] ; then gcTrashMode="immediate" ; fi
 
-		## Inbox source: every member's own processed/, resolved the same
-		## cd+pwd -P / containment-checked way as
-		## AgentsTools.InternOpBoardTrash.include's own --from-inbox: arm. A
-		## member escaping containment (e.g. a symlink) is skipped with a
-		## warning rather than aborting the whole scan across every other
-		## member -- this op covers many members in one call, unlike
-		## board-trash's single-item contract.
+		## Inbox source: every member's own processed/, cd+pwd -P resolved and
+		## containment-checked. A member escaping containment (e.g. a symlink) is
+		## skipped with a warning rather than aborting the scan across every other
+		## member -- this op covers many members in one call.
 		local inboxBase=""
 		inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 		if [ -n "$inboxBase" ] ; then
@@ -521,11 +469,9 @@ case "$1" in
 		fi
 
 		## The deletion sentence counts deletions and nothing else. Its trash
-		## segment is carried only when trash/ HELD something at scan time --
-		## absent or empty, and the line is the two-segment form. The test is
-		## what the scan found, never how much of it was deleted: a trash/ with
-		## items in it that were all too young still says `0 trash-items`,
-		## because there was a population and this pass reported on it.
+		## segment is carried only when trash/ HELD something at scan time -- the
+		## test is what the scan FOUND, never how much of it was deleted, so a
+		## trash/ whose items were all too young still says `0 trash-items`.
 		local gcSummary=""
 		if [ "$trashSeenCount" -gt 0 ] ; then
 			gcSummary="team-data-final-gc: $inboxDeletedCount inbox-items, $boardDeletedCount board-items, $trashDeletedCount trash-items deleted."

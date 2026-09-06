@@ -760,7 +760,6 @@ case "$1" in
 				local dmIdentityMapFile
 				dmIdentityMapFile="$MMDAPP/.local/temp/mdat-sweep-dm-identity.$$"
 				mkdir -p "$MMDAPP/.local/temp" && : > "$dmIdentityMapFile" || { set +e ; return 1 ; }
-				trap 'rm -f "$dmIdentityMapFile"' EXIT
 
 				## Per-conversation resume points, `label<TAB>channel<TAB>identity<TAB>ts<TAB>origin`,
 				## collected as the loop resolves each source and handed to the
@@ -916,8 +915,8 @@ case "$1" in
 
 				local threadFetchWorkDir
 				threadFetchWorkDir="$MMDAPP/.local/temp/mdat-sweep-threads.$$"
-				mkdir -p "$MMDAPP/.local/temp" && rm -rf "$threadFetchWorkDir" && mkdir "$threadFetchWorkDir" || { set +e ; return 1 ; }
-				trap 'rm -rf "$threadFetchWorkDir" ; rm -f "$dmIdentityMapFile"' EXIT
+				mkdir -p "$MMDAPP/.local/temp" && rm -rf "$threadFetchWorkDir" && mkdir "$threadFetchWorkDir" \
+					|| { rm -f "$dmIdentityMapFile" ; set +e ; return 1 ; }
 
 				local threadTrimAwkFile="$threadFetchWorkDir/trim.awk"
 				printf '%s\n' "$commsCutoffTrimAwkProgram" > "$threadTrimAwkFile"
@@ -1020,7 +1019,6 @@ case "$1" in
 
 				rm -rf "$threadFetchWorkDir"
 				rm -f "$dmIdentityMapFile"
-				trap - EXIT
 				unset -f AgentsSessionContextThreadFetchOne
 				unset COMMS_USER_HANDLES
 

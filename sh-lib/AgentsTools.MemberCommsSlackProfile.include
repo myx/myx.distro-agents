@@ -47,33 +47,15 @@ AgentsToolsCommsSlackProfileCall(){
 	local profileCallOp="$1" profileCallFacet="$2" profileCallLabel="$3"
 	shift 3
 
-	local profileCallDiagFile=""
-	profileCallDiagFile="$( mktemp )" || { set +e ; return 1 ; }
-	chmod 600 "$profileCallDiagFile"
-	trap 'rm -f "$profileCallDiagFile"' EXIT
-
+	## The op's own diagnostic goes straight to stderr rather than through a
+	## capture: it was only ever re-emitted there, and ACTING_IDENTITY= is
+	## already on the line the message below points the reader at.
 	echo "# $MDSC_CMD $profileCallOp: $profileCallLabel" >&2
 	local profileCallResponse="" profileCallRc=0
-	profileCallResponse="$( DistroAgentsTools --intern-op-slack-call "$@" 2>"$profileCallDiagFile" )" || profileCallRc=$?
-
-	local profileCallDiag=""
-	profileCallDiag="$( cat "$profileCallDiagFile" )"
-	rm -f "$profileCallDiagFile"
-	trap - EXIT
-	[ -z "$profileCallDiag" ] || printf '%s\n' "$profileCallDiag" >&2
+	profileCallResponse="$( DistroAgentsTools --intern-op-slack-call "$@" )" || profileCallRc=$?
 
 	if [ "$profileCallRc" != "0" ] ; then
-		local profileCallIdentity=""
-		profileCallIdentity="$( printf '%s\n' "$profileCallDiag" | LC_ALL=C sed -n 's/^ACTING_IDENTITY=//p' | head -1 )"
 		local profileCallIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
-		case "$profileCallIdentity" in
-			bot|user)
-				profileCallIdentityText="the $profileCallIdentity identity"
-			;;
-			not-yet-selected)
-				profileCallIdentityText="no identity at all -- the call failed before one was selected"
-			;;
-		esac
 		echo "⛔ ERROR: $MDSC_CMD $profileCallOp: the '$profileCallFacet' facet did NOT complete under $profileCallIdentityText (see the op's own diagnostic above, which carries Slack's own error code). This facet's state is UNKNOWN from this call, not known-unchanged. Nothing was rolled back and no retry under another identity was attempted; any other facet reported applied really was applied." >&2
 		set +e ; return 1
 	fi
@@ -563,20 +545,18 @@ case "$1" in
 			printf '%s\n' "$profileTeamResponse"
 			profileRead=$(( profileRead + 1 ))
 		else
-			local profileCfFile="" profileCfRc=0 profileCfIndex=0
-			profileCfFile="$( mktemp )" || { set +e ; return 1 ; }
-			printf '%s\n' "$profileTeamResponse" > "$profileCfFile.defs"
-			printf '%s\n' "$profileBodyProfile" > "$profileCfFile.vals"
-			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackProfileCustomFields.awk" \
-				"$profileCfFile.defs" "$profileCfFile.vals" > "$profileCfFile" || profileCfRc=$?
+			## Both bodies to the reader through the environment, its records
+			## back in a variable -- neither response touches the disk.
+			local profileCfOut="" profileCfRc=0 profileCfIndex=0
+			profileCfOut="$( MDAT_CF_DEFS="$profileTeamResponse" MDAT_CF_VALS="$profileBodyProfile" \
+				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackProfileCustomFields.awk" </dev/null )" || profileCfRc=$?
 			if [ "$profileCfRc" != "0" ] ; then
-				rm -f "$profileCfFile" "$profileCfFile.defs" "$profileCfFile.vals"
 				printf '%s\n' PROFILE_GET_STATE=failed
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: the custom-field reader could not scan one of the two response bodies (see its own error above). This account's custom fields are UNKNOWN from this call, which is NOT a report that it has none." >&2
 				profileFailed=$(( profileFailed + 1 ))
 			else
 				printf '%s\n' PROFILE_GET_STATE=read
-				printf 'PROFILE_FIELDS_COUNT=%s\n' "$( grep -c . "$profileCfFile" )"
+				printf 'PROFILE_FIELDS_COUNT=%s\n' "$( grep -c . <<< "$profileCfOut" )"
 				while IFS=$'\t' read -r profileCfId profileCfLabel profileCfValue profileCfAlt ; do
 					[ -n "$profileCfId" ] || continue
 					profileCfIndex=$(( profileCfIndex + 1 ))
@@ -584,8 +564,7 @@ case "$1" in
 					printf 'PROFILE_FIELD_%s_LABEL=%s\n' "$profileCfIndex" "$profileCfLabel"
 					printf 'PROFILE_FIELD_%s_VALUE=%s\n' "$profileCfIndex" "$profileCfValue"
 					printf 'PROFILE_FIELD_%s_ALT=%s\n' "$profileCfIndex" "$profileCfAlt"
-				done < "$profileCfFile"
-				rm -f "$profileCfFile" "$profileCfFile.defs" "$profileCfFile.vals"
+				done <<< "$profileCfOut"
 				profileRead=$(( profileRead + 1 ))
 			fi
 		fi

@@ -86,7 +86,11 @@ case "$1" in
 
 		## Atomic guard: two callers reaching the probe together would otherwise
 		## both start, and Slack sends one event to only one open connection.
-		local socketLockDir="${TMPDIR:-/tmp}/myx-slack-socket.$socketScope.lock"
+		## Workspace-local, not the shared system temp: the scope is derived from
+		## names any local user knows, so a pre-planted lock there would hold this
+		## guard shut for ever while reporting it as held elsewhere.
+		local socketLockDir="$MMDAPP/.local/temp/myx-slack-socket.$socketScope.lock"
+		mkdir -p "$MMDAPP/.local/temp" 2>/dev/null || true
 		if ! mkdir "$socketLockDir" 2>/dev/null ; then
 			echo "socket[$memberName] app=$socketScope start already in progress elsewhere"
 			return 0

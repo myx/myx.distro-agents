@@ -14,7 +14,7 @@ AgentsToolsItemContextScan(){
 	local ctxWanted="" ctxArg
 	for ctxArg in "$@" ; do
 		if [ -n "$ctxWanted" ] ; then opContext="$ctxArg" ; ctxWanted="" ; continue ; fi
-		[ "$ctxArg" = "--context" ] && ctxWanted="1"
+		[ "$ctxArg" != "--context" ] || ctxWanted="1"
 	done
 }
 
@@ -239,9 +239,9 @@ case "$1" in
 		local category="" boardState="" inboxMember="" itemName=""
 		local updateLock="false" unlockLock="false"
 		local commitMessageOverride="" noPush="false"
-		local headerOpsFile
-		headerOpsFile="$MMDAPP/.local/temp/mdat-item-upsert-headers.$$"
-		mkdir -p "$MMDAPP/.local/temp" && : > "$headerOpsFile" || { set +e ; return 1 ; }
+		## Header ops accumulate here and are materialised once, immediately before
+		## the .awk that reads them by path -- so no early return can leak a file.
+		local headerOps=""
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
 		local headerOp headerSpec headerRest headerName headerValue
 		while [ $# -gt 0 ] ; do
@@ -249,32 +249,32 @@ case "$1" in
 				--from-board|--from-vault|--from-audit|--from-inbox)
 					if [ -n "$category" ] ; then
 						echo "$MDSC_CMD: item-upsert: ⛔ ERROR: only one item-category selector is allowed" >&2
-						rm -f "$headerOpsFile" ; set +e ; return 1
+						set +e ; return 1
 					fi
 					case "$1" in
 						--from-board)
 							category="board" ; boardState="$2" ; itemName="$3"
 							if [ -z "$boardState" ] || [ -z "$itemName" ] ; then
 								echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-board: <state> <item-filename> required" >&2
-								rm -f "$headerOpsFile" ; set +e ; return 1
+								set +e ; return 1
 							fi
 							shift 3
 						;;
 						--from-vault)
 							category="vault" ; itemName="$2"
-							[ -z "$itemName" ] && { echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-vault: <item-filename> required" >&2 ; rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+							[ -z "$itemName" ] && { echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-vault: <item-filename> required" >&2 ; set +e ; return 1 ; }
 							shift 2
 						;;
 						--from-audit)
 							category="audit" ; itemName="$2"
-							[ -z "$itemName" ] && { echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-audit: <item-filename> required" >&2 ; rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+							[ -z "$itemName" ] && { echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-audit: <item-filename> required" >&2 ; set +e ; return 1 ; }
 							shift 2
 						;;
 						--from-inbox)
 							category="inbox" ; inboxMember="$2" ; itemName="$3"
 							if [ -z "$inboxMember" ] || [ -z "$itemName" ] ; then
 								echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-inbox: <team-member> <item-filename> required" >&2
-								rm -f "$headerOpsFile" ; set +e ; return 1
+								set +e ; return 1
 							fi
 							shift 3
 						;;
@@ -289,7 +289,7 @@ case "$1" in
 				--commit-message)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --commit-message: value required" >&2
-						rm -f "$headerOpsFile" ; set +e ; return 1
+						set +e ; return 1
 					fi
 					commitMessageOverride="$2"
 					shift 2
@@ -307,29 +307,29 @@ case "$1" in
 					esac
 					if [ -z "$headerName" ] ; then
 						echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --header:$headerOp: field name required" >&2
-						rm -f "$headerOpsFile" ; set +e ; return 1
+						set +e ; return 1
 					fi
 					case "$headerOp" in
 						upsert|append)
 							if [ -z "$headerValue" ] ; then
 								echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --header:$headerOp:$headerName requires a value" >&2
-								rm -f "$headerOpsFile" ; set +e ; return 1
+								set +e ; return 1
 							fi
 						;;
 						remove)
 							;;
 						*)
 							echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --header: unrecognized operation: $headerOp (upsert/append/remove)" >&2
-							rm -f "$headerOpsFile" ; set +e ; return 1
+							set +e ; return 1
 						;;
 					esac
-					printf '%s\t%s\t%s\n' "$headerOp" "$headerName" "$headerValue" >> "$headerOpsFile"
+					headerOps="$headerOps$headerOp"$'\t'"$headerName"$'\t'"$headerValue"$'\n'
 					shift
 				;;
 				--from-file)
 					if [ -z "${2:-}" ] || [ ! -f "$2" ] ; then
 						echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-file: file not found: ${2:-}" >&2
-						rm -f "$headerOpsFile" ; set +e ; return 1
+						set +e ; return 1
 					fi
 					content="$( cat "$2" )"
 					contentFromFile="true"
@@ -350,7 +350,7 @@ case "$1" in
 				--context)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --context: value required" >&2
-						rm -f "$headerOpsFile" ; set +e ; return 1
+						set +e ; return 1
 					fi
 					shift 2
 				;;
@@ -360,36 +360,36 @@ case "$1" in
 						category="inbox" ; inboxMember="magic-coordinator" ; itemName="$1" ; shift
 					else
 						echo "$MDSC_CMD: item-upsert: ⛔ ERROR: unrecognized argument: $1" >&2
-						rm -f "$headerOpsFile" ; set +e ; return 1
+						set +e ; return 1
 					fi
 				;;
 			esac
 		done
 		if [ -z "$itemName" ] ; then
 			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: an item-category selector or a bare <item-filename> is required" >&2
-			rm -f "$headerOpsFile" ; set +e ; return 1
+			set +e ; return 1
 		fi
 		if [ "$bodyModeCount" -gt 1 ] ; then
 			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --from-file, --upsert-from-stdin and --edit-patch-from-stdin are mutually exclusive" >&2
-			rm -f "$headerOpsFile" ; set +e ; return 1
+			set +e ; return 1
 		fi
 		if [ "$updateLock" = "true" ] && [ "$unlockLock" = "true" ] ; then
 			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: --update-lock and --unlock-lock are mutually exclusive" >&2
-			rm -f "$headerOpsFile" ; set +e ; return 1
+			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$itemName" "<item-filename>" item-upsert || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" item-upsert || { set +e ; return 1 ; }
 
 		local itemWriteDir itemLookupFolders itemLockable
 		AgentsToolsItemResolvePaths "$category" "$boardState" "$inboxMember" "$itemName"
 
 		if { [ "$updateLock" = "true" ] || [ "$unlockLock" = "true" ] ; } && [ "$itemLockable" != "true" ] ; then
 			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_UNSUPPORTED -- --update-lock/--unlock-lock do not apply to the $category item category" >&2
-			rm -f "$headerOpsFile" ; set +e ; return 1
+			set +e ; return 1
 		fi
 
 		mkdir -p "$itemWriteDir" || {
 			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: can't create item directory: $itemWriteDir" >&2
-			rm -f "$headerOpsFile" ; set +e ; return 1
+			set +e ; return 1
 		}
 		local target="$itemWriteDir/$itemName"
 		local itemStoreRoot="$MDAT_DATA_ROOT/$category"
@@ -397,11 +397,10 @@ case "$1" in
 
 		if [ "$updateLock" = "true" ] && [ ! -f "$target" ] ; then
 			echo "NO_LOCK_HELD"
-			rm -f "$headerOpsFile" ; set +e ; return 1
+			set +e ; return 1
 		fi
 
 		if [ "$unlockLock" = "true" ] && [ ! -f "$target" ] ; then
-			rm -f "$headerOpsFile"
 			echo "RELEASED"
 			return 0
 		fi
@@ -410,7 +409,7 @@ case "$1" in
 			local patchJson existingContent
 			patchJson="$( cat )"
 			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
-			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" )" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" )" || { set +e ; return 1 ; }
 		elif [ "$bodyMode" = "stdin" ] ; then
 			content="$( cat )"
 		elif [ "$contentFromFile" = "true" ] ; then
@@ -432,13 +431,23 @@ case "$1" in
 		fi
 		if [ -z "$content" ] ; then
 			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: empty content -- refusing to write an empty item" >&2
-			rm -f "$headerOpsFile" ; set +e ; return 1
+			set +e ; return 1
 		fi
 
-		if [ -s "$headerOpsFile" ] ; then
-			content="$( printf '%s\n' "$content" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" )" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+		## The ops file has to be a real path -- it is the awk's own `-v opsFile=`
+		## input. It is created inside this substitution's own subshell, so its
+		## trap is that subshell's and can never disarm the caller's, and the trap
+		## is armed before the file exists, so every exit from the block removes
+		## it: a failed mkdir or write, a failed awk, or a signal.
+		if [ -n "$headerOps" ] ; then
+			content="$(
+				headerOpsFile="$MMDAPP/.local/temp/mdat-item-upsert-headers.$$"
+				trap 'rm -f "$headerOpsFile"' EXIT
+				mkdir -p "$MMDAPP/.local/temp" || exit 1
+				printf '%s' "$headerOps" > "$headerOpsFile" || exit 1
+				printf '%s\n' "$content" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk"
+			)" || { set +e ; return 1 ; }
 		fi
-		rm -f "$headerOpsFile"
 
 		printf '%s\n' "$content" > "$target"
 

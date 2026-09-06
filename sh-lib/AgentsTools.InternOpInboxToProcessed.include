@@ -47,10 +47,9 @@ case "$1" in
 		local bodyMode="" scriptLang="" bodyModeCount=0
 		## Set below when the caller names processed-at, which overrides the move stamp.
 		local callerSetProcessedAt="false"
-		local headerOpsFile
-		headerOpsFile="$MMDAPP/.local/temp/mdat-inbox-to-processed-headers.$$"
-		mkdir -p "$MMDAPP/.local/temp" && : > "$headerOpsFile" || { set +e ; return 1 ; }
-		trap 'rm -f "$headerOpsFile"' EXIT
+		## Header ops accumulate here and are materialised once, immediately before
+		## the .awk that reads them by path -- so no early return can leak a file.
+		local headerOps=""
 
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -89,7 +88,7 @@ case "$1" in
 					if [ "$headerName" = "processed-at" ] ; then
 						callerSetProcessedAt="true"
 					fi
-					printf '%s\t%s\t%s\n' "$headerOp" "$headerName" "$headerValue" >> "$headerOpsFile"
+					headerOps="$headerOps$headerOp"$'\t'"$headerName"$'\t'"$headerValue"$'\n'
 					shift
 				;;
 				--upsert-from-stdin)
@@ -171,17 +170,15 @@ case "$1" in
 
 		local body
 		if [ "$bodyMode" = "script" ] ; then
-			local scriptContent existingContent scriptFile
+			## Both interpreters take the program as an argument, so the script
+			## read from stdin never becomes a file.
+			local scriptContent existingContent
 			scriptContent="$( cat )"
 			existingContent="$( cat "$sourcePath" )"
-			scriptFile="$MMDAPP/.local/temp/mdat-inbox-to-processed-script.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$scriptFile" || { set +e ; return 1 ; }
-			printf '%s' "$scriptContent" > "$scriptFile"
 			case "$scriptLang" in
-				py)  body="$( printf '%s\n' "$existingContent" | python3 "$scriptFile" )" ;;
-				awk) body="$( printf '%s\n' "$existingContent" | LC_ALL=C awk -f "$scriptFile" )" ;;
+				py)  body="$( printf '%s\n' "$existingContent" | python3 -c "$scriptContent" )" ;;
+				awk) body="$( printf '%s\n' "$existingContent" | LC_ALL=C awk "$scriptContent" )" ;;
 			esac
-			rm -f "$scriptFile"
 		elif [ "$bodyMode" = "stdin" ] ; then
 			body="$( cat )"
 		elif [ "$bodyMode" = "patch" ] ; then
@@ -199,13 +196,23 @@ case "$1" in
 			probeState="$( printf '%s\n' "$body" | LC_ALL=C awk -v fieldName=processed-at -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterFieldProbe.awk" )" || probeState=""
 			## `|| ...` because this file runs under `set -e`: a bare capture aborts the op instead of returning through its own error path.
 			if [ "$probeState" = "FRONTMATTER" ] ; then
-				local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
-				printf '%s\t%s\t%s\n' upsert processed-at "$processedAt" >> "$headerOpsFile"
+				headerOps="${headerOps}upsert"$'\t'"processed-at"$'\t'"$( date +"%Y-%m-%d %H:%M %z" )"$'\n'
 			fi
 		fi
 
-		if [ -s "$headerOpsFile" ] ; then
-			body="$( printf '%s\n' "$body" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" )" || { rm -f "$headerOpsFile" ; set +e ; return 1 ; }
+		## The ops file has to be a real path -- it is the awk's own `-v opsFile=`
+		## input. It is created inside this substitution's own subshell, so its
+		## trap is that subshell's and can never disarm the caller's, and the trap
+		## is armed before the file exists, so every exit from the block removes
+		## it: a failed mkdir or write, a failed awk, or a signal.
+		if [ -n "$headerOps" ] ; then
+			body="$(
+				headerOpsFile="$MMDAPP/.local/temp/mdat-inbox-to-processed-headers.$$"
+				trap 'rm -f "$headerOpsFile"' EXIT
+				mkdir -p "$MMDAPP/.local/temp" || exit 1
+				printf '%s' "$headerOps" > "$headerOpsFile" || exit 1
+				printf '%s\n' "$body" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk"
+			)" || { set +e ; return 1 ; }
 		fi
 
 		if [ -z "$body" ] ; then
@@ -213,11 +220,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local tmpFile
-		tmpFile="$MMDAPP/.local/temp/mdat-inbox-to-processed-result.$$"
-		mkdir -p "$MMDAPP/.local/temp" && : > "$tmpFile" || { set +e ; return 1 ; }
-		printf '%s\n' "$body" > "$tmpFile"
-		mv "$tmpFile" "$targetPath"
+		printf '%s\n' "$body" > "$targetPath"
 
 		## Commit gate: .git presence in the team-data root, presence only --
 		## this op never pushes. Mirrors --intern-op-board-upsert-move-edit's
@@ -245,18 +248,16 @@ case "$1" in
 			gitOut="$( git -C "$repoRoot" add -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
 			if [ "$gitRc" -ne 0 ] ; then
 				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: git add failed for ${commitPaths[*]}: $gitOut" >&2
-				rm -f "$headerOpsFile" ; trap - EXIT ; set +e ; return 1
+				set +e ; return 1
 			fi
 			gitOut="$( git -C "$repoRoot" commit -m "* processed: $ctxForMsg" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
 			if [ "$gitRc" -ne 0 ] ; then
 				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: git commit failed for ${commitPaths[*]}: $gitOut" >&2
-				rm -f "$headerOpsFile" ; trap - EXIT ; set +e ; return 1
+				set +e ; return 1
 			fi
 			echo "# $MDSC_CMD: inbox-to-processed: committed ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
 		fi
 
-		rm -f "$headerOpsFile"
-		trap - EXIT
 		return 0
 	;;
 

@@ -65,41 +65,38 @@ case "$1" in
 			;;
 		esac
 
-		local postBodyOut=""
-		postBodyOut="$( mktemp )" || { set +e ; return 1 ; }
-		chmod 600 "$postBodyOut"
-
+		## Body on stdout, the -w line last on its own -- no response file. Same
+		## shape as the multipart upload in AgentsTools.CommsSlack.include.
 		local postOut="" postRc=0
 		postOut="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "$postUrl" \
 			--data-binary "@$postBodyFile" \
-			-o "$postBodyOut" -w '%{http_code} %{size_upload}' 2>/dev/null )" || postRc=$?
+			-w '\n%{http_code} %{size_upload}' 2>/dev/null )" || postRc=$?
 
 		local postStatus="not-reported" postBytes="not-reported"
+		local postLine=""
+		postLine="$( printf '%s\n' "$postOut" | tail -1 )"
 		## Digits enumerated, never a bracket range -- see MAGIC.md.
-		case "$postOut" in
+		case "$postLine" in
 			[0123456789]*" "[0123456789]*)
-				postStatus="${postOut%% *}"
-				postBytes="${postOut##* }"
+				read -r postStatus postBytes <<< "$postLine"
 			;;
 		esac
 		printf 'POST_HTTP_STATUS=%s\n' "$postStatus" >&2
 		printf 'POST_BYTES=%s\n' "$postBytes" >&2
 
 		if [ "$postRc" -ne 0 ] ; then
-			rm -f "$postBodyOut"
 			echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: POST transport failure, curl exit status $postRc. Neither the URL nor curl's own message is quoted: the URL is a bearer capability and curl's message can carry it." >&2
 			set +e ; return 1
 		fi
 		case "$postStatus" in
 			2??) ;;
 			*)
-				rm -f "$postBodyOut"
 				echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: POST returned HTTP $postStatus, not a 2xx -- the bytes were not accepted. The response body is discarded rather than shown: a server's error page echoes the request URL back, and that URL is a bearer capability. POST_BYTES above is what was sent." >&2
 				set +e ; return 1
 			;;
 		esac
-		cat "$postBodyOut"
-		rm -f "$postBodyOut"
+		## Everything but that last -w line is the response body.
+		printf '%s\n' "$postOut" | sed '$d'
 		return 0
 	;;
 

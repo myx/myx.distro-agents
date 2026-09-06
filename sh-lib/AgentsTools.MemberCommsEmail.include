@@ -35,25 +35,21 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
 				set +e ; return 1
 			fi
-			local netrcFile
-			netrcFile="$( mktemp )" || { set +e ; return 1 ; }
-			chmod 600 "$netrcFile"
-			trap 'rm -f "$netrcFile"' EXIT
-			printf 'machine %s login %s password %s\n' "$imapHost" "$imapUser" "$imapPass" > "$netrcFile"
+			## Password on curl's stdin, never argv and never the disk. /dev/fd/0
+			## is one of the three descriptors addressable as a path on all of
+			## Darwin, FreeBSD and Linux.
+			local netrcLine=""
+			printf -v netrcLine 'machine %s login %s password %s' "$imapHost" "$imapUser" "$imapPass"
 			local statusRc=0
-			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file "$netrcFile" \
-				--request "STATUS INBOX (UNSEEN)" || statusRc=$?
+			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file /dev/fd/0 \
+				--request "STATUS INBOX (UNSEEN)" <<< "$netrcLine" || statusRc=$?
 			if [ "$statusRc" -ne 0 ] ; then
-				rm -f "$netrcFile"
-				trap - EXIT
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: IMAP STATUS INBOX (UNSEEN) failed against imaps://${imapHost}/INBOX as $memberName (curl rc=$statusRc) -- the unseen count is UNKNOWN, not zero; curl's own error is on the line above" >&2
 				set +e ; return "$statusRc"
 			fi
 			local searchRc=0
-			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file "$netrcFile" \
-				--request "UID SEARCH UNSEEN" || searchRc=$?
-			rm -f "$netrcFile"
-			trap - EXIT
+			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file /dev/fd/0 \
+				--request "UID SEARCH UNSEEN" <<< "$netrcLine" || searchRc=$?
 			if [ "$searchRc" -ne 0 ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: IMAP UID SEARCH UNSEEN failed against imaps://${imapHost}/INBOX as $memberName (curl rc=$searchRc) -- the unseen UID list is UNKNOWN, not empty; curl's own error is on the line above" >&2
 				set +e ; return "$searchRc"
@@ -171,16 +167,12 @@ case "$1" in
 			fi
 
 			echo "# $MDSC_CMD --member-comms-email-mark-seen: marking UID=$uid as \\Seen in ${memberName}'s INBOX" >&2
-			local netrcFile
-			netrcFile="$( mktemp )" || { set +e ; return 1 ; }
-			chmod 600 "$netrcFile"
-			trap 'rm -f "$netrcFile"' EXIT
-			printf 'machine %s login %s password %s\n' "$imapHost" "$imapUser" "$imapPass" > "$netrcFile"
+			## Password on curl's stdin, never argv and never the disk.
+			local netrcLine=""
+			printf -v netrcLine 'machine %s login %s password %s' "$imapHost" "$imapUser" "$imapPass"
 			local storeRc=0
-			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file "$netrcFile" \
-				--request "UID STORE ${uid} +FLAGS (\Seen)" || storeRc=$?
-			rm -f "$netrcFile"
-			trap - EXIT
+			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file /dev/fd/0 \
+				--request "UID STORE ${uid} +FLAGS (\Seen)" <<< "$netrcLine" || storeRc=$?
 			if [ "$storeRc" -ne 0 ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: IMAP UID STORE +FLAGS (\\Seen) failed for UID=$uid against imaps://${imapHost}/INBOX as $memberName (curl rc=$storeRc) -- the message is NOT marked seen; curl's own error is on the line above" >&2
 				set +e ; return "$storeRc"
@@ -319,41 +311,48 @@ case "$1" in
 				set +e ; return 1
 			fi
 
-			local msgFile
-			msgFile="$( mktemp )" || { set +e ; return 1 ; }
-			{
-				printf 'From: %s\n' "$emailUser"
-				printf 'To: %s\n' "$( printf '%s' "$recipients" | tr ' ' ',' )"
-				printf 'Subject: %s\n' "$subject"
-				if [ -n "$inReplyTo" ] ; then
-					printf 'In-Reply-To: %s\n' "$inReplyTo"
-					printf 'References: %s\n' "$inReplyTo"
-				fi
-				printf '\n'
-				printf '%s\n' "$bodyLines"
-			} > "$msgFile"
-
-			local netrcFile
-			netrcFile="$( mktemp )" || { rm -f "$msgFile" ; set +e ; return 1 ; }
-			chmod 600 "$netrcFile"
-			trap 'rm -f "$msgFile" "$netrcFile"' EXIT
-			printf 'machine %s login %s password %s\n' "$smtpHost" "$emailUser" "$emailPass" > "$netrcFile"
-
-			local rcptArgs=() addr
-			for addr in $recipients ; do
-				rcptArgs+=( --mail-rcpt "$addr" )
-			done
-
+			## The message is the one thing here a variable cannot carry: curl's
+			## --upload-file takes a path, and stdin is spent on the password
+			## below. It holds no secret; the password never reaches the disk.
+			##
+			## Its whole life is this subshell, so the trap is the SUBSHELL'S own:
+			## it cannot replace the caller's -- a console session and the MCP
+			## server both keep one -- and it fires on every way out, including a
+			## failure not enumerated here. curl's status leaves as the subshell's.
 			echo "# $MDSC_CMD --member-comms-email-send: sending via smtp://${smtpHost}:${smtpPort} to: $recipients" >&2
 			local rc=0
-			## --max-time 300, not the 120 an API call here gets: this one uploads the whole message.
-			curl -sS --connect-timeout 10 --max-time 300 --url "smtp://${smtpHost}:${smtpPort}" --ssl-reqd \
-				--netrc-file "$netrcFile" \
-				--mail-from "$emailUser" "${rcptArgs[@]}" \
-				--upload-file "$msgFile" || rc=$?
+			(
+				msgFile="$MMDAPP/.local/temp/mdat-comms-email-message.$$"
+				mkdir -p "$MMDAPP/.local/temp" && : > "$msgFile" || exit 1
+				trap 'rm -f "$msgFile"' EXIT
+				chmod 600 "$msgFile" || exit 1
+				{
+					printf 'From: %s\n' "$emailUser"
+					printf 'To: %s\n' "$( printf '%s' "$recipients" | tr ' ' ',' )"
+					printf 'Subject: %s\n' "$subject"
+					if [ -n "$inReplyTo" ] ; then
+						printf 'In-Reply-To: %s\n' "$inReplyTo"
+						printf 'References: %s\n' "$inReplyTo"
+					fi
+					printf '\n'
+					printf '%s\n' "$bodyLines"
+				} > "$msgFile" || exit 1
 
-			rm -f "$msgFile" "$netrcFile"
-			trap - EXIT
+				## Password on curl's stdin, never argv and never the disk.
+				netrcLine=""
+				printf -v netrcLine 'machine %s login %s password %s' "$smtpHost" "$emailUser" "$emailPass"
+
+				rcptArgs=()
+				for addr in $recipients ; do
+					rcptArgs+=( --mail-rcpt "$addr" )
+				done
+
+				## --max-time 300, not the 120 an API call here gets: this one uploads the whole message.
+				curl -sS --connect-timeout 10 --max-time 300 --url "smtp://${smtpHost}:${smtpPort}" --ssl-reqd \
+					--netrc-file /dev/fd/0 \
+					--mail-from "$emailUser" "${rcptArgs[@]}" \
+					--upload-file "$msgFile" <<< "$netrcLine"
+			) || rc=$?
 
 			if [ "$rc" -eq 0 ] ; then
 				echo "# $MDSC_CMD --member-comms-email-send: sent to $recipients" >&2

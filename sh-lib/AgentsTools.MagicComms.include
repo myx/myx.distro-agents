@@ -142,19 +142,14 @@ case "$1" in
 		echo "## op=magic-comms-slack-resolve-ids member=$memberName token_source=$tokenSource"
 		AgentsToolsEmitRequestDetailHeader "$memberName" "<none>"
 
-		local headerFile
-		headerFile="$( mktemp )" || { set +e ; return 1 ; }
-		chmod 600 "$headerFile"
-		trap 'rm -f "$headerFile"' EXIT
-		printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
+		## Token on curl's stdin, never argv -- keeps it out of ps.
+		local authHeader="Authorization: Bearer $token"
 
 		local authResp
-		authResp="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @"$headerFile" )"
+		authResp="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @- <<< "$authHeader" )"
 		printf 'AUTH_JSON=%s\n' "$authResp"
 		if ! printf '%s' "$authResp" | grep -q '"ok":true' ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: auth.test failed" >&2
-			rm -f "$headerFile"
-			trap - EXIT
 			set +e ; return 1
 		fi
 
@@ -164,8 +159,6 @@ case "$1" in
 		authUserId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -f "$slackJsonField" )" || authUserIdRc=$?
 		if [ "$authUserIdRc" != "0" ] || [ -z "$authUserId" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: auth.test returned ok:true but no readable top-level user_id (reader rc=$authUserIdRc) -- refusing to report an empty AUTH_USER_ID" >&2
-			rm -f "$headerFile"
-			trap - EXIT
 			set +e ; return 1
 		fi
 		printf 'AUTH_USER_ID=%s\n' "$authUserId"
@@ -181,12 +174,12 @@ case "$1" in
 		local usersJson="" channelsJson="" usersOk="not-requested" channelsOk="not-requested"
 		local usersOkRc=0 channelsOkRc=0
 		if [ "$raw" = "true" ] || [ -n "$userNamesCsv" ] ; then
-			usersJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.list -H @"$headerFile" --data-urlencode "limit=1000" )"
+			usersJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.list -H @- --data-urlencode "limit=1000" <<< "$authHeader" )"
 			usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || usersOkRc=$?
 			[ "$usersOkRc" = "0" ] || usersOk='-'
 		fi
 		if [ "$raw" = "true" ] || [ -n "$channelNamesCsv" ] ; then
-			channelsJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.list -H @"$headerFile" --data-urlencode "types=public_channel,private_channel,im,mpim" --data-urlencode "exclude_archived=true" --data-urlencode "limit=1000" )"
+			channelsJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.list -H @- --data-urlencode "types=public_channel,private_channel,im,mpim" --data-urlencode "exclude_archived=true" --data-urlencode "limit=1000" <<< "$authHeader" )"
 			channelsOk="$( printf '%s\n' "$channelsJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || channelsOkRc=$?
 			[ "$channelsOkRc" = "0" ] || channelsOk='-'
 		fi
@@ -218,7 +211,7 @@ case "$1" in
 			## Unit-2 forward compatibility, INERT today -- "" until the Unit-3 flip.
 			local aliasUserId=""
 			aliasUserId="$( printf '%s\n' "$aliasResolved" | sed -n 's/^USER_ID=//p' )" || aliasUserId=""
-			aliasInfo="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info -H @"$headerFile" --data-urlencode "channel=$aliasChannel" )"
+			aliasInfo="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info -H @- --data-urlencode "channel=$aliasChannel" <<< "$authHeader" )"
 			local aliasInfoOkRc=0 aliasInfoErrRc=0 aliasNameRc=0
 			aliasInfoOk=""
 			aliasInfoErr=""
@@ -242,14 +235,12 @@ case "$1" in
 		local humanAliasUserId=""
 		humanAliasUserId="$( printf '%s\n' "$humanAliasResolved" | sed -n 's/^USER_ID=//p' )" || humanAliasUserId=""
 		if [ -n "$humanAliasChannel" ] ; then
-			humanAliasInfo="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info -H @"$headerFile" --data-urlencode "channel=$humanAliasChannel" )"
+			humanAliasInfo="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info -H @- --data-urlencode "channel=$humanAliasChannel" <<< "$authHeader" )"
 			if printf '%s' "$humanAliasInfo" | grep -q '"ok":true' ; then
 				## This exit never reaches the hint path, so both list states are final here.
 				printf 'USERS_LIST_OK=%s\n' "$usersOk"
 				printf 'CHANNELS_LIST_OK=%s\n' "$channelsOk"
 				echo "HUMAN_OWNER_TARGET|status=reachable|target=$humanAliasChannel|source=config-alias"
-				rm -f "$headerFile"
-				trap - EXIT
 				return 0
 			fi
 			local humanAliasErrRc=0
@@ -261,7 +252,7 @@ case "$1" in
 		fi
 
 		if [ "$usersOk" = "not-requested" ] ; then
-			usersJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.list -H @"$headerFile" --data-urlencode "limit=1000" )"
+			usersJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.list -H @- --data-urlencode "limit=1000" <<< "$authHeader" )"
 			usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || usersOkRc=$?
 			[ "$usersOkRc" = "0" ] || usersOk='-'
 		fi
@@ -276,7 +267,7 @@ case "$1" in
 				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveHintUserId.py" )"
 			if [ -n "$hintUserId" ] ; then
 				local openResp openOk openErr openChannel
-				openResp="$( curl -sS --connect-timeout 10 --max-time 120 -X POST https://slack.com/api/conversations.open -H @"$headerFile" -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$hintUserId" )"
+				openResp="$( curl -sS --connect-timeout 10 --max-time 120 -X POST https://slack.com/api/conversations.open -H @- -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$hintUserId" <<< "$authHeader" )"
 				local openOkRc=0 openErrRc=0 openChannelRc=0
 				openOk=""
 				openErr=""
@@ -288,20 +279,14 @@ case "$1" in
 				[ "$openErrRc" = "0" ] || openErr='-'
 				if [ "$openOk" = "true" ] && [ "$openChannelRc" = "0" ] && [ -n "$openChannel" ] ; then
 					echo "HUMAN_OWNER_TARGET|status=reachable|target=$openChannel|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId"
-					rm -f "$headerFile"
-					trap - EXIT
 					return 0
 				fi
 				echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId|error=$openErr|channel_id_reader_rc=$openChannelRc|alias_error=$humanAliasErr"
-				rm -f "$headerFile"
-				trap - EXIT
 				return 1
 			fi
 		fi
 
 		echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=none|hint=$humanOwnerHint|alias_error=$humanAliasErr|note=unable_to_resolve_hint_user"
-		rm -f "$headerFile"
-		trap - EXIT
 		set +e ; return 1
 	;;
 

@@ -100,7 +100,9 @@ AgentsToolsSlackReadPagedConversation(){
 		pagedUntil=""
 	fi
 
-	rm -rf "$pagedDir" && mkdir -p "$pagedDir" || return 1
+	## `-m 700`, not the umask and not a chmod after the fact: these pages are
+	## response bodies, and a following chmod leaves them 0755 for its own width.
+	rm -rf "$pagedDir" && mkdir -m 700 -p "$pagedDir" || return 1
 
 	local pagedCursor="" pagedIndex=0 pagedBody="" pagedRc=0 pagedFieldRc=0
 	local pagedHasMore="" pagedPageOldest=""
@@ -430,19 +432,12 @@ AgentsToolsSlackResolveWorkspaceForScope(){
 		return 2
 	fi
 
-	## Token to a 0600 header file, never argv -- keeps it out of ps.
-	local scopeHeaderFile=""
-	scopeHeaderFile="$( mktemp )" || scopeHeaderFile=""
-	if [ -z "$scopeHeaderFile" ] ; then
-		return 3
-	fi
-	chmod 600 "$scopeHeaderFile"
-	printf 'Authorization: Bearer %s\n' "$scopeToken" > "$scopeHeaderFile"
+	## Token on curl's stdin, never argv -- keeps it out of ps.
+	local scopeHeader="Authorization: Bearer $scopeToken"
 
 	local scopeUrl="" scopeRc=0
-	scopeUrl="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @"$scopeHeaderFile" 2>/dev/null \
+	scopeUrl="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @- <<< "$scopeHeader" 2>/dev/null \
 		| LC_ALL=C awk -v path=url -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || scopeRc=$?
-	rm -f "$scopeHeaderFile"
 
 	if [ "$scopeRc" != "0" ] || [ -z "$scopeUrl" ] ; then
 		return 1
@@ -785,18 +780,8 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local headerFile=""
-		headerFile="$( mktemp )" || { AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" none ; set +e ; return 1 ; }
-		chmod 600 "$headerFile"
-		trap 'rm -f "$headerFile"' EXIT
-		printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
-
-
-		## Upload response body; created here so the one trap already covers it.
-		local uploadBodyFile=""
-		uploadBodyFile="$( mktemp )" || { rm -f "$headerFile" ; trap - EXIT ; AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" none ; set +e ; return 1 ; }
-		chmod 600 "$uploadBodyFile"
-		trap 'rm -f "$headerFile" "$uploadBodyFile"' EXIT
+		## Token on curl's stdin, never argv -- keeps it out of ps.
+		local authHeader="Authorization: Bearer $token"
 
 		local failMsg="" response="" dmChannel="" responseBodyState="none" joinAttempted="false"
 		while true ; do
@@ -804,9 +789,9 @@ case "$1" in
 			if [ -n "$resolveDmUser" ] ; then
 				local openResp
 				openResp="$( curl -sS --connect-timeout 10 --max-time 120 -X POST https://slack.com/api/conversations.open \
-					-H @"$headerFile" \
+					-H @- \
 					-H "Content-type: application/x-www-form-urlencoded" \
-					--data-urlencode "users=$resolveDmUser" 2>&1 )" || {
+					--data-urlencode "users=$resolveDmUser" <<< "$authHeader" 2>&1 )" || {
 					failMsg="conversations.open transport failure for user $resolveDmUser under $sendIdentity identity: $openResp"
 					break
 				}
@@ -826,8 +811,8 @@ case "$1" in
 			if [ -n "$expectCounterparty" ] ; then
 				local infoResp="" actualCounterparty=""
 				infoResp="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info \
-					-H @"$headerFile" \
-					--data-urlencode "channel=$resolveTarget" 2>&1 )" || {
+					-H @- \
+					--data-urlencode "channel=$resolveTarget" <<< "$authHeader" 2>&1 )" || {
 					failMsg="counterparty control: conversations.info transport failure for conversation $resolveTarget under $sendIdentity identity: $infoResp"
 					break
 				}
@@ -847,10 +832,10 @@ case "$1" in
 			if [ -n "$fetchUrl" ] ; then
 				local fetchOut="" fetchLine=""
 				fetchOut="$( curl -sS --connect-timeout 10 --max-time 900 -L --max-redirs 5 \
-					-H @"$headerFile" \
+					-H @- \
 					-o "$fetchTo" \
 					-w '%{http_code} %{size_download} %{content_type}' \
-					"$fetchUrl" 2>&1 )" || {
+					"$fetchUrl" <<< "$authHeader" 2>&1 )" || {
 					failMsg="raw authenticated GET transport failure under $sendIdentity identity for $fetchUrl: $fetchOut"
 					break
 				}
@@ -871,8 +856,9 @@ case "$1" in
 			fi
 
 			if [ -n "$uploadFile" ] ; then
-				local uploadArgs=( -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/$apiMethod" -H @"$headerFile" ) uploadPair
-				uploadArgs+=( -o "$uploadBodyFile" -w '%{http_code} %{size_upload}' )
+				local uploadArgs=( -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/$apiMethod" -H @- ) uploadPair
+				## Body on stdout, the -w line last on its own -- no response file.
+				uploadArgs+=( -w '\n%{http_code} %{size_upload}' )
 				uploadArgs+=( --form "${uploadFile%%=*}=@${uploadFile#*=}" )
 				for uploadPair in "${formArgs[@]}" ; do
 					uploadArgs+=( --form "$uploadPair" )
@@ -881,7 +867,7 @@ case "$1" in
 				## `||`, not `;` -- under set -e the shell leaves before an
 				## assignment on the next line is ever reached.
 				local uploadOut="" uploadRc=0
-				uploadOut="$( curl "${uploadArgs[@]}" 2>&1 )" || uploadRc=$?
+				uploadOut="$( curl "${uploadArgs[@]}" <<< "$authHeader" 2>&1 )" || uploadRc=$?
 
 				## `not-reported` is a real state: curl writes no -w line at all when
 				## it fails before the transfer, and empty could not be told from 0.
@@ -904,21 +890,22 @@ case "$1" in
 					break
 				fi
 
-				response="$( cat "$uploadBodyFile" )"
+				## Everything but that last -w line is the response body.
+				response="$( printf '%s\n' "$uploadOut" | sed '$d' )"
 			elif [ -n "$jsonBody" ] ; then
 				response="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/$apiMethod" \
-					-H @"$headerFile" \
+					-H @- \
 					-H "Content-type: application/json" \
-					-d "$jsonBody" 2>&1 )" || {
+					-d "$jsonBody" <<< "$authHeader" 2>&1 )" || {
 					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
 					break
 				}
 			else
-				local curlArgs=( -sS --connect-timeout 10 --max-time 120 "https://slack.com/api/$apiMethod" -H @"$headerFile" ) formPair
+				local curlArgs=( -sS --connect-timeout 10 --max-time 120 "https://slack.com/api/$apiMethod" -H @- ) formPair
 				for formPair in "${formArgs[@]}" ; do
 					curlArgs+=( --data-urlencode "$formPair" )
 				done
-				response="$( curl "${curlArgs[@]}" 2>&1 )" || {
+				response="$( curl "${curlArgs[@]}" <<< "$authHeader" 2>&1 )" || {
 					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
 					break
 				}
@@ -938,9 +925,9 @@ case "$1" in
 					done
 					if [ -n "$joinChannel" ] ; then
 						joinResp="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/conversations.join" \
-							-H @"$headerFile" \
+							-H @- \
 							-H "Content-type: application/x-www-form-urlencoded" \
-							--data-urlencode "channel=$joinChannel" 2>&1 )" || joinResp=""
+							--data-urlencode "channel=$joinChannel" <<< "$authHeader" 2>&1 )" || joinResp=""
 						echo "$MDSC_CMD: slack-call: auto-join under bot identity on channel=$joinChannel -- $joinResp" >&2
 						if printf '%s' "$joinResp" | grep -q '"ok":true' ; then
 							continue
@@ -960,9 +947,7 @@ case "$1" in
 			break
 		done
 
-		## THE single exit path -- one cleanup, one failure branch, no degrade.
-		rm -f "$headerFile" "$uploadBodyFile"
-		trap - EXIT
+		## THE single exit path -- one failure branch, no degrade.
 		if [ -n "$failMsg" ] ; then
 			echo "$MDSC_CMD: slack-call: ⛔ ERROR: $failMsg" >&2
 			AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" "$responseBodyState" "$response"
@@ -1086,20 +1071,30 @@ case "$1" in
 		if [ -n "$fanOutParty" ] ; then
 			echo "## target=$target channel=$fanOutParty (party id -- reads BOTH human-owner DMs, one per identity)"
 
-			local fanDir
-			fanDir="$( mktemp -d )" || { set +e ; return 1 ; }
+			## Only the paged reader needs a real path -- it hands back N documents
+			## whose order matters. Everything else this fan-out builds is a value.
+			##
+			## The directory's whole life is this subshell, so its trap is the
+			## SUBSHELL'S own: it cannot replace the caller's -- a console session
+			## and the MCP server both keep one -- and it fires on every way out,
+			## including a failure not enumerated here. The fan-out's own 0/3/4
+			## verdict leaves as the subshell's exit status.
+			local fanRc=0
+			(
+			local fanDir="$MMDAPP/.local/temp/mdat-slack-check-fan.$$"
+			mkdir -p "$MMDAPP/.local/temp" && rm -rf "$fanDir" && mkdir -m 700 "$fanDir" || exit 1
 			trap 'rm -rf "$fanDir"' EXIT
 
-			local tabChar
-			tabChar="$( printf '\t' )"
-
+			local tabChar=$'\t'
 			local legIdentity legIndex=0
 			local legOkCount=0
-			local legProvenance="" legFailReport=""
+			local legProvenance="" legFailReport="" legMerged="" legRaw=""
 			for legIdentity in user bot ; do
 				legIndex=$(( legIndex + 1 ))
-				local legDm="" legReason="" legDiag="" legRc=0 legResponse=""
+				local legDm="" legReason="" legDiag="" legRc=0
 				local legDmRc=0
+				## The discovery call below is the one place both its response and its
+				## diagnostic are read back, and a substitution yields one capture.
 				local legDiagFile="$fanDir/diag.$legIndex"
 				local legInfoFile="$fanDir/info.$legIndex"
 
@@ -1111,10 +1106,15 @@ case "$1" in
 						--identity "$legIdentity" \
 						--context "--intern-op-slack-check human-owner ($legIdentity identity, DM discovery)" \
 						>"$legInfoFile" 2>"$legDiagFile" || legRc=$?
-					legDiag="$( cat "$legDiagFile" )"
+					legDiag="$( cat "$legDiagFile" )" || legDiag=""
 					[ -z "$legDiag" ] || printf '%s\n' "$legDiag" >&2
 					if [ "$legRc" != "0" ] ; then
-						legReason="$( printf '%s\n' "$legDiag" | LC_ALL=C awk 'NF { last = $0; } END { if ( last != "" ) print last; }' )"
+						legReason="$( printf '%s\n' "$legDiag" | LC_ALL=C awk 'NF { last = $0; } END { if ( last != "" ) print last; }' )" || legReason=""
+						## Fail closed. A leg whose call failed is FAILED even when its
+						## own diagnostic is empty or could not be summarised: an empty
+						## reason falls through the test below and counts the leg as
+						## read, which is the one verdict this operation must not give.
+						[ -n "$legReason" ] || legReason="the call failed (rc=$legRc) and left no diagnostic line to quote"
 						break
 					fi
 					legDmRc=0
@@ -1143,26 +1143,32 @@ case "$1" in
 					## attaches it to page 1 only -- the control is its own
 					## conversations.info call, so asserting it there costs exactly
 					## what the unpaged read already cost, and nothing per page.
-					AgentsToolsSlackReadPagedConversation "$memberName" conversations.history "$legDm" \
+					## The paged reader writes its pages into the directory and nothing
+					## to stdout, so the merged stream is its diagnostic entire.
+					legDiag="$( AgentsToolsSlackReadPagedConversation "$memberName" conversations.history "$legDm" \
 						"$legIdentity" "" "$oldest" \
 						"--intern-op-slack-check human-owner ($legIdentity identity, DM $legDm)" \
-						"$fanDir/pages.$legIndex" "$pageUntil" "$fanOutParty" 2>"$legDiagFile" || legRc=$?
-					legDiag="$( cat "$legDiagFile" )"
+						"$fanDir/pages.$legIndex" "$pageUntil" "$fanOutParty" 2>&1 )" || legRc=$?
 					[ -z "$legDiag" ] || printf '%s\n' "$legDiag" >&2
 					if [ "$legRc" != "0" ] ; then
-						legReason="$( printf '%s\n' "$legDiag" | LC_ALL=C awk 'NF { last = $0; } END { if ( last != "" ) print last; }' )"
+						legReason="$( printf '%s\n' "$legDiag" | LC_ALL=C awk 'NF { last = $0; } END { if ( last != "" ) print last; }' )" || legReason=""
+						## Fail closed. A leg whose call failed is FAILED even when its
+						## own diagnostic is empty or could not be summarised: an empty
+						## reason falls through the test below and counts the leg as
+						## read, which is the one verdict this operation must not give.
+						[ -n "$legReason" ] || legReason="the call failed (rc=$legRc) and left no diagnostic line to quote"
 						break
 					fi
 
 					if [ "$pretty" = "true" ] ; then
-						local legFmtRc=0
-						AgentsToolsSlackFormatPagedConversation "$fanDir/pages.$legIndex" > "$fanDir/fmt.$legIndex" || legFmtRc=$?
+						local legFmt="" legFmtRc=0
+						legFmt="$( AgentsToolsSlackFormatPagedConversation "$fanDir/pages.$legIndex" )" || legFmtRc=$?
 						if [ "$legFmtRc" != "0" ] ; then
 							legReason="the response was read but could not be formatted (the formatter's own error is above)"
 							break
 						fi
-						local legTagRc=0
-						LC_ALL=C awk -v dmId="$legDm" -v legIndex="$legIndex" '
+						local legTagged="" legTagRc=0
+						legTagged="$( LC_ALL=C awk -v dmId="$legDm" -v legIndex="$legIndex" '
 							{
 								if ( $0 ~ /^[0-9][0-9]*\.[0-9][0-9]* \| / ) {
 									recTs = $0;
@@ -1173,11 +1179,12 @@ case "$1" in
 								}
 								print recTs "\t" legIndex "\t" NR "\t" dmId "\t" recKind "\t" $0;
 							}
-						' "$fanDir/fmt.$legIndex" >> "$fanDir/merged" || legTagRc=$?
+						' <<< "$legFmt" )" || legTagRc=$?
 						if [ "$legTagRc" != "0" ] ; then
 							legReason="the response was read and formatted but could not be tagged with its own DM for the merge"
 							break
 						fi
+						[ -z "$legTagged" ] || legMerged="$legMerged$legTagged"$'\n'
 					else
 						## One marker per PAGE, each carrying this leg's own
 						## identity exactly as before -- the consumers scope their
@@ -1186,10 +1193,7 @@ case "$1" in
 						## page's without one.
 						local legPageIndex=1
 						while [ -f "$fanDir/pages.$legIndex/page.$legPageIndex" ] ; do
-							{
-								printf '## dm=%s identity=%s (this DM'"'"'s own raw API response, page %s, follows)\n' "$legDm" "$legIdentity" "$legPageIndex"
-								cat "$fanDir/pages.$legIndex/page.$legPageIndex"
-							} >> "$fanDir/raw"
+							legRaw="$legRaw## dm=$legDm identity=$legIdentity (this DM's own raw API response, page $legPageIndex, follows)"$'\n'"$( cat "$fanDir/pages.$legIndex/page.$legPageIndex" )"$'\n'
 							legPageIndex=$(( legPageIndex + 1 ))
 						done
 					fi
@@ -1209,8 +1213,11 @@ case "$1" in
 			printf '%s' "$legProvenance"
 
 			if [ "$pretty" = "true" ] ; then
-				if [ -f "$fanDir/merged" ] ; then
-					LC_ALL=C sort -t "$tabChar" -k1,1 -k2,2n -k3,3n "$fanDir/merged" \
+				if [ -n "$legMerged" ] ; then
+					## Tested, and it decides the verdict: bash suppresses `set -e`
+					## inside a subshell whose status is tested, so an unchecked merge
+					## that produced nothing would still be reported as both DMs read.
+					LC_ALL=C sort -t "$tabChar" -k1,1 -k2,2n -k3,3n <<< "${legMerged%$'\n'}" \
 						| LC_ALL=C awk -F "$tabChar" '
 							{
 								body = $6;
@@ -1218,27 +1225,30 @@ case "$1" in
 								if ( $5 == "H" ) { print $4 " | " body; }
 								else { print body; }
 							}
-						'
+						' || {
+						echo "$MDSC_CMD: slack-check: ⛔ ERROR: both DMs were read but the two could not be merged into one chronological conversation, so what is above is not the answer. Nothing is concluded from a merge that failed." >&2
+						exit 1
+					}
 				fi
 			else
-				if [ -f "$fanDir/raw" ] ; then
-					cat "$fanDir/raw"
-				fi
+				[ -z "$legRaw" ] || printf '%s' "$legRaw"
 			fi
-
-			rm -rf "$fanDir"
-			trap - EXIT
 
 			if [ "$legOkCount" = "2" ] ; then
 				echo "# $MDSC_CMD: slack-check: BOTH human-owner DMs read (one per identity, each asserted individually against party $fanOutParty). The lines above are the two conversations merged chronologically, each carrying its own DM id." >&2
-				return 0
+				exit 0
 			fi
 			if [ "$legOkCount" = "1" ] ; then
 				echo "$MDSC_CMD: slack-check: ⛔ ERROR: PARTIAL -- only ONE of the human-owner's two DMs was read. Failed:$legFailReport The output above is therefore HALF the conversation: a message the human-owner sent in the failed DM is absent from it, and nothing here supports concluding that no such message exists. Fix the named leg and read again before treating this as an answer. rc=3 means exactly this partial state, distinct from rc=4 (neither DM read) and from rc=1 (this operation failed before any fan-out)." >&2
-				set +e ; return 3
+				exit 3
 			fi
 			echo "$MDSC_CMD: slack-check: ⛔ ERROR: NEITHER of the human-owner's two DMs was read. Failed:$legFailReport Nothing was read at all, so nothing whatsoever is known from this call about what the human-owner has or has not written. rc=4 means exactly this, distinct from rc=3 (one DM read, one failed)." >&2
-			set +e ; return 4
+			exit 4
+			) || fanRc=$?
+			if [ "$fanRc" != "0" ] ; then
+				set +e ; return "$fanRc"
+			fi
+			return 0
 		fi
 
 		echo "## target=$target channel=$channel"
@@ -1257,8 +1267,8 @@ case "$1" in
 			checkIdentity="bot"
 		fi
 
-		local pagesDir
-		pagesDir="$( mktemp -d )" || { set +e ; return 1 ; }
+		local pagesDir="$MMDAPP/.local/temp/mdat-slack-check-pages.$$"
+		mkdir -p "$MMDAPP/.local/temp" && rm -rf "$pagesDir" && mkdir -m 700 "$pagesDir" || { set +e ; return 1 ; }
 		local pagedCallRc=0
 		AgentsToolsSlackReadPagedConversation "$memberName" "$apiMethod" "$channel" "$checkIdentity" \
 			"$threadTs" "$oldest" "--intern-op-slack-check" "$pagesDir" "$pageUntil" "" || pagedCallRc=$?
@@ -1349,7 +1359,7 @@ case "$1" in
 			srcLists+=( ",$( printf '%s' "$srcScopes" | tr '\n' ',' | sed 's/,,*/,/g; s/^,//; s/,$//' )," )
 		done
 
-		local identity token grantedRaw grantedList headerFile httpBody
+		local identity token grantedRaw grantedList scopeDump
 		local anyFinding=0
 		local identLabels=() identGrants=()
 
@@ -1372,24 +1382,14 @@ case "$1" in
 				continue
 			fi
 
-			## Token to a 0600 header file, never argv -- keeps it out of ps.
-			headerFile="$( mktemp )" || { set +e ; return 1 ; }
-			chmod 600 "$headerFile"
-			trap 'rm -f "$headerFile" "$dumpFile"' EXIT
-			printf 'Authorization: Bearer %s\n' "$token" > "$headerFile"
-
-			local dumpFile
-			dumpFile="$( mktemp )" || { rm -f "$headerFile" ; set +e ; return 1 ; }
-
-			httpBody="$( curl -sS --connect-timeout 10 --max-time 120 -D "$dumpFile" -o /dev/null https://slack.com/api/auth.test -H @"$headerFile" 2>&1 )"
-			local curlRc=$?
-			rm -f "$headerFile"
+			## Token on curl's stdin and headers on its stdout, never argv or a
+			## file -- keeps the token out of ps and the response off the disk.
+			local curlRc=0
+			scopeDump="$( curl -sS --connect-timeout 10 --max-time 120 -D - -o /dev/null https://slack.com/api/auth.test -H @- <<< "Authorization: Bearer $token" 2>&1 )" || curlRc=$?
 
 			if [ "$curlRc" -ne 0 ] ; then
 				echo "slack-scopes[$identity]: could-not-check"
 				echo "  note: auth.test transport failed (curl exit $curlRc) -- grants unknown, NOT empty"
-				rm -f "$dumpFile"
-				trap - EXIT
 				identLabels+=( "$identity" )
 				identGrants+=( "" )
 				continue
@@ -1397,9 +1397,7 @@ case "$1" in
 
 			## CRLF strip: HTTP headers end CR-LF, and a trailing CR would ride
 			## into the last scope name and silently never match.
-			grantedRaw="$( LC_ALL=C awk 'BEGIN{IGNORECASE=1} /^x-oauth-scopes:/ { sub(/^[^:]*:[ \t]*/, "") ; gsub(/\r/, "") ; print ; exit }' "$dumpFile" )"
-			rm -f "$dumpFile"
-			trap - EXIT
+			grantedRaw="$( LC_ALL=C awk 'BEGIN{IGNORECASE=1} /^x-oauth-scopes:/ { sub(/^[^:]*:[ \t]*/, "") ; gsub(/\r/, "") ; print ; exit }' <<< "$scopeDump" )"
 
 			if [ -z "$grantedRaw" ] ; then
 				echo "slack-scopes[$identity]: could-not-check"

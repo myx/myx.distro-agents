@@ -143,9 +143,7 @@ case "$1" in
 				case "$sweepTarget" in
 					"$MDAT_DATA_ROOT"/*) renameCommitPaths+=( "$f" ) ;;
 				esac
-			done <<EOF
-$( find "$sweepTarget" -type f )
-EOF
+			done < <( find "$sweepTarget" -type f )
 		done
 		unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM
 
