@@ -206,7 +206,7 @@ function styleElem(text, b, i) {
 function processEmphasis(   closer, opener, ok, useLen, t) {
 	closer = 1
 	while (closer <= nTok) {
-		if (tkType[closer] != "delim" || !tkClose[closer] || tkLen[closer] == 0) { closer++ ; continue }
+		if (tkType[closer] != "delim" || !tkClose[closer] || tkLen[closer] == 0) { closer++ ; continue ; }
 		opener = closer - 1
 		ok = 0
 		while (opener >= 1) {
@@ -243,14 +243,14 @@ function processEmphasis(   closer, opener, ok, useLen, t) {
 		}
 		tkLen[opener] -= useLen ; tkLen[closer] -= useLen
 		for (t = opener + 1; t < closer; t++) {
-			if (tkType[t] == "delim") { tkType[t] = "text" ; tkText[t] = dupCh(tkChar[t], tkLen[t]) ; tkLen[t] = 0 }
+			if (tkType[t] == "delim") { tkType[t] = "text" ; tkText[t] = dupCh(tkChar[t], tkLen[t]) ; tkLen[t] = 0 ; }
 		}
 		if (tkLen[opener] == 0) tkType[opener] = "used"
-		if (tkLen[closer] == 0) { tkType[closer] = "used" ; closer++ }
+		if (tkLen[closer] == 0) { tkType[closer] = "used" ; closer++ ; }
 	}
 	for (t = 1; t <= nTok; t++) {
 		if (tkType[t] == "delim") {
-			if (tkLen[t] > 0) { tkType[t] = "text" ; tkText[t] = dupCh(tkChar[t], tkLen[t]) }
+			if (tkLen[t] > 0) { tkType[t] = "text" ; tkText[t] = dupCh(tkChar[t], tkLen[t]) ; }
 			else tkType[t] = "used"
 		}
 	}
@@ -267,7 +267,7 @@ function emitTokens(   t, out, curText, curB, curI) {
 			curB = tkB[t] ; curI = tkI[t] ; curText = curText tkText[t]
 			continue
 		}
-		if (curText != "") { out = appendElem(out, styleElem(curText, curB, curI)) ; curText = "" }
+		if (curText != "") { out = appendElem(out, styleElem(curText, curB, curI)) ; curText = "" ; }
 		if (tkType[t] == "code") out = appendElem(out, styledElem(tkText[t], "code"))
 		else if (tkType[t] == "mention") out = appendElem(out, mentionElem(tkText[t]))
 		else if (tkType[t] == "link") out = appendElem(out, linkElem(tkText[t], tkUrl[t]))
@@ -326,9 +326,9 @@ function parseInlineStyles(line,   n, i, j, k, c, closeIdx, spanText, mname, run
 		if (c == "`") {
 			closeIdx = 0
 			k = i + 1
-			while (k <= n) { if (substr(line, k, 1) == "`") { closeIdx = k ; break } ; k++ }
+			while (k <= n) { if (substr(line, k, 1) == "`") { closeIdx = k ; break } ; k++ ; }
 			spanText = (closeIdx > 0) ? substr(line, i + 1, closeIdx - i - 1) : ""
-			if (spanText != "") { addTok("code", spanText, "", 0) ; i = closeIdx + 1 ; continue }
+			if (spanText != "") { addTok("code", spanText, "", 0) ; i = closeIdx + 1 ; continue ; }
 			addTok("text", c, "", 0) ; i++
 			continue
 		}
@@ -339,7 +339,7 @@ function parseInlineStyles(line,   n, i, j, k, c, closeIdx, spanText, mname, run
 			k = i + 1
 			while (k <= n && substr(line, k, 1) != " " && substr(line, k, 1) != "\t") k++
 			mname = substr(line, i + 1, k - i - 1)
-			if (mname != "" && (mname in mention)) { addTok("mention", mention[mname], "", 0) ; i = k ; continue }
+			if (mname != "" && (mname in mention)) { addTok("mention", mention[mname], "", 0) ; i = k ; continue ; }
 			addTok("text", c, "", 0) ; i++
 			continue
 		}
@@ -645,12 +645,12 @@ function emitHeader(text) {
 	## them in any order is unambiguous.
 	indent = -1
 	text = ""
-	if (substr(line, 1, 2) == "- ") { indent = 0; text = substr(line, 3) }
-	else if (substr(line, 1, 4) == "  - ") { indent = 1; text = substr(line, 5) }
-	else if (substr(line, 1, 6) == "    - ") { indent = 2; text = substr(line, 7) }
+	if (substr(line, 1, 2) == "- ") { indent = 0; text = substr(line, 3) ; }
+	else if (substr(line, 1, 4) == "  - ") { indent = 1; text = substr(line, 5) ; }
+	else if (substr(line, 1, 6) == "    - ") { indent = 2; text = substr(line, 7) ; }
 
 	if (indent >= 0) {
-		if (runKind != "list") { flushRun(); runKind = "list" }
+		if (runKind != "list") { flushRun(); runKind = "list" ; }
 		if (indent != listIndent) {
 			closeListIndentRun()
 			listIndent = indent
@@ -664,7 +664,7 @@ function emitHeader(text) {
 	## parseInlineStyles() can scan the real characters; flushPara() joins
 	## the accumulated lines' own parsed elements with a literal "\n" text
 	## element between them.
-	if (runKind != "para") { flushRun(); runKind = "para" }
+	if (runKind != "para") { flushRun(); runKind = "para" ; }
 	paraLines[++paraLineCount] = line
 }
 

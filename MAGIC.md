@@ -63,7 +63,9 @@ Team-owned notes for the magic-* team.
 - Every operation is an arm of one shell function in one process, so `trap ... EXIT` inside an arm is the process's trap rather than that arm's. An op installing one while a caller's is already live replaces it, and the `trap - EXIT` it clears with removes the caller's along with its own.
 - The caller then runs on with no trap and nothing saying so: its own later `trap - EXIT` calls clear nothing, and whatever its trap was protecting survives only on the paths that also clean up explicitly. Abnormal termination is exactly when the trap was the only cleanup left, and exactly when it is no longer there.
 - An op reached through `$( ... )` runs in a subshell and cannot do this; an op called as a plain command in the caller's own shell can. Which of the two a call site uses is load-bearing, not a style choice.
-- An op needing no temp file installs no trap and the question never arises. Where one is needed, cleaning up explicitly on every return path costs a line per path and leaves the caller's trap intact.
+- An op needing no temp file installs no trap and the question never arises.
+- Where one is needed, explicit cleanup on every return path leaves the caller's trap intact but covers only the paths that were enumerated. A `set -e` abort, a signal, or an error in surrounding flow is by definition not one of them, and the file stays. Swapping a trap for explicit cleanup therefore trades one defect for another rather than removing one.
+- The form with neither defect is a trap inside a `( ... )` subshell — or inside the subshell that a `$( ... )` already runs in, where the block has to return a value. The trap is then that subshell's own, so it can never touch the caller's, and it still fires on every exit from the block, failure and signal included. `AgentsTools.Owner.include`'s `--owner-workspace-forget` and `myx.distro-.local`'s `LocalTools.Config.include` are the worked examples. Arm the trap before creating the file, so there is no window in which the file is real and the trap is not.
 
 ## Comments in scripts
 
@@ -118,7 +120,8 @@ Team-owned notes for the magic-* team.
 
 - A scratch location is either `mktemp -d -t "<prefix>-XXXXXXXX"`, the form `myx.distro-deploy` and `myx.distro-source` use, or a literal workspace path under `$MMDAPP/.local/temp/<name>` written out at each use site.
 - `mktemp -d "${TMPDIR:-/tmp}/..."` is `myx.common`'s own form. A hand-derived `${TMPDIR:-/tmp}` scratch path appears nowhere in this family and is not written here.
-- The MCP server's scratch root is `$MMDAPP/.local/temp/agent-mcp.$$/`, holding `wire.lock`, `req/<field>` and `out.<seq>`. The pid keeps concurrent servers apart, and the path is spelled out in full at every use so the location is on the line itself.
+- `$MMDAPP/.local/temp/<name>.$$` is this package's own general form, carrying 23 named paths across 15 files. The pid keeps concurrent runs apart, and the path is spelled out in full at every use so the location is on the line itself. The MCP server's scratch root — `$MMDAPP/.local/temp/agent-mcp.$$/`, holding `wire.lock`, `req/<field>` and `out.<seq>` — is one instance of that form, not a rule of its own.
+- Scratch is not the only shape a temp file takes here, and the two are not interchangeable. A temp that has a destination it is about to REPLACE follows "Installing a generated config over its target" above instead: `mktemp` in the target's own directory, `chmod` the temp, then `mv` it over the target. That form carries 12 sites in this package and is deliberately none of the scratch forms above — a scratch path has no destination, whereas an install temp IS the destination in progress, which is what makes its rename atomic and what makes a predictable name beside the target the symlink hazard that section describes.
 
 ## Environment init in `DistroAgentsTools.fn.sh`
 

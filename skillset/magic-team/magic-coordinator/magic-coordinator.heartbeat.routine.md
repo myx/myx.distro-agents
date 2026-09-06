@@ -170,7 +170,7 @@ WAIT: no
     - `--from-board <board-item-name> [--board-state <state>]...`
     - `--from-vault <vault-item-name>`
     - `--from-audit <audit-item-name>`
-  - Compatibility path `--from-file` may exist for legacy callers but is not the documented path for routine usage.
+  - `--from-file` is not the documented path for routine usage.
 
 ### Receipt packet (required)
 

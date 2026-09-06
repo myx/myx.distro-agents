@@ -60,4 +60,4 @@ function civilFromDays(z,   era, doe, yoe, y, doy, mp, d, m) {
 	print civilFromDays(int(value / 86400))
 }
 
-END { if (bad) exit 1 }
+END { if (bad) exit 1 ; }

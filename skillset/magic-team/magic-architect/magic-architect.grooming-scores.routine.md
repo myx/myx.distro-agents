@@ -5,8 +5,6 @@ invitees: none
 ---
 # magic-architect.grooming-scores.routine — the actual procedure
 
-Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contracts" → Routine. This file is a derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins.
-
 # Summary
 
 `magic-architect`'s idle-run routine that sets/refines RICE-style scores on open backlog items falling in this skill's own architecture-level domain of judgment.

@@ -90,7 +90,8 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-team.process-inbox.routine` — the distinct, board-adjacent inbox-item operation this routine is explicitly NOT (different input category: `feedback_*.md` auto-memory files vs. inbox items).- `magic-team/magic-team.board.md` — the "merge, don't duplicate" board-item-model discipline this routine's own merge step mirrors.
+- `magic-team.process-inbox.routine` — the distinct, board-adjacent inbox-item operation this routine is explicitly NOT (different input category: `feedback_*.md` auto-memory files vs. inbox items).
+- `magic-team/magic-team.board.md` — the "merge, don't duplicate" board-item-model discipline this routine's own merge step mirrors.
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.
 - `~/.claude/projects/<project>/memory/MEMORY.md` — the index referencing the `feedback_*.md` files this routine processes.
 

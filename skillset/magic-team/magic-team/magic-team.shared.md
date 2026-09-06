@@ -153,11 +153,12 @@ limitation is worded. Fill the gap in the tooling so the skillset need not menti
 One carve-out: a gap that needs a real external account or infrastructure action, not just code, is not a
 pure tooling fix. Flag it as its own decision point and stop; never pursue it silently.
 
-### Why this rule exists — measured, not asserted
+### Why this rule exists
 
-- Documenting internals couples member-owned docs to tooling refactors. Renaming **one** internal
-  option costs edits to **three** member-owned files, for a change that alters nothing any member
-  does; with internals out of the skillset, the same rename touches **zero** skillset files.
+- Documenting internals couples member-owned docs to tooling refactors. Renaming an internal
+  option then costs an edit to every member-owned file that names it, for a change that alters
+  nothing any member does; with internals out of the skillset, the same rename touches no
+  skillset file at all.
 - A documented forwarded flag manufactures contradictions that do not exist. A routine step whose
   documented scan scope disagrees with the step's own wording carries a self-flagged, unresolved
   mismatch — and deleting the internals **dissolves** it rather than resolving it, because there is no
@@ -345,7 +346,7 @@ Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
   - `## Librarian Comments`
     - `### Reference`
     - `### Conventions`
-- Landed instances of this shape exist under the owning `keeper-*`/`warden-*` members' own folders.
+- Instances of this shape live under the owning `keeper-*`/`warden-*` members' own folders.
 
 ### Partner / Client (`partner-*`/`client-*`)
 
@@ -399,7 +400,7 @@ Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
   - `## Librarian Comments`
     - `### Reference`
     - `### Conventions`
-- Landed instances of this shape exist under the owning `partner-*`/`client-*` members' own folders.
+- Instances of this shape live under the owning `partner-*`/`client-*` members' own folders.
 
 ### Oncall / Expert (`oncall-*`/`expert-*`)
 
@@ -506,7 +507,7 @@ Not a contract — the shape of a **generated** document, produced by tooling an
   - **Status forms** — `no new X`, `not requested`, `no scan was made`. Mutually exclusive, exactly one, and only ever *instead of* items.
   - **Annotation marks** — `partial`, `truncated`. They accompany items, and may co-occur with each other: a section can be over its cap and missing a source at the same time.
 - Three distinct `**NOTE:**` forms, never interchangeable: *no new X* (looked, found nothing), *not requested* (never looked), *no scan was made* (asked, could not look). That distinction is the document's own reason to exist: an empty result and an unperformed scan must never read alike.
-- **Form 1 always carries a denominator and its filter** — `no new X -- scanned <N> items, <M> matched <filter>`. It is the only form asserting a fact about the world rather than about the process, so it is the only one that can be wrong while looking right. Without the denominator, a broken filter and an empty tree render identically: the `--owner` extraction defect (0 of 256 items) would have read as a truthful "no board items".
+- **Form 1 always carries a denominator and its filter** — `no new X -- scanned <N> items, <M> matched <filter>`. It is the only form asserting a fact about the world rather than about the process, so it is the only one that can be wrong while looking right. Without the denominator, a broken filter and an empty tree render identically — an owner-extraction defect matching none of a full board's items reads exactly like a truthful "no board items".
 - A section with plural sources carries `sources-scanned: <N> of <M>`, and when `N < M` also a `**NOTE:** partial -- <source> not scanned, <reason>` beside its items — a populated section must still be able to report that something underneath it failed.
 - The aggregate `no new incoming communications` fires only when every requested comms sub-section is **empty and successfully scanned**; an unscannable sub-section is unknown, not empty, and blocks it.
 - Each comms sub-section states its own `identity:` before its `instrument:` — the account that sub-section was read through, and the member whose config supplied the credentials. Identifiers only (a Slack user id, an email address, a Trello username and id); credential values never appear in the document.
@@ -520,7 +521,7 @@ Not a contract — the shape of a **generated** document, produced by tooling an
   - `body-final-newline: absent` appears only when the body was emitted **whole** and storage did not end in a newline, and sits immediately before `body-lines:` so that `body-lines:` stays last. The emitter supplies the missing newline; nothing else is added or removed. A cut body never carries it: a body that did not reach its own last byte says nothing about how storage ended, and asserting it would be a claim the emitter cannot make.
   - A count rather than a delimiter is what makes the body byte-exact and the framing self-checking: after `N` lines a reader must find `##` or EOF, and if it does not, the document is corrupt and can say so.
   - The board section keeps frontmatter only, and keeps its no-cap rule. Board bodies are not carried here — `--member-read-board-item` already returns one.
-- **Wherever anything is cut, the document says so at the point it was cut** — a rule of the whole document, not a feature of one section. Two ratified forms, never a fresh one, and each states *what* was cut and *how much*, never merely that something was:
+- **Wherever anything is cut, the document says so at the point it was cut** — a rule of the whole document, not a feature of one section. Two forms, never a fresh one, and each states *what* was cut and *how much*, never merely that something was:
   - **Section-level mark**, when the item *count* is cut. Base form, for the email and Trello sections, emitted exactly: `**NOTE:** truncated -- <N> items found, capped at <M>`
   - Inbox form, for all four inbox sections, emitted exactly: `**NOTE:** truncated -- <N> items found, capped at <M> -- OLDEST kept, newest not shown`
   - The inbox form names the end it kept, because a count alone does not say which items are out of reach.

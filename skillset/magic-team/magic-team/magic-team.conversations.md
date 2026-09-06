@@ -539,9 +539,9 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
     cancels the first one out`.
     verbatim-benchmark (not-even-a-gap case): `given a complete, unscoped instruction to use a tool to
     read files, with nothing left unaddressed, the reply relays it onward and self-applies it with an
-    invented workspace-scope qualifier the instruction never stated. Corrected once, then pushed further,
-    with the human-owner stating plainly that no gap existed and the instruction had been given exactly
-    as meant. This is "more" in its purest form: not resolving a real ambiguity the wrong way, but
+    invented workspace-scope qualifier the instruction never stated. The instruction has no gap; the
+    qualifier is manufactured, not inferred from an ambiguity. This is "more" in its purest form: not
+    resolving a real ambiguity the wrong way, but
     manufacturing a restriction on an instruction that had no gap to fill in the first place — worse than
     ordinary gap-filling because there was no gap to justify filling anything`.
 
@@ -619,9 +619,9 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
     verbatim-benchmark: `given a plainly time-based instruction to check every file changed within a
     window, independent of which of several concurrent, independently-restarting sessions produced it, a
     restated readback of that same instruction quietly reattaches a this-session-only qualifier the
-    instruction never had — twice in the same exchange, the second time immediately after the first
-    instance of the same narrowing was already named and corrected — and is called out as programming the
-    task to fail rather than as an incidental extra word`.
+    instruction never had, and does so again in the same exchange even once that narrowing has been named
+    and corrected — a reattached qualifier of this kind programs the task to fail, it is not an incidental
+    extra word`.
 
 55. **recheck-available-context-before-treating-as-unknown**: Before asking a clarifying question, or
     before acting at all, actually re-read and reassess whatever is already known and available — never
@@ -642,10 +642,10 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
     corrections already made, or other context that changed — rather than defaulting to treating something
     as unknown; the specific source varies by situation, the obligation to check it never does`.
     verbatim-benchmark: `asked why a clarifying question was raised over a task parameter whose value was
-    already stated literally in the original instruction, the first fix proposed narrows the discipline to
-    only re-reading the original task text; corrected again to state the discipline reaches any relevant
-    available source — prior answers, prior corrections, changed context — and that omitting the check
-    itself, not which particular source was missed, is the actual failure`.
+    already stated literally in the original instruction, a fix narrowing the discipline to re-reading the
+    original task text alone is too narrow: the discipline reaches any relevant available source — prior
+    answers, prior corrections, changed context — and omitting the check itself, not which particular
+    source was missed, is the actual failure`.
 
 56. **ceiling-insertion-during-restatement**: Restating a criterion already stated as universal — every
     file, all workspaces, any session — carries that universal word through into the restatement

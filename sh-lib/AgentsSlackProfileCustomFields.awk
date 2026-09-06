@@ -5,9 +5,13 @@
 #
 #     <id>\t<label>\t<value>\t<alt>
 #
-# Two files, in this order, both raw Slack response bodies:
-#   1. team.profile.get   -- profile.fields is an ARRAY of {id,label,...}
-#   2. users.profile.get  -- profile.fields is an OBJECT keyed by that id
+# Two environment variables, both raw Slack response bodies:
+#   MDAT_CF_DEFS -- team.profile.get: profile.fields is an ARRAY of {id,label,...}
+#   MDAT_CF_VALS -- users.profile.get: profile.fields is an OBJECT keyed by that id
+#
+# Read from the environment, never with -v (which backslash-decodes and would
+# corrupt an escaped body) and never from a file: the caller already holds both
+# bodies in variables.
 #
 # WHY A DEDICATED READER. AgentsSlackJsonField.awk answers ONE fully qualified
 # path and cannot enumerate keys it was never told the names of. Custom field
@@ -28,8 +32,8 @@
 # sorting.
 #
 # EXIT: 0 records printed (possibly zero -- an account may legitimately have
-# filled none), 1 a body could not be scanned. Zero records is NOT an error and
-# is never reported as one.
+# filled none), 1 a body was absent or could not be scanned. Zero records is NOT
+# an error and is never reported as one; an absent body always is.
 #
 # Variable names are two-word camelCase throughout, per MAGIC.md: a bare `close`
 # as a parameter is an awk parse error, and the diagnostic points at the wrong
@@ -40,8 +44,8 @@ function skipQuoted(jsonText, scanPos,   curChar) {
 	scanPos++
 	while (scanPos <= length(jsonText)) {
 		curChar = substr(jsonText, scanPos, 1)
-		if (curChar == "\\") { scanPos += 2 ; continue }
-		if (curChar == "\"") { return scanPos + 1 }
+		if (curChar == "\\") { scanPos += 2 ; continue ; }
+		if (curChar == "\"") { return scanPos + 1 ; }
 		scanPos++
 	}
 	return 0
@@ -53,9 +57,9 @@ function matchBracket(jsonText, scanPos, openChar, closeChar,   nestDepth, curCh
 	textLen = length(jsonText)
 	while (scanPos <= textLen) {
 		curChar = substr(jsonText, scanPos, 1)
-		if (curChar == "\"") { scanPos = skipQuoted(jsonText, scanPos) ; if (scanPos == 0) return 0 ; continue }
+		if (curChar == "\"") { scanPos = skipQuoted(jsonText, scanPos) ; if (scanPos == 0) return 0 ; continue ; }
 		if (curChar == openChar) nestDepth++
-		else if (curChar == closeChar) { nestDepth-- ; if (nestDepth == 0) return scanPos }
+		else if (curChar == closeChar) { nestDepth-- ; if (nestDepth == 0) return scanPos ; }
 		scanPos++
 	}
 	return 0
@@ -79,26 +83,30 @@ function scalarNamed(objText, keyName,   foundPos, valuePos, endPos) {
 	return unescapeJson(substr(objText, valuePos + 1, endPos - valuePos - 2))
 }
 
-{ bodyText[FNR == 1 ? ++bodyCount : bodyCount] = bodyText[bodyCount] $0 }
+BEGIN {
+	defsText = ENVIRON["MDAT_CF_DEFS"]
+	valsText = ENVIRON["MDAT_CF_VALS"]
+}
 
 END {
-	if (bodyCount < 2) { print "custom-fields: two response bodies required" > "/dev/stderr" ; exit 1 }
+	## Absent input is a caller fault, never an account with no custom fields:
+	## both must carry a body, or nothing below can distinguish the two.
+	if (defsText == "" || valsText == "") { print "custom-fields: MDAT_CF_DEFS and MDAT_CF_VALS must each carry a response body" > "/dev/stderr" ; exit 1 ; }
 
 	## Definitions: profile.fields is an array of objects carrying id and label.
-	defsText = bodyText[1]
 	foundPos = index(defsText, "\"fields\":[")
 	fieldCount = 0
 	if (foundPos > 0) {
 		arrayStart = foundPos + length("\"fields\":")
 		arrayStop = matchBracket(defsText, arrayStart, "[", "]")
-		if (arrayStop == 0) { print "custom-fields: unterminated definitions array" > "/dev/stderr" ; exit 1 }
+		if (arrayStop == 0) { print "custom-fields: unterminated definitions array" > "/dev/stderr" ; exit 1 ; }
 		arrayText = substr(defsText, arrayStart + 1, arrayStop - arrayStart - 1)
 		scanPos = 1
 		while (scanPos <= length(arrayText)) {
 			curChar = substr(arrayText, scanPos, 1)
 			if (curChar == "{") {
 				objEnd = matchBracket(arrayText, scanPos, "{", "}")
-				if (objEnd == 0) { print "custom-fields: unterminated definition object" > "/dev/stderr" ; exit 1 }
+				if (objEnd == 0) { print "custom-fields: unterminated definition object" > "/dev/stderr" ; exit 1 ; }
 				objText = substr(arrayText, scanPos, objEnd - scanPos + 1)
 				fieldId = scalarNamed(objText, "id")
 				if (fieldId != "") {
@@ -110,18 +118,17 @@ END {
 				scanPos = objEnd + 1
 				continue
 			}
-			if (curChar == "\"") { scanPos = skipQuoted(arrayText, scanPos) ; continue }
+			if (curChar == "\"") { scanPos = skipQuoted(arrayText, scanPos) ; continue ; }
 			scanPos++
 		}
 	}
 
 	## Values: profile.fields is an object keyed by the same ids.
-	valsText = bodyText[2]
 	foundPos = index(valsText, "\"fields\":{")
 	if (foundPos > 0) {
 		objStart = foundPos + length("\"fields\":")
 		objStop = matchBracket(valsText, objStart, "{", "}")
-		if (objStop == 0) { print "custom-fields: unterminated values object" > "/dev/stderr" ; exit 1 }
+		if (objStop == 0) { print "custom-fields: unterminated values object" > "/dev/stderr" ; exit 1 ; }
 		innerText = substr(valsText, objStart + 1, objStop - objStart - 1)
 		scanPos = 1
 		while (scanPos <= length(innerText)) {
@@ -137,7 +144,7 @@ END {
 					objText = substr(innerText, keyEnd, objEnd - keyEnd + 1)
 					valueOf[fieldId] = scalarNamed(objText, "value")
 					altOf[fieldId] = scalarNamed(objText, "alt")
-					if (!(fieldId in knownId)) { knownId[fieldId] = 1 ; fieldCount++ ; orderedId[fieldCount] = fieldId }
+					if (!(fieldId in knownId)) { knownId[fieldId] = 1 ; fieldCount++ ; orderedId[fieldCount] = fieldId ; }
 					scanPos = objEnd + 1
 					continue
 				}

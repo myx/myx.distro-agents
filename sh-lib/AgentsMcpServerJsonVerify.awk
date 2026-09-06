@@ -27,7 +27,7 @@ function skipString(   c) {
 	p++
 	while (p <= n) {
 		c = substr(s, p, 1)
-		if (c == "\\") { p += 2; continue }
+		if (c == "\\") { p += 2; continue ; }
 		p++
 		if (c == "\"") return 1
 	}
@@ -51,7 +51,7 @@ function skipValue(   c) {
 function skipObject(   c) {
 	p++ # {
 	skipws()
-	if (substr(s, p, 1) == "}") { p++; return 1 }
+	if (substr(s, p, 1) == "}") { p++; return 1 ; }
 	while (1) {
 		skipws()
 		if (!skipString()) return 0
@@ -61,8 +61,8 @@ function skipObject(   c) {
 		if (!skipValue()) return 0
 		skipws()
 		c = substr(s, p, 1)
-		if (c == ",") { p++; continue }
-		if (c == "}") { p++; return 1 }
+		if (c == ",") { p++; continue ; }
+		if (c == "}") { p++; return 1 ; }
 		return 0
 	}
 }
@@ -70,13 +70,13 @@ function skipObject(   c) {
 function skipArray(   c) {
 	p++ # [
 	skipws()
-	if (substr(s, p, 1) == "]") { p++; return 1 }
+	if (substr(s, p, 1) == "]") { p++; return 1 ; }
 	while (1) {
 		if (!skipValue()) return 0
 		skipws()
 		c = substr(s, p, 1)
-		if (c == ",") { p++; continue }
-		if (c == "]") { p++; return 1 }
+		if (c == ",") { p++; continue ; }
+		if (c == "]") { p++; return 1 ; }
 		return 0
 	}
 }
@@ -88,7 +88,7 @@ function findKeyInObjectAt(objStart, targetKey,   keyStart, key, valStart) {
 	FOUND = 0
 	p++ # {
 	skipws()
-	if (substr(s, p, 1) == "}") { p++; return 1 }
+	if (substr(s, p, 1) == "}") { p++; return 1 ; }
 	while (1) {
 		skipws()
 		keyStart = p
@@ -100,10 +100,10 @@ function findKeyInObjectAt(objStart, targetKey,   keyStart, key, valStart) {
 		skipws()
 		valStart = p
 		if (!skipValue()) return 0
-		if (key == targetKey) { FOUND = 1; VALUE_START = valStart; VALUE_END = p }
+		if (key == targetKey) { FOUND = 1; VALUE_START = valStart; VALUE_END = p ; }
 		skipws()
-		if (substr(s, p, 1) == ",") { p++; continue }
-		if (substr(s, p, 1) == "}") { p++; return 1 }
+		if (substr(s, p, 1) == ",") { p++; continue ; }
+		if (substr(s, p, 1) == "}") { p++; return 1 ; }
 		return 0
 	}
 }
@@ -136,7 +136,7 @@ function countDupeEntriesAt(objStart,   keyStart, key, valStart) {
 	DUPES = 0
 	p++ # {
 	skipws()
-	if (substr(s, p, 1) == "}") { p++; return 1 }
+	if (substr(s, p, 1) == "}") { p++; return 1 ; }
 	while (1) {
 		skipws()
 		keyStart = p
@@ -150,8 +150,8 @@ function countDupeEntriesAt(objStart,   keyStart, key, valStart) {
 		if (!skipValue()) return 0
 		if (key != "myx.common" && isOurCommand(commandTokenAt(valStart))) DUPES++
 		skipws()
-		if (substr(s, p, 1) == ",") { p++; continue }
-		if (substr(s, p, 1) == "}") { p++; return 1 }
+		if (substr(s, p, 1) == ",") { p++; continue ; }
+		if (substr(s, p, 1) == "}") { p++; return 1 ; }
 		return 0
 	}
 }
@@ -186,27 +186,27 @@ END {
 	p = 1
 
 	skipws()
-	if (substr(s, p, 1) != "{") { print "not-a-json-object"; exit 1 }
-	if (!findKeyInObjectAt(p, topKey)) { print "unparsable"; exit 1 }
-	if (!FOUND) { print "no-" topKey "-key"; exit 1 }
+	if (substr(s, p, 1) != "{") { print "not-a-json-object"; exit 1 ; }
+	if (!findKeyInObjectAt(p, topKey)) { print "unparsable"; exit 1 ; }
+	if (!FOUND) { print "no-" topKey "-key"; exit 1 ; }
 	serversStart = VALUE_START
-	if (substr(s, serversStart, 1) != "{") { print topKey "-not-an-object"; exit 1 }
+	if (substr(s, serversStart, 1) != "{") { print topKey "-not-an-object"; exit 1 ; }
 
-	if (!findKeyInObjectAt(serversStart, "myx.common")) { print "unparsable"; exit 1 }
-	if (!FOUND) { print "no-myx.common-entry"; exit 1 }
+	if (!findKeyInObjectAt(serversStart, "myx.common")) { print "unparsable"; exit 1 ; }
+	if (!FOUND) { print "no-myx.common-entry"; exit 1 ; }
 	entryStart = VALUE_START
-	if (substr(s, entryStart, 1) != "{") { print "entry-not-an-object"; exit 1 }
+	if (substr(s, entryStart, 1) != "{") { print "entry-not-an-object"; exit 1 ; }
 
-	if (!findKeyInObjectAt(entryStart, "command")) { print "unparsable"; exit 1 }
-	if (!FOUND) { print "entry-has-no-command"; exit 1 }
-	if (substr(s, VALUE_START, VALUE_END - VALUE_START) != "\"" jsonEscape(wantCommand) "\"") { print "wrong-command"; exit 1 }
+	if (!findKeyInObjectAt(entryStart, "command")) { print "unparsable"; exit 1 ; }
+	if (!FOUND) { print "entry-has-no-command"; exit 1 ; }
+	if (substr(s, VALUE_START, VALUE_END - VALUE_START) != "\"" jsonEscape(wantCommand) "\"") { print "wrong-command"; exit 1 ; }
 
-	if (!findKeyInObjectAt(entryStart, "args")) { print "unparsable"; exit 1 }
-	if (!FOUND) { print "entry-has-no-args"; exit 1 }
-	if (squeeze(substr(s, VALUE_START, VALUE_END - VALUE_START)) != "[\"--run\"]") { print "wrong-args"; exit 1 }
+	if (!findKeyInObjectAt(entryStart, "args")) { print "unparsable"; exit 1 ; }
+	if (!FOUND) { print "entry-has-no-args"; exit 1 ; }
+	if (squeeze(substr(s, VALUE_START, VALUE_END - VALUE_START)) != "[\"--run\"]") { print "wrong-args"; exit 1 ; }
 
-	if (!countDupeEntriesAt(serversStart)) { print "unparsable"; exit 1 }
-	if (DUPES > 0) { print "duplicate-entry-for-this-server"; exit 1 }
+	if (!countDupeEntriesAt(serversStart)) { print "unparsable"; exit 1 ; }
+	if (DUPES > 0) { print "duplicate-entry-for-this-server"; exit 1 ; }
 
 	print "OK"
 }

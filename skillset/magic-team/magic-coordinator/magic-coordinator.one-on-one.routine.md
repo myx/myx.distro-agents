@@ -100,7 +100,6 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-team.coworking.routine` — the template this routine extends; its Steps are the opening this routine executes.
 - `magic-team.coworking.routine` — its Closure Steps are the closing this routine executes.
 - `magic-team.process-inbox.routine` — own-inbox processing.
-- `magic-team.coworking.routine` — the template this routine extends; its Steps are the opening this routine executes.
 - `magic-coordinator.communication-sweep.routine` — the DM-vs-public sensitivity judgment call this routine reuses for its `slack-magic-team` thread.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics.
 - `magic-team/magic-team.board.md` — "Who actually reads/writes the board" section, the obvious-vs-non-obvious board-item test.

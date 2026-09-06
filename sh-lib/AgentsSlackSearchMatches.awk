@@ -317,7 +317,7 @@ function parseArray(path,   idx, c) {
 ## The WHOLE input is accumulated and parsed once, never line by line: a
 ## pretty-printed body must parse exactly like the single-line one Slack sends
 ## today, and picking a line is the same class of accident as picking a match.
-{ doc = doc $0 "\n"; docSeen = 1 }
+{ doc = doc $0 "\n"; docSeen = 1 ; }
 
 END {
 	if (cutoff == "") {

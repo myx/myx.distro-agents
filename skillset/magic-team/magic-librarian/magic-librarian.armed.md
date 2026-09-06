@@ -126,8 +126,8 @@ All statements apply at the same time, always. These rules override a magic-team
 
 ## Routines (index)
 
-- `magic-librarian.conventions-check.routine` — `magic-librarian.conventions-check.routine`.
-- `magic-librarian.morning-review.routine` — `magic-librarian.morning-review.routine`.
+- `magic-librarian.conventions-check.routine` — the review pass checking a proposed change against the closest existing real analog in the repo/skill-set before it lands. Any armed member may run it inline.
+- `magic-librarian.morning-review.routine` — the once-per-workday joint `magic-coordinator`+`magic-librarian` checkpoint for board state-model drift and cross-file consistency.
 
 ## Content standards (team-wide, authored and stewarded by `magic-librarian`)
 
@@ -164,7 +164,7 @@ This unit model applies to ordinary README/AGENTS.md/CLAUDE.md work. The two sta
 - **Retiring a file whose content moves elsewhere entirely takes a short stub + pointer, never a byte-for-byte archive copy** — state what moved where and where to read/write it now; a full duplicate copy is not part of this team's actual safety net and isn't made as a matter of course.
 - **Applies wherever this kind of file gets touched** — not just during `magic-librarian.morning-review.routine`'s own passes (see that routine's own steps for where it applies there), but during the team self-sufficiency audit, an ad hoc doc-fix, or any other time this skill edits a routine/machinery/process-flow-defining file. Same standard, same scope, every time — including this skill's own reference-knowledge modules (`reference/*.md`) and any other team knowledge file, not just `<name>.routine.md`/member typed files.
 
-**Two precision failures to guard against — apply this to skill-info wording generally, not just here (human-owner's own instruction):**
+**Two precision failures to guard against — this applies to skill-info wording generally, not just here:**
 - **Diagnostic/explanatory content vs. operational instruction, marked as distinct.** A fact useful for *detecting or explaining* a situation ("main-loop is stopped, that's why nothing auto-advances") is not the same thing as the *actual instruction for how to behave*. When a file states both, don't let the diagnostic fact read as if it were the rule itself — state the real behavioral instruction as its own clearly-labeled content, with the diagnostic fact clearly subordinate to it, not interchangeable with it.
 - **Whose knowledge/judgment a rule actually describes, stated unambiguously.** A behavioral rule belongs in the file of the entity whose judgment it actually is (e.g. `magic-coordinator`'s own decision to invoke another routine reactively belongs in `magic-coordinator`'s own file, not bolted onto that routine's own definition as a special-case trigger) — write it there the first time, don't let it default to whichever file happens to be open when the rule is first captured.
 - Both risks come from capturing a rule quickly, mid-correction, without checking which of the two applies. Give wording precision a second look for anything captured live/reactively, not just for accreted-history language (the hygiene standard above).
@@ -267,11 +267,11 @@ Note: `--librarian-inbox-item-trash` (below) is inbox-sourced and does not rever
 
 ## `--librarian-list-team-files` Operation Reference
 
-`DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]` — read-only path listing of skill-folder files — no per-file stat call, so this stays fast even across the whole skill-root (measured: the `-dates` variant took ~3s over 678 files; this one is the no-stat fast path, sub-second). Default choice for existence/listing checks. Prints one skill-root-relative path per matched file, sorted alphabetically.
+`DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]` — read-only path listing of skill-folder files — no per-file stat call, so this stays fast even across the whole skill-root, where the `-dates` variant pays a stat per file. Default choice for existence/listing checks. Prints one skill-root-relative path per matched file, sorted alphabetically.
 
 ## `--librarian-list-team-files-dates` Operation Reference
 
-`DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]` — same listing plus `mtime`, slower (~3s over 678 files). Use only when mtimes are actually needed: mtime-before-editing checks, staleness sweeps. Prints one line per matched file: mtime (`YYYY-MM-DD HH:MM:SS`) then two spaces then the skill-root-relative path, sorted newest-first.
+`DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]` — same listing plus `mtime`, and slower for it: one stat call per file. Use only when mtimes are actually needed: mtime-before-editing checks, staleness sweeps. Prints one line per matched file: mtime (`YYYY-MM-DD HH:MM:SS`) then two spaces then the skill-root-relative path, sorted newest-first.
 
 ## `--librarian-inbox-item-trash` Operation Reference
 

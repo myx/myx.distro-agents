@@ -35,6 +35,12 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 No member-specific glossary terms for this member.
 
+# Team-Member's (-specific) local procedures
+
+Named procedure blocks. Steps below call them by name. Not separate routines — not visible outside this file.
+
+None currently defined.
+
 # Team-Member's (-specific) local rules
 
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.

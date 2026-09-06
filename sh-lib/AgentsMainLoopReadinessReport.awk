@@ -26,8 +26,8 @@
 # and the exit status it gates on are one computation. Exit 0 = ready, exit 1 =
 # not ready, so a caller gates on this program's own status.
 
-function keyPresent(key) { return (st[key] == "OK" || st[key] == "WARN") }
-function keyWarn(key)    { return (st[key] == "WARN") }
+function keyPresent(key) { return (st[key] == "OK" || st[key] == "WARN") ; }
+function keyWarn(key)    { return (st[key] == "WARN") ; }
 
 # Evaluates a floor item's transport groups (groups by "|", keys within a group
 # by ","). Satisfied when ANY one group has all its keys present. Results are
@@ -42,7 +42,7 @@ function evalFloor(spec,   n, groups, g, m, keys, j, allPresent, anyWarn) {
 			if (!keyPresent(keys[j])) allPresent = 0
 			if (keyWarn(keys[j]))     anyWarn = 1
 		}
-		if (allPresent) { RES_SAT = 1 ; if (anyWarn) RES_WARN = 1 ; return }
+		if (allPresent) { RES_SAT = 1 ; if (anyWarn) RES_WARN = 1 ; return ; }
 	}
 }
 
@@ -101,10 +101,10 @@ END {
 			floorList = floorList (floorList == "" ? "" : ", ") ilabel[i]
 			evalFloor(ispec[i])
 			if (RES_SAT) word = RES_WARN ? "ready (check)" : "ready"
-			else { word = "MISSING" ; fails++ }
+			else { word = "MISSING" ; fails++ ; }
 		} else {
 			if (keyPresent(ispec[i])) word = keyWarn(ispec[i]) ? "ready (check)" : "ready"
-			else { word = "not set" ; optionalUnset++ }
+			else { word = "not set" ; optionalUnset++ ; }
 		}
 		printf "  %s %s %s\n", ilabel[i], leader(ilabel[i], maxw), word
 	}

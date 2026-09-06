@@ -18,7 +18,7 @@ Does: fast/parallel-by-default check-and-act, one full sweep = one pass through 
 - Live-platform set is tracked knowledge, not rediscovered at sweep time: **email**, **Trello**, **Slack** (Jira/Confluence known-not-live). Update only on human-reported status change, or a check-call error pointing at a credential/availability problem.
 - Two source sets, both covered by every sweep, in this same pass: the executor's own team-scoped sources, and every `client-*` member's own external sources — each read under that member's own credentials, never under the team's. A `client-*` member is an avatar of this routine's own executor, which is why its traffic is swept here; no routine belongs to one particular client, and none is written.
 - Resolving which members exist, and reading each of them, is the input-scan's own work. This routine names no member, enumerates nothing and loops over nothing; what it owes is being ready for that operation's combined output, described in **check** below. Per-member coverage is landing in the operation — until it reports members, the document carries the executor's own sources alone.
-- Two kinds of traffic arrive, and the executor does different things with them. A message addressed between team members is **routed**: the coordinator is the delivery mechanism, not the addressee — `keeper-myx` addressing `magic-developer` in the team channel is the worked case, and this is how inter-member messaging works at all. A message addressed to the coordinator, any DM, any client DM under that member's own identity, and an unaddressed external request in a team channel is **handled** by the coordinator itself. A client's representation inside another organisation is the same mechanism, which is why a message on a member's own source runs under that member's own identity.
+- Two kinds of traffic arrive, and the executor does different things with them. A message addressed between team members is **routed**: the coordinator is the delivery mechanism, not the addressee — one member addressing another in the team channel (say `magic-tester` addressing `magic-developer`) is the canonical example, and this is how inter-member messaging works at all. A message addressed to the coordinator, any DM, any client DM under that member's own identity, and an unaddressed external request in a team channel is **handled** by the coordinator itself. A client's representation inside another organisation is the same mechanism, which is why a message on a member's own source runs under that member's own identity.
 - Credentials for every live platform are made available before check calls run, resolved by `magic-tooling` itself. Never print them into a transcript/chat/log.
 - Credentials unavailable: stop and ask the user immediately — no filesystem search, no fallback connector, no solo puzzle-solving past one failed round.
 - Open-thread set for Slack thread-reply checks: whichever `board-item`s are currently open and track a live Slack thread — `communication-channel-id` in the three-part `slack:<channel>:<ts>` shape; a bare `slack:<channel>` tracks no thread — read fresh each sweep, no separate registry.
@@ -114,7 +114,7 @@ Slack-only — email/Trello have no reaction primitive. Real, load-bearing async
 
 **Boundary**: only applies where a real Slack message exists — a board-item created directly as a file carries no `communication-channel-id` at all, and has no reaction step anywhere in its lifecycle.
 
-**Out of scope**: a one-time backfill of `:eyes:` reactions onto already-handled-but-unreacted historical messages — this mechanism only applies to messages read from here forward.
+**Out of scope**: backfilling `:eyes:` reactions onto messages handled before this mechanism read them — a reaction is applied only to a message this routine reads itself.
 
 **Mechanics**: the `--member-comms-slack-react` operation. Identity here is which token acts, not whose words are carried: the reaction is posted by the member whose own source the message sits on, under that member's own identity where it has one and the team bot where it does not. Already-present reaction is a harmless no-op.
 
@@ -167,7 +167,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--member-comms-slack-send-message` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>`. Identity (native user token vs. team bot token) is resolved internally — the caller never specifies it: auto-detected from `<team-member>`/`--identity-bot`/configured token as before, and if a send fails with `channel_not_found` under the auto-detected identity, the op retries once under the other identity on its own before giving up.
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>`. Identity (native user token vs. team bot token) is resolved internally — the caller never specifies it: auto-detected from `<team-member>`/`--identity-bot`/configured token, and if a send fails with `channel_not_found` under the auto-detected identity, the op retries once under the other identity on its own before giving up.
 
 ## `--member-upsert-member-inquiry` Operation Reference
 
@@ -199,7 +199,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ### Reads are whole conversations, and a truncated one fails rather than shortens
 
-Both `conversations.history` and `conversations.replies` page backwards, newest first. Channels and DMs are followed cursor-by-cursor to the end of this pass's window, so a busy conversation is no longer read as if it stopped at its first hundred messages. A thread is read in one call at the API ceiling of 999 replies instead, because `conversations.replies` repeats the thread parent on every page and merging those pages would duplicate it.
+Both `conversations.history` and `conversations.replies` page backwards, newest first. Channels and DMs are followed cursor-by-cursor to the end of this pass's window, so a busy conversation is read to the end of that window rather than to its first page. A thread is read in one call at the API ceiling of 999 replies instead, because `conversations.replies` repeats the thread parent on every page and merging those pages would duplicate it.
 
 A thread with more than 999 replies therefore **fails** rather than returning its newest 999 as though they were the whole thread — and it will fail on every pass until it is dealt with, which is the point. Two ways out, both deliberate: read the thread's older part directly, or set `ENV_MAGIC_SWEEP_SLACK_THREAD_TRUNCATE_OK=true` to accept the newest 999 with a loud note in the log. The second is right when this pass's own cut-off already puts the old end of that thread out of scope; it is not right as a standing setting, because it decides on the reader's behalf that the tail is enough.
 

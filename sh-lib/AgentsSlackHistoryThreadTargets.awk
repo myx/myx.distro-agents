@@ -142,8 +142,8 @@ function parseString(   c, out, hex, code, hex2, code2, cp) {
 }
 
 function emitLeaf(path, raw, val,   idx, rest) {
-	if (path == "ok") { apiOk = val; apiOkSeen = 1; return }
-	if (path == "error") { apiError = val; return }
+	if (path == "ok") { apiOk = val; apiOkSeen = 1; return ; }
+	if (path == "error") { apiError = val; return ; }
 	if (index(path, "messages.") != 1) return
 	rest = substr(path, length("messages.") + 1)
 	idx = rest
@@ -151,12 +151,12 @@ function emitLeaf(path, raw, val,   idx, rest) {
 	if (idx !~ /^[0-9]+$/) return
 	if (idx + 1 > msgCount) msgCount = idx + 1
 
-	if (rest == idx ".ts") { tsOf[idx] = val; return }
-	if (rest == idx ".reply_count") { replyCountOf[idx] = val; return }
-	if (rest == idx ".latest_reply") { latestReplyOf[idx] = val; return }
-	if (rest == idx ".user") { userOf[idx] = val; return }
-	if (rest == idx ".bot_id") { botIdOf[idx] = val; return }
-	if (rest == idx ".text") { textOf[idx] = val; return }
+	if (rest == idx ".ts") { tsOf[idx] = val; return ; }
+	if (rest == idx ".reply_count") { replyCountOf[idx] = val; return ; }
+	if (rest == idx ".latest_reply") { latestReplyOf[idx] = val; return ; }
+	if (rest == idx ".user") { userOf[idx] = val; return ; }
+	if (rest == idx ".bot_id") { botIdOf[idx] = val; return ; }
+	if (rest == idx ".text") { textOf[idx] = val; return ; }
 	if (index(rest, idx ".reply_users.") == 1) {
 		replyUsersOf[idx] = (idx in replyUsersOf) ? replyUsersOf[idx] " " val : val
 		return
@@ -199,7 +199,7 @@ function parseValue(path,   c, startp, val, raw) {
 function parseObject(path,   key, keypath, c) {
 	p++
 	skipws()
-	if (substr(s, p, 1) == "}") { p++; return }
+	if (substr(s, p, 1) == "}") { p++; return ; }
 	while (1) {
 		skipws()
 		key = parseString()
@@ -209,8 +209,8 @@ function parseObject(path,   key, keypath, c) {
 		parseValue(keypath)
 		skipws()
 		c = substr(s, p, 1)
-		if (c == ",") { p++; continue }
-		else if (c == "}") { p++; break }
+		if (c == ",") { p++; continue ; }
+		else if (c == "}") { p++; break ; }
 		else break
 	}
 }
@@ -219,14 +219,14 @@ function parseArray(path,   idx, c) {
 	p++
 	skipws()
 	idx = 0
-	if (substr(s, p, 1) == "]") { p++; return }
+	if (substr(s, p, 1) == "]") { p++; return ; }
 	while (1) {
 		parseValue(path "." idx)
 		idx++
 		skipws()
 		c = substr(s, p, 1)
-		if (c == ",") { p++; continue }
-		else if (c == "]") { p++; break }
+		if (c == ",") { p++; continue ; }
+		else if (c == "]") { p++; break ; }
 		else break
 	}
 }
@@ -261,7 +261,7 @@ function parseArray(path,   idx, c) {
 	next
 }
 
-{ linesSeen++; s = $0; n = length(s); p = 1; parseValue("") }
+{ linesSeen++; s = $0; n = length(s); p = 1; parseValue("") ; }
 
 # One call per document: from END for the only/last document, and from the
 # marker rule above for every document before the last. `channel`, the

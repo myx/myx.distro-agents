@@ -56,7 +56,7 @@ Three things follow:
 ## The habit this exists to break
 
 - Agents over-structure by default — wrapping, naming, extracting and layering because it looks professional rather than because the code needed it — and the result reads as scaffolding around a small idea.
-- That single habit produced every distinct defect found in one package's review: a capture bug hidden behind a helper, a scratch path no reader could resolve from the code, a convention imported from the wrong project and concealed behind a variable name, a 200-line heredoc inlined where every sibling package sources a dedicated include, a wrapper that re-sourced its own file to reach a function in it.
+- That single habit is what a whole class of defect comes out of, and one package's worth of them all trace back to it: a capture bug hidden behind a helper, a scratch path no reader can resolve from the code, a convention imported from the wrong project and concealed behind a variable name, a 200-line heredoc inlined where every sibling package sources a dedicated include, a wrapper that re-sources its own file to reach a function in it.
 - Subprocess inheritance, pipe semantics and the rest are symptoms, not the rule: write less structure and they do not arise.
 
 ## The three costs of a needless name

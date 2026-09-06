@@ -51,8 +51,8 @@ for regression testing and development**, separate from every package under test
 Not a bucket every test must land in — a suite, and what it carries is: a
 **testbed** (the environment a test runs against), a **harness** (the machinery
 that drives it), **fake data** (fixtures standing in for the real thing), and
-**some infra** (whatever those need to exist and run). `magic-tester` and
-`keeper-ae3` run one for the AE3 domain. The
+**some infra** (whatever those need to exist and run). `magic-tester` runs one
+with the owning `keeper-*` in the domain that has such a suite. The
 dependency direction is why it is a project of its own: a workspace contains it,
 and it does not depend on the workspace. Test machinery placed inside a package
 inverts that.

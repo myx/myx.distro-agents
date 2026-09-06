@@ -40,7 +40,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 Short, routine-independent definitions — each term's own meaning stands on its own, not tied to any specific routine using it. Full behavioral descriptions live natively in each routine that uses a term, not here and not cross-referenced from here.
 
 - `resume-review` — a content-dispatch-hygiene procedure: on reactivation, dispatch any already-settled-but-undispatched sub-pieces and shrink tracking scope to what's still open.
-- `check-restart` — the general liveness/nudge mechanism for an already-active `board-running` item: nudge if a session is alive, spawn or execute inline if not. Inlined into `check-execute-board` (`magic-coordinator.advance.routine`) — not a standalone procedure. Per-type outcomes (completion, escalation, re-ask) are `check-process-board`'s/`check-execute-board`'s own per-type rules, not part of this mechanism.
+- `check-restart` — the general liveness/nudge mechanism for an already-active `board-running` item: nudge if a session is alive, spawn or execute inline if not. Lives inside `check-execute-board` (`magic-coordinator.advance.routine`) — not a standalone procedure. Per-type outcomes (completion, escalation, re-ask) are `check-process-board`'s/`check-execute-board`'s own per-type rules, not part of this mechanism.
 - `roster-note` — the team's roster cache, one record held as `magic-coordinator`'s own inbox note: member/domain/posture rows plus the per-member persona subsections (Description/Name/Gender/Eyes/Alias/AKA/Birthday/Avatar, whichever fields a member's own file states). Read via `--magic-team-roster-read`, and returned by `--magic-grooming-input-scan` as its own section; refreshed in place via `--magic-team-roster-upsert`. Source of truth stays each member's live `SKILL.md` description for the rows and each member's own `.basic.md` "## Public Information" section for the personas, never this cache.
 - `heartbeat-state-note` — `magic-coordinator.heartbeat.routine`'s own day-rhythm state record; read via `--magic-heartbeat-state-read`, rewritten in place via `--magic-heartbeat-state-upsert`.
 
@@ -412,7 +412,7 @@ Most of this member's decision-making is embedded directly in the Local rules ab
 
 # Team-Member's (-specific) tooling
 
-Every `magic-tooling` operation this member's own procedures/rules actually invoke by name. Full syntax and behavior pulled from `Help.DistroAgentsTools.help.md` — none invented. `--console-start` and `--member-append-session-transcript` are not listed: no text anywhere in this folder — this file's own, or any of the 9 routine files — actually invokes them. `--help` is not listed either, being a universal baseline op already covered by `magic-team/magic-team.armed.md`'s own "Team-Member's (-specific) tooling" section, same as every other member's own Tooling section.
+Every `magic-tooling` operation this member's own procedures/rules actually invoke by name. Syntax and behavior are authoritative from `Help.DistroAgentsTools.help.md`, never invented here. An operation no procedure or rule in this folder invokes is not listed — `--console-start` and `--member-append-session-transcript` are out on that ground. `--help` is not listed either, being a universal baseline op already covered by `magic-team/magic-team.armed.md`'s own "Team-Member's (-specific) tooling" section, same as every other member's own Tooling section.
 
 **Prefix grant**: the whole `--member-*` and `--magic-*` namespaces — an operation in either that is not listed below is still allowed.
 

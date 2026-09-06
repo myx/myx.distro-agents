@@ -39,7 +39,7 @@ function skipString(   c) {
 	p++
 	while (p <= n) {
 		c = substr(s, p, 1)
-		if (c == "\\") { p += 2; continue }
+		if (c == "\\") { p += 2; continue ; }
 		p++
 		if (c == "\"") return 1
 	}
@@ -64,7 +64,7 @@ function skipValue(   c) {
 function skipObject(   c) {
 	p++
 	skipws()
-	if (substr(s, p, 1) == "}") { p++; return 1 }
+	if (substr(s, p, 1) == "}") { p++; return 1 ; }
 	while (1) {
 		skipws()
 		if (!skipString()) return 0
@@ -74,8 +74,8 @@ function skipObject(   c) {
 		if (!skipValue()) return 0
 		skipws()
 		c = substr(s, p, 1)
-		if (c == ",") { p++; continue }
-		if (c == "}") { p++; return 1 }
+		if (c == ",") { p++; continue ; }
+		if (c == "}") { p++; return 1 ; }
 		return 0
 	}
 }
@@ -83,13 +83,13 @@ function skipObject(   c) {
 function skipArray(   c) {
 	p++
 	skipws()
-	if (substr(s, p, 1) == "]") { p++; return 1 }
+	if (substr(s, p, 1) == "]") { p++; return 1 ; }
 	while (1) {
 		if (!skipValue()) return 0
 		skipws()
 		c = substr(s, p, 1)
-		if (c == ",") { p++; continue }
-		if (c == "]") { p++; return 1 }
+		if (c == ",") { p++; continue ; }
+		if (c == "]") { p++; return 1 ; }
 		return 0
 	}
 }
@@ -100,7 +100,7 @@ function findKeyInObjectAt(objStart, targetKey,   keyStart, key, valStart) {
 	FOUND = 0
 	p++
 	skipws()
-	if (substr(s, p, 1) == "}") { p++; return 1 }
+	if (substr(s, p, 1) == "}") { p++; return 1 ; }
 	while (1) {
 		skipws()
 		keyStart = p
@@ -112,10 +112,10 @@ function findKeyInObjectAt(objStart, targetKey,   keyStart, key, valStart) {
 		skipws()
 		valStart = p
 		if (!skipValue()) return 0
-		if (key == targetKey) { FOUND = 1; VALUE_START = valStart; VALUE_END = p }
+		if (key == targetKey) { FOUND = 1; VALUE_START = valStart; VALUE_END = p ; }
 		skipws()
-		if (substr(s, p, 1) == ",") { p++; continue }
-		if (substr(s, p, 1) == "}") { p++; return 1 }
+		if (substr(s, p, 1) == ",") { p++; continue ; }
+		if (substr(s, p, 1) == "}") { p++; return 1 ; }
 		return 0
 	}
 }
@@ -142,7 +142,7 @@ function validJson(txt, want,   savedS, savedN, savedP, ok) {
 	s = txt; n = length(s); p = 1
 	skipws()
 	ok = (substr(s, p, 1) == want) && skipValue()
-	if (ok) { skipws(); ok = (p > n) }
+	if (ok) { skipws(); ok = (p > n) ; }
 	s = savedS; n = savedN; p = savedP
 	return ok
 }
@@ -170,8 +170,8 @@ function stringArrayAt(arrStart,   count, elemStart) {
 		skipString()
 		ELEMS[count++] = substr(s, elemStart + 1, p - elemStart - 2)
 		skipws()
-		if (substr(s, p, 1) == ",") { p++; continue }
-		if (substr(s, p, 1) == "]") { p++; return count }
+		if (substr(s, p, 1) == ",") { p++; continue ; }
+		if (substr(s, p, 1) == "]") { p++; return count ; }
 		fail("permissions-array-malformed")
 	}
 }
@@ -190,7 +190,7 @@ function inList(list, count, value,   i) {
 function basenameOf(path,   i, slash) {
 	slash = 0
 	for (i = length(path); i >= 1; i--) {
-		if (substr(path, i, 1) == "/") { slash = i; break }
+		if (substr(path, i, 1) == "/") { slash = i; break ; }
 	}
 	if (slash == 0) return path
 	return substr(path, slash + 1)
