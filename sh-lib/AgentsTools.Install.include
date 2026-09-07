@@ -41,15 +41,15 @@ AgentsToolsInstallScanMembers(){
 		## here -- so they land on stderr beside the error line below, which names
 		## the tool and its exit status.
 		selectStatus=0
-		selectedProjects="$( MMDAPP="$scanWorkspace" "$projectsTool" --distro-source-only --select-all )" || selectStatus=$?
+		selectedProjects="$( MMDAPP="$scanWorkspace" "$projectsTool" --select-all )" || selectStatus=$?
 
 		## --select-from-env refuses an empty selection, so an empty one is never
 		## handed to it: the arm below reports that case for itself.
 		declaredStatus=0
-		[ -z "$selectedProjects" ] || declaredMembers="$( MMDAPP="$scanWorkspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --distro-source-only --select-from-env --filter-and-cut 'magic-team:team-member' )" || declaredStatus=$?
+		[ -z "$selectedProjects" ] || declaredMembers="$( MMDAPP="$scanWorkspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --filter-and-cut 'magic-team:team-member' )" || declaredStatus=$?
 
 		if [ "$selectStatus" != "0" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroProjects --distro-source-only --select-all exited $selectStatus for workspace $scanWorkspace" >&2
+			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroProjects --select-all exited $selectStatus for workspace $scanWorkspace" >&2
 			scanDiscoveryError="true" ; scanDiscoveryTrusted="false"
 		elif [ -z "$selectedProjects" ] ; then
 			## A scan that succeeded and found nothing: with no project there is no
@@ -808,7 +808,7 @@ case "$1" in
 			grantsTrusted="false"
 		else
 			selectStatus=0
-			selectedProjects="$( MMDAPP="$workspace" "$projectsTool" --distro-source-only --select-all )" || selectStatus=$?
+			selectedProjects="$( MMDAPP="$workspace" "$projectsTool" --select-all )" || selectStatus=$?
 
 			## --select-from-env refuses an empty selection, so an empty one is never
 			## handed to it: the arm below reports that case for itself.
@@ -818,13 +818,13 @@ case "$1" in
 			## is --unroll-filter-and-cut (SystemContext.include), the same mechanism
 			## ndci-common-hook already goes through -- never a matcher written here.
 			if [ -n "$selectedProjects" ] ; then
-				declaredNamespace="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --distro-source-only --select-from-env --filter-and-cut 'magic-team:permissions:namespace' )" || declaredStatus=$?
-				declaredWorkspace="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --distro-source-only --select-from-env --filter-and-cut 'magic-team:permissions:workspace' )" || declaredStatus=$?
-				declaredProject="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --distro-source-only --select-from-env --unroll-filter-and-cut 'magic-team:permissions:project:' cat )" || declaredStatus=$?
+				declaredNamespace="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --filter-and-cut 'magic-team:permissions:namespace' )" || declaredStatus=$?
+				declaredWorkspace="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --filter-and-cut 'magic-team:permissions:workspace' )" || declaredStatus=$?
+				declaredProject="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --unroll-filter-and-cut 'magic-team:permissions:project:' cat )" || declaredStatus=$?
 			fi
 
 			if [ "$selectStatus" != "0" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: COULD-NOT-CHECK declared allow-write: ListDistroProjects --distro-source-only --select-all exited $selectStatus for workspace $workspace" >&2
+				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: COULD-NOT-CHECK declared allow-write: ListDistroProjects --select-all exited $selectStatus for workspace $workspace" >&2
 				grantsTrusted="false"
 			elif [ -z "$selectedProjects" ] ; then
 				echo "🙋 WARNING: $MDSC_CMD --install-claude-permissions: workspace $workspace selects no distro projects, so none declares an allow-write grant -- nothing is removed" >&2
