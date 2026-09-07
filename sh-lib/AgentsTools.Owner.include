@@ -34,11 +34,12 @@ case "$1" in
 		[ "$wsPath" = "/" ] || wsPath="${wsPath%/}"
 		## Local machine data, held beside the skill symlinks rather than inside
 		## the packaged skill folder, which is a public git working tree. See MAGIC.md.
+		## The directory is storage for that data, not a member set, so it is created on first use.
 		local ownerDir="$HOME/.claude/skills"
-		if [ ! -d "$ownerDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: no such skills directory: $ownerDir" >&2
+		mkdir -p "$ownerDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: can't create skills directory: $ownerDir" >&2
 			set +e ; return 1
-		fi
+		}
 		local ownerFile="$ownerDir/.human-owner.workspaces.md"
 		touch "$ownerFile"
 		if grep -Fxq -- "$wsPath" "$ownerFile" ; then
@@ -108,29 +109,184 @@ case "$1" in
 		return 0
 	;;
 
+	--owner-credential-store-verify)
+		shift
+		local storeDir="$MMDAPP/.local/.agents"
+		if [ ! -d "$storeDir" ] ; then
+			echo "# $MDSC_CMD --owner-credential-store-verify: $storeDir does not exist yet (nothing to verify)" >&2
+			return 0
+		fi
+
+		local storeFailed=0
+		local storePerm
+		storePerm="$( stat -f '%Lp' "$storeDir" 2>/dev/null || stat -c '%a' "$storeDir" 2>/dev/null )"
+		if [ "$storePerm" = "770" ] ; then
+			echo "OK   770  $storeDir"
+		else
+			echo "BAD  ${storePerm:-?}  $storeDir  (expected 770)"
+			storeFailed=1
+		fi
+
+		local storeFile
+		for storeFile in "$storeDir"/*.agent.env ; do
+			[ -e "$storeFile" ] || continue
+			storePerm="$( stat -f '%Lp' "$storeFile" 2>/dev/null || stat -c '%a' "$storeFile" 2>/dev/null )"
+			if [ "$storePerm" = "660" ] ; then
+				echo "OK   660  $storeFile"
+			else
+				echo "BAD  ${storePerm:-?}  $storeFile  (expected 660)"
+				storeFailed=1
+			fi
+		done
+
+		if [ "$storeFailed" = "1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-verify: one or more paths under $storeDir are not hardened to 660/770" >&2
+			set +e ; return 1
+		fi
+		echo "# $MDSC_CMD --owner-credential-store-verify: all paths under $storeDir are correctly hardened (770 dir / 660 files)" >&2
+		return 0
+	;;
+
+	--owner-credential-store-harden)
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-harden: takes no arguments -- always hardens $MMDAPP/.local/.agents" >&2
+			set +e ; return 1
+		fi
+		local storeDir="$MMDAPP/.local/.agents"
+		if [ ! -d "$storeDir" ] ; then
+			echo "# $MDSC_CMD --owner-credential-store-harden: $storeDir does not exist yet (nothing to harden)" >&2
+			return 0
+		fi
+		local storeFailed=0
+		chmod 770 "$storeDir" || storeFailed=1
+		local storeFile
+		for storeFile in "$storeDir"/*.agent.env ; do
+			[ -e "$storeFile" ] || continue
+			chmod 660 "$storeFile" || storeFailed=1
+		done
+		if [ "$storeFailed" = "1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-harden: could not set 770/660 on every path under $storeDir" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --owner-credential-store-verify || return 1
+		return 0
+	;;
+
+	--owner-credential-store-self-test)
+		shift
+		echo "# $MDSC_CMD --owner-credential-store-self-test: exercising --agents-config-option permission-hardening under umask 022 (ignoring caller's ambient umask)" >&2
+
+		local probeKey="DAT_SELFTEST_PROBE"
+		local probeVal="selftest-$$-$( date +%s )"
+		local probeFailed=0
+
+		if ! ( umask 022 ; DistroAgentsTools --agents-config-option magic-coordinator --upsert "$probeKey" "$probeVal" >/dev/null ) ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-self-test: --upsert under umask 022 failed" >&2
+			set +e ; return 1
+		fi
+
+		DistroAgentsTools --owner-credential-store-verify || probeFailed=1
+
+		if [ "$( DistroAgentsTools --agents-config-option magic-coordinator --select "$probeKey" )" != "$probeVal" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-self-test: probe key round-trip mismatch" >&2
+			probeFailed=1
+		fi
+
+		DistroAgentsTools --agents-config-option magic-coordinator --delete "$probeKey" >/dev/null
+
+		if [ "$probeFailed" = "1" ] ; then
+			echo "⛔ $MDSC_CMD --owner-credential-store-self-test: FAILED" >&2
+			set +e ; return 1
+		fi
+		echo "# $MDSC_CMD --owner-credential-store-self-test: PASSED -- permission hardening holds under umask 022" >&2
+		return 0
+	;;
+
+	--owner-cleanup-purge)
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-cleanup-purge: takes no arguments -- always purges $MMDAPP/.local/.cleanup" >&2
+			set +e ; return 1
+		fi
+		local cleanupDir="$MMDAPP/.local/.cleanup"
+		if [ ! -d "$cleanupDir" ] ; then
+			echo "# $MDSC_CMD --owner-cleanup-purge: $cleanupDir does not exist -- nothing to purge" >&2
+			return 0
+		fi
+		echo "# $MDSC_CMD --owner-cleanup-purge: purging all contents of $cleanupDir (folder itself stays)" >&2
+		local cleanupEntry
+		for cleanupEntry in "$cleanupDir"/* "$cleanupDir"/.[!.]* ; do
+			[ -e "$cleanupEntry" ] || [ -L "$cleanupEntry" ] || continue
+			echo "  rm -rf $cleanupEntry" >&2
+			rm -rf -- "$cleanupEntry"
+		done
+		echo "# $MDSC_CMD --owner-cleanup-purge: done" >&2
+		return 0
+	;;
+
 	## --owner-setup-<domain> -- per-domain setup op family, one domain per macro
-	## part of a working installation. Three modes: a bare call writes the readable
-	## status and names the command that sets the domain up; --check writes the
-	## per-setting detail; --apply and --wizard carry out the setup and are not
-	## built yet. Argument grammar, family-wide: options and their values first,
-	## then at most one sub-operation LAST -- anything after one is an error.
-	## A config-key domain wraps --intern-op-check-configs; a domain whose subject
-	## is not config keys checks that subject itself. Either way a config setting is
-	## judged by its VALUE at its own use site -- unset or empty is FAIL, never OK,
-	## and a config file existing is never the check. An artifact the installation
-	## is made of -- a console script, an access fragment -- is a different subject,
-	## and there its own presence is exactly what is being asked.
-	## A diagnosis answers about the current $MMDAPP; a domain that can also report
-	## every registered workspace offers that behind --all-workspaces, never as the
-	## default. The family is open and grows: a domain with no defined check set
-	## reports "no checks defined yet", never an invented check.
+	## part of a working installation. A bare call, --check, --apply,
+	## --print-apply-command and --wizard are its five states. MAGIC.md's own
+	## "The --owner-setup-* family" section carries the contract: argument
+	## grammar, what each state does, what a domain declares, and which subjects
+	## are settings rather than preconditions.
 	--owner-setup-*)
 		local setupDomain="${1#--owner-setup-}"
 		shift
-		local setupAllWorkspaces="" setupOperation=""
+		local setupAllWorkspaces="" setupSetAsDefault="" setupOperation=""
+		local setupWorkspaceRoot="" setupAccessRoots="" setupAccessRootReal=""
+		local setupValuesFromStdin="" setupOptionArgs=()
 		while [ $# -gt 0 ] ; do
 			case "$1" in
-				--check|--apply|--wizard)
+				--values-from-stdin) setupValuesFromStdin="yes" ; shift ;;
+				--workspace-root|--access-root)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: $1: a path is required" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--workspace-root) setupWorkspaceRoot="${2%/}" ;;
+						## Stored resolved and absolute, never as given. This value becomes
+						## an --add-dir token on the agent's own launch line, and the console
+						## changes to $MMDAPP before exec, so a relative path grants a
+						## directory nobody named: '.' would grant the whole workspace and
+						## '..' its parent, from a typo. Resolving through cd/pwd -P settles
+						## absoluteness, existence, '.'/'..' and a whitespace-only value in
+						## one test. Colon-joined because a config value holds one line, so a
+						## path carrying ':' cannot be expressed and is refused, not split.
+						--access-root)
+							case "$2" in
+								*:*)
+									echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --access-root: a path containing ':' cannot be stored in this setting: $2" >&2
+									set +e ; return 1
+								;;
+							esac
+							## Tested as given, before resolving: `cd .` succeeds and
+							## pwd -P then returns an absolute path, so resolving first
+							## would accept '.' and grant whatever directory the caller
+							## happened to be in.
+							case "$2" in
+								/*) ;;
+								*)
+									echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --access-root: must be given as an absolute path, starting with '/': $2" >&2
+									set +e ; return 1
+								;;
+							esac
+							setupAccessRootReal="$( cd "$2" 2>/dev/null && pwd -P || : )"
+							case "$setupAccessRootReal" in
+								/*) ;;
+								*)
+									echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --access-root: must name an existing directory by absolute path; this does not resolve to one: $2" >&2
+									set +e ; return 1
+								;;
+							esac
+							setupAccessRoots="${setupAccessRoots}${setupAccessRoots:+:}$setupAccessRootReal"
+						;;
+					esac
+					shift 2
+				;;
+				--check|--apply|--print-apply-command|--wizard)
 					setupOperation="$1"
 					shift
 					if [ $# -gt 0 ] ; then
@@ -139,20 +295,32 @@ case "$1" in
 					fi
 				;;
 				--all-workspaces) setupAllWorkspaces="yes" ; shift ;;
+				--set-as-default) setupSetAsDefault="yes" ; shift ;;
+				## Any other flag is one of this domain's configuration options. Its
+				## key is the flag without the dashes, uppercased, dashes as
+				## underscores -- mechanical, so no option name is known here. The
+				## engine holds the catalogue and refuses a name this domain has
+				## not declared, which is where a typo is caught.
+				--*)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: $1: a value is required -- options first, then one of --check, --apply, --print-apply-command or --wizard last" >&2
+						set +e ; return 1
+					fi
+					setupOptionArgs+=( --value "$( printf '%s' "${1#--}" | tr 'a-z-' 'A-Z_' )=$2" )
+					shift 2
+				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: unknown argument: $1 -- options first, then one of --check, --apply or --wizard last" >&2
+					echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: unknown argument: $1 -- options first, then one of --check, --apply, --print-apply-command or --wizard last" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
-		case "$setupOperation" in
-			--apply|--wizard)
-				echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: $setupOperation is not built yet -- a bare call writes the readable status and names the command that sets this domain up, and --check writes the per-setting detail" >&2
-				set +e ; return 1
-			;;
-		esac
-		## A domain whose diagnosis cannot span workspaces rejects --all-workspaces
-		## rather than accepting a flag it would then ignore.
+		if [ "$setupOperation" = "--wizard" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --wizard is not built yet -- --apply carries the same setup non-interactively, a bare call writes the readable status and names that command, --check writes the per-setting detail, and --print-apply-command writes the command an --apply would carry out" >&2
+			set +e ; return 1
+		fi
+		## Each option and sub-operation is accepted only by a domain that declares
+		## it, so a flag is never taken and then ignored.
 		if [ -n "$setupAllWorkspaces" ] ; then
 			case "$setupDomain" in
 				claude) ;;
@@ -162,10 +330,174 @@ case "$1" in
 				;;
 			esac
 		fi
+		## An option whose meaning depends on the sub-operation is refused in the
+		## wrong company rather than accepted and dropped.
+		if [ -n "$setupWorkspaceRoot" ] && [ -n "$setupAllWorkspaces" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --workspace-root names one workspace and --all-workspaces reports every registered one, so they do not combine" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$setupAccessRoots" ] && [ "$setupOperation" != "--apply" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --access-root supplies a value to store and so takes effect only with --apply" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$setupValuesFromStdin" ] && [ "$setupOperation" != "--apply" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --values-from-stdin supplies a set of values to store and so takes effect only with --apply" >&2
+			set +e ; return 1
+		fi
+		## The flag as it was given, read back out of the key it was folded into,
+		## so a name the domain does not take shows itself here rather than later.
+		if [ ${#setupOptionArgs[@]} -ne 0 ] && [ "$setupOperation" != "--apply" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --$( printf '%s' "${setupOptionArgs[1]%%=*}" | tr 'A-Z_' 'a-z-' ) supplies a value to store and so takes effect only with --apply" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$setupAllWorkspaces" ] && [ "$setupOperation" = "--print-apply-command" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --all-workspaces reports on every registered workspace and --print-apply-command writes the command for exactly one, so they do not combine" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$setupAllWorkspaces" ] && [ "$setupOperation" = "--apply" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --all-workspaces reports on every registered workspace and --apply changes exactly one, so they do not combine -- run --apply from each workspace you mean to change" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$setupSetAsDefault" ] && [ "$setupOperation" != "--apply" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --set-as-default changes the selection and so takes effect only with --apply, which is the sub-operation that carries a change out" >&2
+			set +e ; return 1
+		fi
+		## Each domain declares its own option set, what installs its own subject,
+		## and which of its values only make sense together. Nothing about what an
+		## option MEANS lives here: the engine holds that, and refuses a name a
+		## domain has not declared, so a new domain is a new declaration and never
+		## a change to the engine. A domain's subject is its own name.
+		local setupDeclareArgs=()
+		case "$setupDomain" in
+			claude|copilot)
+				## SPAWN_CLI_SERVICE is not declared required: the service selection
+				## below is what sets it, so requiring it too would refuse the very
+				## call that supplies it.
+				setupDeclareArgs=(
+					--allow SPAWN_CLI_SERVICE
+					--allow CLIENT_ACCESS_ROOTS_EXTRA
+					--service-key SPAWN_CLI_SERVICE --service-value "$setupDomain"
+					--install-probe "command -v $setupDomain"
+					--install-command "myx.common install/$setupDomain"
+				)
+			;;
+			slack)
+				setupDeclareArgs=(
+					--require SLACK_CHANNEL_MAGIC_TEAM
+					--require SLACK_CHANNEL_HUMAN_OWNER
+					## SLACK_USER_TOKEN is not declared here: it is a per-member
+					## identity, held in each member's own scope, not one value the
+					## workspace has. Declaring it would ask for it once and write
+					## it somewhere no member reads.
+					--allow SLACK_BOT_TOKEN
+					--allow SLACK_WORKSPACE_DOMAIN
+					--allow SLACK_CHANNEL_EVENT_TRACK
+					--allow SLACK_CHANNEL_EVENT_ALERT
+					--require-together SLACK_BOT_TOKEN,SLACK_WORKSPACE_DOMAIN
+				)
+			;;
+			storage)
+				setupDeclareArgs=(
+					--require TEAM_DATA_DIRECTORY
+					--allow TEAM_DATA_GIT_REMOTE
+				)
+			;;
+		esac
+
+		## One reads the domain's declaration to carry the setup out, the other to
+		## write the command that would.
+		case "$setupOperation" in
+			--apply|--print-apply-command)
+				if [ ${#setupDeclareArgs[@]} -eq 0 ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: this domain declares no options" >&2
+					set +e ; return 1
+				fi
+				## The engine's own mode word for the sub-operation asked for.
+				local setupEngineMode="--render-full"
+				[ "$setupOperation" != "--apply" ] || setupEngineMode="--apply"
+
+				## claude's workspace trust, recorded before anything else this apply
+				## writes: claude discards EVERY permissions.allow entry of an
+				## untrusted workspace, so whatever gets configured below is inert
+				## until this is set. It is not an option in the catalogue -- it lives
+				## in claude's own machine-global state file rather than in a config
+				## scope of ours -- which is why the domain carries it here instead of
+				## declaring it. --print-apply-command changes nothing and so is out.
+				if [ "$setupDomain" = "claude" ] && [ "$setupOperation" = "--apply" ] ; then
+					local setupTrustRoot="${setupWorkspaceRoot:-${MMDAPP%/}}"
+					if [ -L "$HOME/.claude.json" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: $HOME/.claude.json is a symlink, and recording trust replaces that file -- which would leave a regular file where you put a link" >&2
+						set +e ; return 1
+					fi
+					if [ ! -f "$HOME/.claude.json" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: claude's own state file is absent, and this writes into that file rather than standing a replacement in its place -- start claude once so it writes $HOME/.claude.json, then re-run" >&2
+						set +e ; return 1
+					fi
+					local setupTrustLine="$( MYX_CLAUDEVERIFY_PROJECT_PATH="$setupTrustRoot" \
+						MYX_CLAUDEVERIFY_PROJECT_TRUE="hasTrustDialogAccepted" \
+						LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeSettingsVerify.awk" \
+						< "$HOME/.claude.json" 2>/dev/null || : )"
+					case "$setupTrustLine" in
+						*": OK")
+							echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupTrustRoot is already trusted"
+						;;
+						*)
+							## The mode is carried onto the replacement rather than
+							## asserted: this file is claude's, and an apply is not the
+							## place to decide what it should be. A mode that cannot be
+							## read stops the run, since the alternative is a file left at
+							## whatever the ambient umask gave.
+							local setupTrustMode="$( stat -f '%Lp' "$HOME/.claude.json" 2>/dev/null || stat -c '%a' "$HOME/.claude.json" 2>/dev/null )"
+							if [ -z "$setupTrustMode" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: could not read the mode of $HOME/.claude.json, so a replacement could not be given the same one -- nothing was changed" >&2
+								set +e ; return 1
+							fi
+							local setupTrustRc=0
+							(
+								## umask first, so the replacement is never briefly wider than
+								## the file it replaces; the chmod below then matches it exactly.
+								umask 077
+								trustTempFile="$HOME/.claude.json.$$"
+								trap 'rm -f -- "$trustTempFile"' EXIT
+								: > "$trustTempFile"
+								chmod "$setupTrustMode" "$trustTempFile"
+								## Explicitly tested, never left to set -e: the caller below
+								## tests this subshell, which suspends set -e within it, and an
+								## untested failure here would install the writer's own zero
+								## bytes over claude's state file.
+								MYX_CLAUDETRUST_PROJECT_PATH="$setupTrustRoot" \
+									MYX_CLAUDETRUST_PROJECT_TRUE="hasTrustDialogAccepted" \
+									LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeProjectTrustUpsert.awk" \
+									< "$HOME/.claude.json" >>"$trustTempFile" || exit 1
+								mv "$trustTempFile" "$HOME/.claude.json" || exit 1
+							) || setupTrustRc=$?
+							if [ "$setupTrustRc" != "0" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: could not record trust for $setupTrustRoot in $HOME/.claude.json, which is unchanged -- the reason above is the writer's own" >&2
+								set +e ; return 1
+							fi
+							echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: trust recorded for $setupTrustRoot"
+						;;
+					esac
+				fi
+
+				local setupApplyRc=0
+				DistroAgentsTools --intern-op-owner-setup "$setupDomain" "$setupEngineMode" \
+					--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" \
+					"${setupDeclareArgs[@]}" \
+					${setupOptionArgs[@]+"${setupOptionArgs[@]}"} \
+					${setupAccessRoots:+--value} ${setupAccessRoots:+"CLIENT_ACCESS_ROOTS_EXTRA=$setupAccessRoots"} \
+					${setupValuesFromStdin:+--values-from-stdin} \
+					${setupSetAsDefault:+--set-as-default} || setupApplyRc=$?
+				return "$setupApplyRc"
+			;;
+		esac
+
 		[ "$setupOperation" != "--check" ] || echo "# $MDSC_CMD --owner-setup-$setupDomain --check: read-only diagnosis (nothing applied)"
+		## Each arm leaves its verdict here rather than returning it, so the
+		## pointer below is reached by every domain and not written once per arm.
+		local setupRc=0
 		case "$setupDomain" in
 			slack)
-				local setupRc=0
 				## Activity-log and alert channels never gate: with neither set the
 				## traffic they carry falls back to the team channel, so an absent
 				## one costs routing, not a working installation.
@@ -183,10 +515,8 @@ case "$1" in
 					--optional "SLACK_BOT_TOKEN:<token>" \
 					--expect-secret SLACK_BOT_TOKEN \
 					--context --owner-setup-slack || true
-				return "$setupRc"
 			;;
 			storage)
-				local setupRc=0
 				DistroAgentsTools --intern-op-check-configs magic-coordinator \
 					--required "TEAM_DATA_DIRECTORY:<path>" \
 					--expect-path-exists "TEAM_DATA_DIRECTORY:${MDAT_DATA_ROOT:-}" \
@@ -194,23 +524,223 @@ case "$1" in
 				DistroAgentsTools --intern-op-check-configs magic-team \
 					--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \
 					--context --owner-setup-storage || true
-				return "$setupRc"
 			;;
 			copilot)
-				echo "$setupDomain: no checks defined yet"
-				echo "  note: this domain's access is granted through the filesystem access-roots"
-				echo "        (AgentsToolsClientAccessRoots), not through --agents-config-option"
-				echo "        settings -- there is no config-key required-set to diagnose here yet,"
-				echo "        and a directory-existence check is deliberately not used for this."
-				return 0
+				## What a spawn actually needs: the proxy runs
+				## DistroAgentsConsole.sh --cli-configured --non-interactive, which
+				## takes SPAWN_CLI_SERVICE, refuses to guess when it is unset, and
+				## execs copilot with --allow-all-tools and the access fragment's
+				## --add-dir tokens. Each of those is a subject below. Authentication
+				## is the one gate nothing here can read.
+				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
+				local setupToolPath="$setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				local setupBlockers="" setupSetupSteps=""
+				local setupCliValue setupConsole setupFragment
+				local setupFragmentRoots setupCurrentRoots setupRootLine
+				local setupStaleRoots="" setupMissingRoots=""
+
+				if command -v copilot >/dev/null 2>&1 ; then
+					[ "$setupOperation" != "--check" ] || echo "COPILOT_CLI_INSTALLED: OK"
+					AgentsToolsOwnerSetupRow "Copilot CLI" "installed"
+				else
+					[ "$setupOperation" != "--check" ] || {
+						echo "COPILOT_CLI_INSTALLED: FAIL"
+						echo "  warn: copilot is not in PATH -- once it is the selected CLI the console"
+						echo "        exits rather than substituting another one, so nothing starts here"
+						echo "  fix:  $setupToolPath --owner-setup-copilot --apply"
+					}
+					AgentsToolsOwnerSetupRow "Copilot CLI" "NOT INSTALLED"
+					setupSetupSteps="${setupSetupSteps}  $setupToolPath --owner-setup-copilot --apply"$'\n'
+					setupBlockers="$setupBlockers COPILOT_CLI_INSTALLED"
+					setupRc=1
+				fi
+
+				## Reported, never probed: copilot's own --help lists login and no
+				## status or auth sub-command, and the token login writes goes to the
+				## system credential store. Anything that would exercise it starts a
+				## billable session, which is a worse check than none.
+				[ "$setupOperation" != "--check" ] || {
+					echo "COPILOT_AUTHENTICATED: NOT CHECKED"
+					echo "  warn: copilot exposes no status or auth sub-command, and its token lives"
+					echo "        in the system credential store, so nothing here reads it back -- an"
+					echo "        unauthenticated CLI fails at its first spawn, not in this report"
+					echo "  fix:  copilot login   -- once, if a spawn comes back with an auth error"
+				}
+				AgentsToolsOwnerSetupRow "Copilot login" "not checked"
+
+				## Read only where the scope file already exists: a --select through
+				## --agents-config-option creates the file it reads.
+				setupCliValue=""
+				if [ -f "$setupHere/.local/.agents/magic-team.agent.env" ] ; then
+					setupCliValue="$( MMDAPP="$setupHere" ; DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE || : )"
+				fi
+				if [ -z "$setupCliValue" ] ; then
+					[ "$setupOperation" != "--check" ] || {
+						echo "SPAWN_CLI_SERVICE: FAIL"
+						echo "  warn: unset here, so a spawn exits rc=5 without choosing a CLI and its"
+						echo "        caller falls back to an internal agent rather than starting copilot"
+						echo "  why:  the setting lives in $setupHere/.local/.agents/, so"
+						echo "        selecting copilot in one workspace does nothing for any other"
+						echo "  fix:  $setupToolPath --owner-setup-copilot --apply"
+					}
+					AgentsToolsOwnerSetupRow "CLI selection" "NOT SET (spawn fails)"
+					## No step here: an unset option is exactly what the what-is-missing
+					## command below renders, over the domain's whole declaration.
+					setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
+					setupRc=1
+				elif [ "$setupCliValue" = "copilot" ] ; then
+					[ "$setupOperation" != "--check" ] || echo "SPAWN_CLI_SERVICE: OK"
+					AgentsToolsOwnerSetupRow "CLI selection" "copilot"
+				else
+					[ "$setupOperation" != "--check" ] || {
+						echo "SPAWN_CLI_SERVICE: WARN"
+						echo "  warn: set to '$setupCliValue', so this workspace runs $setupCliValue and never copilot"
+						echo "  fix:  $setupToolPath --owner-setup-copilot --set-as-default --apply"
+					}
+					AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue"
+					setupSetupSteps="${setupSetupSteps}  $setupToolPath --owner-setup-copilot --set-as-default --apply"$'\n'
+				fi
+
+				## copilot needs two markers claude does not: --allow-all-tools, which
+				## its own help makes a requirement of non-interactive mode, and the
+				## branch that reads the fragment into --add-dir tokens.
+				setupConsole="$setupHere/DistroAgentsConsole.sh"
+				if [ ! -f "$setupConsole" ] ; then
+					[ "$setupOperation" != "--check" ] || {
+						echo "AGENTS_CONSOLE_SCRIPT: FAIL"
+						echo "  warn: this workspace has no agents console, so nothing here starts an"
+						echo "        agent at all"
+						echo "  path: $setupConsole"
+						echo "  fix:  $setupToolPath --make-workspace-integrations"
+					}
+					AgentsToolsOwnerSetupRow "Agents console" "MISSING"
+					setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+					setupBlockers="$setupBlockers AGENTS_CONSOLE_SCRIPT"
+					setupRc=1
+				elif ! grep -q 'cli-configured' "$setupConsole" 2>/dev/null || ! grep -q 'DISTRO_CONSOLE_EXEC' "$setupConsole" 2>/dev/null || ! grep -qF 'copilot-add-dir.fragment' "$setupConsole" 2>/dev/null || ! grep -qF 'allow-all-tools' "$setupConsole" 2>/dev/null ; then
+					[ "$setupOperation" != "--check" ] || {
+						echo "AGENTS_CONSOLE_SCRIPT: FAIL"
+						echo "  warn: generated before the console could refuse a spawn with no CLI"
+						echo "        selected, announce DISTRO_CONSOLE_EXEC, feed the access fragment"
+						echo "        into copilot's --add-dir argv, or pass --allow-all-tools -- copilot"
+						echo "        requires that flag non-interactively, and without the fragment it"
+						echo "        launches with no granted directory at all"
+						echo "  path: $setupConsole"
+						echo "  fix:  $setupToolPath --make-workspace-integrations"
+						echo "  then: re-run this check -- what that regenerates from is the template"
+						echo "        under the origin MDLT_CONSOLE_ORIGIN selects, not the path above"
+					}
+					AgentsToolsOwnerSetupRow "Agents console" "STALE"
+					setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+					setupBlockers="$setupBlockers AGENTS_CONSOLE_SCRIPT"
+					setupRc=1
+				else
+					[ "$setupOperation" != "--check" ] || echo "AGENTS_CONSOLE_SCRIPT: OK"
+					AgentsToolsOwnerSetupRow "Agents console" "current"
+				fi
+
+				## The fragment is copilot's whole access grant -- it carries no
+				## settings.json -- and only --install-copilot-access-fragment
+				## rewrites it, so a root added to or dropped from the access set
+				## after the last install leaves it granting the wrong directories
+				## with nothing else saying so. Current means: what the installer
+				## would write from here right now, root for root.
+				setupFragment="$setupHere/.claude/copilot-add-dir.fragment"
+				if [ ! -s "$setupFragment" ] ; then
+					[ "$setupOperation" != "--check" ] || {
+						echo "CLIENT_ACCESS_ROOTS: FAIL"
+						echo "  warn: no access fragment, so the console launches copilot with no"
+						echo "        --add-dir root at all and a spawned agent is denied on its very"
+						echo "        first read of .agents/skills/<member>/<member>.basic.md"
+						echo "  path: $setupFragment"
+						echo "  fix:  $setupToolPath --install-copilot-access-fragment"
+					}
+					AgentsToolsOwnerSetupRow "Skill access roots" "NO GRANTS"
+					setupSetupSteps="${setupSetupSteps}  $setupToolPath --install-copilot-access-fragment"$'\n'
+					setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
+					setupRc=1
+				else
+					setupFragmentRoots="$( grep '^/' "$setupFragment" || : )"
+					setupCurrentRoots="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessRoots "$setupHere" )"
+					while IFS= read -r setupRootLine ; do
+						[ -n "$setupRootLine" ] || continue
+						case "$setupCurrentRoots" in
+							"$setupRootLine"|"$setupRootLine"$'\n'*|*$'\n'"$setupRootLine"|*$'\n'"$setupRootLine"$'\n'*) ;;
+							*) setupStaleRoots="${setupStaleRoots}$setupRootLine"$'\n' ;;
+						esac
+					done <<< "$setupFragmentRoots"
+					while IFS= read -r setupRootLine ; do
+						[ -n "$setupRootLine" ] || continue
+						case "$setupFragmentRoots" in
+							"$setupRootLine"|"$setupRootLine"$'\n'*|*$'\n'"$setupRootLine"|*$'\n'"$setupRootLine"$'\n'*) ;;
+							*) setupMissingRoots="${setupMissingRoots}$setupRootLine"$'\n' ;;
+						esac
+					done <<< "$setupCurrentRoots"
+					if [ -z "$setupStaleRoots" ] && [ -z "$setupMissingRoots" ] ; then
+						[ "$setupOperation" != "--check" ] || echo "CLIENT_ACCESS_ROOTS: OK"
+						AgentsToolsOwnerSetupRow "Skill access roots" "current"
+					else
+						[ "$setupOperation" != "--check" ] || {
+							echo "CLIENT_ACCESS_ROOTS: FAIL"
+							echo "  warn: the fragment no longer matches the access-root set it was built"
+							echo "        from, so copilot is launched against the directories below and"
+							echo "        not the ones this workspace now resolves:"
+							while IFS= read -r setupRootLine ; do
+								[ -n "$setupRootLine" ] || continue
+								echo "        granted, no longer in the set: $setupRootLine"
+							done <<< "$setupStaleRoots"
+							while IFS= read -r setupRootLine ; do
+								[ -n "$setupRootLine" ] || continue
+								echo "        in the set, not granted:       $setupRootLine"
+							done <<< "$setupMissingRoots"
+							echo "  why:  the fragment is written once, by --install-copilot-access-fragment;"
+							echo "        changing CLIENT_ACCESS_ROOTS_EXTRA, or adding or retiring a member,"
+							echo "        moves the set underneath it and rewrites nothing"
+							echo "  path: $setupFragment"
+							echo "  fix:  $setupToolPath --install-copilot-access-fragment"
+						}
+						AgentsToolsOwnerSetupRow "Skill access roots" "STALE"
+						setupSetupSteps="${setupSetupSteps}  $setupToolPath --install-copilot-access-fragment"$'\n'
+						setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
+						setupRc=1
+					fi
+				fi
+
+				if [ -z "$setupOperation" ] ; then
+					echo ""
+					if [ -n "$setupSetupSteps" ] ; then
+						echo "To set this workspace up, run:"
+						printf '%s' "$setupSetupSteps"
+					elif [ -n "$setupBlockers" ] ; then
+						echo "This workspace is not ready, and no single command closes what is left."
+						echo "Run --check for the detail on:$setupBlockers"
+					else
+						echo "This workspace is set up for copilot."
+					fi
+				fi
 			;;
 			claude)
-				local setupRc=0
-				local setupRegistry="$HOME/.claude/skills/.linked.magic-team.members.txt"
+				local setupRegistry="$MDAT_SKILLSET_ROOT/.linked.magic-team.members.txt"
 				## Trailing slash stripped once, because every basename and prefix
 				## test below reads this: "$MMDAPP/" yields an empty basename, and a
 				## run keyed on it diagnoses nothing while still exiting 0.
-				local setupHere="${MMDAPP%/}"
+				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
+
+				## claude's whole declaration: one service selection, applied in the
+				## workspace that is its own basic setting. Trust, the CLI install,
+				## console freshness and access-root completeness are preconditions the
+				## diagnosis reports -- none of them is an option an apply can carry.
+				if [ "$setupOperation" = "--apply" ] ; then
+					local setupApplyRc=0
+					DistroAgentsTools --intern-op-owner-setup claude --apply \
+						--workspace "$setupHere" \
+						--service-scope magic-team \
+						--service-key SPAWN_CLI_SERVICE \
+						--service-value claude \
+						${setupAccessRoots:+--access-roots} ${setupAccessRoots:+"$setupAccessRoots"} \
+						${setupSetAsDefault:+--set-as-default} || setupApplyRc=$?
+					return "$setupApplyRc"
+				fi
 
 				## The console's own two sets. A spawned agent is always launched
 				## --non-interactive, and the console narrows its scan to the second
@@ -227,8 +757,10 @@ case "$1" in
 				done
 
 				local setupClaudePath="$( command -v claude || : )"
+				local setupClaudeMissing=""
 				if [ -z "$setupClaudePath" ] ; then
 					setupRc=1
+					setupClaudeMissing="yes"
 					[ "$setupOperation" != "--check" ] || {
 						echo "CLAUDE_CLI_INSTALLED: FAIL"
 						echo "  warn: claude is not in PATH, so no workspace on this machine runs it"
@@ -275,7 +807,7 @@ case "$1" in
 					## volume reports as unreachable instead of as unknown. The glob
 					## carries no trailing slash for the same reason -- that form
 					## matches directories, and a link into an unmounted volume dangles.
-					for setupSlot in "$HOME"/.claude/skills/* ; do
+					for setupSlot in "$MDAT_SKILLSET_ROOT"/* ; do
 						[ -L "$setupSlot" ] || continue
 						setupWalk="$( readlink "$setupSlot" || : )"
 						case "$setupWalk" in /*) ;; *) continue ;; esac
@@ -329,6 +861,9 @@ case "$1" in
 					echo "        more; otherwise run --make-workspace-integrations from it, so that"
 					echo "        a member links into it again"
 					setupVerdict="${setupVerdict}$( printf '  %-28s not diagnosed -- workspace root unknown' "$setupLabel" )"$'\n'
+					## A registered name reaching no workspace is a fault in the registry,
+					## so it fails the run rather than passing quietly.
+					setupRc=1
 				done
 
 				while IFS= read -r setupRoot ; do
@@ -363,11 +898,19 @@ case "$1" in
 						}
 						AgentsToolsOwnerSetupRow "Workspace root" "NOT A WORKSPACE"
 						setupVerdict="${setupVerdict}$( printf '  %-28s not diagnosed -- %s is not a workspace' "$setupLabel" "$setupRoot" )"$'\n'
+						## A registered name resolving to something that is not a workspace
+						## is a fault; an unreachable volume above is not, and so leaves the
+						## status alone while still counting as nothing diagnosed.
+						setupRc=1
 						continue
 					fi
 					setupDiagnosed=$(( setupDiagnosed + 1 ))
 					[ "$setupOperation" != "--check" ] || echo "WORKSPACE_ROOT: OK"
 					setupToolPath="$setupRoot/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+					if [ -n "$setupClaudeMissing" ] ; then
+						setupSetupSteps="${setupSetupSteps}  myx.common install/claude"$'\n'
+						setupBlockers="$setupBlockers CLAUDE_CLI_INSTALLED"
+					fi
 
 					## One boolean, through the settings verifier this package already
 					## owns: its output is OK/MISSING per asserted setting and it never
@@ -392,10 +935,10 @@ case "$1" in
 								echo "  warn: claude discards EVERY permissions.allow entry of this workspace's"
 								echo "        .claude/settings.json while it is untrusted, so nothing else here"
 								echo "        can take effect -- this one comes before all of them"
-								echo "  fix:  start claude once in $setupRoot and accept the trust prompt"
+								echo "  fix:  $setupToolPath --owner-setup-claude --apply"
 							}
 							AgentsToolsOwnerSetupRow "Workspace trust" "NOT ACCEPTED"
-							setupSetupSteps="${setupSetupSteps}  start claude once in $setupRoot and accept the trust prompt -- no command can do this one for you"$'\n'
+							setupSetupSteps="${setupSetupSteps}  $setupToolPath --owner-setup-claude --apply   -- records this workspace's trust in claude's own state file, before anything else it configures"$'\n'
 							setupBlockers="$setupBlockers WORKSPACE_TRUSTED"
 							setupRc=1
 						;;
@@ -424,15 +967,18 @@ case "$1" in
 						setupWillRun="${setupAutoCli:-nothing}"
 						[ "$setupOperation" != "--check" ] || {
 							echo "SPAWN_CLI_SERVICE: FAIL"
-							echo "  warn: unset here, so the console falls back to the first installed of"
-							echo "        '$setupSpawnClis' and this workspace runs ${setupAutoCli:-no CLI at all}"
+							echo "  warn: unset here, so an agent-initiated spawn in this workspace fails"
+							echo "        rather than choosing a CLI, and its caller falls back to an"
+							echo "        internal spawn -- --cli-auto still scans, but only for a console"
+							echo "        the human-owner starts himself"
 							echo "  why:  the setting lives in $setupRoot/.local/.agents/, so setting it in"
 							echo "        one workspace does nothing for any other"
-							echo "  fix:  $setupToolPath --member-config-option magic-team --upsert SPAWN_CLI_SERVICE claude"
+							echo "  fix:  $setupToolPath --owner-setup-claude --apply"
 						}
-						AgentsToolsOwnerSetupRow "CLI selection" "NOT SET (runs ${setupAutoCli:-nothing})"
-						setupSetupSteps="${setupSetupSteps}  $setupToolPath --member-config-option magic-team --upsert SPAWN_CLI_SERVICE claude"$'\n'
-						setupValueHelp="${setupValueHelp}  SPAWN_CLI_SERVICE   the agent CLI this workspace starts -- one of '$setupKnownClis'; a spawned agent runs non-interactively and the console accepts only '$setupSpawnClis' there"$'\n'
+						AgentsToolsOwnerSetupRow "CLI selection" "NOT SET (spawn fails)"
+						## No step and no value note here: an unset option is exactly what
+						## the what-is-missing command below renders, over the domain's whole
+						## declaration rather than this one key.
 						setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
 						setupRc=1
 					else
@@ -443,10 +989,10 @@ case "$1" in
 								echo "SPAWN_CLI_SERVICE: FAIL"
 								echo "  warn: set to '$setupCliValue', which the console does not accept -- it"
 								echo "        exits on an unsupported CLI rather than choosing another"
-								echo "  fix:  $setupToolPath --member-config-option magic-team --upsert SPAWN_CLI_SERVICE claude"
+								echo "  fix:  $setupToolPath --owner-setup-claude --set-as-default --apply"
 							}
 							AgentsToolsOwnerSetupRow "CLI selection" "REJECTED ($setupCliValue)"
-							setupSetupSteps="${setupSetupSteps}  $setupToolPath --member-config-option magic-team --upsert SPAWN_CLI_SERVICE claude"$'\n'
+							setupSetupSteps="${setupSetupSteps}$( DistroAgentsTools --intern-op-owner-setup claude --render-full --workspace "$setupRoot" --allow SPAWN_CLI_SERVICE --service-key SPAWN_CLI_SERVICE --service-value claude --set-as-default || : )"$'\n'
 							setupValueHelp="${setupValueHelp}  SPAWN_CLI_SERVICE   the agent CLI this workspace starts -- one of '$setupKnownClis'"$'\n'
 							setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
 							setupRc=1
@@ -471,9 +1017,14 @@ case "$1" in
 									echo "  warn: set to '$setupCliValue', which runs interactively but not for a"
 									echo "        spawned agent -- those are launched non-interactively, where the"
 									echo "        console accepts only '$setupSpawnClis'"
-									echo "  fix:  $setupToolPath --member-config-option magic-team --upsert SPAWN_CLI_SERVICE claude"
+									echo "  fix:  $setupToolPath --owner-setup-claude --set-as-default --apply"
 								}
 								AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue (cannot be spawned)"
+								## A selection no spawn can use blocks the thing this domain
+								## exists for, so it carries a step like any other blocker.
+								setupSetupSteps="${setupSetupSteps}$( DistroAgentsTools --intern-op-owner-setup claude --render-full --workspace "$setupRoot" --allow SPAWN_CLI_SERVICE --service-key SPAWN_CLI_SERVICE --service-value claude --set-as-default || : )"$'\n'
+								setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
+								setupRc=1
 							elif [ "$setupCliValue" = "claude" ] ; then
 								[ "$setupOperation" != "--check" ] || echo "SPAWN_CLI_SERVICE: OK"
 								AgentsToolsOwnerSetupRow "CLI selection" "claude"
@@ -481,9 +1032,10 @@ case "$1" in
 								[ "$setupOperation" != "--check" ] || {
 									echo "SPAWN_CLI_SERVICE: WARN"
 									echo "  warn: set to '$setupCliValue', so this workspace runs $setupCliValue, not claude"
-									echo "  fix:  $setupToolPath --member-config-option magic-team --upsert SPAWN_CLI_SERVICE claude"
+									echo "  fix:  $setupToolPath --owner-setup-claude --set-as-default --apply"
 								}
 								AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue"
+								setupSetupSteps="${setupSetupSteps}$( DistroAgentsTools --intern-op-owner-setup claude --render-full --workspace "$setupRoot" --allow SPAWN_CLI_SERVICE --service-key SPAWN_CLI_SERVICE --service-value claude --set-as-default || : )"$'\n'
 							fi
 						fi
 					fi
@@ -496,24 +1048,30 @@ case "$1" in
 							echo "        agent at all"
 							echo "  path: $setupConsole"
 							echo "  fix:  $setupToolPath --make-workspace-integrations"
+							echo "  then: re-run this check -- what that regenerates from is the template"
+							echo "        under the origin MDLT_CONSOLE_ORIGIN selects, not the path above"
 						}
 						AgentsToolsOwnerSetupRow "Agents console" "MISSING"
 						setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+						setupSetupSteps="${setupSetupSteps}  $setupToolPath --owner-setup-claude   -- re-run and confirm 'Agents console' now reads current; the same verdict twice means the origin MDLT_CONSOLE_ORIGIN selects carries the stale template, not that the run failed"$'\n'
 						setupWillRun="nothing"
 						setupBlockers="$setupBlockers AGENTS_CONSOLE_SCRIPT"
 						setupRc=1
-					elif ! grep -q 'SPAWN_CLI_SERVICE' "$setupConsole" 2>/dev/null || ! grep -q 'DISTRO_CONSOLE_EXEC' "$setupConsole" 2>/dev/null ; then
+					elif ! grep -q 'SPAWN_CLI_SERVICE' "$setupConsole" 2>/dev/null || ! grep -q 'DISTRO_CONSOLE_EXEC' "$setupConsole" 2>/dev/null || ! grep -q 'cli-configured' "$setupConsole" 2>/dev/null ; then
 						[ "$setupOperation" != "--check" ] || {
 							echo "AGENTS_CONSOLE_SCRIPT: FAIL"
-							echo "  warn: generated before the console could read SPAWN_CLI_SERVICE or announce"
-							echo "        DISTRO_CONSOLE_EXEC, so it ignores the selection above, starts"
-							echo "        whichever CLI its own older default names, and reports neither which"
-							echo "        one ran nor that anything went wrong"
+							echo "  warn: generated before the console could read SPAWN_CLI_SERVICE, announce"
+							echo "        DISTRO_CONSOLE_EXEC or refuse a spawn with no CLI selected, so an"
+							echo "        agent-initiated spawn here scans PATH and starts whichever CLI it"
+							echo "        finds, rather than failing so its caller spawns internally"
 							echo "  path: $setupConsole"
 							echo "  fix:  $setupToolPath --make-workspace-integrations"
+							echo "  then: re-run this check -- what that regenerates from is the template"
+							echo "        under the origin MDLT_CONSOLE_ORIGIN selects, not the path above"
 						}
 						AgentsToolsOwnerSetupRow "Agents console" "STALE"
 						setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+						setupSetupSteps="${setupSetupSteps}  $setupToolPath --owner-setup-claude   -- re-run and confirm 'Agents console' now reads current; the same verdict twice means the origin MDLT_CONSOLE_ORIGIN selects carries the stale template, not that the run failed"$'\n'
 						setupWillRun="unknown"
 						setupBlockers="$setupBlockers AGENTS_CONSOLE_SCRIPT"
 						setupRc=1
@@ -597,14 +1155,15 @@ case "$1" in
 									echo "        ${setupMemberSlot%%|*}"
 									echo "          -> ${setupMemberSlot#*|}"
 								done
-								echo "  why:  the grant names each member's directory as \$HOME/.claude/skills"
+								echo "  why:  the grant names each member's directory as $MDAT_SKILLSET_ROOT"
 								echo "        resolves it. A link reaching a second copy of the same member is a"
 								echo "        different directory, and regenerating the fragment does not move"
 								echo "        it -- an existing link is kept exactly as it is."
-								echo "  fix:  re-point each link above at the directory \$HOME/.claude/skills/<member>"
+								echo "  fix:  re-point each link above at the directory $MDAT_SKILLSET_ROOT/<member>"
 								echo "        resolves to, then run $setupToolPath --make-workspace-integrations"
 							}
 							AgentsToolsOwnerSetupRow "Skill access roots" "INCOMPLETE"
+							setupSetupSteps="${setupSetupSteps}  re-point the member links --check lists at the directories $MDAT_SKILLSET_ROOT resolves to, then run $setupToolPath --make-workspace-integrations"$'\n'
 							setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
 							setupRc=1
 						fi
@@ -620,9 +1179,7 @@ case "$1" in
 					## where each value it takes comes from.
 					if [ -z "$setupOperation" ] && [ -z "$setupAllWorkspaces" ] ; then
 						echo ""
-						if [ -z "$setupBlockers" ] ; then
-							echo "This workspace is set up for claude."
-						else
+						if [ -n "$setupSetupSteps" ] ; then
 							echo "To set this workspace up, run:"
 							printf '%s' "$setupSetupSteps"
 							if [ -n "$setupValueHelp" ] ; then
@@ -630,6 +1187,11 @@ case "$1" in
 								echo "Where each value comes from:"
 								printf '%s' "$setupValueHelp"
 							fi
+						elif [ -n "$setupBlockers" ] ; then
+							echo "This workspace is not ready, and no single command closes what is left."
+							echo "Run --check for the detail on:$setupBlockers"
+						else
+							echo "This workspace is set up for claude."
 						fi
 					fi
 				done <<< "$setupTargets"
@@ -648,15 +1210,36 @@ case "$1" in
 					echo "## which workspace runs what"
 					printf '%s' "$setupVerdict"
 				fi
-				return "$setupRc"
 			;;
 			*)
 				echo "$setupDomain: no checks defined yet"
 				echo "  note: no required settings are defined for this domain -- the"
 				echo "        --owner-setup-* family is open and grows as domains are defined."
-				return 0
 			;;
 		esac
+
+		## The other half of a bare call: the status above, then the command that
+		## supplies what this domain still takes. Rendered by the same engine mode
+		## --print-apply-command uses, in its skip-what-is-set form, so the
+		## placeholders and the how-to-obtain lines cannot drift from the full
+		## template. --check writes the per-setting detail instead, and
+		## --all-workspaces spans workspaces one command cannot name.
+		if [ -z "$setupOperation" ] && [ -z "$setupAllWorkspaces" ] && [ ${#setupDeclareArgs[@]} -ne 0 ] ; then
+			local setupStillMissing="" setupRenderRc=0
+			setupStillMissing="$( DistroAgentsTools --intern-op-owner-setup "$setupDomain" --render-missing \
+				--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" "${setupDeclareArgs[@]}" )" || setupRenderRc=$?
+			echo ""
+			if [ "$setupRenderRc" -ne 0 ] ; then
+				setupRc="$setupRenderRc"
+			elif [ -n "$setupStillMissing" ] ; then
+				echo "To supply what $setupDomain still takes, run:"
+				printf '%s\n' "$setupStillMissing"
+			else
+				echo "Nothing left to supply here -- every setting $setupDomain takes is already set."
+				echo "  ${setupWorkspaceRoot:-${MMDAPP%/}}/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-$setupDomain --print-apply-command   -- the full command, for changing one"
+			fi
+		fi
+		return "$setupRc"
 	;;
 
 

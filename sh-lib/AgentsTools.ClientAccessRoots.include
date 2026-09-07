@@ -22,16 +22,18 @@
 ## formats its own way (a JSON `Read(...)`/`Edit(...)`/`Write(...)` grant on
 ## the settings side, an `--add-dir <root>` token on the copilot side).
 ##
-## Dot-sourced (relies on $HOME / $MDAT_DATA_ROOT already resolved by the
-## caller, exactly as the claude settings writers already require).
+## Dot-sourced (relies on $MDAT_SKILLSET_ROOT / $MDAT_DATA_ROOT already
+## resolved by the caller, exactly as the claude settings writers already
+## require).
 ##
 
 ## Active member skill directories, resolved to their real (symlink-followed)
-## locations under $HOME/.claude/skills -- the same enumeration the claude
+## locations under the resolved skillset root -- the same enumeration the claude
 ## permissions writer grants, factored out here as the single source.
 ## Skips `trash` and any `status: reference-only` member. Sorted-unique.
 AgentsToolsClientAccessRootsMembers(){
-	local skillsRoot="$HOME/.claude/skills"
+	local skillsRoot="$MDAT_SKILLSET_ROOT"
+	[ -d "$skillsRoot" ] || return 0
 	local memberEntry memberName memberReal
 	for memberEntry in "$skillsRoot"/*/ ; do
 		[ -d "${memberEntry%/}" ] || continue
@@ -46,18 +48,28 @@ AgentsToolsClientAccessRootsMembers(){
 	done | sort -u
 }
 
-## Fixed extra reference roots granted to every client in addition to the
-## resolved member/board paths and the workspace source tree. THIS is the one
-## place a standing reference root is added or changed -- both the workspace
-## settings writer and the copilot launch fragment pick it up from here.
+## Extra reference roots granted to every client in addition to the resolved
+## member/board paths and the workspace source tree. Which directories those
+## are is a property of the machine, never of this code, so they come from the
+## workspace's own CLIENT_ACCESS_ROOTS_EXTRA (magic-team scope, colon-separated
+## absolute paths) -- set by --owner-setup-claude/--owner-setup-copilot. Both
+## the workspace settings writer and the copilot launch fragment read it here.
+## Anything not absolute is dropped: the setting's own contract is absolute
+## paths, and a relative one would grant whatever the client happened to be in.
+##   $1 = workspace root whose configuration is read.
 AgentsToolsClientAccessReferenceRoots(){
-	printf '%s\n' "/Volumes/workspace/myx"
+	local workspace="${1:-$MMDAPP}"
+	[ -s "$workspace/.local/.agents/magic-team.agent.env" ] || return 0
+	local configuredRoots
+	configuredRoots="$( MMDAPP="$workspace" ; DistroAgentsTools --agents-config-option magic-team --select CLIENT_ACCESS_ROOTS_EXTRA || : )"
+	[ -n "$configuredRoots" ] || return 0
+	printf '%s\n' "$configuredRoots" | LC_ALL=C awk -F: '{ for ( rootIndex = 1 ; rootIndex <= NF ; rootIndex++ ) if ( $rootIndex ~ /^\// ) print $rootIndex }'
 }
 
 ## The complete flat root set one client is granted, for the copilot launch
 ## fragment: board path, active member real dirs, the workspace source tree,
-## and the fixed reference roots -- matching the union of what the two claude
-## settings writers grant. One absolute path per line.
+## and the configured reference roots -- matching the union of what the two
+## claude settings writers grant. One absolute path per line.
 ##   $1 = target workspace root (its source/ tree is granted).
 ## Board/source are emitted only when their input is present; the CALLER is
 ## responsible for rejecting an empty or under-populated set (see the copilot
@@ -72,5 +84,5 @@ AgentsToolsClientAccessRoots(){
 	if [ -n "$workspace" ] ; then
 		printf '%s\n' "$workspace/source"
 	fi
-	AgentsToolsClientAccessReferenceRoots
+	AgentsToolsClientAccessReferenceRoots "$workspace"
 }

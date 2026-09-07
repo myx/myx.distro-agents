@@ -12,7 +12,7 @@
 
 case "$1" in
 
-	--member-inbox-note-upsert|--member-upsert-inbox-note)
+	--member-inbox-note-upsert)
 		shift
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-inbox-note-upsert || return 1
 		return 0
@@ -129,7 +129,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local memberDir="$HOME/.claude/skills/$memberName"
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
 		if [ ! -d "$memberDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
@@ -194,7 +194,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" member-read-audit-item || { set +e ; return 1 ; }
-		local memberDir="$HOME/.claude/skills/$memberName"
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
 		if [ ! -d "$memberDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
@@ -275,7 +275,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" member-read-board-item || { set +e ; return 1 ; }
-		local memberDir="$HOME/.claude/skills/$memberName"
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
 		if [ ! -d "$memberDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
@@ -358,7 +358,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-item-read || { set +e ; return 1 ; }
-		local memberDir="$HOME/.claude/skills/$memberName"
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
 		if [ ! -d "$memberDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
@@ -488,17 +488,17 @@ case "$1" in
 		if [ $# -gt 0 ] ; then
 			case "$1" in
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE $HOME/.claude/skills/magic-team/magic-team.armed.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.armed.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $HOME/.claude/skills/magic-team/magic-team.armed.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.armed.md" >&2
 					set +e ; return 1
 				;;
 			esac
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" member-work-session-input-scan || { set +e ; return 1 ; }
-		local memberDir="$HOME/.claude/skills/$memberName"
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
 		if [ ! -d "$memberDir" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: no such member skill directory: $memberDir" >&2
 			set +e ; return 1

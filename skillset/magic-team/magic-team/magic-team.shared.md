@@ -718,6 +718,12 @@ A major sub-operation is a third thing again, and it is short where an option is
 
 Any conflict or ambiguity between two instruction files or conventions goes to the human-owner for the decision — real ambiguity about what the rules mean or how they apply, not only literally contradictory text. Dispatching a member to investigate one is fine; that dispatch is never authorization to reconcile it. A member's own review of a conflict never stands in for his decision. Both sides stay intact, unedited, until he rules.
 
+## "later" has two gates
+
+Work he defers to later is released by two gates, and both have to be open: the step currently in hand is finished and released, and he has said explicitly to start this one. Neither gate opens the other, so a released current step is not permission to begin the deferred work, and his continued interest in it is not approval to start.
+
+Until both are open the deferred work is recorded and left where it is — not prepared, not partly built, and not raised again as though finishing the current step had settled it.
+
 ## Anything needing the human-owner to act reaches him on his own direct channel
 
 A question, a link he has to click, a decision that blocks work — it goes to his own direct channel as it arises, never left in the session and never held back for a later summary. He answers in a live session when he happens to be in one, but he does not go there to look, so a request raised only in a session is not a request he has received. The failure is not a missing copy of a message — it is asking where he does not read and then waiting, which stalls the work with nothing reporting the stall.

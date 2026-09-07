@@ -52,7 +52,7 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		local armedFile="$HOME/.claude/skills/$targetMember/$targetMember.armed.md"
+		local armedFile="$MDAT_SKILLSET_ROOT/$targetMember/$targetMember.armed.md"
 		if [ ! -f "$armedFile" ] ; then
 			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: no such member .armed.md: $armedFile" >&2
 			set +e ; return 1

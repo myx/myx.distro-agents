@@ -110,11 +110,11 @@ case "$1" in
 		if [ $# -gt 0 ] ; then
 			case "$1" in
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE $HOME/.claude/skills/magic-coordinator/magic-coordinator.advance.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE $MDAT_SKILLSET_ROOT/magic-coordinator/magic-coordinator.advance.routine.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $HOME/.claude/skills/magic-coordinator/magic-coordinator.advance.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $MDAT_SKILLSET_ROOT/magic-coordinator/magic-coordinator.advance.routine.md" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -137,7 +137,7 @@ case "$1" in
 		## remembers" enumeration --magic-sweep-input-scan uses; the roster note is a
 		## cache and does not decide which inboxes are in scope.
 		local advanceInboxAlso=() advanceClientDir advanceClientName
-		for advanceClientDir in "$HOME"/.claude/skills/client-* ; do
+		for advanceClientDir in "$MDAT_SKILLSET_ROOT"/client-* ; do
 			if [ -d "$advanceClientDir" ] ; then
 				advanceClientName="${advanceClientDir##*/}"
 				AgentsToolsAssertBareName "$advanceClientName" "<client-* member>" magic-advance-input-scan || { set +e ; return 1 ; }

@@ -26,7 +26,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" "socket-$socketOp" || { set +e ; return 1 ; }
-		if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
 			echo "$MDSC_CMD: socket-$socketOp: ⛔ ERROR: no such team member: $memberName" >&2
 			set +e ; return 1
 		fi

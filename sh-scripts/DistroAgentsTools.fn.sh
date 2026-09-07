@@ -50,6 +50,22 @@ DistroAgentsTools(){
 	[ -z "$MDSC_DETAIL" ] || echo "> $MDSC_CMD $@" >&2
 	set -e
 
+	## The skillset root, resolved once here for the same reason MDAT_DATA_ROOT
+	## is: this workspace's own member set where --install-skillset-symlinks
+	## --scope workspace put one, the machine's otherwise. A SKILL.md decides it,
+	## because .claude/skills exists empty on a workspace that only has the
+	## restrictions installed.
+	if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
+		local skillsetMember
+		MDAT_SKILLSET_ROOT="$HOME/.claude/skills"
+		for skillsetMember in "$MMDAPP/.claude/skills"/*/ ; do
+			[ -f "$skillsetMember/SKILL.md" ] || continue
+			MDAT_SKILLSET_ROOT="$MMDAPP/.claude/skills"
+			break
+		done
+		export MDAT_SKILLSET_ROOT
+	fi
+
 	if [ "$1" != "--agents-config-option" ] ; then
 		if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
 			local teamDataDir
@@ -170,98 +186,6 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--verify-permissions)
-			shift
-			local dir="$MMDAPP/.local/.agents"
-			if [ ! -d "$dir" ] ; then
-				echo "# $MDSC_CMD --verify-permissions: $dir does not exist yet (nothing to verify)" >&2
-				return 0
-			fi
-
-			local failed=0
-			local perm
-			perm="$( stat -f '%Lp' "$dir" 2>/dev/null || stat -c '%a' "$dir" 2>/dev/null )"
-			if [ "$perm" = "700" ] ; then
-				echo "OK   700  $dir"
-			else
-				echo "BAD  ${perm:-?}  $dir  (expected 700)"
-				failed=1
-			fi
-
-			local f
-			for f in "$dir"/* ; do
-				[ -e "$f" ] || continue
-				perm="$( stat -f '%Lp' "$f" 2>/dev/null || stat -c '%a' "$f" 2>/dev/null )"
-				if [ "$perm" = "600" ] ; then
-					echo "OK   600  $f"
-				else
-					echo "BAD  ${perm:-?}  $f  (expected 600)"
-					failed=1
-				fi
-			done
-
-			if [ "$failed" = "1" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --verify-permissions: one or more paths under $dir are not hardened to 600/700" >&2
-				set +e ; return 1
-			fi
-			echo "# $MDSC_CMD --verify-permissions: all paths under $dir are correctly hardened (700 dir / 600 files)" >&2
-			return 0
-		;;
-
-		--self-test)
-			shift
-			echo "# $MDSC_CMD --self-test: exercising --agents-config-option permission-hardening under umask 022 (ignoring caller's ambient umask)" >&2
-
-			local probeKey="DAT_SELFTEST_PROBE"
-			local probeVal="selftest-$$-$( date +%s )"
-			local failed=0
-
-			if ! ( umask 022 ; DistroAgentsTools --agents-config-option magic-coordinator --upsert "$probeKey" "$probeVal" >/dev/null ) ; then
-				echo "⛔ ERROR: $MDSC_CMD --self-test: --upsert under umask 022 failed" >&2
-				set +e ; return 1
-			fi
-
-			DistroAgentsTools --verify-permissions || failed=1
-
-			local readBack
-			readBack="$( DistroAgentsTools --agents-config-option magic-coordinator --select "$probeKey" )"
-			if [ "$readBack" != "$probeVal" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --self-test: probe key round-trip mismatch" >&2
-				failed=1
-			fi
-
-			DistroAgentsTools --agents-config-option magic-coordinator --delete "$probeKey" >/dev/null
-
-			if [ "$failed" = "1" ] ; then
-				echo "⛔ $MDSC_CMD --self-test: FAILED" >&2
-				set +e ; return 1
-			fi
-			echo "# $MDSC_CMD --self-test: PASSED -- permission hardening holds under umask 022" >&2
-			return 0
-		;;
-
-		--purge-cleanup)
-			shift
-			if [ $# -gt 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --purge-cleanup: takes no arguments -- always purges $MMDAPP/.local/.cleanup" >&2
-				set +e ; return 1
-			fi
-			local cleanupDir="$MMDAPP/.local/.cleanup"
-			if [ ! -d "$cleanupDir" ] ; then
-				echo "# $MDSC_CMD --purge-cleanup: $cleanupDir does not exist -- nothing to purge" >&2
-				return 0
-			fi
-			echo "# $MDSC_CMD --purge-cleanup: purging all contents of $cleanupDir (folder itself stays)" >&2
-			local entry
-			for entry in "$cleanupDir"/* "$cleanupDir"/.[!.]* ; do
-				[ -e "$entry" ] || [ -L "$entry" ] || continue
-				echo "  rm -rf $entry" >&2
-				rm -rf -- "$entry"
-			done
-			echo "# $MDSC_CMD --purge-cleanup: done" >&2
-			return 0
-		;;
-
 		--intern-validate-json)
 			shift
 			local jsonPath="$1"
@@ -296,12 +220,6 @@ DistroAgentsTools(){
 		--member-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Member.include"
 			return $?
-		;;
-
-		--write-inbox-note)
-			shift
-			DistroAgentsTools --member-inbox-note-upsert "$@" || return 1
-			return 0
 		;;
 
 		--make-*)
@@ -370,6 +288,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--intern-op-owner-setup)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpOwnerSetup.include"
+			return $?
+		;;
+
 		--intern-op-data-read)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include"
 			return $?
@@ -382,6 +305,11 @@ DistroAgentsTools(){
 
 		--intern-op-spawn-prepare-brief)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSpawnPrepareBrief.include"
+			return $?
+		;;
+
+		--intern-op-remote-bootstrap-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpRemoteBootstrap.include"
 			return $?
 		;;
 

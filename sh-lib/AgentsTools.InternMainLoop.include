@@ -39,40 +39,87 @@ case "$1" in
 		## PROBES presence here (every key --optional); the readiness report owns
 		## the floor policy -- which items gate, and how Basic comms is satisfied
 		## by any one transport -- and its own exit (PIPESTATUS[1]) is the gate.
-		## The floor is TEAM_DATA_DIRECTORY + Basic comms; the event-track and
+		## The floor is TEAM_DATA_DIRECTORY + Basic comms + SPAWN_CLI_SERVICE,
+		## which is magic-team's and needs the second probe; the event-track and
 		## event-alert channels are probed for the report but never gate.
 		## The report goes to STDERR, like the per-iteration lines below: this
 		## operation is a daemon loop whose whole life is watched on stderr, so
 		## the readiness verdict belongs on the same stream as everything else
 		## it says. Nothing consumes this report on stdout -- the awk's exit is
-		## the machine-readable half, and PIPESTATUS[1] survives the redirect.
-		DistroAgentsTools --intern-op-check-configs magic-coordinator \
-			--optional "TEAM_DATA_DIRECTORY:<path>" \
-			--optional "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
-			--optional "SLACK_CHANNEL_HUMAN_OWNER:<user-id>" \
-			--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
-			--optional "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
-			--context --intern-main-loop 2>&1 \
-			| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMainLoopReadinessReport.awk" >&2
+		## the machine-readable half, and PIPESTATUS[1] survives the redirect:
+		## the group is one pipeline stage, so the awk is still stage 1.
+		{
+			DistroAgentsTools --intern-op-check-configs magic-coordinator \
+				--optional "TEAM_DATA_DIRECTORY:<path>" \
+				--optional "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
+				--optional "SLACK_CHANNEL_HUMAN_OWNER:<user-id>" \
+				--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
+				--optional "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
+				--context --intern-main-loop 2>&1
+			DistroAgentsTools --intern-op-check-configs magic-team \
+				--optional "SPAWN_CLI_SERVICE:<cli-name>" \
+				--context --intern-main-loop 2>&1
+			## Sign-in state of the selected CLI, as one more verdict line into the
+			## same awk. Not a config key and never stored as one -- authentication
+			## is the CLI's own, done by the human out of band and only READ here.
+			## Reported, never gating: the CLI's own answer is the only reliable
+			## one, so a CLI that cannot answer -- any but claude, one too old for
+			## `auth status`, one absent from PATH -- yields SKIP rather than a
+			## verdict, and no output shape this does not recognise can refuse a
+			## machine that works. `claude auth status` reads local state only,
+			## ~0.3s once at startup, stdin closed so nothing can prompt; it
+			## answers loggedIn true for an API key and for a Bedrock/Vertex
+			## provider too, so those working setups are not misread as signed out.
+			case "$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )" in
+				claude)
+					case "$( claude auth status </dev/null 2>/dev/null )" in
+						*'"loggedIn": true'*)  echo "SPAWN_CLI_AUTHENTICATED: OK" ;;
+						*'"loggedIn": false'*) echo "SPAWN_CLI_AUTHENTICATED: FAIL" ;;
+						*)                     echo "SPAWN_CLI_AUTHENTICATED: SKIP" ;;
+					esac
+				;;
+				*) echo "SPAWN_CLI_AUTHENTICATED: SKIP" ;;
+			esac
+		} | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMainLoopReadinessReport.awk" >&2
 		if [ 0 -ne "${PIPESTATUS[1]}" ] ; then
 			return 1
 		fi
 
-		local sleepSeconds
+		## The spawn brief is a real file now, so it can be missing, empty or
+		## unreadable -- which the spawn proxy only reports further down, as
+		## "empty spawn context". The path is a constant and the file ships with
+		## the code, so this is a startup failure, checked once here, never a
+		## per-iteration test that would turn a permanent misconfiguration into
+		## an endless backoff.
+		local mainLoopBriefFile="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/dispatches/main-loop-next-iteration.prompt-packet.verbatim.md"
+		if [ ! -r "$mainLoopBriefFile" ] || [ ! -s "$mainLoopBriefFile" ] ; then
+			echo "$MDSC_CMD: main-loop --run: ⛔ ERROR: spawn brief missing, empty or unreadable: $mainLoopBriefFile" >&2
+			return 1
+		fi
+
+		local sleepSeconds spawnRc nextDelaySeconds maxDelaySeconds
 		sleepSeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
+		case "$sleepSeconds" in *[!0123456789]*|'') sleepSeconds=29 ;; esac
+		maxDelaySeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_MAX_SECONDS 3600 )"
+		case "$maxDelaySeconds" in *[!0123456789]*|'') maxDelaySeconds=3600 ;; esac
+		nextDelaySeconds="$sleepSeconds"
 
 		while true ; do
 			## The spawn runs --wait, so without these two lines the loop is silent for a whole iteration.
 			echo "# $MDSC_CMD --intern-main-loop: heartbeat iteration starting" >&2
-			printf '%s\n' \
-				"SPAWN-REQUEST: main-loop-next-iteration" \
-				"GOAL: Run magic-coordinator.heartbeat.routine's own next-iteration pass" \
-				"CONTEXT: Skill(magic-coordinator) first, then execute magic-coordinator.heartbeat.routine's own Steps end-to-end as one next-iteration pass." \
-				"WAIT: yes" \
-				| DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait
+			cat "$mainLoopBriefFile" | DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait
+			spawnRc=$?
+			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- see OUTPUT_FILE above" >&2
 
-			echo "# $MDSC_CMD --intern-main-loop: iteration ended, sleeping ${sleepSeconds}s before the next one" >&2
-			sleep "$sleepSeconds"
+			## Consecutive failures lengthen the wait; the delay is the state, so doubling stops at the ceiling and cannot overflow.
+			if [ 0 -eq "$spawnRc" ] ; then
+				nextDelaySeconds="$sleepSeconds"
+			elif [ "$nextDelaySeconds" -lt "$maxDelaySeconds" ] ; then
+				nextDelaySeconds=$(( nextDelaySeconds * 2 ))
+			fi
+			[ "$nextDelaySeconds" -le "$maxDelaySeconds" ] || nextDelaySeconds="$maxDelaySeconds"
+			echo "# $MDSC_CMD --intern-main-loop: iteration ended, sleeping ${nextDelaySeconds}s before the next one" >&2
+			sleep "$nextDelaySeconds"
 		done
 	;;
 

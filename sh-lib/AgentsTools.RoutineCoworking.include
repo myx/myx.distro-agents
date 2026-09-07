@@ -23,7 +23,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: invalid option: $1 -- syntax is <team-member> <tracking-document>... -- an input-scan reads all baseline-relevant items itself, including everything reached via blocks:/blocked-by:. SEE $HOME/.claude/skills/magic-team/magic-team.coworking.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: invalid option: $1 -- syntax is <team-member> <tracking-document>... -- an input-scan reads all baseline-relevant items itself, including everything reached via blocks:/blocked-by:. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.coworking.routine.md" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -36,7 +36,7 @@ case "$1" in
 			esac
 		done
 		if [ ${#names[@]} -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: syntax is <team-member> <tracking-document>... -- at least one tracking-document required, the dispatch or interview document this session is for -- an input-scan reads all baseline-relevant items itself, including everything reached via blocks:/blocked-by:. SEE $HOME/.claude/skills/magic-team/magic-team.coworking.routine.md" >&2
+			echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: syntax is <team-member> <tracking-document>... -- at least one tracking-document required, the dispatch or interview document this session is for -- an input-scan reads all baseline-relevant items itself, including everything reached via blocks:/blocked-by:. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.coworking.routine.md" >&2
 			set +e ; return 1
 		fi
 

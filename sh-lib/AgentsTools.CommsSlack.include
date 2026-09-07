@@ -980,8 +980,8 @@ case "$1" in
 				## Same routine-* carve-out as the sibling arms.
 			;;
 			*)
-				if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-					echo "$MDSC_CMD: slack-check: ⛔ ERROR: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+				if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+					echo "$MDSC_CMD: slack-check: ⛔ ERROR: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 					set +e ; return 1
 				fi
 			;;

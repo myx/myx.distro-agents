@@ -140,14 +140,16 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-read-board-item <team-member
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-harden" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-self-test" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-current" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --purge-cleanup" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <tracking-document>..." >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --self-test" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --verify-permissions" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh [--help]" >&2
 if [ "$1" = "--help" ]; then
 	myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md" >&2

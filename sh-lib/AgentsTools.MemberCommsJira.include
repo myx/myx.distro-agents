@@ -18,8 +18,8 @@ AgentsToolsJiraResolveMember() {
 			## A routine acting as caller has no skill directory and is not expected to grow one.
 		;;
 		*)
-			if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --$opName: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --$opName: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 				return 1
 			fi
 		;;

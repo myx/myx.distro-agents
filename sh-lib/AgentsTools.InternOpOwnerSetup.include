@@ -1,0 +1,346 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpOwnerSetup.include -- --intern-op-owner-setup.
+## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. The option machinery behind the
+## --owner-setup-<domain> family: a domain's own arm declares which option names
+## it allows and which it requires, and this op holds what those names mean and
+## carries them out. An option two domains declare is defined once here, so its
+## scope, its placeholder and the instruction for obtaining it cannot drift
+## between them. No --help entry: internal plumbing.
+##
+
+## The catalogue: `scope|placeholder|secret|how-to-obtain`, one entry per option
+## any domain may declare. `secret` marks a value that never travels in argv.
+## THIS is the single definition of an option -- a domain names it and takes
+## these, rather than restating any of them.
+AgentsToolsOwnerSetupOptionSpec(){
+	case "$1" in
+		## No '|' inside a field: it is this line's own separator, so one in a
+		## placeholder splits the entry and every later field arrives shifted.
+		SPAWN_CLI_SERVICE)
+			printf '%s\n' 'magic-team|<cli-name>|plain|the agent CLI this workspace starts -- copilot, claude or grok. A spawned agent runs non-interactively, where the console accepts only copilot and claude.'
+		;;
+		CLIENT_ACCESS_ROOTS_EXTRA)
+			printf '%s\n' 'magic-team|<abs-path>[:<abs-path>...]|plain|extra directories a spawned agent may read and write, beyond the member and source roots the installer already grants. Absolute paths, colon-separated.'
+		;;
+		TEAM_DATA_DIRECTORY)
+			printf '%s\n' 'magic-coordinator|<abs-path>|plain|the directory holding the board and the inboxes. Any path this account can write to; it is created on first use.'
+		;;
+		TEAM_DATA_GIT_REMOTE)
+			printf '%s\n' 'magic-team|<git-remote-url>|plain|the clone URL of a repository you own, which the team data is pushed to. An empty repository is fine.'
+		;;
+		SLACK_BOT_TOKEN)
+			printf '%s\n' 'magic-team|<xoxb-token>|secret|api.slack.com/apps, your app, OAuth and Permissions, Bot User OAuth Token.'
+		;;
+		SLACK_USER_TOKEN)
+			printf '%s\n' 'magic-team|<xoxp-token>|secret|api.slack.com/apps, your app, OAuth and Permissions, User OAuth Token.'
+		;;
+		SLACK_WORKSPACE_DOMAIN)
+			printf '%s\n' 'magic-team|<name>.slack.com|plain|the workspace subdomain as it appears in its own Slack URL.'
+		;;
+		SLACK_CHANNEL_MAGIC_TEAM)
+			printf '%s\n' 'magic-coordinator|<channel-id>|plain|the team channel id: open the channel, View channel details, the id sits at the bottom and starts with C.'
+		;;
+		SLACK_CHANNEL_HUMAN_OWNER)
+			printf '%s\n' 'magic-coordinator|<user-id>|plain|your own member id: your profile, More, Copy member ID. It starts with U.'
+		;;
+		SLACK_CHANNEL_EVENT_TRACK)
+			printf '%s\n' 'magic-coordinator|<channel-id>|plain|the activity-log channel id, read like the team channel. Left unset this traffic goes to the team channel instead.'
+		;;
+		SLACK_CHANNEL_EVENT_ALERT)
+			printf '%s\n' 'magic-coordinator|<channel-id>|plain|the alert channel id, read like the team channel. Left unset this traffic goes to the team channel instead.'
+		;;
+	esac
+}
+
+## The command-line flag an option is reached by: its key, lowercased, with
+## underscores as dashes. Mechanical in both directions, so no flag is coined
+## per option and none can drift from the key it writes.
+AgentsToolsOwnerSetupOptionFlag(){
+	printf -- '--%s' "$( printf '%s' "$1" | tr 'A-Z_' 'a-z-' )"
+}
+
+case "$1" in
+
+	--intern-op-owner-setup)
+		shift
+		local setupDomain="$1"
+		shift || true
+		if [ -z "$setupDomain" ] ; then
+			echo "$MDSC_CMD: owner-setup: ⛔ ERROR: syntax is <domain> (--render-full|--render-missing|--apply) --workspace <path> [--require <KEY>]... [--allow <KEY>]... [--value <KEY>=<value>]... [--values-from-stdin] [--service-key <KEY> --service-value <value>] [--set-as-default]" >&2
+			set +e ; return 1
+		fi
+
+		local setupMode="" setupWorkspace="" setupForceDefault="" setupFromStdin=""
+		local setupServiceKey="" setupServiceValue=""
+		local setupRequired="" setupAllowed="" setupValues=""
+		local setupInstallProbe="" setupInstallCommand="" setupVerifyCommand="" setupTogether=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--render-full|--render-missing|--apply) setupMode="$1" ; shift ;;
+				--set-as-default) setupForceDefault="yes" ; shift ;;
+				--values-from-stdin) setupFromStdin="yes" ; shift ;;
+				--require|--allow|--value|--workspace|--service-key|--service-value|--install-probe|--install-command|--verify-command|--require-together)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: owner-setup: ⛔ ERROR: $1: value required" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--workspace)      setupWorkspace="${2%/}" ;;
+						--service-key)    setupServiceKey="$2" ;;
+						--service-value)  setupServiceValue="$2" ;;
+						--require)        setupRequired="$setupRequired $2" ; setupAllowed="$setupAllowed $2" ;;
+						--allow)          setupAllowed="$setupAllowed $2" ;;
+						## A domain declares what proves its software present, what
+						## installs it, what proves the domain works once configured,
+						## and which of its values only make sense together. All four
+						## are declarations, so a new domain is added by writing an
+						## arm rather than by reopening this op.
+						--install-probe)   setupInstallProbe="$2" ;;
+						--install-command) setupInstallCommand="$2" ;;
+						--verify-command)  setupVerifyCommand="$2" ;;
+						--require-together) setupTogether="${setupTogether}${2}"$'\n' ;;
+						## Newline-separated: a value may carry spaces, so a
+						## space-joined list could not be split back apart.
+						--value)          setupValues="${setupValues}${2}"$'\n' ;;
+					esac
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: owner-setup: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		if [ -z "$setupMode" ] ; then
+			echo "$MDSC_CMD: owner-setup: ⛔ ERROR: one of --render-full, --render-missing or --apply is required" >&2
+			set +e ; return 1
+		fi
+
+		## The basic floor every domain shares: the workspace being set up. An
+		## absent or non-workspace path is an error rather than a default, so a
+		## run never lands somewhere it was not aimed.
+		if [ -z "$setupWorkspace" ] ; then
+			echo "$MDSC_CMD: owner-setup: ⛔ ERROR: --workspace is every domain's basic setting and has no default here -- name the workspace root to set up" >&2
+			set +e ; return 1
+		fi
+		if [ ! -d "$setupWorkspace/.local" ] ; then
+			echo "$MDSC_CMD: owner-setup: ⛔ ERROR: not a myx.distro workspace root: $setupWorkspace -- expected '$setupWorkspace/.local' to exist" >&2
+			set +e ; return 1
+		fi
+
+		## A set arrives as the config layer's own KEY=VALUE lines. That is what
+		## lets a domain with several secrets be configured in one call: stdin
+		## carries one stream, so one value per invocation would make a
+		## multi-secret domain impossible to set up without putting a secret in
+		## argv, where the process table would show it.
+		local setupLine setupKey setupSpec setupScope setupHint setupSecret setupHowTo setupCurrent
+		if [ -n "$setupFromStdin" ] ; then
+			while IFS= read -r setupLine ; do
+				case "$setupLine" in
+					''|'#'*) continue ;;
+					*=*) setupValues="${setupValues}${setupLine}"$'\n' ;;
+					*)
+						echo "$MDSC_CMD: owner-setup: ⛔ ERROR: a set is KEY=VALUE lines; this line is neither blank, a comment, nor an assignment: $setupLine" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+		fi
+
+		## Every supplied value must be an option this domain declares, and every
+		## declared option must exist in the catalogue. Both are checked before
+		## anything is written, so a rejected call has changed nothing.
+		while IFS= read -r setupLine ; do
+			[ -n "$setupLine" ] || continue
+			setupKey="${setupLine%%=*}"
+			case " $setupAllowed " in
+				*" $setupKey "*) ;;
+				*)
+					echo "$MDSC_CMD: owner-setup: ⛔ ERROR: $setupDomain does not take $setupKey" >&2
+					set +e ; return 1
+				;;
+			esac
+		done <<< "$setupValues"
+
+		local setupCommand="  $setupWorkspace/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-$setupDomain"
+		local setupHelp="" setupSecretPart="" setupAnyMissing="" setupMissingRequired="" setupMissingAll=""
+		for setupKey in $setupAllowed ; do
+			setupSpec="$( AgentsToolsOwnerSetupOptionSpec "$setupKey" )"
+			if [ -z "$setupSpec" ] ; then
+				echo "$MDSC_CMD: owner-setup: ⛔ ERROR: $setupDomain declares an option the catalogue does not define: $setupKey" >&2
+				set +e ; return 1
+			fi
+			setupScope="${setupSpec%%|*}" ; setupSpec="${setupSpec#*|}"
+			setupHint="${setupSpec%%|*}" ; setupSpec="${setupSpec#*|}"
+			setupSecret="${setupSpec%%|*}" ; setupHowTo="${setupSpec#*|}"
+
+			## Read-only where the scope has never been written: a --select
+			## through --agents-config-option creates the file it reads.
+			setupCurrent=""
+			if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
+				setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupKey" || : )"
+			fi
+			if [ -n "$setupCurrent" ] && [ "$setupMode" != "--render-full" ] ; then
+				continue
+			fi
+			setupAnyMissing="yes"
+			setupMissingAll="$setupMissingAll $setupKey"
+			case " $setupRequired " in
+				*" $setupKey "*) setupMissingRequired="$setupMissingRequired $setupKey" ;;
+			esac
+			## Quoted at both sites: a placeholder's '<' and '>' are redirections bare.
+			if [ "$setupSecret" = "secret" ] ; then
+				## Trailing continuation: the pipe below is the same command line.
+				setupSecretPart="${setupSecretPart}  $setupKey='$setupHint' \\"$'\n'
+			else
+				setupCommand="$setupCommand $( AgentsToolsOwnerSetupOptionFlag "$setupKey" ) '$setupHint'"
+			fi
+			setupHelp="${setupHelp}    $setupKey -- $setupHowTo"$'\n'
+		done
+
+		if [ "$setupMode" = "--render-full" ] || [ "$setupMode" = "--render-missing" ] ; then
+			[ -n "$setupAnyMissing" ] || return 0
+			if [ -n "$setupSecretPart" ] ; then
+				## A secret is named in the set on stdin, never as a flag value.
+				printf '  printf %s\n' "'%s\\n' \\"
+				printf '%s' "$setupSecretPart"
+				printf '  | %s --values-from-stdin --apply\n' "${setupCommand# }"
+			else
+				printf '%s --apply\n' "$setupCommand"
+			fi
+			printf '%s' "$setupHelp"
+			return 0
+		fi
+
+		## Apply. A required option must end up with a value -- supplied now or
+		## already configured -- and a missing one stops the run before any write,
+		## never half-applied.
+		for setupKey in $setupMissingRequired ; do
+			case "$setupValues" in
+				*"$setupKey="*) ;;
+				*)
+					echo "$MDSC_CMD: owner-setup: ⛔ ERROR: $setupDomain requires $setupKey, and it is neither supplied here nor already configured in $setupWorkspace -- run without --apply for the command that supplies it" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		## Values a domain declares as only meaningful together: all present or
+		## none, counting what is already configured as present. Checked before
+		## any write, so an incoherent call changes nothing.
+		local setupGroup setupGroupKey setupGroupHave setupGroupMiss
+		while IFS= read -r setupGroup ; do
+			[ -n "$setupGroup" ] || continue
+			setupGroupHave="" ; setupGroupMiss=""
+			for setupGroupKey in $( printf '%s' "$setupGroup" | tr ',' ' ' ) ; do
+				setupSpec="$( AgentsToolsOwnerSetupOptionSpec "$setupGroupKey" )"
+				setupScope="${setupSpec%%|*}"
+				setupCurrent=""
+				if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
+					setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupGroupKey" || : )"
+				fi
+				case "$setupValues" in
+					*"$setupGroupKey="*) setupCurrent="supplied" ;;
+				esac
+				if [ -n "$setupCurrent" ] ; then
+					setupGroupHave="$setupGroupHave $setupGroupKey"
+				else
+					setupGroupMiss="$setupGroupMiss $setupGroupKey"
+				fi
+			done
+			if [ -n "$setupGroupHave" ] && [ -n "$setupGroupMiss" ] ; then
+				echo "$MDSC_CMD: owner-setup: ⛔ ERROR: $setupDomain needs these together or not at all --$setupGroupHave is set, but$setupGroupMiss is not" >&2
+				set +e ; return 1
+			fi
+		done <<< "$setupTogether"
+
+		## The domain's own subject, named by the domain itself, installed before
+		## it is configured. A domain whose subject is not something this machine
+		## installs declares no probe and this does nothing.
+		if [ -n "$setupInstallProbe" ] ; then
+			if sh -c "$setupInstallProbe" >/dev/null 2>&1 ; then
+				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupDomain is already installed"
+			elif [ -z "$setupInstallCommand" ] ; then
+				echo "$MDSC_CMD: owner-setup: ⛔ ERROR: $setupDomain is not installed and this domain declares no way to install it" >&2
+				set +e ; return 1
+			else
+				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: installing $setupDomain"
+				sh -c "$setupInstallCommand" || {
+					echo "$MDSC_CMD: owner-setup: ⛔ ERROR: installing $setupDomain failed -- nothing was configured" >&2
+					set +e ; return 1
+				}
+			fi
+		fi
+
+		while IFS= read -r setupLine ; do
+			[ -n "$setupLine" ] || continue
+			setupKey="${setupLine%%=*}"
+			setupSpec="$( AgentsToolsOwnerSetupOptionSpec "$setupKey" )"
+			setupScope="${setupSpec%%|*}"
+			setupCurrent=""
+			if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
+				setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupKey" || : )"
+			fi
+			if [ "$setupCurrent" = "${setupLine#*=}" ] ; then
+				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupKey already set"
+				continue
+			fi
+			## Written through stdin whatever its kind: the value never reaches
+			## argv, so nothing distinguishes a secret from a plain value in the
+			## process table.
+			printf '%s' "${setupLine#*=}" | ( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --upsert-from-stdin "$setupKey" ) || {
+				echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not write $setupKey into the $setupScope scope of $setupWorkspace" >&2
+				set +e ; return 1
+			}
+			echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupKey set in $setupWorkspace"
+		done <<< "$setupValues"
+
+		## The service selection, where a domain owns one. Two conditions select
+		## it, never one: the flag forces it over an existing selection, and with
+		## no flag it is taken only because nothing is selected at all.
+		if [ -n "$setupServiceKey" ] ; then
+			setupSpec="$( AgentsToolsOwnerSetupOptionSpec "$setupServiceKey" )"
+			setupScope="${setupSpec%%|*}"
+			setupCurrent=""
+			if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
+				setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupServiceKey" || : )"
+			fi
+			if [ "$setupCurrent" = "$setupServiceValue" ] ; then
+				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupServiceKey already selects '$setupServiceValue'"
+			elif [ -z "$setupForceDefault" ] && [ -n "$setupCurrent" ] ; then
+				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupServiceKey selects '$setupCurrent' -- pass --set-as-default to point it at '$setupServiceValue' instead"
+			else
+				printf '%s' "$setupServiceValue" | ( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --upsert-from-stdin "$setupServiceKey" ) || {
+					echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not write $setupServiceKey into the $setupScope scope of $setupWorkspace" >&2
+					set +e ; return 1
+				}
+				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupServiceKey set to '$setupServiceValue' in $setupWorkspace"
+			fi
+		fi
+
+		## The domain's own proof that it works, run after configuring rather than
+		## instead of it: a setup that wrote every value and still cannot reach
+		## its subject is not set up, and says so here rather than at first use.
+		if [ -n "$setupVerifyCommand" ] ; then
+			if ( MMDAPP="$setupWorkspace" ; sh -c "$setupVerifyCommand" ) >/dev/null 2>&1 ; then
+				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: verified working"
+			else
+				echo "$MDSC_CMD: owner-setup: ⛔ ERROR: $setupDomain was configured but its own check does not pass -- the values are stored; something they name is wrong or unreachable" >&2
+				set +e ; return 1
+			fi
+		fi
+
+		echo "✅ owner-setup $setupDomain: applied" >&2
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

@@ -110,7 +110,7 @@ A floor, not a correction list: an operation below is Tier 2 even if the test re
 - Credential, token, or SSH-key rotation or revocation; ACL or firewall-rule removal.
 - Mass remote-state deletion: log, artifact, backup, or registry-tag purges.
 
-Tier 1, for contrast — passes both questions: a tracked-file edit (restore: `git checkout -- <path>`), a board-item move, a single-host service restart that returns on its own, a rebuild of a generated tree (`CleanAllOutputs.fn.sh`, `RebuildActions.fn.sh`, `--purge-cleanup`).
+Tier 1, for contrast — passes both questions: a tracked-file edit (restore: `git checkout -- <path>`), a board-item move, a single-host service restart that returns on its own, a rebuild of a generated tree (`CleanAllOutputs.fn.sh`, `RebuildActions.fn.sh`, `--owner-cleanup-purge`).
 
 ## `$MMDAPP/.local/` is not ours to modify
 

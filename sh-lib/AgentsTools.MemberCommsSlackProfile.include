@@ -87,8 +87,8 @@ case "$1" in
 				set +e ; return 1
 			;;
 			*)
-				if [ ! -d "$HOME/.claude/skills/$profileMember" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: no such member skill directory: $HOME/.claude/skills/$profileMember" >&2
+				if [ ! -d "$MDAT_SKILLSET_ROOT/$profileMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: no such member skill directory: $MDAT_SKILLSET_ROOT/$profileMember" >&2
 					set +e ; return 1
 				fi
 			;;
@@ -395,8 +395,8 @@ case "$1" in
 				set +e ; return 1
 			;;
 			*)
-				if [ ! -d "$HOME/.claude/skills/$profileMember" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: no such member skill directory: $HOME/.claude/skills/$profileMember" >&2
+				if [ ! -d "$MDAT_SKILLSET_ROOT/$profileMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: no such member skill directory: $MDAT_SKILLSET_ROOT/$profileMember" >&2
 					set +e ; return 1
 				fi
 			;;

@@ -85,7 +85,7 @@ case "$1" in
 			;;
 		esac
 
-		local skillRoot="$HOME/.claude/skills"
+		local skillRoot="$MDAT_SKILLSET_ROOT"
 		local memberFile="$skillRoot/$targetMember/$targetMember.armed.md"
 		if [ ! -f "$memberFile" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-help: no such team-member: $targetMember ($memberFile not found)" >&2

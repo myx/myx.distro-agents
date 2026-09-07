@@ -255,6 +255,17 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		## Configured-only: an agent-initiated spawn starts the CLI named by
+		## SPAWN_CLI_SERVICE or it starts none. A console without the --cli-configured
+		## arm cannot answer that -- it breaks out of its own option loop, runs its
+		## hardcoded default interactively and still prints the success sentinel -- so
+		## it is refused here rather than invoked.
+		if ! grep -q 'cli-configured' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null ; then
+			echo "SETUP_STATUS=console-stale"
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $MMDAPP/DistroAgentsConsole.sh predates --cli-configured, so a configured spawn cannot be started here. Spawn an internal agent instead, or regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-workspace-integrations" >&2
+			set +e ; return 1
+		fi
+
 		local timestamp receiptId
 		timestamp="$( date +%Y%m%dT%H%M%S )"
 		receiptId="spawn-proxy-$timestamp-$$"
@@ -293,13 +304,40 @@ case "$1" in
 		fi
 
 		if [ "$waitMode" = "true" ] ; then
-			local exitCode
+			local exitCode spawnPid watchPid timedOut waitTimeoutSeconds
 			set +e
-			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1
+			waitTimeoutSeconds="$( DistroAgentsTools --agents-config-option magic-team --select-default SPAWN_WAIT_TIMEOUT_SECONDS 900 )"
+			case "$waitTimeoutSeconds" in *[!0123456789]*|'') waitTimeoutSeconds=900 ;; esac
+			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-configured --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 &
+			spawnPid=$!
+			## The bound. A CLI that cannot arm does not exit, it sleeps, so an unbounded
+			## wait holds the caller forever. TERM first so the CLI reaps its own
+			## children; KILL after a grace period for one that ignores TERM. The
+			## watcher's own exit status is how the foreground learns it fired -- a
+			## subshell's status is the one value that escapes it, so nothing is named.
+			(
+				waitedSeconds=0
+				while [ "$waitedSeconds" -lt "$waitTimeoutSeconds" ] ; do
+					kill -0 "$spawnPid" 2>/dev/null || exit 0
+					sleep 1
+					waitedSeconds=$(( waitedSeconds + 1 ))
+				done
+				kill -TERM "$spawnPid" 2>/dev/null
+				sleep 5
+				kill -KILL "$spawnPid" 2>/dev/null
+				exit 1
+			) &
+			watchPid=$!
+			wait "$spawnPid" 2>/dev/null
 			exitCode=$?
+			wait "$watchPid" 2>/dev/null
+			timedOut=$?
 			set -e
 			local sawSentinel="false"
 			AgentsToolsSpawnProxySawSentinel "$outputFile" && sawSentinel="true"
+			## The sentinel proves an exec happened, never that it finished; a killed
+			## spawn prints it and then hangs, so a timeout is not a success.
+			[ "$timedOut" = "0" ] || sawSentinel="false"
 			AgentsToolsSpawnProxyAnnounceCli "$outputFile"
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile"
@@ -312,6 +350,12 @@ case "$1" in
 			esac
 			echo "STATUS=$( [ "$sawSentinel" = "true" ] && echo succeeded || echo failed )"
 			echo "EXIT_CODE=$exitCode"
+			## rc 5 from the console is its one structured answer: no external CLI
+			## is selected in this workspace. It is reported as its own line so a
+			## caller spawns an internal agent instead of reading the failure as a
+			## CLI that broke, and re-runs nothing to find that out.
+			[ "$exitCode" != "5" ] || echo "SETUP_STATUS=cli-not-configured"
+			[ "$timedOut" = "0" ] || echo "TIMEOUT_SECONDS=$waitTimeoutSeconds"
 			echo "OUTPUT_FILE=$outputFile"
 			if [ "$sawSentinel" != "true" ] ; then
 				set +e ; return 1
@@ -321,7 +365,7 @@ case "$1" in
 
 		(
 			set +e
-			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto --non-interactive <<< "$spawnContext"
+			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-configured --non-interactive <<< "$spawnContext"
 			bgExitCode=$?
 			set -e
 			AgentsToolsSpawnProxyAnnounceCli "$outputFile"

@@ -52,10 +52,16 @@ DAGC_NONINTERACTIVE_CLIS="copilot claude"
 DAGC_CLI="copilot"
 DAGC_CLI_GIVEN="false"
 DAGC_CLI_AUTO="false"
+DAGC_CLI_CONFIGURED="false"
 while true ; do
 	case "$1" in
 		--cli-auto)
 			DAGC_CLI_AUTO="true"
+			shift
+		;;
+		--cli-configured)
+			DAGC_CLI_AUTO="true"
+			DAGC_CLI_CONFIGURED="true"
 			shift
 		;;
 		--cli)
@@ -73,6 +79,8 @@ while true ; do
 	esac
 done
 # --cli-auto takes magic-team's own SPAWN_CLI_SERVICE where it is set, else the first installed known CLI.
+# --cli-configured takes the same setting and stops there: an unset setting means no external CLI was chosen,
+# which is a different answer from "none could be started" and is reported as rc=5 so a caller can branch on it.
 if [ "$DAGC_CLI_AUTO" = "true" ] ; then
 	DAGC_CLI_GIVEN="false"
 	## Tested, not bare: set -e would kill the console on an unreadable scope instead of falling through to the scan below.
@@ -81,6 +89,9 @@ if [ "$DAGC_CLI_AUTO" = "true" ] ; then
 		# Its name, its non-interactive capability and its presence in PATH are each checked below, at their own use site.
 		DAGC_CLI="$DAGC_CLI_SERVICE"
 		DAGC_CLI_GIVEN="true"
+	elif [ "$DAGC_CLI_CONFIGURED" = "true" ] ; then
+		echo "⛔ ERROR: DistroAgentsConsole: SPAWN_CLI_SERVICE is not configured in this workspace, so no external agent CLI is selected here. rc=5 means exactly this -- nothing was chosen to start, which is distinct from rc=1 (something was chosen and could not be started). Spawn an internal agent instead, or select one with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-claude --apply" >&2
+		exit 5
 	else
 		for DAGC_AUTO_CLI in $DAGC_KNOWN_CLIS ; do
 			if [ "$1" == "--non-interactive" ] ; then

@@ -10,15 +10,25 @@
 # wrong. This renders the floor as one aligned, scannable list with a single
 # verdict line, glossing each config key into plain words and hiding the noise.
 #
-# THE FLOOR IS GENERIC, NOT SLACK-SPECIFIC. Exactly two required items gate the
-# loop: a team data directory, and BASIC COMMS -- the loop's own ability to
-# reach the human-owner. Basic comms is satisfied by ANY ONE transport (an OR
-# over transport groups, each an AND over the keys that transport needs). Today
-# the only transport is Slack (team channel + owner DM); a Telegram or email
-# transport is added later by appending a group in BEGIN, never by redefining
-# the floor. The activity-log and alert channels are NOT floor items -- their
-# absence never gates the loop; the send path falls those over to the team
-# channel instead.
+# THE FLOOR IS GENERIC, NOT SLACK-SPECIFIC. The required items gate the loop: a
+# team data directory, BASIC COMMS -- the loop's own ability to reach the
+# human-owner -- and the agent CLI service every iteration spawns through,
+# without which each spawn fails rc=5 and the backoff walks to its ceiling in
+# silence. Basic comms is satisfied by ANY ONE transport (an OR over transport
+# groups, each an AND over the keys that transport needs). Today the only
+# transport is Slack (team channel + owner DM); a Telegram or email transport is
+# added later by appending a group in BEGIN, never by redefining the floor. The
+# activity-log and alert channels are NOT floor items -- their absence never
+# gates the loop; the send path falls those over to the team channel instead.
+#
+# A DIAGNOSED ITEM IS NEITHER. It is a state the loop cannot fix and no config
+# key holds -- today, whether the selected agent CLI is signed in, which the
+# main-loop arm reads from the CLI itself and hands over as one more verdict
+# line. It is named in the report so an unauthenticated machine is told so at
+# entry instead of failing every iteration opaquely, and it never gates: the
+# probe answers for one CLI only, so a machine it cannot read reports "not
+# checked" rather than being refused. It carries no ph[]/keyScope[] entry
+# either, since there is nothing for the operator to --upsert.
 #
 # It builds ON check-configs rather than re-reading config: it consumes only
 # the `KEY: STATUS` verdict lines (any other line -- fix hints, warnings, error
@@ -67,20 +77,34 @@ function padRight(text, width,   out) {
 
 BEGIN {
 	ni = 0 ; maxw = 0
-	# Display order. A "floor" item gates the loop; an "optional" item never
-	# does. A floor item's spec is transport groups (OR of AND); an optional
-	# item's spec is its single backing key. Add a transport to Basic comms by
-	# appending "|<key>,<key>" to its spec -- the floor itself does not change.
-	addItem("Team data directory",  "floor",    "TEAM_DATA_DIRECTORY")
-	addItem("Basic comms",          "floor",    "SLACK_CHANNEL_MAGIC_TEAM,SLACK_CHANNEL_HUMAN_OWNER")
-	addItem("Activity-log channel", "optional", "SLACK_CHANNEL_EVENT_TRACK")
-	addItem("Alert channel",        "optional", "SLACK_CHANNEL_EVENT_ALERT")
+	# Display order. A "floor" item gates the loop; "optional" and "diagnosed"
+	# items never do. A floor item's spec is transport groups (OR of AND); an
+	# optional or diagnosed item's spec is its single backing key. Add a
+	# transport to Basic comms by appending "|<key>,<key>" to its spec -- the
+	# floor itself does not change.
+	addItem("Team data directory",  "floor",      "TEAM_DATA_DIRECTORY")
+	addItem("Basic comms",          "floor",      "SLACK_CHANNEL_MAGIC_TEAM,SLACK_CHANNEL_HUMAN_OWNER")
+	addItem("Agent CLI service",    "floor",      "SPAWN_CLI_SERVICE")
+	addItem("Agent CLI sign-in",    "diagnosed",  "SPAWN_CLI_AUTHENTICATED")
+	addItem("Activity-log channel", "optional",   "SLACK_CHANNEL_EVENT_TRACK")
+	addItem("Alert channel",        "optional",   "SLACK_CHANNEL_EVENT_ALERT")
 
 	ph["TEAM_DATA_DIRECTORY"]       = "<path>"
 	ph["SLACK_CHANNEL_MAGIC_TEAM"]  = "<channel-id>"
 	ph["SLACK_CHANNEL_HUMAN_OWNER"] = "<user-id>"
+	ph["SPAWN_CLI_SERVICE"]         = "<cli-name>"
 	ph["SLACK_CHANNEL_EVENT_TRACK"] = "<channel-id>"
 	ph["SLACK_CHANNEL_EVENT_ALERT"] = "<channel-id>"
+
+	# The scope each key is actually stored under, so a fix hint names the one
+	# that will be read back. The floor spans two, and writing SPAWN_CLI_SERVICE
+	# into magic-coordinator leaves the console still unable to find it.
+	keyScope["TEAM_DATA_DIRECTORY"]       = "magic-coordinator"
+	keyScope["SLACK_CHANNEL_MAGIC_TEAM"]  = "magic-coordinator"
+	keyScope["SLACK_CHANNEL_HUMAN_OWNER"] = "magic-coordinator"
+	keyScope["SPAWN_CLI_SERVICE"]         = "magic-team"
+	keyScope["SLACK_CHANNEL_EVENT_TRACK"] = "magic-coordinator"
+	keyScope["SLACK_CHANNEL_EVENT_ALERT"] = "magic-coordinator"
 }
 
 /^[A-Z_]+:[ \t]+(OK|WARN|FAIL|SKIP)$/ {
@@ -95,6 +119,7 @@ END {
 	print ""
 	fails = 0
 	optionalUnset = 0
+	signedOut = 0
 	floorList = ""
 	for (i = 1; i <= ni; i++) {
 		if (itype[i] == "floor") {
@@ -102,6 +127,10 @@ END {
 			evalFloor(ispec[i])
 			if (RES_SAT) word = RES_WARN ? "ready (check)" : "ready"
 			else { word = "MISSING" ; fails++ ; }
+		} else if (itype[i] == "diagnosed") {
+			if (st[ispec[i]] == "OK") word = "signed in"
+			else if (st[ispec[i]] == "FAIL") { word = "NOT SIGNED IN" ; signedOut++ ; }
+			else word = "not checked"
 		} else {
 			if (keyPresent(ispec[i])) word = keyWarn(ispec[i]) ? "ready (check)" : "ready"
 			else { word = "not set" ; optionalUnset++ ; }
@@ -111,6 +140,13 @@ END {
 	if (optionalUnset > 0) {
 		print ""
 		print "  (optional channels left unset fall over to the team channel)"
+	}
+	# Named, never gated: claude is the one CLI whose sign-in state is readable,
+	# so a FAIL can only have come from it and this is the command that fixes it.
+	if (signedOut > 0) {
+		print ""
+		print "  (the selected agent CLI is installed and selected but signed out, so"
+		print "   every spawn will fail -- sign in yourself with: claude auth login)"
 	}
 	print ""
 	if (fails == 0) {
@@ -128,7 +164,7 @@ END {
 		mK = split(grp[1], kk, ",")
 		for (j = 1; j <= mK; j++) {
 			if (!keyPresent(kk[j]))
-				printf "  %s  DistroAgentsTools.fn.sh --agents-config-option magic-coordinator --upsert %s %s\n", padRight(ilabel[i], maxw), kk[j], ph[kk[j]]
+				printf "  %s  DistroAgentsTools.fn.sh --agents-config-option %s --upsert %s %s\n", padRight(ilabel[i], maxw), keyScope[kk[j]], kk[j], ph[kk[j]]
 		}
 	}
 	exit 1

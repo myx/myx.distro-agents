@@ -765,11 +765,11 @@ case "$1" in
 		if [ $# -gt 0 ] ; then
 			case "$1" in
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE $HOME/.claude/skills/magic-team/magic-team.grooming.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.grooming.routine.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $HOME/.claude/skills/magic-team/magic-team.grooming.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.grooming.routine.md" >&2
 					set +e ; return 1
 				;;
 			esac

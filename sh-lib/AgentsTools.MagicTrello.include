@@ -26,8 +26,8 @@ case "$1" in
 			routine-*)
 			;;
 			*)
-				if [ ! -d "$HOME/.claude/skills/$callingMember" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: no such member skill directory: $HOME/.claude/skills/$callingMember" >&2
+				if [ ! -d "$MDAT_SKILLSET_ROOT/$callingMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: no such member skill directory: $MDAT_SKILLSET_ROOT/$callingMember" >&2
 					set +e ; return 1
 				fi
 			;;

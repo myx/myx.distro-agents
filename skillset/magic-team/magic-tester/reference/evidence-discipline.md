@@ -283,3 +283,51 @@ leaving `find` to walk the current directory, an empty glob passed through
 literally. Build these into the corpus as a transformation or path-handling
 routine is written, and assert the intended behavior for each — a stronger
 statement than the absence of a crash.
+
+## A sanitised environment manufactures the failure it then reports
+
+`env -i` strips `PATH` and `HOME` along with everything else, so a probe run
+under it reports a tool as absent and a home-rooted path as missing whatever the
+real state is. The verdict looks decisive — "CLI NOT INSTALLED" — and it conceals
+the blocker that actually exists. Nothing is learned about the subject; the
+measurement describes the harness.
+
+Sanitise named variables, never the whole environment, and where a clean
+environment is genuinely the point, put a known-positive subject through the same
+sanitised shape first. The general form is the positive control above: an
+instrument that answers "absent" for every subject is answering about itself.
+
+The mirror failure costs as much: an environment variable **inherited** and not
+noticed. A shell channel carrying its own `MMDAPP`, `KUBECONFIG`, `AWS_PROFILE` or
+`GIT_DIR` points every command that honours it at a subject the operator did not
+choose, and a `cd` does not change it. Two commands compared side by side can then
+be reading two different systems while the transcript shows one directory. So
+before an A/B run, print the variables that select the subject, and state the
+subject in the finding rather than the directory the command was typed in.
+
+## Absence of a notification is not evidence of progress
+
+A spawned session can end its turn without any completion notification firing —
+finished, silent, and indistinguishable on the notification channel from one still
+working. Waiting longer produces the same nothing.
+
+So a session's state is established by asking something that answers either way:
+the roster, the tracking document it was told to write, a direct ping. Never treat
+"I have not heard back" as "it is still running", and never report progress that
+rests on it. This is the reporting-surface rule applied to sessions — the channel
+that would have carried the news is not the channel that holds the state.
+
+## Read `git status` before measuring a package under concurrent edit
+
+A working tree that another session is editing is not one state, it is two: what
+is committed and what is not. A measurement that does not separate them reports
+in-progress lines as settled fact, cites line numbers that have already moved, and
+produces findings that will not reproduce for whoever reads them next.
+
+So the first command of any code measurement is `git status --porcelain` over the
+package, and every finding names which of the two it holds in — HEAD, working
+tree, or both. Untracked files are the sharpest case: a file that exists only in
+the working tree makes the code around it read as finished work. Where a cited
+line number does not carry what a report said it carried, treat that as the
+coordinates having moved under an active edit, and re-measure by content rather
+than by line — not as the finding being false.

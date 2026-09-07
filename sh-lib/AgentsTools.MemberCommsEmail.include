@@ -21,8 +21,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -70,8 +70,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -144,8 +144,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -193,8 +193,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;

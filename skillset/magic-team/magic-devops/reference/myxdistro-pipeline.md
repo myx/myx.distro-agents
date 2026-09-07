@@ -135,7 +135,7 @@ Which subset exists tracks the workspace's purpose: a personal/refactor-only wor
 
 **Settled, not yet implemented: `custom-commands-path:sh-scripts`.** The tag a user-added custom project would declare via `Declares:` (self-only, non-inherited, per `Man.Project.Inf.file.help.md`'s own schema) to contribute its own `sh-scripts/` to console `PATH` — additive only, never touching the existing hardcoded embedded-family `PATH` lists.
 
-**Per-workspace `.local/` is the installed tool release** — `myx/` holds the installed `myx.common`/`myx.distro-*` packages themselves, alongside `roots/`, `assets/`, `home/`, `lib/`, `agents/`, plus `MDLT.settings.env`/`MDSC.source.settings.env`. Written by the console commands above through their own install/upgrade path; never hand-edited. Not a generated tree, not a cache, not regenerable by us — see `magic-devops/magic-devops.armed.md`'s own `$MMDAPP/.local/` rules for why. Exceptions, genuinely generated and still Tier 1: the regenerable subtrees under it — `source-cache/`, `system-index/`, `temp/`, and `.cleanup/` (`--purge-cleanup`'s own target). The release-version rule above is about `.local/` as a whole, not about those.
+**Per-workspace `.local/` is the installed tool release** — `myx/` holds the installed `myx.common`/`myx.distro-*` packages themselves, alongside `roots/`, `assets/`, `home/`, `lib/`, `agents/`, plus `MDLT.settings.env`/`MDSC.source.settings.env`. Written by the console commands above through their own install/upgrade path; never hand-edited. Not a generated tree, not a cache, not regenerable by us — see `magic-devops/magic-devops.armed.md`'s own `$MMDAPP/.local/` rules for why. Exceptions, genuinely generated and still Tier 1: the regenerable subtrees under it — `source-cache/`, `system-index/`, `temp/`, and `.cleanup/` (`--owner-cleanup-purge`'s own target). The release-version rule above is about `.local/` as a whole, not about those.
 
 **Overlap with the owning `partner-*`, not a clean line**: this skill owns the tool itself — consoles, sync/index/build machinery, task wiring, `myx.distro-*` package internals. `myx.distro-*` is deliberately extensible — any project can declare its own `.fn.sh` functions, custom builders, and `ExecuteParallel.fn.sh`/`ExecuteSequence.fn.sh` targets selected via `--select-merged-keywords`/`--select-projects`. Once a project extends the tool this way, the extension is simultaneously "tool mechanics" (this skill) and "domain content" (the owning `partner-*`) — use both lenses. The one thing unambiguously that `partner-*`'s alone: the actual namespace inventory data (`infra/accounts-<ns>`, `clusters-<ns>`, `instances-<ns>`, etc.).
 
@@ -185,3 +185,67 @@ Two genuinely separate mechanisms exist in the index system, feeding different c
 - `myx` is this skill's core territory everywhere (myx.common/myx.distro-* tooling itself).
 - `lib` (vendored third-party dependencies) is general dependency/build/packaging maintenance — this skill's baseline.
 - `acm` (AxiomCMS) is narrower: the `.tpl`/skin templating content itself belongs to the owning `keeper-*`, but general repo-level build/package/CI plumbing for `acm` falls to this skill at baseline. Defer to that `keeper-*` the moment the question touches `.tpl` files, `skin.settings.xml`, or the `<% %>` template language.
+
+## A bare `<Tool>.fn.sh` run answers from a built snapshot, not from the working tree
+
+Run by full path outside a console, a `sh-scripts/*.fn.sh` command resolves its own input spec and
+lands on a built artefact — `--distro-from-cached` or `--distro-from-output` depending on what that
+workspace has built — where the same command through `DistroSourceConsole.sh --non-interactive`
+resolves `spec: --distro-from-source`. The bare run reports no staleness: it answers correctly for the
+snapshot it read, and says nothing about source.
+
+**The bare run also honours the ambient `MMDAPP`, and a console re-resolves `MMDAPP` from its own
+location.** So a `cd` into one workspace followed by a bare script run measures whichever workspace
+the environment already named, while the console beside it measures the one it was started from — two
+different trees, read as one comparison. Echo `$MMDAPP` before a bare-script measurement, and name the
+workspace in the finding.
+
+So a check on source content goes through a console, or names its spec explicitly. A finding
+measured by a bare run describes the last build. This is separate from the cached-snapshot pipeline
+above — that is about a file going stale, this is about which file was read at all.
+
+## The workspace-root consoles are generated, so a correct template proves nothing about a workspace
+
+`DistroSourceConsole.sh`, `DistroLocalConsole.sh`, `DistroDeployConsole.sh` and
+`DistroAgentsConsole.sh` at a workspace root are generated artefacts, not hand-source. The caller runs
+the generated copy, so a fix that has landed in the generating template has not landed for anyone
+until each workspace is regenerated. Reading the template establishes what a *fresh* console would do
+and nothing about the one on disk.
+
+**And regenerating does not settle it either, because the generator can itself be stale.** Measured
+2026-09-07: `DistroAgentsConsole.sh` carried zero occurrences of `cli-configured` in two workspaces —
+option arms `--cli-auto` and `--cli` only — with mtimes 00:29 and 00:41, while its generator
+`myx.distro-agents/sh-lib/AgentsConsoleShellScript.template.sh` carried two and had mtime 02:00. Both
+consoles had been regenerated hours earlier, from a generator that did not yet have the flag. The
+result is byte-for-byte indistinguishable from never having regenerated at all, and it broke the spawn
+path, which invokes `--cli-configured` and guards on `grep -q 'cli-configured'` over the generated
+file.
+
+So: **compare a generated artefact's mtime against its generator's, never against the clock.** "It was
+regenerated recently" is not the question; "was the generator current when it ran" is. And state which
+workspace a console-behaviour claim was measured in — one workspace's console says nothing about
+another's.
+
+One caution against over-applying this. A related exit-status hypothesis — that workspaces
+un-regenerated since the `exit 0`→`exit $?` template fix would still carry the old form — was checked
+across all four root consoles in two workspaces and **not found**: `exit 0` occurs in none of them,
+`exit $?` occurs once each in the Source, Local and Deploy consoles, and `DistroAgentsConsole.sh` has
+neither because it ends in `exec`, whose status is the exec'd command's. Generated-copy drift is real
+and is documented above from a case that was confirmed; it is not a universal explanation to reach for
+whenever a console behaves unexpectedly.
+
+## `BuildSingleIndex.awk` accumulates every provider of a required name, silently
+
+`myx.distro-system/sh-lib/system-context/BuildSingleIndex.awk`, in its requires-resolution block:
+for each `Requires:` value it walks every registered provider of that name and appends all of them to
+the requiring project's list. Only the zero-provider case reports, as `⛔ MISSING:` on stderr. Two
+projects providing one name is therefore invisible in the sequence, and shows up downstream as work
+done twice or in an order nobody chose.
+
+A duplicate is not automatically a defect — several are deliberate. `os.any` on `ws-myx-devops` is
+provided by all three of `os-myx.common-{freebsd,macosx,ubuntu}` and required by nothing: an any-OS
+selector pattern, not a collision. Read duplicates off plain `ListDistroProvides.fn.sh
+--all-provides`, grouping by the provided name in column 2. That option accepts no further options: a
+`--all-provides --no-cache --no-index` form is refused outright, which is easy to misread as the query
+finding nothing. The duplicate set differs per workspace, so a result names the workspace it was taken
+in — the same name that is deliberate in one tree may be absent from another.

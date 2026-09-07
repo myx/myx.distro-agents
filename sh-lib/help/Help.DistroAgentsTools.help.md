@@ -36,8 +36,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-search <team-member> <jql> [--limit <n>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered]
-📘 syntax: DistroAgentsTools.fn.sh --self-test
-📘 syntax: DistroAgentsTools.fn.sh --verify-permissions
+📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-self-test
+📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify
+📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-harden
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
@@ -124,7 +125,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-sleep-run
-📘 syntax: DistroAgentsTools.fn.sh --purge-cleanup
+📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge
 📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>
 📘 syntax: DistroAgentsTools.fn.sh [--help]
 
@@ -1620,7 +1621,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--self-test
+		--owner-credential-store-self-test
 			Self-check: confirms the credential-store permission-hardening
 			path holds even under a permissive shell umask. Takes no
 			arguments. Leaves no residue in the real credentials file
@@ -1628,11 +1629,19 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--verify-permissions
+		--owner-credential-store-verify
 			Checks the credential store's file/directory permissions are
 			correctly hardened. Prints one `OK`/`BAD` line per path to
 			stdout, returns non-zero if anything is out of hardening.
 			Read-only, modifies nothing.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--owner-credential-store-harden
+			Repairs the credential store's directory and file permissions,
+			then runs the verify operation and returns its result. Takes no
+			arguments. Call it when verify reports a path out of hardening.
+			Writes, unlike the other two credential-store operations.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1641,7 +1650,7 @@
 			the two listing ops — prefer this one when mtimes aren't
 			needed. Zero or more optional scope
 			arguments, each either a bare path relative to the skill-root
-			(`$HOME/.claude/skills/`) or an absolute path that must resolve
+			(`$MDAT_SKILLSET_ROOT/`) or an absolute path that must resolve
 			inside it (anything outside is rejected and skipped, not
 			silently ignored); a bare file scopes to just that file, a directory
 			scopes recursively. No arguments means the whole skill-root.
@@ -1757,10 +1766,6 @@
 			substring match-and-replace against the existing note -- a
 			patch whose old text isn't found, or matches more than once
 			without replace_all, fails loud before anything is written.
-			Renamed from --member-upsert-inbox-note (itself earlier renamed
-			from --write-inbox-note) — both old names still work, unchanged,
-			as thin backward-compatible shims calling this op, but neither
-			is documented separately here.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1921,12 +1926,14 @@
 			-- upserting an already-tracked path is a harmless no-op, not an
 			error. Existence of <path> on disk is not checked (a tracked
 			workspace may live on a currently-unmounted volume). The
-			$HOME/.claude/skills directory itself must already exist (it
-			does, as the standing skills folder) -- this op does not create
-			that directory, only the .human-owner.workspaces.md file inside
-			it on first use. The file sits beside the skill symlinks rather
-			than inside the human-owner skill folder, which is a working
-			tree of a public git repository.
+			$HOME/.claude/skills directory and the
+			.human-owner.workspaces.md file inside it are both created on
+			first use, so a host whose skillset is installed at workspace
+			scope, or not yet installed at all, tracks workspaces the same
+			way -- the directory is where this registry is stored, not a
+			member set this op reads. The file sits beside the skill
+			symlinks rather than inside the human-owner skill folder, which
+			is a working tree of a public git repository.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1960,6 +1967,74 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]
+			Reports, and for a domain that supports it carries out, the setup
+			of one macro part of a working installation. `<domain>` is open and
+			grows; `claude`, `copilot`, `slack` and `storage` exist today, and a
+			domain with no defined check set says so rather than inventing one.
+
+			Options and their values come first, then at most one sub-operation
+			LAST -- anything after a sub-operation is an error, and so is an
+			option whose meaning depends on a sub-operation that is absent.
+
+			`<config-option>` stands for this domain's own configuration
+			options, which differ per domain and so are listed per domain
+			below rather than on the family line. The flags after it are
+			family-wide and mean the same thing for every domain.
+			--print-apply-command writes the list for any domain that declares
+			options, so one not listed below is still readable at runtime. A
+			domain that declares none is refused, not answered with an empty
+			list.
+
+			A value the setup would store -- one of this domain's own
+			configuration options, --access-root, or --values-from-stdin, which
+			reads a set of them as KEY=VALUE lines -- is accepted only together
+			with --apply, and refused rather than taken and dropped anywhere
+			else. --workspace-root is not one of these: it names which
+			workspace a call is about rather than a value to store, so every
+			sub-operation takes it.
+
+			With no sub-operation, writes a readable status for the current
+			workspace and names the command that sets the domain up. --check
+			writes the per-setting detail instead. --apply carries the setup
+			out, non-interactively, for a domain that implements it.
+			--print-apply-command writes the command that would carry it out,
+			naming every option this domain declares, required and optional,
+			set or not, with a placeholder per value and a short line per
+			option saying where that value comes from. A domain whose options
+			are all plain gets one command line; a domain carrying a secret
+			gets a stdin-fed form instead -- its secrets as KEY=<placeholder>
+			lines piped into --values-from-stdin --apply -- so no secret is
+			written on a command line. It changes nothing and exits 0; --check
+			is the sub-operation that reports whether the domain is set up.
+			--wizard is the interactive form and is not built yet.
+
+			--all-workspaces widens a report from the current workspace to every
+			workspace the skillset installer has registered. Accepted only by a
+			domain whose diagnosis spans workspaces, and never combined with
+			--apply, which changes exactly one workspace, or with
+			--print-apply-command, which writes the command for exactly one.
+
+			--set-as-default points the domain's service selection at this
+			domain. Without it, an apply takes the selection only when nothing
+			is selected at all, so an existing selection is never overwritten by
+			accident. Accepted only by a domain that owns a selection, and only
+			together with --apply.
+
+			Configuration options, `claude`:
+			  --workspace-root <path>   the workspace to set up. Its own
+			      basic setting: it defaults to $MMDAPP, and a path that is
+			      not a workspace root is an error rather than a fallback.
+			  --access-root <path>      an extra directory a spawned agent
+			      may read and write, beyond the member and source roots the
+			      installer already grants. Repeatable. Optional.
+
+			Exit status is non-zero when a check fails, so it is usable as a
+			readiness gate. A setting is judged by its value where that value is
+			used, never by a config file existing.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--install-claude-permissions
 			Merges myx.distro-agents' own mandatory Claude Code permission
 			grants into `$HOME/.claude/settings.json`'s `permissions.allow`/
@@ -1978,7 +2053,7 @@
 			`mcp__myx_distro__execute`, `Agent`, `Task`, plus one
 			`Edit(<path>/**)`/`Write(<path>/**)` pair per acting team
 			member's real skillset directory -- enumerated fresh every run
-			from `$HOME/.claude/skills` (symlink or real directory, real
+			from `$MDAT_SKILLSET_ROOT` (symlink or real directory, real
 			path resolved via `cd` + `pwd -P`), skipping `trash` and
 			skipping any member whose `SKILL.md` marks it
 			`status: reference-only` (the human-owner's own non-acting
@@ -2033,20 +2108,19 @@
 			grant -- configure that other workspace directly via its own
 			`--workspace <path>`, never by reaching across workspaces from
 			here.
-			Also upserts a fixed set of extra `Read` allow-grants, the SAME
-			for every target workspace (unlike the source-tree grant above,
-			never derived from `<workspace>`): real, external filesystem
-			locations outside any workspace's own `source/` tree that this
-			ecosystem's agents routinely need plain read access to. Currently
-			one entry, `Read(//Volumes/workspace/myx/**)` -- the canonical,
-			editable AE3 legacy Eclipse-project checkout. Kept short and
-			evidenced, grown only when live use actually hits the
-			interactive prompt for a real path, never speculatively. Each
+			Also upserts extra `Read` allow-grants for real, external
+			filesystem locations outside any workspace's own `source/` tree
+			that this ecosystem's agents need plain read access to. These
+			come from `<workspace>`'s own `CLIENT_ACCESS_ROOTS_EXTRA`
+			(magic-team scope, colon-separated absolute paths, set by
+			`--owner-setup-claude`/`--owner-setup-copilot`): which
+			directories exist is a property of the machine, so this op names
+			none of its own. Unset -- the normal case -- adds no grant. Each
 			entry is added if missing and left alone if already present --
 			unlike the source-tree grant's replace-not-accumulate handling,
-			there is no "moved" case for a fixed external root, so nothing
-			is ever removed here even if a future entry is dropped from the
-			op's own fixed list.
+			there is no "moved" case for an external root, so nothing is
+			ever removed here even if a path is later dropped from the
+			setting.
 			Default target workspace is the current shell directory;
 			optional `--workspace <path>` overrides it. Refuses (exit 1,
 			nothing written) when `<workspace>` is not a genuine workspace
@@ -3040,9 +3114,12 @@
 			already at EOF in a non-interactive caller, so the read
 			returns 0 bytes and the call fails with "empty spawn context"
 			straight away. Use --from-file <path> where redirecting is
-			awkward. The prompt body is passed to the spawned session as
-			its whole stdin and is not parsed here -- no field inside it
-			selects a mode, `--wait` included.
+			awkward. Stdin is how the CONSOLE receives the body, not how
+			the spawned session does: the console hands it to the CLI as a
+			single -p <prompt> argument, so the whole brief is on that
+			process's command line and is visible in ps on the host. Keep
+			no secret in a spawn brief. The body is not parsed here -- no
+			field inside it selects a mode, `--wait` included.
 
 			Dispatch-document handling is an explicit choice on the
 			underlying --intern-op-agent-spawn-proxy primitive
@@ -3140,7 +3217,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--purge-cleanup
+		--owner-cleanup-purge
 			Empties $MMDAPP/.local/.cleanup/ (the folder itself stays).
 			Takes no arguments -- always targets this one fixed location;
 			nothing to parameterize.
@@ -3411,7 +3488,7 @@
 		`DistroAgentsTools.fn.sh --magic-sweep-input-scan magic-coordinator --comms-since-utime 1786140114.450349`
 
 		# Regression-test permission hardening under a deliberately permissive umask
-		`DistroAgentsTools.fn.sh --self-test`
+		`DistroAgentsTools.fn.sh --owner-credential-store-self-test`
 
-		# Audit .local/.agents for anything not chmod 770/660
-		`DistroAgentsTools.fn.sh --verify-permissions`
+		# Audit the .local/.agents scope files for anything not chmod 770/660
+		`DistroAgentsTools.fn.sh --owner-credential-store-verify`

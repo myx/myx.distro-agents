@@ -21,8 +21,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-check: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-check: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -67,8 +67,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -127,8 +127,8 @@ case "$1" in
 					## Same carve-out, same reason, as the two arms above.
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;

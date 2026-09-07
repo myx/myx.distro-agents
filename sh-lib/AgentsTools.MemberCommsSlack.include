@@ -41,7 +41,7 @@ AgentsToolsCommsSlackFileInfoEmitField(){
 ## (Slack shortcode, else the unicode character) and the alias (the member's
 ## own name instead, when the alias is absent or malformed).
 AgentsToolsCommsSlackMemberMarks(){
-	local marksFile="$HOME/.claude/skills/$1/$1.basic.md"
+	local marksFile="$MDAT_SKILLSET_ROOT/$1/$1.basic.md"
 	[ -f "$marksFile" ] || return 1
 	LC_ALL=C awk -F": " -v who="$1" '
 		icon  == "" && /^- \*\*Slack shortcode\*\*:/	{ icon  = $2 ; }
@@ -71,8 +71,7 @@ AgentsToolsCommsSlackMentionUserId(){
 		2>/dev/null | cksum )"
 	if [ "$lockGen" != "$( head -n 1 "$cacheFile" 2>/dev/null )" ] ; then
 		printf '%s\n' "$lockGen" > "$cacheFile" 2>/dev/null || true
-		## Holds resolved Slack user ids, so it carries the 600 every sibling in
-		## this directory does -- a plain redirect would leave it at the umask.
+		## A cache, not a config scope, so it does not take the scope mode; a plain redirect would leave it at the umask.
 		chmod 600 "$cacheFile" 2>/dev/null || true
 	fi
 	local cachedId
@@ -143,8 +142,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -278,8 +277,8 @@ case "$1" in
 				routine-*)
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -524,8 +523,8 @@ case "$1" in
 					## Same routine-* carve-out as the sibling arms.
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -638,8 +637,8 @@ case "$1" in
 					## Same routine-* carve-out as the sibling arms.
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -776,8 +775,8 @@ case "$1" in
 					## Same routine-* carve-out as the sibling arms.
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -908,8 +907,8 @@ case "$1" in
 					## Same routine-* carve-out as the sibling arms.
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -1069,8 +1068,8 @@ case "$1" in
 					## Same routine-* carve-out as the sibling arms.
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -1292,8 +1291,8 @@ case "$1" in
 					## Same routine-* carve-out as the sibling arms.
 				;;
 				*)
-					if [ ! -d "$HOME/.claude/skills/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: no such member skill directory: $HOME/.claude/skills/$memberName" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
@@ -1538,7 +1537,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-send-message || { set +e ; return 1 ; }
-		local memberDir="$HOME/.claude/skills/$memberName"
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
 		case "$memberName" in
 			routine-*)
 			;;
@@ -1688,7 +1687,7 @@ case "$1" in
 				}
 			}
 		' ) ; do
-			[ -d "$HOME/.claude/skills/$mentionName" ] || continue
+			[ -d "$MDAT_SKILLSET_ROOT/$mentionName" ] || continue
 			mentionId="$( AgentsToolsCommsSlackMentionUserId "$mentionName" )" || mentionId=""
 			[ -n "$mentionId" ] || continue
 			slackMentionMap="$slackMentionMap${slackMentionMap:+;}$mentionName=$mentionId"
@@ -1893,7 +1892,7 @@ blocks|verbatim|caller|stdin file"
 					## held to the same bare-name shape as the sender's own.
 					AgentsToolsAssertBareName "$addrWho" "--address-to" member-comms-slack-send-message || { set +e ; return 1 ; }
 					addrMarks="$( AgentsToolsCommsSlackMemberMarks "$addrWho" )" || {
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': no such team member -- expected $HOME/.claude/skills/$addrWho/$addrWho.basic.md" >&2
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': no such team member -- expected $MDAT_SKILLSET_ROOT/$addrWho/$addrWho.basic.md" >&2
 						set +e ; return 1
 					}
 					addrMark="${addrMarks%%$'\t'*}" ; addrAlias="${addrMarks#*$'\t'}"

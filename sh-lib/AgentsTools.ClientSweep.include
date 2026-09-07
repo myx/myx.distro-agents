@@ -32,8 +32,8 @@ case "$1" in
 			routine-*)
 			;;
 			*)
-				if [ ! -d "$HOME/.claude/skills/$clientMember" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: no such member skill directory: $HOME/.claude/skills/$clientMember" >&2
+				if [ ! -d "$MDAT_SKILLSET_ROOT/$clientMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: no such member skill directory: $MDAT_SKILLSET_ROOT/$clientMember" >&2
 					set +e ; return 1
 				fi
 			;;
@@ -55,11 +55,11 @@ case "$1" in
 					shift 2
 				;;
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: invalid option: $1 -- syntax is <client-* member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE $HOME/.claude/skills/magic-team/magic-team.shared.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: invalid option: $1 -- syntax is <client-* member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.shared.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <client-* member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $HOME/.claude/skills/magic-team/magic-team.shared.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <client-* member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.shared.md" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -143,8 +143,8 @@ case "$1" in
 			routine-*)
 			;;
 			*)
-				if [ ! -d "$HOME/.claude/skills/$checkMember" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: no such member skill directory: $HOME/.claude/skills/$checkMember" >&2
+				if [ ! -d "$MDAT_SKILLSET_ROOT/$checkMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: no such member skill directory: $MDAT_SKILLSET_ROOT/$checkMember" >&2
 					set +e ; return 1
 				fi
 			;;

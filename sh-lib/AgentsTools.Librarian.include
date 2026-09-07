@@ -14,7 +14,7 @@ case "$1" in
 
 		--librarian-list-team-files)
 			shift
-			local skillRoot="$HOME/.claude/skills"
+			local skillRoot="$MDAT_SKILLSET_ROOT"
 			local hadError="false"
 			local findRoots=()
 
@@ -61,7 +61,7 @@ case "$1" in
 
 		--librarian-list-team-files-dates)
 			shift
-			local skillRoot="$HOME/.claude/skills"
+			local skillRoot="$MDAT_SKILLSET_ROOT"
 			local hadError="false"
 			local findRoots=()
 

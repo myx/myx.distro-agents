@@ -9,8 +9,8 @@ case "$1" in
 			mkdir -p "$MMDAPP/.agents"
 		fi
 
-		DistroAgentsTools --make-console-command "$@"
-		DistroAgentsTools --install-workspace-integrations "$@"
+		DistroAgentsTools --make-console-command "$@" || { set +e ; return 1 ; }
+		DistroAgentsTools --install-workspace-integrations "$@" || { set +e ; return 1 ; }
 		return 0
 	;;
 	--make-console-command)
@@ -20,6 +20,12 @@ case "$1" in
 		cat "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsoleShellScript.template.sh" \
 		> "$MMDAPP/DistroAgentsConsole.sh"
 		chmod 770 "$MMDAPP/DistroAgentsConsole.sh"
+
+		## What the spawn proxy greps for before it will start anything.
+		grep -q 'cli-configured' "$MMDAPP/DistroAgentsConsole.sh" || {
+			echo "$MDSC_CMD: ⛔ ERROR: --make-console-command: the console just written to $MMDAPP/DistroAgentsConsole.sh carries no --cli-configured arm, so an agent-initiated spawn through it is refused rather than started. It was generated from $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsoleShellScript.template.sh, and that template is what predates the arm -- point MDLT_CONSOLE_ORIGIN at a tree whose template carries it and run this again. The previous console has already been overwritten by this one." >&2
+			set +e ; return 1
+		}
 
 		if [ "$1" != "--quiet" ] ; then
 			local consoles="$( ls $MMDAPP/Distro*Console.sh | sed 's|^|	|g' )"

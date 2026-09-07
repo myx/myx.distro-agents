@@ -32,7 +32,7 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-upsert || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$itemName" "<item-filename>" member-inbox-upsert || { set +e ; return 1 ; }
-		local memberDir="$HOME/.claude/skills/$memberName"
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
 		if [ ! -d "$memberDir" ] ; then
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: no such member skill directory: $memberDir" >&2
 			set +e ; return 1

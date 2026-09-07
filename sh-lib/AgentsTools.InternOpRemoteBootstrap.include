@@ -1,0 +1,254 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpRemoteBootstrap.include -- --intern-op-remote-bootstrap-emit.
+## Read-only, writes nothing anywhere. Emits on stdout ONE self-contained
+## POSIX /bin/sh script that an already-provisioned host runs from its own
+## stdin: it makes a random private temp root, materialises the payload and
+## the task inside it, runs the task there, and removes the root on every
+## exit path it can observe. Transport is whatever already reaches the host
+## (DistroSshConnect via ExecuteSequence/ExecuteParallel --execute-stdin, a
+## bare `ssh <host> /bin/sh`, or a local `sh`); this operation adds none.
+## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. No --help entry (internal primitive).
+##
+
+case "$1" in
+
+	--intern-op-remote-bootstrap-emit)
+		shift
+		local opContext="<no --context given>"
+		local emitLabel="magic-bootstrap"
+		local taskLocalPath="" taskFromStdin="false"
+		local payloadNames=() payloadPaths=()
+		local emitPair emitRelativeName emitLocalPath emitSegment emitSegmentRest
+
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--label)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: --label: value required" >&2
+						set +e ; return 1
+					fi
+					emitLabel="$2"
+					AgentsToolsAssertBareName "$emitLabel" "<label>" remote-bootstrap-emit || { set +e ; return 1 ; }
+					shift 2
+				;;
+				--payload-file)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: --payload-file: <relative-name>=<local-path> required" >&2
+						set +e ; return 1
+					fi
+					emitPair="$2"
+					emitRelativeName="${emitPair%%=*}"
+					emitLocalPath="${emitPair#*=}"
+					if [ "$emitRelativeName" = "$emitPair" ] || [ -z "$emitRelativeName" ] || [ -z "$emitLocalPath" ] ; then
+						echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: --payload-file: expected <relative-name>=<local-path>, got: $emitPair" >&2
+						set +e ; return 1
+					fi
+					## Every segment of the relative name goes through the family's own bare-name
+					## gate, so '..', a leading '/' and a leading '-' are all refused here rather
+					## than reaching a mkdir on the target host.
+					emitSegmentRest="$emitRelativeName"
+					while [ -n "$emitSegmentRest" ] ; do
+						emitSegment="${emitSegmentRest%%/*}"
+						case "$emitSegmentRest" in
+							*/*) emitSegmentRest="${emitSegmentRest#*/}" ;;
+							*) emitSegmentRest="" ;;
+						esac
+						AgentsToolsAssertBareName "$emitSegment" "<relative-name> segment" remote-bootstrap-emit || { set +e ; return 1 ; }
+					done
+					if [ ! -e "$emitLocalPath" ] ; then
+						echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: --payload-file: local file not found: $emitLocalPath" >&2
+						set +e ; return 1
+					fi
+					if [ ! -f "$emitLocalPath" ] ; then
+						echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: --payload-file: not a regular file, and only a regular file has bytes this can package: $emitLocalPath" >&2
+						set +e ; return 1
+					fi
+					payloadNames+=( "$emitRelativeName" )
+					payloadPaths+=( "$emitLocalPath" )
+					shift 2
+				;;
+				--task-file)
+					if [ -z "${2:-}" ] || [ ! -f "$2" ] ; then
+						echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: --task-file: file not found: ${2:-}" >&2
+						set +e ; return 1
+					fi
+					taskLocalPath="$2"
+					shift 2
+				;;
+				--task-from-stdin)
+					taskFromStdin="true"
+					shift
+				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: --context: value required" >&2
+						set +e ; return 1
+					fi
+					opContext="$2"
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: invalid option: $1 -- accepted: --label, --payload-file, --task-file, --task-from-stdin, --context" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		if [ -n "$taskLocalPath" ] && [ "$taskFromStdin" = "true" ] ; then
+			echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: use --task-file or --task-from-stdin, never both ($opContext)" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$taskLocalPath" ] && [ "$taskFromStdin" != "true" ] ; then
+			echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: one of --task-file <path> or --task-from-stdin is required ($opContext)" >&2
+			set +e ; return 1
+		fi
+
+		## The task joins the payload list as its own last entry, so one emit loop
+		## below covers both and the task needs no second spelling of the same block.
+		local taskStagedName="bootstrap-task.sh"
+		if [ "$taskFromStdin" = "true" ] ; then
+			## stdin is read into a variable rather than staged as a file: this
+			## operation writes nothing to disk, so it has nothing to clean up and
+			## never installs an EXIT trap that would replace its caller's.
+			local taskFromStdinBody
+			taskFromStdinBody="$( cat )"
+			if [ -z "$taskFromStdinBody" ] ; then
+				echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: --task-from-stdin: empty task ($opContext)" >&2
+				set +e ; return 1
+			fi
+		fi
+
+		local emitIndex emitBlockTag emitBodyFile emitCount
+		emitCount="${#payloadNames[@]}"
+
+		printf '%s\n' \
+			'#!/bin/sh' \
+			'##' \
+			"## Packaged bootstrap, generated for label: $emitLabel" \
+			"## generated at: $( date -u +%Y-%m-%dT%H:%M:%SZ ) on $( hostname ) by $( whoami )" \
+			'## Runs from the target shell'"'"'s own stdin. Materialises a private temp' \
+			'## root, runs the task inside it, removes the root on every observable' \
+			'## exit path. Nothing of this lands outside that root.' \
+			'##' \
+			'' \
+			'## Before anything is created, so every file below is owner-only from the' \
+			'## moment it exists -- there is no window in which content is readable.' \
+			'umask 077' \
+			'' \
+			'bootstrapTempRoot=""' \
+			'bootstrapCleanupDone=""' \
+			'' \
+			'BootstrapCleanup(){' \
+			'	## Once-guard: measured on this family'"'"'s own platforms, a shell that' \
+			'	## traps EXIT and TERM together runs the handler twice on a TERM.' \
+			'	[ -z "$bootstrapCleanupDone" ] || return 0' \
+			'	bootstrapCleanupDone="done"' \
+			'	[ -n "$bootstrapTempRoot" ] || return 0' \
+			'	case "$bootstrapTempRoot" in' \
+			'		/*) ;;' \
+			'		*) return 0 ;;' \
+			'	esac' \
+			'	cd /' \
+			'	rm -rf -- "$bootstrapTempRoot"' \
+			'	echo "BOOTSTRAP_CLEANED=$bootstrapTempRoot" >&2' \
+			'}' \
+			'' \
+			'## Armed before the root exists, so there is no window in which the root is' \
+			'## real and the trap is not. SIGKILL escapes every trap and is not claimed.' \
+			'trap '"'"'BootstrapCleanup'"'"' EXIT' \
+			'trap '"'"'BootstrapCleanup ; exit 129'"'"' HUP' \
+			'trap '"'"'BootstrapCleanup ; exit 130'"'"' INT' \
+			'trap '"'"'BootstrapCleanup ; exit 143'"'"' TERM' \
+			''
+
+		printf 'bootstrapTempRoot="$( mktemp -d "${TMPDIR:-/tmp}/%s.XXXXXXXX" )" || {\n' "$emitLabel"
+		printf '%s\n' \
+			'	echo "'"$emitLabel"': ⛔ ERROR: cannot create a temporary root" >&2' \
+			'	exit 1' \
+			'}' \
+			'if [ ! -d "$bootstrapTempRoot" ] || [ -L "$bootstrapTempRoot" ] ; then' \
+			'	echo "'"$emitLabel"': ⛔ ERROR: temporary root is not a real directory: $bootstrapTempRoot" >&2' \
+			'	exit 1' \
+			'fi' \
+			'chmod 700 "$bootstrapTempRoot" || exit 1' \
+			'echo "BOOTSTRAP_TEMP_ROOT=$bootstrapTempRoot" >&2' \
+			'mkdir -p "$bootstrapTempRoot/payload" || exit 1' \
+			''
+
+		emitIndex=0
+		while [ "$emitIndex" -lt "$emitCount" ] ; do
+			emitRelativeName="${payloadNames[$emitIndex]}"
+			emitBodyFile="${payloadPaths[$emitIndex]}"
+			emitBlockTag="BLK_$( cksum < "$emitBodyFile" | cut -d' ' -f1,2 | tr ' ' '_' )"
+			if grep -q -x -F -- "$emitBlockTag" "$emitBodyFile" ; then
+				echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: payload file contains its own block delimiter, refusing to emit: $emitBodyFile" >&2
+				set +e ; return 1
+			fi
+			case "$emitRelativeName" in
+				*/*)
+					printf 'mkdir -p "$bootstrapTempRoot/payload/%s" || exit 1\n' "${emitRelativeName%/*}"
+				;;
+			esac
+			printf 'cat > "$bootstrapTempRoot/payload/%s" << '"'"'%s'"'"' || exit 1\n' "$emitRelativeName" "$emitBlockTag"
+			cat "$emitBodyFile"
+			## A heredoc delimiter has to start a line, so a file with no final newline
+			## gains one and one that has it stays byte-exact. Command substitution
+			## strips trailing newlines, so an empty result IS the final newline.
+			[ -z "$( tail -c 1 "$emitBodyFile" )" ] || printf '\n'
+			printf '%s\n\n' "$emitBlockTag"
+			emitIndex=$(( emitIndex + 1 ))
+		done
+
+		if [ "$taskFromStdin" = "true" ] ; then
+			emitBlockTag="BLK_$( printf '%s\n' "$taskFromStdinBody" | cksum | cut -d' ' -f1,2 | tr ' ' '_' )"
+			if printf '%s\n' "$taskFromStdinBody" | grep -q -x -F -- "$emitBlockTag" ; then
+				echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: task body contains its own block delimiter, refusing to emit ($opContext)" >&2
+				set +e ; return 1
+			fi
+			printf 'cat > "$bootstrapTempRoot/%s" << '"'"'%s'"'"' || exit 1\n' "$taskStagedName" "$emitBlockTag"
+			printf '%s\n' "$taskFromStdinBody"
+			printf '%s\n\n' "$emitBlockTag"
+		else
+			emitBlockTag="BLK_$( cksum < "$taskLocalPath" | cut -d' ' -f1,2 | tr ' ' '_' )"
+			if grep -q -x -F -- "$emitBlockTag" "$taskLocalPath" ; then
+				echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: task file contains its own block delimiter, refusing to emit: $taskLocalPath" >&2
+				set +e ; return 1
+			fi
+			printf 'cat > "$bootstrapTempRoot/%s" << '"'"'%s'"'"' || exit 1\n' "$taskStagedName" "$emitBlockTag"
+			cat "$taskLocalPath"
+			[ -z "$( tail -c 1 "$taskLocalPath" )" ] || printf '\n'
+			printf '%s\n\n' "$emitBlockTag"
+		fi
+
+		printf '%s\n' \
+			'## The task'"'"'s stdin is /dev/null on purpose: this whole script IS the' \
+			'## target shell'"'"'s stdin, so a task inheriting it would eat the remainder.' \
+			'MDAT_BOOTSTRAP_ROOT="$bootstrapTempRoot" ; export MDAT_BOOTSTRAP_ROOT' \
+			'MDAT_BOOTSTRAP_PAYLOAD="$bootstrapTempRoot/payload" ; export MDAT_BOOTSTRAP_PAYLOAD' \
+			"MDAT_BOOTSTRAP_LABEL=\"$emitLabel\" ; export MDAT_BOOTSTRAP_LABEL" \
+			'cd "$bootstrapTempRoot" || exit 1' \
+			"sh \"\$bootstrapTempRoot/$taskStagedName\" < /dev/null" \
+			'bootstrapTaskStatus=$?' \
+			'echo "BOOTSTRAP_TASK_EXIT=$bootstrapTaskStatus" >&2' \
+			'' \
+			'## Cleanup is the EXIT trap'"'"'s, on this path as on every other one.' \
+			'exit "$bootstrapTaskStatus"'
+
+		return 0
+	;;
+
+	--intern-op-remote-bootstrap-*)
+		echo "$MDSC_CMD: ⛔ ERROR: unimplemented remote-bootstrap operation: $1" >&2
+		set +e ; return 1
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

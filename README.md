@@ -67,8 +67,9 @@ through `--upsert-from-stdin`, so it never appears in the process table:
 
 Check that the credential store stays locked down:
 
-	DistroAgentsTools.fn.sh --verify-permissions
-	DistroAgentsTools.fn.sh --self-test
+	DistroAgentsTools.fn.sh --owner-credential-store-verify
+	DistroAgentsTools.fn.sh --owner-credential-store-self-test
+	DistroAgentsTools.fn.sh --owner-credential-store-harden
 
 Open and reuse a keep-alive workspace console session:
 

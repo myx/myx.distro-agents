@@ -965,7 +965,7 @@ HOOKEOF
 		## there, shared with the copilot launch fragment. An empty reference
 		## list yields "[]" (no extra grants), never a malformed value.
 		local allowExtraRootsJson
-		allowExtraRootsJson="$( AgentsToolsClientAccessReferenceRoots | LC_ALL=C awk '
+		allowExtraRootsJson="$( AgentsToolsClientAccessReferenceRoots "$workspace" | LC_ALL=C awk '
 			BEGIN { printf "["; }
 			{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\"%s\"", (NR > 1 ? "," : ""), $0; }
 			END { printf "]"; }
@@ -1067,7 +1067,7 @@ HOOKEOF
 		## One line so `local` masks grep's exit 1 on a legitimately empty member set.
 		local memberCount="$( AgentsToolsClientAccessRootsMembers | grep -c '' )"
 		if [ "$memberCount" -lt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: no member skill directories resolved under \$HOME/.claude/skills -- refusing to write a copilot fragment with no member grants" >&2
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: no member skill directories resolved under $MDAT_SKILLSET_ROOT -- refusing to write a copilot fragment with no member grants" >&2
 			set +e ; return 1
 		fi
 
