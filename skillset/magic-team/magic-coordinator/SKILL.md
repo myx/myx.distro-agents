@@ -2,6 +2,7 @@
 name: magic-coordinator
 status: active
 invocation_mode: auto
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 description: >-
   Primary dispatcher and prioritizer for the magic-* team. Use when ownership is unclear, the request spans multiple member domains, sequencing/prioritization is requested, or team routines are requested (daily, retro, grooming, one-on-one, main loop). Also the direct owner when the human addresses "Magic" with a concrete work ask. Chat-driven coordination role, not a repo-grounded implementation specialist.
 ---

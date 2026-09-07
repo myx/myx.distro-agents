@@ -1,6 +1,6 @@
 ---
 executors: magic-coordinator
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: magic-librarian, magic-architect
 ---
 # magic-team.grooming.routine — the actual procedure
@@ -247,6 +247,46 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 Named procedure blocks. Steps above call them by name. Not separate routines - not visible outside this file.
 
+## `rice-scoring` — the four-dimension scoring model (defined once here)
+
+Shared scoring convention for backlog/todo/proposal items. Used by this routine's **rescore-backlog-rice** step and by any member scoring an item on their own.
+
+### Four dimensions
+
+Every scored item carries four numbers, each 0–1, normalized against the current full set of pending/planned/active items:
+
+- **Profit** — 0 = least valuable, 1 = most valuable.
+- **Cost** — 0 = cheapest to implement, 1 = most costly.
+- **Time** — 0 = fastest to complete, 1 = longest. Distinct from Cost: low-effort can still be calendar-slow, and vice versa.
+- **Dependencies** — 0 = fully ready, 1 = heavily blocked. Companion to the item's actual board state, not a replacement for it.
+
+Normalization is relative and done together at each grooming pass: rank the current backlog on each dimension, space 0–1 across that ranking (min-max or percentile). An item's numbers can shift even if the item itself didn't change, because the backlog around it did.
+
+### Priority number (optional)
+
+```
+Priority = Profit / (Cost + Time + Dependencies)
+```
+
+A sorting convenience only. The four dimensions are the primary record.
+
+### Multiple scores per item
+
+- **Official**: from `magic-architect` (architecture-level: complexity, blast radius, systems touched) and `magic-coordinator` (cross-team: sequencing, dependencies, readiness).
+- **Personal**: any member can attach their own view. Disagreement with the official score is useful signal for grooming, not something to average away.
+
+Record scores on the item's own file under the board, tagged by who gave the score. A structural score (risk, coupling, blast radius) carries one line of reasoning, not just the number.
+
+### When scores get set or updated
+
+- **At this routine**: every pending/planned/active item, every pass — not just newly-triaged ones, since normalization is relative to the whole backlog. See **rescore-backlog-rice** above.
+- **By `magic-architect`**, as its `grooming-scores-review` idle activity: refines existing scores, doesn't reassign/split/drop items.
+- **Ad hoc**: any member, any time.
+
+### Using the scores in prioritisation and assessment
+
+The scores inform a decision and never make one. In prioritisation, the four dimensions order the triaged set as a starting point, which **reprioritize-across-members** then works against rather than from: the important-vs-eager distinction, recorded `blocks:`/`blocked-by:` edges, and readiness all override raw order, so a high score never jumps a queue something else gates and a high-scoring item blocked on a low-scoring one records the gate plainly instead of being reordered. In assessment, a dimension is read as a question about the item rather than a verdict on it — a high Cost or Time asks whether the scope is right, a high Dependencies asks what would have to land first, and a structural score's one line of reasoning is the part that carries the assessment, not the number beside it. Two scores that disagree are read as two readings to reconcile in conversation, never averaged. Per the team's "no unilateral epics" rule and this routine's **review-with-the-user**: the scored backlog is reviewed with the user before anything is final.
+
 ## `check-backlog-promote` procedure
 
 Single source for whether/how a `board-backlog` item advances — into `board-pending` or `board-blocked`. Once there, `magic-coordinator.advance.routine`'s own `check-execute-board` procedure takes over.
@@ -441,7 +481,6 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-coordinator.communication-sweep.routine` — feeds this routine's backlog (inbox items); this routine runs the heavier Google Drive/Sheets and Trello-coverage checks that sweep deliberately excludes.
 - `magic-team/magic-team.board.md` — full board-state model (`running/`/`blocked/`/`parked/`/`processed/`/`archived/`/`cleanup/`), the `processed/`/`archived/` Slack-reaction cross-cutting entry, `board-backlog` entry, "at least three paths" note, qualifying-reference definition.
 - `magic-coordinator/magic-coordinator.armed.md`'s "Dispatch & delegation" section (a subsection of its `# Domain knowledge`) — the fast permission/mandate gate rules (destructive-action mandate boundaries, the human-owner sole-channel rule, cross-domain task boundaries) checked at task-creation.
-- `magic-coordinator/RICE-SCORING.md` — the four normalized dimensions (Profit/Cost/Time/Dependencies) used at **rescore-backlog-rice**.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, calling convention, sole-sanctioned Slack-posting mechanism.
 - `magic-team/magic-team.armed.md` — `board-item` entity model, `communication-channel-id` frontmatter convention, field list (`supersedes`/`superseded-by`).
 - `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.

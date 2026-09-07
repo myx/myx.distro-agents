@@ -1,6 +1,6 @@
 ---
 executors: any acting member (for its own inbox); magic-coordinator (for non-acting-owner content, board-formal-state writes, and the main-loop GC sub-step)
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-team.process-inbox.routine — the actual procedure
 

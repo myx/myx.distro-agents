@@ -1,6 +1,6 @@
 ---
 executors: magic-coordinator
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-coordinator.ingest-task.routine — the actual procedure
 
@@ -28,7 +28,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - (b) Dispatch straight to execution via `magic-coordinator` — only within `magic-coordinator`'s own mandate, or explicitly authorized live by someone holding that mandate.
    - Even (b) routes through writing to an inbox first — no path skips inbox entirely.
 4. **note-on-inline-execution**: if the requester explicitly says to execute inline, now, in this same conversation, that overrides the "UI instance never executes" default for this one request only.
-5. **relationship-to-grooming**: gather and file only (or, rarely, dispatch under live authorization) — never triage, RICE-score, or make backlog decisions; that's `magic-team.grooming.routine`'s job, later, when it processes the inbox.
+5. **relationship-to-grooming**: gather and file only (or, rarely, dispatch under live authorization) — never triage, RICE-score, or make backlog decisions; that's `magic-team.grooming.routine`'s job, later, when it processes the inbox. Where the content cannot be settled by gathering alone — the request needs working out rather than writing down — it goes to `magic-team.interview.routine`, which takes the whole or each part through propose-approve as that part settles, rather than being filed for grooming to discover later.
 
 # Closure steps
 

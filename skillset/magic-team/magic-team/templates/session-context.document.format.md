@@ -1,5 +1,5 @@
 ---
-maintainers: [magic-coordinator, magic-librarian, keeper-myx]
+maintainers: [magic-coordinator, magic-librarian, keeper-myx, human-owner]
 ---
 # session-context document — `# Session Sweep Report` format
 

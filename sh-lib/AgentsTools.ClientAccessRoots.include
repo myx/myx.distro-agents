@@ -75,14 +75,50 @@ AgentsToolsClientAccessReferenceRoots(){
 ## responsible for rejecting an empty or under-populated set (see the copilot
 ## fragment op), exactly as the claude permissions writer rejects a missing
 ## board root rather than writing a grant without one.
+## Declared allow-write grants, each widened to the narrowest directory that
+## contains everything its glob can match. A client's whole permission surface
+## on the copilot side is `--add-dir <root>`: a glob cannot be expressed there,
+## so the containing root is what honours a declared grant at all, and the
+## widening is the known and accepted cost of honouring it.
+## Read from the permissions registry, which is already every workspace's rows
+## unioned and de-duplicated -- so a grant declared in one workspace reaches a
+## client started in another, and one member's grant is every member's.
+AgentsToolsClientAccessGrantRoots(){
+	local registryFile="$HOME/.claude/skills/.linked.magic-team.permissions.txt"
+	[ -s "$registryFile" ] || return 0
+	## Field 4 is taken whole by offset, never by splitting, so a grant carrying
+	## its own colons survives -- the same rule the permissions projection uses.
+	LC_ALL=C awk -F: '
+		NF >= 4 {
+			grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
+			if ( grantText !~ /^Edit\(\// ) next
+			grantPath = substr( grantText, 6, length( grantText ) - 6 )
+			sub( /^\/\//, "/", grantPath )
+			rootPath = ""
+			segmentCount = split( grantPath, pathSegment, "/" )
+			for ( segmentIndex = 2 ; segmentIndex <= segmentCount ; segmentIndex++ ) {
+				if ( pathSegment[segmentIndex] ~ /[*?[]/ ) break
+				rootPath = rootPath "/" pathSegment[segmentIndex]
+			}
+			if ( rootPath != "" && !seenRoot[rootPath]++ ) print rootPath ;
+		}
+	' "$registryFile"
+}
+
 AgentsToolsClientAccessRoots(){
 	local workspace="$1"
-	if [ -n "${MDAT_DATA_ROOT:-}" ] ; then
-		printf '%s\n' "$MDAT_DATA_ROOT/board"
-	fi
-	AgentsToolsClientAccessRootsMembers
-	if [ -n "$workspace" ] ; then
-		printf '%s\n' "$workspace/source"
-	fi
-	AgentsToolsClientAccessReferenceRoots "$workspace"
+	## Sorted-unique: the declared grants re-derive roots the functions above
+	## already yield, and a repeated root is a duplicate `--add-dir` and a count
+	## that overstates the set.
+	{
+		if [ -n "${MDAT_DATA_ROOT:-}" ] ; then
+			printf '%s\n' "$MDAT_DATA_ROOT/board"
+		fi
+		AgentsToolsClientAccessRootsMembers
+		if [ -n "$workspace" ] ; then
+			printf '%s\n' "$workspace/source"
+		fi
+		AgentsToolsClientAccessReferenceRoots "$workspace"
+		AgentsToolsClientAccessGrantRoots
+	} | LC_ALL=C sort -u
 }

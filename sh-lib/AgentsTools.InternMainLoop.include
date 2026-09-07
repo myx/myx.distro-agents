@@ -60,8 +60,10 @@ case "$1" in
 				--optional "SPAWN_CLI_SERVICE:<cli-name>" \
 				--context --intern-main-loop 2>&1
 			## Sign-in state of the selected CLI, as one more verdict line into the
-			## same awk. Not a config key and never stored as one -- authentication
-			## is the CLI's own, done by the human out of band and only READ here.
+			## same awk, asked with this workspace's own stored credential in scope
+			## -- the console exports exactly these names before it execs, so
+			## probing without them reports a machine that spawns perfectly well as
+			## signed out. The export lives in the probe's own subshell.
 			## Reported, never gating: the CLI's own answer is the only reliable
 			## one, so a CLI that cannot answer -- any but claude, one too old for
 			## `auth status`, one absent from PATH -- yields SKIP rather than a
@@ -72,7 +74,14 @@ case "$1" in
 			## provider too, so those working setups are not misread as signed out.
 			case "$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )" in
 				claude)
-					case "$( claude auth status </dev/null 2>/dev/null )" in
+					case "$(
+						for mainLoopAuthKey in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN ; do
+							mainLoopAuthValue="$( DistroAgentsTools --agents-config-option magic-team --select "$mainLoopAuthKey" 2>/dev/null )"
+							[ -n "$mainLoopAuthValue" ] || continue
+							export "$mainLoopAuthKey=$mainLoopAuthValue"
+						done
+						claude auth status </dev/null 2>/dev/null
+					)" in
 						*'"loggedIn": true'*)  echo "SPAWN_CLI_AUTHENTICATED: OK" ;;
 						*'"loggedIn": false'*) echo "SPAWN_CLI_AUTHENTICATED: FAIL" ;;
 						*)                     echo "SPAWN_CLI_AUTHENTICATED: SKIP" ;;

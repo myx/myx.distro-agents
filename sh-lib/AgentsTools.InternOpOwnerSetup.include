@@ -32,6 +32,21 @@ AgentsToolsOwnerSetupOptionSpec(){
 		TEAM_DATA_GIT_REMOTE)
 			printf '%s\n' 'magic-team|<git-remote-url>|plain|the clone URL of a repository you own, which the team data is pushed to. An empty repository is fine.'
 		;;
+		## The three below are the CLIs' OWN variable names, not keys coined here:
+		## each is the name its CLI already reads out of its environment, so what
+		## is stored and what the console exports are one string and no mapping
+		## between them can drift. claude's two are alternatives -- an API key or a
+		## subscription token -- so neither is ever required, and which one a
+		## machine uses is that machine's answer rather than this catalogue's.
+		ANTHROPIC_API_KEY)
+			printf '%s\n' 'magic-team|<sk-ant-...>|secret|claude reads this name itself. console.anthropic.com, API keys, Create key -- billed per use. Alternative to CLAUDE_CODE_OAUTH_TOKEN; set one, not both.'
+		;;
+		CLAUDE_CODE_OAUTH_TOKEN)
+			printf '%s\n' 'magic-team|<oauth-token>|secret|claude reads this name itself, and bills a Claude subscription rather than API use. Run "claude setup-token" once on a machine with a browser and store what it prints. Alternative to ANTHROPIC_API_KEY.'
+		;;
+		COPILOT_GITHUB_TOKEN)
+			printf '%s\n' 'magic-team|<github-token>|secret|copilot reads this name itself, ahead of GH_TOKEN and GITHUB_TOKEN. A github.com fine-grained personal access token carrying the Copilot Requests permission; classic ghp_ tokens are refused.'
+		;;
 		SLACK_BOT_TOKEN)
 			printf '%s\n' 'magic-team|<xoxb-token>|secret|api.slack.com/apps, your app, OAuth and Permissions, Bot User OAuth Token.'
 		;;
@@ -187,6 +202,18 @@ case "$1" in
 			fi
 			if [ -n "$setupCurrent" ] && [ "$setupMode" != "--render-full" ] ; then
 				continue
+			fi
+			## The second half of the same question -- is this option this mode's
+			## business. --render-missing answers what has to be supplied before the
+			## domain can start, so an optional one is not its business: presented
+			## beside a required one it reads as a blocker, and it is --render-full
+			## that exists to show every option set or not. --apply is untouched:
+			## it walks the whole declaration and writes whatever it was given.
+			if [ "$setupMode" = "--render-missing" ] ; then
+				case " $setupRequired " in
+					*" $setupKey "*) ;;
+					*) continue ;;
+				esac
 			fi
 			setupAnyMissing="yes"
 			setupMissingAll="$setupMissingAll $setupKey"

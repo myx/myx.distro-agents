@@ -229,6 +229,9 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    same conversation, and a probable assumption gap is suspected — state a short readback of your
    understanding and wait for confirmation before continuing, same discipline as **rephrase-and-confirm-before-acting**, extended to ambiguity/
    contradiction generally rather than only an explicit correction.
+   - A claim that two things disagree is read back as the two readings that produced it, each with where it
+     was read, never as the conclusion alone — and to someone holding both. A conclusion about a relationship
+     cannot be checked by rereading either side.
    verbatim-intent: `avoid uncontrolled assumption gap growth`.
 
 21. **self-discovered-ambiguity-still-a-gap**: A self-discovered ambiguity is still an assumption gap. Stop and ask before deciding, not after.

@@ -127,6 +127,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-sleep-run
 📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge
 📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --help-setup-<domain>
+📘 syntax: DistroAgentsTools.fn.sh [--help-syntax]
 📘 syntax: DistroAgentsTools.fn.sh [--help]
 
 **IMPORTANT -- for `mcp__myx_distro__execute` callers specifically:** call every operation as the bare `DistroAgentsTools <op> [args...]` function form -- never `DistroAgentsTools.fn.sh <op> [args...]`. That one execution context already has `DistroAgentsTools` defined as an in-process shell function before your command runs, uniquely among the ways this tool is invoked; every other context (a console session, a plain shell) still needs the full `.fn.sh` invocation shown throughout the rest of this file.
@@ -162,21 +164,21 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--override-workspace <path>
-			Target a workspace other than this tool's own ($MMDAPP). Accepted
-			by both --console-start and --console-list; the two must agree on
-			what "own workspace" means, so pass it identically to both.
+			--override-workspace <path>
+				Target a workspace other than this tool's own ($MMDAPP). Accepted
+				by both --console-start and --console-list; the two must agree on
+				what "own workspace" means, so pass it identically to both.
 
-		--console DistroSourceConsole.sh|DistroDeployConsole.sh
-			Pick which console script to start. Default: whichever of
-			DistroSourceConsole.sh / DistroDeployConsole.sh exists (executable)
-			in the workspace root, tried in that order. DistroLocalConsole.sh
-			and DistroRemoteConsole.sh are not supported.
+			--console DistroSourceConsole.sh|DistroDeployConsole.sh
+				Pick which console script to start. Default: whichever of
+				DistroSourceConsole.sh / DistroDeployConsole.sh exists (executable)
+				in the workspace root, tried in that order. DistroLocalConsole.sh
+				and DistroRemoteConsole.sh are not supported.
 
-		--ttl <seconds>
-			Lifetime of the FIFO-holder process, i.e. how long the channel
-			stays open with no traffic before its holder exits and the console
-			sees EOF. Default: 3600.
+			--ttl <seconds>
+				Lifetime of the FIFO-holder process, i.e. how long the channel
+				stays open with no traffic before its holder exits and the console
+				sees EOF. Default: 3600.
 
 		--console-send <channel> [-- <command...>]
 			Sends one command line into an open channel's FIFO. With a
@@ -1995,7 +1997,11 @@
 			sub-operation takes it.
 
 			With no sub-operation, writes a readable status for the current
-			workspace and names the command that sets the domain up. --check
+			workspace and names the command that sets the domain up. It asks
+			what has to be supplied before the domain can start, so any value
+			it goes on to ask for is one this domain REQUIRES and does not yet
+			have; an optional setting is left to --print-apply-command, which
+			this mode names once it is waiting on nothing. --check
 			writes the per-setting detail instead. --apply carries the setup
 			out, non-interactively, for a domain that implements it.
 			--print-apply-command writes the command that would carry it out,
@@ -2041,8 +2047,48 @@
 			`permissions.deny` -- a JSON-safe merge (awk, the same
 			structural walker `AgentsMcpServerJsonUpsert.awk` uses; no jq
 			dependency), never a blind overwrite: every entry already
-			present that this op did not itself add is kept. Takes no
-			arguments.
+			present that this op did not itself add is kept.
+			`--workspace <path>` names the workspace this run acts for,
+			defaulting to `$MMDAPP`. It decides which workspace's rows are
+			reconciled, so a caller acting on another workspace must pass
+			it -- `--install-workspace-integrations` already does.
+			Revocation is suppressed whenever the declares scan fails or
+			selects no project, so a transient failure or an empty
+			workspace can never read as "every grant disappeared"; the
+			run reports the reason and leaves existing grants in place.
+			Every grant this op writes is recorded as a row in
+			`$HOME/.claude/skills/.linked.magic-team.permissions.txt`,
+			keyed `<member>:<workspace>:<scope>:<grant>` with the grant
+			last so a colon inside a path cannot displace the workspace
+			field. A run rewrites only its OWN workspace's rows; the
+			grants actually written are a projection of the WHOLE
+			registry, every workspace's rows unioned and de-duplicated.
+			So a member recorded by several workspaces yields one grant,
+			and that grant disappears only when the LAST workspace stops
+			recording it. An entry no row claims is never touched, and
+			nothing is identified by shape.
+			Declared grants come from `magic-team:permissions` declares,
+			read with the same tools and the same trust rules
+			`--install-skillset-symlinks` uses for `magic-team:team-member`.
+			Layout is
+			`magic-team:permissions:<scope>:<selector>:<verb>:<member>[:<glob>]`.
+			`allow-write` is the only verb implemented; any other is
+			refused rather than treated as an allow.
+			**The three scopes have different selector vocabularies and
+			the shared glyphs do not mean the same thing** -- one grammar
+			does NOT cover all three:
+			  `namespace:<name>|.|*` -- `.` is the declaring project's own
+			  namespace, `*` every namespace in this workspace. No `**`.
+			  These lines carry NO trailing glob; they end at the member.
+			  `workspace:<name>|.|*` -- `.` is the acting workspace, `*`
+			  every centrally installed workspace (`--owner-workspace-list`).
+			  No `**`. Carries a glob.
+			  `project:<id>|.|*|**` -- the only scope using the estate's
+			  four-form project resolver, via
+			  `ListDistroDeclares --unroll-filter-and-cut`, so `<id>` is
+			  matched EXACTLY (never as a substring), `.` is the declaring
+			  project, and `*`/`**` are its dependency-sequence expansions.
+			  Carries a glob.
 			Resolves `$MDAT_DATA_ROOT/board` (already resolved by
 			`DistroAgentsTools()` at entry from the `TEAM_DATA_DIRECTORY`
 			config key, never re-derived here) and upserts
@@ -2175,6 +2221,26 @@
 			hooks alone (for the custom reason each needs); no
 			`permissions.deny` entry is added for either, since a hook's
 			`permissionDecision: deny` already blocks the call without one.
+			Also maintains one `.claude` symlink per namespace root of
+			`<workspace>`, as `<workspace>/source/<ns>/.claude` pointing at
+			`../../.claude`. The generated `<ws>.code-workspace` lists the
+			`source/<ns>/` folders and not the workspace root, and an editor
+			session takes the FIRST folder as its project root, so a
+			`<workspace>/.claude` no folder carries is never loaded and the
+			deny rules and hooks above are simply not in force there. The
+			roots come from `DistroSourceTools.fn.sh
+			--list-namespace-roots`, the same source the workspace generator
+			itself uses, so the link set and the listed folders cannot drift
+			apart. Each namespace copy is a clone of the one generated
+			`<workspace>/.claude`, never content of its own.
+			A root that is no longer listed has its clone removed, so a
+			de-registered namespace does not keep one; only this op's own
+			clone is ever removed, and real content or a symlink pointing
+			anywhere else is refused and left exactly as it is (reported,
+			and the run exits non-zero). A dangling clone is reclaimed and
+			relinked. An unreadable or empty root list creates and removes
+			NOTHING -- never read as "every namespace disappeared", the
+			same trust rule the declared-member scan follows.
 			A run that changes nothing (already current) is reported as
 			such, not silently treated the same as a write.
 
@@ -3341,16 +3407,36 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--help-setup-<domain>
+			Read-only. Prints the setup manual for one `--owner-setup-*`
+			domain: every configuration option that domain takes, required
+			and optional alike, and what the reader has to do to obtain
+			each value. A domain carrying no document is refused, naming
+			the domains that carry one.
+
+			Printed byte-exact rather than through the markdown renderer,
+			which reads an underscore as emphasis and drops it -- and every
+			configuration key named in these documents carries one.
+
+			The complement of `--owner-setup-<domain>`, which reports what
+			this workspace is still missing and names the one command that
+			supplies it. This is the manual behind that report.
+
+		--help-syntax
+			Prints every operation's syntax line and exits, without the
+			manual. A bare call prints the default syntax alone -- the
+			entry points a reader starts from.
+
 		--help
-			Prints this syntax + summary and exits.
+			Prints the default syntax + summary and exits.
 
 ##  Notes:
 
 		Channel dirs are session plumbing ONLY (fifo/log/pid/meta) — never a
 		place to stage secrets material; if a credential ever needs to reach a
 		console session, it must be sourced directly into the console's own
-		environment, never dropped as a file inside a channel dir, so
-		--console-stop's `rm -rf` (scoped to one deterministic channel dir,
+		environment, never dropped as a file inside a channel dir, so the
+		`rm -rf` of --console-stop (scoped to one deterministic channel dir,
 		never a fixed/shared path) can never take it down with it.
 
 		Must be run from inside or outside any console — --console-start's
@@ -3446,7 +3532,7 @@
 		```
 
 		# Append one session transcript entry (one call = one entry block)
-		`DistroAgentsTools.fn.sh --member-append-session-transcript magic-coordinator --speaker human-owner --timestamp 2026-07-26T12:34:56Z --message "Approved. Proceed." --transcript-name transcript-2026-07-26-example.md --workspace-root /Users/myx/.claude/skills/magic-team --create`
+		`DistroAgentsTools.fn.sh --member-append-session-transcript magic-coordinator --speaker human-owner --timestamp 2026-07-26T12:34:56Z --message "Approved. Proceed." --transcript-name transcript-2026-07-26-example.md --workspace-root /path/to/workspace --create`
 
 		# Read a transcript audit document by filename (no raw path argument)
 		`DistroAgentsTools.fn.sh --member-read-audit-item magic-coordinator transcript-2026-07-26-example.md`

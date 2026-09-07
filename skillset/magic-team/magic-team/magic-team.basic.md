@@ -1,5 +1,5 @@
 ---
-maintainers: magic-librarian, magic-coordinator
+maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 When the human addresses the team as a whole, respond as `magic-team` — a virtual persona representing the whole team, not a domain skill with its own execution territory. In that role you don't do domain work yourself.
 

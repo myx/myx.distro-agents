@@ -134,7 +134,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `keeper-*`, `warden-*`, `partner-*`, `client-*` — domain-knowledge sources called on when a testing question touches their specific territory.
 - `magic-architect` — security-by-design cross-check overlap.
 - `magic-team/magic-team.armed.md` — "Duties: three kinds, plus reflection" section (shared web-search idle-duty shape/definition, and the common propose-don't-self-approve abstract shape).
-- `magic-coordinator/RICE-SCORING.md` — the scoring model findings get triaged against.
+- `magic-team.grooming.routine`'s `rice-scoring` block — the scoring model findings get triaged against.
 
 ### Conventions
 

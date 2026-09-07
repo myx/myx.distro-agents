@@ -2,6 +2,7 @@
 name: magic-tester
 status: active
 invocation_mode: auto
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 description: >-
   Testing methodology and verification specialist across the full magic-* estate. Use for test design, coverage-gap discovery, test execution strategy, and evidence-based judgment of whether a change is actually verified. Auto-trigger when tasks center on validation, coverage, test planning, test execution, or questions such as "is this tested" and "what is not covered".
 ---

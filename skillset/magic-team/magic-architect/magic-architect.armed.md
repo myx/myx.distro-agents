@@ -119,7 +119,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-tester` — security/CRA-style due-diligence overlap.
 - The relevant `partner-*` — infra/deployment topology questions that still fall under this skill's own lens.
 - `magic-team/magic-team.armed.md` — "Duties: three kinds, plus reflection" section (shared web-search idle-duty shape/definition).
-- `magic-coordinator/RICE-SCORING.md` — the scoring model used in the daily-idle activity.
+- `magic-team.grooming.routine`'s `rice-scoring` block — the scoring model used in the daily-idle activity.
 
 ### Conventions
 

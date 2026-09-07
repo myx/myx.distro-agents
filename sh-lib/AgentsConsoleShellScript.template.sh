@@ -191,6 +191,66 @@ if [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "claude" ] ; then
 	fi
 fi
 
+## The selected CLI's own credential variables, out of this workspace's config
+## and into the environment the exec below inherits. Nothing else hands a
+## spawned CLI a credential -- the spawn proxy passes only MMDAPP -- so without
+## this a workspace can be fully set up and still start an agent that cannot
+## authenticate. Each name is the CLI's own documented variable, so the stored
+## key and the exported name are one string. Only a non-empty stored value is
+## exported: an empty one reads as set to the CLI and would defeat its own
+## keychain or credential-store login on a machine configured that way. The
+## value moves through a shell variable into a builtin export, so it reaches no
+## process argv, no log and no output.
+case "$DAGC_CLI" in
+	claude)  DAGC_CLI_CREDENTIALS="ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN" ;;
+	copilot) DAGC_CLI_CREDENTIALS="COPILOT_GITHUB_TOKEN" ;;
+	*)       DAGC_CLI_CREDENTIALS="" ;;
+esac
+for DAGC_CREDENTIAL_NAME in $DAGC_CLI_CREDENTIALS ; do
+	## Tested, not bare: set -e would kill the console on an unreadable scope.
+	DAGC_CREDENTIAL_VALUE="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$DAGC_CREDENTIAL_NAME" 2>/dev/null )" || DAGC_CREDENTIAL_VALUE=""
+	[ -n "$DAGC_CREDENTIAL_VALUE" ] || continue
+	export "$DAGC_CREDENTIAL_NAME=$DAGC_CREDENTIAL_VALUE"
+done
+
+## The spawn proxy mints this session uuid, records it on its own dispatch
+## document and exports it here, so a hook's own session_id joins that record.
+## Only claude takes the flag: on any other CLI it is reported and dropped
+## rather than silently ignored, since the dispatch record would otherwise name
+## a session nothing else ever reports.
+DAGC_SESSION_ID_ARGS=()
+if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
+	if [ "$DAGC_CLI" = "claude" ] ; then
+		DAGC_SESSION_ID_ARGS=( --session-id "$MDAT_SPAWN_SESSION_ID" )
+	else
+		echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_SESSION_ID is set but '$DAGC_CLI' has no --session-id flag -- this spawn runs without it, and its dispatch record will not join the agent's own session" >&2
+	fi
+fi
+
+## The acting member, named by the spawn proxy. The agent is defined inline at
+## spawn rather than as a standing file: members ship as skills, and a standing
+## definition would make one member exist twice. `--agent` then selects it, so
+## a hook reports the member name rather than the generic agent type. claude
+## only, and the name is checked against a bare-token set before it is placed
+## inside the JSON, so no member name can alter the document's structure.
+DAGC_AGENT_ARGS=()
+if [ -n "$MDAT_SPAWN_AGENT" ] ; then
+	if [ "$DAGC_CLI" != "claude" ] ; then
+		echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_AGENT is set but '$DAGC_CLI' has no --agent/--agents flag -- this spawn runs without them, and its hooks report the generic agent type rather than $MDAT_SPAWN_AGENT" >&2
+	else
+		case "$MDAT_SPAWN_AGENT" in
+			''|*[!a-zA-Z0-9._-]*)
+				echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_AGENT is not a bare member name: $MDAT_SPAWN_AGENT" >&2
+				exit 1
+			;;
+		esac
+		DAGC_AGENT_ARGS=(
+			--agents "{\"$MDAT_SPAWN_AGENT\":{\"description\":\"magic-team member $MDAT_SPAWN_AGENT\",\"prompt\":\"You are $MDAT_SPAWN_AGENT, a magic-team member. Read your own skill files before acting.\"}}"
+			--agent "$MDAT_SPAWN_AGENT"
+		)
+	fi
+fi
+
 if [ "$1" == "--non-interactive" ] ; then
 	shift
 	case "$DAGC_CLI" in
@@ -199,11 +259,11 @@ if [ "$1" == "--non-interactive" ] ; then
 	esac
 	if [ $# -gt 0 ] ; then
 		echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-		exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" -p "$*"
+		exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" -p "$*"
 	fi
 	echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-	exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" -p "$( cat )"
+	exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" -p "$( cat )"
 fi
 
 echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-exec "$DAGC_CLI" "${DAGC_COPILOT_ADDDIR[@]}" "$@"
+exec "$DAGC_CLI" "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "$@"

@@ -718,6 +718,22 @@ A major sub-operation is a third thing again, and it is short where an option is
 
 Any conflict or ambiguity between two instruction files or conventions goes to the human-owner for the decision — real ambiguity about what the rules mean or how they apply, not only literally contradictory text. Dispatching a member to investigate one is fine; that dispatch is never authorization to reconcile it. A member's own review of a conflict never stands in for his decision. Both sides stay intact, unedited, until he rules.
 
+## Readback-confirm and propose-approve, in any process
+
+Two mechanisms, general to every process the team runs — a deployment, a repository's own domain work, an infrastructure change, a long-running loop, a conversation. Neither is specific to any one kind of work.
+
+**Readback-confirm** is the communications one: the party that received states back what it understood, and the party that sent confirms whether that is what it meant. It is owed before a member asserts anything of its own — accepting a task, a blocking finding, an accident, something unexpected, a contradiction between two things, a change to how the problem is framed, a pause — as distinct from doing what it was already told. It is owed wherever the two parties' pictures are not already backed by a written instruction both can open. The assertion goes back as an assertion, to whoever can check it, before it is stated as settled: the member neither acts on it alone nor goes quiet, in a live session as much as anywhere else. It goes where the exchange already is — in the session, in the thread, in the tracking document that already holds the conversation's questions and data — and needs an artefact of its own only where none of those exists. Kept in some basic form, because a readback too expensive to spend is one that will not be spent.
+
+**Propose-approve** is the process-flow one, for a decision that outlives the exchange it arose in. Initiating it does not stop the work it arose from — unless that work is itself to assess, investigate, research, work out or propose, where initiating the flow is the work rather than a detour beside it. `magic-team.proposal.routine` runs it. Where the exchange it arose in is still live and has the human-owner in it, the approval happens there too; it takes a thread of its own only where the decision must outlive that exchange.
+
+Every piece of work is in one of three cases:
+
+- **What its instructions cover.** Act, once acceptance has been read back. Nothing further is owed, and asking anyway is its own failure.
+- **What they cover, where the member sees something better, bolder, or principally different.** Proceed with the task exactly as it says, and in the same moment record the better thing as an `idea-*`, where discussion, coworking and approval may make it the next assignment. Neither suppressed nor acted on.
+- **Nothing covers the case, a group cannot agree, or the member — the coordinator included — cannot confidently choose between the options.** Authority for that choice was never granted, so it is not the member's to make. Deciding it alone is the failure, and so is handing it straight to the human-owner: read back what was found, then read the instruction sources that would cover it and consult the member whose domain it falls in, and only what that leaves unresolved goes to him — as a readback-confirm where a yes or no settles it, as a proposal where one does not. Never skip the consult straight to the ask, and never skip both straight to deciding it alone.
+
+Distinct from the rule above: that one governs a conflict or ambiguity between instructions that exist, this one covers work against instructions generally, the absence of one included.
+
 ## "later" has two gates
 
 Work he defers to later is released by two gates, and both have to be open: the step currently in hand is finished and released, and he has said explicitly to start this one. Neither gate opens the other, so a released current step is not permission to begin the deferred work, and his continued interest in it is not approval to start.

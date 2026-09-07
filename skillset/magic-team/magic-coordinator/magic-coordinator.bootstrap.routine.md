@@ -1,6 +1,6 @@
 ---
 executors: magic-coordinator
-maintainers: magic-coordinator, magic-librarian, magic-devops
+maintainers: magic-coordinator, magic-librarian, magic-devops, human-owner
 invitees: human-owner
 ---
 # magic-coordinator.bootstrap.routine — the actual procedure

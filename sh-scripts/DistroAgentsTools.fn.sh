@@ -439,7 +439,9 @@ DistroAgentsTools(){
 		;;
 
 
-		--help|--help-syntax|'')
+		## --help-setup-<domain> is routed by glob, so a domain gaining its own
+		## setup document becomes readable without an arm being added here.
+		--help|--help-syntax|--help-setup-*|'')
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
 			return $?
 		;;
@@ -475,8 +477,10 @@ case "$0" in
 			export MYXROOT=''
 		fi
 
+		## A bare call takes the default syntax, not --help-syntax: the whole
+		## operation list is what --help-syntax is asked for by name.
 		if [ -z "$1" ] || [ "$1" = "--help" ] ; then
-			DistroAgentsTools "${1:-"--help-syntax"}"
+			DistroAgentsTools "${1:-}"
 			exit 1
 		fi
 

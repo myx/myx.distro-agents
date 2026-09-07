@@ -1,6 +1,6 @@
 ---
 executors: magic-librarian
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-team.process-reflections.routine — the actual procedure
 

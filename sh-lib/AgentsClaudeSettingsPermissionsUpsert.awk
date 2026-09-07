@@ -287,6 +287,10 @@ function buildDesiredAllow(   dCount, k) {
 	if (boardRoot != "") DESIRED[dCount++] = "Edit(/" boardRoot "/**)"
 	for (i = 0; i < staticAllowCount; i++) DESIRED[dCount++] = staticAllow[i]
 	for (k = 0; k < MEMBERPATHCOUNT; k++) DESIRED[dCount++] = "Edit(/" MEMBERPATH[k] "/**)"
+	## Declared allow-write grants, already whole strings from the registry
+	## projection -- every workspace's rows unioned, so a grant survives here
+	## until the last row claiming it is gone.
+	for (k = 0; k < grantCount; k++) DESIRED[dCount++] = GRANT[k]
 	return dCount
 }
 
@@ -311,6 +315,22 @@ BEGIN {
 	s = denyAddRaw; n = length(s); p = 1; skipws()
 	denyAddCount = stringArrayAt(p)
 	for (i = 0; i < denyAddCount; i++) denyAdd[i] = ELEMS[i]
+
+	## Declared allow-write grants, as a projection of the whole permissions
+	## registry: what it claims NOW, and what it claimed BEFORE this run. An
+	## entry in the previous set is one this tooling wrote and may be dropped;
+	## anything else present belongs to somebody else and is kept untouched.
+	## Nothing is recognised by shape here -- the record is the only authority.
+	grantsFile = ENVIRON["MYX_CLAUDEPERMS_GRANTS_FILE"]
+	if (grantsFile != "") {
+		while ((getline grantLine < grantsFile) > 0) if (grantLine != "") GRANT[grantCount++] = grantLine
+		close(grantsFile)
+	}
+	grantsPrevFile = ENVIRON["MYX_CLAUDEPERMS_GRANTS_PREV_FILE"]
+	if (grantsPrevFile != "") {
+		while ((getline grantLine < grantsPrevFile) > 0) if (grantLine != "") priorClaimed[grantLine] = 1
+		close(grantsPrevFile)
+	}
 }
 
 # Rejoin the records under the default RS: a NUL RS is the empty string, which
@@ -362,6 +382,11 @@ END {
 		## at both its old and new location at once.
 		bn = grantBasename(v)
 		if (bn != "" && (bn in memberNameSet)) continue
+		## Written by a previous run of this op, per the permissions registry --
+		## dropped here and re-added below only if the registry still claims it.
+		## A grant whose last row went is therefore gone, which is the whole of
+		## the revoke behaviour; an entry no record ever claimed is never touched.
+		if (v in priorClaimed) continue
 		keptAllow[keptAllowCount++] = v
 	}
 	desiredCount = buildDesiredAllow()

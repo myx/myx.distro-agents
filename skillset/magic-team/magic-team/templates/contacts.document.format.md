@@ -1,5 +1,5 @@
 ---
-maintainers: [magic-coordinator, magic-librarian, magic-architect]
+maintainers: [magic-coordinator, magic-librarian, magic-architect, human-owner]
 ---
 # contacts document — `note-20260904T190756Z-contacts.md` format
 

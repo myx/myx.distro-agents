@@ -2,6 +2,7 @@
 name: magic-librarian
 status: active
 invocation_mode: manual
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 description: >-
   Documentation and reference steward for README.md, AGENTS.md, and CLAUDE.md currency checks and updates, including drift audits against real code. Invoke manually for explicit check/update requests (for example /magic-librarian check or /magic-librarian update <target>), not as an automatic side effect of ordinary coding tasks. Also owns cross-cutting protocol/convention/format reference modules, including MCP guidance.
 ---

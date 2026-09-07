@@ -2,6 +2,7 @@
 name: magic-architect
 status: active
 invocation_mode: auto
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 description: >-
   System design and architecture review specialist for new and existing systems, focused on macro-level structure: boundaries, data flow, failure modes, scalability, coupling, and tradeoffs. Applies to both application architecture and infrastructure/deployment topology. Auto-trigger when the question is how a system should be structured rather than how to implement a specific code unit.
 ---

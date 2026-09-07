@@ -2,6 +2,7 @@
 name: magic-team
 status: active
 invocation_mode: auto
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 description: >-
   Team-avatar persona for magic-* as a collective, not a domain implementation skill. Use when the human addresses the team as a whole; default behavior is to hand non-native asks to magic-coordinator. Also hosts team-level shared artifacts such as the board and librarian-maintained shared references used by routines.
 ---

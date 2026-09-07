@@ -2,6 +2,10 @@ Name: myx.distro-agents
 Title: magic-team & its tooling, installation and integration package
 Augments: developer-sdk:recommended
 
+Declares: \
+	magic-team:permissions:workspace:*:allow-write:*:source/**/MAGIC.md \
+	magic-team:permissions:workspace:*:allow-write:*:.local/temp/** \
+
 Requires: \
 	myx/myx.distro-source \
 

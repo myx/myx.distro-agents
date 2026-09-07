@@ -316,7 +316,7 @@ case "$1" in
 						pretty="false" ; shift
 					;;
 					--identity-bot)
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: --identity-bot is REFUSED by this operation -- Slack's search.messages is available to a user token only, and a bot token cannot call it at all. This is not a permission that could be granted: no scope makes a bot able to search. The flag is rejected rather than accepted-and-ignored on purpose, because acting under the member's user identity while the caller asked for the bot would be a silent identity substitution. Every other --member-comms-slack-* operation does accept --identity-bot; this one is the exception, and the exception is Slack's, not this tool's. Re-run without the flag to search under the member's own user identity." >&2
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: --identity-bot is REFUSED by this operation -- Slack's search.messages is available to a user token only, and a bot token cannot call it at all. This is not a permission that could be granted: no scope makes a bot able to search. The flag is rejected rather than accepted-and-ignored on purpose, because acting under the member's user identity while the caller asked for the bot would be a silent identity substitution. Exactly three operations refuse --identity-bot: --member-comms-slack-search-messages, --member-comms-slack-profile-set and --member-comms-slack-profile-get. The message, reaction and file operations accept it; the --member-comms-slack-presence-* and --member-comms-slack-socket-* operations do not take the flag at all. This refusal is Slack's own, not this tool's. Re-run without the flag to search under the member's own user identity." >&2
 						set +e ; return 1
 					;;
 					*)
@@ -1533,7 +1533,7 @@ case "$1" in
 		local memberName="$1"
 		shift || true
 		if [ -z "$memberName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: syntax is <team-member> <target> [--identity-bot] [text...] (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>) -- or --from-stdin / --from-file <path>" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: syntax is <team-member> <target> [--identity-bot] [--address-to <who>]... [text...] (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>) -- or --from-stdin / --from-file <path>, each with [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-send-message || { set +e ; return 1 ; }
@@ -1643,6 +1643,10 @@ case "$1" in
 					shift 2
 				;;
 				--format)
+					if [ $# -lt 2 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format requires a value" >&2
+						set +e ; return 1
+					fi
 					format="$2" ; shift 2
 				;;
 				--*)

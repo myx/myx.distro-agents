@@ -1,6 +1,6 @@
 ---
 executors: magic-coordinator
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-coordinator.advance.routine — the actual procedure
 
@@ -231,7 +231,7 @@ Each item here is a tracking document. Where a rule below spawns or restarts wor
   - step: that round's own content already states every open question resolved and this pass raises no new one → flag it once via `slack-event-track` for `magic-team.grooming.routine`'s own `board-processed` closure (no `board-processed`-move operation is granted to this routine, so the move itself waits for grooming) — escalate-once, same as other stale-dispatch flags above, never re-flag the identical resolved item every pass.
 - `inquiry-*`: `recheck-date` due, no reply → re-ask into the thread its `communication-channel-id` tracks, or via the `--member-comms-slack-send-message` operation; extend `recheck-date` to now + 17min (jittered ±2min), per **`recheck-date` computation** above. Otherwise → no action this pass.
 - `task-*` / `project-*` / `epic-*`: apply the console-session/Agent-dispatch/never-dispatched-work stale-checks above.
-- `proposal-*`: `recheck-date` due → run `magic-team.discuss.routine` over this item's own framed decision, this same pass, per that routine's own Steps, rules:
+- `proposal-*`: `recheck-date` due → a `proposal-*` carrying a `communication-channel-id` is already in front of the human-owner and takes the `approval-*`/`approve-*` re-ask path above unchanged, `NEEDS REPLY:` marker included; `magic-team.discuss.routine` never closes one of those. Any other `proposal-*` → run `magic-team.discuss.routine` over this item's own framed decision, this same pass, per that routine's own Steps, rules:
   - `magic-team.discuss.routine` owns all state changes for this item (see `check-process-board`'s Note on proposal items).
   - That routine's own **record-the-outcome** step performs the resulting move itself — approved/promoted → `board-processed` plus the same unblock sweep `approval-*`/`approve-*` items use; rejected/dropped → `board-archived`.
   - Never a bare re-ask outside that routine's own Steps.
@@ -359,7 +359,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-coordinator/magic-coordinator.armed.md` — `check-process-board`'s own home, called from **advance-run-process-board**; `spawn-one-dispatch`, called from `check-execute-board`.
 - `magic-team/magic-team.board.md` — the board's own state model, write-authority rule, `processed/`/`archived/` outcome-ambiguity note, `# Process-Flow, the board dynamics` section.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, `--console-list`, calling convention, `--member-comms-slack-react`/`--console-send` mechanics.
-- `magic-coordinator/RICE-SCORING.md` — the four normalized dimensions `check-process-board`'s own dependency-recompute step records alongside, never silently reconciled with.
+- `magic-team.grooming.routine`'s `rice-scoring` block — the four normalized dimensions `check-process-board`'s own dependency-recompute step records alongside, never silently reconciled with.
 
 ### Conventions
 

@@ -2,6 +2,7 @@
 name: magic-developer
 status: active
 invocation_mode: auto
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 description: >-
   Cross-project language mechanics specialist for idiom, portability gotchas, and style axioms by language, independent of any single repository domain. Auto-triggers whenever a development, implementation, or coding task is being investigated or executed — not gated to a single fixed file/path pattern. Supports other members on "how to write this correctly in language X" and directly handles general language-craft asks, including XSLT 1.0 and .xsl/.xslt work. Also provides language-craft review oversight for keeper-* and magic-devops implementation work when requested or coordinator-dispatched.
 ---

@@ -1,6 +1,6 @@
 ---
 executors: magic-coordinator
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-team.proposal.routine — the actual procedure
 
@@ -14,7 +14,7 @@ Give the team one routine for the entire propose→work-out→approve process wi
 
 ## Scope
 
-Does: the full lifecycle of a single proposal to the human-owner — open the thread on the invariant question, post the proposal reply, work it out and revise by delete-and-replace, close on the root's own reaction. Triggered when a proposal to the human-owner is ready to put to him — by the human-owner or a member asking for it, or a routine reaching the point where a settled shape needs his approval.
+Does: the full lifecycle of a single proposal to the human-owner — open the thread on the invariant question, post the proposal reply, work it out and revise by delete-and-replace, close on the root's own reaction. Triggered when a proposal to the human-owner is ready to put to him — by the human-owner or a member asking for it, or a member or routine holding something the escalation process did not settle — a case nothing instructs at all, a group that cannot agree, or an option that cannot confidently be selected — or a `proposal-*` worked up from an `idea-*` a member conceived mid-task. Acting within an instruction decides nothing and never reaches here; nothing that reaches here stops the work it came from.
 
 Doesn't do: convergence/decision among team members (`magic-team.discuss.routine`), collection/understanding of another party's vision (`magic-team.interview.routine`). This routine starts once there is an actual proposed form to put to the human-owner.
 
@@ -35,7 +35,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - reflect on how the proposal process itself went (process/quality, not just outcome)
    - check memory notes
    - if the process surfaced a real behavior/pattern not yet backed by a written rule, record it as a finding
-3. **carry-the-approved-work-forward**: on an approving root reaction, the approved work goes through the normal task-creation/dispatch lifecycle — this routine's own job ends at approval; it does not build the approved change itself.
+3. **carry-the-approved-work-forward**: on an approving root reaction, stamp the approval on the item's settled contents and carry those onward — a proposal produces however many work documents its approved contents call for, or none, of whatever types they call for; the count and the types are the contents' own, never a fixed set. This routine's own job ends there; it does not build the approved change itself.
 
 # Routine's local procedures
 
@@ -61,6 +61,7 @@ All statements apply at the same time, always. These rules override a participan
 - One proposal reply is live in the thread at a time — a revision is a delete-and-replace, never an addition.
 - The root is posted once and never touched again except by the human-owner's own closing reaction.
 - One documented mechanism failing once is a stop-and-ask signal, not a puzzle to solve alone.
+- **A proposal runs beside the work it came from, never in place of it.** A readback the source does not settle with a yes or no enters the escalation process and reaches this routine only where that process does not resolve it; a proposal never reduces back to a readback.
 - `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 
 # Routine-specific tooling
@@ -75,15 +76,15 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--member-comms-slack-send-message` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message, attributed to `<team-member>`. A bare conversation id posts a new top-level message (the root, in the human-owner's DM); a literal `<channel>:<ts>` posts a threaded reply (the proposal reply, under the root).
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]` — posts a message, attributed to `<team-member>`. A bare conversation id posts a new top-level message (the root, in the human-owner's DM); a literal `<channel>:<ts>` posts a threaded reply (the proposal reply, under the root). Content comes from trailing text args, `--from-stdin`, or `--from-file <path>` — exactly one. `--format` accepts `markdown` (the default) and `blocks` only; an unrecognised value is rejected and nothing is sent. `--format blocks` takes a caller-supplied Block Kit JSON array and works with `--from-stdin`/`--from-file` only — a JSON array passed as a trailing text argument is rejected. `--message-text`/`--message-text-from-file` supply the text version of a blocks message verbatim and are optional; without one it is generated. Every message goes out as both a blocks and a text version, built independently from the one input. A root and a proposal reply are composed through `--from-stdin`/`--from-file`, never as trailing argv, so the body carries its own structure rather than arriving as one unformatted run.
 
 ## `--member-comms-slack-delete-message` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...]` — deletes one specific message the acting identity itself authored. This is the delete half of the revision clause's delete-and-replace. The acting identity must be the one that authored the reply being replaced.
+`DistroAgentsTools.fn.sh --member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]` — deletes one specific message the acting identity itself authored. This is the delete half of the revision clause's delete-and-replace. The acting identity must be the one that authored the reply being replaced. More than one target may be given: targets are attempted in order, a failure on one never stops the rest, and stdout carries a `DELETE_TARGET=<as given>` line followed by a `DELETE_STATE=` line for every target — `deleted`, `refused-on-authorship`, `could-not-call`, `unresolvable-target`, or `no-message-ts`. The exit status is 0 only when every target was deleted, so a non-zero exit never means none were: the targets reporting `DELETE_STATE=deleted` really were deleted, and each target's own state line is what to read.
 
 ## `--member-comms-slack-read` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id>|...)` — reads a message/thread, used at **close-on-root-reaction** to detect the human-owner's closing reaction on the root.
+`DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]` — reads a message/thread, used at **close-on-root-reaction** to detect the human-owner's closing reaction on the root. A target with no `:<ts>` names a conversation and reads that conversation's own messages, newest first — the form that recovers the `<ts>` of a message just posted, since a fresh send leaves no `<ts>` in the caller's hand. **An empty result is never an answer from this operation**: a call that could not see the message it was asked for fails with a non-zero status and names the requested `<ts>`, so nothing it returns ever supports concluding that no reaction is there yet. **close-on-root-reaction** needs a successful read to conclude the root is unreacted — an empty or failed one concludes nothing.
 
 # Maintainer Notes
 

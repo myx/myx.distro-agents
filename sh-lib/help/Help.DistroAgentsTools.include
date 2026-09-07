@@ -1,14 +1,56 @@
+## --help-setup-<domain> answers ahead of the syntax block: it is asked for one
+## domain's manual, and the syntax lines below would be noise in front of it.
+## Routed by glob, so a domain gaining a setup document becomes readable with no
+## arm added anywhere.
+case "$1" in
+	--help-setup-*)
+		local helpSetupDomain="${1#--help-setup-}"
+		AgentsToolsAssertBareName "$helpSetupDomain" "<domain>" "help-setup" || { set +e ; return 1 ; }
+		local helpSetupFile="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools-setup-$helpSetupDomain.help.md"
+		if [ ! -f "$helpSetupFile" ] ; then
+			local helpSetupKnown="" helpSetupOther
+			for helpSetupOther in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools-setup-"*.help.md ; do
+				[ -f "$helpSetupOther" ] || continue
+				helpSetupOther="${helpSetupOther##*/Help.DistroAgentsTools-setup-}"
+				helpSetupKnown="$helpSetupKnown --help-setup-${helpSetupOther%.help.md}"
+			done
+			echo "⛔ ERROR: $MDSC_CMD --help-setup-$helpSetupDomain: this domain carries no setup document.${helpSetupKnown:+ Documented domains:$helpSetupKnown}" >&2
+			set +e ; return 1
+		fi
+		echo "" >&2
+		echo "# Setup manual: $helpSetupDomain" >&2
+		echo "" >&2
+		## cat, never catMarkdown: the renderer reads an underscore as emphasis and
+		## drops it, and every configuration key in this document carries one.
+		cat "$helpSetupFile" >&2
+		return 0
+	;;
+esac
+
+## The default syntax: the entry points a reader starts from. Every other
+## operation's syntax sits behind --help-syntax, and the manual behind --help.
+## Every echo stays flush-left, inside a case arm too: --member-help cuts this
+## file on a ^echo anchor, and an indented line silently breaks that cut.
 echo "📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --help-setup-<domain>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-restrictions [--workspace <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh [--help-syntax]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh [--help]" >&2
+
+case "$1" in
+
+	--help-syntax)
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-sweep-input-scan <client-* member> [--comms-since-utime <v>|--comms-since-date-time <v>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-send <channel> [-- <command...>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-start [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-stop <channel>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --install-claude-permissions" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --install-claude-permissions [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-restrictions [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]" >&2
@@ -130,7 +172,6 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-check <team-mem
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-read <team-member> <notification-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-whoami <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> <operation>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-trash <member> <item-filename>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]" >&2
@@ -144,13 +185,17 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-harden" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-self-test" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-current" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <tracking-document>..." >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh [--help]" >&2
-if [ "$1" = "--help" ]; then
-	myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md" >&2
-fi
+		return 0
+	;;
+
+	--help)
+		myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md" >&2
+		return 0
+	;;
+
+esac

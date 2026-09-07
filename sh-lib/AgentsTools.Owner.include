@@ -372,14 +372,30 @@ case "$1" in
 			claude|copilot)
 				## SPAWN_CLI_SERVICE is not declared required: the service selection
 				## below is what sets it, so requiring it too would refuse the very
-				## call that supplies it.
+				## call that supplies it. It does block a spawn, and the arm below
+				## carries that: unset, it is a needs-apply blocker rather than a
+				## value the reader is asked for. CLIENT_ACCESS_ROOTS_EXTRA blocks
+				## nothing -- it widens grants the installer already makes -- so it
+				## is optional in full and a bare call never names it.
 				setupDeclareArgs=(
 					--allow SPAWN_CLI_SERVICE
 					--allow CLIENT_ACCESS_ROOTS_EXTRA
 					--service-key SPAWN_CLI_SERVICE --service-value "$setupDomain"
 					--install-probe "command -v $setupDomain"
-					--install-command "myx.common install/$setupDomain"
 				)
+				## Declared only where myx.common carries the installer; copilot has none.
+				[ "$setupDomain" != "claude" ] || setupDeclareArgs+=( --install-command "myx.common install/$setupDomain" )
+				## Its own credential, under the CLI's own variable name, because
+				## that name is what the generated console exports and the CLI then
+				## reads -- one string, so nothing maps and nothing drifts. Never
+				## required: claude's two are alternatives, and on a machine whose
+				## CLI is already logged in interactively none of them is needed at
+				## all. What is authenticated is asked of the CLI in the arm below,
+				## which is the only answer that is worth anything.
+				case "$setupDomain" in
+					claude)  setupDeclareArgs+=( --allow ANTHROPIC_API_KEY --allow CLAUDE_CODE_OAUTH_TOKEN ) ;;
+					copilot) setupDeclareArgs+=( --allow COPILOT_GITHUB_TOKEN ) ;;
+				esac
 			;;
 			slack)
 				setupDeclareArgs=(
@@ -488,7 +504,63 @@ case "$1" in
 					${setupAccessRoots:+--value} ${setupAccessRoots:+"CLIENT_ACCESS_ROOTS_EXTRA=$setupAccessRoots"} \
 					${setupValuesFromStdin:+--values-from-stdin} \
 					${setupSetAsDefault:+--set-as-default} || setupApplyRc=$?
-				return "$setupApplyRc"
+				if [ "$setupApplyRc" != "0" ] ; then
+					[ "$setupOperation" != "--apply" ] || echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: stopped at the settings step, so nothing after it ran -- the reason above is that step's own" >&2
+					return "$setupApplyRc"
+				fi
+				[ "$setupOperation" = "--apply" ] || return 0
+
+				## The rest of the setup, so one --apply leaves the domain ready
+				## instead of handing the reader steps to run himself. Ordered by
+				## real dependency: trust above comes first, because claude
+				## discards the permissions.allow entries written below while the
+				## workspace is untrusted; the engine call above stores
+				## CLIENT_ACCESS_ROOTS_EXTRA, which both the copilot access
+				## fragment and the claude permissions are built from; and the
+				## console those write is what the verification then reads.
+				(
+					MMDAPP="${setupWorkspaceRoot:-${MMDAPP%/}}"
+					unset MDAT_SKILLSET_ROOT MDAT_DATA_ROOT
+					## Every step runs inside a subshell of its own and is tested
+					## explicitly, so a failure ends the sequence at the step that
+					## failed and is reported by name. Both halves are needed on
+					## bash 3.2: this outer subshell is tested by the caller, which
+					## suspends set -e inside it, and a step that aborts on its own
+					## -- --make-console-command's redirection is measured doing
+					## exactly that -- would otherwise take this subshell down with
+					## it and skip the handler naming the step.
+
+					## The workspace integrations -- the generated console, the
+					## member links, claude's permissions and the copilot access
+					## fragment -- belong to every domain the generated console
+					## launches, which is exactly the ones declaring
+					## SPAWN_CLI_SERVICE. Read off the declaration, so a new CLI
+					## domain gets this by declaring rather than by reopening here.
+					case " ${setupDeclareArgs[*]} " in
+						*" --service-key SPAWN_CLI_SERVICE "*)
+							## The domain's own diagnosis is the gate: it already
+							## knows this domain's preconditions, so a workspace
+							## already current has nothing rewritten over it.
+							if ! ( DistroAgentsTools "--owner-setup-$setupDomain" ) >/dev/null 2>&1 ; then
+								( DistroAgentsTools --make-workspace-integrations --quiet ) || {
+									echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: stopped at the workspace integrations step -- the settings above are stored, the console and the access grants are not" >&2
+									exit 1
+								}
+							fi
+						;;
+					esac
+
+					## The apply's own verdict on its own work, in place of telling
+					## the reader to re-run the diagnosis himself. Its status is
+					## this operation's status: a setup that wrote everything and
+					## is still not ready has not set the workspace up.
+					echo ""
+					( DistroAgentsTools "--owner-setup-$setupDomain" ) || {
+						echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: applied, and this workspace is still not ready -- what is left is named above" >&2
+						exit 1
+					}
+				) || { set +e ; return 1 ; }
+				return 0
 			;;
 		esac
 
@@ -534,8 +606,11 @@ case "$1" in
 				## is the one gate nothing here can read.
 				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
 				local setupToolPath="$setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-				local setupBlockers="" setupSetupSteps=""
-				local setupCliValue setupConsole setupFragment
+				## setupSetupSteps carries only what --apply cannot do; a finding
+				## --apply closes sets setupNeedsApply instead, and one that also has
+				## to repoint an existing selection sets setupApplyDefault with it.
+				local setupBlockers="" setupSetupSteps="" setupNeedsApply="" setupApplyDefault=""
+				local setupCliValue setupConsole setupFragment setupCredential
 				local setupFragmentRoots setupCurrentRoots setupRootLine
 				local setupStaleRoots="" setupMissingRoots=""
 
@@ -550,23 +625,53 @@ case "$1" in
 						echo "  fix:  $setupToolPath --owner-setup-copilot --apply"
 					}
 					AgentsToolsOwnerSetupRow "Copilot CLI" "NOT INSTALLED"
-					setupSetupSteps="${setupSetupSteps}  $setupToolPath --owner-setup-copilot --apply"$'\n'
+					setupNeedsApply="yes"
 					setupBlockers="$setupBlockers COPILOT_CLI_INSTALLED"
 					setupRc=1
 				fi
 
-				## Reported, never probed: copilot's own --help lists login and no
-				## status or auth sub-command, and the token login writes goes to the
-				## system credential store. Anything that would exercise it starts a
-				## billable session, which is a worse check than none.
-				[ "$setupOperation" != "--check" ] || {
-					echo "COPILOT_AUTHENTICATED: NOT CHECKED"
-					echo "  warn: copilot exposes no status or auth sub-command, and its token lives"
-					echo "        in the system credential store, so nothing here reads it back -- an"
-					echo "        unauthenticated CLI fails at its first spawn, not in this report"
-					echo "  fix:  copilot login   -- once, if a spawn comes back with an auth error"
-				}
-				AgentsToolsOwnerSetupRow "Copilot login" "not checked"
+				## What a spawn will actually carry, which is the only half of copilot's
+				## authentication this workspace owns. copilot's own `help environment`
+				## names COPILOT_GITHUB_TOKEN, GH_TOKEN and GITHUB_TOKEN, in that
+				## precedence, as taking precedence over previously stored credentials --
+				## so a stored token IS the whole answer for a machine that has one, and
+				## the console exports it under that same name. Its VALIDITY is still not
+				## readable: copilot carries no status or auth sub-command, and the one
+				## command that would settle it, `copilot login`, writes the system
+				## credential store and on a machine with no token opens an interactive
+				## flow, so a read-only diagnosis cannot run it. An interactive login
+				## already done on this machine is equally unreadable here, which is why
+				## an absent token WARNs rather than fails.
+				setupCredential=""
+				if [ -f "$setupHere/.local/.agents/magic-team.agent.env" ] ; then
+					setupCredential="$( MMDAPP="$setupHere" ; DistroAgentsTools --agents-config-option magic-team --select COPILOT_GITHUB_TOKEN || : )"
+				fi
+				if [ -n "$setupCredential" ] ; then
+					[ "$setupOperation" != "--check" ] || {
+						echo "COPILOT_GITHUB_TOKEN: OK"
+						echo "  note: configured here, so the console exports it and copilot takes it"
+						echo "        ahead of anything in the system credential store -- this machine"
+						echo "        needs no interactive copilot login"
+						echo "  warn: stored, not verified: copilot offers nothing that reads a token"
+						echo "        back without writing its credential store, so a token that is"
+						echo "        wrong or expired surfaces at the first spawn and not here"
+					}
+					AgentsToolsOwnerSetupRow "Copilot credential" "configured"
+				else
+					[ "$setupOperation" != "--check" ] || {
+						echo "COPILOT_GITHUB_TOKEN: WARN"
+						echo "  warn: unset here, so a spawn carries no credential of this workspace's"
+						echo "        and copilot falls back to whatever login this account already has"
+						echo "        -- which is nothing at all on a machine set up from scratch"
+						echo "  why:  this does not FAIL, because an interactive 'copilot login' done"
+						echo "        on this machine is a working setup that nothing here can read"
+						echo "  fix:  $setupToolPath --owner-setup-copilot --print-apply-command"
+					}
+					AgentsToolsOwnerSetupRow "Copilot credential" "not configured"
+				fi
+				## The credential itself is never echoed: only whether it is non-empty is
+				## ever read out of it, here and everywhere else it is touched.
+				setupCredential=""
 
 				## Read only where the scope file already exists: a --select through
 				## --agents-config-option creates the file it reads.
@@ -584,8 +689,12 @@ case "$1" in
 						echo "  fix:  $setupToolPath --owner-setup-copilot --apply"
 					}
 					AgentsToolsOwnerSetupRow "CLI selection" "NOT SET (spawn fails)"
-					## No step here: an unset option is exactly what the what-is-missing
-					## command below renders, over the domain's whole declaration.
+					## --apply closes this one itself: the domain declares
+					## --service-key SPAWN_CLI_SERVICE, and the engine's service
+					## selection writes it wherever nothing is selected. So it is a
+					## needs-apply blocker rather than a value the reader supplies,
+					## and the what-is-missing command below never names it.
+					setupNeedsApply="yes"
 					setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
 					setupRc=1
 				elif [ "$setupCliValue" = "copilot" ] ; then
@@ -598,7 +707,7 @@ case "$1" in
 						echo "  fix:  $setupToolPath --owner-setup-copilot --set-as-default --apply"
 					}
 					AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue"
-					setupSetupSteps="${setupSetupSteps}  $setupToolPath --owner-setup-copilot --set-as-default --apply"$'\n'
+					setupNeedsApply="yes" ; setupApplyDefault="yes"
 				fi
 
 				## copilot needs two markers claude does not: --allow-all-tools, which
@@ -614,24 +723,26 @@ case "$1" in
 						echo "  fix:  $setupToolPath --make-workspace-integrations"
 					}
 					AgentsToolsOwnerSetupRow "Agents console" "MISSING"
-					setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+					setupNeedsApply="yes"
 					setupBlockers="$setupBlockers AGENTS_CONSOLE_SCRIPT"
 					setupRc=1
-				elif ! grep -q 'cli-configured' "$setupConsole" 2>/dev/null || ! grep -q 'DISTRO_CONSOLE_EXEC' "$setupConsole" 2>/dev/null || ! grep -qF 'copilot-add-dir.fragment' "$setupConsole" 2>/dev/null || ! grep -qF 'allow-all-tools' "$setupConsole" 2>/dev/null ; then
+				elif ! grep -q 'cli-configured' "$setupConsole" 2>/dev/null || ! grep -q 'DISTRO_CONSOLE_EXEC' "$setupConsole" 2>/dev/null || ! grep -qF 'copilot-add-dir.fragment' "$setupConsole" 2>/dev/null || ! grep -qF 'allow-all-tools' "$setupConsole" 2>/dev/null || ! grep -q 'DAGC_CLI_CREDENTIALS' "$setupConsole" 2>/dev/null ; then
 					[ "$setupOperation" != "--check" ] || {
 						echo "AGENTS_CONSOLE_SCRIPT: FAIL"
 						echo "  warn: generated before the console could refuse a spawn with no CLI"
 						echo "        selected, announce DISTRO_CONSOLE_EXEC, feed the access fragment"
-						echo "        into copilot's --add-dir argv, or pass --allow-all-tools -- copilot"
-						echo "        requires that flag non-interactively, and without the fragment it"
-						echo "        launches with no granted directory at all"
+						echo "        into copilot's --add-dir argv, pass --allow-all-tools, or export"
+						echo "        this workspace's stored credential into the CLI it starts -- copilot"
+						echo "        requires that flag non-interactively, without the fragment it"
+						echo "        launches with no granted directory at all, and without the export a"
+						echo "        stored token reaches nothing and every spawn runs unauthenticated"
 						echo "  path: $setupConsole"
 						echo "  fix:  $setupToolPath --make-workspace-integrations"
 						echo "  then: re-run this check -- what that regenerates from is the template"
 						echo "        under the origin MDLT_CONSOLE_ORIGIN selects, not the path above"
 					}
 					AgentsToolsOwnerSetupRow "Agents console" "STALE"
-					setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+					setupNeedsApply="yes"
 					setupBlockers="$setupBlockers AGENTS_CONSOLE_SCRIPT"
 					setupRc=1
 				else
@@ -653,10 +764,10 @@ case "$1" in
 						echo "        --add-dir root at all and a spawned agent is denied on its very"
 						echo "        first read of .agents/skills/<member>/<member>.basic.md"
 						echo "  path: $setupFragment"
-						echo "  fix:  $setupToolPath --install-copilot-access-fragment"
+						echo "  fix:  $setupToolPath --make-workspace-integrations"
 					}
 					AgentsToolsOwnerSetupRow "Skill access roots" "NO GRANTS"
-					setupSetupSteps="${setupSetupSteps}  $setupToolPath --install-copilot-access-fragment"$'\n'
+					setupNeedsApply="yes"
 					setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
 					setupRc=1
 				else
@@ -693,23 +804,34 @@ case "$1" in
 								[ -n "$setupRootLine" ] || continue
 								echo "        in the set, not granted:       $setupRootLine"
 							done <<< "$setupMissingRoots"
-							echo "  why:  the fragment is written once, by --install-copilot-access-fragment;"
-							echo "        changing CLIENT_ACCESS_ROOTS_EXTRA, or adding or retiring a member,"
-							echo "        moves the set underneath it and rewrites nothing"
+							echo "  why:  the fragment is written once, when the workspace integrations are"
+							echo "        installed; changing CLIENT_ACCESS_ROOTS_EXTRA, or adding or retiring"
+							echo "        a member, moves the set underneath it and rewrites nothing"
 							echo "  path: $setupFragment"
-							echo "  fix:  $setupToolPath --install-copilot-access-fragment"
+							echo "  fix:  $setupToolPath --make-workspace-integrations"
 						}
 						AgentsToolsOwnerSetupRow "Skill access roots" "STALE"
-						setupSetupSteps="${setupSetupSteps}  $setupToolPath --install-copilot-access-fragment"$'\n'
+						setupNeedsApply="yes"
 						setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
 						setupRc=1
 					fi
 				fi
 
+				## One command, because --apply now carries out every finding above
+				## that a command can carry out. Anything left in setupSetupSteps
+				## is there because nothing can, and says so in its own prose.
 				if [ -z "$setupOperation" ] ; then
 					echo ""
-					if [ -n "$setupSetupSteps" ] ; then
+					if [ -n "$setupNeedsApply" ] ; then
 						echo "To set this workspace up, run:"
+						echo "  $setupToolPath --owner-setup-copilot${setupApplyDefault:+ --set-as-default} --apply"
+						[ -z "$setupSetupSteps" ] || {
+							echo ""
+							echo "That command does not close these on its own:"
+							printf '%s' "$setupSetupSteps"
+						}
+					elif [ -n "$setupSetupSteps" ] ; then
+						echo "This workspace is not ready, and no command closes what is left:"
 						printf '%s' "$setupSetupSteps"
 					elif [ -n "$setupBlockers" ] ; then
 						echo "This workspace is not ready, and no single command closes what is left."
@@ -725,22 +847,6 @@ case "$1" in
 				## test below reads this: "$MMDAPP/" yields an empty basename, and a
 				## run keyed on it diagnoses nothing while still exiting 0.
 				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
-
-				## claude's whole declaration: one service selection, applied in the
-				## workspace that is its own basic setting. Trust, the CLI install,
-				## console freshness and access-root completeness are preconditions the
-				## diagnosis reports -- none of them is an option an apply can carry.
-				if [ "$setupOperation" = "--apply" ] ; then
-					local setupApplyRc=0
-					DistroAgentsTools --intern-op-owner-setup claude --apply \
-						--workspace "$setupHere" \
-						--service-scope magic-team \
-						--service-key SPAWN_CLI_SERVICE \
-						--service-value claude \
-						${setupAccessRoots:+--access-roots} ${setupAccessRoots:+"$setupAccessRoots"} \
-						${setupSetAsDefault:+--set-as-default} || setupApplyRc=$?
-					return "$setupApplyRc"
-				fi
 
 				## The console's own two sets. A spawned agent is always launched
 				## --non-interactive, and the console narrows its scan to the second
@@ -843,10 +949,14 @@ case "$1" in
 				fi
 
 				local setupLabel setupRoot setupToolPath setupDiagnosed=0
-				local setupTrustLine setupCliValue setupConsole setupFragment
+				local setupTrustLine setupCliValue setupConsole setupFragment setupAuthLine
 				local setupMemberSlot setupMemberReal setupGrant setupGrantReal
 				local setupCovered setupUncovered setupMemberCount
-				local setupWillRun setupBlockers setupVerdict="" setupSetupSteps setupValueHelp
+				## setupSetupSteps carries only what --apply cannot do; a finding
+				## --apply closes sets setupNeedsApply instead, and one that also has
+				## to repoint an existing selection sets setupApplyDefault with it.
+				local setupWillRun setupBlockers setupVerdict="" setupSetupSteps
+				local setupNeedsApply setupApplyDefault
 
 				for setupLabel in $setupUnresolved ; do
 					echo ""
@@ -869,7 +979,8 @@ case "$1" in
 				while IFS= read -r setupRoot ; do
 					[ -n "$setupRoot" ] || continue
 					setupLabel="${setupRoot##*/}"
-					setupBlockers="" ; setupWillRun="" ; setupSetupSteps="" ; setupValueHelp=""
+					setupBlockers="" ; setupWillRun="" ; setupSetupSteps=""
+					setupNeedsApply="" ; setupApplyDefault=""
 
 					if [ "$setupOperation" = "--check" ] || [ -n "$setupAllWorkspaces" ] ; then
 						echo ""
@@ -908,7 +1019,7 @@ case "$1" in
 					[ "$setupOperation" != "--check" ] || echo "WORKSPACE_ROOT: OK"
 					setupToolPath="$setupRoot/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 					if [ -n "$setupClaudeMissing" ] ; then
-						setupSetupSteps="${setupSetupSteps}  myx.common install/claude"$'\n'
+						setupNeedsApply="yes"
 						setupBlockers="$setupBlockers CLAUDE_CLI_INSTALLED"
 					fi
 
@@ -938,7 +1049,7 @@ case "$1" in
 								echo "  fix:  $setupToolPath --owner-setup-claude --apply"
 							}
 							AgentsToolsOwnerSetupRow "Workspace trust" "NOT ACCEPTED"
-							setupSetupSteps="${setupSetupSteps}  $setupToolPath --owner-setup-claude --apply   -- records this workspace's trust in claude's own state file, before anything else it configures"$'\n'
+							setupNeedsApply="yes"
 							setupBlockers="$setupBlockers WORKSPACE_TRUSTED"
 							setupRc=1
 						;;
@@ -976,9 +1087,12 @@ case "$1" in
 							echo "  fix:  $setupToolPath --owner-setup-claude --apply"
 						}
 						AgentsToolsOwnerSetupRow "CLI selection" "NOT SET (spawn fails)"
-						## No step and no value note here: an unset option is exactly what
-						## the what-is-missing command below renders, over the domain's whole
-						## declaration rather than this one key.
+						## --apply closes this one itself: the domain declares
+						## --service-key SPAWN_CLI_SERVICE, and the engine's service
+						## selection writes it wherever nothing is selected. So it is a
+						## needs-apply blocker rather than a value the reader supplies,
+						## and the what-is-missing command below never names it.
+						setupNeedsApply="yes"
 						setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
 						setupRc=1
 					else
@@ -992,8 +1106,7 @@ case "$1" in
 								echo "  fix:  $setupToolPath --owner-setup-claude --set-as-default --apply"
 							}
 							AgentsToolsOwnerSetupRow "CLI selection" "REJECTED ($setupCliValue)"
-							setupSetupSteps="${setupSetupSteps}$( DistroAgentsTools --intern-op-owner-setup claude --render-full --workspace "$setupRoot" --allow SPAWN_CLI_SERVICE --service-key SPAWN_CLI_SERVICE --service-value claude --set-as-default || : )"$'\n'
-							setupValueHelp="${setupValueHelp}  SPAWN_CLI_SERVICE   the agent CLI this workspace starts -- one of '$setupKnownClis'"$'\n'
+							setupNeedsApply="yes" ; setupApplyDefault="yes"
 							setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
 							setupRc=1
 						elif ! command -v "$setupCliValue" >/dev/null 2>&1 ; then
@@ -1005,7 +1118,7 @@ case "$1" in
 								echo "  fix:  myx.common install/$setupCliValue"
 							}
 							AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue NOT INSTALLED"
-							setupSetupSteps="${setupSetupSteps}  myx.common install/$setupCliValue"$'\n'
+							setupNeedsApply="yes" ; setupApplyDefault="yes"
 							setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
 							setupRc=1
 						else
@@ -1022,7 +1135,7 @@ case "$1" in
 								AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue (cannot be spawned)"
 								## A selection no spawn can use blocks the thing this domain
 								## exists for, so it carries a step like any other blocker.
-								setupSetupSteps="${setupSetupSteps}$( DistroAgentsTools --intern-op-owner-setup claude --render-full --workspace "$setupRoot" --allow SPAWN_CLI_SERVICE --service-key SPAWN_CLI_SERVICE --service-value claude --set-as-default || : )"$'\n'
+								setupNeedsApply="yes" ; setupApplyDefault="yes"
 								setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
 								setupRc=1
 							elif [ "$setupCliValue" = "claude" ] ; then
@@ -1035,10 +1148,74 @@ case "$1" in
 									echo "  fix:  $setupToolPath --owner-setup-claude --set-as-default --apply"
 								}
 								AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue"
-								setupSetupSteps="${setupSetupSteps}$( DistroAgentsTools --intern-op-owner-setup claude --render-full --workspace "$setupRoot" --allow SPAWN_CLI_SERVICE --service-key SPAWN_CLI_SERVICE --service-value claude --set-as-default || : )"$'\n'
+								setupNeedsApply="yes" ; setupApplyDefault="yes"
 							fi
 						fi
 					fi
+
+					## Whether a spawn here will authenticate, asked of claude itself with
+					## this workspace's own stored credential in scope -- which is the
+					## question, and not whether the human at this terminal happens to be
+					## logged in. The export lives in the probe's own subshell and reaches
+					## nothing else. claude's JSON verdict names authMethod and never
+					## echoes a value, so no part of the credential can leave through it,
+					## and an API key, a subscription token, an interactive login and a
+					## Bedrock/Vertex provider all answer loggedIn true -- so no working
+					## machine is misread as unauthenticated.
+					setupAuthLine=""
+					if [ -z "$setupClaudeMissing" ] ; then
+						setupAuthLine="$(
+							MMDAPP="$setupRoot"
+							for setupAuthKey in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN ; do
+								[ -f "$setupRoot/.local/.agents/magic-team.agent.env" ] || continue
+								setupAuthValue="$( DistroAgentsTools --agents-config-option magic-team --select "$setupAuthKey" 2>/dev/null || : )"
+								[ -n "$setupAuthValue" ] || continue
+								export "$setupAuthKey=$setupAuthValue"
+							done
+							claude auth status --json </dev/null 2>/dev/null || :
+						)"
+					fi
+					case "$setupAuthLine" in
+						*'"loggedIn": true'*)
+							[ "$setupOperation" != "--check" ] || echo "SPAWN_CLI_AUTHENTICATED: OK"
+							AgentsToolsOwnerSetupRow "Claude authentication" "authenticated"
+						;;
+						*'"loggedIn": false'*)
+							[ "$setupOperation" != "--check" ] || {
+								echo "SPAWN_CLI_AUTHENTICATED: FAIL"
+								echo "  warn: claude has no credential here, from this workspace's config or"
+								echo "        from this account's own login, so every spawn starts a CLI that"
+								echo "        cannot reach the API and the main loop fails each iteration"
+								echo "  why:  a spawned CLI is handed no credential by anything but the"
+								echo "        console, which exports what is stored under claude's own"
+								echo "        variable names -- unset here, there is nothing to export"
+								echo "  fix:  $setupToolPath --owner-setup-claude --print-apply-command"
+								echo "        -- store ANTHROPIC_API_KEY (console.anthropic.com, API keys) or"
+								echo "        CLAUDE_CODE_OAUTH_TOKEN (claude setup-token, on a machine with a"
+								echo "        browser). Either one alone is enough; on a machine with a browser"
+								echo "        'claude auth login' is the third way and needs no stored value."
+							}
+							AgentsToolsOwnerSetupRow "Claude authentication" "NOT AUTHENTICATED"
+							## Carried as a step, not left to the what-is-missing render: a
+							## credential is not declarable as required here -- the two are
+							## alternatives, and a machine already logged in interactively
+							## needs neither -- so the render, which names required options,
+							## correctly names none and a bare call would otherwise say
+							## nothing is waiting on a value while this machine cannot run.
+							setupSetupSteps="${setupSetupSteps}  authenticate claude: --apply cannot invent a credential, so supply one to it -- $setupToolPath --owner-setup-claude --print-apply-command writes the exact stdin-fed form for ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN, either alone being enough. On a machine with a browser 'claude auth login' does it instead and stores nothing here."$'\n'
+							setupBlockers="$setupBlockers SPAWN_CLI_AUTHENTICATED"
+							setupRc=1
+						;;
+						*)
+							[ "$setupOperation" != "--check" ] || {
+								echo "SPAWN_CLI_AUTHENTICATED: WARN"
+								echo "  warn: undetermined -- claude is absent from PATH, or too old to carry"
+								echo "        'auth status', so its sign-in state was neither confirmed nor"
+								echo "        denied and an unauthenticated spawn would surface at first use"
+							}
+							AgentsToolsOwnerSetupRow "Claude authentication" "unknown"
+						;;
+					esac
 
 					setupConsole="$setupRoot/DistroAgentsConsole.sh"
 					if [ ! -f "$setupConsole" ] ; then
@@ -1052,26 +1229,25 @@ case "$1" in
 							echo "        under the origin MDLT_CONSOLE_ORIGIN selects, not the path above"
 						}
 						AgentsToolsOwnerSetupRow "Agents console" "MISSING"
-						setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
-						setupSetupSteps="${setupSetupSteps}  $setupToolPath --owner-setup-claude   -- re-run and confirm 'Agents console' now reads current; the same verdict twice means the origin MDLT_CONSOLE_ORIGIN selects carries the stale template, not that the run failed"$'\n'
+						setupNeedsApply="yes"
 						setupWillRun="nothing"
 						setupBlockers="$setupBlockers AGENTS_CONSOLE_SCRIPT"
 						setupRc=1
-					elif ! grep -q 'SPAWN_CLI_SERVICE' "$setupConsole" 2>/dev/null || ! grep -q 'DISTRO_CONSOLE_EXEC' "$setupConsole" 2>/dev/null || ! grep -q 'cli-configured' "$setupConsole" 2>/dev/null ; then
+					elif ! grep -q 'SPAWN_CLI_SERVICE' "$setupConsole" 2>/dev/null || ! grep -q 'DISTRO_CONSOLE_EXEC' "$setupConsole" 2>/dev/null || ! grep -q 'cli-configured' "$setupConsole" 2>/dev/null || ! grep -q 'DAGC_CLI_CREDENTIALS' "$setupConsole" 2>/dev/null ; then
 						[ "$setupOperation" != "--check" ] || {
 							echo "AGENTS_CONSOLE_SCRIPT: FAIL"
 							echo "  warn: generated before the console could read SPAWN_CLI_SERVICE, announce"
-							echo "        DISTRO_CONSOLE_EXEC or refuse a spawn with no CLI selected, so an"
+							echo "        DISTRO_CONSOLE_EXEC, refuse a spawn with no CLI selected, or export"
+							echo "        this workspace's stored credential into the CLI it starts, so an"
 							echo "        agent-initiated spawn here scans PATH and starts whichever CLI it"
-							echo "        finds, rather than failing so its caller spawns internally"
+							echo "        finds, and starts it with no credential of this workspace's at all"
 							echo "  path: $setupConsole"
 							echo "  fix:  $setupToolPath --make-workspace-integrations"
 							echo "  then: re-run this check -- what that regenerates from is the template"
 							echo "        under the origin MDLT_CONSOLE_ORIGIN selects, not the path above"
 						}
 						AgentsToolsOwnerSetupRow "Agents console" "STALE"
-						setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
-						setupSetupSteps="${setupSetupSteps}  $setupToolPath --owner-setup-claude   -- re-run and confirm 'Agents console' now reads current; the same verdict twice means the origin MDLT_CONSOLE_ORIGIN selects carries the stale template, not that the run failed"$'\n'
+						setupNeedsApply="yes"
 						setupWillRun="unknown"
 						setupBlockers="$setupBlockers AGENTS_CONSOLE_SCRIPT"
 						setupRc=1
@@ -1090,7 +1266,7 @@ case "$1" in
 							echo "  fix:  $setupToolPath --make-workspace-integrations"
 						}
 						AgentsToolsOwnerSetupRow "Skill access roots" "NO MEMBERS"
-						setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+						setupNeedsApply="yes"
 						setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
 						setupRc=1
 					elif [ ! -s "$setupFragment" ] ; then
@@ -1103,7 +1279,7 @@ case "$1" in
 							echo "  fix:  $setupToolPath --make-workspace-integrations"
 						}
 						AgentsToolsOwnerSetupRow "Skill access roots" "NO GRANTS"
-						setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+						setupNeedsApply="yes"
 						setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
 						setupRc=1
 					else
@@ -1139,7 +1315,7 @@ case "$1" in
 								echo "  fix:  $setupToolPath --make-workspace-integrations"
 							}
 							AgentsToolsOwnerSetupRow "Skill access roots" "NO MEMBERS"
-							setupSetupSteps="${setupSetupSteps}  $setupToolPath --make-workspace-integrations"$'\n'
+							setupNeedsApply="yes"
 							setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
 							setupRc=1
 						elif [ -z "$setupUncovered" ] ; then
@@ -1160,10 +1336,13 @@ case "$1" in
 								echo "        different directory, and regenerating the fragment does not move"
 								echo "        it -- an existing link is kept exactly as it is."
 								echo "  fix:  re-point each link above at the directory $MDAT_SKILLSET_ROOT/<member>"
-								echo "        resolves to, then run $setupToolPath --make-workspace-integrations"
+								echo "        resolves to, then run $setupToolPath --owner-setup-claude --apply"
 							}
 							AgentsToolsOwnerSetupRow "Skill access roots" "INCOMPLETE"
-							setupSetupSteps="${setupSetupSteps}  re-point the member links --check lists at the directories $MDAT_SKILLSET_ROOT resolves to, then run $setupToolPath --make-workspace-integrations"$'\n'
+							## The one finding here nothing carries out: --install-skillset-symlinks
+							## keeps an existing link exactly as it is, whatever it points at,
+							## so no run of it moves this one.
+							setupSetupSteps="${setupSetupSteps}  re-point the member links --check lists at the directories $MDAT_SKILLSET_ROOT resolves to -- an existing link is never moved for you"$'\n'
 							setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
 							setupRc=1
 						fi
@@ -1175,18 +1354,23 @@ case "$1" in
 						setupVerdict="${setupVerdict}$( printf '  %-28s runs %-8s -- ready' "$setupLabel" "$setupWillRun" )"$'\n'
 					fi
 
-					## The pointer, and it is the point of this mode: what to run, and
-					## where each value it takes comes from.
+					## The pointer, and it is the point of this mode: one command,
+					## because --apply now carries out every finding above that a
+					## command can carry out. Anything left in setupSetupSteps is
+					## there because nothing can, and says so in its own prose.
 					if [ -z "$setupOperation" ] && [ -z "$setupAllWorkspaces" ] ; then
 						echo ""
-						if [ -n "$setupSetupSteps" ] ; then
+						if [ -n "$setupNeedsApply" ] ; then
 							echo "To set this workspace up, run:"
-							printf '%s' "$setupSetupSteps"
-							if [ -n "$setupValueHelp" ] ; then
+							echo "  $setupToolPath --owner-setup-claude${setupApplyDefault:+ --set-as-default} --apply"
+							[ -z "$setupSetupSteps" ] || {
 								echo ""
-								echo "Where each value comes from:"
-								printf '%s' "$setupValueHelp"
-							fi
+								echo "That command does not close these on its own:"
+								printf '%s' "$setupSetupSteps"
+							}
+						elif [ -n "$setupSetupSteps" ] ; then
+							echo "This workspace is not ready, and no command closes what is left:"
+							printf '%s' "$setupSetupSteps"
 						elif [ -n "$setupBlockers" ] ; then
 							echo "This workspace is not ready, and no single command closes what is left."
 							echo "Run --check for the detail on:$setupBlockers"
@@ -1219,11 +1403,14 @@ case "$1" in
 		esac
 
 		## The other half of a bare call: the status above, then the command that
-		## supplies what this domain still takes. Rendered by the same engine mode
-		## --print-apply-command uses, in its skip-what-is-set form, so the
-		## placeholders and the how-to-obtain lines cannot drift from the full
-		## template. --check writes the per-setting detail instead, and
-		## --all-workspaces spans workspaces one command cannot name.
+		## supplies what this domain REQUIRES and does not yet have. Rendered by the
+		## same engine as --print-apply-command, in its required-and-unset form, so
+		## the placeholders and the how-to-obtain lines cannot drift from the full
+		## template. An optional setting is deliberately not named here -- beside a
+		## required one it reads as the thing standing between the reader and a
+		## working setup -- and --print-apply-command below is where every setting
+		## this domain takes is written out. --check writes the per-setting detail
+		## instead, and --all-workspaces spans workspaces one command cannot name.
 		if [ -z "$setupOperation" ] && [ -z "$setupAllWorkspaces" ] && [ ${#setupDeclareArgs[@]} -ne 0 ] ; then
 			local setupStillMissing="" setupRenderRc=0
 			setupStillMissing="$( DistroAgentsTools --intern-op-owner-setup "$setupDomain" --render-missing \
@@ -1232,11 +1419,11 @@ case "$1" in
 			if [ "$setupRenderRc" -ne 0 ] ; then
 				setupRc="$setupRenderRc"
 			elif [ -n "$setupStillMissing" ] ; then
-				echo "To supply what $setupDomain still takes, run:"
+				echo "To supply what $setupDomain requires, run:"
 				printf '%s\n' "$setupStillMissing"
 			else
-				echo "Nothing left to supply here -- every setting $setupDomain takes is already set."
-				echo "  ${setupWorkspaceRoot:-${MMDAPP%/}}/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-$setupDomain --print-apply-command   -- the full command, for changing one"
+				echo "Nothing here is waiting on a value from you."
+				echo "  ${setupWorkspaceRoot:-${MMDAPP%/}}/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-$setupDomain --print-apply-command   -- every setting this domain takes, optional ones included, for changing one"
 			fi
 		fi
 		return "$setupRc"

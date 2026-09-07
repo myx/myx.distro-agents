@@ -1,6 +1,6 @@
 ---
 executors: <team-member-or-magic-team>
-maintainers: <group, e.g. magic-coordinator, magic-librarian, magic-architect>
+maintainers: <group, e.g. magic-coordinator, magic-librarian, magic-architect>, human-owner
 invitees: <only if this routine has genuine multi-member sessions>
 ---
 # <owning-member>.<short-name>.routine — the actual procedure

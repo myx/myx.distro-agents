@@ -1,6 +1,6 @@
 ---
 executors: magic-architect
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: none
 ---
 # magic-architect.grooming-scores.routine — the actual procedure
@@ -11,7 +11,7 @@ invitees: none
 
 ## Goals
 
-- Review the open backlog items in `board-backlog` and `board-running` (and `board-blocked`/`board-parked` where relevant) and, for items in this skill's own domain of judgment — architecture-level concerns: complexity, blast radius, what systems/patterns get touched, risk — set or refine a RICE-style score per `magic-coordinator/RICE-SCORING.md`'s formula. A scoring-only pass, keeping scores current so grooming works from real numbers rather than stale ones.
+- Review the open backlog items in `board-backlog` and `board-running` (and `board-blocked`/`board-parked` where relevant) and, for items in this skill's own domain of judgment — architecture-level concerns: complexity, blast radius, what systems/patterns get touched, risk — set or refine a RICE-style score per `magic-team.grooming.routine`'s `rice-scoring` block's formula. A scoring-only pass, keeping scores current so grooming works from real numbers rather than stale ones.
 
 ## Scope
 
@@ -26,12 +26,12 @@ invitees: none
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
 1. **review-open-items**: Review the open backlog items under `board-backlog` and `board-running` (and `board-blocked`/`board-parked` where relevant) that fall in this skill's own domain of judgment — the board is the sole live backlog source.
-2. **score-in-domain**: For each such item, set or refine a RICE-style score per `magic-coordinator/RICE-SCORING.md`'s formula. For a structural score (risk, coupling, blast radius):
+2. **score-in-domain**: For each such item, set or refine a RICE-style score per `magic-team.grooming.routine`'s `rice-scoring` block's formula. For a structural score (risk, coupling, blast radius):
    - rule: that scenario + sensitivity point IS the one line of reasoning recorded on the item — not the score alone.
    - step: name the concrete scenario this item affects (what breaks, under what condition) — not "this is risky," the actual failure mode.
    - step: identify the sensitivity point — which single design choice, if changed, most affects that scenario's outcome.
 3. **refresh-stale-scores**: A score set weeks ago may no longer reflect what is actually true now. If refining one depends on something outside this skill's own direct knowledge — e.g. how much a domain area has actually changed since the score was last set — consult the domain-owning member (or other relevant skills/current context) rather than guessing.
-4. **record-on-item**: Record the score directly on the board item's own file (frontmatter or a dated note), per `magic-coordinator/RICE-SCORING.md`'s "official scores" convention — never a separate scoring record.
+4. **record-on-item**: Record the score directly on the board item's own file (frontmatter or a dated note), per `magic-team.grooming.routine`'s `rice-scoring` block's "official scores" convention — never a separate scoring record.
 
 # Closure steps
 
@@ -82,7 +82,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-architect.armed.md`'s `## Idle-Tasks` section — the scheduling policy governing when this routine fires.
-- `magic-coordinator/RICE-SCORING.md` — the four-dimension scoring model.
+- `magic-team.grooming.routine`'s `rice-scoring` block — the four-dimension scoring model.
 
 ### Conventions
 

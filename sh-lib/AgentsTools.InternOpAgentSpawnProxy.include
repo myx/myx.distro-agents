@@ -270,6 +270,23 @@ case "$1" in
 		timestamp="$( date +%Y%m%dT%H%M%S )"
 		receiptId="spawn-proxy-$timestamp-$$"
 
+		## The session the agent will actually run under, minted HERE so the same
+		## value reaches both the CLI and the dispatch record below -- that shared
+		## value is the whole join, since a hook reports the agent's own session_id
+		## and nothing else carries it back. Exported rather than passed at each
+		## console call, so both the waiting and the background branch inherit it.
+		## Lowercased: uuidgen yields upper case and the flag wants a valid UUID.
+		export MDAT_SPAWN_SESSION_ID="$( uuidgen 2>/dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
+		if [ -z "$MDAT_SPAWN_SESSION_ID" ] ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: uuidgen produced no session id, so the dispatch record and the agent's own session could not be joined -- refusing to spawn rather than recording a session nothing reports" >&2
+			set +e ; return 1
+		fi
+
+		## The acting member, for the inline agent definition the console builds.
+		## Exported beside the session id and on the same terms: both branches
+		## inherit it, and the console decides what the selected CLI can use.
+		export MDAT_SPAWN_AGENT="$callerName"
+
 		local auditDir outputFile
 		auditDir="$MDAT_DATA_ROOT/audit/$( date -u +%Y-%m )"
 		mkdir -p "$auditDir" || {
@@ -296,7 +313,7 @@ case "$1" in
 				--upsert-from-stdin \
 				--header:upsert:owner:"$callerName" \
 				--header:upsert:status:dispatch-started \
-				--header:upsert:session-id:"$receiptId" \
+				--header:upsert:session-id:"$MDAT_SPAWN_SESSION_ID" \
 				--log-verb:created || {
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: could not create dispatch tracking item $dispatchItemName" >&2
 				set +e ; return 1

@@ -2,6 +2,7 @@
 name: magic-frontender
 status: active
 invocation_mode: auto
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 description: >-
   Frontend engineering specialist for UI and web application work that requires systems-level rigor: networking, protocols, security, algorithms, and performance, beyond framework/component usage. Prefers native web platform standards, progressive enhancement, and PWA capability. Auto-trigger on any browser-facing UI work — HTML, CSS, templates, links and navigation, client-side JS — markup/styling-only asks included.
 ---

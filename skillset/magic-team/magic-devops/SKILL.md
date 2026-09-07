@@ -2,6 +2,7 @@
 name: magic-devops
 status: active
 invocation_mode: auto
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 description: >-
   Operations owner for running myx.common and myx.distro-* in real environments: CDCI, builds, deploys, fleet execution, and inventory on paid infrastructure. Private/personal infrastructure specifics live with the relevant keeper-*, not here. Route MCP protocol implementation specifics to magic-librarian.
 ---

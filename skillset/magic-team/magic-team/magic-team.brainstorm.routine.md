@@ -1,6 +1,6 @@
 ---
 executors: magic-team
-maintainers: magic-coordinator, magic-librarian, magic-architect
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-team.brainstorm.routine — the actual procedure
 
