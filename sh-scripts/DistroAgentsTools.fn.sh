@@ -347,6 +347,10 @@ DistroAgentsTools(){
 						set +e ; return 1
 					fi
 					export MMDAPP="$2"
+					## all derived from the previous root, and an index path is matched before MDSC_CACHED
+					unset MDSC_OPTION MDSC_INMODE MDSC_SOURCE MDSC_CACHED MDSC_OUTPUT MDSC_MEMORY
+					## by prefix, so a new index variable needs no edit here
+					for mcpStaleIndex in ${!MDSC_ID*} ; do unset "$mcpStaleIndex" ; done
 					shift 2
 				;;
 			esac

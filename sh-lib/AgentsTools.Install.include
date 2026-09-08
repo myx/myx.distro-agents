@@ -36,10 +36,6 @@ AgentsToolsInstallScanMembers(){
 		## spec and lands on a cache directory that is not there, rebuilding the
 		## index on every touch. Bootstrap is the one every *.fn.sh tail carries,
 		## since this op also runs with no distro context at all.
-		if [ -z "$MDLT_ORIGIN" ] || ! type DistroSystemContext >/dev/null 2>&1 ; then
-			. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-system/sh-lib/SystemContext.include"
-			DistroSystemContext --distro-path-auto
-		fi
 		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
 		Require ListDistroProjects || :
 		Require ListDistroDeclares || :
@@ -805,10 +801,6 @@ case "$1" in
 		## disappeared", so revocation stays suppressed.
 		local grantsTrusted="true"
 		local selectedProjects declaredNamespace declaredWorkspace declaredProject selectStatus declaredStatus
-		if [ -z "$MDLT_ORIGIN" ] || ! type DistroSystemContext >/dev/null 2>&1 ; then
-			. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-system/sh-lib/SystemContext.include"
-			DistroSystemContext --distro-path-auto
-		fi
 		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
 		Require ListDistroProjects || :
 		Require ListDistroDeclares || :
@@ -1178,10 +1170,6 @@ HOOKEOF
 		## deny rules and hooks above are silently not in force. A relative
 		## symlink keeps the one generated `.claude` the single source of truth.
 		local nsListed nsRoot nsLink nsActual nsDir
-		if [ -z "$MDLT_ORIGIN" ] || ! type DistroSystemContext >/dev/null 2>&1 ; then
-			. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-system/sh-lib/SystemContext.include"
-			DistroSystemContext --distro-path-auto
-		fi
 		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
 		Require DistroSourceTools || :
 		nsListed="$( Distro DistroSourceTools --list-namespace-roots 2>/dev/null | tr '\n' ' ' )"
@@ -1682,10 +1670,6 @@ HOOKEOF
 			fi
 		fi
 
-		if [ -z "$MDLT_ORIGIN" ] || ! type DistroSystemContext >/dev/null 2>&1 ; then
-			. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-system/sh-lib/SystemContext.include"
-			DistroSystemContext --distro-path-auto
-		fi
 		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
 		Require DistroSourceTools || :
 		if [ ! -x "$workspace/DistroSourceConsole.sh" ] ; then
