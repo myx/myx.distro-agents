@@ -463,7 +463,7 @@ case "$0" in
 		set -e
 
 		. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsContext.include"
-		DistroAgentsContext --run-from-detect
+		DistroAgentsContext --distro-path-auto
 
 		## Copied from DistroLocalTools.fn.sh: needed for catMarkdown and the JSON escaper.
 		if   [ -d "$MYXROOT" ] && [ -f "$MYXROOT/bin/lib/catMarkdown.Common" ]; then
