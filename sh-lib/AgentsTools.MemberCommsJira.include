@@ -61,6 +61,38 @@ AgentsToolsJiraCall() {
 	python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsJiraApiCall.py"
 }
 
+## The shared Atlassian layer, sourced for its definitions only. Its own case
+## ends in a branch that does nothing when $1 is none of its own operations, so
+## this dispatches nothing and is safe to repeat.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpAtlassianCall.include"
+
+## One paged Agile-API read: the shared transport, the body on stdout, and the
+## one truncation signal these endpoints carry. Arguments are acting member,
+## path, calling context. It reads nothing from a caller's frame, so no arm
+## owes it a declaration.
+AgentsToolsJiraAgileRead() {
+	local agileBody agileRc=0
+	agileBody="$( AgentsToolsAtlassianCall "$1" jira GET "$2" "$3" "" )" || agileRc=$?
+	if [ "$agileRc" -ne 0 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --$3: COULD NOT READ $2 as $1 (rc=$agileRc) -- the result set is UNKNOWN, not empty; the diagnostic above is the site's own" >&2
+		return "$agileRc"
+	fi
+	printf '%s\n' "$agileBody"
+	## isLast is the only truncation signal these endpoints carry, and its
+	## absence is UNKNOWN rather than a confirmation that the page is the set.
+	local agileIsLast="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v path=isLast -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+	case "$agileIsLast" in
+		true) ;;
+		false)
+			echo "# $MDSC_CMD --$3: isLast=false -- MORE RESULTS EXIST beyond this page and were not read. What is above is a prefix of the set, not the set" >&2
+		;;
+		*)
+			echo "# $MDSC_CMD --$3: this response carried no isLast field, so whether more results exist is UNKNOWN -- it is not a confirmation that the page is complete" >&2
+		;;
+	esac
+	return 0
+}
+
 case "$1" in
 
 		--member-comms-jira-whoami)
@@ -204,9 +236,145 @@ case "$1" in
 			return 0
 		;;
 
-		*)
-			echo "⛔ ERROR: $MDSC_CMD: unknown --member-comms-jira-* operation: $1 -- this family is read-only today; the supported operations are --member-comms-jira-whoami, --member-comms-jira-issue-search, --member-comms-jira-issue-read and --member-comms-jira-comment-read" >&2
+		--member-comms-jira-board-list)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-list: syntax is <team-member> -- the acting member is required, since a board is visible only to identities its project is shared with" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-list: takes exactly one argument" >&2
+				set +e ; return 1
+			fi
+			local jiraRc=0
+			AgentsToolsJiraAgileRead "$memberName" /rest/agile/1.0/board member-comms-jira-board-list || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then set +e ; return "$jiraRc" ; fi
+			return 0
+		;;
+
+		--member-comms-jira-board-read)
+			shift
+			local memberName="$1"
+			shift || true
+			local jiraBoardId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$jiraBoardId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-read: syntax is <team-member> <board-id> -- the acting member is required, since a board is visible only to identities its project is shared with" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-read: takes exactly two arguments" >&2
+				set +e ; return 1
+			fi
+			## A board id is a whole number. Enumerated, never a bracket range.
+			case "$jiraBoardId" in
+				*[!0123456789]*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-read: <board-id> must be a whole number, got: $jiraBoardId" >&2
+					set +e ; return 1
+				;;
+			esac
+			## One board is a single object rather than a page, so it carries no
+			## isLast and is read through the transport directly.
+			local jiraRc=0
+			AgentsToolsAtlassianCall "$memberName" jira GET "/rest/agile/1.0/board/$jiraBoardId" member-comms-jira-board-read "" || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-read: COULD NOT READ board $jiraBoardId as $memberName (rc=$jiraRc) -- the board is UNKNOWN, not absent. A 404 from Jira does NOT establish that the board does not exist: it answers 404 both for a missing board and for one this account cannot see" >&2
+				set +e ; return "$jiraRc"
+			fi
+			return 0
+		;;
+
+		--member-comms-jira-board-issue-search)
+			shift
+			local memberName="$1"
+			shift || true
+			local jiraBoardId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$jiraBoardId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-issue-search: syntax is <team-member> <board-id> -- the acting member is required, since the issues returned are only those that identity can see" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-issue-search: takes exactly two arguments" >&2
+				set +e ; return 1
+			fi
+			case "$jiraBoardId" in
+				*[!0123456789]*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-issue-search: <board-id> must be a whole number, got: $jiraBoardId" >&2
+					set +e ; return 1
+				;;
+			esac
+			local jiraRc=0
+			AgentsToolsJiraAgileRead "$memberName" "/rest/agile/1.0/board/$jiraBoardId/issue" member-comms-jira-board-issue-search || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then set +e ; return "$jiraRc" ; fi
+			return 0
+		;;
+
+		--member-comms-jira-sprint-list)
+			shift
+			local memberName="$1"
+			shift || true
+			local jiraBoardId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$jiraBoardId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-list: syntax is <team-member> <board-id> -- a sprint belongs to a board, and the acting member is required since the board is visible only to identities it is shared with" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-list: takes exactly two arguments" >&2
+				set +e ; return 1
+			fi
+			case "$jiraBoardId" in
+				*[!0123456789]*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-list: <board-id> must be a whole number, got: $jiraBoardId" >&2
+					set +e ; return 1
+				;;
+			esac
+			local jiraRc=0
+			AgentsToolsJiraAgileRead "$memberName" "/rest/agile/1.0/board/$jiraBoardId/sprint" member-comms-jira-sprint-list || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then set +e ; return "$jiraRc" ; fi
+			return 0
+		;;
+
+		--member-comms-jira-sprint-issue-search)
+			shift
+			local memberName="$1"
+			shift || true
+			local jiraSprintId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$jiraSprintId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-issue-search: syntax is <team-member> <sprint-id> -- the acting member is required, since the issues returned are only those that identity can see" >&2
+				set +e ; return 1
+			fi
+			if [ $# -gt 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-issue-search: takes exactly two arguments" >&2
+				set +e ; return 1
+			fi
+			case "$jiraSprintId" in
+				*[!0123456789]*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-issue-search: <sprint-id> must be a whole number, got: $jiraSprintId" >&2
+					set +e ; return 1
+				;;
+			esac
+			local jiraRc=0
+			AgentsToolsJiraAgileRead "$memberName" "/rest/agile/1.0/sprint/$jiraSprintId/issue" member-comms-jira-sprint-issue-search || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then set +e ; return "$jiraRc" ; fi
+			return 0
+		;;
+
+		## A --member-comms-jira-* name this file does not implement. Reported,
+		## never swallowed.
+		--member-comms-jira-*)
+			echo "⛔ ERROR: $MDSC_CMD: unknown --member-comms-jira-* operation: $1 -- the supported operations are --member-comms-jira-whoami, --member-comms-jira-issue-search, --member-comms-jira-issue-read, --member-comms-jira-comment-read, --member-comms-jira-board-list, --member-comms-jira-board-read, --member-comms-jira-board-issue-search, --member-comms-jira-sprint-list and --member-comms-jira-sprint-issue-search" >&2
 			set +e ; return 1
+		;;
+
+		## DEFINITIONS-ONLY SOURCE. Nothing to dispatch, and nothing is an error:
+		## the supported way for another include to reach this file's helpers.
+		*)
+			:
 		;;
 
 esac

@@ -299,15 +299,26 @@ case "$1" in
 		## inherit it, and the console decides what the selected CLI can use.
 		export MDAT_SPAWN_AGENT="$callerName"
 
-		local auditDir outputFile
-		auditDir="$MDAT_DATA_ROOT/audit/$( date -u +%Y-%m )"
-		mkdir -p "$auditDir" || {
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create audit directory: $auditDir" >&2
-			set +e ; return 1
-		}
-		outputFile="$auditDir/$receiptId.output.log"
-		## Its own channel: only the launcher writes it, so no agent output can reach it.
-		export MDAT_SPAWN_LAUNCH_MARKER="$auditDir/$receiptId.launch"
+		## No dispatch document, nothing in the team data tree: a waiting caller reads
+		## the child's streams on its own stderr, an async one keeps them in scratch.
+		local auditDir outputFile=""
+		if [ "$dispatchDocMode" != "none" ] ; then
+			auditDir="$MDAT_DATA_ROOT/audit/$( date -u +%Y-%m )"
+			mkdir -p "$auditDir" || {
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create audit directory: $auditDir" >&2
+				set +e ; return 1
+			}
+			outputFile="$auditDir/$receiptId.output.log"
+			## Its own channel: only the launcher writes it, so no agent output can reach it.
+			export MDAT_SPAWN_LAUNCH_MARKER="$auditDir/$receiptId.launch"
+		else
+			mkdir -p "$MMDAPP/.local/temp" || {
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create scratch directory: $MMDAPP/.local/temp" >&2
+				set +e ; return 1
+			}
+			export MDAT_SPAWN_LAUNCH_MARKER="$MMDAPP/.local/temp/mdat-$receiptId.launch"
+			[ "$waitMode" = "true" ] || outputFile="$MMDAPP/.local/temp/mdat-$receiptId.output.log"
+		fi
 
 		local dispatchItemName="" dispatchBriefBody=""
 		if [ "$dispatchDocMode" = "create" ] ; then
@@ -339,7 +350,11 @@ case "$1" in
 			set +e
 			waitTimeoutSeconds="$( DistroAgentsTools --agents-config-option magic-team --select-default SPAWN_WAIT_TIMEOUT_SECONDS 900 )"
 			case "$waitTimeoutSeconds" in *[!0123456789]*|'') waitTimeoutSeconds=900 ;; esac
-			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-configured --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 &
+			if [ -n "$outputFile" ] ; then
+				env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-configured --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 &
+			else
+				env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-configured --non-interactive <<< "$spawnContext" >&2 &
+			fi
 			spawnPid=$!
 			## The bound. A CLI that cannot arm does not exit, it sleeps, so an unbounded
 			## wait holds the caller forever. TERM first so the CLI reaps its own
@@ -380,13 +395,14 @@ case "$1" in
 			echo "EXIT_CODE=$exitCode"
 			## Kept beside the status, never folded into it: this is what separates a real failure from a silent no-op.
 			echo "LAUNCHED=$( AgentsToolsSpawnProxySawSentinel "$MDAT_SPAWN_LAUNCH_MARKER" && echo true || echo false )"
+			[ "$dispatchDocMode" != "none" ] || rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
 			## rc 5 from the console is its one structured answer: no external CLI
 			## is selected in this workspace. It is reported as its own line so a
 			## caller spawns an internal agent instead of reading the failure as a
 			## CLI that broke, and re-runs nothing to find that out.
 			[ "$exitCode" != "5" ] || echo "SETUP_STATUS=cli-not-configured"
 			[ "$timedOut" = "0" ] || echo "TIMEOUT_SECONDS=$waitTimeoutSeconds"
-			echo "OUTPUT_FILE=$outputFile"
+			[ -z "$outputFile" ] || echo "OUTPUT_FILE=$outputFile"
 			if [ "$spawnOutcome" != "succeeded" ] ; then
 				set +e ; return 1
 			fi
@@ -404,6 +420,7 @@ case "$1" in
 				bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome"
 			fi
+			[ "$dispatchDocMode" != "none" ] || rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
 		) > "$outputFile" 2>&1 &
 		local spawnPid=$!
 		echo "RECEIPT_ID=$receiptId"

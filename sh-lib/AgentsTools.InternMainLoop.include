@@ -118,7 +118,7 @@ case "$1" in
 			echo "# $MDSC_CMD --intern-main-loop: heartbeat iteration starting" >&2
 			cat "$mainLoopBriefFile" | DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait
 			spawnRc=$?
-			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- see OUTPUT_FILE above" >&2
+			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- the spawned session's own output is above" >&2
 
 			## Consecutive failures lengthen the wait; the delay is the state, so doubling stops at the ceiling and cannot overflow.
 			if [ 0 -eq "$spawnRc" ] ; then

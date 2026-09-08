@@ -206,10 +206,10 @@ No pass-wide blanket defer is allowed for `board-running` restart work. Apply th
   - Human present in `harness-session`-terminal → `AskUserQuestion`, single choice list of candidate item names; repeat once more if a second spawn is still available.
   - **Autonomous invocation**, no human present (`headless`-session):
     - rule: already `approved-by`/`approved-at`, no fresh judgment needed.
-    - rule: never a second, separate DM post — name what started in the same thread as the per-type-checks report.
+    - rule: never a DM about a spawn — what started this pass is named in the per-type-checks `slack-event-track` record (below).
     - step: select up to two, oldest `date`/`owner-session-since` first, then next-oldest.
     - step: spawn without waiting.
-    - step: name what was started in this pass's own threaded human-owner DM (below).
+    - step: name what was started in that record.
 
 ### Per-`board-running`-item task rules, by filename prefix
 
@@ -248,11 +248,22 @@ Each item here is a tracking document. Where a rule below spawns or restarts wor
   - set `recheck-date`, via `--header:upsert:recheck-date:<value>`
   - report it in **advance-report**
 
-After all per-type checks: send one Slack DM to human-owner naming every item that stayed `board-running` with `recheck-date` untouched this pass (across this procedure's own pass and `check-process-board`'s already-run pass), plus any autonomous-invocation restart-session spawns from this same pass (above) — at most once per `magic-coordinator.advance.routine` run, not per item.
+After all per-type checks, the pass's record and any message to the human-owner are two separate things.
 
-The same DM includes a compact `board-running` outcome count for this pass (`nudged`/`respawned`/`redispatched`/`flagged-once`/`no-action`) so missing follow-up is visible immediately.
+**The record goes to `slack-event-track`**, every pass, via `--member-comms-slack-send-message` (target `event-track`): every item that stayed `board-running` with `recheck-date` untouched this pass (across this procedure's own pass and `check-process-board`'s already-run pass), this pass's `board-running` outcome counts (`nudged`/`respawned`/`redispatched`/`flagged-once`/`no-action`), and any autonomous-invocation restart-session spawns from this same pass (above). That trace is the whole record and is complete on its own — no DM carries any part of it, and none is needed to keep it.
 
-**Thread continuity**: read `human_owner_broadcast_thread_ts`/`human_owner_broadcast_thread_date` from the `heartbeat-state-note` first. Date matches today's real date → post this DM as a threaded reply, target `<channel>:<ts>` using that stored value, never the bare `human-owner` keyword. No match (absent, or a stale prior day) → post with the bare `human-owner` target as today's first such DM, capture `channel`/`ts` from this call's own JSON response, and write them back via `--magic-heartbeat-state-upsert` so every later `next-iteration` this same day threads into it instead of starting fresh.
+**A DM to the human-owner goes only for something he can act on**, on one of three reasons, each about a specific named thing this pass found:
+- a decision only he can make;
+- something blocked on him that he does not already know;
+- something that changes what he believed to be true.
+
+Never qualifying, however compactly phrased: an outcome tally, a `recheck-date` extension, a re-confirmed no-action, a contention note, a list of item names, and "nothing new since the last pass".
+
+**A pass finding nothing that qualifies sends nothing, and that is the step completing.** The pass's closing status at **advance-close-state-and-unlock** states that nothing qualified. Most passes end there, and a DM sent to show the step ran is the fault this rule exists to stop.
+
+**A DM that does go carries one topic and leads with what is wanted** — the item's own name and what is needed from him, per `magic-team/magic-team.shared.md`'s own "One topic per message, and the decision leads it". Two qualifying things go as two messages. The pass's findings stay in the `slack-event-track` trace and follow only if he asks for them.
+
+**Thread continuity**, for a DM that goes: read `human_owner_broadcast_thread_ts`/`human_owner_broadcast_thread_date` from the `heartbeat-state-note` first. Date matches today's real date → post this DM as a threaded reply, target `<channel>:<ts>` using that stored value, never the bare `human-owner` keyword. No match (absent, or a stale prior day) → post with the bare `human-owner` target as today's first such DM, capture `channel`/`ts` from this call's own JSON response, and write them back via `--magic-heartbeat-state-upsert` so a later qualifying DM this same day threads into it instead of starting fresh.
 
 # Routine's local rules
 
@@ -338,9 +349,11 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - This routine does the periodic board reconciliation process-flow needs to keep moving — without it, board state can drift from reality between full daily/grooming cycles.
 - `check-process-board`'s own dependency-recompute step exists so task-ordering/dependency reasoning (what blocks what) is a standing, repeatable step recorded on the board itself — not a one-off answer that evaporates once the conversation moves on.
+- The pass's full record is kept without spending the human-owner's attention on it: the record goes to `slack-event-track` every pass, and his own channel carries only what he can act on.
 
 ## Verbatim-tests (benchmarks)
 
+- A pass re-confirms every `board-running` item and finds nothing needing him. It posts the full record to `slack-event-track` and sends him nothing — the silence is the closing step completing, not a step skipped.
 - A `board-running` item whose own content already says it moved to `board-blocked`, but is still physically sitting in `board-running`, gets moved to match — without waiting for the next grooming pass.
 - Dependency reasoning worked out ad hoc in a chat reply gets recorded on the board-item files themselves — the next pass doesn't have to redo it from scratch.
 - An approved `board-running` item carrying none of `session-id`, `restart-session:`, an active console session, or an unresolved dispatch note, sitting past the staleness threshold, gets a real dispatch this pass — never a blanket `no-action` stamp with nothing actually tried.

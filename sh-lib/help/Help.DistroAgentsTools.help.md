@@ -36,6 +36,11 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-search <team-member> <jql> [--limit <n>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-list <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-read <team-member> <board-id>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-issue-search <team-member> <board-id>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-list <team-member> <board-id>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-issue-search <team-member> <sprint-id>
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-self-test
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-harden
@@ -1602,6 +1607,130 @@
 			creates or edits an issue, a comment or a field, and that is a
 			sequencing decision rather than an omission — the write side is
 			its own separate piece of work.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-board-list <team-member>
+			`<team-member>` is the member this listing acts as, and it is
+			required: the boards returned are the ones that member's own
+			`JIRA_USER`/`JIRA_API_TOKEN` can see, with no fallback to another
+			member's scope.
+
+			Lists the Agile boards on that member's Jira site. The response
+			body is written to stdout as the site returned it, so
+			`--member-comms-jira-board-list > file` yields the boards and
+			nothing else; everything this operation has to say about the call
+			goes to stderr.
+
+			Whether the listing is COMPLETE is stated on stderr in one of three
+			forms, and only one of them means complete: silence when the site
+			reported this page as the last, a line naming that MORE RESULTS
+			EXIST when it reported otherwise, and a line naming the answer as
+			UNKNOWN when the site said nothing either way or its response could
+			not be parsed. An unparseable response is never reported as a
+			complete listing — a listing that could not be read and one that is
+			whole must not look alike.
+
+			Returns 0 when the site answered. A non-zero status is the shared
+			Atlassian layer's own and keeps its meaning there: 1 for a call
+			refused before anything was attempted, 3 when the answer is UNKNOWN
+			rather than empty, and 4 when the credential itself was rejected.
+			An empty listing at status 0 is a real answer; a failed call is
+			never an empty one.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-board-read <team-member> <board-id>
+			`<team-member>` is the member this read acts as, and it comes
+			first. It is required and strict: a board is readable only by
+			identities its project is shared with, and there is no fallback to
+			another member's scope.
+
+			`<board-id>` is a whole number, and anything else is refused before
+			the call is made rather than sent and rejected by the site.
+
+			Writes the board to stdout as the site returned it. One board is a
+			single object rather than a page, so this operation carries no
+			completeness line at all — there is nothing that could be truncated,
+			and a line claiming the point either way would be noise.
+
+			Returns 0 when the site answered, and otherwise the shared
+			Atlassian layer's own status: 1 refused before anything was
+			attempted, 3 the answer is UNKNOWN, 4 the credential was rejected.
+			A 404 is reported as UNKNOWN and never as "no such board": Jira
+			answers 404 both for a board that does not exist and for one this
+			account cannot see, and the two are indistinguishable from here.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-board-issue-search <team-member> <board-id>
+			`<team-member>` is the member this search acts as, and it comes
+			first. It is required and strict: the issues returned are the ones
+			that identity can see, never another member's, and there is no
+			fallback to another member's scope.
+
+			`<board-id>` is a whole number, refused before the call when it is
+			not. Returns the issues the named board currently carries, which is
+			the board's own filter applied by the site rather than a query this
+			operation composes — for an arbitrary query use
+			`--member-comms-jira-issue-search`, which takes JQL.
+
+			Whether the result is COMPLETE is stated on stderr in the same three
+			forms this family uses everywhere: silence for a last page, MORE
+			RESULTS EXIST when the site reported otherwise, and UNKNOWN when it
+			said nothing either way or its response could not be parsed. An
+			unparseable response is never reported as a complete result set.
+
+			Returns 0 when the site answered, and otherwise the shared
+			Atlassian layer's own status: 1 refused, 3 UNKNOWN, 4 credential
+			rejected. An empty result at status 0 is a real answer.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-sprint-list <team-member> <board-id>
+			`<team-member>` is the member this listing acts as, and it comes
+			first. It is required and strict, with no fallback to another
+			member's scope.
+
+			`<board-id>`, not a sprint id: a sprint belongs to a board, and this
+			operation lists the sprints of the board named here. It is a whole
+			number and is refused before the call when it is not. Use the sprint
+			ids it returns with `--member-comms-jira-sprint-issue-search`.
+
+			Whether the listing is COMPLETE is stated on stderr in the same three
+			forms this family uses everywhere: silence for a last page, MORE
+			RESULTS EXIST when the site reported otherwise, and UNKNOWN when it
+			said nothing either way or its response could not be parsed. An
+			unparseable response is never reported as a complete listing.
+
+			Returns 0 when the site answered, and otherwise the shared
+			Atlassian layer's own status: 1 refused, 3 UNKNOWN, 4 credential
+			rejected. An empty listing at status 0 is a real answer — a board
+			with no sprints is an ordinary state, not a failure.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-sprint-issue-search <team-member> <sprint-id>
+			`<team-member>` is the member this search acts as, and it comes
+			first. It is required and strict: the issues returned are the ones
+			that identity can see, and there is no fallback to another member's
+			scope.
+
+			`<sprint-id>`, not a board id — the two are separate number spaces
+			and passing one for the other reaches a different sprint or none at
+			all rather than failing visibly. It is a whole number and is refused
+			before the call when it is not. Obtain it from
+			`--member-comms-jira-sprint-list`.
+
+			Whether the result is COMPLETE is stated on stderr in the same three
+			forms this family uses everywhere: silence for a last page, MORE
+			RESULTS EXIST when the site reported otherwise, and UNKNOWN when it
+			said nothing either way or its response could not be parsed. An
+			unparseable response is never reported as a complete result set.
+
+			Returns 0 when the site answered, and otherwise the shared
+			Atlassian layer's own status: 1 refused, 3 UNKNOWN, 4 credential
+			rejected. An empty result at status 0 is a real answer.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -3201,7 +3330,13 @@
 			stdin/--from-file call — the main-loop relay path — creates NO
 			dispatch document at all: it prints `DISPATCH_DOC=none` and no
 			item key (this is what cleared the board-running
-			`dispatch-*-spawn-proxy` pile-up). The primitive also offers a
+			`dispatch-*-spawn-proxy` pile-up), and it writes nothing at all
+			under `$MDAT_DATA_ROOT`: a --wait call sends the spawned
+			session's own stdout and stderr to this caller's own stderr, so
+			a failed iteration is read where it happened, and an async call
+			— whose caller has already returned and has no stderr left to
+			read — keeps them in a file under `$MMDAPP/.local/temp/`
+			instead. The primitive also offers a
 			`create` mode — a fresh `dispatch-*` board-item in
 			board-running up front (verbatim prompt as its own "## Brief",
 			under a frontmatter block carrying `owner`, `status` and
@@ -3221,9 +3356,12 @@
 			path or DISPATCH_ITEM on the create path (none-mode prints
 			neither); STATUS always, accompanied by PID on the async path
 			and by EXIT_CODE and LAUNCHED on the --wait path; and
-			OUTPUT_FILE always — the spawned process's own raw
-			stdout/stderr, written under
-			`$MDAT_DATA_ROOT/audit/<YYYY-MM>/`. Two more are conditional,
+			OUTPUT_FILE wherever a file is actually written — the spawned
+			process's own raw stdout/stderr, under
+			`$MDAT_DATA_ROOT/audit/<YYYY-MM>/` for create and reuse and
+			under `$MMDAPP/.local/temp/` for an async none-mode call. A
+			--wait none-mode call writes no such file and prints no
+			OUTPUT_FILE. Two more are conditional,
 			both on the --wait path: SETUP_STATUS=cli-not-configured when
 			the console reports rc 5 because this workspace selects no
 			external CLI, and TIMEOUT_SECONDS=<seconds> when the wait

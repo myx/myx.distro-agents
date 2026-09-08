@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpAtlassianCall.include -- the shared Atlassian layer, for
+## both products and both directions. Credentials reach curl on its stdin only:
+## never argv, never a file.
+##
+## THE OUTCOME IS CLASSIFIED ON THE HTTP STATUS, NEVER ON THE BODY'S LENGTH. A
+## write answers 204 with no content, so an empty body is a real answer and
+## exits 0. Classifying on emptiness reports every write as a failure, which is
+## the one decision here that cannot survive the write half landing.
+##
+## DUAL USE -- dispatch, and definitions-only sourcing, same shape as
+## AgentsTools.CommsSlack.include. NEVER WIDEN the --intern-op-atlassian-* arm
+## below: a sourcer whose own $1 matched it would dispatch here and again in
+## its own case, twice, with rc 0.
+##
+## The helper takes every value as an argument and reads nothing from a
+## caller's frame, so no arm owes it a `local` declaration.
+##
+## Exit: 0 answered, 1 contract error, 3 answer UNKNOWN, 4 credential rejected.
+##
+
+## One authenticated Atlassian request. Arguments in order: acting member,
+## product, method, path, calling context, JSON body (empty for none).
+## Response body on stdout, every diagnostic on stderr.
+AgentsToolsAtlassianCall() {
+	local actingMember="$1" productName="$2" methodName="$3" pathText="$4" callContext="$5" jsonBody="$6"
+
+	AgentsToolsAssertBareName "$actingMember" "<team-member>" "$callContext" || return 1
+
+	## Checked before the config resolver runs: reaching the resolver with an
+	## unchecked name creates that scope's file and leaves a phantom on disk.
+	case "$actingMember" in
+		routine-*)
+			## A routine acting as caller has no skill directory and is not expected to grow one.
+		;;
+		*)
+			if [ ! -d "$MDAT_SKILLSET_ROOT/$actingMember" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --$callContext: no such member skill directory: $MDAT_SKILLSET_ROOT/$actingMember" >&2
+				return 1
+			fi
+		;;
+	esac
+
+	local keyPrefix
+	case "$productName" in
+		jira)       keyPrefix=JIRA ;;
+		confluence) keyPrefix=CONFLUENCE ;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD --$callContext: unknown product: $productName -- jira or confluence" >&2
+			return 1
+		;;
+	esac
+
+	case "$methodName" in
+		GET|POST|PUT|DELETE) ;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD --$callContext: unknown method: $methodName -- GET, POST, PUT or DELETE" >&2
+			return 1
+		;;
+	esac
+
+	case "$pathText" in
+		/*) ;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD --$callContext: the path must start with '/' and carry no scheme or host: $pathText" >&2
+			return 1
+		;;
+	esac
+
+	## Strictly the acting member's own scope, no fallback and never the other
+	## product's set: an Atlassian API token IS an identity, and acting under the
+	## wrong one raises no error at all.
+	local siteHost="$( DistroAgentsTools --agents-config-option "$actingMember" --select "${keyPrefix}_SITE" )"
+	local userEmail="$( DistroAgentsTools --agents-config-option "$actingMember" --select "${keyPrefix}_USER" )"
+	local apiToken="$( DistroAgentsTools --agents-config-option "$actingMember" --select "${keyPrefix}_API_TOKEN" )"
+	if [ -z "$siteHost" ] || [ -z "$userEmail" ] || [ -z "$apiToken" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE/${keyPrefix}_USER/${keyPrefix}_API_TOKEN not fully set in ${actingMember}'s own scope in .local/.agents. Each product keeps its own key set even where one Atlassian token also serves both, so the other product's values are never read here" >&2
+		return 1
+	fi
+
+	## An embedded newline means the stored config is corrupted, and it is refused
+	## rather than stripped: the resulting 401 reads as a revoked credential.
+	local configNewline=$'\n'
+	case "$siteHost$userEmail$apiToken" in
+		*"$configNewline"*)
+			echo "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE/${keyPrefix}_USER/${keyPrefix}_API_TOKEN in ${actingMember}'s own scope in .local/.agents contains a newline -- none of them ever legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting 401 would be misread as a revoked credential" >&2
+			return 1
+		;;
+	esac
+
+	## A scheme, path or port left on the site value would build a wrong URL
+	## rather than raise an obvious error.
+	case "$siteHost" in
+		*/*|*:*)
+			echo "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE must be a bare host such as example.atlassian.net -- no scheme, no path, no port. Got: $siteHost" >&2
+			return 1
+		;;
+	esac
+
+	local curlArgs=( -sS --connect-timeout 10 --max-time 120 -X "$methodName" "https://$siteHost$pathText" -H @- -H 'Accept: application/json' -w '\n%{http_code}' )
+	if [ -n "$jsonBody" ] ; then
+		curlArgs+=( -H 'Content-Type: application/json' --data-binary "$jsonBody" )
+	fi
+
+	## The header goes in on curl's stdin, so the token never reaches argv and no
+	## file is created. `tr -d` because base64 line-wraps on some platforms and
+	## the flag that would stop it is not portable; a wrapped header is not one.
+	## curl's own stderr passes through untouched, keeping stdout the body alone.
+	local curlOut curlRc=0
+	curlOut="$( curl "${curlArgs[@]}" <<< "Authorization: Basic $( printf '%s' "$userEmail:$apiToken" | base64 | tr -d '\n' )" )" || curlRc=$?
+	if [ "$curlRc" -ne 0 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --$callContext: the call could not be performed (curl exit $curlRc), so the answer is UNKNOWN, not empty" >&2
+		return 3
+	fi
+
+	## The -w line is last and on its own, so the body is everything above it.
+	local httpStatus="${curlOut##*$configNewline}" responseBody="${curlOut%$configNewline*}"
+	case "$httpStatus" in
+		200|201|202|203)
+			printf '%s\n' "$responseBody"
+			return 0
+		;;
+		204)
+			## Reached and succeeded with nothing to return, which is what every
+			## write answers. Said on stderr so stdout stays the body alone.
+			echo "# $MDSC_CMD --$callContext: HTTP 204, the request succeeded and the response carries no content. This is an answer, not a failed call" >&2
+			return 0
+		;;
+		401|403)
+			echo "⛔ ERROR: $MDSC_CMD --$callContext: the site rejected the credential with HTTP $httpStatus. The answer is UNKNOWN. A 401 usually means the email or API token is wrong or the token has been revoked; a 403 usually means the account is authenticated but has no permission on that content. Neither is fixed by retrying. Atlassian's own response: $responseBody" >&2
+			return 4
+		;;
+		404)
+			echo "⛔ ERROR: $MDSC_CMD --$callContext: HTTP 404, so the answer is UNKNOWN. This is NOT proof the content is absent: Atlassian returns 404 both for genuinely missing content and for content this account cannot see. Atlassian's own response: $responseBody" >&2
+			return 3
+		;;
+		410)
+			echo "⛔ ERROR: $MDSC_CMD --$callContext: HTTP 410, which Atlassian returns for a REST endpoint it has retired. The answer is UNKNOWN, and no retry helps: the path has to be moved to whatever the response names. Atlassian's own response: $responseBody" >&2
+			return 3
+		;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD --$callContext: the call failed with HTTP $httpStatus, so the answer is UNKNOWN, not empty. Atlassian's own response: $responseBody" >&2
+			return 3
+		;;
+	esac
+}
+
+case "$1" in
+
+	--intern-op-atlassian-call)
+		shift
+		local callMember="" callProduct="" callMethod="GET" callPath="" callBody="" callContext="intern-op-atlassian-call"
+		while [ $# -gt 0 ] ; do
+			## Every flag here takes a value, so the one emptiness check covers them all.
+			case "$1" in
+				--member|--product|--method|--path|--json-body|--context)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-call: $1 requires a value" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)    callMember="$2" ;;
+						--product)   callProduct="$2" ;;
+						--method)    callMethod="$2" ;;
+						--path)      callPath="$2" ;;
+						--json-body) callBody="$2" ;;
+						--context)   callContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-call: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$callMember" ] || [ -z "$callProduct" ] || [ -z "$callPath" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-call: syntax is --member <team-member> --product jira|confluence --path </rest/...> [--method GET|POST|PUT|DELETE] [--json-body <json>] [--context <caller>] -- the acting member is required, since an API token resolves to exactly one Atlassian account and a read returns only what that identity can see" >&2
+			set +e ; return 1
+		fi
+		local callRc=0
+		AgentsToolsAtlassianCall "$callMember" "$callProduct" "$callMethod" "$callPath" "$callContext" "$callBody" || callRc=$?
+		if [ "$callRc" -ne 0 ] ; then set +e ; return "$callRc" ; fi
+		return 0
+	;;
+
+	--intern-op-atlassian-check)
+		shift
+		local checkMember="" checkProduct=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--product)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: $1 requires a value" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)  checkMember="$2" ;;
+						--product) checkProduct="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$checkMember" ] || [ -z "$checkProduct" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: syntax is --member <team-member> --product jira|confluence -- the acting member is required, since this operation exists to say which Atlassian account that member's own credential resolves to" >&2
+			set +e ; return 1
+		fi
+		## Each product names its own current-user endpoint; there is no shared one.
+		local checkPath
+		case "$checkProduct" in
+			jira)       checkPath="/rest/api/3/myself" ;;
+			confluence) checkPath="/wiki/rest/api/user/current" ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: unknown product: $checkProduct -- jira or confluence" >&2
+				set +e ; return 1
+			;;
+		esac
+		local checkRc=0
+		AgentsToolsAtlassianCall "$checkMember" "$checkProduct" GET "$checkPath" intern-op-atlassian-check "" || checkRc=$?
+		if [ "$checkRc" -ne 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: COULD NOT DETERMINE which Atlassian account ${checkMember}'s $checkProduct credential resolves to (rc=$checkRc) -- the acting identity is UNKNOWN, which is NOT the same as anonymous; the diagnostic above is the site's own" >&2
+			set +e ; return "$checkRc"
+		fi
+		return 0
+	;;
+
+	## An Atlassian operation name this file does not implement. Reported, never
+	## swallowed. Never widen this glob -- see DUAL USE in this file's header.
+	--intern-op-atlassian-*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+	## DEFINITIONS-ONLY SOURCE -- see DUAL USE in this file's own header. Nothing
+	## to dispatch, and nothing is an error: the supported way to reach the helper.
+	*)
+		:
+	;;
+
+esac
