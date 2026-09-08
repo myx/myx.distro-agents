@@ -386,14 +386,17 @@ END {
 	## Read and Edit only, never Write: a Write rule is not matched by file
 	## permission checks at all, and Claude reports each one as a warning at
 	## startup. An Edit rule covers every file-editing tool, Write included.
-	## The keep-filter still recognises Write, so a stale entry from a moved
-	## workspace is dropped and one already present for the current root is
-	## left standing -- clearing those is its own separate change.
+	## The keep-filter recognises Write only to drop it -- a Write(...) entry
+	## is never a desired output (only Read/Edit are (re-)written below), so
+	## ANY Write(...) matching this source-root pattern is dropped here,
+	## whether it names the current root or a stale/moved one. Achieved by
+	## simply not exempting Write from the drop condition below: only the
+	## current root's own Read/Edit forms survive it.
 	## Same replace-not-accumulate shape, per verb.
 	newAllowCount = 0
 	for (i = 0; i < oldAllowCount; i++) {
 		v = oldAllow[i]
-		if ((v ~ /^(Read|Edit|Write)\(\/\/.*\/source\/\*\*\)$/) && v != ("Read(/" allowSourceRoot "/**)") && v != ("Edit(/" allowSourceRoot "/**)") && v != ("Write(/" allowSourceRoot "/**)")) continue
+		if ((v ~ /^(Read|Edit|Write)\(\/\/.*\/source\/\*\*\)$/) && v != ("Read(/" allowSourceRoot "/**)") && v != ("Edit(/" allowSourceRoot "/**)")) continue
 		## Anchored on Read alone: no other verb is ever written on a .agents
 		## path here, so a wider pattern could only drop a hand-added grant.
 		if ((v ~ /^Read\(\/\/.*\/\.agents\/\*\*\)$/) && v != ("Read(/" allowAgentsRoot "/**)")) continue

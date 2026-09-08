@@ -278,6 +278,23 @@
 			exactly one. --identity-bot posts as the team bot instead of
 			this member's own identity.
 
+			**Trailing text args are shell argv, not a safe string
+			channel — a bare apostrophe (or other shell-meaningful
+			character: `"`, `` ` ``, `$`, `;`) breaks the invocation with
+			a shell syntax error before this operation's own code ever
+			runs.** Confirmed live: `--mcp-execute`'s `eval "$( cat )"`
+			(`DistroAgentsTools.fn.sh:363`) parses the WHOLE calling
+			script first, so an unbalanced quote in a trailing-argv
+			message body fails there, not inside this operation's own
+			argument parsing — there is no quoting/escaping fix possible
+			at this operation's own level, because by the time a
+			well-formed script reaches it the text is already a plain,
+			fully-parsed argv value. `--from-stdin` (a heredoc) sidesteps
+			this entirely and is unaffected by any character the message
+			body carries — prefer it for any message body that is not a
+			hardcoded literal with no punctuation risk. Example:
+			`... --from-stdin <<'EOF'` / message body / `EOF`.
+
 			**Two versions are generated, never derived from each other.**
 			Every message goes out as a blocks version and a text version,
 			each built independently from the one input you give. Neither is
