@@ -97,6 +97,7 @@ Measured on both sides, not argued:
 - **Read**: `conversations.history` with a **user id** returns `channel_not_found`. Only the **DM id**
   succeeds.
 - Reactions follow the read side, not the send side.
+- **Delete**: only the identity that authored a message may remove it. The operational consequence is the part that bites — a session's posts are spread across the identities that made them, so removing them takes each of those identities in turn, and is never one member's action.
 
 So a user id is a sufficient address for writing and an insufficient one for reading. The natural
 assumption is that all paths behave alike; they do not. **Any doc covering the send path must say so
