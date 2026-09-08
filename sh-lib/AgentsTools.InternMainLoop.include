@@ -113,6 +113,17 @@ case "$1" in
 		case "$maxDelaySeconds" in *[!0123456789]*|'') maxDelaySeconds=3600 ;; esac
 		nextDelaySeconds="$sleepSeconds"
 
+		local mainLoopInterrupted="false" mainLoopSpawnPid=""
+		## One Ctrl-C must kill whatever's in flight and stop the loop outright.
+		## Without this, SIGINT only interrupts the currently blocked `wait`
+		## (bash's own special case for that builtin) and the loop sails on to
+		## the next iteration -- forwarded to $mainLoopSpawnPid (empty during
+		## the sleep below, where a plain foreground `sleep` just dies on the
+		## signal by itself); that PID's own trap (the spawn-proxy's --wait
+		## block) forwards further down the real child chain, same pattern as
+		## the console script's own claude-streaming fix.
+		trap 'mainLoopInterrupted="true" ; [ -z "$mainLoopSpawnPid" ] || kill -TERM "$mainLoopSpawnPid" 2>/dev/null' INT TERM
+
 		while true ; do
 			## The spawn runs --wait, so without these lines the loop is silent for a whole iteration.
 			echo "# $MDSC_CMD --intern-main-loop: heartbeat iteration starting" >&2
@@ -125,8 +136,16 @@ case "$1" in
 			## actually print.
 			mainLoopCliService="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )"
 			echo "# $MDSC_CMD --intern-main-loop: 🤖 spawning via ${mainLoopCliService:-not set}" >&2
-			cat "$mainLoopBriefFile" | DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait >&2
-			spawnRc=$?
+			cat "$mainLoopBriefFile" | DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait >&2 &
+			mainLoopSpawnPid=$!
+			spawnRc=0
+			wait "$mainLoopSpawnPid" 2>/dev/null || spawnRc=$?
+			while kill -0 "$mainLoopSpawnPid" 2>/dev/null ; do
+				spawnRc=0
+				wait "$mainLoopSpawnPid" 2>/dev/null || spawnRc=$?
+			done
+			mainLoopSpawnPid=""
+			[ "$mainLoopInterrupted" = "false" ] || { trap - INT TERM ; echo "# $MDSC_CMD --intern-main-loop: interrupted, stopping" >&2 ; return 130 ; }
 			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- the spawned session's own output is above" >&2
 
 			## Consecutive failures lengthen the wait; the delay is the state, so doubling stops at the ceiling and cannot overflow.
@@ -138,6 +157,7 @@ case "$1" in
 			[ "$nextDelaySeconds" -le "$maxDelaySeconds" ] || nextDelaySeconds="$maxDelaySeconds"
 			echo "# $MDSC_CMD --intern-main-loop: iteration ended, sleeping ${nextDelaySeconds}s before the next one" >&2
 			sleep "$nextDelaySeconds"
+			[ "$mainLoopInterrupted" = "false" ] || { trap - INT TERM ; echo "# $MDSC_CMD --intern-main-loop: interrupted, stopping" >&2 ; return 130 ; }
 		done
 	;;
 

@@ -356,6 +356,14 @@ case "$1" in
 				env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-configured --non-interactive <<< "$spawnContext" >&2 &
 			fi
 			spawnPid=$!
+			## An interactive Ctrl-C (or an external TERM sent to this call) must
+			## reach the real spawned console process immediately -- without this,
+			## only the timeout watcher below ever signals $spawnPid, so a live
+			## interrupt just interrupts this block's own `wait` (bash's own special
+			## case for that builtin) and leaves the spawn running underneath it.
+			## Cleared once this call's own waiting is done, so it never lingers
+			## past this op's own scope.
+			trap 'kill -TERM "$spawnPid" 2>/dev/null' INT TERM
 			## The bound. A CLI that cannot arm does not exit, it sleeps, so an unbounded
 			## wait holds the caller forever. TERM first so the CLI reaps its own
 			## children; KILL after a grace period for one that ignores TERM. The
@@ -374,8 +382,13 @@ case "$1" in
 				exit 1
 			) &
 			watchPid=$!
-			wait "$spawnPid" 2>/dev/null
-			exitCode=$?
+			exitCode=0
+			wait "$spawnPid" 2>/dev/null || exitCode=$?
+			while kill -0 "$spawnPid" 2>/dev/null ; do
+				exitCode=0
+				wait "$spawnPid" 2>/dev/null || exitCode=$?
+			done
+			trap - INT TERM
 			wait "$watchPid" 2>/dev/null
 			timedOut=$?
 			set -e

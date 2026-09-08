@@ -251,6 +251,33 @@ if [ -n "$MDAT_SPAWN_AGENT" ] ; then
 	fi
 fi
 
+## claude only: piping its own JSON-lines stream through the awk formatter is
+## what makes -p's silent batch mode show live progress. exec'ing a pipeline
+## would break the spawn proxy's PID-based timeout kill, so claude runs
+## backgrounded with its real PID captured, and TERM/INT are forwarded to it.
+DagcRunClaudeStreaming(){
+	local claudePrompt="$1" streamAwkPath claudePid awkPid claudeStatus
+	streamAwkPath="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeStreamJsonFormat.awk"
+	exec 3> >( LC_ALL=C awk -f "$streamAwkPath" )
+	awkPid=$!
+	"$DAGC_CLI" --verbose --output-format stream-json "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$claudePrompt" >&3 &
+	claudePid=$!
+	## Installed immediately after capture, before anything else -- including
+	## the otherwise-harmless `exec 3>&-` below -- so there is no window in
+	## which a TERM/INT arriving here would fall through to bash's default
+	## disposition and leave $claudePid running unsignaled.
+	trap 'kill -TERM "$claudePid" 2>/dev/null' TERM INT
+	exec 3>&-
+	claudeStatus=0
+	wait "$claudePid" || claudeStatus=$?
+	while kill -0 "$claudePid" 2>/dev/null ; do
+		claudeStatus=0
+		wait "$claudePid" || claudeStatus=$?
+	done
+	wait "$awkPid" 2>/dev/null || :
+	exit "$claudeStatus"
+}
+
 if [ "$1" == "--non-interactive" ] ; then
 	shift
 	## -- closes the option list for claude, whose prompt is positional; copilot's -p takes the body as its value.
@@ -262,9 +289,15 @@ if [ "$1" == "--non-interactive" ] ; then
 	[ -z "$MDAT_SPAWN_LAUNCH_MARKER" ] || printf '%s\n' "$DAGC_CLI" > "$MDAT_SPAWN_LAUNCH_MARKER"
 	if [ $# -gt 0 ] ; then
 		echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
+		if [ "$DAGC_CLI" = "claude" ] ; then
+			DagcRunClaudeStreaming "$*"
+		fi
 		exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$*"
 	fi
 	echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
+	if [ "$DAGC_CLI" = "claude" ] ; then
+		DagcRunClaudeStreaming "$( cat )"
+	fi
 	exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$( cat )"
 fi
 
