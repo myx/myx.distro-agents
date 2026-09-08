@@ -89,22 +89,14 @@ BEGIN {
 	addItem("Activity-log channel", "optional",   "SLACK_CHANNEL_EVENT_TRACK")
 	addItem("Alert channel",        "optional",   "SLACK_CHANNEL_EVENT_ALERT")
 
-	ph["TEAM_DATA_DIRECTORY"]       = "<path>"
-	ph["SLACK_CHANNEL_MAGIC_TEAM"]  = "<channel-id>"
-	ph["SLACK_CHANNEL_HUMAN_OWNER"] = "<user-id>"
-	ph["SPAWN_CLI_SERVICE"]         = "<cli-name>"
-	ph["SLACK_CHANNEL_EVENT_TRACK"] = "<channel-id>"
-	ph["SLACK_CHANNEL_EVENT_ALERT"] = "<channel-id>"
-
-	# The scope each key is actually stored under, so a fix hint names the one
-	# that will be read back. The floor spans two, and writing SPAWN_CLI_SERVICE
-	# into magic-coordinator leaves the console still unable to find it.
-	keyScope["TEAM_DATA_DIRECTORY"]       = "magic-coordinator"
-	keyScope["SLACK_CHANNEL_MAGIC_TEAM"]  = "magic-coordinator"
-	keyScope["SLACK_CHANNEL_HUMAN_OWNER"] = "magic-coordinator"
-	keyScope["SPAWN_CLI_SERVICE"]         = "magic-team"
-	keyScope["SLACK_CHANNEL_EVENT_TRACK"] = "magic-coordinator"
-	keyScope["SLACK_CHANNEL_EVENT_ALERT"] = "magic-coordinator"
+	# The `--owner-setup-<domain>` that owns fixing each floor key -- a fix hint
+	# never prints a raw --agents-config-option --upsert command, it points here
+	# instead, so the reader gets that domain's own Block1/Block2 report.
+	# SPAWN_CLI_SERVICE is owned by either of two domains, so both are named.
+	keyDomain["TEAM_DATA_DIRECTORY"]       = "storage"
+	keyDomain["SLACK_CHANNEL_MAGIC_TEAM"]  = "slack"
+	keyDomain["SLACK_CHANNEL_HUMAN_OWNER"] = "slack"
+	keyDomain["SPAWN_CLI_SERVICE"]         = "claude|copilot"
 }
 
 /^[A-Z_]+:[ \t]+(OK|WARN|FAIL|SKIP)$/ {
@@ -162,9 +154,18 @@ END {
 		if (RES_SAT) continue
 		nG = split(ispec[i], grp, "|")
 		mK = split(grp[1], kk, ",")
+		ns = 0
 		for (j = 1; j <= mK; j++) {
-			if (!keyPresent(kk[j]))
-				printf "  %s  DistroAgentsTools.fn.sh --agents-config-option %s --upsert %s %s\n", padRight(ilabel[i], maxw), keyScope[kk[j]], kk[j], ph[kk[j]]
+			if (keyPresent(kk[j])) continue
+			dom = keyDomain[kk[j]]
+			already = 0
+			for (s = 1; s <= ns; s++) if (seen[s] == dom) already = 1
+			if (already) continue
+			ns++ ; seen[ns] = dom
+			nD = split(dom, doms, "|")
+			cmd = "DistroAgentsTools.fn.sh --owner-setup-" doms[1]
+			for (d = 2; d <= nD; d++) cmd = cmd " (or --owner-setup-" doms[d] ")"
+			printf "  %s  %s\n", padRight(ilabel[i], maxw), cmd
 		}
 	}
 	exit 1

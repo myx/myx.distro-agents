@@ -129,7 +129,7 @@ AgentsToolsInstallReportIcon(){
 	fi
 	case "$iconName" in
 		client-*)          reportWho="👥" ;;
-		partner-*)         reportWho="🧑‍💻" ;;
+		partner-*)         reportWho="👫" ;;
 		keeper-*|warden-*) reportWho="🔏" ;;
 		human-owner)       reportWho="👤" ;;
 		magic-*)           reportWho="🤖" ;;
