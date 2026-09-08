@@ -29,16 +29,16 @@ AgentsToolsOwnerSetupBlock1Verdict(){
 	echo "Block 1:"
 	setupBlock1Printed="yes"
 	if [ -n "$setupNeedsApply" ] ; then
-		echo "Not set up yet."
+		echo "Not set up yet -- Block 2's command below (it ends in --apply) closes what's fixable automatically."
 		[ -z "$setupSetupSteps" ] || {
-			echo "Block 2's command does not close these on its own:"
+			echo "It does not close these on its own:"
 			printf '%s' "$setupSetupSteps"
 		}
 	elif [ -n "$setupSetupSteps" ] ; then
-		echo "This workspace is not ready, and no command closes what is left:"
+		echo "Not set up yet, and no command closes this automatically:"
 		printf '%s' "$setupSetupSteps"
 	elif [ -n "$setupBlockers" ] ; then
-		echo "This workspace is not ready, and no single command closes what is left."
+		echo "Not set up yet, and no single command closes what is left."
 		echo "Run --check for the detail on:$setupBlockers"
 	else
 		echo "This workspace is set up for $verdictDomain."
@@ -1416,13 +1416,12 @@ case "$1" in
 			elif [ -n "$setupStillMissing" ] ; then
 				echo "To supply what $setupDomain requires:"
 				printf '%s\n' "$setupStillMissing"
-			elif [ -n "$setupNeedsApply" ] || [ -n "$setupBlockers" ] ; then
-				## Scoped to catalogue values alone, and said that way on purpose:
-				## a real precondition failure (CLI missing, untrusted, ...) can
-				## stand above this line with every catalogue value already set,
-				## and "nothing waiting on you" read as the whole verdict there.
-				echo "No configuration values are missing -- the precondition failures above still need closing."
 			else
+				## Scoped to catalogue values alone, deliberately: a real
+				## precondition failure (CLI missing, untrusted, ...) is
+				## AgentsToolsOwnerSetupBlock1Verdict's own narrative, printed
+				## right above this line, and it already says whether Block 2
+				## closes it -- this line never comments on that a second time.
 				echo "No configuration values are missing."
 			fi
 
