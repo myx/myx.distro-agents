@@ -65,7 +65,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **advance-report**: Post `check-execute-board`'s own findings (redispatches performed, interview threads opened/continued) to `slack-event-track` via `--member-comms-slack-send-message` (target `event-track`).
+1. **advance-report**: Post `check-execute-board`'s own findings (redispatches performed, interview threads opened/continued) to `slack-event-track` via `--member-comms-slack-send-message` (target `event-track`), carrying the per-type-checks record in the same post — that record goes in one post, never one per item.
 2. **advance-close-state-and-unlock**: release the lock, recording the pass's closing status in that same call:
    - rule: reference the board/inbox items themselves rather than copying their content, to keep it compact.
    - step: release the lock via `--magic-advance-close-state-and-unlock`, passing the pass's closing status inline — content, `state: advance-finished`, and the unlock all land in one call, not two.
@@ -250,7 +250,7 @@ Each item here is a tracking document. Where a rule below spawns or restarts wor
 
 After all per-type checks, the pass's record and any message to the human-owner are two separate things.
 
-**The record goes to `slack-event-track`**, every pass, via `--member-comms-slack-send-message` (target `event-track`): every item that stayed `board-running` with `recheck-date` untouched this pass (across this procedure's own pass and `check-process-board`'s already-run pass), this pass's `board-running` outcome counts (`nudged`/`respawned`/`redispatched`/`flagged-once`/`no-action`), and any autonomous-invocation restart-session spawns from this same pass (above). That trace is the whole record and is complete on its own — no DM carries any part of it, and none is needed to keep it.
+**The record goes to `slack-event-track`**, every pass, in **advance-report**'s own single post (`# Closure steps`): every item that stayed `board-running` with `recheck-date` untouched this pass (across this procedure's own pass and `check-process-board`'s already-run pass), this pass's `board-running` outcome counts (`nudged`/`respawned`/`redispatched`/`flagged-once`/`no-action`), and any autonomous-invocation restart-session spawns from this same pass (above). That trace is the whole record and is complete on its own — no DM carries any part of it, and none is needed to keep it.
 
 **A DM to the human-owner goes only for something he can act on**, on one of three reasons, each about a specific named thing this pass found:
 - a decision only he can make;
@@ -272,7 +272,7 @@ All statements apply at the same time, always. These rules override a participan
 - `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
 - This routine is an extension of `magic-team.coworking.routine` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
-- Overrides the inherited coworking thread anchor: this routine's session thread lives in `slack-event-track`, not `slack-magic-team`. Genuinely important items still go separately to the human-owner DM and `slack-magic-team`.
+- Overrides the inherited coworking thread anchor: this routine's session thread lives in `slack-event-track`, not `slack-magic-team`. An item still goes separately to the human-owner DM and `slack-magic-team` — but "genuinely important" is exactly the three reasons in `check-execute-board`'s own closing block, never a looser reading of the word.
 - Does not run **fold-in-learned-lessons** — that step works a small, recent, unresolved reflection set, and this routine's every-iteration cadence would grind the whole accumulated pile each pass.
 - Not wired into `magic-team.coworking.routine`'s Steps/Closure Steps as separate calls — this routine runs unattended every main-loop iteration and its trace is debug-level. **advance-report** is that inherited closing obligation, discharged into `slack-event-track`.
 - Every real file read/write and communications API call this routine makes (including `check-process-board`'s own `--member-comms-slack-react` calls) is its own direct `mcp__myx_distro__execute` call — no Keep-Alive Console Session assumed or required, per `magic-team/magic-team.armed.md`'s process-flow rule.
@@ -300,7 +300,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-advance-sleep-run` (`check-restart`: executed before continuing to the next `board-running` item, side-effecting outcomes only)
 - `--magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]` (**Per-pass completion requirement**, at scale: records bookkeeping-only outcomes for several `board-running` items in one call)
 - `--magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]` (`check-execute-board` autonomous spawn relay with execution receipt)
-- `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (per-type checks' closing human-owner DM: **Thread continuity** write-back of `human_owner_broadcast_thread_ts`/`human_owner_broadcast_thread_date`)
+- `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (**Thread continuity** write-back of `human_owner_broadcast_thread_ts`/`human_owner_broadcast_thread_date`, for a human-owner DM that qualifies)
 - `--member-comms-slack-send-message <team-member> <target> [text...]` (**advance-report**: post the `event-track` report trace; also `check-execute-board`'s own per-type re-ask rules)
 
 ## `--magic-advance-sleep-run` operation reference
