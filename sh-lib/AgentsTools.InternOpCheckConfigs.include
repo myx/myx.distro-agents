@@ -23,6 +23,16 @@ case "$1" in
 			fi
 			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
 		done
+		## The owner-setup BARE-CALL path prints its own render-missing command
+		## right below this check's own output, so a raw low-level --upsert here
+		## would only repeat it -- but --check renders neither block, so a --check
+		## caller keeps this line as its one real source of per-key guidance.
+		## Scoped to the bare-call variant of those two contexts alone -- never to
+		## their own :check variant, and never to another context entirely.
+		local suppressFixHint=""
+		case "$opContext" in
+			--owner-setup-slack:bare|--owner-setup-storage:bare) suppressFixHint="yes" ;;
+		esac
 		local expectKinds=() ekWanted="" ekArg
 		for ekArg in "$@" ; do
 			if [ -n "$ekWanted" ] ; then
@@ -172,7 +182,7 @@ case "$1" in
 							warnDetail+=( "        DM with the same person is a DIFFERENT id the first one cannot" )
 							warnDetail+=( "        read. Store the USER id and let each identity open its own DM." )
 						fi
-						warnDetail+=( "  fix:  DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey <$expectedKind-id>" )
+						[ -n "$suppressFixHint" ] || warnDetail+=( "  fix:  DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey <$expectedKind-id>" )
 					fi
 				fi
 
@@ -208,9 +218,13 @@ case "$1" in
 					fi
 				done
 				if [ "$checkMode" = "required" ] ; then
-					echo "$MDSC_CMD: check-configs: ⛔ ERROR: $checkKey is not configured -- set it first: $fixHint" >&2
+					if [ -n "$suppressFixHint" ] ; then
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: $checkKey is not configured" >&2
+					else
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: $checkKey is not configured -- set it first: $fixHint" >&2
+					fi
 					requiredMissing=1
-				else
+				elif [ -z "$suppressFixHint" ] ; then
 					echo "  fix: $fixHint"
 				fi
 			fi

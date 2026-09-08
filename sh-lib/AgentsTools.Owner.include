@@ -13,6 +13,38 @@ AgentsToolsOwnerSetupRow(){
 	printf '  %s %s %s\n' "$rowLabel" "${rowDots:${#rowLabel}}" "$rowStatus"
 }
 
+## Block 1's own status narrative, for a domain with real, hand-diagnosed
+## preconditions (claude/copilot): what --apply would still need to close, or
+## that nothing here is waiting on it. Block 2, printed once for every domain
+## after the domain case statement, carries the actual runnable command -- this
+## never repeats it. Same dynamic-scoping pattern as AgentsToolsOwnerSetupRow
+## above: reads the caller's own setupOperation/setupAllWorkspaces/
+## setupNeedsApply/setupSetupSteps/setupBlockers, and writes setupBlock1Printed
+## back into that same scope so the shared render-missing/render-full block
+## below the domain case statement never repeats this header.
+AgentsToolsOwnerSetupBlock1Verdict(){
+	[ -z "$setupOperation" ] && [ -z "$setupAllWorkspaces" ] || return 0
+	local verdictDomain="$1"
+	echo ""
+	echo "Block 1:"
+	setupBlock1Printed="yes"
+	if [ -n "$setupNeedsApply" ] ; then
+		echo "Not set up yet."
+		[ -z "$setupSetupSteps" ] || {
+			echo "Block 2's command does not close these on its own:"
+			printf '%s' "$setupSetupSteps"
+		}
+	elif [ -n "$setupSetupSteps" ] ; then
+		echo "This workspace is not ready, and no command closes what is left:"
+		printf '%s' "$setupSetupSteps"
+	elif [ -n "$setupBlockers" ] ; then
+		echo "This workspace is not ready, and no single command closes what is left."
+		echo "Run --check for the detail on:$setupBlockers"
+	else
+		echo "This workspace is set up for $verdictDomain."
+	fi
+}
+
 case "$1" in
 
 	--owner-workspace-upsert)
@@ -236,7 +268,7 @@ case "$1" in
 		shift
 		local setupAllWorkspaces="" setupSetAsDefault="" setupOperation=""
 		local setupWorkspaceRoot="" setupAccessRoots="" setupAccessRootReal=""
-		local setupValuesFromStdin="" setupOptionArgs=()
+		local setupValuesFromStdin="" setupOptionArgs=() setupBlock1Printed=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--values-from-stdin) setupValuesFromStdin="yes" ; shift ;;
@@ -568,6 +600,12 @@ case "$1" in
 		## Each arm leaves its verdict here rather than returning it, so the
 		## pointer below is reached by every domain and not written once per arm.
 		local setupRc=0
+		## Distinguishes the two states that reach here from each other: a bare
+		## call has Block 1/2 rendered right below this check's own output, so a
+		## raw low-level fix line there would only repeat them; --check has
+		## neither block and is the reader's real per-key guidance on its own.
+		local setupCtxTag="bare"
+		[ "$setupOperation" != "--check" ] || setupCtxTag="check"
 		case "$setupDomain" in
 			slack)
 				## Activity-log and alert channels never gate: with neither set the
@@ -582,20 +620,20 @@ case "$1" in
 					--expect-id-kind SLACK_CHANNEL_EVENT_ALERT:channel \
 					--expect-id-kind SLACK_CHANNEL_MAGIC_TEAM:channel \
 					--expect-id-kind SLACK_CHANNEL_HUMAN_OWNER:user \
-					--context --owner-setup-slack || setupRc=$?
+					--context "--owner-setup-slack:$setupCtxTag" || setupRc=$?
 				DistroAgentsTools --intern-op-check-configs magic-team \
 					--optional "SLACK_BOT_TOKEN:<token>" \
 					--expect-secret SLACK_BOT_TOKEN \
-					--context --owner-setup-slack || true
+					--context "--owner-setup-slack:$setupCtxTag" || true
 			;;
 			storage)
 				DistroAgentsTools --intern-op-check-configs magic-coordinator \
 					--required "TEAM_DATA_DIRECTORY:<path>" \
 					--expect-path-exists "TEAM_DATA_DIRECTORY:${MDAT_DATA_ROOT:-}" \
-					--context --owner-setup-storage || setupRc=$?
+					--context "--owner-setup-storage:$setupCtxTag" || setupRc=$?
 				DistroAgentsTools --intern-op-check-configs magic-team \
 					--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \
-					--context --owner-setup-storage || true
+					--context "--owner-setup-storage:$setupCtxTag" || true
 			;;
 			copilot)
 				## What a spawn actually needs: the proxy runs
@@ -817,29 +855,7 @@ case "$1" in
 					fi
 				fi
 
-				## One command, because --apply now carries out every finding above
-				## that a command can carry out. Anything left in setupSetupSteps
-				## is there because nothing can, and says so in its own prose.
-				if [ -z "$setupOperation" ] ; then
-					echo ""
-					if [ -n "$setupNeedsApply" ] ; then
-						echo "To set this workspace up, run:"
-						echo "  $setupToolPath --owner-setup-copilot${setupApplyDefault:+ --set-as-default} --apply"
-						[ -z "$setupSetupSteps" ] || {
-							echo ""
-							echo "That command does not close these on its own:"
-							printf '%s' "$setupSetupSteps"
-						}
-					elif [ -n "$setupSetupSteps" ] ; then
-						echo "This workspace is not ready, and no command closes what is left:"
-						printf '%s' "$setupSetupSteps"
-					elif [ -n "$setupBlockers" ] ; then
-						echo "This workspace is not ready, and no single command closes what is left."
-						echo "Run --check for the detail on:$setupBlockers"
-					else
-						echo "This workspace is set up for copilot."
-					fi
-				fi
+				AgentsToolsOwnerSetupBlock1Verdict "$setupDomain"
 			;;
 			claude)
 				local setupRegistry="$MDAT_SKILLSET_ROOT/.linked.magic-team.members.txt"
@@ -1354,30 +1370,7 @@ case "$1" in
 						setupVerdict="${setupVerdict}$( printf '  %-28s runs %-8s -- ready' "$setupLabel" "$setupWillRun" )"$'\n'
 					fi
 
-					## The pointer, and it is the point of this mode: one command,
-					## because --apply now carries out every finding above that a
-					## command can carry out. Anything left in setupSetupSteps is
-					## there because nothing can, and says so in its own prose.
-					if [ -z "$setupOperation" ] && [ -z "$setupAllWorkspaces" ] ; then
-						echo ""
-						if [ -n "$setupNeedsApply" ] ; then
-							echo "To set this workspace up, run:"
-							echo "  $setupToolPath --owner-setup-claude${setupApplyDefault:+ --set-as-default} --apply"
-							[ -z "$setupSetupSteps" ] || {
-								echo ""
-								echo "That command does not close these on its own:"
-								printf '%s' "$setupSetupSteps"
-							}
-						elif [ -n "$setupSetupSteps" ] ; then
-							echo "This workspace is not ready, and no command closes what is left:"
-							printf '%s' "$setupSetupSteps"
-						elif [ -n "$setupBlockers" ] ; then
-							echo "This workspace is not ready, and no single command closes what is left."
-							echo "Run --check for the detail on:$setupBlockers"
-						else
-							echo "This workspace is set up for claude."
-						fi
-					fi
+					AgentsToolsOwnerSetupBlock1Verdict "$setupDomain"
 				done <<< "$setupTargets"
 
 				## Nothing diagnosed is not a pass: every workspace unreachable, or a
@@ -1402,28 +1395,46 @@ case "$1" in
 			;;
 		esac
 
-		## The other half of a bare call: the status above, then the command that
-		## supplies what this domain REQUIRES and does not yet have. Rendered by the
-		## same engine as --print-apply-command, in its required-and-unset form, so
-		## the placeholders and the how-to-obtain lines cannot drift from the full
-		## template. An optional setting is deliberately not named here -- beside a
-		## required one it reads as the thing standing between the reader and a
-		## working setup -- and --print-apply-command below is where every setting
-		## this domain takes is written out. --check writes the per-setting detail
-		## instead, and --all-workspaces spans workspaces one command cannot name.
+		## The other half of a bare call, for every domain: Block 1 names what
+		## this domain still needs -- its own precondition narrative above (a
+		## real non-catalogue check, where a domain has one), plus the engine's
+		## own render-missing for a catalogue key that is required and unset.
+		## Block 2 is the engine's render-full -- every option this domain takes,
+		## as one real runnable command ending in --apply, secrets fed via stdin.
+		## Both read the same declaration --print-apply-command and --apply do,
+		## so neither can drift from what an --apply actually accepts. Full
+		## manuals stay separate (--help-setup-<domain>, not built yet); --check
+		## writes the per-setting detail instead, and --all-workspaces spans
+		## workspaces one command cannot name.
 		if [ -z "$setupOperation" ] && [ -z "$setupAllWorkspaces" ] && [ ${#setupDeclareArgs[@]} -ne 0 ] ; then
+			[ -n "$setupBlock1Printed" ] || { echo "" ; echo "Block 1:" ; }
 			local setupStillMissing="" setupRenderRc=0
 			setupStillMissing="$( DistroAgentsTools --intern-op-owner-setup "$setupDomain" --render-missing \
 				--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" "${setupDeclareArgs[@]}" )" || setupRenderRc=$?
-			echo ""
 			if [ "$setupRenderRc" -ne 0 ] ; then
 				setupRc="$setupRenderRc"
 			elif [ -n "$setupStillMissing" ] ; then
-				echo "To supply what $setupDomain requires, run:"
+				echo "To supply what $setupDomain requires:"
 				printf '%s\n' "$setupStillMissing"
+			elif [ -n "$setupNeedsApply" ] || [ -n "$setupBlockers" ] ; then
+				## Scoped to catalogue values alone, and said that way on purpose:
+				## a real precondition failure (CLI missing, untrusted, ...) can
+				## stand above this line with every catalogue value already set,
+				## and "nothing waiting on you" read as the whole verdict there.
+				echo "No configuration values are missing -- the precondition failures above still need closing."
 			else
-				echo "Nothing here is waiting on a value from you."
-				echo "  ${setupWorkspaceRoot:-${MMDAPP%/}}/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-$setupDomain --print-apply-command   -- every setting this domain takes, optional ones included, for changing one"
+				echo "No configuration values are missing."
+			fi
+
+			local setupFullCommand="" setupFullRc=0
+			setupFullCommand="$( DistroAgentsTools --intern-op-owner-setup "$setupDomain" --render-full \
+				--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" "${setupDeclareArgs[@]}" )" || setupFullRc=$?
+			echo ""
+			echo "Block 2:"
+			if [ "$setupFullRc" -ne 0 ] ; then
+				setupRc="$setupFullRc"
+			else
+				printf '%s\n' "$setupFullCommand"
 			fi
 		fi
 		return "$setupRc"
