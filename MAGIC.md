@@ -158,6 +158,19 @@ Team-owned notes for the magic-* team.
 - Scratch is not the only shape a temp file takes here, and the two are not interchangeable. A temp that has a destination it is about to REPLACE follows "Installing a generated config over its target" above instead — created beside that target and renamed over it, in whichever of that section's spellings the file already carries. A scratch path has no destination, whereas an install temp IS the destination in progress, which is what makes its rename atomic.
 - A count of sites in this package is not evidence of a convention. This package is the drifted one, so a form holds once a daily-used sibling confirms it and not before, however many times it appears here.
 
+## `AgentsContext.include` is a parallel kernel, not a subset of `SystemContext.include`
+
+- It does not source `SystemContext.include`. It defines `Require`, `Agents` and `DistroAgentsContext`, and nothing else.
+- So inside `DistroAgentsTools` and on the `mcp__myx_distro__execute` surface, `Distro`, `Action` and `DistroSystemContext` are undefined and `$PATH` carries no `sh-scripts` directory.
+- **The bootstrap guard `[ -z "$MDLT_ORIGIN" ] || ! type DistroSystemContext` is effectively unconditional in this package**, and it is what makes any following `Distro <Tool>` resolve at all. Never simplified away as redundant: any new site needing those functions needs the same two lines.
+- **Resolution asymmetry decides the order.** `Require` resolves by file through `$MDLT_ORIGIN` and never consults `PATH`; `Distro` tries `type` first, then `PATH`. So `Require <Tool> || :` precedes `Distro <Tool>`. The `|| :` is load-bearing — it defers failure to `Distro`'s own exit status, letting the caller's trust-rule arms decide the verdict.
+- **Sourcing `SystemContext.include` alone is not sufficient**, and this is the trap: it defines `Distro`, yet `Distro <Tool>` still fails, because `Distro` resolves through `PATH` and only a console session carries `sh-scripts` there. `Require` alongside it is what makes it work. Any description asserting otherwise is false while looking obviously true.
+
+## Severity marks, and where a designed refusal gets lost
+
+- `⛔ ERROR` is for a fault. `🙋 WARNING` is for a designed refusal. Where both appear on adjacent arms the asymmetry is deliberate and survives edits.
+- **A designed refusal's defect is discoverability, not severity.** A warning emitted mid-run inside a composed multi-step operation is invisible in scrollback. The composed operation's own closing summary is what carries it, and the exit status stays truthful.
+
 ## Environment init in `DistroAgentsTools.fn.sh`
 
 - `${MDLT_ORIGIN:=$MMDAPP/.local}` at file load is a default, not an init — it only fills a blank. The real init is `DistroAgentsContext --run-from-detect` in the tail guard, which reads `MDLT_CONSOLE_ORIGIN` and resolves the configured origin. `DistroSourceTools.fn.sh` and `DistroDeployTools.fn.sh` carry the same pair.
@@ -211,6 +224,13 @@ Team-owned notes for the magic-* team.
 - Per-request fields are read into variables before the fork. The next message wipes `req/`, and the fork carries whatever the variables already hold.
 - Responses are serialised by a `mkdir` test-and-set on `wire.lock`, held for the one `printf` and nothing else. `mkdir` is the atomic test-and-set every POSIX filesystem has; `flock` is not guaranteed on a bare FreeBSD or Darwin.
 - A message with no id is a notification and is never answered: the `notifications/*` arm does nothing, and both send helpers return on an empty id.
+- **The `workspace` parameter re-runs the call in a fresh process with `MMDAPP` moved to that workspace and `MDLT_ORIGIN` deliberately unchanged.** It is not the same as a standalone invocation there, which would resolve that workspace's own origin.
+- **Per-request process isolation is a boundary, not a workaround.** A foreign workspace must resolve natively; done in-process it would poison the server's own `MMDAPP` for every later request. Do not collapse it in a cleanup.
+- **The fork sits before the lock deliberately.** Moving it into the critical section lengthens every hold.
+- **A lock bound defines its expiry behaviour**: write the response anyway, or drop that one response. Never exit the server — that turns a one-response fault into a total outage.
+- **A spin loop whose counter resets after each sleep is a pacing counter, not a limit**, and is unbounded by construction. Read the reset, not the bound.
+- **Any string emitted onto the wire stays one physical line.** A `printf '%s'` of a value holding a newline produces a corrupt frame.
+- **A registration that freezes an absolute path plus an environment value validates the path by running, never the environment value.** That is where a stale registration surfaces later as an unrelated error.
 - A bare `wait` after the read loop drains the in-flight handlers before the scratch root is removed. Without it, end of stdin deletes `out.<seq>` under a handler still writing its response, and that request is answered never. A child the executed script itself left running is a grandchild, not a job of this shell, so it is never waited on and cannot hold shutdown.
 
 ## Capturing an arbitrary command's output

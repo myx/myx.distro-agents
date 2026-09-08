@@ -1531,6 +1531,10 @@ HOOKEOF
 		fi
 
 		local failed=0
+		## Carried to the closing line: a mid-run WARNING scrolls away and the op
+		## still reports success, so a workspace left with no myx.distro MCP reads
+		## as a clean install.
+		local distroSkipped=""
 
 		echo "# workspace: $workspace" >&2
 
@@ -1625,6 +1629,7 @@ HOOKEOF
 			local distroServerScript="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			local distroUpsert="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.awk"
 			if [ "$workspace" != "$MMDAPP" ] ; then
+				distroSkipped=" -- WITHOUT the myx.distro MCP server, which registers only when run from its own workspace, so $workspace has none"
 				echo "🙋 WARNING: myx.distro skipped, it registers only when run from its own workspace" >&2
 			elif [ ! -x "$distroServerScript" ] ; then
 				echo "⛔ ERROR: mcp-distro-path missing or not executable: $distroServerScript" >&2
@@ -1700,7 +1705,7 @@ HOOKEOF
 
 
 		if [ "$failed" -eq 0 ] ; then
-			echo "✅ vscode integrations installed" >&2
+			echo "✅ vscode integrations installed$distroSkipped" >&2
 			return 0
 		fi
 

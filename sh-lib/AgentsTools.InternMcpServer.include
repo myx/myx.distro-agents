@@ -12,16 +12,29 @@
 ## set -e rules, portability floor and design notes: see MAGIC.md.
 ##
 
-AgentsMcpSendResult(){
-	local mcpLockSpin=0
-	[ -n "$1" ] || return 0
+## Bounded acquire. A handler killed between the mkdir and the rmdir would
+## otherwise hold the wire forever: every later response spins with no
+## diagnostic and the server hangs. No response write takes seconds, so a lock
+## still held after the wait below belongs to a dead holder and is reclaimed.
+AgentsMcpWireLockAcquire(){
+	local mcpLockSpin=0 mcpLockWaited=0
 	while ! mkdir "$MMDAPP/.local/temp/agent-mcp.$$/wire.lock" 2>/dev/null ; do
 		mcpLockSpin=$(( mcpLockSpin + 1 ))
-		if [ 500 -le "$mcpLockSpin" ] ; then
-			sleep 1
-			mcpLockSpin=0
-		fi
+		[ 500 -le "$mcpLockSpin" ] || continue
+		sleep 1
+		mcpLockSpin=0
+		mcpLockWaited=$(( mcpLockWaited + 1 ))
+		[ 10 -le "$mcpLockWaited" ] || continue
+		printf '%s\n' "$MDSC_CMD: mcp-server: 🙋 WARNING: wire lock held ${mcpLockWaited}s, reclaiming it -- a request handler died holding the wire" >&2
+		rmdir "$MMDAPP/.local/temp/agent-mcp.$$/wire.lock" 2>/dev/null
+		mcpLockWaited=0
 	done
+	return 0
+}
+
+AgentsMcpSendResult(){
+	[ -n "$1" ] || return 0
+	AgentsMcpWireLockAcquire
 	printf '{"jsonrpc":"2.0","id":%s,"result":%s}\n' "$1" "$2"
 	rmdir "$MMDAPP/.local/temp/agent-mcp.$$/wire.lock" 2>/dev/null
 	return 0
@@ -29,16 +42,10 @@ AgentsMcpSendResult(){
 
 ## mcpErrText is held: escaping forks awk, which must stay outside the lock.
 AgentsMcpSendError(){
-	local mcpErrText='' mcpLockSpin=0
+	local mcpErrText=''
 	[ -n "$1" ] || return 0
 	mcpErrText="$( printf '%s' "$3" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" || mcpErrText=''
-	while ! mkdir "$MMDAPP/.local/temp/agent-mcp.$$/wire.lock" 2>/dev/null ; do
-		mcpLockSpin=$(( mcpLockSpin + 1 ))
-		if [ 500 -le "$mcpLockSpin" ] ; then
-			sleep 1
-			mcpLockSpin=0
-		fi
-	done
+	AgentsMcpWireLockAcquire
 	printf '{"jsonrpc":"2.0","id":%s,"error":{"code":%s,"message":"%s"}}\n' "$1" "$2" "$mcpErrText"
 	rmdir "$MMDAPP/.local/temp/agent-mcp.$$/wire.lock" 2>/dev/null
 	return 0
@@ -68,6 +75,14 @@ case "$1" in
 		fi
 
 		set +e
+
+		## Registration freezes an absolute command path and env.MMDAPP into the
+		## host config. The command path proves itself by this script running at
+		## all; MMDAPP does not, and a moved workspace leaves it pointing nowhere.
+		if [ ! -d "$MMDAPP/.local" ] ; then
+			printf '%s\n' "$MDSC_CMD: mcp-server: ⛔ ERROR: MMDAPP is not a set-up myx.distro workspace: $MMDAPP -- the MCP host registration freezes this path at install time and it no longer resolves. Re-run DistroAgentsTools.fn.sh --make-workspace-integrations from that workspace to rewrite it." >&2
+			return 1
+		fi
 
 		rm -rf "$MMDAPP/.local/temp/agent-mcp.$$"
 		if ! mkdir -p "$MMDAPP/.local/temp/agent-mcp.$$" ; then
@@ -118,7 +133,7 @@ case "$1" in
 						AgentsMcpSendResult "$mcpId" '{}'
 					;;
 					tools/list)
-						AgentsMcpSendResult "$mcpId" '{"tools":[{"name":"execute","description":"Evaluate a shell script with its environment already initialized: MMDAPP and MDLT_ORIGIN resolved to the tree actually in use, and the workspace consoles and tools reachable. Defaults to this server'"'"'s own workspace; pass '"'"'workspace'"'"' to run against a different one instead, re-resolved fresh exactly as a standalone invocation there would be. Returns the script combined stdout and stderr, plus its exit status.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"Shell script to evaluate. May span multiple lines."},"workspace":{"type":"string","description":"Optional: absolute path of a different myx.distro workspace (one with its own .local) to run this one call against, overriding this server'"'"'s own default MMDAPP for this call only. Leave unset to use this server'"'"'s own workspace."}},"required":["command"]}}]}'
+						AgentsMcpSendResult "$mcpId" '{"tools":[{"name":"execute","description":"Evaluate a shell script. MMDAPP and MDLT_ORIGIN are resolved to the tree actually in use, and the myx.distro-agents kernel is loaded: DistroAgentsTools, Agents, DistroAgentsContext and Require are defined. The wider distro kernel is NOT loaded -- Distro, Action and DistroSystemContext are undefined, no sh-scripts directory is on PATH, and the MDSC_* index context is unset. To reach an estate tool, load both in-script: SystemContext for the kernel, and Require for the tool itself because Distro resolves through PATH, which this surface does not carry. For example: . $MDLT_ORIGIN/myx/myx.distro-system/sh-lib/SystemContext.include ; DistroSystemContext --distro-path-auto ; Require ListDistroProjects ; ListDistroProjects --select-all. Defaults to this server'"'"'s own workspace; pass '"'"'workspace'"'"' to run against a different one instead, re-resolved fresh exactly as a standalone invocation there would be. Returns the script combined stdout and stderr, plus its exit status.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"Shell script to evaluate. May span multiple lines."},"workspace":{"type":"string","description":"Optional: absolute path of a different myx.distro workspace (one with its own .local) to run this one call against, overriding this server'"'"'s own default MMDAPP for this call only. Leave unset to use this server'"'"'s own workspace."}},"required":["command"]}}]}'
 					;;
 					tools/call)
 						if [ "execute" != "$mcpToolName" ] ; then
