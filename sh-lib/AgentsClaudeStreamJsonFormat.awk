@@ -145,7 +145,7 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 			printProgress("-> tool: " toolName)
 		} else {
 			gsub(/\n/, " ", argVal)
-			printProgress("-> tool: " toolName "(" truncateSafe(argVal, 90) ")")
+			printProgress("-> tool: " toolName "(" truncateSafe(argVal, 110) ")")
 		}
 	}
 }
@@ -164,14 +164,14 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 		if ($0 ~ /"type":"thinking"/) {
 			previewText = extractJsonField($0, "thinking", 1)
 			gsub(/\n/, " ", previewText)
-			printProgress(previewText == "" ? "thinking..." : "thinking: " truncateSafe(previewText, 160))
+			printProgress(previewText == "" ? "thinking..." : "thinking: " truncateSafe(previewText, 260))
 		}
 		if ($0 ~ /"type":"tool_use"/) {
 			reportToolCalls($0)
 		} else if ($0 ~ /"type":"text"/) {
 			previewText = extractJsonField($0, "text", 1)
 			gsub(/\n/, " ", previewText)
-			printProgress(previewText == "" ? "answering..." : "answering: " truncateSafe(previewText, 160))
+			printProgress(previewText == "" ? "answering..." : "answering: " truncateSafe(previewText, 260))
 		}
 	} else if ($0 ~ /"type":"user"/) {
 		printProgress(($0 ~ /"is_error":true/) ? "<- tool result (error)" : "<- tool result")
