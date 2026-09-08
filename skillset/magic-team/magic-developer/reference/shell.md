@@ -82,6 +82,8 @@ The dir earns its place only when it is genuinely one of the two cases above —
 - **A lock bound defines what happens on expiry**: proceed with the write, or drop that one unit of work. Never exit the process — that turns a single fault into a total outage.
 - **A fork placed before a lock stays before it.** Moving it inside the critical section lengthens every hold.
 - **A guard script decides from shell builtins alone and fails closed.** Any external binary in the decision path — a JSON parser, a matcher, anything resolved from `PATH` — turns that binary's absence into a permit: the call produces empty output and exit 0, which a caller reads as allow. The defect is latent wherever the binary happens to exist and live everywhere else, so it does not show up on the machine it was written on. Treat unparsed or unexpected input as denial, never as no-objection.
+- **An ungated line adjacent to a gated guard counts arrivals, not work.** Where the work marker is gated and the gate is off, the honest report is "not observable" — never zero.
+- **A nested `bash -c` carries none of the calling shell's functions**, so a probe run that way measures the absence of its own harness rather than the thing under test.
 - **A control that returns the same value as the measurement means the measurement is broken, not that the fix worked.** Run controls both ways: one that must match and one that must not. A check returning 0 whose positive control also returns 0 has established nothing, and is re-measured on the real path rather than reported.
 
 ## Reusable POSIX patterns worth knowing

@@ -462,9 +462,7 @@ case "$0" in
 
 		set -e
 
-		if [ -z "$MDLT_OPTION" ] || ! type DistroAgentsContext >/dev/null 2>&1 ; then
-			. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsContext.include"
-		fi
+		. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsContext.include"
 		DistroAgentsContext --run-from-detect
 
 		## Copied from DistroLocalTools.fn.sh: needed for catMarkdown and the JSON escaper.

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-## Origin-detection context for myx.distro-agents.
-##
+if type DistroAgentsContext >/dev/null 2>&1 ; then
+	return 0
+fi
 
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
@@ -12,71 +13,67 @@
 type DistroSystemContext >/dev/null 2>&1 || \
 	. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-system/sh-lib/SystemContext.include"
 
-if ! type DistroAgentsContext >/dev/null 2>&1 ; then
-	if ! type Agents >/dev/null 2>&1 ; then
-		Agents(){
-			if [[ -n "$COMP_LINE" || -n "$COMP_WORDS" ]] && [ "${1#--completion}" = "$1" ]; then
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsole.CompletionFunction.include"
-				return 0
-			fi
-			case "$1" in
-				''|--*)
-					( set -e ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsole.include" "$@" )
+Agents(){
+	if [[ -n "$COMP_LINE" || -n "$COMP_WORDS" ]] && [ "${1#--completion}" = "$1" ]; then
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsole.CompletionFunction.include"
+		return 0
+	fi
+	case "$1" in
+		''|--*)
+			( set -e ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsole.include" "$@" )
+			return 0
+		;;
+	esac
+	local distroCommand="$1" ; shift
+	if ! type "${distroCommand%.fn.sh}" >/dev/null 2>&1 ; then
+		if ! command -v "${distroCommand%.fn.sh}.fn.sh" >/dev/null 2>&1; then
+			echo "⛔ ERROR: unknown command: ${distroCommand%.fn.sh}" >&2
+			set +e ; return 1
+		fi
+		. "${distroCommand%.fn.sh}.fn.sh"
+	fi
+
+	set +e ; "${distroCommand%.fn.sh}" "$@" || {
+		EXITCODE=$?
+		echo "⛔ ERROR: exited with error status ($EXITCODE)" >&2
+		set +e ; return $EXITCODE
+	}
+	return 0
+}
+
+DistroAgentsContext(){
+	case "$1" in
+		--is-spec-option)
+			case "$2" in
+				--run-from-source|--run-from-.local|--run-from-detect|--init-variables|--run-from-path)
 					return 0
 				;;
 			esac
-			local distroCommand="$1" ; shift
-			if ! type "${distroCommand%.fn.sh}" >/dev/null 2>&1 ; then
-				if ! command -v "${distroCommand%.fn.sh}.fn.sh" >/dev/null 2>&1; then
-					echo "⛔ ERROR: unknown command: ${distroCommand%.fn.sh}" >&2
-					set +e ; return 1
-				fi
-				. "${distroCommand%.fn.sh}.fn.sh"
-			fi
-
-			set +e ; "${distroCommand%.fn.sh}" "$@" || {
-				EXITCODE=$?
-				echo "⛔ ERROR: exited with error status ($EXITCODE)" >&2
-				set +e ; return $EXITCODE
-			}
-			return 0
-		}
-	fi
-
-	DistroAgentsContext(){
-		case "$1" in
-			--is-spec-option)
-				case "$2" in
-					--run-from-source|--run-from-.local|--run-from-detect|--init-variables|--run-from-path)
-						return 0
-					;;
-				esac
-				set +e ; return 1
-			;;
-			--init-variables|--run-from-detect|--run-from-*|--init-*)
-				case "$1" in
-					--init-variables|--run-from-detect)
-						if [ -z "$MDLT_ORIGIN" ] || [ -z "$MDLT_OPTION" ] ; then
-							[ -z "$MDSC_DETAIL" ] || echo "DistroAgentsContext: input spec: $1" >&2
-							. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.SetInputSpec.include"
-						fi
-					;;
-					*)
-						DistroAgentsContext --is-spec-option "$1" || return 0
+			set +e ; return 1
+		;;
+		--init-variables|--run-from-detect|--run-from-*|--init-*)
+			case "$1" in
+				--init-variables|--run-from-detect)
+					if [ -z "$MDLT_ORIGIN" ] || [ -z "$MDLT_OPTION" ] ; then
 						[ -z "$MDSC_DETAIL" ] || echo "DistroAgentsContext: input spec: $1" >&2
 						. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.SetInputSpec.include"
-					;;
-				esac
-				return 0
-			;;
-			## origin stays local: AgentsContext.SetInputSpec.include probes for this
-			## package's own presence, and carries no tier cascade. The rest delegates.
-			*)
-				DistroSystemContext "$@"
-			;;
-		esac
-	}
-fi
+					fi
+				;;
+				*)
+					DistroAgentsContext --is-spec-option "$1" || return 0
+					[ -z "$MDSC_DETAIL" ] || echo "DistroAgentsContext: input spec: $1" >&2
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.SetInputSpec.include"
+				;;
+			esac
+			return 0
+		;;
+		## origin stays local: AgentsContext.SetInputSpec.include probes for this
+		## package's own presence, and carries no tier cascade. The rest delegates.
+		*)
+			DistroSystemContext "$@"
+		;;
+	esac
+}
 
 while true ; do
 	case "$1" in
