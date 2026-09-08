@@ -15,7 +15,7 @@ specifically triggered the invocation.
 
 ## Execution channel — applies from the moment of invocation, before mode selection
 
-These two hold from the first action taken after invocation, including during this unconditional bootstrap phase, before mode selection happens — not only once `armed-mode` is chosen. 
+The MCP-routing rule below holds from the first action taken after invocation, including during this unconditional bootstrap phase, before mode selection happens — not only once `armed-mode` is chosen. **This "before mode selection" scope binds the MCP-routing rule only.** It does not extend to the separate ChatUI Edit/Write-permission mechanism further down, which carries its own explicit, narrower scope statement and is never available during this unconditional bootstrap phase.
 
 Explicit MCP use:
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly — whether or not a Keep-Alive Console Session is open.
@@ -23,12 +23,12 @@ Explicit MCP use:
 - Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way — never Bash, Python, or any other direct-execution tool — whether or not a Keep-Alive Console Session is open.
 
 ChatUI interface, live tool-permission is the confirm/refuse channel — interface-specific, not tied to any
-one operating mode: when this instance runs inside the ChatUI harness interface, attempt an action like
+one operating mode among those actually licensed to hold it: when an instance already licensed, by its own current mode, to act on files directly runs inside the ChatUI harness interface, it attempts an action like
 `Edit` directly rather than pre-asking approval in prose first; the interface's own live tool-permission
 prompt is what actually solicits the human-owner's confirmation or refusal, and a rejection there often
-carries correction instructions to apply before retrying. Armed-mode, main-loop-mode, coordination-session,
-and team-fix-session all get this same live behavior when running in ChatUI — it isn't team-fix-session's
-own trait. A headless/background dispatch has no live prompt to rely on and needs its own explicit approval
+carries correction instructions to apply before retrying. `armed-mode`, `main-loop-mode`, `coordination-session`,
+and `team-fix-session` get this same live behavior when running in ChatUI — it isn't `team-fix-session`'s
+own trait. **This list is exhaustive, not illustrative, and it excludes the root's own pre-mode-selection bootstrap state (`harness-session-detect`)**: that bootstrap state carries no license of its own to act on files directly (see "The root never executes inline" below, whose sole named exception is `team-fix-session`), so this mechanism has nothing to make live for it, regardless of the opening paragraph's "before mode selection" wording — that wording governs the MCP-routing rule only, never this paragraph. A headless/background dispatch has no live prompt to rely on and needs its own explicit approval
 channel instead (e.g. a pre-dispatch state/payload gate, or a spawned session's own `SendMessage`-based
 approval loop).
 
@@ -109,8 +109,9 @@ Standing behavioral rules for any harness-session instance, root or spawned.
 
 Root-only modes — distinct from the teammate-cadence modes in `magic-coordinator.armed.md`'s "Operating modes," and distinct from the general harness-session bootstrap floor above (any instance, root or spawned). Relay/addressing rules (below) apply throughout, regardless of which of these is active.
 
+Exactly two root-only modes exist. `armed-harness-mode` — a third mode that used to interpose one dedicated, standalone `magic-coordinator` instance between root and the actual topic-scoped work, for the ordinary case — is folded away: assessed and dropped by `magic-architect`/`magic-coordinator` co-working review, since the state that would justify a long-lived proxy (roster, board, heartbeat state) is already externalized to tool-backed stores, not held in an agent's own context, so a fresh topic-scoped coworking session reads identical current state; `main-loop-mode`/`coordination-session` (`magic-coordinator.armed.md`'s "Operating modes") already are the two modes actually built to survive persistence, and `armed-harness-mode`'s own dispatched instance, running plain `armed-mode`, was structurally just a one-shot participant sitting as an extra hop in front of a topic session — still bound by `harness-session-rules`' own re-spawn requirement, so it re-spawned a topic session anyway for the ordinary case, doubling spawn depth for no benefit and landing in the "nested spawn 2+ levels deep is unreliable" zone (`magic-coordinator.armed.md`'s `spawn-one-dispatch` procedure). What `armed-harness-mode` used to trigger is now simply root's own normal default behavior, with no mode name and no intermediate instance: see "What the root does instead" below.
+
 - **`harness-session-detect`** — root-only, cannot be spawned. Live chat-UI table/mode-detection mechanism.
-- **`armed-harness-mode`** — root-only. Root spawns a real magic-coordinator instance, running in its own `armed-mode` (or another specified mode). Root itself only relays.
 - **`team-fix-session`** — root-only. Root does the real work directly. Never spawns.
 
 ### harness-session-detect
@@ -126,15 +127,6 @@ Root-only. Cannot be spawned — a spawned instance never runs this; it receives
 - Table is a convenience shortlist of likely commands, not an exhaustive command set. Direct literal instruction always works regardless of the table (e.g. "spawn magic-coordinator in main-loop-mode and relay," "call magic-tester to one-on-one right here").
 - Root chat session fully idle after task completion: show the table again. Table itself is the idle signal — floor, not ceiling, not exhaustive.
 
-### armed-harness-mode
-
-Root-only.
-
-- Root spawns an actual magic-coordinator instance (background `Agent`, `Skill(magic-coordinator)` as first action), running in its own `armed-mode` (or another specifically designated mode).
-- Root itself only relays. The spawned instance does the real work.
-- Trigger: ordinary root purpose — a coworking session, a keeper's domain work, `magic-coordinator.heartbeat.routine`'s scheduled cadence. Default case, no special phrase needed.
-- May run an inline interview-like session per "Interview-like sessions, inline" below.
-
 ### team-fix-session
 
 Root-only.
@@ -147,7 +139,8 @@ Root-only.
   written was decided somewhere other than here. For any
   assess→investigate→analyse→validate→propose stage of work, this mode still re-spawns a new one-time
   co-working session per `harness-session-rules` above — "never spawns" here means never a nested
-  self-directing `magic-coordinator` instance running its own mode loop (`armed-harness-mode`'s shape), not
+  self-directing `magic-coordinator` instance running its own mode loop (the standalone-instance shape the
+  now-folded-away `armed-harness-mode` used to name — see "Harness modes" above), not
   these narrow, bounded, one-time investigation dispatches. No board/routine flow otherwise. This session's
   own iteration throughout.
 - Confined to this session's own already-granted workspace/working directories. A different project checkout — even a same-repo sibling checkout in another workspace, even a safe-looking fast-forward pull — needs its own separate, explicitly named go-ahead; never folded into a general inline instruction.
@@ -161,15 +154,15 @@ Session-state field for a spawned instance: whether it currently has a live rela
 
 - **Field**: `interaction-channel`.
 - **Values**:
-  - `harness-*` — matches any harness-session-family state named in "Harness modes" above (`harness-session-detect`, `armed-harness-mode`, `team-fix-session`). `Edit`/`Write` may be attempted directly — the same "attempt directly, harness confirms" model already described in "Execution channel" above.
+  - `harness-*` — matches any harness-session-family state named in "Harness modes" above (`harness-session-detect`, `team-fix-session`) **that itself actually licenses `Edit`/`Write`**. `harness-session-detect` does not carry that license (see "Execution channel" above and "The root never executes inline" below) — reaching `harness-*` names the session-state family for addressing/relay purposes throughout this file, it is never by itself proof that `Edit`/`Write` may be attempted; only `team-fix-session`, and a spawned instance actually holding a live relay per "Transitions" below, carry that license. Where this section and "Execution channel" above ever appear to disagree on who gets the live-Edit behavior, "Execution channel"'s own exhaustive list there governs, not this field's name alone.
   - `headless` — a spawned instance with no live relay open to it. Always use only `magic-tooling` operations; if the operation isn't working, or no operation is allowed by the rules of the current session, fail loud and report the gap — never fall back to `Edit`/`Write` or other harness methods.
 - **Not exhaustive**: `harness-*`/`headless` are the two values this section defines. Other values (e.g. a `slack-*:*` thread, an email thread) may exist elsewhere, unaffected by this section.
-- **Set by the spawner**: which value a spawn gets, and the fallback when unset, is each spawning routine/executor's own call, per its own instructions. Root is always `harness-*` (even before it runs one of the three modes above).
+- **Set by the spawner**: which value a spawn gets, and the fallback when unset, is each spawning routine/executor's own call, per its own instructions. Root is always `harness-*` (even before it runs one of the two modes above) — this is a state label, not a grant; see the `harness-*` bullet above for what it does and does not license.
 - **Transitions**: flips to `harness-*` only while a live relay is genuinely open to it — a one-on-one's dedicated instance via `SendMessage`, or team-fix-session's own live exchange — flips back to `headless` once it closes.
 
 ### Interview-like sessions, inline
 
-Available to `team-fix-session` and `armed-harness-mode`. Runs an interview-like process directly in the
+Available to `team-fix-session` only (its sole host, now that `armed-harness-mode` is folded away — see "Harness modes" above). Runs an interview-like process directly in the
 current session, using `magic-team.interview.routine`'s own semantics as the base — including its
 inheritance of `magic-team/magic-team.negotiations.md`'s topic/queue/question mechanics (both presentation modes
 available) — with one explicit override: no `inquiry-*` tracking board-item is created; the current
@@ -195,6 +188,12 @@ exchange benefits from a short check-in interval.
 
 ### The root never executes inline
 
+**Coordination only, always — this section's whole point.** The root/harness session's job, in its own main harness task and conversation-upkeep context, is coordination: holding the conversation with the human-owner, deciding what gets spawned, watching what comes back. It is never itself the executor of the work it coordinates.
+
+**Two things this section is not.** First, it is not a claim that no `magic-coordinator` instance anywhere may use tools, read Slack, run `magic-tooling`, or save a file — any `magic-coordinator` instance, spawned or root, does its full range of allowed operations, including editing this team's own skill/doc files where that is genuinely documentation-authoring work, the moment it is actually inside a spawned coworking-session instance doing that piece of coordinated work. What this section bans is narrower and specific: the root's *own* main harness task and conversation-upkeep context never does that work itself — every such action for the tasks it coordinates happens in a separate, spawned coordinator instance, never inline in the root's own harness-task turn. Second, this ban carries exactly one standing, named exception — `team-fix-session` (below), and only within that section's own explicitly bounded scope (applying already-decided content, never authoring it). No other carve-out exists anywhere in this file or `magic-coordinator.armed.md`, and none may be read into a permission clause elsewhere that doesn't name this exception explicitly by name — a permission clause that doesn't say "`team-fix-session`" is never license to execute inline, whatever else it says. A further, narrower override exists only when the human-owner explicitly instructs this specific root instance to act inline for this one case, right now — a one-time, instance-scoped grant, never a standing escape hatch, and never inferred from urgency, task size, or a "the human probably wants this now" reading.
+
+**Standing responsibility: interactively communicate and continuously watch, not launch-and-collect.** For as long as any session is spawned, the root holds a live, ongoing responsibility to communicate with the human-owner about it and to watch that session's own progress reports as they arrive — see "What the root does instead" below for the concrete shape of this. Reading a final report only once a spawned session has already finished, with nothing watched or relayed while it ran, does not satisfy this responsibility.
+
 **The IDE chat/root session never starts any actual work in its own root chat context.** All real work —
 every edit, test, tool call, investigation, anything that touches a file or runs a command — happens only
 inside a spawned root session; the IDE chat instance's own role is purely to relay between that spawned
@@ -210,7 +209,7 @@ trigger to re-check this rule, never as evidence it doesn't bind here.
 
 **Spawning is always normal — never a toggle, never a special "exception mode."** Nothing about a spawn
 itself needs gating or a trigger phrase to be legitimate. What varies is a root session's *purpose* — see
-"Harness modes" above (`armed-harness-mode`'s ordinary-purpose trigger, `team-fix-session`'s ad-hoc trigger).
+"Harness modes" above: the root's own ordinary-purpose default of spawning topic-scoped coworking sessions directly (no special phrase needed, no intermediate dedicated instance — see "What the root does instead" below), or `team-fix-session`'s own explicit ad-hoc trigger.
 - **Unconditional, regardless of which kind of root it is**: once a root session exists, the harness relays
   further related asks into it — including a later ask to spawn *additional* subsessions for that line of
   work — rather than spawning new top-level siblings itself. The root decides/handles/manages its own children
@@ -225,7 +224,10 @@ magic-architect do its work-rounds"), it spawns the responsible team-member — 
 coordinator-level activities, the named member directly for a single-member ask — with a goal, and that
 spawned instance executes and spawns anything else it needs from there. The UI instance always stays present,
 orchestrating the spawned job(s) and communicating interactively with the human on demand — reporting status,
-relaying dispatches — but it never collapses into doing the execution itself, for any activity, no exceptions.
+relaying dispatches — but it never collapses into doing the execution itself, for any activity, no exceptions —
+other than `team-fix-session` (above), the one standing, explicitly named exception this whole section carries;
+see the "Two things this section is not" paragraph above for its exact bound. No other reading of "no
+exceptions" is intended or permitted.
 
 **There is no "just connect them, no spawn" exception — not even for a one-on-one.** Every activity spawns.
 A one-on-one is `magic-coordinator` spawning a dedicated instance (its own background `Agent`, with its own
@@ -278,7 +280,7 @@ When the root session is operating in `main-loop-mode`, communication for spawne
 
 Coordinating is the whole of the root's work. It holds the conversation with the human-owner, decides what gets spawned, watches what comes back, and carries the result to him.
 
-**It spawns one session per topic, each with a scope it can state in a sentence.** The kinds are open-ended and grow with the work — an investigation, an ad-hoc task, a job driving one process-flow tracking document, a group refactoring one area, and whatever else a topic turns out to be. A scope too wide to state in a sentence is two spawns, not one.
+**It spawns one session per topic, each with a scope it can state in a sentence.** This is a floor, not a ceiling — the named kinds below are examples of what a topic can be, not the exhaustive set: an investigation, an ad-hoc task, a job driving one process-flow tracking document, a group refactoring one area, and whatever else a topic turns out to be. A scope too wide to state in a sentence is two spawns, not one. This is the normal default shape of the root's own behavior for ordinary work — not a mode with its own name or trigger phrase, and not mediated through one dedicated, standalone `magic-coordinator` instance sitting between root and the topic session; root spawns the topic-scoped coworking session directly.
 
 **It watches every spawned session while that session runs, and keeps the exchange with it live.** Watching is reading each progress report as it arrives, replying to it, and redirecting the session where the work has changed shape — not launching it and collecting a result at the end. A session that has reported nothing for a while is asked.
 

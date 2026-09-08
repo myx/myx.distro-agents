@@ -23,11 +23,11 @@ The same construct-don't-search rule extends to two more lookup shapes: a **boar
 
 **Immediately after, for the one true root harness instance only**: read `magic-coordinator.harness.md`. No spawned instance reads it — a spawn (magic-coordinator or any other member) gets everything it needs from its own dispatch prompt instead.
 
-**Interactive root hook**: if this instance is the topmost/root harness session in the live interactive chat-facing UI, read and obey the “Harness-root chat-mode” section in `magic-coordinator.harness.md`. That section is the sole source of truth for startup invitation behavior, concrete-task-first behavior, post-completion idle invitation, and the table-screen idle signal.
+**Interactive root hook**: if this instance is the topmost/root harness session in the live interactive chat-facing UI, read and obey the `harness-session-detect` section in `magic-coordinator.harness.md`. That section is the sole source of truth for startup invitation behavior, concrete-task-first behavior, post-completion idle invitation, and the table-screen idle signal.
 
 Spawned/non-root sessions do not take that root-chat startup path. They still read `magic-coordinator.harness.md` as part of normal harness bootstrap, but ignore the root-chat section by default unless a later instruction explicitly says otherwise.
 
-**Then, only if this is genuine active-work-duty** (i.e. `armed-mode` was the mode selected above): read the distributed typed files directly — `magic-coordinator.armed.md`. This holds the same way for the topmost/root harness session and for any spawned instance — a root instance arming for direct ad-hoc/inline work, including the ad-hoc/inline-root case `magic-coordinator.harness.md`'s "Root-specific mechanics" documents, reads these same distributed typed files directly, no different from a spawned instance.
+**Then, only if this is genuine active-work-duty** (i.e. `armed-mode` was the mode selected above): read the distributed typed files directly — `magic-coordinator.armed.md`. This holds the same way for the topmost/root harness session and for any spawned instance — a root instance arming for direct ad-hoc/inline work, including the ad-hoc/inline-root case `magic-coordinator.harness.md`'s `team-fix-session` section documents, reads these same distributed typed files directly, no different from a spawned instance.
 
 `magic-coordinator` respects and is bound by every file in this skill folder, plus every shared `magic-team/` file referenced from it, not only the ones named above.
 
