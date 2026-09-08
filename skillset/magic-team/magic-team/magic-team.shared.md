@@ -494,7 +494,7 @@ Not a contract — the shape of a **generated** document, produced by tooling an
 - **Handled means moved, never edited in place.** The sort key is modification time, so any write that leaves an item where it is — an in-place edit, a header change — makes it the newest item in the inbox and buries it behind the far edge, beyond the cap's reach. Draining does not reorder the live root: the drained item leaves it rather than moving within it. The processed copy carries the drain time, so a scope reading `processed/` too sorts recently drained items to the newest edge — the end an oldest-first cap cuts first.
 - `## Board Items` — inserted into this structure keeping the existing `--*-input-scan` per-item shape (`## <state>/<item-filename>` then its frontmatter). Never restructured, and **never capped**: the board is the work list, and silently dropping part of it is the failure this document exists to prevent.
 - **Six requestable scopes feed the inbox and board sections** — two mutually exclusive pairs and two singles. Inbox inquiry items: the active ones, or the active ones plus collected ones. Inbox reflections. Inbox notes. Board items related to the member: the active states, or every state. A pair's two breadths are mutually exclusive — one breadth per run, never both.
-- **Each of those four sections states its own `scope:` as its first line** — before any item block and before any `**NOTE:**`, extending the same per-section metadata convention the comms sub-sections already carry with `identity:`/`instrument:`/`sources-scanned:`. Present whenever the scope was requested, on empty and non-empty sections alike, exactly as `identity:` is; absent only on a section carrying `**NOTE:** not requested`. The heading names the section, `scope:` names the run — which is what lets two runs under the same heading tell themselves apart, and is why the heading set stays fixed rather than growing a variant per breadth.
+- **Each of those four sections states its own `scope:` as its first line** — before any item block and before any `**NOTE:**`, extending the same per-section metadata convention the comms sub-sections already carry with `identity:`/`instrument:`/`sources-scanned:`. Present whenever the scope was requested, on empty and non-empty sections alike, exactly as `identity:` is. The heading names the section, `scope:` names the run — which is what lets two runs under the same heading tell themselves apart, and is why the heading set stays fixed rather than growing a variant per breadth.
 - Four exact `scope:` forms, one per breadth. They are strings this document emits, describing what was read; no member constructs or resolves them, and item lookup still goes through the operations that own it:
   - `scope: inboxes/<member>/*.md -- top level only, excluding processed/` — the reflections, notes and other-items sections always, and the inquiry section at its narrower breadth.
   - `scope: inboxes/<member>/*.md -- top level plus processed/` — the inquiry section at its wider breadth.
@@ -503,10 +503,11 @@ Not a contract — the shape of a **generated** document, produced by tooling an
   - The board form carries a **type filter** between its state list and its owner, because the board section is the one that can be filtered by board-item type: `all types` when none was applied, otherwise the prefixes that were. The two inbox forms carry no type filter — each inbox section already *is* its type. `owner: any owner` where no owner filter applied.
 - **The wider inbox breadth is live plus not-yet-collected `processed/`, never complete history.** `processed/` is garbage-collected on a retention threshold that varies by document type, so what it still holds when the document is generated is what that section reports. A reader must not treat it as an archive.
 - **Relatedness is `owner:` alone.** `participants:` and `restart-session:` are deliberately not consulted: an item naming a member is not thereby that member's work, and widening relatedness to them would return items nobody has been assigned.
-- Every section carries items or a `**NOTE:**` line, and never neither. `**NOTE:**` covers two distinct kinds, and which kind it is decides what the section may carry alongside it:
-  - **Status forms** — `no new X`, `not requested`, `no scan was made`. Mutually exclusive, exactly one, and only ever *instead of* items.
+- **A section is emitted only when its scope was requested.** An unrequested scope produces no section at all — no heading, no `**NOTE:**` line. `# New Incoming Communications` appears only when at least one comms sub-scope was requested.
+- Every emitted section carries items or a `**NOTE:**` line, and never neither. `**NOTE:**` covers two distinct kinds, and which kind it is decides what the section may carry alongside it:
+  - **Status forms** — `no new X`, `no scan was made`. Mutually exclusive, exactly one, and only ever *instead of* items.
   - **Annotation marks** — `partial`, `truncated`. They accompany items, and may co-occur with each other: a section can be over its cap and missing a source at the same time.
-- Three distinct `**NOTE:**` forms, never interchangeable: *no new X* (looked, found nothing), *not requested* (never looked), *no scan was made* (asked, could not look). That distinction is the document's own reason to exist: an empty result and an unperformed scan must never read alike.
+- Two distinct `**NOTE:**` forms, never interchangeable: *no new X* (looked, found nothing) and *no scan was made* (asked, could not look). That distinction is the document's own reason to exist: an empty result and an unperformed scan must never read alike.
 - **Form 1 always carries a denominator and its filter** — `no new X -- scanned <N> items, <M> matched <filter>`. It is the only form asserting a fact about the world rather than about the process, so it is the only one that can be wrong while looking right. Without the denominator, a broken filter and an empty tree render identically — an owner-extraction defect matching none of a full board's items reads exactly like a truthful "no board items".
 - A section with plural sources carries `sources-scanned: <N> of <M>`, and when `N < M` also a `**NOTE:** partial -- <source> not scanned, <reason>` beside its items — a populated section must still be able to report that something underneath it failed.
 - The aggregate `no new incoming communications` fires only when every requested comms sub-section is **empty and successfully scanned**; an unscannable sub-section is unknown, not empty, and blocks it.
@@ -852,6 +853,12 @@ Finding the rule already present is therefore where the work starts, not where i
 
 The fix lands in the text, or in what makes the text hold. Where the wording is what failed, the wording changes. Where the wording is sound and nothing made it reachable or checkable at the moment it was needed, the fix is the mechanism that reaches or checks it, and the wording stays.
 
+## An unchecked reading is said to be one
+
+What a member tells the human-owner comes from what the team has actually written down, or from a report another session sent it. Anything else it holds is a reading it has not checked, and one told to him in the register of a finding is what he then acts on. Where a reading is all there is, the sentence carrying it says so — never a confident sentence with the caveat beneath it. Where the answer is in neither source, that is what is said, and the check is run or the session that would run it is spawned.
+
+This governs everything a member says, not only what it files as work: an answer given in conversation, with no work behind it, is a claim like any other.
+
 # Maintainer Notes
 
 Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
@@ -873,6 +880,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - What an answer would bind decides who sends the question: a member carries its own unblocking ask, and anything binding the team goes through `magic-coordinator`.
 - A message that wants something leads with the thing it wants, stated as the choice it is, and carries the work behind it only when that is asked for — the length of an ask is a diagnostic on whether the choice has been identified, never a style score.
 - A rule that was in force and was broken is treated as proven insufficient, and the response is a change to the text or to what makes it hold — never a citation of the text that failed.
+- What a member tells the human-owner comes from what the team has written down or from a report another session sent it, and a reading that is neither is told to him as a reading — this binds an answer given in conversation exactly as it binds a filed report.
 
 ## Verbatim-tests (benchmarks)
 
@@ -892,7 +900,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - A `rule:` nested under one step is moved up into `# Routine's local rules`. That is a change of meaning — the rule now governs the whole routine instead of only its own branch — not a tidy-up; the mirrored move narrows a Local rule the same way.
 - A step names other members. It is still the executor's own step: the executor orchestrates and commands that work and announces it in the session transcript. There is no second actor running steps of its own.
 - A member joins a session mid-way. What it must do comes from the routine's own `# Routine's local rules`, never inferred from an actor phrase.
-- A generated session-context document's comms scan was requested but could not run. It reports *no scan was made*, never *no new X* and never *not requested*: an empty result and an unperformed scan must not read alike.
+- A generated session-context document's comms scan was requested but could not run. It reports *no scan was made*, never *no new X*: an empty result and an unperformed scan must not read alike. An unrequested scope produces no section at all, so no form reports it.
 - A generated session-context document emits a `no new X` line. It carries its denominator and filter, so a broken filter and an empty tree cannot render identically.
 - A generated session-context document's board section is long. It is never capped: silently dropping part of the work list is the failure that document exists to prevent.
 - A first run produces a negative or surprising result. The validity of the test itself is established before the result is reported, and residual caveats are stated rather than rounded up to a clean pass.
@@ -929,4 +937,6 @@ Used to check this file's own definitions against its own goals when it is updat
 - A line is about to state how many of something there are. The number is written only where its reader needs it to act, computed where it is emitted rather than typed in, a count spelled in words counting the same as one in digits.
 - A session notices that an installed/local copy of the tooling is stale, or that a source-to-local sync would help. It says nothing — not as a flag, a caveat, a note for awareness, or a suggested next step — and a spawned session's report carrying such a note has it dropped rather than forwarded.
 - A skillset file's own content disagrees with what is actually on disk. The real source file is corrected directly; this does not extend to the installed/local copy of the tooling.
+- A member is asked why something is missing and has an explanation that fits. It goes to him as a reading it has not checked, in that sentence, or the check is run first — a fitting explanation told as a finding is what he then acts on.
+- A session's whole output is conversation and it files no report. The rule still binds: an answer given in conversation is a claim, and its source is what the team has written down or a report another session sent.
 

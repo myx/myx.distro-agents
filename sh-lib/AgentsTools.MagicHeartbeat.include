@@ -91,7 +91,7 @@ case "$1" in
 		DistroAgentsTools --intern-op-check-configs magic-coordinator \
 			--required "TEAM_DATA_DIRECTORY:<path>" \
 			--required "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
-			--required "SLACK_CHANNEL_HUMAN_OWNER:<channel-id>" \
+			--required "SLACK_CHANNEL_HUMAN_OWNER:<user-id>" \
 			--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
 			--optional "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
 			--optional "EMAIL_IMAP_HOST:<host>" \

@@ -268,11 +268,23 @@ the human, not about loosening that gate.)
 
 **IDE chat-UI ("main") is not the default execution channel for spawned work.** Real work still runs in spawned sessions under the normal relay/spawn rules, and the root chat session stays as the harness/orchestration surface.
 
-This chat remains valid for the harness-root session's own local work: startup mode selection, status/relay, local-context packaging, dispatch-package approval, and narrow root-bootstrap/mechanics clarification.
+This chat carries the root's own coordination turns and nothing that produces or changes content: mode selection, relay, dispatch-package approval, and narrow root-bootstrap clarification. Packaging a dispatch means selecting and quoting what already exists, never writing new content into a file — a file the root writes is a job the root did, whatever the file is for, its own notes and memory store included.
 
 Substantive collection, convergence, review, or approval for spawned work still belongs in the spawned session or routine channel that work uses, unless the human-owner explicitly directs otherwise.
 
 When the root session is operating in `main-loop-mode`, communication for spawned work defaults to headless/process-flow handling through the normal async channels unless the human-owner explicitly asks for a different communication path.
+
+### What the root does instead
+
+Coordinating is the whole of the root's work. It holds the conversation with the human-owner, decides what gets spawned, watches what comes back, and carries the result to him.
+
+**It spawns one session per topic, each with a scope it can state in a sentence.** The kinds are open-ended and grow with the work — an investigation, an ad-hoc task, a job driving one process-flow tracking document, a group refactoring one area, and whatever else a topic turns out to be. A scope too wide to state in a sentence is two spawns, not one.
+
+**It watches every spawned session while that session runs, and keeps the exchange with it live.** Watching is reading each progress report as it arrives, replying to it, and redirecting the session where the work has changed shape — not launching it and collecting a result at the end. A session that has reported nothing for a while is asked.
+
+**It answers from what the team has actually written down, or from a report a spawned session sent it, and from nothing else.** Anything else it might say is a reading it has not checked, and a reading told to the human-owner as fact is what he then acts on. A reading it does hold is stated as a reading, in the sentence itself, never as a confident sentence with the qualifier beneath it. Where the answer is in neither source, the root says which one is missing, and either spawns the session that would find out or asks him.
+
+**Whatever it spawns, it reads the result back to the human-owner and waits for his reply.** The read-back goes to his own direct channel — his Slack DM where one is configured — and carries the result, not an account of the session that produced it. His reply is an approval or a further round of corrections; until one arrives the work is not done, and the root neither closes it nor starts the next round on its own judgement.
 
 ### Harness-Mode Message-addressing prefix scheme
 
@@ -284,9 +296,8 @@ below it:
 license to fold its content into the relaying session's own record and context.
 
 - **`Chat:`** — addressed explicitly to the topmost/root harness session itself. Stays there — not relayed
-  onward at all. Use for the root session's own local exchange: status, relay instructions, mode selection,
-  local-context packaging, dispatch-package approval, or a narrow root-bootstrap/mechanics clarification that
-  is genuinely about the harness session itself rather than about executing spawned work.
+  onward at all. Use for an exchange genuinely about the harness session itself rather than about executing
+  spawned work: this prefix routes a message, and does not widen what the root may then do about it.
 - **`Main:` / `Root:`** — relay the message literally, unmodified, to the main spawned sub-session. No
   rephrasing, no summarizing, no added commentary — the root's relay role, made literal. A clearly separated,
   explicitly labeled annotation is a distinct case, not commentary — see `magic-team/magic-team.conversations.md`'s
@@ -364,6 +375,8 @@ Used to check this file's own definitions against its own goals when it is updat
 - Source is outside every mode's reach: writing or changing code happens in a spawned coworking session whatever mode is running.
 - Root never executes real work inline where a spawned instance is the correct executor; the mode names which of the two applies, and no mode grants both.
 - An `owner-guaranteed` rule crossed inside `team-fix-session` is crossed only through that section's own per-conflict, rule-naming human-owner confirmation, never silently and never beyond that one session.
+- The root's own turn produces no content: what it says comes from what the team has written down or from a report a spawned session sent it, and what it writes is a dispatch, never a file.
+- A spawn is watched while it runs and its result is read back to the human-owner, so nothing the root spawned closes on the root's own judgement.
 
 ## Verbatim-tests (benchmarks)
 
@@ -371,4 +384,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - A mode permits inline edits and a source change is needed. It is dispatched to a spawned coworking session rather than made inline, because the source boundary holds in every mode.
 - An instance cannot tell whether content it is about to write was decided elsewhere or is being authored now. It treats it as authoring and dispatches, rather than reading the ambiguity as permission.
 - An `owner-guaranteed` rule would be crossed in `team-fix-session`. The crossing carries a fresh, per-conflict human-owner confirmation naming the rule, and expires with that session.
+- The root needs a small note kept for its own use and writes it to a file itself. That is a job it did: the note is content, and content is written in a spawned session whatever the file is for.
+- A spawned session finishes and the root holds its result. The result goes to the human-owner's own direct channel and the root waits; a further round starts only on his reply.
+- The root is asked something that neither the team's written record nor a spawned session's report answers. It says which of the two is missing, rather than supplying a reading that fits.
 

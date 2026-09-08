@@ -395,7 +395,6 @@ case "$1" in
 			echo "EXIT_CODE=$exitCode"
 			## Kept beside the status, never folded into it: this is what separates a real failure from a silent no-op.
 			echo "LAUNCHED=$( AgentsToolsSpawnProxySawSentinel "$MDAT_SPAWN_LAUNCH_MARKER" && echo true || echo false )"
-			[ "$dispatchDocMode" != "none" ] || rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
 			## rc 5 from the console is its one structured answer: no external CLI
 			## is selected in this workspace. It is reported as its own line so a
 			## caller spawns an internal agent instead of reading the failure as a
@@ -403,6 +402,7 @@ case "$1" in
 			[ "$exitCode" != "5" ] || echo "SETUP_STATUS=cli-not-configured"
 			[ "$timedOut" = "0" ] || echo "TIMEOUT_SECONDS=$waitTimeoutSeconds"
 			[ -z "$outputFile" ] || echo "OUTPUT_FILE=$outputFile"
+			rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
 			if [ "$spawnOutcome" != "succeeded" ] ; then
 				set +e ; return 1
 			fi
@@ -420,7 +420,7 @@ case "$1" in
 				bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome"
 			fi
-			[ "$dispatchDocMode" != "none" ] || rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
+			rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
 		) > "$outputFile" 2>&1 &
 		local spawnPid=$!
 		echo "RECEIPT_ID=$receiptId"

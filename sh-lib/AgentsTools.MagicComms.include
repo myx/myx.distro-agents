@@ -199,7 +199,7 @@ case "$1" in
 				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveChannelMatches.py"
 		fi
 
-		local alias aliasTarget aliasResolved aliasRc aliasChannel aliasInfo aliasInfoOk aliasInfoErr aliasName
+		local alias aliasTarget aliasResolved aliasRc aliasChannel aliasInfo aliasInfoOk aliasInfoErr aliasName aliasNamePath
 		for alias in magic-team human-owner event-track event-alert ; do
 			aliasTarget="$alias"
 			aliasResolved="$( DistroAgentsToolsResolveTarget "$aliasTarget" )" && aliasRc=0 || aliasRc=$?
@@ -211,14 +211,23 @@ case "$1" in
 			## Unit-2 forward compatibility, INERT today -- "" until the Unit-3 flip.
 			local aliasUserId=""
 			aliasUserId="$( printf '%s\n' "$aliasResolved" | sed -n 's/^USER_ID=//p' )" || aliasUserId=""
-			aliasInfo="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info -H @- --data-urlencode "channel=$aliasChannel" <<< "$authHeader" )"
+			case "$aliasChannel" in
+				U*|W*)
+					aliasInfo="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.info -H @- --data-urlencode "user=$aliasChannel" <<< "$authHeader" )"
+					aliasNamePath=user.name
+				;;
+				*)
+					aliasInfo="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info -H @- --data-urlencode "channel=$aliasChannel" <<< "$authHeader" )"
+					aliasNamePath=channel.name
+				;;
+			esac
 			local aliasInfoOkRc=0 aliasInfoErrRc=0 aliasNameRc=0
 			aliasInfoOk=""
 			aliasInfoErr=""
 			aliasName=""
 			aliasInfoOk="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || aliasInfoOkRc=$?
 			aliasInfoErr="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path=error -v optional=1 -f "$slackJsonField" )" || aliasInfoErrRc=$?
-			aliasName="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path=channel.name -v optional=1 -f "$slackJsonField" )" || aliasNameRc=$?
+			aliasName="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path="$aliasNamePath" -v optional=1 -f "$slackJsonField" )" || aliasNameRc=$?
 			[ "$aliasInfoOkRc" = "0" ] || aliasInfoOk='-'
 			[ "$aliasNameRc" = "0" ] || aliasName='-'
 			[ "$aliasInfoErrRc" = "0" ] || aliasInfoErr='-'
