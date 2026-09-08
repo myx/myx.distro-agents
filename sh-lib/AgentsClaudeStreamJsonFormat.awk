@@ -145,7 +145,7 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 			printProgress("-> tool: " toolName)
 		} else {
 			gsub(/\n/, " ", argVal)
-			printProgress("-> tool: " toolName "(" truncateSafe(argVal, 60) ")")
+			printProgress("-> tool: " toolName "(" truncateSafe(argVal, 90) ")")
 		}
 	}
 }
@@ -157,12 +157,17 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 		if ($0 ~ /"is_error":true/) exit 1
 		exit 0
 	} else if ($0 ~ /"type":"assistant"/) {
-		if ($0 ~ /"type":"tool_use"/) {
-			reportToolCalls($0)
-		} else if ($0 ~ /"type":"thinking"/) {
+		## A turn's content array can carry a thinking block alongside tool_use
+		## blocks on the same line -- checked independently of the tool_use/text
+		## branch below so it is never silently dropped just because the same
+		## line also has a tool call.
+		if ($0 ~ /"type":"thinking"/) {
 			previewText = extractJsonField($0, "thinking", 1)
 			gsub(/\n/, " ", previewText)
 			printProgress(previewText == "" ? "thinking..." : "thinking: " truncateSafe(previewText, 160))
+		}
+		if ($0 ~ /"type":"tool_use"/) {
+			reportToolCalls($0)
 		} else if ($0 ~ /"type":"text"/) {
 			previewText = extractJsonField($0, "text", 1)
 			gsub(/\n/, " ", previewText)
