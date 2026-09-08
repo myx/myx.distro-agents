@@ -194,7 +194,7 @@ Two layers, per `magic-team/magic-team.armed.md`'s own `skillset file` term. Eac
 
 **Conversation** — a Slack thread, a chat, a live session, and a report written into one. Neither layer: the standing rules apply, plus `magic-team/magic-team.conversations.md`.
 
-**Language level and style.** Simple language, one reading rather than two. Rejected: rhetorical construction, emphasis for effect, a clever formulation where a plain one exists, a sentence needing a second read to parse, a clause whose force depends on tone.
+**Language level and style.** Simple language, one reading rather than two. Rejected: rhetorical construction, emphasis for effect, a clever formulation where a plain one exists, a sentence needing a second read to parse, a clause whose force depends on tone, and a citation, quotation, attribution chain or narration standing where the rule alone is wanted. What the text carries is instructions, rules and gotchas — structured, clean, easy to read, compact, need-to-know. A file and line a reader opens is a reference worth keeping; who found a thing, when, and in which session is not.
 
 **English UK.** Instruction-layer text is written in English UK. US spelling already landed is not a defect and is not rewritten for; only an explicit request changes that.
 

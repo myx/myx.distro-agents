@@ -676,6 +676,8 @@ They are stated here, in full, because the skillset is the only thing that carri
 
 An instruction is approved by being committed, and committed instruction text is verbatim by that fact alone — his words written into a file and the file's own words carry identical authority. Quotation marks around instruction text in a file confer nothing and are not used to claim it. Skillset text is authored rather than quoted, in every file and not only in a rule body: what he said goes to the verbatim stores the entity model provides — the exchange as a `transcript-*` in `audit/`, a standing statement as a `verbatim-*` in `vault/` — and the skillset carries what was made of it.
 
+No file carries his words verbatim, a `MAGIC.md` included. Verbatims live in two places, both live working material rather than record: a current active tracking document, and a hand-off. Everywhere else the file carries instructions, rules and gotchas, crafted from what he said. Verbatim collected during a live or iterated conversation, and across process-flow tracking-document iterations, is working material with a limited life. On approval, the approved document becomes the new and only verbatim to use and replaces all of it. The superseded material stops being authoritative: it is not merged, not kept alongside, and not cited, but only can be found in transcripts and historical IM Threads.
+
 
 
 ## Recheck before reporting
@@ -816,6 +818,9 @@ This binds everything written to a reader: a Slack message, a report, a status l
 - an incident's own history, in a report that needs its outcome
 - the process behind a status
 - an answer to what was not asked
+- a citation, a quotation, or a chain of attribution naming who found a thing, when, and in which session
+
+What a file carries is instructions, rules and gotchas — structured, clean, easy to read, compact, need-to-know. A finding is written as the rule it establishes, never as the incident that produced it. A reference earns its place only by being the anchor a reader follows to reach the thing: a file and line to open is worth keeping, an attribution is not.
 
 A number a reader needs is computed where it is emitted, never typed in — a written figure goes stale as the thing it counts changes, every place that stated the old one has to be found, and each one missed asserts a falsehood in the register of a fact.
 
@@ -862,7 +867,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - Each file-shape contract stated here is complete and self-contained, so a file's shape is read off the one contract matching its own kind, never reconstructed as a diff against another.
 - Changing what a folder's own definition *is* is a group decision, never one maintainer acting alone; executing the activity that definition describes stays free.
 - The human-owner's own standing corrections are stated here in full, because the skillset is the only thing that carries them forward — an agent's own private memory does not.
-- The human-owner's standing corrections are carried as present-tense instruction text. His own words are not quoted anywhere in the skillset; they live in the verbatim stores, and the skillset carries the crafted formulation.
+- The human-owner's standing corrections are carried as present-tense instruction text. His own words are quoted in no file, a `MAGIC.md` included; verbatim lives in the verbatim stores and in a current active tracking document or a hand-off, and an approved document becomes the new and only verbatim to use, replacing all working verbatim collected before it.
 - This file carries the durable model, not a live index of what currently exists — a live enumeration is read directly from whatever owns it rather than from a central table summarising it.
 - A rule about reaching the human-owner states what the channel must achieve, never which transport it is — the acting member resolves the transport from what the installation has configured.
 - What an answer would bind decides who sends the question: a member carries its own unblocking ask, and anything binding the team goes through `magic-coordinator`.
@@ -896,7 +901,8 @@ Used to check this file's own definitions against its own goals when it is updat
 - A mention is written into a message body and the send reports success. The message is not tagged: what the platform stored is the check, and a send path that cannot produce a real mention is reported as a defect rather than treated as having tagged anyone.
 - An unrelated fix sits next to content the human-owner has already confirmed as good. The diff is scoped to the lines actually implicated; if the fix genuinely requires touching approved content, that is said first rather than done silently.
 - An instruction of the human-owner's is confirmed or relayed. His wording is quoted verbatim, or a direct yes/no question is asked — never a summary in different words.
-- An intent of the human-owner's is being spread into the skillset. The skillset receives the crafted rule only; the words it was formed from go to the verbatim stores, and no file under a member's own folder reproduces them as a quotation.
+- An intent of the human-owner's is being spread into the skillset. The skillset receives the crafted rule only; the words it was formed from go to the verbatim stores, and no file reproduces them as a quotation — not a file under a member's own folder, and not a `MAGIC.md`. Only a current active tracking document or a hand-off carries verbatim.
+- A document of the human-owner's is approved. It becomes the new and only verbatim to use and replaces every piece of verbatim collected during the live or iterated conversation and the process-flow tracking-document iterations that produced it — none of it is merged, kept alongside, or cited afterwards.
 - A comment or annotation would be written into a file as part of an edit. Its exact wording is read back and approved first; acceptance of the surrounding change is not approval of the annotation.
 - A new operation, flag, file, key, or document type needs a name, or a new method/operation syntax is proposed. It goes via approval before it lands — internal names nobody can invoke included — and the request shows the sibling names it would join plus the adjacent sets deliberately not the same thing.
 - An operation-renaming pass runs. Flags are left untouched: an operation carries its owner's namespace, a flag does not.

@@ -679,13 +679,28 @@ Consequence for this package: the members installed at the workspace root cannot
 - `--install-skillset-symlinks` fans one member set into `.agents/skills`, `.github/skills` and `.claude/skills`, and the three are not equals: `.claude` is the primary.
 - Rules and hooks live under `.claude`. The other two carry the member set and nothing besides it.
 
+## Hooks are generated here and wired by the user
+
+- **A hook binds every agent on the machine, not only team members.** Wiring one is therefore the user's own manual decision.
+- We generate hooks. We never register them. **An op that silently wires a hook is a defect**, whatever the hook does.
+- `--install-workspace-integrations` passes an empty hooks list, and `--install-workspace-restrictions` is not called. That is the settled state, not a gap to close.
+- **A deny hook keeps every external binary out of its decision path.** The binary's absence turns the decision into allow: empty stdout and exit 0 read as permitted, so a hook that shells out to a parser denies nothing on any machine lacking it. Decide from shell builtins alone, and fail closed on anything unparsed.
+
 ## `--install-skillset-symlinks`: what a failed discovery is, and what an empty one is
 
 - The op links two member sets: the bundled one, and the one workspace projects declare. `AgentsToolsInstallScanMembers` reports on the second with two independent flags, and they answer different questions. `scanDiscoveryTrusted` asks whether the absence of a member may be acted on, and drives removal. `scanDiscoveryError` asks whether something went wrong, and drives the exit status.
-- **A selection that succeeded and came back empty sets only the first.** `ListDistroProjects --distro-source-only --select-all` exits 0 with no output for a workspace with no distro projects — measured — and with no project there is no project declaring a member, so nothing was left undone and the op exits 0. Reporting 1 there made a workspace of that shape unable to complete `--install-workspace-integrations` at all, since that op tests this one with `||`, and through it `--owner-setup-<domain> --apply`.
+- **A selection that succeeded and came back empty sets only the first.** The selection call passes `--select-all` and no input-spec flag; it exits 0 with no output for a workspace with no distro projects, and with no project there is no project declaring a member, so nothing was left undone and the op exits 0. Reporting 1 there made a workspace of that shape unable to complete `--install-workspace-integrations` at all, since that op tests this one with `||`, and through it `--owner-setup-<domain> --apply`.
 - **Removal still stays suppressed on an empty selection**, because empty is not reliably "no projects": a project whose namespace carries no `repository.inf` is never scanned, and the result is indistinguishable from a genuinely empty tree. So the run links and never removes, and says so.
 - **A genuinely failed discovery still exits 1** — the selection tool exiting non-zero, the declares tool exiting non-zero, a malformed declare, a declared member whose skillset directory is missing. Each of those leaves real work undone, which is the case fail-closed exists for.
 - The empty selection is never handed to `ListDistroDeclares --select-from-env`, which refuses one: calling it anyway printed that tool's own `⛔ ERROR` on a run that is not an error.
+
+## Reaching a `List*` tool from this package
+
+- The form is `Require <Tool> || :`, then `Distro <Tool> <args>`. Take the result as `var="$( … )" || status=$?`, which keeps `ListDistroDeclares`' own internal `set -e` inside the substitution subshell instead of leaking it into the caller.
+- Never spawn `ListDistroProjects.fn.sh` or `ListDistroDeclares.fn.sh` by path. A spawned process starts with no index environment and rebuilds every index it touches; the mechanism is in `myx.distro-system`'s own `MAGIC.md`.
+- **An `MMDAPP=` prefix on such a call is checked before it is dropped, never assumed.** Where the arm resolves through the distro context the prefix is a self-assignment no-op; where the arm reads `$MMDAPP/...` directly it is load-bearing. `DistroSourceTools --list-namespace-roots` reads `$MMDAPP/.local/roots` and is the second kind.
+- `$workspace` is `${workspaceArg:-$MMDAPP}` in both the permissions and the symlinks op, so with no `--workspace` flag an `MMDAPP="$workspace"` prefix assigns a variable to itself. No caller in this workspace's own `source` tree passes `--workspace` to either op.
+- This package is the family's known-drifted one and is never cited as precedent.
 
 ## The workspace list is machine data, and this repository is public
 

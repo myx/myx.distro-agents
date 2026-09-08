@@ -27,26 +27,30 @@ AgentsToolsInstallScanMembers(){
 		)"
 	fi
 
-	local declaresTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroDeclares.fn.sh"
-	local projectsTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroProjects.fn.sh"
 	local selectedProjects selectStatus declaredMembers declaredStatus
 
 	if [ "$scanRemoveMode" = "true" ] ; then
 		scanMemberSources=""
-	elif [ ! -f "$declaresTool" ] || [ ! -f "$projectsTool" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: missing ListDistroDeclares.fn.sh ($declaresTool) or ListDistroProjects.fn.sh ($projectsTool)" >&2
-		scanDiscoveryError="true" ; scanDiscoveryTrusted="false"
 	else
-		## Both tools write their own diagnostics to stderr, which is not captured
-		## here -- so they land on stderr beside the error line below, which names
-		## the tool and its exit status.
+		## Both tools run in-process: a spawn wipes MDSC_*, re-detects its own input
+		## spec and lands on a cache directory that is not there, rebuilding the
+		## index on every touch. Bootstrap is the one every *.fn.sh tail carries,
+		## since this op also runs with no distro context at all.
+		if [ -z "$MDLT_ORIGIN" ] || ! type DistroSystemContext >/dev/null 2>&1 ; then
+			. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-system/sh-lib/SystemContext.include"
+			DistroSystemContext --distro-path-auto
+		fi
+		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
+		Require ListDistroProjects || :
+		Require ListDistroDeclares || :
+
 		selectStatus=0
-		selectedProjects="$( MMDAPP="$scanWorkspace" "$projectsTool" --select-all )" || selectStatus=$?
+		selectedProjects="$( Distro ListDistroProjects --select-all )" || selectStatus=$?
 
 		## --select-from-env refuses an empty selection, so an empty one is never
 		## handed to it: the arm below reports that case for itself.
 		declaredStatus=0
-		[ -z "$selectedProjects" ] || declaredMembers="$( MMDAPP="$scanWorkspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --filter-and-cut 'magic-team:team-member' )" || declaredStatus=$?
+		[ -z "$selectedProjects" ] || declaredMembers="$( MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:team-member' )" || declaredStatus=$?
 
 		if [ "$selectStatus" != "0" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroProjects --select-all exited $selectStatus for workspace $scanWorkspace" >&2
@@ -301,11 +305,11 @@ case "$1" in
 		[ -n "$originRoot" ] || originRoot="$compositeRoot"
 
 		local dcMember dcSources dcCount dcLinkTarget dcSrc
-		for dcMember in $( printf '%s' "$memberSources" | awk 'NF { print $1 }' | sort -u ) ; do
-			dcSources="$( printf '%s\n' "$memberSources" | awk -v m="$dcMember" '$1 == m { sub(/^[^ ]+ /, ""); print }' )"
+		for dcMember in $( printf '%s' "$memberSources" | awk 'NF { print $1; }' | sort -u ) ; do
+			dcSources="$( printf '%s\n' "$memberSources" | awk -v m="$dcMember" '$1 == m { sub(/^[^ ]+ /, ""); print; }' )"
 			dcCount="$( printf '%s' "$dcSources" | grep -c '' )"
 
-			if printf '%s\n' "$ownedMembers" | awk -v m="$dcMember" 'NF && $1 == m { hit = 1 } END { exit !hit }' ; then
+			if printf '%s\n' "$ownedMembers" | awk -v m="$dcMember" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
 				echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: NAME COLLISION on team-member $dcMember -- it is both bundled and declared by a workspace project. The bundled copy holds the slot $targetRoot/$dcMember and stays registered; the declared source(s) below are NOT linked and NOT registered, and will be shadowed until one of the two is renamed:" >&2
 				while IFS= read -r dcSrc ; do
 					[ -n "$dcSrc" ] || continue
@@ -398,7 +402,7 @@ case "$1" in
 				[ -d "${unclaimedDir%/}" ] || continue
 				unclaimedName="$( basename "${unclaimedDir%/}" )"
 				[ "$unclaimedName" != "trash" ] || continue
-				if ! printf '%s\n' "$ownedMembers" | awk -v m="$unclaimedName" 'NF && $1 == m { hit = 1 } END { exit !hit }' ; then
+				if ! printf '%s\n' "$ownedMembers" | awk -v m="$unclaimedName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
 					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundled team-member $unclaimedName was not installed into $targetRoot and will not load" >&2
 				fi
 			done
@@ -514,7 +518,7 @@ case "$1" in
 									## rules entry (a file) and a member (a directory) alike.
 									if diff -r -q "$regResolved" "$regBundled" >/dev/null 2>&1 ; then
 										regVerdict="same"
-									elif awk -F: -v m="$regName" '$1 == m { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
+									elif awk -F: -v m="$regName" '$1 == m { hit = 1; } END { exit !hit; }' "$registryFile" 2>/dev/null ; then
 										## Content differs, but one of our own workspaces registered this
 										## member into this shared root: known, so not foreign.
 										regVerdict="ours"
@@ -546,12 +550,12 @@ case "$1" in
 				regLine="$regName:$workspaceName:$regType:$regRel"
 
 				if awk -F: -v m="$regName" -v w="$workspaceName" -v t="$regType" -v p="$regRel" '
-					$1 == m && $2 == w && $3 == t && substr( $0, length($1) + length($2) + length($3) + 4 ) == p { hit = 1 }
-					END { exit !hit }
+					$1 == m && $2 == w && $3 == t && substr( $0, length($1) + length($2) + length($3) + 4 ) == p { hit = 1; }
+					END { exit !hit; }
 				' "$registryFile" 2>/dev/null ; then
 					continue
 				fi
-				if awk -F: -v m="$regName" -v w="$workspaceName" '$1 == m && $2 == w { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
+				if awk -F: -v m="$regName" -v w="$workspaceName" '$1 == m && $2 == w { hit = 1; } END { exit !hit; }' "$registryFile" 2>/dev/null ; then
 					regTmp="$registryFile.tmp.$$"
 					if awk -F: -v m="$regName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$regTmp" ; then
 						printf '%s\n' "$regLine" >> "$regTmp"
@@ -588,7 +592,7 @@ case "$1" in
 				)"
 				while IFS=$'\t' read -r rcName rcType rcRel ; do
 					[ -n "$rcName" ] || continue
-					if printf '%s\n' "$ownedMembers" | awk -v m="$rcName" 'NF && $1 == m { hit = 1 } END { exit !hit }' ; then
+					if printf '%s\n' "$ownedMembers" | awk -v m="$rcName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
 						continue
 					fi
 
@@ -616,7 +620,7 @@ case "$1" in
 					fi
 					deletedMembers="${deletedMembers}${rcName} "
 
-					if awk -F: -v m="$rcName" '$1 == m { hit = 1 } END { exit !hit }' "$registryFile" 2>/dev/null ; then
+					if awk -F: -v m="$rcName" '$1 == m { hit = 1; } END { exit !hit; }' "$registryFile" 2>/dev/null ; then
 						continue
 					fi
 					case "$rcType" in
@@ -656,7 +660,7 @@ case "$1" in
 				## a rules file is not a skill member -- keep it out of the
 				## foreign-members table/count the same as everywhere else below
 				case " $rulesNames " in *" $regLineName "*) continue ;; esac
-				printf '%s\n' "$ownedMembers" | awk -v m="$regLineName" 'NF && $1 == m { hit = 1 } END { exit !hit }' && continue
+				printf '%s\n' "$ownedMembers" | awk -v m="$regLineName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' && continue
 				foreignMembers="${foreignMembers}${regLineName} "
 			done < "$registryFile"
 		fi
@@ -796,43 +800,44 @@ case "$1" in
 		[ -z "${MDAT_DATA_ROOT:-}" ] || boardRoot="$MDAT_DATA_ROOT/board"
 
 		## Declared allow-write grants, discovered exactly as --install-skillset-symlinks
-		## discovers team-members: the same two sanctioned tools by absolute path, the
-		## same env handoff, and the same trust rule -- an unreadable or empty scan is
-		## never read as "every grant disappeared", so revocation stays suppressed.
-		local declaresTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroDeclares.fn.sh"
-		local projectsTool="$MDLT_ORIGIN/myx/myx.distro-system/sh-scripts/ListDistroProjects.fn.sh"
+		## discovers team-members: the same two tools in-process, and the same trust
+		## rule -- an unreadable or empty scan is never read as "every grant
+		## disappeared", so revocation stays suppressed.
 		local grantsTrusted="true"
 		local selectedProjects declaredNamespace declaredWorkspace declaredProject selectStatus declaredStatus
-		if [ ! -f "$declaresTool" ] || [ ! -f "$projectsTool" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: COULD-NOT-CHECK declared allow-write: missing ListDistroDeclares.fn.sh ($declaresTool) or ListDistroProjects.fn.sh ($projectsTool)" >&2
+		if [ -z "$MDLT_ORIGIN" ] || ! type DistroSystemContext >/dev/null 2>&1 ; then
+			. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-system/sh-lib/SystemContext.include"
+			DistroSystemContext --distro-path-auto
+		fi
+		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
+		Require ListDistroProjects || :
+		Require ListDistroDeclares || :
+
+		selectStatus=0
+		selectedProjects="$( Distro ListDistroProjects --select-all )" || selectStatus=$?
+
+		## --select-from-env refuses an empty selection, so an empty one is never
+		## handed to it: the arm below reports that case for itself.
+		declaredStatus=0
+		## One cut per scope kind: each scope's selector has its own vocabulary,
+		## and only `project` uses the estate's four-form resolver. That resolver
+		## is --unroll-filter-and-cut (SystemContext.include), the same mechanism
+		## ndci-common-hook already goes through -- never a matcher written here.
+		if [ -n "$selectedProjects" ] ; then
+			declaredNamespace="$( MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:namespace' )" || declaredStatus=$?
+			declaredWorkspace="$( MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:workspace' )" || declaredStatus=$?
+			declaredProject="$( MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --unroll-filter-and-cut 'magic-team:permissions:project:' cat )" || declaredStatus=$?
+		fi
+
+		if [ "$selectStatus" != "0" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: COULD-NOT-CHECK declared allow-write: ListDistroProjects --select-all exited $selectStatus for workspace $workspace" >&2
 			grantsTrusted="false"
-		else
-			selectStatus=0
-			selectedProjects="$( MMDAPP="$workspace" "$projectsTool" --select-all )" || selectStatus=$?
-
-			## --select-from-env refuses an empty selection, so an empty one is never
-			## handed to it: the arm below reports that case for itself.
-			declaredStatus=0
-			## One cut per scope kind: each scope's selector has its own vocabulary,
-			## and only `project` uses the estate's four-form resolver. That resolver
-			## is --unroll-filter-and-cut (SystemContext.include), the same mechanism
-			## ndci-common-hook already goes through -- never a matcher written here.
-			if [ -n "$selectedProjects" ] ; then
-				declaredNamespace="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --filter-and-cut 'magic-team:permissions:namespace' )" || declaredStatus=$?
-				declaredWorkspace="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --filter-and-cut 'magic-team:permissions:workspace' )" || declaredStatus=$?
-				declaredProject="$( MMDAPP="$workspace" MDSC_SELECT_PROJECTS="$selectedProjects" "$declaresTool" --select-from-env --unroll-filter-and-cut 'magic-team:permissions:project:' cat )" || declaredStatus=$?
-			fi
-
-			if [ "$selectStatus" != "0" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: COULD-NOT-CHECK declared allow-write: ListDistroProjects --select-all exited $selectStatus for workspace $workspace" >&2
-				grantsTrusted="false"
-			elif [ -z "$selectedProjects" ] ; then
-				echo "🙋 WARNING: $MDSC_CMD --install-claude-permissions: workspace $workspace selects no distro projects, so none declares an allow-write grant -- nothing is removed" >&2
-				grantsTrusted="false"
-			elif [ "$declaredStatus" != "0" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: COULD-NOT-CHECK declared allow-write: ListDistroDeclares --filter-and-cut exited $declaredStatus for workspace $workspace" >&2
-				grantsTrusted="false"
-			fi
+		elif [ -z "$selectedProjects" ] ; then
+			echo "🙋 WARNING: $MDSC_CMD --install-claude-permissions: workspace $workspace selects no distro projects, so none declares an allow-write grant -- nothing is removed" >&2
+			grantsTrusted="false"
+		elif [ "$declaredStatus" != "0" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: COULD-NOT-CHECK declared allow-write: ListDistroDeclares --filter-and-cut exited $declaredStatus for workspace $workspace" >&2
+			grantsTrusted="false"
 		fi
 
 		## Layout is `<scope>:<selector>:<verb>:<member>[:<glob>]`, and the scope's own
@@ -868,7 +873,7 @@ case "$1" in
 				while IFS= read -r gOne ; do
 					[ -n "$gOne" ] || continue
 					grantRows="${grantRows}${gMember}:${workspaceName}:namespace:Edit(/${workspace}/source/${gOne}/**)"$'\n'
-				done <<< "$( printf '%s\n' "$selectedProjects" | LC_ALL=C awk -F/ 'NF { if (!seenNamespace[$1]++) print $1 }' )"
+				done <<< "$( printf '%s\n' "$selectedProjects" | LC_ALL=C awk -F/ 'NF { if (!seenNamespace[$1]++) print $1; }' )"
 				continue
 			fi
 			grantRows="${grantRows}${gMember}:${workspaceName}:namespace:Edit(/${workspace}/source/${gSel}/**)"$'\n'
@@ -984,9 +989,10 @@ case "$1" in
 		## a dispatched member has to be able to reach the session that dispatched
 		## it, and a spawn it made, without a prompt interrupting an unattended run.
 		local staticAllowJson='["mcp__myx_distro__execute", "Agent", "Task", "SendMessage"]'
-		## Native Slack MCP tool, hard-blocked -- separate path from the team's
-		## own sanctioned --member-comms-slack-* Bash ops, which this cannot reach.
-		local denyAddJson='["mcp__claude_ai_Slack"]'
+		## Bash: removed outright, so mcp__myx_distro__execute is the only shell
+		## path. Native Slack MCP tool, hard-blocked -- separate path from the
+		## team's own sanctioned --member-comms-slack-* ops, which this cannot reach.
+		local denyAddJson='["Bash", "mcp__claude_ai_Slack"]'
 
 		## Member real dirs come from the single access-root source
 		## (AgentsTools.ClientAccessRoots.include), shared with the copilot launch
@@ -1104,10 +1110,14 @@ case "$1" in
 # message. Sibling to protect-memory-md.sh (Edit/Write) -- kept as its own
 # file rather than merged into it, so that already-verified script is never
 # touched by an unrelated change.
-INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+# Builtins only, nothing read from PATH: an absent jq or cat left the path
+# empty, matched nothing and exited 0, which Claude Code reads as allow --
+# so the guard silently stopped guarding on any host without them.
+IFS= read -r -d '' hookInput
 
-if [[ "$FILE_PATH" == */.claude/projects/*/memory/MEMORY.md ]]; then
+# The closing quote anchors the end of the JSON string value, so a path that
+# merely starts with it (MEMORY.md.bak) is not matched.
+if [[ "$hookInput" == *'/.claude/projects/'*'/memory/MEMORY.md"'* ]]; then
 	echo '{
 		"hookSpecificOutput": {
 			"hookEventName": "PreToolUse",
@@ -1168,7 +1178,13 @@ HOOKEOF
 		## deny rules and hooks above are silently not in force. A relative
 		## symlink keeps the one generated `.claude` the single source of truth.
 		local nsListed nsRoot nsLink nsActual nsDir
-		nsListed="$( MMDAPP="$workspace" "$MDLT_ORIGIN/myx/myx.distro-source/sh-scripts/DistroSourceTools.fn.sh" --list-namespace-roots 2>/dev/null | tr '\n' ' ' )"
+		if [ -z "$MDLT_ORIGIN" ] || ! type DistroSystemContext >/dev/null 2>&1 ; then
+			. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-system/sh-lib/SystemContext.include"
+			DistroSystemContext --distro-path-auto
+		fi
+		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
+		Require DistroSourceTools || :
+		nsListed="$( Distro DistroSourceTools --list-namespace-roots 2>/dev/null | tr '\n' ' ' )"
 		if [ -z "$nsListed" ] ; then
 			## Same trust rule the member scan above follows: an unreadable or empty
 			## list is never read as "every namespace disappeared", so nothing goes.
@@ -1661,9 +1677,15 @@ HOOKEOF
 			fi
 		fi
 
+		if [ -z "$MDLT_ORIGIN" ] || ! type DistroSystemContext >/dev/null 2>&1 ; then
+			. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-system/sh-lib/SystemContext.include"
+			DistroSystemContext --distro-path-auto
+		fi
+		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
+		Require DistroSourceTools || :
 		if [ ! -x "$workspace/DistroSourceConsole.sh" ] ; then
 			echo "🙋 WARNING: code-workspace not regenerated, no executable DistroSourceConsole.sh -- chat.agentSkillsLocations stays absent" >&2
-		elif ! echo 'DistroSourceTools.fn.sh --make-code-workspace --quiet' | "$workspace/DistroSourceConsole.sh" --non-interactive >&2 ; then
+		elif ! Distro DistroSourceTools --make-code-workspace --quiet >&2 ; then
 			echo "⛔ ERROR: code-workspace regeneration (DistroSourceTools --make-code-workspace) failed for $workspace" >&2
 			failed=1
 		else
