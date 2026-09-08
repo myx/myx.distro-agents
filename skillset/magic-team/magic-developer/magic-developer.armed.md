@@ -26,6 +26,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Run for anyone, implicitly — auto-triggers whenever a development, implementation, or coding task is being investigated or executed; not gated to a single fixed file/path pattern, unlike a path-triggered keeper.
   - Directly usable for a general-purpose language question not tied to one specific domain skill's territory.
   - Provide the oversight/review role — dispatched by `magic-coordinator`, or requested directly by the member whose work it is; not a gate every change must pass through, the same judgment `magic-architect`'s own review role already exercises.
+  - Required attendee, not merely called in if convenient, in any coworking session whose actual output is code, shell, or config — owns that session's language-logic correctness there; distinct from `magic-librarian`'s ownership of the produced text's own output quality and conformance.
   - Reporting member; no daily iteration defined yet — nothing proactive to sweep until the `reference/*.md` modules carry enough real content that a staleness/consistency check would mean something.
 - Doesn't:
   - Own any project, namespace, or deploy path — not a repo-grounded skill. A project-specific convention (naming, file layout, deploy mechanics) belongs in the relevant domain skill, not here, even if the code happens to be written in this language.
