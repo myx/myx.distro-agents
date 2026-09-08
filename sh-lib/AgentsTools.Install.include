@@ -114,6 +114,29 @@ AgentsToolsInstallClassifyTarget(){
 	esac
 }
 
+## Resolves the icon for a --install-skillset-symlinks / --install-skillset-report-render row's
+## MEMBER column ($1) into the caller's `reportWho`, the same assign-to-caller-var shape
+## AgentsToolsInstallClassifyTarget uses for classifyHome/classifyWspace. $2, when non-empty, is
+## the member's own already-resolved explicit/custom icon -- it always wins over the name-prefix
+## default below and is passed straight through untouched. No caller wires a $2 in yet (there is
+## no explicit-icon source plumbed into this report today); the parameter exists so a future one
+## has a seam here without another edit to the four call sites.
+AgentsToolsInstallReportIcon(){
+	local iconName="$1" iconExplicit="$2"
+	if [ -n "$iconExplicit" ] ; then
+		reportWho="$iconExplicit"
+		return 0
+	fi
+	case "$iconName" in
+		client-*)          reportWho="👥" ;;
+		partner-*)         reportWho="🧑‍💻" ;;
+		keeper-*|warden-*) reportWho="🔏" ;;
+		human-owner)       reportWho="👤" ;;
+		magic-*)           reportWho="🤖" ;;
+		*)                 reportWho="🤖" ;;
+	esac
+}
+
 case "$1" in
 
 	--install-skillset-symlinks)
@@ -676,9 +699,7 @@ case "$1" in
 						case " $rulesNames " in *" $reportName "*) continue ;; esac
 						## the slot is read back after any relink this run, so the row says where the link resolves now
 						reportTarget="$( readlink "$targetRoot/$reportName" 2>/dev/null )" || reportTarget=""
-						## `status: reference-only` marks the non-acting human record; every acting member is `active`
-						reportWho="🤖"
-						if grep -q '^status: reference-only' "${reportTarget:-${reportEntry#* }}/SKILL.md" 2>/dev/null ; then reportWho="👤" ; fi
+						AgentsToolsInstallReportIcon "$reportName"
 						AgentsToolsInstallClassifyTarget "$reportTarget" "$workspace"
 						reportHome="$classifyHome" ; reportWspace="$classifyWspace"
 						case " $newLinks " in
@@ -688,17 +709,18 @@ case "$1" in
 					done <<< "$ownedMembers"
 					for reportName in $errorMembers ; do
 						case " $rulesNames " in *" $reportName "*) continue ;; esac
-						printf '%s\t%s\t%s\t%s\t%s\n' "$reportName" "error" "🤖" "-" "-"
+						AgentsToolsInstallReportIcon "$reportName"
+						printf '%s\t%s\t%s\t%s\t%s\n' "$reportName" "error" "$reportWho" "-" "-"
 					done
 					for reportName in $deletedMembers ; do
 						case " $rulesNames " in *" $reportName "*) continue ;; esac
-						printf '%s\t%s\t%s\t%s\t%s\n' "$reportName" "deleted" "🤖" "-" "-"
+						AgentsToolsInstallReportIcon "$reportName"
+						printf '%s\t%s\t%s\t%s\t%s\n' "$reportName" "deleted" "$reportWho" "-" "-"
 					done
 					for reportName in $foreignMembers ; do
 						case " $rulesNames " in *" $reportName "*) continue ;; esac
 						reportTarget="$( readlink "$targetRoot/$reportName" 2>/dev/null )" || reportTarget=""
-						reportWho="🤖"
-						if [ -n "$reportTarget" ] && grep -q '^status: reference-only' "$reportTarget/SKILL.md" 2>/dev/null ; then reportWho="👤" ; fi
+						AgentsToolsInstallReportIcon "$reportName"
 						AgentsToolsInstallClassifyTarget "$reportTarget" "$workspace"
 						reportHome="$classifyHome" ; reportWspace="$classifyWspace"
 						printf '%s\t%s\t%s\t%s\t%s\n' "$reportName" "kept" "$reportWho" "$reportHome" "$reportWspace"
