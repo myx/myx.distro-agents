@@ -175,27 +175,28 @@ WAIT: no
 ### Receipt packet (required)
 
 ```text
-RECEIPT_ID=<id>
-RECEIPT_FILE=<path>
+RECEIPT_ID=<correlation-id>
+DISPATCH_DOC=<create|reuse|none>
+TRACKING_ITEM=<board-item-name>
+DISPATCH_ITEM=<board-item-name>
 STATUS=<started|succeeded|failed>
-PID=<pid-if-async>
-EXIT_CODE=<code-if-wait>
+PID=<pid>
+EXIT_CODE=<code>
 OUTPUT_FILE=<path>
 ```
 
-Exact formatted example:
+Example — the async, stdin-body path this routine takes by default, so no item key:
 
 ```text
-RECEIPT_ID=heartbeat-20260806T095318Z-9f3a1c2e
-RECEIPT_FILE=/runtime/md/heartbeats/receipts/heartbeat-20260806T095318Z-9f3a1c2e.receipt
+RECEIPT_ID=spawn-proxy-20260908T072500-48217
+DISPATCH_DOC=none
 STATUS=started
-PID=48217
-EXIT_CODE=
-OUTPUT_FILE=/runtime/md/heartbeats/receipts/heartbeat-20260806T095318Z-9f3a1c2e.output
+PID=48219
+OUTPUT_FILE=<audit-dir>/spawn-proxy-20260908T072500-48217.output.log
 ```
 
-- `RECEIPT_ID` and `RECEIPT_FILE` are mandatory outputs on every call.
-- This routine's caller records receipt evidence on the related board item as `execution-receipt`.
+- Printed on every call: `RECEIPT_ID`, `DISPATCH_DOC`, `STATUS`, `OUTPUT_FILE`. `TRACKING_ITEM` accompanies `DISPATCH_DOC=reuse` and `DISPATCH_ITEM` accompanies `create`, while `none` prints neither; `PID` accompanies the async path and `EXIT_CODE` the `--wait` path. There is no `RECEIPT_FILE` key — a pass looking for one finds nothing on every path.
+- `RECEIPT_ID` is the correlation id, and it is what this routine's caller records on the related board item as `execution-receipt`. `OUTPUT_FILE` names the spawned session's own raw stdout/stderr log — read it to find out what that session actually did.
 - `WAIT: no` is default path (async, `STATUS=started`); `WAIT: yes` is for explicit blocking cases.
 - Any spawn-required branch that cannot produce a successful proxy call in the same pass is a hard execution failure and must follow `magic-coordinator.advance.routine` parked fallback (never silent defer).
 
@@ -267,7 +268,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-heartbeat-state-read <team-member>` (**read-state-and-branch**: read the `heartbeat-state-note`)
 - `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (**use-direct-tooling-calls** and **run-one-bounded-substep**: rewrite the `heartbeat-state-note`)
 - `--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` (GC step: relocate a terminal board-item to `trash/`)
-- `--magic-heartbeat-spawn-proxy <team-member> [--from-file <path>|--wait]` (spawn relay used by unattended heartbeat/advance execution paths)
+- `--magic-heartbeat-spawn-proxy <team-member> [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]` (spawn relay used by unattended heartbeat/advance execution paths)
 - `--magic-heartbeat-sleep-run` (called in `main-loop-mode`'s **pace-between-iterations** step, before that step's own `sleep` — see `magic-coordinator.armed.md`)
 
 ## `--member-comms-slack-send-message` operation reference
@@ -312,7 +313,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-heartbeat-spawn-proxy` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-file <path>|--wait]` — executes a spawn prompt through `DistroAgentsConsole.sh` and writes a runtime receipt (`RECEIPT_ID`/`RECEIPT_FILE`, plus `OUTPUT_FILE`) for per-item execution accounting. Body source is exactly one of stdin (default) or `--from-file <path>`; empty body is rejected. Default mode is async (`STATUS=started` + `PID`), while `--wait` blocks for completion and returns non-zero on failure.
+`DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]` — executes a spawn prompt through `DistroAgentsConsole.sh` and prints the receipt packet above for per-item execution accounting. Body source is exactly one of stdin (default), `--from-file <path>`, `--from-board <board-item-name>`, `--from-vault <vault-item-name>` or `--from-audit <audit-item-name>`; empty body is rejected. Default mode is async (`STATUS=started` + `PID`), while `--wait` blocks for completion and returns non-zero on failure.
 
 # Maintainer Notes
 

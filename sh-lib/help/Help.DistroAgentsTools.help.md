@@ -3169,7 +3169,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-heartbeat-spawn-proxy <team-member> [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]
+		--magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]
 			Heartbeat/advance spawn relay: executes a spawn prompt through
 			DistroAgentsConsole.sh. Prompt body source is stdin (default),
 			--from-file, --from-board, --from-vault, or --from-audit
@@ -3181,11 +3181,13 @@
 			returns 0 bytes and the call fails with "empty spawn context"
 			straight away. Use --from-file <path> where redirecting is
 			awkward. Stdin is how the CONSOLE receives the body, not how
-			the spawned session does: the console hands it to the CLI as a
-			single -p <prompt> argument, so the whole brief is on that
-			process's command line and is visible in ps on the host. Keep
-			no secret in a spawn brief. The body is not parsed here -- no
-			field inside it selects a mode, `--wait` included.
+			the spawned session does: the console puts the brief on the
+			CLI's own command line, so the whole of it is visible in ps on
+			the host. How differs by CLI -- copilot takes it as the value
+			of -p, claude as a positional operand after -p --, because
+			claude's -p is a boolean flag and its prompt is positional.
+			Keep no secret in a spawn brief. The body is not parsed here --
+			no field inside it selects a mode, `--wait` included.
 
 			Dispatch-document handling is an explicit choice on the
 			underlying --intern-op-agent-spawn-proxy primitive
@@ -3218,10 +3220,35 @@
 			(create|reuse|none) always; then TRACKING_ITEM on the reuse
 			path or DISPATCH_ITEM on the create path (none-mode prints
 			neither); STATUS always, accompanied by PID on the async path
-			and by EXIT_CODE on the --wait path; and OUTPUT_FILE always —
-			the spawned process's own raw stdout/stderr, written under
-			`$MDAT_DATA_ROOT/audit/<YYYY-MM>/`. No RECEIPT_FILE key is
-			written or printed on any path.
+			and by EXIT_CODE and LAUNCHED on the --wait path; and
+			OUTPUT_FILE always — the spawned process's own raw
+			stdout/stderr, written under
+			`$MDAT_DATA_ROOT/audit/<YYYY-MM>/`. Two more are conditional,
+			both on the --wait path: SETUP_STATUS=cli-not-configured when
+			the console reports rc 5 because this workspace selects no
+			external CLI, and TIMEOUT_SECONDS=<seconds> when the wait
+			bound fired and the spawn was killed. SETUP_STATUS also prints
+			as console-stale, on either path, when the deployed console is
+			too old to start a configured spawn or to signal its launch --
+			that one is refused before anything is spawned. No
+			RECEIPT_FILE key is written or printed on any path.
+
+			On the --wait path STATUS=succeeded means all three of: the
+			child exited 0, the wait bound did not fire, and a launch
+			actually happened; anything else is STATUS=failed. The status
+			written to the tracking document takes that same gate, so the
+			board item and the caller cannot disagree. LAUNCHED=true|false
+			prints beside it and is never folded into it -- that is what
+			separates a real failure from a silent no-op where nothing
+			started at all. LAUNCHED is a --wait key only: the async path
+			returns STATUS=started before any of this is known, and prints
+			no LAUNCHED.
+
+			The launch signal itself is carried out of band from the
+			agent's own output, so a body that reproduces the console's
+			own stdout announce line does not count as a launch. That
+			DISTRO_CONSOLE_EXEC= line still prints and still serves the
+			owner health checks; it is no longer what decides success.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

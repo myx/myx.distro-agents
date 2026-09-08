@@ -253,16 +253,19 @@ fi
 
 if [ "$1" == "--non-interactive" ] ; then
 	shift
+	## -- closes the option list for claude, whose prompt is positional; copilot's -p takes the body as its value.
 	case "$DAGC_CLI" in
-		copilot) DAGC_NONINTERACTIVE_PERM_FLAGS="--allow-all-tools" ;;
-		*) DAGC_NONINTERACTIVE_PERM_FLAGS="" ;;
+		copilot) DAGC_NONINTERACTIVE_PERM_FLAGS="--allow-all-tools" ; DAGC_PROMPT_ARGS=( -p ) ;;
+		*) DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=( -p -- ) ;;
 	esac
+	## The launch signal, on its own channel: the stdout line below shares a stream with the agent's own output.
+	[ -z "$MDAT_SPAWN_LAUNCH_MARKER" ] || printf '%s\n' "$DAGC_CLI" > "$MDAT_SPAWN_LAUNCH_MARKER"
 	if [ $# -gt 0 ] ; then
 		echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-		exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" -p "$*"
+		exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$*"
 	fi
 	echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-	exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" -p "$( cat )"
+	exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$( cat )"
 fi
 
 echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"

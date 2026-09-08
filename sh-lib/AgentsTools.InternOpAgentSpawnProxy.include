@@ -5,22 +5,35 @@
 ## primitive for agent/routine wrappers. No --help entry.
 ##
 
-## Success proof: the launcher prints DISTRO_CONSOLE_EXEC= only on a real exec.
-## Its absence in captured output = silent no-op (rc=0 included) = failure.
+## Launch proof: only the launcher creates the file named by MDAT_SPAWN_LAUNCH_MARKER,
+## so no agent output can forge one. A launch, never a success.
 AgentsToolsSpawnProxySawSentinel(){
-	[ -n "$1" ] && grep -q '^DISTRO_CONSOLE_EXEC=' "$1" 2>/dev/null
+	[ -n "$1" ] && [ -s "$1" ]
 }
 
-## The agent CLI this spawn actually ran on, read back out of the same
-## DISTRO_CONSOLE_EXEC= sentinel the launcher prints immediately before it
-## execs. Deliberately read from the child's own output rather than recomputed
+## The agent CLI this spawn actually ran on, read out of that same marker file.
+## Deliberately read from what the launcher recorded rather than recomputed
 ## here: the console owns the --cli/SPAWN_CLI_SERVICE/auto-scan resolution, so
 ## anything computed on this side could disagree with what actually ran, and an
 ## announcement that can disagree with the run is worse than none. Empty when
 ## no exec happened, which is the same condition SawSentinel calls a failure.
 AgentsToolsSpawnProxyExecutedCli(){
-	[ -n "$1" ] || return 0
-	LC_ALL=C sed -n 's/^DISTRO_CONSOLE_EXEC=//p' "$1" 2>/dev/null | head -n 1
+	local markerCli=""
+	if [ -n "$1" ] && [ -s "$1" ] ; then
+		IFS= read -r markerCli < "$1" || :
+	fi
+	printf '%s' "$markerCli"
+	return 0
+}
+
+## Succeeded means all three: the child exited 0, the bound did not fire, and a launch really happened.
+AgentsToolsSpawnProxyOutcome(){
+	local childExit="$1" markerFile="$2" childTimedOut="$3"
+	if [ "$childTimedOut" = "0" ] && [ "$childExit" = "0" ] && AgentsToolsSpawnProxySawSentinel "$markerFile" ; then
+		echo succeeded
+	else
+		echo failed
+	fi
 }
 
 ## One line, on stderr, naming the AI service this spawn actually used -- so a
@@ -34,9 +47,8 @@ AgentsToolsSpawnProxyAnnounceCli(){
 }
 
 AgentsToolsSpawnProxyCloseDispatch(){
-	local itemName="$1" briefBody="$2" childExit="$3" childOutputFile="$4"
-	local outcome currentBody resultBody
-	outcome="$( AgentsToolsSpawnProxySawSentinel "$childOutputFile" && echo succeeded || echo failed )"
+	local itemName="$1" briefBody="$2" childExit="$3" childOutputFile="$4" outcome="$5"
+	local currentBody resultBody
 	currentBody="$( DistroAgentsTools --intern-op-data-read "$itemName" \
 		--lookup-folder "$MDAT_DATA_ROOT/board/running" \
 		--context --intern-op-agent-spawn-proxy )" || currentBody="$briefBody"
@@ -260,9 +272,9 @@ case "$1" in
 		## arm cannot answer that -- it breaks out of its own option loop, runs its
 		## hardcoded default interactively and still prints the success sentinel -- so
 		## it is refused here rather than invoked.
-		if ! grep -q 'cli-configured' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null ; then
+		if ! grep -q 'cli-configured' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null || ! grep -q 'MDAT_SPAWN_LAUNCH_MARKER' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null ; then
 			echo "SETUP_STATUS=console-stale"
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $MMDAPP/DistroAgentsConsole.sh predates --cli-configured, so a configured spawn cannot be started here. Spawn an internal agent instead, or regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-workspace-integrations" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $MMDAPP/DistroAgentsConsole.sh predates --cli-configured or MDAT_SPAWN_LAUNCH_MARKER, so a configured spawn cannot be started here, or its launch could not be told apart from a silent no-op. Spawn an internal agent instead, or regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
 			set +e ; return 1
 		fi
 
@@ -294,6 +306,8 @@ case "$1" in
 			set +e ; return 1
 		}
 		outputFile="$auditDir/$receiptId.output.log"
+		## Its own channel: only the launcher writes it, so no agent output can reach it.
+		export MDAT_SPAWN_LAUNCH_MARKER="$auditDir/$receiptId.launch"
 
 		local dispatchItemName="" dispatchBriefBody=""
 		if [ "$dispatchDocMode" = "create" ] ; then
@@ -350,14 +364,11 @@ case "$1" in
 			wait "$watchPid" 2>/dev/null
 			timedOut=$?
 			set -e
-			local sawSentinel="false"
-			AgentsToolsSpawnProxySawSentinel "$outputFile" && sawSentinel="true"
-			## The sentinel proves an exec happened, never that it finished; a killed
-			## spawn prints it and then hangs, so a timeout is not a success.
-			[ "$timedOut" = "0" ] || sawSentinel="false"
-			AgentsToolsSpawnProxyAnnounceCli "$outputFile"
+			local spawnOutcome
+			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )"
+			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
 			if [ "$dispatchDocMode" = "create" ] ; then
-				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile"
+				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome"
 			fi
 			echo "RECEIPT_ID=$receiptId"
 			echo "DISPATCH_DOC=$dispatchDocMode"
@@ -365,8 +376,10 @@ case "$1" in
 				create) echo "DISPATCH_ITEM=$dispatchItemName" ;;
 				reuse)  echo "TRACKING_ITEM=$trackedItemName" ;;
 			esac
-			echo "STATUS=$( [ "$sawSentinel" = "true" ] && echo succeeded || echo failed )"
+			echo "STATUS=$spawnOutcome"
 			echo "EXIT_CODE=$exitCode"
+			## Kept beside the status, never folded into it: this is what separates a real failure from a silent no-op.
+			echo "LAUNCHED=$( AgentsToolsSpawnProxySawSentinel "$MDAT_SPAWN_LAUNCH_MARKER" && echo true || echo false )"
 			## rc 5 from the console is its one structured answer: no external CLI
 			## is selected in this workspace. It is reported as its own line so a
 			## caller spawns an internal agent instead of reading the failure as a
@@ -374,7 +387,7 @@ case "$1" in
 			[ "$exitCode" != "5" ] || echo "SETUP_STATUS=cli-not-configured"
 			[ "$timedOut" = "0" ] || echo "TIMEOUT_SECONDS=$waitTimeoutSeconds"
 			echo "OUTPUT_FILE=$outputFile"
-			if [ "$sawSentinel" != "true" ] ; then
+			if [ "$spawnOutcome" != "succeeded" ] ; then
 				set +e ; return 1
 			fi
 			return 0
@@ -385,9 +398,11 @@ case "$1" in
 			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-configured --non-interactive <<< "$spawnContext"
 			bgExitCode=$?
 			set -e
-			AgentsToolsSpawnProxyAnnounceCli "$outputFile"
+			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
 			if [ "$dispatchDocMode" = "create" ] ; then
-				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile"
+				## Nothing bounds this branch, so nothing timed out: 0 is the fact, not a placeholder.
+				bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
+				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome"
 			fi
 		) > "$outputFile" 2>&1 &
 		local spawnPid=$!
