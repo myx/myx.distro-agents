@@ -43,7 +43,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh [--help]" >&2
 case "$1" in
 
 	--help-syntax)
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-sweep-input-scan <client-* member> [--comms-since-utime <v>|--comms-since-date-time <v>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-send <channel> [-- <command...>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-start [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]" >&2

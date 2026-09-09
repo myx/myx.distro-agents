@@ -15,7 +15,7 @@ case "$1" in
 		local clientMember="$1"
 		shift || true
 		if [ -z "$clientMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <client-* member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$clientMember" "<team-member>" client-sweep-input-scan || { set +e ; return 1 ; }
@@ -55,11 +55,11 @@ case "$1" in
 					shift 2
 				;;
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: invalid option: $1 -- syntax is <client-* member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.shared.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: invalid option: $1 -- syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.shared.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <client-* member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.shared.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.shared.md" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -123,7 +123,7 @@ case "$1" in
 		local checkMember="$1"
 		shift || true
 		if [ -z "$checkMember" ] || [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: syntax is <client-* member>" >&2
+			echo "⛔ ERROR: $MDSC_CMD --client-sweep-config-check: syntax is <team-member>" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$checkMember" "<team-member>" client-sweep-config-check || { set +e ; return 1 ; }

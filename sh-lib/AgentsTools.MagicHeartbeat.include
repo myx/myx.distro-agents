@@ -42,11 +42,10 @@ case "$1" in
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 		printf '\n%s\n\n' "## board digest"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
-			--state running --state blocked \
+			--state running \
 			--all-types \
 			--header status \
-			--do-inbox-inquiry-active --do-inbox-reflections \
-			--do-inbox-notes --do-inbox-other \
+			--do-inbox-reflections \
 			--context --magic-heartbeat-input-scan
 		return $?
 	;;

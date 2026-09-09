@@ -2865,7 +2865,7 @@
 			does not call this op as well. Outputs the record content, or
 			`NO_RECORD` if none is stored yet. Read-only.
 
-		--client-sweep-input-scan <client-* member> [--comms-since-utime <v>|--comms-since-date-time <v>]
+		--client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]
 			Read-only: one client-* member's own incoming
 			external communications -- Slack, email and Trello -- read as
 			that member, under that member's own credentials, from that

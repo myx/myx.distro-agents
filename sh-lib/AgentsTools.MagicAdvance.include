@@ -140,7 +140,7 @@ case "$1" in
 		for advanceClientDir in "$MDAT_SKILLSET_ROOT"/client-* ; do
 			if [ -d "$advanceClientDir" ] ; then
 				advanceClientName="${advanceClientDir##*/}"
-				AgentsToolsAssertBareName "$advanceClientName" "<client-* member>" magic-advance-input-scan || { set +e ; return 1 ; }
+				AgentsToolsAssertBareName "$advanceClientName" "<team-member>" magic-advance-input-scan || { set +e ; return 1 ; }
 				## The acting member's own inbox is already the scan's first section.
 				if [ "$advanceClientName" != "$callingMember" ] ; then
 					advanceInboxAlso+=( --do-inbox-also-member "$advanceClientName" )
