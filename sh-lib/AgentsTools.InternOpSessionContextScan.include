@@ -260,7 +260,7 @@ case "$1" in
 		fi
 
 		if [ ${#states[@]} -eq 0 ] ; then
-			states=( backlog pending running blocked parked processed archived retained )
+			states=( none )
 		fi
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
