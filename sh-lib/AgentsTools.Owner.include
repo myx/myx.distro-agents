@@ -401,7 +401,7 @@ case "$1" in
 		## a change to the engine. A domain's subject is its own name.
 		local setupDeclareArgs=()
 		case "$setupDomain" in
-			claude|copilot)
+			claude|copilot|scaleway)
 				## SPAWN_CLI_SERVICE is not declared required: the service selection
 				## below is what sets it, so requiring it too would refuse the very
 				## call that supplies it. It does block a spawn, and the arm below
@@ -417,6 +417,12 @@ case "$1" in
 				)
 				## Declared only where myx.common carries the installer; copilot has none.
 				[ "$setupDomain" != "claude" ] || setupDeclareArgs+=( --install-command "myx.common install/$setupDomain" )
+				## scaleway has no real binary at all -- `command -v scaleway` would
+				## never pass on any machine -- so its own presence check is this
+				## package's own harness script shipping with the release, not PATH.
+				## Appended after the shared probe above so its assignment wins (the
+				## engine takes the last --install-probe it is given).
+				[ "$setupDomain" != "scaleway" ] || setupDeclareArgs+=( --install-probe "test -f $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh" )
 				## Its own credential, under the CLI's own variable name, because
 				## that name is what the generated console exports and the CLI then
 				## reads -- one string, so nothing maps and nothing drifts. Never
@@ -425,8 +431,9 @@ case "$1" in
 				## all. What is authenticated is asked of the CLI in the arm below,
 				## which is the only answer that is worth anything.
 				case "$setupDomain" in
-					claude)  setupDeclareArgs+=( --allow ANTHROPIC_API_KEY --allow CLAUDE_CODE_OAUTH_TOKEN ) ;;
-					copilot) setupDeclareArgs+=( --allow COPILOT_GITHUB_TOKEN ) ;;
+					claude)   setupDeclareArgs+=( --allow ANTHROPIC_API_KEY --allow CLAUDE_CODE_OAUTH_TOKEN ) ;;
+					copilot)  setupDeclareArgs+=( --allow COPILOT_GITHUB_TOKEN ) ;;
+					scaleway) setupDeclareArgs+=( --allow SCALEWAY_DEEPSEEK --allow SCALEWAY_GEMMA ) ;;
 				esac
 			;;
 			slack)
@@ -634,6 +641,46 @@ case "$1" in
 				DistroAgentsTools --intern-op-check-configs magic-team \
 					--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \
 					--context "--owner-setup-storage:$setupCtxTag" || true
+			;;
+			scaleway)
+				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
+				local setupToolPath="$setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh" ] ; then
+					[ "$setupOperation" != "--check" ] || echo "SCALEWAY_HARNESS_INSTALLED: OK"
+					AgentsToolsOwnerSetupRow "Scaleway harness" "installed"
+				else
+					[ "$setupOperation" != "--check" ] || {
+						echo "SCALEWAY_HARNESS_INSTALLED: FAIL"
+						echo "  warn: sh-lib/AgentsScalewayHarness.sh is missing -- there is no scaleway"
+						echo "        binary to fall back to, so this release has not reached this"
+						echo "        workspace yet"
+						echo "  fix:  re-run this workspace's own myx.distro release/deploy step"
+					}
+					AgentsToolsOwnerSetupRow "Scaleway harness" "NOT INSTALLED"
+					setupRc=1
+				fi
+				DistroAgentsTools --intern-op-check-configs magic-team \
+					--optional "SCALEWAY_DEEPSEEK:<key>" --expect-secret SCALEWAY_DEEPSEEK \
+					--context "--owner-setup-scaleway:$setupCtxTag" || true
+				DistroAgentsTools --intern-op-check-configs magic-team \
+					--optional "SCALEWAY_GEMMA:<key>" --expect-secret SCALEWAY_GEMMA \
+					--context "--owner-setup-scaleway:$setupCtxTag" || true
+				## Either key alone reaches every model -- Scaleway scopes by
+				## Project+policy, not by model, confirmed live -- so the gate is
+				## "at least one", never "both".
+				if [ -z "$( DistroAgentsTools --agents-config-option magic-team --select SCALEWAY_DEEPSEEK 2>/dev/null )" ] \
+					&& [ -z "$( DistroAgentsTools --agents-config-option magic-team --select SCALEWAY_GEMMA 2>/dev/null )" ] ; then
+					[ "$setupOperation" != "--check" ] || {
+						echo "SCALEWAY_CREDENTIAL: FAIL"
+						echo "  warn: neither SCALEWAY_DEEPSEEK nor SCALEWAY_GEMMA is set, and one is required"
+						echo "  fix:  $setupToolPath --owner-setup-scaleway --apply"
+					}
+					AgentsToolsOwnerSetupRow "Scaleway credential" "NOT CONFIGURED"
+					setupRc=1
+				else
+					[ "$setupOperation" != "--check" ] || echo "SCALEWAY_CREDENTIAL: OK"
+					AgentsToolsOwnerSetupRow "Scaleway credential" "configured"
+				fi
 			;;
 			copilot)
 				## What a spawn actually needs: the proxy runs
@@ -876,11 +923,21 @@ case "$1" in
 				## set there, so a CLI outside it can be configured and still never
 				## run. Both sets are interim: which CLI gets selected is meant to
 				## come from config options that are not settled yet.
-				local setupKnownClis="copilot claude grok"
-				local setupSpawnClis="copilot claude"
+				local setupKnownClis="copilot claude grok scaleway"
+				local setupSpawnClis="copilot claude scaleway"
+				## scaleway has no real binary at all -- `command -v scaleway` can
+				## never succeed on any machine -- so its presence here is the
+				## harness script shipping with the release, the same substitution
+				## the console's own DagcCliPresent makes.
+				AgentsToolsSpawnCliPresent(){
+					case "$1" in
+						scaleway) [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh" ] ;;
+						*) command -v "$1" >/dev/null 2>&1 ;;
+					esac
+				}
 				local setupAutoCli="" setupCliName
 				for setupCliName in $setupSpawnClis ; do
-					command -v "$setupCliName" >/dev/null 2>&1 || continue
+					AgentsToolsSpawnCliPresent "$setupCliName" || continue
 					setupAutoCli="$setupCliName"
 					break
 				done
@@ -1132,7 +1189,7 @@ case "$1" in
 							setupNeedsApply="yes" ; setupApplyDefault="yes"
 							setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
 							setupRc=1
-						elif ! command -v "$setupCliValue" >/dev/null 2>&1 ; then
+						elif ! AgentsToolsSpawnCliPresent "$setupCliValue" ; then
 							[ "$setupOperation" != "--check" ] || {
 								echo "SPAWN_CLI_SERVICE: FAIL"
 								echo "  warn: set to '$setupCliValue', which is not in PATH -- an explicitly"

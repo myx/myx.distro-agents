@@ -47,12 +47,31 @@ fi
 cd "$MMDAPP"
 export MMDAPP
 
-DAGC_KNOWN_CLIS="copilot claude grok"
-DAGC_NONINTERACTIVE_CLIS="copilot claude"
+DAGC_KNOWN_CLIS="copilot claude grok scaleway"
+## scaleway added here on a real, live-confirmed round-trip through this
+## console itself (--cli scaleway --non-interactive, end to end) -- not
+## speculatively. It has no interactive shape at all (no real binary, no
+## REPL; the harness runs one request/response tool-calling cycle and
+## exits), which is exactly why it belongs in this list and nowhere else:
+## grok is the opposite case (a real interactive binary, not yet proven
+## non-interactive), scaleway is proven non-interactive and categorically
+## cannot be the other thing. See MAGIC.md.
+DAGC_NONINTERACTIVE_CLIS="copilot claude scaleway"
 DAGC_CLI="copilot"
 DAGC_CLI_GIVEN="false"
 DAGC_CLI_AUTO="false"
 DAGC_CLI_CONFIGURED="false"
+## scaleway has no real binary at all -- `command -v scaleway` can never
+## succeed on any machine -- so every presence check in this file goes
+## through here instead, exactly as `--owner-setup-scaleway`'s own
+## install-probe already had to (a file test, not a PATH lookup; see
+## AgentsTools.Owner.include and MAGIC.md).
+DagcCliPresent(){
+	case "$1" in
+		scaleway) [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh" ] ;;
+		*) command -v "$1" >/dev/null 2>&1 ;;
+	esac
+}
 while true ; do
 	case "$1" in
 		--cli-auto)
@@ -102,7 +121,7 @@ if [ "$DAGC_CLI_AUTO" = "true" ] ; then
 					;;
 				esac
 			fi
-			if command -v "$DAGC_AUTO_CLI" >/dev/null 2>&1 ; then
+			if DagcCliPresent "$DAGC_AUTO_CLI" ; then
 				DAGC_CLI="$DAGC_AUTO_CLI"
 				DAGC_CLI_GIVEN="true"
 				break
@@ -115,12 +134,22 @@ if [ "$DAGC_CLI_AUTO" = "true" ] ; then
 	fi
 fi
 case "$DAGC_CLI" in
-	copilot|claude|grok) ;;
+	copilot|claude|grok|scaleway) ;;
 	*)
 		echo "⛔ ERROR: DistroAgentsConsole: unsupported --cli: $DAGC_CLI (known: $DAGC_KNOWN_CLIS)" >&2
 		exit 1
 	;;
 esac
+## scaleway has no interactive shape at all -- there is no real binary and no
+## REPL, only a harness that runs one request/response tool-calling cycle to
+## completion and exits -- so an explicit interactive request for it is
+## refused here, with a stated reason, rather than falling through to a
+## plain `exec scaleway` that the shell itself would reject as "not found"
+## for a reason this console never explains.
+if [ "$DAGC_CLI" = "scaleway" ] && [ "$1" != "--non-interactive" ] ; then
+	echo "⛔ ERROR: DistroAgentsConsole: 'scaleway' has no interactive shape -- its harness runs one request/response tool-calling cycle and exits; use --non-interactive." >&2
+	exit 1
+fi
 if [ "$1" == "--non-interactive" ] ; then
 	case " $DAGC_NONINTERACTIVE_CLIS " in
 		*" $DAGC_CLI "*) ;;
@@ -131,11 +160,11 @@ if [ "$1" == "--non-interactive" ] ; then
 	esac
 fi
 if [ "$DAGC_CLI_GIVEN" = "true" ] ; then
-	command -v "$DAGC_CLI" >/dev/null 2>&1 || {
+	DagcCliPresent "$DAGC_CLI" || {
 		echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' CLI not found in PATH -- install it first; it was selected explicitly (--cli, or magic-team's SPAWN_CLI_SERVICE), so this does not fall back to a bash session." >&2
 		exit 1
 	}
-elif ! command -v "$DAGC_CLI" >/dev/null 2>&1 ; then
+elif ! DagcCliPresent "$DAGC_CLI" ; then
 	for DAGC_FALLBACK_CLI in $DAGC_KNOWN_CLIS ; do
 		if [ "$DAGC_FALLBACK_CLI" = "$DAGC_CLI" ] ; then
 			continue
@@ -148,17 +177,29 @@ elif ! command -v "$DAGC_CLI" >/dev/null 2>&1 ; then
 				;;
 			esac
 		fi
-		if command -v "$DAGC_FALLBACK_CLI" >/dev/null 2>&1 ; then
+		if DagcCliPresent "$DAGC_FALLBACK_CLI" ; then
 			DAGC_CLI="$DAGC_FALLBACK_CLI"
 			break
 		fi
 	done
-	if command -v "$DAGC_CLI" >/dev/null 2>&1 ; then
+	if DagcCliPresent "$DAGC_CLI" ; then
 		:
 	else
 		exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
 	fi
 fi
+
+## The actual argv[0] `exec` below reaches for. Every other known CLI's own
+## name IS the binary; scaleway's is not -- there is no `scaleway` on any
+## PATH -- so this is the one substitution point where the harness script
+## stands in for it. `$DAGC_CLI` itself stays the logical name everywhere
+## else in this file (DISTRO_CONSOLE_EXEC=, the credential/flag case
+## statements, the warnings), so reporting and dispatch never disagree about
+## what was selected.
+case "$DAGC_CLI" in
+	scaleway) DAGC_CLI_EXEC="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh" ;;
+	*)        DAGC_CLI_EXEC="$DAGC_CLI" ;;
+esac
 
 DAGC_MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
 if [ -x "$DAGC_MYXROOT/bin/setup/agentMcp.Common" ] ; then
@@ -174,7 +215,10 @@ fi
 ## tokens because its settings.json carries permission RULES for those roots
 ## but does not put the directories themselves in the session -- `--add-dir`
 ## is what does that, and both CLIs spell the flag identically. Absent/empty
-## fragment -> no tokens added; grok gets nothing (out of scope). One token
+## fragment -> no tokens added; grok gets nothing (out of scope). scaleway
+## also gets nothing here -- it has no real binary to hand a flag to, and its
+## own harness (AgentsScalewayHarness.sh) reads this same fragment file
+## itself instead; see MAGIC.md. One token
 ## per line, so a root containing spaces survives being read back into the
 ## array intact. The DAGC_COPILOT_* names, the fragment's own filename and
 ## the installer op that writes it all predate claude being included here and
@@ -246,9 +290,10 @@ fi
 ## value moves through a shell variable into a builtin export, so it reaches no
 ## process argv, no log and no output.
 case "$DAGC_CLI" in
-	claude)  DAGC_CLI_CREDENTIALS="ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN" ;;
-	copilot) DAGC_CLI_CREDENTIALS="COPILOT_GITHUB_TOKEN" ;;
-	*)       DAGC_CLI_CREDENTIALS="" ;;
+	claude)   DAGC_CLI_CREDENTIALS="ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN" ;;
+	copilot)  DAGC_CLI_CREDENTIALS="COPILOT_GITHUB_TOKEN" ;;
+	scaleway) DAGC_CLI_CREDENTIALS="SCALEWAY_DEEPSEEK SCALEWAY_GEMMA" ;;
+	*)        DAGC_CLI_CREDENTIALS="" ;;
 esac
 for DAGC_CREDENTIAL_NAME in $DAGC_CLI_CREDENTIALS ; do
 	## Tested, not bare: set -e would kill the console on an unreadable scope.
@@ -339,9 +384,15 @@ DagcRunClaudeStreaming(){
 if [ "$1" == "--non-interactive" ] ; then
 	shift
 	## -- closes the option list for claude, whose prompt is positional; copilot's -p takes the body as its value.
+	## scaleway takes neither: AgentsScalewayHarness.sh's own arg parser knows
+	## --tier/--access-root/--, and reads its prompt as plain trailing argv
+	## (or stdin) exactly like claude/copilot's *own* prompt body does once
+	## their flags are stripped -- a `-p`/`-p --` token would hit its default
+	## `*) break` arm unconsumed and be read back as literal prompt text.
 	case "$DAGC_CLI" in
-		copilot) DAGC_NONINTERACTIVE_PERM_FLAGS="--allow-all-tools" ; DAGC_PROMPT_ARGS=( -p ) ;;
-		*) DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=( -p -- ) ;;
+		copilot)  DAGC_NONINTERACTIVE_PERM_FLAGS="--allow-all-tools" ; DAGC_PROMPT_ARGS=( -p ) ;;
+		scaleway) DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=() ;;
+		*)        DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=( -p -- ) ;;
 	esac
 	## The launch signal, on its own channel: the stdout line below shares a stream with the agent's own output.
 	[ -z "$MDAT_SPAWN_LAUNCH_MARKER" ] || printf '%s\n' "$DAGC_CLI" > "$MDAT_SPAWN_LAUNCH_MARKER"
@@ -350,14 +401,14 @@ if [ "$1" == "--non-interactive" ] ; then
 		if [ "$DAGC_CLI" = "claude" ] ; then
 			DagcRunClaudeStreaming "$*"
 		fi
-		exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$*"
+		exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$*"
 	fi
 	echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
 	if [ "$DAGC_CLI" = "claude" ] ; then
 		DagcRunClaudeStreaming "$( cat )"
 	fi
-	exec "$DAGC_CLI" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$( cat )"
+	exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$( cat )"
 fi
 
 echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-exec "$DAGC_CLI" "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "$@"
+exec "$DAGC_CLI_EXEC" "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "$@"

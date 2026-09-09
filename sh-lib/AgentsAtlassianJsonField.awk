@@ -28,6 +28,11 @@
 #   -v optional=1    Declares that absence is an expected state at this call
 #                    site, and suppresses the rc-3 stderr note. Purely about
 #                    the note; rc 3 is returned either way.
+#   -v raw=1         The value at `path` is itself a JSON object/array (an ADF
+#                    document body, e.g.) rather than a scalar. Captured as its
+#                    exact source bytes, verbatim, instead of the rc-3 this
+#                    file otherwise gives an object/array leaf -- a caller
+#                    that needs it structured parses that text itself.
 #   -v sentinel=1    Emits `<value>X` with no record separator, so the value's
 #                    own trailing newlines survive the caller's `$( ... )`.
 #                    The caller strips the one trailing `X`.
@@ -58,6 +63,7 @@ BEGIN {
 	## see it. Copied once here, in BEGIN, which is not a function and therefore
 	## does see the global. Compare against `wantPath` everywhere below.
 	wantPath = path
+	wantRaw = (raw == "1")
 
 	input = ""
 	inputSeen = 0
@@ -169,9 +175,32 @@ function emitLeaf(path, raw, val) {
 	foundCount++
 }
 
+## Advances p past one balanced {...} or [...], skipping over string content
+## (via parseString, so a brace inside a string never miscounts) rather than
+## walking it into named leaves -- raw mode wants these bytes verbatim.
+function skipBalanced(   depth, c) {
+	depth = 0
+	while (p <= n) {
+		c = sc[p]
+		if (c == "\"") { parseString(); continue; }
+		if (c == "{" || c == "[") { depth++; p++; continue; }
+		if (c == "}" || c == "]") { depth--; p++; if (depth <= 0) return; continue; }
+		p++
+	}
+	structErr = 1
+}
+
 function parseValue(path,   c, startp, val, raw, rawPos) {
 	skipws()
 	c = sc[p]
+	if (path == wantPath && wantRaw && (c == "{" || c == "[")) {
+		startp = p
+		skipBalanced()
+		raw = ""
+		for (rawPos = startp; rawPos < p; rawPos++) raw = raw sc[rawPos]
+		emitLeaf(path, raw, raw)
+		return
+	}
 	if (c == "\"") {
 		val = parseString()
 		emitLeaf(path, "", val)

@@ -681,9 +681,18 @@ The contracts themselves live in `magic-team.shared.md`'s "Session-context docum
 - **The arm installs no EXIT trap and cleans up explicitly on every path**, because `--intern-op-slack-call` installs its own and clears it, which would silently take the arm's with it. See "An EXIT trap set inside an op replaces the caller's, silently".
 - **Settled, and not an oversight:** the upload URL reaches step 2 as an argv value, where a Slack token would travel in a header file instead. The two differ in exposure — argv is same-user and lives only for the call, and this URL is single-use and expires, where a token is long-lived and reused. Ruled: it stays in argv, and `--url-from-file` is not added. The reason sits at the `--url` arm itself, because a reader comparing the two handlings next to each other will otherwise read the difference as a defect and "fix" it.
 
+## The `--member-comms-confluence-*` family
+
+- `--member-comms-confluence-whoami`, `--member-comms-confluence-page-search <cql>`, `--member-comms-confluence-page-read <page-id>`, `--member-comms-confluence-comment-read <page-id>`. Read side only: nothing here creates or edits a page or a comment. Transport is the shared `AgentsToolsAtlassianCall` (`sh-lib/AgentsTools.InternOpAtlassianCall.include`), the same layer the Jira family uses; no Python worker is involved.
+- Own key set: `CONFLUENCE_SITE`, `CONFLUENCE_USER`, `CONFLUENCE_API_TOKEN`, read from the acting member's own scope with no fallback and never a `JIRA_*` value. One Atlassian account authenticates every product on a site, so the two sets legitimately hold identical values; separate sets are what allow one service's credential to be rotated, revoked, scoped to another site or pointed at another account without disturbing the other.
+- `page-search` uses `/wiki/rest/api/search?cql=...`; `page-read`/`comment-read` use the v2 endpoints (`/wiki/api/v2/pages/<id>`, `/wiki/api/v2/pages/<id>/footer-comments`). Confluence's REST v2 serves no rendered form: `--format storage` (the default, plain XHTML) or `atlas_doc_format` (ADF, captured raw) are the only two, unlike Jira's `adf`/`rendered` pair.
+- **`page-search` and `comment-read` carry no completeness signal at all.** Neither endpoint reports `isLast` or a total, unlike Jira's `/search/jql`, so both operations state `more: unknown` on stderr every time rather than letting a full page read as a confirmed-complete one.
+- A 404 means either the content does not exist or this account cannot see it, exactly as for Jira — Confluence states the same ambiguity in its own response text, and it is never reported here as "does not exist".
+- **`whoami`'s display name genuinely falls back.** `CONFLUENCE_ACCOUNT_NAME=` reads `publicName`, falling back to `displayName` when no public name is set. The Python worker this replaced got exactly this wrong — a `%`/`or` precedence error made it print the literal string `None` whenever `publicName` was absent — confirmed by running both branches, not read off the old source.
+
 ## The `--member-comms-jira-*` family
 
-- `--member-comms-jira-whoami`, `--member-comms-jira-issue-search <jql>`, `--member-comms-jira-issue-read <issue-key>`, `--member-comms-jira-comment-read <issue-key>`. Read side only: nothing here creates or edits an issue, a comment or a field. Arm structure, credential resolution and error shapes mirror `AgentsTools.MemberCommsConfluence.include`; the worker is `sh-lib/AgentsJiraApiCall.py`, credentials by environment only.
+- `--member-comms-jira-whoami`, `--member-comms-jira-issue-search <jql>`, `--member-comms-jira-issue-read <issue-key>`, `--member-comms-jira-comment-read <issue-key>`. Read side only: nothing here creates or edits an issue, a comment or a field. Arm structure, credential resolution and error shapes mirror `AgentsTools.MemberCommsConfluence.include`; transport is the shared `AgentsToolsAtlassianCall` (`sh-lib/AgentsTools.InternOpAtlassianCall.include`), no Python worker involved, credentials by environment only.
 - Own key set: `JIRA_SITE`, `JIRA_USER`, `JIRA_API_TOKEN`, read from the acting member's own scope with no fallback and never a `CONFLUENCE_*` value. One Atlassian account authenticates every product on a site, so the two sets legitimately hold identical values; separate sets are what allow one service's credential to be rotated, revoked, scoped to another site or pointed at another account without disturbing the other.
 - `/rest/api/3/search` is retired. It answers 410 naming `/rest/api/3/search/jql` as the replacement, and that is the endpoint this family uses. Measured against `ndm.atlassian.net`.
 - `/rest/api/3/search/jql` refuses an unrestricted query with HTTP 400, so a caller's JQL names at least one restriction. It pages by `nextPageToken` and reports `isLast`, and it returns no total — so a truncated page is reported as "more match, how many is unknown", never as a count.
@@ -759,3 +768,203 @@ read by the tooling, owned by no package.
 The rule the two share: data an op maintains lives beside the symlinks, and the folders behind them
 hold package content. `.gitignore` carries
 `skillset/magic-team/human-owner/human-owner.workspaces.md` so the packaged path stays free of it.
+
+## `AgentsScalewayHarness.sh` — the fourth spawn service, and why it is not a fourth CLI
+
+`scaleway` (`DAGC_KNOWN_CLIS`, `--owner-setup-scaleway`, `DAGC_CLI_CREDENTIALS`) is a fourth agent-spawn
+backend alongside `claude`/`copilot`/`grok`, decided in the backlog's own "Scaleway as a fourth agent
+spawn service" entry. Unlike the other three, there is no real `scaleway` binary: Scaleway's own
+Serverless Generative APIs are a bare
+`POST https://api.scaleway.ai/v1/chat/completions`, so `sh-lib/AgentsScalewayHarness.sh` *is* the CLI —
+a standalone, independently-invokable bash script that runs the whole request/tool-call/response loop
+itself, using the exact curl `-H @-` bearer-stdin pattern `AgentsTools.CommsSlack.include` already
+proves. Non-streaming only (v1); no sandboxing beyond its own access-root check (matches copilot's
+`--allow-all-tools` trust model, not a gap this version closes); no context-window management — an
+unboundedly long conversation is this version's own known limit, guarded only by a hard 25-round cap
+(see below), never a silent one.
+
+- **Standalone by design, not sourced.** Every sibling `Agents*.include` is dot-sourced into
+  `DistroAgentsTools` and resolves its neighbours through `$MDLT_ORIGIN`. This script is executed
+  directly (`#!/usr/bin/env bash`, its own `set -e`) and resolves its sibling `.awk` helpers from its
+  own `$0`'s directory instead — the natural mechanism for a standalone script, and the one
+  `AgentsConsoleShellScript.template.sh` itself uses to find `$MMDAPP` at its own startup. It reads its
+  own credential names directly out of its process environment (`SCALEWAY_DEEPSEEK`/`SCALEWAY_GEMMA`),
+  exactly as `claude` reads `ANTHROPIC_API_KEY` itself — it never resolves `--agents-config-option`
+  itself, and is fully testable by hand with nothing but those two variables and an access root.
+
+- **Two credentials, not one, and neither is model-exclusive.** The backlog's own working name for the
+  single credential (`SCW_SECRET_KEY`) was superseded once real keys were provisioned as
+  `SCALEWAY_DEEPSEEK`/`SCALEWAY_GEMMA`. Live-tested against the real API, cross-matrixed (both keys ×
+  both models, four calls): every combination succeeded. Scaleway scopes a secret key by Project+policy
+  (`GenerativeApisFullAccess`), not by model, so the two names are which tier *prefers* which key, with
+  the other as a real fallback (`${SCALEWAY_GEMMA:-$SCALEWAY_DEEPSEEK}` and its mirror) — never an
+  enforced restriction. `DAGC_CLI_CREDENTIALS="SCALEWAY_DEEPSEEK SCALEWAY_GEMMA"` follows claude's own
+  two-alternatives shape (`ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN`) for exactly this reason.
+
+- **Model tiers, Scaleway-specific, not the general `custom-spawner-models` framework — mapping
+  REVERSED from the first cut, on measured evidence, not on what the model names sound like.** The
+  first cut mapped `light` → `deepseek-v4-flash-0731` and `normal`/`heavy` → `gemma-4-26b-a4b-it`,
+  reasoning from the ORIGINALLY-DECIDED (nonexistent) `google/gemma-4-31b-it:bf16` — a dense 31B model
+  that really would have been the heavier of the two. That model does not exist on this API (see
+  below); the live-confirmed stand-in, `gemma-4-26b-a4b-it`, is not dense — the `a4b` suffix is real and
+  means something. Independently confirmed (Scaleway's own supported-models/pricing page, cross-checked
+  against Artificial Analysis's benchmark comparison of these exact two ids):
+  - `gemma-4-26b-a4b-it`: 25.2B total parameters, Mixture-of-Experts, only **3.8B active per token**
+    (128 experts). Scaleway price: **EUR0.25/EUR0.50** per million input/output tokens. Artificial
+    Analysis Intelligence Index **17**.
+  - `deepseek-v4-flash-0731`: 284B total parameters, MoE, **13B active per token** — ~3.4x Gemma's
+    active count despite "flash" in the name. Scaleway price: **EUR0.40/EUR0.80** per million
+    input/output tokens (EUR0.08 cached-input). Intelligence Index **35**, and well ahead on
+    coding/agentic benchmarks (GDPval-AA v2 1468 vs 713; AA-LCR 80% vs 66%).
+  Every measure agrees in the same direction: gemma is the genuinely lighter, cheaper, less capable
+  model; deepseek is the substantial, more expensive, more capable one — the opposite of what "flash"
+  suggested and exactly the inversion the task instructions predicted. Corrected mapping, same
+  structural idea as before (one model alone for the cheap tier, the other model's own
+  `reasoning_effort` split covering the top two tiers), roles swapped: `light` → `gemma-4-26b-a4b-it`
+  at default reasoning; `normal` → `deepseek-v4-flash-0731` at default reasoning; `heavy` → the same
+  DeepSeek model with `reasoning_effort:"high"`. Live-confirmed against the real API post-swap,
+  including the one combination nobody had tried before (`deepseek-v4-flash-0731` +
+  `reasoning_effort:"high"`, the new `heavy`) — accepted, no error, correct reply. This is `--tier`, a
+  flag the harness itself resolves; it is not the cross-service `light`/`normal`/`heavy` selector
+  framework the backlog's separate `custom-spawner-models` item describes (unbuilt, unscoped) —
+  building that generic framework here would be answering a different, larger, not-yet-decided
+  question.
+
+- **The decided Gemma model id does not exist.** `google/gemma-4-31b-it:bf16` (and
+  `deepseek/deepseek-v4-flash-0731`, slash-prefixed) were the backlog's own working ids. A live
+  `GET /v1/models` (both keys, identical listing) returns bare, unprefixed ids only, and the Gemma
+  family's actual live entry is `gemma-4-26b-a4b-it` — a different parameter count and a different
+  architecture suffix than what was decided, not a spelling difference. This is flagged back rather than silently kept or silently swapped; `gemma-4-26b-a4b-it` is wired in
+  as a clearly-commented, live-confirmed-working stand-in (tested through the full harness, all three
+  tiers, not just a bare curl call) pending the human-owner's own confirmation. `deepseek-v4-flash-0731`
+  (no slash) is the confirmed, non-provisional id for `normal`/`heavy` (see the reclassification above —
+  it anchors the top two tiers, not `light`, once its real active-parameter count and price were known).
+
+- **Tool schemas: five, OpenAI `tools`-array shaped.** `read_file`, `write_file`, `list_dir`, `grep`,
+  `run_command`. `write_file` is a whole-file overwrite/create, never a partial patch — there is no
+  existing diff/edit primitive to reuse (`AgentsBoardItemPatchApply.py` is a different, board-item-
+  specific grammar) and building a general one is out of scope for this pass; "edit" is the model
+  reading a file first and writing back the complete new content. `run_command` bounds only its own
+  `cwd` to the access-root set — the command itself is not sandboxed further, the same trust level
+  `--allow-all-tools` already grants copilot.
+
+- **Access-root enforcement is the harness's own, and reads the fragment file directly — a second
+  reader, not a shared one, deliberately.** `AgentsConsoleShellScript.template.sh` builds
+  `DAGC_COPILOT_ADDDIR` from `.claude/copilot-add-dir.fragment` (`<own|explicit|wildcard>\t<path>` lines,
+  or a bare `--add-dir`/`/*` pair in the old two-line format) only for `copilot`/`claude`, because only
+  they take a `--add-dir` flag to hand it to. There is nothing to hand a flag to here, so
+  `AgentsScalewayHarness.sh` parses that same fragment itself, rather than being threaded a pre-parsed
+  array from the console. This is a real, accepted duplication of one small parsing block, not a shared
+  primitive — flagged here so the day a third reader of this exact fragment format appears, factoring it
+  out is an easy, obvious follow-up rather than a silent third copy.
+  **The independent review found this duplication was not a faithful copy.** The first cut's parser
+  handled only the two tagged-line shapes (`own\t`/`explicit\t`/`wildcard\t`) and silently produced ZERO
+  roots against a fragment in the old untagged two-line format (`--add-dir` on one line, the bare path on
+  the next) — a shape confirmed still live in a real workspace during this review (the mel/prv-farm
+  workspace's own `.claude/copilot-add-dir.fragment` predates the tagged format entirely). Against that
+  exact real file, every spawn through this harness would have refused with "no access roots resolved",
+  in a workspace that is otherwise fully configured and spawns claude/copilot without issue. Fixed to
+  parse the identical four line shapes the template does (`--add-dir` marker skipped, the three tagged
+  forms, and a bare `/*` line treated as existence-checked wildcard); re-verified against that same real
+  fragment file, which now resolves to its full 30+ roots.
+
+- **Now wired into the console's own exec dispatch, on a real, live, end-to-end console-level test —
+  this was deliberately deferred in the first cut and is now done.**
+  `DAGC_KNOWN_CLIS` and the `case "$DAGC_CLI" in copilot|claude|grok|scaleway)` validation arm both
+  already took `scaleway`; what was missing was everything downstream of that arm actually running it.
+  Three changes to `AgentsConsoleShellScript.template.sh`:
+  - `DagcCliPresent()`, a small function defined once near the top, replacing every bare
+    `command -v "$DAGC_CLI"`-shaped presence check (the `--cli-auto` scan, the explicit-`--cli` gate, the
+    fallback scan) with a call through it. For `scaleway` it tests for the harness file
+    (`test -f .../AgentsScalewayHarness.sh`), exactly the shape `--owner-setup-scaleway`'s own
+    install-probe already had to adopt for the same reason (`command -v scaleway` can never succeed on
+    any machine — there is no such binary to find). For every other CLI it is `command -v` unchanged,
+    so `claude`/`copilot`/`grok` presence detection is bit-for-bit the same check as before.
+  - `DAGC_CLI_EXEC`, computed once after the CLI is finalized: `scaleway` maps to the harness script's
+    own path, every other CLI maps to itself. The three `exec` lines that actually launch a CLI now exec
+    `$DAGC_CLI_EXEC` instead of `$DAGC_CLI`; `$DAGC_CLI` itself is untouched everywhere else in the file
+    (the `DISTRO_CONSOLE_EXEC=` line, the credential/flag/agent case statements, the warnings), so
+    reporting and dispatch never disagree about which CLI was actually selected.
+  - A `scaleway)` arm in the `DAGC_NONINTERACTIVE_PERM_FLAGS`/`DAGC_PROMPT_ARGS` case (empty/empty): the
+    harness's own arg parser knows `--tier`/`--access-root`/`--` and reads its prompt as plain trailing
+    argv or stdin, so the `-p`/`-p --` tokens claude/copilot need would instead be read back as literal
+    prompt text — confirmed by tracing the harness's `case "$1" in ... *) break` default arm, which does
+    not consume an unrecognized flag.
+  - An explicit early guard: `--cli scaleway` without `--non-interactive` is refused with a stated reason
+    ("no interactive shape") rather than falling through to a bare `exec` of a name that is not a binary,
+    which would have surfaced as a confusing shell-level "command not found" instead of a diagnosed one.
+  Also fixed as part of getting this to actually round-trip: the access-root fragment parser bug
+  documented in the point above (without it, a real spawn through the console in a workspace with an
+  old-format fragment — confirmed to still exist live — would have failed regardless of the dispatch
+  wiring).
+  `DAGC_NONINTERACTIVE_CLIS` now reads `copilot claude scaleway` — added ONLY after, and because of, a
+  real test through the actual console entry point succeeding (see below), never speculatively. `grok`
+  stays out of this list on its own, unrelated standing precedent (a real interactive binary, not yet
+  proven non-interactive) — the two CLIs are in opposite states and belong in different lists for
+  different reasons.
+  **Live confirmation, through `./DistroAgentsConsole.sh` itself, not the harness standalone:**
+  `--cli scaleway --non-interactive` with the prompt on argv, and again with it on stdin — both
+  succeeded, both printed `DISTRO_CONSOLE_EXEC=scaleway`, both returned the correct answer, run against
+  a real workspace (mel/prv-farm) with real credentials and its real, live, old-format access fragment.
+  `--cli scaleway` without `--non-interactive` was also confirmed to fail cleanly with the new stated
+  reason rather than a raw shell error. `claude` and `copilot` dispatch were re-run through the same
+  regenerated console immediately after, unchanged in behavior, to confirm `DagcCliPresent`/
+  `DAGC_CLI_EXEC` introduced no regression for either.
+
+- **`--owner-setup-scaleway`'s install-probe is a file test, never `command -v`.** The shared
+  `claude|copilot|scaleway)` declare-args arm still emits `--install-probe "command -v $setupDomain"`
+  first (so the three stay one arm, one edit), and `scaleway`'s own declare-args append a second
+  `--install-probe` right after it — `test -f .../sh-lib/AgentsScalewayHarness.sh` — which wins because
+  `--intern-op-owner-setup` takes the last occurrence of a repeated option. No `--install-command` is
+  declared: the harness ships with the package release, so there is nothing an `--apply` installs: an
+  absent file means the release has not reached this workspace, not that a package is missing.
+
+- **`AgentsScalewayJsonField.awk` is a new file, not a reuse of `AgentsSlackJsonField.awk` as-is.** Both
+  copy the same recursive-descent engine verbatim, the family's own established propagation path for it
+  (`AgentsSlackJsonField.awk` ← `AgentsSlackConversationCounterparty.awk` ← `AgentsSlackMessagesFormat
+  .awk` ← `myx.common`'s `agentMcpJsonParseRequest.awk`) — this is one more copy in that same lineage,
+  not a new parser. The one real difference is deliberate: `AgentsSlackJsonField.awk` hard-requires a
+  top-level `ok` key and reports rc 1 without it, because every Slack Web API response carries one and
+  its absence means the body is not one; Scaleway's response carries no such key at all (confirmed live,
+  both a success body and its own flat error shape, `{"status":n,"error":"CODE","message":"..."}` —
+  nothing like Slack's `ok:false` or OpenAI's nested `error` object), so that gate would reject every
+  real response and is not present here. It also borrows one feature from a different sibling,
+  `myx.common`'s own `agentMcpJsonParseRequest.awk`: a synthetic `<path>.__count` leaf per array,
+  emitted whether the array is empty or not, which this reader's own caller needs to iterate a
+  `tool_calls` array of unknown length — `AgentsSlackJsonField.awk` has no such leaf because none of its
+  own call sites need to.
+
+- **A required response field missing is a stated exit 1, never a bare `set -e` kill.** `id`/`name`/
+  `arguments` off a `tool_calls` entry are each read through `AgentsScalewayResponseField`, which checks
+  the field reader's own rc and, on non-zero (rc 3 absent, rc 1 malformed), prints which field and which
+  round before exiting — rather than the assignment `x="$( ... )"` failing silently under `set -e` with
+  nothing downstream ever testing it. A model or API returning a `tool_calls` shape this harness cannot
+  use is exactly the case this makes diagnosable instead of a bare, unexplained abort.
+
+- **A tool call's `function.arguments` is read by running the same field reader twice.** The outer
+  response is one JSON document; `tool_calls.N.function.arguments` is a *string* holding a second one
+  (OpenAI's own shape) — parsed once as a string leaf of the outer document (which is also where its own
+  one level of backslash-escaping is undone), then fed back into the identical reader a second time to
+  pull a named argument (`path`, `content`, `command`, …) out of it. Two passes of one parser, not a
+  second one written for nested JSON.
+
+- **Every value rebuilt into outgoing JSON is escaped through `AgentsMcpJsonEscape.awk`, never inserted
+  raw.** A tool call's own `id`, `function.name`, `function.arguments` and a tool result's own content all
+  round-trip back into the next request's `messages` array — assembled here, not printed by the API — and
+  none of the four is guaranteed free of `"` or `\`: a model-supplied argument string or command result
+  routinely carries both. Building that JSON by string concatenation without escaping corrupts the next
+  request or lets a value's content be read as adjacent JSON structure. The same awk file the MCP wire
+  handler already uses for this reason is reused here rather than reinventing it.
+
+- **A round cap is load-bearing, not defensive decoration.** 25 request rounds, hard — the same
+  discipline the MCP wire handler's own "a spin loop whose counter resets after each sleep is a pacing
+  counter, not a limit" note states elsewhere in this file, applied to a loop whose every round is a
+  billed API call rather than a local spin. Hitting it is a loud failure (exit 1, stated reason), never
+  a silently-returned partial answer.
+
+- **`run_command`'s output is never captured with `$( ... )`.** A model-supplied command is exactly the
+  "arbitrary command" case the "Capturing an arbitrary command's output" section above names: it may
+  background a child that holds a capture pipe's write end open forever. Its output goes to a scratch
+  file (`mktemp -d -t`) and is read back, and its containment — `( cd ... && set -e && eval ... ) ||
+  status=$?` — mirrors `--intern-mcp-execute`'s own `set -e`-containment pattern rather than inventing
+  a second shape for the same problem.

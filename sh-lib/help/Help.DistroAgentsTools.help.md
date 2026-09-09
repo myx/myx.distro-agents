@@ -32,6 +32,10 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-read <team-member> <uid> [--seen]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-read <team-member> <notification-id>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-whoami <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-search <team-member> <cql> [--limit <n>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-comment-read <team-member> <page-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-whoami <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-search <team-member> <jql> [--limit <n>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
@@ -1516,16 +1520,101 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--member-comms-confluence-whoami <team-member>
+			`<team-member>` is the member this lookup acts as, and it is
+			required: the identity returned is whoever that member's own
+			Confluence credential resolves to, with no fallback to another
+			member's scope.
+
+			Confluence keeps its own credential, separate from Jira's, even
+			where one Atlassian token authenticates both on the same site —
+			so either service's credential can be rotated, revoked or
+			pointed at another account without disturbing the other.
+
+			Prints `CONFLUENCE_ACCOUNT_ID=`, `CONFLUENCE_ACCOUNT_EMAIL=` and
+			`CONFLUENCE_ACCOUNT_NAME=`, one per line, and returns non-zero
+			when the identity could not be established — an unknown identity
+			is never reported as an empty one. `CONFLUENCE_ACCOUNT_NAME=` is
+			the account's public name where one is set, its display name
+			otherwise — never the literal word "None".
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-confluence-page-search <team-member> <cql> [--limit <n>]
+			`<team-member>` is the member this search acts as, and it comes
+			first. It is required and strict: the results are what that
+			member's own identity can see in Confluence, never another
+			member's, and there is no fallback to another member's scope.
+
+			The entry point for this family, since the page/comment
+			operations need a page id and this is what produces one. The CQL
+			is passed through as given, the way the Jira family passes JQL:
+			for a plain text search it is `text ~ "term"`.
+
+			Emits one TSV row per result with its own header row:
+			`CONTENT_ID`, `TYPE`, `TITLE`, `LAST_MODIFIED`, `URL`. `--limit`
+			defaults to 25.
+
+			**This endpoint carries no completeness signal at all.** Unlike
+			the Jira family, it reports no `isLast`/total, so the operation
+			always states `more: unknown` on stderr — whether results exist
+			beyond this page cannot be determined from the response, and
+			this is never reported as a confirmed-complete page.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
+			`<team-member>` is the member this read acts as, and it is
+			required: a page is readable only by identities it is shared
+			with, read strictly from that member's own scope with no
+			fallback.
+
+			The body goes to stdout and the identifying metadata to stderr,
+			so `page-read > file` yields the body and nothing else. Title,
+			version and space id are the stderr diagnostics.
+
+			`--format storage` is the default: Confluence's own storage
+			format, a plain XHTML string. `--format atlas_doc_format`
+			returns the Atlassian Document Format JSON instead, captured
+			whole since it is a document rather than a scalar.
+
+			A 404 from Confluence does NOT establish that the page is
+			absent: it returns 404 both for missing content and for content
+			this account cannot see, and the diagnostic above is the site's
+			own.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-confluence-comment-read <team-member> <page-id>
+			`<team-member>` is the member this read acts as, and it is
+			required: comments are visible only to identities the page is
+			shared with, read strictly from that member's own scope with no
+			fallback.
+
+			Footer comments on one page, as TSV with its own header row:
+			`COMMENT_ID`, `VERSION_AUTHOR_ID`, `CREATED`, `BODY`.
+
+			**This endpoint carries no completeness signal either.** Same gap
+			as `--member-comms-confluence-page-search`: no `isLast`/total, so
+			the operation always states `more: unknown` on stderr rather than
+			letting a full page read as a confirmed-complete one.
+
+			**This family is read-only.** There is no operation here that
+			creates or edits a page or a comment, and that is a sequencing
+			decision rather than an omission — the write side is its own
+			separate piece of work.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--member-comms-jira-whoami <team-member>
 			`<team-member>` is the member this lookup acts as, and it is
 			required: the identity returned is whoever that member's own
-			`JIRA_USER`/`JIRA_API_TOKEN` resolve to, with no fallback to
-			another member's scope.
+			Jira credential resolves to, with no fallback to another
+			member's scope.
 
-			Jira keeps its own key set — `JIRA_SITE`, `JIRA_USER`,
-			`JIRA_API_TOKEN` — even where one Atlassian token also serves
-			Confluence on the same site. A `CONFLUENCE_*` value is never read
-			here, so either service's credential can be rotated, revoked or
+			Jira keeps its own credential, separate from Confluence's, even
+			where one Atlassian token authenticates both on the same site —
+			so either service's credential can be rotated, revoked or
 			pointed at another account without disturbing the other.
 
 			Call it first after a token is filed, and whenever a report has to
@@ -1630,8 +1719,8 @@
 		--member-comms-jira-board-list <team-member>
 			`<team-member>` is the member this listing acts as, and it is
 			required: the boards returned are the ones that member's own
-			`JIRA_USER`/`JIRA_API_TOKEN` can see, with no fallback to another
-			member's scope.
+			Jira credential can see, with no fallback to another member's
+			scope.
 
 			Lists the Agile boards on that member's Jira site. The response
 			body is written to stdout as the site returned it, so
@@ -2118,7 +2207,7 @@
 		--owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]
 			Reports, and for a domain that supports it carries out, the setup
 			of one macro part of a working installation. `<domain>` is open and
-			grows; `claude`, `copilot`, `slack` and `storage` exist today, and a
+			grows; `claude`, `copilot`, `slack`, `storage` and `scaleway` exist today, and a
 			domain with no defined check set says so rather than inventing one.
 
 			Options and their values come first, then at most one sub-operation
@@ -2305,7 +2394,7 @@
 			that this ecosystem's agents need plain read access to. These
 			come from `<workspace>`'s own `CLIENT_ACCESS_ROOTS_EXTRA`
 			(magic-team scope, colon-separated absolute paths, set by
-			`--owner-setup-claude`/`--owner-setup-copilot`): which
+			`--owner-setup-claude`/`--owner-setup-copilot`/`--owner-setup-scaleway`): which
 			directories exist is a property of the machine, so this op names
 			none of its own. Unset -- the normal case -- adds no grant. Each
 			entry is added if missing and left alone if already present --

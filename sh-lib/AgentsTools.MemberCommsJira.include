@@ -4,62 +4,10 @@
 ##
 ## AgentsTools.MemberCommsJira.include -- the raw per-member Jira Cloud comms
 ## operations (identity, JQL search, issue read, comment read). READ SIDE ONLY:
-## nothing here creates or edits an issue, a comment or a field.
+## nothing here creates or edits an issue, a comment or a field. Transport is
+## the shared Atlassian layer (AgentsTools.InternOpAtlassianCall.include) plus
+## the two Atlassian JSON readers beside it -- no Python worker is involved.
 ##
-
-## Assigns into the CALLER's already-declared locals: jiraSite jiraUser jiraToken
-AgentsToolsJiraResolveMember() {
-	local opName="$1"
-	local memberName="$2"
-
-	AgentsToolsAssertBareName "$memberName" "<team-member>" "$opName" || return 1
-	case "$memberName" in
-		routine-*)
-			## A routine acting as caller has no skill directory and is not expected to grow one.
-		;;
-		*)
-			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --$opName: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-				return 1
-			fi
-		;;
-	esac
-
-	## Strictly the acting member's own scope, no fallback: an Atlassian API token
-	## IS an identity, and acting under the wrong one raises no error at all.
-	jiraSite="$( DistroAgentsTools --agents-config-option "$memberName" --select JIRA_SITE )"
-	jiraUser="$( DistroAgentsTools --agents-config-option "$memberName" --select JIRA_USER )"
-	jiraToken="$( DistroAgentsTools --agents-config-option "$memberName" --select JIRA_API_TOKEN )"
-	if [ -z "$jiraSite" ] || [ -z "$jiraUser" ] || [ -z "$jiraToken" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --$opName: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN not fully set in ${memberName}'s own scope in .local/.agents. Jira keeps its own key set even where one Atlassian token also serves Confluence, so a CONFLUENCE_* value is never read here" >&2
-		return 1
-	fi
-
-	## An embedded newline means the stored config is corrupted, and it is refused
-	## rather than stripped: the resulting 401 reads as a revoked credential.
-	local jiraNewline=$'\n'
-	case "$jiraSite$jiraUser$jiraToken" in
-		*"$jiraNewline"*)
-			echo "⛔ ERROR: $MDSC_CMD --$opName: JIRA_SITE/JIRA_USER/JIRA_API_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- none of them ever legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting 401 would be misread as a revoked credential" >&2
-			return 1
-		;;
-	esac
-	return 0
-}
-
-## One invocation of the Jira worker, credentials passed ONLY through the
-## environment -- never argv, never a file.
-AgentsToolsJiraCall() {
-	AGENTS_JIRA_SITE="$jiraSite" \
-	AGENTS_JIRA_USER="$jiraUser" \
-	AGENTS_JIRA_API_TOKEN="$jiraToken" \
-	AGENTS_JIRA_OP="$1" \
-	AGENTS_JIRA_ISSUE_KEY="${jiraIssueKey:-}" \
-	AGENTS_JIRA_JQL="${jiraJql:-}" \
-	AGENTS_JIRA_LIMIT="${jiraLimit:-}" \
-	AGENTS_JIRA_FORMAT="${jiraFormat:-}" \
-	python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsJiraApiCall.py"
-}
 
 ## The shared Atlassian layer, sourced for its definitions only. Its own case
 ## ends in a branch that does nothing when $1 is none of its own operations, so
@@ -68,13 +16,23 @@ AgentsToolsJiraCall() {
 
 ## One paged Agile-API read: the shared transport, the body on stdout, and the
 ## one truncation signal these endpoints carry. Arguments are acting member,
-## path, calling context. It reads nothing from a caller's frame, so no arm
-## owes it a declaration.
+## path, calling context, and an optional continuation value from a prior
+## call's own response (its startAt plus its maxResults, summed by the
+## caller) -- passed through verbatim as this request's own startAt, never
+## parsed or normalized here. It reads nothing else from a caller's frame, so
+## no arm owes it a declaration.
 AgentsToolsJiraAgileRead() {
+	local agilePath="$2"
+	if [ -n "${4:-}" ] ; then
+		case "$agilePath" in
+			*'?'*) agilePath="${agilePath}&startAt=$4" ;;
+			*)     agilePath="${agilePath}?startAt=$4" ;;
+		esac
+	fi
 	local agileBody agileRc=0
-	agileBody="$( AgentsToolsAtlassianCall "$1" jira GET "$2" "$3" "" )" || agileRc=$?
+	agileBody="$( AgentsToolsAtlassianCall "$1" jira GET "$agilePath" "$3" "" )" || agileRc=$?
 	if [ "$agileRc" -ne 0 ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --$3: COULD NOT READ $2 as $1 (rc=$agileRc) -- the result set is UNKNOWN, not empty; the diagnostic above is the site's own" >&2
+		echo "⛔ ERROR: $MDSC_CMD --$3: COULD NOT READ $agilePath as $1 (rc=$agileRc) -- the result set is UNKNOWN, not empty; the diagnostic above is the site's own" >&2
 		return "$agileRc"
 	fi
 	printf '%s\n' "$agileBody"
@@ -84,7 +42,7 @@ AgentsToolsJiraAgileRead() {
 	case "$agileIsLast" in
 		true) ;;
 		false)
-			echo "# $MDSC_CMD --$3: isLast=false -- MORE RESULTS EXIST beyond this page and were not read. What is above is a prefix of the set, not the set" >&2
+			echo "# $MDSC_CMD --$3: isLast=false -- MORE RESULTS EXIST beyond this page and were not read. Read this page's own startAt and maxResults from the body above and pass their sum back as this operation's own --start-at to continue" >&2
 		;;
 		*)
 			echo "# $MDSC_CMD --$3: this response carried no isLast field, so whether more results exist is UNKNOWN -- it is not a confirmation that the page is complete" >&2
@@ -107,14 +65,21 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-whoami: takes exactly one argument" >&2
 				set +e ; return 1
 			fi
-			local jiraSite jiraUser jiraToken
-			AgentsToolsJiraResolveMember member-comms-jira-whoami "$memberName" || { set +e ; return 1 ; }
-			local jiraRc=0
-			AgentsToolsJiraCall whoami || jiraRc=$?
+			local jiraBody jiraRc=0
+			jiraBody="$( AgentsToolsAtlassianCall "$memberName" jira GET /rest/api/3/myself member-comms-jira-whoami "" )" || jiraRc=$?
 			if [ "$jiraRc" -ne 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-whoami: COULD NOT DETERMINE which Atlassian account ${memberName}'s credential resolves to (worker rc=$jiraRc) -- the acting identity is UNKNOWN, which is NOT the same as anonymous; the worker's own diagnostic is above" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-whoami: COULD NOT DETERMINE which Atlassian account ${memberName}'s credential resolves to (rc=$jiraRc) -- the acting identity is UNKNOWN, which is NOT the same as anonymous; the diagnostic above is the site's own" >&2
 				set +e ; return "$jiraRc"
 			fi
+			local jiraFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
+			local jiraAccountId="$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=accountId -f "$jiraFieldAwk" 2>/dev/null )"
+			if [ -z "$jiraAccountId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-whoami: the current-user call returned no accountId, so the acting identity is UNKNOWN. This is a POSITIVE test on what is present: an empty user is not evidence of an anonymous identity, it is evidence the question was not answered" >&2
+				set +e ; return 3
+			fi
+			printf 'JIRA_ACCOUNT_ID=%s\n' "$jiraAccountId"
+			printf 'JIRA_ACCOUNT_EMAIL=%s\n' "$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=emailAddress -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )"
+			printf 'JIRA_ACCOUNT_NAME=%s\n' "$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=displayName -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )"
 			return 0
 		;;
 
@@ -145,13 +110,33 @@ case "$1" in
 					;;
 				esac
 			done
-			local jiraSite jiraUser jiraToken
-			AgentsToolsJiraResolveMember member-comms-jira-issue-search "$memberName" || { set +e ; return 1 ; }
-			local jiraRc=0
-			AgentsToolsJiraCall issue-search || jiraRc=$?
+			[ -n "$jiraLimit" ] || jiraLimit=25
+			local jiraSearchPath="/rest/api/3/search/jql?jql=$( AgentsToolsAtlassianUrlEncode "$jiraJql" )&maxResults=$( AgentsToolsAtlassianUrlEncode "$jiraLimit" )&fields=$( AgentsToolsAtlassianUrlEncode "summary,status,issuetype,assignee,updated" )"
+			local jiraBody jiraRc=0
+			jiraBody="$( AgentsToolsAtlassianCall "$memberName" jira GET "$jiraSearchPath" member-comms-jira-issue-search "" )" || jiraRc=$?
 			if [ "$jiraRc" -ne 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-search: COULD NOT SEARCH as $memberName (worker rc=$jiraRc) -- the result set is UNKNOWN, not empty; nothing is known from this call about whether any issue matches. The worker's own diagnostic is above" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-search: COULD NOT SEARCH as $memberName (rc=$jiraRc) -- the result set is UNKNOWN, not empty; nothing is known from this call about whether any issue matches. The diagnostic above is the site's own" >&2
 				set +e ; return "$jiraRc"
+			fi
+			local jiraRows jiraRowsRc=0
+			jiraRows="$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v array=issues -v want='key,fields.issuetype.name,fields.status.name,fields.assignee.displayName,fields.updated,fields.summary' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || jiraRowsRc=$?
+			if [ "$jiraRowsRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-search: the search response did not carry a readable issues array (rc=$jiraRowsRc) -- the result set is UNKNOWN, not empty" >&2
+				set +e ; return 3
+			fi
+			printf 'ISSUE_KEY\tTYPE\tSTATUS\tASSIGNEE\tUPDATED\tSUMMARY\n'
+			[ -z "$jiraRows" ] || printf '%s\n' "$jiraRows"
+			## Jira answers a query naming a project that does not exist, and one that
+			## is not JQL at all, with HTTP 200 and no issues -- so an empty page is
+			## not evidence about the issues, only about this query.
+			if [ -z "$jiraRows" ] ; then
+				echo "# member-comms-jira-issue-search: the query ran and matched nothing. Jira answers an unresolvable or malformed query with an empty page rather than an error, so this does NOT establish that no issue matches what you meant: re-check the query itself. The JQL as sent: $jiraJql" >&2
+			fi
+			## /search/jql pages by token and reports no total, so the only
+			## truncation signal a caller gets is isLast.
+			local jiraIsLast="$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=isLast -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+			if [ "$jiraIsLast" = "false" ] ; then
+				echo "# member-comms-jira-issue-search: more issues match beyond this page -- Jira reports isLast=false. This endpoint returns no total, so how many more is unknown; raise --limit or narrow the query" >&2
 			fi
 			return 0
 		;;
@@ -184,13 +169,53 @@ case "$1" in
 					;;
 				esac
 			done
-			local jiraSite jiraUser jiraToken
-			AgentsToolsJiraResolveMember member-comms-jira-issue-read "$memberName" || { set +e ; return 1 ; }
-			local jiraRc=0
-			AgentsToolsJiraCall issue-read || jiraRc=$?
+			[ -n "$jiraFormat" ] || jiraFormat=adf
+			local jiraReadPath="/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraIssueKey" )?fields=$( AgentsToolsAtlassianUrlEncode "summary,status,assignee,reporter,priority,issuetype,resolution,labels,created,updated,description" )"
+			[ "$jiraFormat" = rendered ] && jiraReadPath="${jiraReadPath}&expand=renderedFields"
+			local jiraBody jiraRc=0
+			jiraBody="$( AgentsToolsAtlassianCall "$memberName" jira GET "$jiraReadPath" member-comms-jira-issue-read "" )" || jiraRc=$?
 			if [ "$jiraRc" -ne 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-read: COULD NOT READ issue $jiraIssueKey as $memberName (worker rc=$jiraRc) -- the content is UNKNOWN, not empty. Note a 404 from Jira does NOT establish that the issue is absent: it returns 404 both for a missing issue and for one this account cannot see. The worker's own diagnostic is above" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-read: COULD NOT READ issue $jiraIssueKey as $memberName (rc=$jiraRc) -- the content is UNKNOWN, not empty. Note a 404 from Jira does NOT establish that the issue is absent: it returns 404 both for a missing issue and for one this account cannot see. The diagnostic above is the site's own" >&2
 				set +e ; return "$jiraRc"
+			fi
+			local jiraFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
+			local jiraReadKey="$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=key -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )"
+			[ -n "$jiraReadKey" ] || jiraReadKey="$jiraIssueKey"
+			## Jira labels carry no comma, quote or bracket, so the raw array text
+			## (e.g. ["alpha","beta"]) is joined by stripping just those three.
+			local jiraLabels="$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=fields.labels -v raw=1 -f "$jiraFieldAwk" 2>/dev/null | sed -e 's/^\[//' -e 's/\]$//' -e 's/"//g' )"
+			printf '# issue %s: type=%s status=%s resolution=%s assignee=%s reporter=%s priority=%s created=%s updated=%s labels=%s format=%s\n' \
+				"$jiraReadKey" \
+				"$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=fields.issuetype.name -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )" \
+				"$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=fields.status.name -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )" \
+				"$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=fields.resolution.name -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )" \
+				"$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=fields.assignee.displayName -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )" \
+				"$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=fields.reporter.displayName -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )" \
+				"$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=fields.priority.name -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )" \
+				"$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=fields.created -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )" \
+				"$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=fields.updated -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )" \
+				"$jiraLabels" \
+				"$jiraFormat" >&2
+			printf '# issue %s: summary=%s\n' "$jiraReadKey" "$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=fields.summary -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )" >&2
+			if [ "$jiraFormat" = rendered ] ; then
+				local jiraRendered="$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=renderedFields.description -f "$jiraFieldAwk" 2>/dev/null )"
+				if [ -z "$jiraRendered" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-read: the issue was returned without a renderedFields description, so the rendered body is UNKNOWN rather than empty" >&2
+					set +e ; return 3
+				fi
+				printf '%s' "$jiraRendered"
+				return 0
+			fi
+			local jiraDescription jiraDescRc=0
+			jiraDescription="$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=fields.description -v raw=1 -f "$jiraFieldAwk" 2>/dev/null )" || jiraDescRc=$?
+			if [ "$jiraDescRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-read: the issue's description field could not be read (rc=$jiraDescRc) -- either the field is entirely absent or the response did not parse, so its content is UNKNOWN rather than absent" >&2
+				set +e ; return 3
+			fi
+			if [ -z "$jiraDescription" ] ; then
+				echo "# issue $jiraReadKey: this issue really has no description -- the field was returned and its value is null, which is an answer, not a failed read" >&2
+			else
+				printf '%s\n' "$jiraDescription"
 			fi
 			return 0
 		;;
@@ -225,14 +250,47 @@ case "$1" in
 					;;
 				esac
 			done
-			local jiraSite jiraUser jiraToken
-			AgentsToolsJiraResolveMember member-comms-jira-comment-read "$memberName" || { set +e ; return 1 ; }
-			local jiraRc=0
-			AgentsToolsJiraCall comment-read || jiraRc=$?
+			[ -n "$jiraFormat" ] || jiraFormat=adf
+			local jiraCommentPath="/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraIssueKey" )/comment?maxResults=100"
+			[ "$jiraFormat" = rendered ] && jiraCommentPath="${jiraCommentPath}&expand=renderedBody"
+			local jiraBody jiraRc=0
+			jiraBody="$( AgentsToolsAtlassianCall "$memberName" jira GET "$jiraCommentPath" member-comms-jira-comment-read "" )" || jiraRc=$?
 			if [ "$jiraRc" -ne 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-read: COULD NOT READ comments on issue $jiraIssueKey as $memberName (worker rc=$jiraRc) -- the comment list is UNKNOWN, not empty; the worker's own diagnostic is above" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-read: COULD NOT READ comments on issue $jiraIssueKey as $memberName (rc=$jiraRc) -- the comment list is UNKNOWN, not empty; the diagnostic above is the site's own" >&2
 				set +e ; return "$jiraRc"
 			fi
+			## adf comment bodies are a JSON document, not a scalar, so that one
+			## field is captured raw -- the same rule issue-read's description
+			## follows. rendered bodies are already plain HTML text.
+			local jiraCommentWant='id,author.accountId,author.displayName,created,updated'
+			local jiraCommentRawFlag=()
+			if [ "$jiraFormat" = rendered ] ; then
+				jiraCommentWant="${jiraCommentWant},renderedBody"
+			else
+				jiraCommentWant="${jiraCommentWant},body"
+				jiraCommentRawFlag=( -v raw=body )
+			fi
+			local jiraRows jiraRowsRc=0
+			jiraRows="$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v array=comments -v want="$jiraCommentWant" "${jiraCommentRawFlag[@]}" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || jiraRowsRc=$?
+			if [ "$jiraRowsRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-read: the comments call returned no comments field, so the comment list is UNKNOWN rather than empty" >&2
+				set +e ; return 3
+			fi
+			printf 'COMMENT_ID\tAUTHOR_ID\tAUTHOR_NAME\tCREATED\tUPDATED\tBODY\n'
+			[ -z "$jiraRows" ] || printf '%s\n' "$jiraRows"
+			## This endpoint does report a total, so truncation is stated exactly.
+			local jiraFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
+			local jiraTotal="$( printf '%s\n' "$jiraBody" | LC_ALL=C awk -v path=total -v optional=1 -f "$jiraFieldAwk" 2>/dev/null )"
+			local jiraEmitted=0
+			[ -z "$jiraRows" ] || jiraEmitted="$( printf '%s\n' "$jiraRows" | awk 'END { print NR }' )"
+			case "$jiraTotal" in
+				*[!0123456789]*|"") ;;
+				*)
+					if [ "$jiraTotal" -gt "$jiraEmitted" ] ; then
+						echo "# member-comms-jira-comment-read: issue $jiraIssueKey has $jiraTotal comments and this page carries $jiraEmitted -- the rest were not read" >&2
+					fi
+				;;
+			esac
 			return 0
 		;;
 
@@ -241,15 +299,28 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-list: syntax is <team-member> -- the acting member is required, since a board is visible only to identities its project is shared with" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-list: syntax is <team-member> [--start-at <n>] -- the acting member is required, since a board is visible only to identities its project is shared with. --start-at continues a prior isLast=false page: pass back that page's own startAt plus its maxResults, verbatim" >&2
 				set +e ; return 1
 			fi
-			if [ $# -gt 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-list: takes exactly one argument" >&2
-				set +e ; return 1
-			fi
+			local jiraStartAt=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--start-at)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-list: --start-at requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraStartAt="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-list: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
 			local jiraRc=0
-			AgentsToolsJiraAgileRead "$memberName" /rest/agile/1.0/board member-comms-jira-board-list || jiraRc=$?
+			AgentsToolsJiraAgileRead "$memberName" /rest/agile/1.0/board member-comms-jira-board-list "$jiraStartAt" || jiraRc=$?
 			if [ "$jiraRc" -ne 0 ] ; then set +e ; return "$jiraRc" ; fi
 			return 0
 		;;
@@ -293,11 +364,7 @@ case "$1" in
 			local jiraBoardId="$1"
 			shift || true
 			if [ -z "$memberName" ] || [ -z "$jiraBoardId" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-issue-search: syntax is <team-member> <board-id> -- the acting member is required, since the issues returned are only those that identity can see" >&2
-				set +e ; return 1
-			fi
-			if [ $# -gt 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-issue-search: takes exactly two arguments" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-issue-search: syntax is <team-member> <board-id> [--start-at <n>] -- the acting member is required, since the issues returned are only those that identity can see" >&2
 				set +e ; return 1
 			fi
 			case "$jiraBoardId" in
@@ -306,8 +373,25 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
+			local jiraStartAt=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--start-at)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-issue-search: --start-at requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraStartAt="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-issue-search: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
 			local jiraRc=0
-			AgentsToolsJiraAgileRead "$memberName" "/rest/agile/1.0/board/$jiraBoardId/issue" member-comms-jira-board-issue-search || jiraRc=$?
+			AgentsToolsJiraAgileRead "$memberName" "/rest/agile/1.0/board/$jiraBoardId/issue" member-comms-jira-board-issue-search "$jiraStartAt" || jiraRc=$?
 			if [ "$jiraRc" -ne 0 ] ; then set +e ; return "$jiraRc" ; fi
 			return 0
 		;;
@@ -319,11 +403,7 @@ case "$1" in
 			local jiraBoardId="$1"
 			shift || true
 			if [ -z "$memberName" ] || [ -z "$jiraBoardId" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-list: syntax is <team-member> <board-id> -- a sprint belongs to a board, and the acting member is required since the board is visible only to identities it is shared with" >&2
-				set +e ; return 1
-			fi
-			if [ $# -gt 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-list: takes exactly two arguments" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-list: syntax is <team-member> <board-id> [--start-at <n>] -- a sprint belongs to a board, and the acting member is required since the board is visible only to identities it is shared with" >&2
 				set +e ; return 1
 			fi
 			case "$jiraBoardId" in
@@ -332,8 +412,25 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
+			local jiraStartAt=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--start-at)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-list: --start-at requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraStartAt="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-list: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
 			local jiraRc=0
-			AgentsToolsJiraAgileRead "$memberName" "/rest/agile/1.0/board/$jiraBoardId/sprint" member-comms-jira-sprint-list || jiraRc=$?
+			AgentsToolsJiraAgileRead "$memberName" "/rest/agile/1.0/board/$jiraBoardId/sprint" member-comms-jira-sprint-list "$jiraStartAt" || jiraRc=$?
 			if [ "$jiraRc" -ne 0 ] ; then set +e ; return "$jiraRc" ; fi
 			return 0
 		;;
@@ -345,11 +442,7 @@ case "$1" in
 			local jiraSprintId="$1"
 			shift || true
 			if [ -z "$memberName" ] || [ -z "$jiraSprintId" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-issue-search: syntax is <team-member> <sprint-id> -- the acting member is required, since the issues returned are only those that identity can see" >&2
-				set +e ; return 1
-			fi
-			if [ $# -gt 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-issue-search: takes exactly two arguments" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-issue-search: syntax is <team-member> <sprint-id> [--start-at <n>] -- the acting member is required, since the issues returned are only those that identity can see" >&2
 				set +e ; return 1
 			fi
 			case "$jiraSprintId" in
@@ -358,8 +451,25 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
+			local jiraStartAt=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--start-at)
+						shift
+						if [ -z "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-issue-search: --start-at requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraStartAt="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-issue-search: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
 			local jiraRc=0
-			AgentsToolsJiraAgileRead "$memberName" "/rest/agile/1.0/sprint/$jiraSprintId/issue" member-comms-jira-sprint-issue-search || jiraRc=$?
+			AgentsToolsJiraAgileRead "$memberName" "/rest/agile/1.0/sprint/$jiraSprintId/issue" member-comms-jira-sprint-issue-search "$jiraStartAt" || jiraRc=$?
 			if [ "$jiraRc" -ne 0 ] ; then set +e ; return "$jiraRc" ; fi
 			return 0
 		;;

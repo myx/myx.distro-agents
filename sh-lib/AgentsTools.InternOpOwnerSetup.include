@@ -21,7 +21,7 @@ AgentsToolsOwnerSetupOptionSpec(){
 		## No '|' inside a field: it is this line's own separator, so one in a
 		## placeholder splits the entry and every later field arrives shifted.
 		SPAWN_CLI_SERVICE)
-			printf '%s\n' 'magic-team|<cli-name>|plain|the agent CLI this workspace starts -- copilot, claude or grok. A spawned agent runs non-interactively, where the console accepts only copilot and claude.'
+			printf '%s\n' 'magic-team|<cli-name>|plain|the agent CLI this workspace starts -- copilot, claude, grok or scaleway. A spawned agent runs non-interactively, where the console accepts only copilot, claude and scaleway.'
 		;;
 		CLIENT_ACCESS_ROOTS_EXTRA)
 			printf '%s\n' 'magic-team|<abs-path>[:<abs-path>...]|plain|extra directories a spawned agent may read and write, beyond the member and source roots the installer already grants. Absolute paths, colon-separated.'
@@ -46,6 +46,16 @@ AgentsToolsOwnerSetupOptionSpec(){
 		;;
 		COPILOT_GITHUB_TOKEN)
 			printf '%s\n' 'magic-team|<github-token>|secret|copilot reads this name itself, ahead of GH_TOKEN and GITHUB_TOKEN. A github.com fine-grained personal access token carrying the Copilot Requests permission; classic ghp_ tokens are refused.'
+		;;
+		## Scaleway scopes a secret key by Project+policy, not by model --
+		## confirmed live -- so either name reaches every model; the names are
+		## which tier prefers which, not an enforced restriction. Neither is
+		## required alone, but the harness refuses to run with both unset.
+		SCALEWAY_DEEPSEEK)
+			printf '%s\n' 'magic-team|<key>|secret|AgentsScalewayHarness.sh reads this name itself, preferred for the normal/heavy tiers (deepseek-v4-flash-0731). console.scaleway.com, IAM, API Keys -- a Project-scoped key carrying the GenerativeApisFullAccess policy.'
+		;;
+		SCALEWAY_GEMMA)
+			printf '%s\n' 'magic-team|<key>|secret|AgentsScalewayHarness.sh reads this name itself, preferred for the light tier (gemma-4-26b-a4b-it). console.scaleway.com, IAM, API Keys -- a Project-scoped key carrying the GenerativeApisFullAccess policy.'
 		;;
 		SLACK_BOT_TOKEN)
 			printf '%s\n' 'magic-team|<xoxb-token>|secret|api.slack.com/apps, your app, OAuth and Permissions, Bot User OAuth Token.'

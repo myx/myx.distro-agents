@@ -4,53 +4,15 @@
 ##
 ## AgentsTools.MemberCommsConfluence.include -- the raw per-member Confluence
 ## Cloud comms operations (identity, page read, CQL search, comment read).
+## Transport is the shared Atlassian layer
+## (AgentsTools.InternOpAtlassianCall.include) plus the two Atlassian JSON
+## readers beside it -- no Python worker is involved.
 ##
 
-AgentsToolsConfluenceResolveMember() {
-	local opName="$1"
-	local memberName="$2"
-
-	AgentsToolsAssertBareName "$memberName" "<team-member>" "$opName" || return 1
-	case "$memberName" in
-		routine-*)
-		;;
-		*)
-			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --$opName: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-				return 1
-			fi
-		;;
-	esac
-
-	confluenceSite="$( DistroAgentsTools --agents-config-option "$memberName" --select CONFLUENCE_SITE )"
-	confluenceUser="$( DistroAgentsTools --agents-config-option "$memberName" --select CONFLUENCE_USER )"
-	confluenceToken="$( DistroAgentsTools --agents-config-option "$memberName" --select CONFLUENCE_API_TOKEN )"
-	if [ -z "$confluenceSite" ] || [ -z "$confluenceUser" ] || [ -z "$confluenceToken" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --$opName: CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
-		return 1
-	fi
-
-	local confluenceNewline=$'\n'
-	case "$confluenceSite$confluenceUser$confluenceToken" in
-		*"$confluenceNewline"*)
-			echo "⛔ ERROR: $MDSC_CMD --$opName: CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- none of them ever legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting 401 would be misread as a revoked credential" >&2
-			return 1
-		;;
-	esac
-	return 0
-}
-
-AgentsToolsConfluenceCall() {
-	AGENTS_CONFLUENCE_SITE="$confluenceSite" \
-	AGENTS_CONFLUENCE_USER="$confluenceUser" \
-	AGENTS_CONFLUENCE_API_TOKEN="$confluenceToken" \
-	AGENTS_CONFLUENCE_OP="$1" \
-	AGENTS_CONFLUENCE_PAGE_ID="${confluencePageId:-}" \
-	AGENTS_CONFLUENCE_CQL="${confluenceCql:-}" \
-	AGENTS_CONFLUENCE_LIMIT="${confluenceLimit:-}" \
-	AGENTS_CONFLUENCE_FORMAT="${confluenceFormat:-}" \
-	python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConfluenceApiCall.py"
-}
+## The shared Atlassian layer, sourced for its definitions only. Its own case
+## ends in a branch that does nothing when $1 is none of its own operations, so
+## this dispatches nothing and is safe to repeat.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpAtlassianCall.include"
 
 case "$1" in
 
@@ -66,14 +28,28 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-whoami: takes exactly one argument" >&2
 				set +e ; return 1
 			fi
-			local confluenceSite confluenceUser confluenceToken
-			AgentsToolsConfluenceResolveMember member-comms-confluence-whoami "$memberName" || { set +e ; return 1 ; }
-			local confluenceRc=0
-			AgentsToolsConfluenceCall whoami || confluenceRc=$?
+			local confluenceBody confluenceRc=0
+			confluenceBody="$( AgentsToolsAtlassianCall "$memberName" confluence GET /wiki/rest/api/user/current member-comms-confluence-whoami "" )" || confluenceRc=$?
 			if [ "$confluenceRc" -ne 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-whoami: COULD NOT DETERMINE which Atlassian account ${memberName}'s credential resolves to (worker rc=$confluenceRc) -- the acting identity is UNKNOWN, which is NOT the same as anonymous; the worker's own diagnostic is above" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-whoami: COULD NOT DETERMINE which Atlassian account ${memberName}'s credential resolves to (rc=$confluenceRc) -- the acting identity is UNKNOWN, which is NOT the same as anonymous; the diagnostic above is the site's own" >&2
 				set +e ; return "$confluenceRc"
 			fi
+			local confluenceFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
+			local confluenceAccountId="$( printf '%s\n' "$confluenceBody" | LC_ALL=C awk -v path=accountId -f "$confluenceFieldAwk" 2>/dev/null )"
+			if [ -z "$confluenceAccountId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-whoami: the current-user call returned no accountId, so the acting identity is UNKNOWN. This is a POSITIVE test on what is present: an empty user is not evidence of an anonymous identity, it is evidence the question was not answered" >&2
+				set +e ; return 3
+			fi
+			printf 'CONFLUENCE_ACCOUNT_ID=%s\n' "$confluenceAccountId"
+			printf 'CONFLUENCE_ACCOUNT_EMAIL=%s\n' "$( printf '%s\n' "$confluenceBody" | LC_ALL=C awk -v path=email -v optional=1 -f "$confluenceFieldAwk" 2>/dev/null )"
+			## publicName-or-displayName, actually falling back this time: the
+			## Python worker this replaces got exactly this wrong (`%` binds
+			## tighter than `or`, so it always printed the literal word "None"
+			## whenever publicName was absent) -- verified by running both
+			## branches of that bug, not read off the old source.
+			local confluencePublicName="$( printf '%s\n' "$confluenceBody" | LC_ALL=C awk -v path=publicName -v optional=1 -f "$confluenceFieldAwk" 2>/dev/null )"
+			local confluenceDisplayName="$( printf '%s\n' "$confluenceBody" | LC_ALL=C awk -v path=displayName -v optional=1 -f "$confluenceFieldAwk" 2>/dev/null )"
+			printf 'CONFLUENCE_ACCOUNT_NAME=%s\n' "${confluencePublicName:-$confluenceDisplayName}"
 			return 0
 		;;
 
@@ -104,14 +80,32 @@ case "$1" in
 					;;
 				esac
 			done
-			local confluenceSite confluenceUser confluenceToken
-			AgentsToolsConfluenceResolveMember member-comms-confluence-page-read "$memberName" || { set +e ; return 1 ; }
-			local confluenceRc=0
-			AgentsToolsConfluenceCall page-read || confluenceRc=$?
+			[ -n "$confluenceFormat" ] || confluenceFormat=storage
+			local confluenceReadPath="/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confluencePageId" )?body-format=$( AgentsToolsAtlassianUrlEncode "$confluenceFormat" )"
+			local confluenceBody confluenceRc=0
+			confluenceBody="$( AgentsToolsAtlassianCall "$memberName" confluence GET "$confluenceReadPath" member-comms-confluence-page-read "" )" || confluenceRc=$?
 			if [ "$confluenceRc" -ne 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-read: COULD NOT READ page $confluencePageId as $memberName (worker rc=$confluenceRc) -- the content is UNKNOWN, not empty. Note a 404 from Confluence does NOT establish that the page is absent: it returns 404 both for missing content and for content this account cannot see. The worker's own diagnostic is above" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-read: COULD NOT READ page $confluencePageId as $memberName (rc=$confluenceRc) -- the content is UNKNOWN, not empty. Note a 404 from Confluence does NOT establish that the page is absent: it returns 404 both for missing content and for content this account cannot see. The diagnostic above is the site's own" >&2
 				set +e ; return "$confluenceRc"
 			fi
+			local confluenceFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
+			## atlas_doc_format's own value is a JSON document (ADF), not a scalar,
+			## so it is captured raw; storage's is already a plain XHTML string.
+			local confluenceBodyRawFlag=()
+			[ "$confluenceFormat" = storage ] || confluenceBodyRawFlag=( -v raw=1 )
+			local confluencePageValue confluenceValueRc=0
+			confluencePageValue="$( printf '%s\n' "$confluenceBody" | LC_ALL=C awk -v path="body.$confluenceFormat.value" "${confluenceBodyRawFlag[@]}" -f "$confluenceFieldAwk" 2>/dev/null )" || confluenceValueRc=$?
+			if [ "$confluenceValueRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-read: the page returned no $confluenceFormat body, so its content is UNKNOWN rather than empty. This is a POSITIVE test on what is present" >&2
+				set +e ; return 3
+			fi
+			printf '# page %s: title=%s version=%s spaceId=%s format=%s\n' \
+				"$confluencePageId" \
+				"$( printf '%s\n' "$confluenceBody" | LC_ALL=C awk -v path=title -v optional=1 -f "$confluenceFieldAwk" 2>/dev/null )" \
+				"$( printf '%s\n' "$confluenceBody" | LC_ALL=C awk -v path=version.number -v optional=1 -f "$confluenceFieldAwk" 2>/dev/null )" \
+				"$( printf '%s\n' "$confluenceBody" | LC_ALL=C awk -v path=spaceId -v optional=1 -f "$confluenceFieldAwk" 2>/dev/null )" \
+				"$confluenceFormat" >&2
+			printf '%s' "$confluencePageValue"
 			return 0
 		;;
 
@@ -142,14 +136,25 @@ case "$1" in
 					;;
 				esac
 			done
-			local confluenceSite confluenceUser confluenceToken
-			AgentsToolsConfluenceResolveMember member-comms-confluence-page-search "$memberName" || { set +e ; return 1 ; }
-			local confluenceRc=0
-			AgentsToolsConfluenceCall page-search || confluenceRc=$?
+			[ -n "$confluenceLimit" ] || confluenceLimit=25
+			local confluenceSearchPath="/wiki/rest/api/search?cql=$( AgentsToolsAtlassianUrlEncode "$confluenceCql" )&limit=$( AgentsToolsAtlassianUrlEncode "$confluenceLimit" )"
+			local confluenceBody confluenceRc=0
+			confluenceBody="$( AgentsToolsAtlassianCall "$memberName" confluence GET "$confluenceSearchPath" member-comms-confluence-page-search "" )" || confluenceRc=$?
 			if [ "$confluenceRc" -ne 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-search: COULD NOT SEARCH as $memberName (worker rc=$confluenceRc) -- the result set is UNKNOWN, not empty; nothing is known from this call about whether any content matches. The worker's own diagnostic is above" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-search: COULD NOT SEARCH as $memberName (rc=$confluenceRc) -- the result set is UNKNOWN, not empty; nothing is known from this call about whether any content matches. The diagnostic above is the site's own" >&2
 				set +e ; return "$confluenceRc"
 			fi
+			local confluenceRows confluenceRowsRc=0
+			confluenceRows="$( printf '%s\n' "$confluenceBody" | LC_ALL=C awk -v array=results -v want='content.id,content.type,title,lastModified,url' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || confluenceRowsRc=$?
+			if [ "$confluenceRowsRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-search: the search returned no results field, so the result set is UNKNOWN rather than empty" >&2
+				set +e ; return 3
+			fi
+			printf 'CONTENT_ID\tTYPE\tTITLE\tLAST_MODIFIED\tURL\n'
+			[ -z "$confluenceRows" ] || printf '%s\n' "$confluenceRows"
+			## This endpoint carries no isLast/total at all, unlike Jira's -- said
+			## explicitly rather than left to read as a confirmed-complete page.
+			echo "# member-comms-confluence-page-search: more: unknown -- this endpoint reports no isLast/total, so whether results exist beyond this page cannot be determined from the response" >&2
 			return 0
 		;;
 
@@ -168,14 +173,23 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-read: invalid option: $1" >&2
 				set +e ; return 1
 			fi
-			local confluenceSite confluenceUser confluenceToken
-			AgentsToolsConfluenceResolveMember member-comms-confluence-comment-read "$memberName" || { set +e ; return 1 ; }
-			local confluenceRc=0
-			AgentsToolsConfluenceCall comment-read || confluenceRc=$?
+			local confluenceCommentPath="/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confluencePageId" )/footer-comments?body-format=storage&limit=100"
+			local confluenceBody confluenceRc=0
+			confluenceBody="$( AgentsToolsAtlassianCall "$memberName" confluence GET "$confluenceCommentPath" member-comms-confluence-comment-read "" )" || confluenceRc=$?
 			if [ "$confluenceRc" -ne 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-read: COULD NOT READ comments on page $confluencePageId as $memberName (worker rc=$confluenceRc) -- the comment list is UNKNOWN, not empty; the worker's own diagnostic is above" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-read: COULD NOT READ comments on page $confluencePageId as $memberName (rc=$confluenceRc) -- the comment list is UNKNOWN, not empty; the diagnostic above is the site's own" >&2
 				set +e ; return "$confluenceRc"
 			fi
+			local confluenceRows confluenceRowsRc=0
+			confluenceRows="$( printf '%s\n' "$confluenceBody" | LC_ALL=C awk -v array=results -v want='id,version.authorId,version.createdAt,body.storage.value' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || confluenceRowsRc=$?
+			if [ "$confluenceRowsRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-read: the comments call returned no results field, so the comment list is UNKNOWN rather than empty" >&2
+				set +e ; return 3
+			fi
+			printf 'COMMENT_ID\tVERSION_AUTHOR_ID\tCREATED\tBODY\n'
+			[ -z "$confluenceRows" ] || printf '%s\n' "$confluenceRows"
+			## Same gap as page-search: no isLast/total on this endpoint either.
+			echo "# member-comms-confluence-comment-read: more: unknown -- this endpoint reports no isLast/total, so whether comments exist beyond this page cannot be determined from the response" >&2
 			return 0
 		;;
 

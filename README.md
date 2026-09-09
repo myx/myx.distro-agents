@@ -84,7 +84,7 @@ See exactly which operations one member is allowed to run:
 
 ## Running the agents console
 
-	DistroAgentsConsole.sh [--cli copilot|claude|grok] [--cli-auto] [--non-interactive] [args...]
+	DistroAgentsConsole.sh [--cli copilot|claude|grok|scaleway] [--cli-auto] [--non-interactive] [args...]
 
 	./DistroAgentsConsole.sh
 	./DistroAgentsConsole.sh --cli claude
@@ -92,13 +92,19 @@ See exactly which operations one member is allowed to run:
 	./DistroAgentsConsole.sh --non-interactive "list the projects that changed today"
 	echo "list the projects that changed today" | ./DistroAgentsConsole.sh --non-interactive
 
-- Known CLIs, in preference order: `copilot`, `claude`, `grok`. The default is `copilot`.
+- Known CLIs, in preference order: `copilot`, `claude`, `grok`, `scaleway`. The default is `copilot`.
+  `scaleway` has no real binary -- it names `sh-lib/AgentsScalewayHarness.sh`, this package's own
+  bespoke tool-calling harness against Scaleway's Serverless Generative APIs (see
+  `--owner-setup-scaleway`). It has no interactive shape either (the harness runs one
+  request/response tool-calling cycle and exits, so `--cli scaleway` without `--non-interactive` is
+  refused with a stated reason) -- unlike `grok`, which is a real interactive binary not yet proven
+  non-interactive, `scaleway` is the opposite case and is wired into non-interactive dispatch only.
 - `--cli-auto` — pick the first known CLI that is actually installed.
 - `--cli <name>` — start that CLI. A CLI missing from `PATH` is an error; there is no fallback.
 - No `--cli` given — try the default, then the rest of the known list, then fall back to an
   interactive bash session.
 - `--non-interactive` — one-shot, no attached terminal.
-	- Supported for `copilot` and `claude` only.
+	- Supported for `copilot`, `claude` and `scaleway`.
 	- Remaining arguments are joined into one prompt.
 	- With no arguments, the prompt is read from stdin.
 	- Exits with an error rather than falling back to bash when no CLI is available.

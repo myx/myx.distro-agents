@@ -19,7 +19,8 @@
 ## The helper takes every value as an argument and reads nothing from a
 ## caller's frame, so no arm owes it a `local` declaration.
 ##
-## Exit: 0 answered, 1 contract error, 3 answer UNKNOWN, 4 credential rejected.
+## Exit: 0 answered, 1 contract error, 3 answer UNKNOWN, 4 credential rejected,
+## 5 conflict (HTTP 409 -- stale precondition, re-read and retry, not UNKNOWN).
 ##
 
 ## One authenticated Atlassian request. Arguments in order: acting member,
@@ -137,6 +138,10 @@ AgentsToolsAtlassianCall() {
 			echo "⛔ ERROR: $MDSC_CMD --$callContext: HTTP 404, so the answer is UNKNOWN. This is NOT proof the content is absent: Atlassian returns 404 both for genuinely missing content and for content this account cannot see. Atlassian's own response: $responseBody" >&2
 			return 3
 		;;
+		409)
+			echo "⛔ ERROR CONFLICT: $MDSC_CMD --$callContext: HTTP 409 CONFLICT, a stale precondition -- NOT the same UNKNOWN a 3 reports. A conditional write's own version/If-Match no longer matches the current state: re-read the current state and retry against it, never resubmit the same body unchanged. Atlassian's own response: $responseBody" >&2
+			return 5
+		;;
 		410)
 			echo "⛔ ERROR: $MDSC_CMD --$callContext: HTTP 410, which Atlassian returns for a REST endpoint it has retired. The answer is UNKNOWN, and no retry helps: the path has to be moved to whatever the response names. Atlassian's own response: $responseBody" >&2
 			return 3
@@ -146,6 +151,25 @@ AgentsToolsAtlassianCall() {
 			return 3
 		;;
 	esac
+}
+
+## Percent-encodes one value for a URL path segment or query string, byte for
+## byte under LC_ALL=C. Unreserved set only (RFC 3986 A-Za-z0-9-_.~); anything
+## outside it becomes %XX -- the same set curl's own --data-urlencode and
+## Python's urllib.parse.quote(safe="") use. A caller builds its own path/query
+## string from encoded pieces before handing it to AgentsToolsAtlassianCall,
+## which does no encoding of its own.
+AgentsToolsAtlassianUrlEncode() {
+	LC_ALL=C awk -v s="$1" 'BEGIN {
+		for (i = 0; i < 256; i++) byteOrd[sprintf("%c", i)] = i
+		out = ""
+		for (i = 1; i <= length(s); i++) {
+			c = substr(s, i, 1)
+			if (c ~ /^[A-Za-z0-9._~-]$/) out = out c
+			else out = out sprintf("%%%02X", byteOrd[c])
+		}
+		printf "%s", out
+	}'
 }
 
 case "$1" in
