@@ -109,8 +109,8 @@ case "$1" in
 		local sleepSeconds spawnRc nextDelaySeconds maxDelaySeconds mainLoopCliService
 		sleepSeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
 		case "$sleepSeconds" in *[!0123456789]*|'') sleepSeconds=29 ;; esac
-		maxDelaySeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_MAX_SECONDS 3600 )"
-		case "$maxDelaySeconds" in *[!0123456789]*|'') maxDelaySeconds=3600 ;; esac
+		maxDelaySeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_MAX_SECONDS 1200 )"
+		case "$maxDelaySeconds" in *[!0123456789]*|'') maxDelaySeconds=1200 ;; esac
 		nextDelaySeconds="$sleepSeconds"
 
 		local mainLoopInterrupted="false" mainLoopSpawnPid=""
