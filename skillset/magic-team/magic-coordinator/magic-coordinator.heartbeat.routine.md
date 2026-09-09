@@ -1,5 +1,5 @@
 ---
-executors: magic-coordinator
+executors: magic-coordinator (light)
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-coordinator.heartbeat.routine — the actual procedure
