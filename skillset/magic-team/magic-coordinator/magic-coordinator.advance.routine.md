@@ -263,7 +263,7 @@ Never qualifying, however compactly phrased: an outcome tally, a `recheck-date` 
 
 **A DM that does go carries one topic and leads with what is wanted** — the item's own name and what is needed from him, per `magic-team/magic-team.shared.md`'s own "One topic per message, and the decision leads it". Two qualifying things go as two messages. The pass's findings stay in the `slack-event-track` trace and follow only if he asks for them.
 
-**Thread continuity**, for a DM that goes: read `human_owner_broadcast_thread_ts`/`human_owner_broadcast_thread_date` from the `heartbeat-state-note` first. Date matches today's real date → post this DM as a threaded reply, target `<channel>:<ts>` using that stored value, never the bare `human-owner` keyword. No match (absent, or a stale prior day) → post with the bare `human-owner` target as today's first such DM, capture `channel`/`ts` from this call's own JSON response, and write them back via `--magic-heartbeat-state-upsert` so a later qualifying DM this same day threads into it instead of starting fresh.
+**Thread continuity**, for a DM that goes: read `human-owner-broadcast-thread-ts`/`human-owner-broadcast-thread-date` from the `heartbeat-state-note` first. Date matches today's real date → post this DM as a threaded reply, target `<channel>:<ts>` using that stored value, never the bare `human-owner` keyword. No match (absent, or a stale prior day) → post with the bare `human-owner` target as today's first such DM, capture `channel`/`ts` from this call's own JSON response, and write them back via `--magic-heartbeat-state-upsert` so a later qualifying DM this same day threads into it instead of starting fresh.
 
 # Routine's local rules
 
@@ -300,7 +300,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-advance-sleep-run` (`check-restart`: executed before continuing to the next `board-running` item, side-effecting outcomes only)
 - `--magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]` (**Per-pass completion requirement**, at scale: records bookkeeping-only outcomes for several `board-running` items in one call)
 - `--magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]` (`check-execute-board` autonomous spawn relay with execution receipt)
-- `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (**Thread continuity** write-back of `human_owner_broadcast_thread_ts`/`human_owner_broadcast_thread_date`, for a human-owner DM that qualifies)
+- `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (**Thread continuity** write-back of `human-owner-broadcast-thread-ts`/`human-owner-broadcast-thread-date`, for a human-owner DM that qualifies)
 - `--member-comms-slack-send-message <team-member> <target> [text...]` (**advance-report**: post the `event-track` report trace; also `check-execute-board`'s own per-type re-ask rules)
 
 ## `--magic-advance-sleep-run` operation reference

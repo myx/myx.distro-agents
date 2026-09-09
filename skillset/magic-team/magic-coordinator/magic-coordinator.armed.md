@@ -149,7 +149,7 @@ Steps:
    - `board-pending` item's content already records an actual dispatch → move to `board-running` via `--magic-advance-to-running`.
    - Never move `board-backlog` straight to `board-running`, skipping `board-pending`.
 4. **board-recompute-dependencies**: Recompute board dependency ordering.
-   - Gate: once per workday (`heartbeat-state-note`'s own `today_stage` field), or on direct request.
+   - Gate: once per workday (`heartbeat-state-note`'s own `today-stage` field), or on direct request.
    - Scope: every `board-running`/`board-blocked` item from this pass's read.
    - Classify each edge: **Blocks** — other item(s) that can't proceed until this resolves. **Blocked by** — the reverse edge, or a real external dependency. **Independent** — blocks nothing, blocked by nothing.
    - Record as `blocks:`/`blocked-by:` fields on the item file.

@@ -80,20 +80,20 @@ Exact instructions. Execute in order, every step, literally as written — not l
          - Shape: an iteration/timestamp header line, then the Board statistics section, then the Active processes section.
        - Full HTML/multipart layout redesign stays deferred (the text-vs-HTML question is still open) — this is a content/structure floor, not the eventual full design.
        - Sent via the `--member-comms-email-send` magic-tooling operation — never a session's own personal mail connector.
-       - Cadence check: track `last_test_email_sent` in the `heartbeat-state-note` and check "has an hour passed" the same mechanical way the day-rhythm check works — not fired every single `next-iteration` regardless of the fast-tier's 30s-2min cadence.
+       - Cadence check: track `last-test-email-sent` in the `heartbeat-state-note` and check "has an hour passed" the same mechanical way the day-rhythm check works — not fired every single `next-iteration` regardless of the fast-tier's 30s-2min cadence.
      - **First-today only**: dispatch `magic-team.grooming.routine` as a separate spawned session via **spawn-proxy** — librarian context prep and the batched `magic-librarian` own-inbox processing pass (`magic-librarian`'s own "Own inbox: collect and batch, don't fix ad hoc" standard) happen inside that dispatched session, not inline here.
      - **Later-today**: dispatch `magic-coordinator.daily.routine`'s flow as a separate spawned session via **spawn-proxy**, watching for planned work-sessions.
      - **`heartbeat-state-note` update**: a small, mostly-static state record, not a running history — updated every single `next-iteration`, not just narrative-notable ones.
-       - The structured header block (`last_iteration_date`/`last_iteration_timestamp`/`today_stage`/`active_project`) is refreshed to this `next-iteration`'s own values each time, never left at an earlier `next-iteration`'s values — a stale header is indistinguishable from a stopped loop to anyone checking it.
+       - The structured header block (`last-iteration-date`/`last-iteration-timestamp`/`today-stage`/`active-project`) is refreshed to this `next-iteration`'s own values each time, never left at an earlier `next-iteration`'s values — a stale header is indistinguishable from a stopped loop to anyone checking it.
        - The file's "Last iteration" section is overwritten each `next-iteration`, not appended to — one short paragraph replacing the previous one, not a growing tail.
        - Anything worth a permanent record does not accumulate here — it goes to one of two places: this `next-iteration`'s own `slack-event-track` thread (**open-event-track-thread**), for anything about this run specifically; or a `magic-coordinator/inbox/` reflection memo, for anything that should outlive this single run.
      - **Stale-flag escalation**:
-       - Trigger: the same open decision-point already flagged in a prior `next-iteration`'s `active_project` field or `slack-magic-team` trace (matched by its own recorded wording, not a brand-new occurrence), still carried forward unresolved across roughly 5+ consecutive `next-iteration`s or ~1 hour of elapsed time, whichever comes first.
+       - Trigger: the same open decision-point already flagged in a prior `next-iteration`'s `active-project` field or `slack-magic-team` trace (matched by its own recorded wording, not a brand-new occurrence), still carried forward unresolved across roughly 5+ consecutive `next-iteration`s or ~1 hour of elapsed time, whichever comes first.
        - Action: escalate it **exactly once** — a direct, focused `human-owner` DM naming the specific decision needed (not `slack-magic-team`: this needs the human-owner's own personal answer, not a team-channel post nobody's individually tagged on), not another repeat of the flag — instead of continuing to silently re-flag it every subsequent iteration with no one ever actually asking.
        - Does **not** authorize deciding the flagged question itself — still `main`/the human-owner's call, unchanged. It only converts "flagged repeatedly, never asked plainly" into "asked once, clearly," consistent with the standing "batch human-hands-on items, don't drip them" posture, applied here to stale decision-flags rather than physical actions.
        - **Once escalated**:
          - rule: don't re-escalate the same flag on later `next-iteration`s unless the human-owner's response itself calls for a follow-up
-         - step: record `escalated: <timestamp>` alongside the flag in the `heartbeat-state-note`'s `active_project` field
+         - step: record `escalated: <timestamp>` alongside the flag in the `heartbeat-state-note`'s `active-project` field
      - **Board advance, end of loop, every `next-iteration`**: dispatch one `magic-coordinator.advance.routine` pass as a separate spawned session via a background `Agent` call (`Skill(magic-coordinator)` as its first action) — not **spawn-proxy**, an external-CLI launcher. Every pass, no first-today/later-today gate.
 
 # Closure steps
@@ -112,15 +112,15 @@ Named procedure blocks. Steps above call them by name. Not separate routines - n
 
 - Persistent record: the `heartbeat-state-note` — read via the `--magic-heartbeat-state-read` operation, written via `--magic-heartbeat-state-upsert`.
 - Owned/written by whichever session actually executes this routine's own `next-iteration` (in practice, `magic-coordinator`).
-- Minimum fields: `last_iteration_date`, `last_iteration_timestamp`, `today_stage` (`not_started` → `grooming_done` → `daily_done` → steady-state cycling), `last_test_email_sent` (see **run-one-bounded-substep**'s Test email report sub-step), `human_owner_broadcast_thread_ts` / `human_owner_broadcast_thread_date` (the captured `channel:ts` of today's first human-owner DM from an unattended pass, e.g. `magic-coordinator.advance.routine`'s `check-execute-board` DM on a pass that found something qualifying — treated as stale/cleared whenever `human_owner_broadcast_thread_date` != today's real date, same "recompute per real date" convention as the weekend/first-today checks above; consumed by `magic-coordinator.advance.routine`'s own `check-execute-board` procedure to thread same-day human-owner DMs together instead of posting each as a fresh top-level message), and a light pointer to whichever active project a dispatched work-session belongs to — just enough to satisfy the "all dispatched work sits within a project" constraint; the project schema itself stays out of scope here.
+- Minimum fields: `last-iteration-date`, `last-iteration-timestamp`, `today-stage` (`not-started` → `grooming-done` → `daily-done` → steady-state cycling), `last-test-email-sent` (see **run-one-bounded-substep**'s Test email report sub-step), `human-owner-broadcast-thread-ts` / `human-owner-broadcast-thread-date` (the captured `channel:ts` of today's first human-owner DM from an unattended pass, e.g. `magic-coordinator.advance.routine`'s `check-execute-board` DM on a pass that found something qualifying — treated as stale/cleared whenever `human-owner-broadcast-thread-date` != today's real date, same "recompute per real date" convention as the weekend/first-today checks above; consumed by `magic-coordinator.advance.routine`'s own `check-execute-board` procedure to thread same-day human-owner DMs together instead of posting each as a fresh top-level message), and a light pointer to whichever active project a dispatched work-session belongs to — just enough to satisfy the "all dispatched work sits within a project" constraint; the project schema itself stays out of scope here.
 - Created lazily on first real run.
 
-- **First-iteration-today test**: compare `last_iteration_date` to today's real date.
+- **First-iteration-today test**: compare `last-iteration-date` to today's real date.
   - Mismatch or file absent → this is the first `next-iteration` today: run `magic-team.grooming.routine` after `magic-librarian` preps context, then move into `magic-coordinator.daily.routine`'s flow.
-  - Match → resume from `today_stage`.
+  - Match → resume from `today-stage`.
 - **Weekend detection** (recompute weekday from real system date every `next-iteration`; Sat/Sun triggers this):
   - ALLOW: comms sweep. Reactive admin (todo/record updates), only in direct response to an actual incoming request.
-  - DENY by default: dispatching grooming/daily-meeting/work-sessions; advancing `today_stage` past comms.
+  - DENY by default: dispatching grooming/daily-meeting/work-sessions; advancing `today-stage` past comms.
   - RULE: coordinator dispatches normal work only if tied to a genuine ad-hoc human-owner activity, firsthand-confirmed by a `magic-coordinator` instance in live contact with the human-owner — trusted per `magic-team`'s own delegated-authority rule, same as any other coordinator report; no separate anchor required.
   - Unmet → DENY stands.
 
