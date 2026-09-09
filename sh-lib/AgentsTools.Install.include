@@ -1402,6 +1402,77 @@ HOOKEOF
 		return 0
 	;;
 
+	## Generates one ~/.copilot/agents/<member>.agent.md per active team-member --
+	## copilot's on-disk equivalent of claude's inline --agents JSON. Member set
+	## comes from AgentsToolsClientAccessRootsMembers, same as the copilot access
+	## fragment; no --workspace here since that reads $MDAT_SKILLSET_ROOT, fixed
+	## at DistroAgentsTools() entry, not an op-level flag. Internal step of
+	## --install-workspace-integrations, out of help, same as --install-copilot-access-fragment.
+	--install-copilot-agent-files)
+		shift
+
+		while [ "$#" -gt 0 ] ; do
+			case "$1" in
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
+
+		local agentsDir="$HOME/.copilot/agents"
+		mkdir -p "$agentsDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: cannot create $agentsDir" >&2
+			set +e ; return 1
+		}
+
+		## One line so `local` masks grep's exit 1 on a legitimately empty member set.
+		local memberCount="$( AgentsToolsClientAccessRootsMembers | grep -c '' )"
+		if [ "$memberCount" -lt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: no member skill directories resolved under $MDAT_SKILLSET_ROOT -- refusing to write copilot agent files for zero members" >&2
+			set +e ; return 1
+		fi
+
+		local memberDir memberName agentFile agentTmp hadError="false" writtenCount=0
+		while IFS= read -r memberDir ; do
+			[ -n "$memberDir" ] || continue
+			memberName="$( basename "$memberDir" )"
+			agentFile="$agentsDir/$memberName.agent.md"
+			agentTmp="$agentFile.tmp.$$"
+			if ! printf -- '---\nname: %s\ndescription: magic-team member %s\n---\nYou are %s, a magic-team member. Read your own skill files before acting.\n' \
+				"$memberName" "$memberName" "$memberName" > "$agentTmp" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: could not write $agentFile" >&2
+				rm -f "$agentTmp" ; hadError="true" ; continue
+			fi
+			if [ -f "$agentFile" ] && cmp -s "$agentTmp" "$agentFile" ; then
+				rm -f "$agentTmp" ; continue
+			fi
+			## Real content is never overwritten -- same refusal as
+			## --install-skillset-symlinks's own "real content ... will not
+			## overwrite", extended here to a file that exists but no longer
+			## matches what this op would generate (a foreign hand-placed file
+			## and a stale prior generation are indistinguishable without a
+			## registry, so both are treated as real content and left alone).
+			if [ -e "$agentFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: real content at $agentFile, will not overwrite (generated content would differ)" >&2
+				rm -f "$agentTmp" ; hadError="true" ; continue
+			fi
+			if ! mv -f "$agentTmp" "$agentFile" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: could not install $agentFile" >&2
+				rm -f "$agentTmp" ; hadError="true" ; continue
+			fi
+			writtenCount=$(( writtenCount + 1 ))
+		done <<< "$( AgentsToolsClientAccessRootsMembers )"
+
+		if [ "$hadError" = "true" ] ; then
+			set +e ; return 1
+		fi
+		echo "✅ copilot agent files configured (${memberCount} member(s), ${writtenCount} updated)" >&2
+		return 0
+	;;
+
 	--install-workspace-integrations)
 		shift
 
@@ -1505,6 +1576,7 @@ HOOKEOF
 		## ready for the generated console -- installer prepares it, launcher
 		## uses it. Copilot only; harmless where copilot is never run.
 		DistroAgentsTools --install-copilot-access-fragment --workspace "$workspace" || { set +e ; return 1 ; }
+		DistroAgentsTools --install-copilot-agent-files || { set +e ; return 1 ; }
 
 		echo "✅ workspace integrations installed" >&2
 		return 0

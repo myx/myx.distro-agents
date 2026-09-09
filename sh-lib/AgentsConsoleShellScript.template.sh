@@ -215,12 +215,12 @@ done
 
 ## The spawn proxy mints this session uuid, records it on its own dispatch
 ## document and exports it here, so a hook's own session_id joins that record.
-## Only claude takes the flag: on any other CLI it is reported and dropped
-## rather than silently ignored, since the dispatch record would otherwise name
-## a session nothing else ever reports.
+## claude and copilot both take the flag; any other CLI has it reported and
+## dropped rather than silently ignored, since the dispatch record would
+## otherwise name a session nothing else ever reports.
 DAGC_SESSION_ID_ARGS=()
 if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
-	if [ "$DAGC_CLI" = "claude" ] ; then
+	if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "copilot" ] ; then
 		DAGC_SESSION_ID_ARGS=( --session-id "$MDAT_SPAWN_SESSION_ID" )
 	else
 		echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_SESSION_ID is set but '$DAGC_CLI' has no --session-id flag -- this spawn runs without it, and its dispatch record will not join the agent's own session" >&2
@@ -231,24 +231,38 @@ fi
 ## spawn rather than as a standing file: members ship as skills, and a standing
 ## definition would make one member exist twice. `--agent` then selects it, so
 ## a hook reports the member name rather than the generic agent type. claude
-## only, and the name is checked against a bare-token set before it is placed
-## inside the JSON, so no member name can alter the document's structure.
+## takes the definition inline; copilot instead reads it from its own
+## `~/.copilot/agents/<member>.agent.md` file, generated once per member by
+## `--install-copilot-agent-files`, and only `--agent`s it when that file is
+## actually there. The name is checked against a bare-token set before it is
+## placed inside JSON or a path, so no member name can alter the document's
+## structure or point outside the agents directory.
 DAGC_AGENT_ARGS=()
 if [ -n "$MDAT_SPAWN_AGENT" ] ; then
-	if [ "$DAGC_CLI" != "claude" ] ; then
-		echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_AGENT is set but '$DAGC_CLI' has no --agent/--agents flag -- this spawn runs without them, and its hooks report the generic agent type rather than $MDAT_SPAWN_AGENT" >&2
-	else
-		case "$MDAT_SPAWN_AGENT" in
-			''|*[!a-zA-Z0-9._-]*)
-				echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_AGENT is not a bare member name: $MDAT_SPAWN_AGENT" >&2
-				exit 1
-			;;
-		esac
-		DAGC_AGENT_ARGS=(
-			--agents "{\"$MDAT_SPAWN_AGENT\":{\"description\":\"magic-team member $MDAT_SPAWN_AGENT\",\"prompt\":\"You are $MDAT_SPAWN_AGENT, a magic-team member. Read your own skill files before acting.\"}}"
-			--agent "$MDAT_SPAWN_AGENT"
-		)
-	fi
+	case "$MDAT_SPAWN_AGENT" in
+		''|*[!a-zA-Z0-9._-]*)
+			echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_AGENT is not a bare member name: $MDAT_SPAWN_AGENT" >&2
+			exit 1
+		;;
+	esac
+	case "$DAGC_CLI" in
+		claude)
+			DAGC_AGENT_ARGS=(
+				--agents "{\"$MDAT_SPAWN_AGENT\":{\"description\":\"magic-team member $MDAT_SPAWN_AGENT\",\"prompt\":\"You are $MDAT_SPAWN_AGENT, a magic-team member. Read your own skill files before acting.\"}}"
+				--agent "$MDAT_SPAWN_AGENT"
+			)
+		;;
+		copilot)
+			if [ -f "$HOME/.copilot/agents/$MDAT_SPAWN_AGENT.agent.md" ] ; then
+				DAGC_AGENT_ARGS=( --agent "$MDAT_SPAWN_AGENT" )
+			else
+				echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_AGENT is set but ~/.copilot/agents/$MDAT_SPAWN_AGENT.agent.md does not exist yet -- this spawn runs without --agent, and its hooks report the generic agent type rather than $MDAT_SPAWN_AGENT" >&2
+			fi
+		;;
+		*)
+			echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_AGENT is set but '$DAGC_CLI' has no --agent/--agents flag -- this spawn runs without them, and its hooks report the generic agent type rather than $MDAT_SPAWN_AGENT" >&2
+		;;
+	esac
 fi
 
 ## claude only: piping its own JSON-lines stream through the awk formatter is
