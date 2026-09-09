@@ -809,7 +809,14 @@ case "$1" in
 					setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
 					setupRc=1
 				else
-					setupFragmentRoots="$( grep '^/' "$setupFragment" || : )"
+					## Fragment lines are `<tag>\t<path>` (own/explicit/wildcard) -- the
+					## path alone is what's compared against the live-computed set;
+					## which tag a root carries is not this check's concern. A stray
+					## pre-tag legacy line (`--add-dir` or a bare `/path`, from before
+					## this format) still starts with `/` after the cut and is kept,
+					## so an un-regenerated old fragment reads as fully stale rather
+					## than as spuriously empty.
+					setupFragmentRoots="$( LC_ALL=C awk -F'\t' '{ print ( NF >= 2 ? $2 : $0 ) }' "$setupFragment" | grep '^/' || : )"
 					setupCurrentRoots="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessRoots "$setupHere" )"
 					while IFS= read -r setupRootLine ; do
 						[ -n "$setupRootLine" ] || continue

@@ -105,6 +105,56 @@ AgentsToolsClientAccessGrantRoots(){
 	' "$registryFile"
 }
 
+## Widens a declared Edit(/path/glob) grant text to the narrowest directory
+## containing everything its glob can match -- e.g. Edit(/a/b/**) -> /a/b.
+## Shared by the write side (the copilot access-tag sidecar, written by
+## AgentsTools.Install.include's workspace-scope grant loop, which already
+## has the selector and root in hand) and available to any future reader, so
+## a grant is never widened two different ways by two different pieces of
+## code. Prints nothing for a non-Edit(/...) grant.
+##   $1 = grant text, e.g. "Edit(/foo/bar/**)"
+AgentsToolsClientAccessWidenGrantRoot(){
+	case "$1" in
+		'Edit(/'*) : ;;
+		*) return 0 ;;
+	esac
+	LC_ALL=C awk -v grantText="$1" 'BEGIN {
+		grantPath = substr( grantText, 6, length( grantText ) - 6 )
+		sub( /^\/\//, "/", grantPath )
+		rootPath = ""
+		segmentCount = split( grantPath, pathSegment, "/" )
+		for ( segmentIndex = 2 ; segmentIndex <= segmentCount ; segmentIndex++ ) {
+			if ( pathSegment[segmentIndex] ~ /[*?[]/ ) break
+			rootPath = rootPath "/" pathSegment[segmentIndex]
+		}
+		if ( rootPath != "" ) print rootPath
+	}'
+}
+
+## Reads a root's provenance tag (own/explicit/wildcard) for the copilot
+## access fragment. own-workspace and explicit-name grant roots are safe to
+## create at install time; a wildcard-swept root (matched only because a
+## workspace:* selector walked the ENTIRE workspace registry, not because
+## anything named it) is never created -- only live-checked at spawn time,
+## since the registry can list a workspace that was never a real tooling
+## install (see MAGIC.md's "Scratch and temp paths" section). Prints nothing
+## if untagged -- the caller decides the default, since a non-grant root
+## (board/member/source/reference) and a grant root with no recorded tag
+## default differently.
+##   $1 = the widened root path to look up.
+AgentsToolsClientAccessRootTag(){
+	local tagsFile="$HOME/.claude/skills/.linked.magic-team.permissions-tags.txt"
+	[ -s "$tagsFile" ] || return 0
+	## Field 4 taken whole by offset, same discipline as the main registry --
+	## a colon inside a path must never be read as a field separator.
+	LC_ALL=C awk -F: -v wantRoot="$1" '
+		NF >= 4 {
+			rowRoot = substr( $0, length($1) + length($2) + length($3) + 4 )
+			if ( rowRoot == wantRoot ) { print $3 ; exit }
+		}
+	' "$tagsFile"
+}
+
 AgentsToolsClientAccessRoots(){
 	local workspace="$1"
 	## Sorted-unique: the declared grants re-derive roots the functions above

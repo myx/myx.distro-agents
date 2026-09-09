@@ -505,10 +505,10 @@ case "$1" in
 		fi
 
 		DistroAgentsTools --intern-op-session-context-scan "$memberName" \
-			--state backlog --state pending --state running --state blocked --state parked \
+			--state pending --state running --state blocked \
 			--all-types --filter-owner "$memberName" \
-			--do-inbox-inquiry-active --do-inbox-reflections \
-			--do-inbox-notes --do-inbox-other \
+			--do-inbox-reflections \
+			--do-inbox-notes \
 			--context --member-work-session-input-scan
 		return $?
 	;;

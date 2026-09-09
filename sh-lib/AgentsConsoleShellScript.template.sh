@@ -180,14 +180,58 @@ fi
 ## the installer op that writes it all predate claude being included here and
 ## are left exactly as they are: renaming them is its own change, across the
 ## installer and its help, not a side effect of widening this branch.
+## Fragment lines are `<tag>\t<path>`, tag one of own/explicit/wildcard (see
+## AgentsTools.Install.include's --install-copilot-access-fragment and
+## AgentsTools.ClientAccessRoots.include's AgentsToolsClientAccessRootTag).
+## own/explicit are the installer's own guarantee -- created at install time,
+## added here unconditionally, no filesystem check. wildcard was only ever
+## matched because a workspace:* selector swept the WHOLE workspace registry,
+## never created by the installer, and is checked for real existence right
+## here at spawn time, since the registry can list a workspace that was never
+## a real tooling install -- an --add-dir naming a directory that does not
+## exist fails the whole spawn outright. An untagged line (the old two-line
+## `--add-dir`/path format, from before this format existed, or a stray
+## hand-edit) is treated as wildcard too: an entry with no recorded provenance
+## is never trusted unconditionally.
 DAGC_COPILOT_ADDDIR=()
 if [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "claude" ] ; then
 	DAGC_COPILOT_FRAGMENT="$MMDAPP/.claude/copilot-add-dir.fragment"
+	DAGC_ADDDIR_GUARANTEED=0
+	DAGC_ADDDIR_WILDCARD_TOTAL=0
+	DAGC_ADDDIR_WILDCARD_ADDED=0
 	if [ -f "$DAGC_COPILOT_FRAGMENT" ] ; then
-		while IFS= read -r DAGC_COPILOT_TOKEN ; do
-			[ -n "$DAGC_COPILOT_TOKEN" ] || continue
-			DAGC_COPILOT_ADDDIR+=( "$DAGC_COPILOT_TOKEN" )
+		while IFS= read -r DAGC_COPILOT_LINE ; do
+			[ -n "$DAGC_COPILOT_LINE" ] || continue
+			case "$DAGC_COPILOT_LINE" in
+				--add-dir)
+					## Old two-line format's own flag marker; the next line is a
+					## bare legacy path with no tag -- falls to the untagged case below.
+					continue
+				;;
+				own$'\t'/*|explicit$'\t'/*)
+					DAGC_COPILOT_ADDDIR+=( "--add-dir" "${DAGC_COPILOT_LINE#*$'\t'}" )
+					DAGC_ADDDIR_GUARANTEED=$(( DAGC_ADDDIR_GUARANTEED + 1 ))
+				;;
+				wildcard$'\t'/*)
+					DAGC_COPILOT_WILDCARD_PATH="${DAGC_COPILOT_LINE#*$'\t'}"
+					DAGC_ADDDIR_WILDCARD_TOTAL=$(( DAGC_ADDDIR_WILDCARD_TOTAL + 1 ))
+					if [ -d "$DAGC_COPILOT_WILDCARD_PATH" ] ; then
+						DAGC_COPILOT_ADDDIR+=( "--add-dir" "$DAGC_COPILOT_WILDCARD_PATH" )
+						DAGC_ADDDIR_WILDCARD_ADDED=$(( DAGC_ADDDIR_WILDCARD_ADDED + 1 ))
+					fi
+				;;
+				/*)
+					DAGC_ADDDIR_WILDCARD_TOTAL=$(( DAGC_ADDDIR_WILDCARD_TOTAL + 1 ))
+					if [ -d "$DAGC_COPILOT_LINE" ] ; then
+						DAGC_COPILOT_ADDDIR+=( "--add-dir" "$DAGC_COPILOT_LINE" )
+						DAGC_ADDDIR_WILDCARD_ADDED=$(( DAGC_ADDDIR_WILDCARD_ADDED + 1 ))
+					fi
+				;;
+			esac
 		done < "$DAGC_COPILOT_FRAGMENT"
+		if [ "$DAGC_ADDDIR_GUARANTEED" -gt 0 ] || [ "$DAGC_ADDDIR_WILDCARD_TOTAL" -gt 0 ] ; then
+			echo "# console: copilot --add-dir: $DAGC_ADDDIR_GUARANTEED own+explicit (install-guaranteed) + $DAGC_ADDDIR_WILDCARD_ADDED of $DAGC_ADDDIR_WILDCARD_TOTAL wildcard candidates existed, added" >&2
+		fi
 	fi
 fi
 
