@@ -88,6 +88,13 @@ rule that survives is "platforms impose limits and may truncate silently".
   silent truncation dangerous rather than merely annoying.
 - When completeness actually matters, read back what was stored.
 
+## Retry output can carry more than one verdict
+
+A retrying send can emit more than one `ok`/verdict field across its own retry attempts. Read the
+**last** verdict in the output, not the first — a retried send that ultimately lands can still show an
+earlier failed attempt's `ok:false` ahead of it, and reading the first field alone misreports a landed
+post as failed.
+
 ## Identity-scoped access — send and read are not symmetric
 
 Measured on both sides, not argued:
