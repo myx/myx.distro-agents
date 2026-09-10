@@ -791,7 +791,8 @@ itself, using the exact curl `-H @-` bearer-stdin pattern `AgentsTools.CommsSlac
 proves. Non-streaming only (v1); no sandboxing beyond its own access-root check (matches copilot's
 `--allow-all-tools` trust model, not a gap this version closes); no context-window management — an
 unboundedly long conversation is this version's own known limit, guarded only by a hard 25-round cap
-(see below), never a silent one.
+(see below), never a silent one. A streaming sibling, `AgentsScalewayHarnessV2.sh`, exists alongside
+this file, unmodified by it — see its own section below for what differs and why both stay.
 
 - **Standalone by design, not sourced.** Every sibling `Agents*.include` is dot-sourced into
   `DistroAgentsTools` and resolves its neighbours through `$MDLT_ORIGIN`. This script is executed
@@ -1001,3 +1002,79 @@ unboundedly long conversation is this version's own known limit, guarded only by
   file (`mktemp -d -t`) and is read back, and its containment — `( cd ... && set -e && eval ... ) ||
   status=$?` — mirrors `--intern-mcp-execute`'s own `set -e`-containment pattern rather than inventing
   a second shape for the same problem.
+
+- **A per-round tool-call progress line, announced immediately BEFORE the tool call executes, not
+  after.** Human-owner's own ask: the harness's tool-execution dispatch had zero stderr announcement
+  anywhere in its success path, and real-time visibility into what it is doing matters especially for a
+  `run_command` that might hang. `AgentsScalewayAnnounceTool` prints
+  `# AgentsScalewayHarness.sh: round $round: $funcName: <detail>` — the same `# AgentsScalewayHarness.sh:
+  ...` stderr prefix the `--session-id` announce line above already uses. `<detail>` is `path=` for
+  `read_file`/`write_file`/`list_dir`, `pattern=`+`path=` for `grep`, `command=`+`cwd=` for
+  `run_command` — never `write_file`'s own content, only the path being written to. Each value passes
+  through `AgentsScalewayTruncateArg` first: collapsed to one line and capped at 120 characters (`...`
+  appended), never dumped whole. Live-confirmed real-time (polled while the process was still running,
+  not merely present at exit) against a real multi-tool-call session.
+
+## `AgentsScalewayHarnessV2.sh` — the streaming sibling, and why v1 stays untouched
+
+Two variants of the harness exist on purpose, not from drift. `AgentsScalewayHarness.sh` (v1, above)
+stays exactly as it is — production, unmodified. `AgentsScalewayHarnessV2.sh` is a new, separate file,
+not a v1 edit: every section through message-history assembly (tool schemas, the five tool-execution
+functions, access-root enforcement and its fragment parser, credential resolution,
+`--tier`/`--session-id`/`--agent` handling, the `AgentsScalewayJsonField.awk`-based field reader,
+`AgentsScalewayAnnounceTool`, `AgentsScalewayTruncateArg`) is copied from v1 verbatim. The one real
+difference is the request/response transport: v1 makes one blocking `curl` call per round and parses
+one complete JSON body; v2 opens Scaleway's SSE stream (`"stream":true`) via `curl -N` and consumes it
+incrementally, then falls through into v1's own unchanged error-handling and tool-dispatch code once a
+round's stream completes — a second, streaming-shaped tool-dispatch path was deliberately not built,
+so a dispatch bug has one place to be fixed, not two.
+
+- **Real SSE shape, live-confirmed, OpenAI-compatible.** Plain-text and tool-call progress arrive as
+  `data: {...}` events; a tool call's `function.arguments` arrives as successive fragments keyed by
+  that call's own `index` (distinguishing concurrent tool calls in one response) and must be
+  concatenated before the result is valid JSON. The stream ends with a literal `data: [DONE]` line —
+  the completion sentinel this harness actually waits for, never `finish_reason` alone, because
+  Scaleway can trail the real final chunk with a further usage-only chunk before `[DONE]` arrives.
+- **Per-round accumulator state lives in scratch files under `$scalewayScratch`, not shell variables.**
+  `curl -N ... | while read` puts the loop on the right of a pipe, which bash always runs as a subshell
+  (no `lastpipe`, a bash-4.2+ feature outside this package's bash-3.2 floor) — any variable the loop
+  body set would be gone the moment the pipeline ends. Scratch files are the one channel that survives
+  that boundary.
+- **Design decision — a mid-stream disconnect discards partial state and retries the whole round from
+  scratch, bounded at 3 attempts (`scalewayStreamMaxAttempts`).** There is no resume primitive on this
+  API — no server-side stream id, no partial-completion token — so retrying the exact same full
+  conversation-so-far request v1 already builds each round is not an approximation of resuming, it is
+  the only next request this API accepts. A partial `function.arguments` accumulation is very likely
+  not valid JSON on its own (a prefix cut at an arbitrary byte), and a partial plain-text answer printed
+  as the final answer would silently hand the caller a truncated reply with no signal it was cut off.
+  Every accumulator resets to empty at the start of every attempt, including a retried one.
+- **Design decision — a disconnect-triggered retry never consumes a round against the existing
+  25-round cap (`scalewayMaxRounds`).** `scalewayRound` increments exactly once per pass through the
+  outer round loop, before the streaming attempt loop begins; a retried attempt lives entirely inside
+  one outer-loop iteration. The round cap exists to bound how many times the harness goes back to the
+  model with a conversation that has actually grown (new tool results appended, more context spent); a
+  disconnect-and-retry sends the identical request again, nothing about the conversation grew, and no
+  tokens were billed for a completed generation — charging a transport hiccup against a budget meant to
+  bound runaway tool-calling growth would let a flaky connection trip a limit that has nothing to do
+  with it. The retry attempts are bounded independently and narrowly instead (3, above), so a
+  connection that is not flaky but actually broken still fails loudly, via its own small counter, never
+  by silently consuming the conversation's round budget.
+- **A stall detector, not a flat deadline, bounds a live stream.** `--speed-limit 1 --speed-time 45`
+  aborts only once throughput has been near zero for a sustained 45-second window — long enough that a
+  heavy-reasoning model's own thinking pause before its next chunk is not mistaken for a dead
+  connection, short enough that a genuinely dead connection does not hang the harness indefinitely.
+  `--max-time` is deliberately absent, unlike v1: a flat cap is wrong once total generation time can
+  legitimately run past it (heavy tier, a slow but alive stream). `--connect-timeout` is unchanged from
+  v1 and only bounds the initial TCP+TLS handshake.
+- **`${PIPESTATUS[0]}` is what is actually tested after the streaming `curl`, not `$?`.** Once `curl` is
+  the left side of a pipe into the consuming `while read` loop, `$?` reports the pipeline's own exit
+  status (the loop's), not curl's — captured on the very next line, before anything else runs, exactly
+  as `set +e`/`set -e` bracket that one statement so the surrounding `set -e` does not trip on a
+  non-zero curl exit it needs to inspect itself.
+- Reported by the implementing session: all three required live tests passed, including a real forced
+  mid-stream disconnect exercising the discard-and-retry path end to end. Unlike v1's own entries above,
+  no concrete transcript/numbers are filed in this document yet — add them here once available, the same
+  standard v1's own live-test claims are held to elsewhere in this section.
+- Not yet wired into the console's own exec dispatch or `--owner-setup-scaleway` — v1 remains the only
+  variant either of those reach. Standalone and independently invokable, the same way v1 was before its
+  own console wiring landed (see v1's "Now wired into the console's own exec dispatch" point above).
