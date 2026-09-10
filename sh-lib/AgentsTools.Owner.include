@@ -422,6 +422,11 @@ case "$1" in
 				## package's own harness script shipping with the release, not PATH.
 				## Appended after the shared probe above so its assignment wins (the
 				## engine takes the last --install-probe it is given).
+				## The file named is the DEFAULT harness, AgentsScalewayHarness.sh
+				## (the streaming one). This probe deliberately does not follow
+				## MDAT_SCALEWAY_HARNESS: the question it answers is whether the
+				## release reached this workspace at all, not which of the two
+				## shipped harness variants a given console run selects.
 				[ "$setupDomain" != "scaleway" ] || setupDeclareArgs+=( --install-probe "test -f $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh" )
 				## Its own credential, under the CLI's own variable name, because
 				## that name is what the generated console exports and the CLI then
@@ -928,7 +933,14 @@ case "$1" in
 				## scaleway has no real binary at all -- `command -v scaleway` can
 				## never succeed on any machine -- so its presence here is the
 				## harness script shipping with the release, the same substitution
-				## the console's own DagcCliPresent makes.
+				## the console's own DagcCliPresent makes. Hand-copied from it, and
+				## the copy has one known difference left standing: the console
+				## resolves its path through DAGC_SCALEWAY_HARNESS (so
+				## MDAT_SCALEWAY_HARNESS can repoint it at
+				## AgentsScalewayHarnessV1.sh), while this copy always tests the
+				## default AgentsScalewayHarness.sh. Harmless for the question this
+				## one asks -- did the release reach this workspace at all -- and
+				## left alone here rather than half-fixed.
 				AgentsToolsSpawnCliPresent(){
 					case "$1" in
 						scaleway) [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh" ] ;;

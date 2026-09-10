@@ -14,13 +14,22 @@ case "$1" in
 	--intern-main-loop)
 		shift
 
-		## Never loop without --run: an accidental invocation hangs forever.
-		if [ "--run" != "$1" ] ; then
+		## Never run without a mode: an accidental invocation hangs forever.
+		local mainLoopMode=''
+		case "$1" in
+			--run) mainLoopMode='--run' ;;
+			--one) mainLoopMode='--one' ;;
+		esac
+		if [ -z "$mainLoopMode" ] ; then
 			printf '%s\n' "$MDSC_CMD --intern-main-loop -- spawns and keeps magic-coordinator.heartbeat.routine's own next-iteration cycle running forever, normal daemon/respawn-loop, no cap." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "  $MDSC_CMD --intern-main-loop --run" >&2
 			printf '%s\n' "      Spawn one heartbeat next-iteration, sleep, repeat -- forever, until killed." >&2
 			printf '%s\n' "      This is the basement layer that RUNS own-service mode, not merely gated behind it already being up." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-main-loop --one" >&2
+			printf '%s\n' "      Spawn exactly one heartbeat next-iteration and return its status. No sleep, no repeat." >&2
+			printf '%s\n' "      Runs the same readiness check, so it is also how that gate is exercised by hand." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "Runs a short readiness check first and prints a compact report; the loop is entered only when all required settings are present." >&2
 			set +e ; return 1
@@ -28,7 +37,7 @@ case "$1" in
 		shift
 
 		if [ 0 -lt $# ] ; then
-			printf '%s\n' "$MDSC_CMD: main-loop --run: ⛔ ERROR: takes no further arguments: $*" >&2
+			printf '%s\n' "$MDSC_CMD: main-loop $mainLoopMode: ⛔ ERROR: takes no further arguments: $*" >&2
 			set +e ; return 1
 		fi
 
@@ -102,7 +111,7 @@ case "$1" in
 		## an endless backoff.
 		local mainLoopBriefFile="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/dispatches/main-loop-next-iteration.prompt-packet.verbatim.md"
 		if [ ! -r "$mainLoopBriefFile" ] || [ ! -s "$mainLoopBriefFile" ] ; then
-			echo "$MDSC_CMD: main-loop --run: ⛔ ERROR: spawn brief missing, empty or unreadable: $mainLoopBriefFile" >&2
+			echo "$MDSC_CMD: main-loop $mainLoopMode: ⛔ ERROR: spawn brief missing, empty or unreadable: $mainLoopBriefFile" >&2
 			return 1
 		fi
 
@@ -124,16 +133,16 @@ case "$1" in
 		## the console script's own claude-streaming fix.
 		trap 'mainLoopInterrupted="true" ; [ -z "$mainLoopSpawnPid" ] || kill -TERM "$mainLoopSpawnPid" 2>/dev/null' INT TERM
 
-		while true ; do
-			## The spawn runs --wait, so without these lines the loop is silent for a whole iteration.
+		## One heartbeat pass, spawn to reaped child, leaving the child's status in $spawnRc.
+		AgentsToolsMainLoopIteration() {
+			## The spawn runs --wait, so without these lines the caller is silent for a whole iteration.
 			echo "# $MDSC_CMD --intern-main-loop: heartbeat iteration starting" >&2
 			## Named here so the choice is visible from the output itself, not only
 			## discoverable by reading config. SPAWN_CLI_SERVICE is guaranteed set by
 			## the time this line runs: the readiness check earlier in this same
-			## operation (lines ~51-92 above) already gates loop entry on its
-			## presence, returning 1 before the while-loop is ever reached if it's
-			## unset. "not set" below is a defensive label only, never expected to
-			## actually print.
+			## operation already gates entry on its presence, returning 1 before
+			## this is ever called if it's unset. "not set" below
+			## is a defensive label only, never expected to actually print.
 			mainLoopCliService="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )"
 			echo "# $MDSC_CMD --intern-main-loop: 🤖 spawning via ${mainLoopCliService:-not set}" >&2
 			cat "$mainLoopBriefFile" | DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait >&2 &
@@ -145,6 +154,19 @@ case "$1" in
 				wait "$mainLoopSpawnPid" 2>/dev/null || spawnRc=$?
 			done
 			mainLoopSpawnPid=""
+		}
+
+		## One look: same iteration, no sleep, no loop to leave.
+		if [ '--one' = "$mainLoopMode" ] ; then
+			AgentsToolsMainLoopIteration
+			trap - INT TERM
+			[ "$mainLoopInterrupted" = "false" ] || { echo "# $MDSC_CMD --intern-main-loop: interrupted, stopping" >&2 ; return 130 ; }
+			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- the spawned session's own output is above" >&2
+			return "$spawnRc"
+		fi
+
+		while true ; do
+			AgentsToolsMainLoopIteration
 			[ "$mainLoopInterrupted" = "false" ] || { trap - INT TERM ; echo "# $MDSC_CMD --intern-main-loop: interrupted, stopping" >&2 ; return 130 ; }
 			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- the spawned session's own output is above" >&2
 

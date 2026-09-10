@@ -87,6 +87,18 @@ rule that survives is "platforms impose limits and may truncate silently".
   most damaging to lose unnoticed. **A truncated plan still looks like a plan**, which is what makes
   silent truncation dangerous rather than merely annoying.
 - When completeness actually matters, read back what was stored.
+- **Structure comes from lists and tables, never from paragraphs.** Each paragraph becomes its own
+  block and the blocks render with almost no vertical separation, so prose written as several
+  paragraphs collapses into one unreadable run. Bullet lists and pipe tables become real list and
+  table blocks; they are the only tools in the markdown path that carry visible structure, and a
+  message that needs structure is written with them from the start.
+- **A markdown send parses CommonMark, not the platform's own native markup.** One delimiter is
+  italic and two is bold, which inverts the convention on a platform whose native form makes a single
+  delimiter bold — writing the native form there produces visibly wrong output that the send still
+  reports as success. The grammar a send path actually parses is stated in that operation's own help
+  pair, which is the thing to read before composing; a platform's public formatting guide describes
+  the platform, not the path the message takes. Where the markdown grammar cannot express something,
+  the raw block-structure format is the escape hatch.
 
 ## Retry output can carry more than one verdict
 

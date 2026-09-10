@@ -139,7 +139,7 @@ Which subset exists tracks the workspace's purpose: a personal/refactor-only wor
 
 **Overlap with the owning `partner-*`, not a clean line**: this skill owns the tool itself — consoles, sync/index/build machinery, task wiring, `myx.distro-*` package internals. `myx.distro-*` is deliberately extensible — any project can declare its own `.fn.sh` functions, custom builders, and `ExecuteParallel.fn.sh`/`ExecuteSequence.fn.sh` targets selected via `--select-merged-keywords`/`--select-projects`. Once a project extends the tool this way, the extension is simultaneously "tool mechanics" (this skill) and "domain content" (the owning `partner-*`) — use both lenses. The one thing unambiguously that `partner-*`'s alone: the actual namespace inventory data (`infra/accounts-<ns>`, `clusters-<ns>`, `instances-<ns>`, etc.).
 
-**`ExecuteParallel.fn.sh` gotchas**: must be invoked through a console dispatcher — `echo "Deploy ExecuteParallel ..." | ./DistroDeployConsole.sh --non-interactive` from the workspace root — not run as a bare script; outside the console's PATH setup its own project-selection dispatch fails with `unknown command: ListDistroProjects`. **Argument order is load-bearing**: `--ssh-user`/`--ssh-host`/`--ssh-port`/`--ssh-home`/`--ssh-args`/`--no-sleep`/`--non-interactive`/`--execute-post-process` must all come *before* `--execute-command`/`--execute-script`/`--execute-stdin`/`--display-targets` — the ssh-option parser is a `while`/`case` loop that stops at the first token it doesn't recognize, so flags placed after the execute-type flag silently leak onto the remote command line instead of being parsed.
+**`ExecuteParallel.fn.sh` gotchas**: must be invoked through a console dispatcher — `echo "Deploy ExecuteParallel ..." | ./DistroDeployConsole.sh --non-interactive` from the workspace root — not run as a bare script; outside the console's PATH setup its own project-selection dispatch fails with `unknown command: ListDistroProjects`. **Argument order is load-bearing**: `--ssh-user`/`--ssh-host`/`--ssh-port`/`--ssh-home`/`--ssh-args`/`--no-sleep`/`--non-interactive`/`--execute-post-process` must all come *before* `--execute-command`/`--execute-script`/`--execute-stdin`/`--display-targets` — the ssh-option parser is a `while`/`case` loop that stops at the first token it doesn't recognize, so flags placed after the execute-type flag silently leak onto the remote command line instead of being parsed. **`--execute-command` runs its argument through the *local* shell, not the remote one**: the value is spliced unquoted into the ssh target line (`ExecuteParallel.fn.sh:130`), which is then `eval`ed locally (`:205`/`:207`), so every metacharacter in it — `|`, `;`, `&`, redirections, globs, backticks, `$( )` — expands and executes on the calling machine before ssh is reached. Quoting at the call site does not save it, because the caller's quotes are consumed before the splice. The failure reads as success: output is still prefixed with the remote hostname while part of the pipeline ran locally, so a probe can report a local answer as a fleet-wide one. Put `hostname` in any payload whose target has to be certain. Use `--execute-stdin` (body piped in after the command line) or `--execute-script <local-path>` for anything multi-line or carrying a metacharacter — both ship the body over the wire as stdin, correctly quoted (`:156`, `:169`). `--execute-command` is for one simple command with no shell metacharacters.
 
 **Invoke through the console dispatcher, always**: `echo "Deploy ExecuteParallel ..." | ./DistroDeployConsole.sh --non-interactive` (or `Source`/`Local` equivalents), not `bash sh-scripts/Foo.fn.sh` directly. The console's bashrc puts all `sh-scripts/` dirs on `PATH` before handing off to the dispatcher; without it, a nested `Distro <name>` call to a command that isn't already sourced fails with `unknown command: <name>` even though the file exists.
 
@@ -194,11 +194,27 @@ workspace has built — where the same command through `DistroSourceConsole.sh -
 resolves `spec: --distro-from-source`. The bare run reports no staleness: it answers correctly for the
 snapshot it read, and says nothing about source.
 
-**The bare run also honours the ambient `MMDAPP`, and a console re-resolves `MMDAPP` from its own
-location.** So a `cd` into one workspace followed by a bare script run measures whichever workspace
-the environment already named, while the console beside it measures the one it was started from — two
-different trees, read as one comparison. Echo `$MMDAPP` before a bare-script measurement, and name the
-workspace in the finding.
+**A console honours an ambient `MMDAPP` exactly as a bare run does.** It derives one from its own
+location only when `MMDAPP` is unset or names no directory — the guard at `DistroDeployConsole.sh:5-7`,
+and the same in every other `Distro*Console.sh`. So a session already scoped to one workspace that runs
+a second workspace's console gets the second workspace's tooling pointed at the first one's source
+tree: `ScanSourceProjects.include: no source folder!`, then "No matching projects found" for projects
+that plainly exist. A set-but-wrong `MMDAPP` naming a real directory that is not a workspace fails loud
+instead, on the missing `.local`. To cross a workspace boundary, clear the inherited environment rather
+than relying on the `cd`:
+
+```sh
+cd <other-workspace>
+env -u MMDAPP -u MDSC_CACHED -u MDSC_SOURCE -u MDSC_OUTPUT -u MDSC_OPTION -u MDSC_INMODE \
+  sh -c './DistroDeployConsole.sh --non-interactive'
+```
+
+This is also what the MCP-pinning entry above is really describing: the tool exports its own `MMDAPP`,
+so a `cd` inside the command string changes nothing. That tool's own `workspace` argument is the
+direct fix — it starts a fresh process with `MMDAPP` moved and the index caches dropped — so reaching
+for a different execution tool is not required.
+
+Echo `$MMDAPP` before a bare-script measurement, and name the workspace in the finding.
 
 So a check on source content goes through a console, or names its spec explicitly. A finding
 measured by a bare run describes the last build. This is separate from the cached-snapshot pipeline

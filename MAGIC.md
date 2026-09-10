@@ -68,6 +68,13 @@ Team-owned notes for the magic-* team.
 - Two concurrent callers against the same workspace and console therefore resolve to the same channel and can tear down each other's session.
 - A `channel_not_found`, or a console dying mid-use while another session is active, is this condition.
 
+## `DistroAgentsConsole.sh` is an agent CLI, not a shell dispatcher
+
+- The four sibling consoles (`Source`/`Local`/`Deploy`/`Remote`) hand a piped line to a shell dispatcher. This one launches an agent CLI instead — `DAGC_KNOWN_CLIS` is `copilot claude grok scaleway` — so a line piped into it arrives as a *prompt*: a model reads it, reasons about it, and then decides whether to run it.
+- **A read-only `DistroAgentsTools.fn.sh` call sent through this console therefore costs a full LLM round-trip.** Measured on a plain roster read: roughly 45–58 AI credits and about three minutes, against the same call run directly returning at once and costing nothing. A routine that reads the roster or a board item once per member pays that per member.
+- Run the script directly for anything read-only: `bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" <operation> ...`. Reserve the console for work that actually needs an agent session.
+- **Read-only only.** Whether a write operation is equally safe by that path is unestablished — the console may supply identity or locking a write depends on. Do not generalise this without checking that first.
+
 ## Configuration lives under the workspace's own `.local`
 
 - `--agents-config-option` resolves configuration under `$MMDAPP/.local/.agents/`, one file per scope: `<entity>.agent.env`, holding that entity's own keys.
@@ -578,15 +585,16 @@ The contracts themselves live in `magic-team.shared.md`'s "Session-context docum
 
 ### `--intern-main-loop` call contract
 
-- No `<team-member>` argument, same shape as `--intern-mcp-server`. `--run` is required to actually loop; without it, prints syntax and exits.
+- No `<team-member>` argument, same shape as `--intern-mcp-server`. A mode is required and there are two: `--run` loops forever, `--one` runs a single iteration and returns its status. Anything else, no mode included, prints syntax and exits 1 — an accidental bare invocation must never hang.
+- **`--one` never enters the loop.** The iteration body is one helper defined inside the arm, called once by `--one` and repeatedly by `--run`, so no mode flag is tested inside the loop and nothing leaves it by flag. `--one` returns the iteration's own status, does not sleep, and leaves the backoff state untouched because nothing there consumes it. It runs the same readiness gate, which is what makes it the way to exercise that gate by hand.
 - **Readiness is checked once, before the loop, never per iteration.** `--intern-op-check-configs` probes the configuration keys (every key `--optional`, so the probe itself never gates) and the output is piped into `AgentsMainLoopReadinessReport.awk`, whose own exit — `PIPESTATUS[1]` — is the gate. A failing gate returns before the loop is entered. The keys sit in two config scopes, so the probe is two calls inside one `{ … }` group feeding one awk: `magic-coordinator`'s (`TEAM_DATA_DIRECTORY`, `SLACK_CHANNEL_MAGIC_TEAM`, `SLACK_CHANNEL_HUMAN_OWNER`, `SLACK_CHANNEL_EVENT_TRACK`, `SLACK_CHANNEL_EVENT_ALERT`) and `magic-team`'s (`SPAWN_CLI_SERVICE`). The floor — the items that actually gate — is `TEAM_DATA_DIRECTORY` + Basic comms + `SPAWN_CLI_SERVICE`; the activity-log and alert channels are reported and never gate. A floor item probed but not declared in the awk's own `addItem` list is a hole in the gate, not a lenient gate: it lets the loop start and then fail every iteration.
-- Each iteration: one `--magic-heartbeat-spawn-proxy magic-coordinator --wait`, then a sleep. Log-and-continue regardless of the spawn's own exit code, but the wait is **not** flat: it starts at `MAIN_LOOP_RESTART_DELAY_SECONDS` (magic-coordinator config scope, default 29), doubles after each failed iteration, and stops at `MAIN_LOOP_RESTART_DELAY_MAX_SECONDS` (same scope, default 3600). A successful iteration resets it to the base. Both values are validated as digit strings and fall back to their defaults otherwise. The delay is the state, so the doubling stops at the ceiling and cannot overflow — and a permanent misconfiguration therefore shows as a green start followed by iterations that fail, then by silence at the ceiling, rather than as a loud exit.
+- Each iteration: one `--magic-heartbeat-spawn-proxy magic-coordinator --wait`, then a sleep. Log-and-continue regardless of the spawn's own exit code, but the wait is **not** flat: it starts at `MAIN_LOOP_RESTART_DELAY_SECONDS` (magic-coordinator config scope, default 29), doubles after each failed iteration, and stops at `MAIN_LOOP_RESTART_DELAY_MAX_SECONDS` (same scope, default 1200). A successful iteration resets it to the base. Both values are validated as digit strings and fall back to their defaults otherwise. The delay is the state, so the doubling stops at the ceiling and cannot overflow — and a permanent misconfiguration therefore shows as a green start followed by iterations that fail, then by silence at the ceiling, rather than as a loud exit.
 - **The spawn brief is a file, not a literal in the arm.** Each iteration pipes `skillset/magic-team/magic-team/dispatches/main-loop-next-iteration.prompt-packet.verbatim.md`, resolved under `$MDLT_ORIGIN` like the readiness awk beside it, into the spawn proxy — whole, with no strip rule of any kind, so the file's every byte is the brief and a member edits a real discoverable file rather than a printf. `cat … |` is the form on purpose and not a useless-`cat`: `DistroAgentsTools` is a shell function carrying its own `set -e`, and the pipe is the subshell that keeps a failure inside the spawn one failed iteration instead of the daemon exiting — a `<` redirect or a `--from-file` flag would remove it. The file is checked readable-and-non-empty once before the loop and a failure there is fatal, because the path is a constant shipped with the code: a per-iteration test would turn a permanent misconfiguration into an endless backoff, and the spawn proxy would report it only as `empty spawn context`, further down.
 - **Everything this operation says goes to stderr, the readiness report included.** It is a daemon loop whose whole life is watched on one stream, so the readiness verdict belongs on the same stream as the per-iteration lines rather than on a stdout nothing reads. The report's machine-readable half is the readiness awk's own exit status (`PIPESTATUS[1]`), which is what gates loop entry and is unaffected by where the text goes.
 - **The readiness report carries a third kind of item beside floor and optional: a diagnosed one.** It is a state the loop cannot fix and no config key holds, and today there is exactly one — `Agent CLI sign-in`. `SPAWN_CLI_SERVICE` present, the CLI installed and on `PATH`, and the human not signed in is the state every existing check passes and every iteration then fails on, opaquely, which is what a freshly provisioned host looks like. The arm reads it from the CLI itself and appends a `SPAWN_CLI_AUTHENTICATED: OK|FAIL|SKIP` line into the same brace group the check-configs probes feed, so the awk's existing `KEY: STATUS` contract carries it and `PIPESTATUS[1]` stays the awk. **It never gates**, and there is no auth config key — authentication is the CLI's own, done by the human out of band and only read here. The probe is `claude auth status`, whose JSON `loggedIn` field is the verdict: local-only, ~0.3s, stdin closed so nothing can prompt, and true for an `ANTHROPIC_API_KEY` or a Bedrock/Vertex provider as well as for a signed-in account. Every case it cannot read — any other CLI, a `claude` too old to carry `auth status`, one absent from `PATH`, an output shape it does not recognise — is `SKIP`, reported as `not checked`; a machine the probe cannot answer for is never refused. Adding a second CLI's probe is a branch in the arm's `case`, not a change to the report.
 - The `🤖 AI service used: <cli>` line seen once per iteration is `--intern-op-agent-spawn-proxy`'s, not this operation's. It names the CLI read back out of the child's own `DISTRO_CONSOLE_EXEC=` sentinel — the console owns the `--cli`/`SPAWN_CLI_SERVICE`/auto-scan resolution, so the announcement is taken from what actually ran and cannot disagree with it.
 - **A `--dispatch-doc:none` spawn writes nothing under `$MDAT_DATA_ROOT`** — `--intern-op-agent-spawn-proxy`'s behaviour, not this operation's. Under `--wait`, which is this loop's only form, the child's own stdout and stderr go to the caller's stderr and no `OUTPUT_FILE` key is printed, so a failed iteration is read where it happened rather than in a file nothing opens. An async `none` call has no waiting caller left to read them, so it keeps them in a file under `$MMDAPP/.local/temp/` and still prints the key; sending them to a returned caller's stderr instead would let a caller capturing this operation with `2>&1` hold that pipe for the child's whole life, which is the permanent-hang shape "Capturing an arbitrary command's output" above describes. The launch marker takes the same split and is removed at the end of the call — it is the only thing separating a real failure from a silent no-op, so it still exists, but nothing of a spawn that keeps no dispatch document is left in the team data tree. `create` and `reuse` keep the audit log, because the dispatch document records its path and `magic-coordinator.advance.routine` reads it.
-- **When the selected CLI is `claude`, what lands on that piped-to-caller's-stderr stream is reformatted, not raw.** The console script (`AgentsConsoleShellScript.template.sh`'s `DagcRunClaudeStreaming`) runs claude with `--verbose --output-format stream-json`, backgrounded rather than exec'd, and pipes its JSON-lines stdout through `AgentsClaudeStreamJsonFormat.awk` (run `LC_ALL=C` for byte-safe truncation). The awk turns that stream into short per-line progress on real stderr — `session started`, `thinking: <preview>...`, `-> tool: Name(arg)`, `<- tool result`, `answering: <preview>...` — and copies the terminal `type:"result"` line's own `.result` text onto real stdout, exiting 0 or 1 per that line's `is_error`. Any other CLI is still `exec`'d directly with no reformatting; this split exists because only claude's batch mode goes silent for the whole run without it.
+- **When the selected CLI is `claude`, what lands on that piped-to-caller's-stderr stream is reformatted, not raw.** The console script (`AgentsConsoleShellScript.template.sh`'s `DagcRunClaudeStreaming`) runs claude with `--verbose --output-format stream-json`, backgrounded rather than exec'd, and pipes its JSON-lines stdout through `awk -f AgentsProgressLineSafe.awk -f AgentsClaudeStreamJsonFormat.awk` (run `LC_ALL=C`, which the primitive requires — see `AgentsProgressLineSafe.awk`'s own section below). The formatter is **not standalone**: it calls `progressLineSafe()` and the primitive file must be loaded ahead of it, or the run dies on the first record that reaches a call. The awk turns that stream into short per-line progress on real stderr — `session started`, `thinking: <preview>...`, `-> tool: Name(arg)`, `<- tool result`, `answering: <preview>...` — and copies the terminal `type:"result"` line's own `.result` text onto real stdout, exiting 0 or 1 per that line's `is_error`. Any other CLI is still `exec`'d directly with no reformatting; this split exists because only claude's batch mode goes silent for the whole run without it.
 - **Backgrounding claude (instead of exec'ing it) is what makes Ctrl-C/kill actually stop the run**, and the trap chain has to be unbroken end to end for that to hold: `DagcRunClaudeStreaming` captures claude's real PID and installs a `TERM`/`INT` trap immediately after capturing it (before anything else, including closing its own copy of the streaming fd) that forwards the signal to that PID; `--intern-op-agent-spawn-proxy`'s own `--wait` block traps the same two signals onto the console's PID and clears its trap (`trap - INT TERM`) before returning; this operation's outer `while true` loop traps them once, for the loop's whole life, onto the spawn-proxy's PID, and clears its own trap before either `return 130` path. Each layer's `wait "$pid" || …` is followed by a `while kill -0 "$pid"; do wait; done` re-wait, because bash's `wait` returns early (interrupted) the instant a trapped signal arrives, before the child has actually exited — without the re-wait loop, the reported exit code and the "has it actually died yet" state can disagree.
 
 ### `--intern-mcp-server` call contract
@@ -788,11 +796,31 @@ Serverless Generative APIs are a bare
 `POST https://api.scaleway.ai/v1/chat/completions`, so `sh-lib/AgentsScalewayHarness.sh` *is* the CLI —
 a standalone, independently-invokable bash script that runs the whole request/tool-call/response loop
 itself, using the exact curl `-H @-` bearer-stdin pattern `AgentsTools.CommsSlack.include` already
-proves. Non-streaming only (v1); no sandboxing beyond its own access-root check (matches copilot's
-`--allow-all-tools` trust model, not a gap this version closes); no context-window management — an
-unboundedly long conversation is this version's own known limit, guarded only by a hard 25-round cap
-(see below), never a silent one. A streaming sibling, `AgentsScalewayHarnessV2.sh`, exists alongside
-this file, unmodified by it — see its own section below for what differs and why both stay.
+proves. No sandboxing beyond its own access-root check (matches copilot's `--allow-all-tools` trust
+model, not a gap this closes); no context-window management — an unboundedly long conversation is a
+known limit of both harness variants, guarded only by a hard 25-round cap (see below), never a
+silent one.
+
+**Service facts the harness is written against.** The endpoint is OpenAI **Chat-Completions**-compatible
+and supports `stream:true` (SSE), `tools` and `tool_choice`. There is **no Responses API**, and that
+consequence reaches past this package: the Codex CLI cannot target Scaleway at all, having dropped
+`wire_api = "chat"` in favour of Responses. Unsupported request parameters, which the harness
+therefore never sends: `frequency_penalty`, `n`, `top_logprobs`, `logit_bias`, `user`. Model IDs are
+bare and carry no slash prefix. A key is scoped by Project and policy rather than by model, so one key
+reaches every model that Project serves — `Help.DistroAgentsTools-setup-scaleway.help.md` states that
+last half for the setup reader.
+
+**Two files ship, and the default is the streaming one.** `sh-lib/AgentsScalewayHarness.sh` — the
+plain name, the file the console reaches with nothing set — is the SSE-streaming implementation: live
+text echo and a per-tool visual progress layer on stderr as the model generates. The earlier
+BLOCKING implementation (one plain `POST` per round, one complete JSON body parsed at the end, no
+streaming and no visual progress layer) is preserved beside it as
+`sh-lib/AgentsScalewayHarnessV1.sh`, and `MDAT_SCALEWAY_HARNESS=AgentsScalewayHarnessV1.sh` is now
+the only way to reach it — nothing selects it on its own. This was a deliberate default flip, not
+drift: the streaming file is the one the work continues on, and the blocking protocol survives only
+against a possible later reuse as a generic variant for other providers. Everything in this section
+holds for both variants unless it names one of them; what differs is the transport and the stderr
+presentation, both covered in the section below.
 
 - **Standalone by design, not sourced.** Every sibling `Agents*.include` is dot-sourced into
   `DistroAgentsTools` and resolves its neighbours through `$MDLT_ORIGIN`. This script is executed
@@ -925,7 +953,8 @@ this file, unmodified by it — see its own section below for what differs and w
 - **`--session-id <id>` and `--agent <name>`: the same two spawn-proxy exports claude/copilot already took, now
   reaching scaleway too.** `AgentsConsoleShellScript.template.sh`'s `DAGC_SESSION_ID_ARGS`/`DAGC_AGENT_ARGS`
   conditionals widened from `claude`/`copilot`-only to include `scaleway` for both flags. `--session-id` only
-  announces the id to stderr (`# AgentsScalewayHarness.sh: session-id: <id>`) — scaleway has no external hook
+  announces the id to stderr — `🔗 session <id>` from the default streaming `AgentsScalewayHarness.sh`, and
+  `# AgentsScalewayHarnessV1.sh: session-id: <id>` from the blocking one — scaleway has no external hook
   observer the way claude/copilot run under Claude Code's own instrumented lifecycle, so that line is the only
   "join" this harness can make at all. `--agent <name>` (checked against the same bare-token gate the template
   already applies to `MDAT_SPAWN_AGENT`, reproduced here rather than shared since this harness sources no
@@ -1006,28 +1035,148 @@ this file, unmodified by it — see its own section below for what differs and w
 - **A per-round tool-call progress line, announced immediately BEFORE the tool call executes, not
   after.** Human-owner's own ask: the harness's tool-execution dispatch had zero stderr announcement
   anywhere in its success path, and real-time visibility into what it is doing matters especially for a
-  `run_command` that might hang. `AgentsScalewayAnnounceTool` prints
-  `# AgentsScalewayHarness.sh: round $round: $funcName: <detail>` — the same `# AgentsScalewayHarness.sh:
-  ...` stderr prefix the `--session-id` announce line above already uses. `<detail>` is `path=` for
-  `read_file`/`write_file`/`list_dir`, `pattern=`+`path=` for `grep`, `command=`+`cwd=` for
-  `run_command` — never `write_file`'s own content, only the path being written to. Each value passes
-  through `AgentsScalewayTruncateArg` first: collapsed to one line and capped at 120 characters (`...`
-  appended), never dumped whole. Live-confirmed real-time (polled while the process was still running,
-  not merely present at exit) against a real multi-tool-call session.
+  `run_command` that might hang. `AgentsScalewayAnnounceTool` is where it happens, and it is the one
+  place the two variants **do** differ outside the transport, so the two shapes are worth stating apart:
+  - `AgentsScalewayHarnessV1.sh` prints `# AgentsScalewayHarnessV1.sh: round $round: $funcName: <detail>`
+    — the same `# <this file>: ...` stderr prefix its own `--session-id` announce line uses. `<detail>`
+    is `path=` for `read_file`/`write_file`/`list_dir`, `pattern=`+`path=` for `grep`,
+    `command=`+`cwd=` for `run_command`.
+  - `AgentsScalewayHarness.sh` (the default) prints the same information as a per-tool icon line
+    (`📖`/`📝`/`📂`/`🔍`/`💻`), with the tool name in a fixed-width colour column and the values beside
+    it, under a `── round N ───` rule printed once per round rather than a round stamp per call. It
+    also announces the model and tier once at startup (`🤖 scaleway <model> · <tier> tier`) and the
+    session id as `🔗 session <id>`. Colour is gated on `[ -t 2 ]` + `NO_COLOR` + a real `TERM`
+    (`tput colors` ≥ 8) exactly as `myx.common`'s own `lib/catMarkdown.Common` gates its stdout; the
+    emoji are not gated, being printable UTF-8 rather than escapes.
 
-## `AgentsScalewayHarnessV2.sh` — the streaming sibling, and why v1 stays untouched
+  Both share the rule that matters: never `write_file`'s own content, only the path being written to,
+  and every value — the function name included, since that is model output too — passes through
+  `AgentsScalewayTruncateArg` first: collapsed to one line, every C0 control byte and DEL folded to a
+  space, cut at 120 bytes (`...` appended), never dumped whole. That control-byte fold is what
+  stops a prompt-injection payload arriving as a tool-call argument from forging or moving the
+  harness's own chrome. Live-confirmed real-time on v1 (polled while the process was still running, not
+  merely present at exit) against a real multi-tool-call session.
+  The rule is shared; the implementation is no longer. `AgentsScalewayHarness.sh`'s
+  `AgentsScalewayTruncateArg` is now one line handing the value to `progressLineSafe` — the one
+  primitive, in `AgentsClaudeStreamJsonFormat.awk`, that claude's own progress lines use as well — so
+  its cut is UTF-8-boundary-safe in every locale. `AgentsScalewayHarnessV1.sh` keeps the earlier
+  `printf | tr` copy, whose `${value:0:120}` cut splits a multi-byte character under `LC_ALL=C`.
+  See the `AgentsClaudeStreamJsonFormat.awk` section below for why the primitive lives where it does.
 
-Two variants of the harness exist on purpose, not from drift. `AgentsScalewayHarness.sh` (v1, above)
-stays exactly as it is — production, unmodified. `AgentsScalewayHarnessV2.sh` is a new, separate file,
-not a v1 edit: every section through message-history assembly (tool schemas, the five tool-execution
-functions, access-root enforcement and its fragment parser, credential resolution,
-`--tier`/`--session-id`/`--agent` handling, the `AgentsScalewayJsonField.awk`-based field reader,
-`AgentsScalewayAnnounceTool`, `AgentsScalewayTruncateArg`) is copied from v1 verbatim. The one real
-difference is the request/response transport: v1 makes one blocking `curl` call per round and parses
-one complete JSON body; v2 opens Scaleway's SSE stream (`"stream":true`) via `curl -N` and consumes it
-incrementally, then falls through into v1's own unchanged error-handling and tool-dispatch code once a
-round's stream completes — a second, streaming-shaped tool-dispatch path was deliberately not built,
-so a dispatch bug has one place to be fixed, not two.
+## `sh-lib/AgentsProgressLineSafe.awk` — `progressLineSafe`, the one progress-line primitive
+
+**The primitive is its own file, and it is not owned by any spawn service.** `AgentsProgressLineSafe.awk`
+holds the `ordTable` BEGIN, `progressLineSafe()` itself, and a standalone stdin mode; every caller loads
+it. There are two ways in, and the file's own header states both: `awk -v progressLineCap=<bytes> -f
+AgentsProgressLineSafe.awk` renders one value from stdin, which is how `AgentsScalewayHarness.sh` uses
+it; `awk -f AgentsProgressLineSafe.awk -f <rules>.awk` loads it ahead of a formatter that calls the
+function, which is how the claude path uses it. With `progressLineCap` unset the standalone rule never
+fires, so the loaded rules see every line; when it is set, that rule's `next` is what keeps the line
+away from any rules file loaded after it.
+
+**A caller that forgets to load it fails at call time, not at load time.** Calling an undefined awk
+function is a fatal exit 2 in gawk and one-true-awk alike, and it is raised when the call executes —
+so a stream whose first records do not reach a call runs normally and dies on the first one that does.
+Measured on the claude formatter loaded alone: a `system`/`init` record still prints `session started`
+and exits 0, while the first `thinking` or `tool_use` record exits 2 with `awk: calling undefined
+function progressLineSafe`. Nothing detects this ahead of time — there is no syntax-only mode, and a
+dry run over benign input passes.
+
+**A generated console resolves the awk paths at runtime but bakes in its own invocation.** So editing
+these files reaches every deployed console immediately, while a change from one `-f` to two does not
+reach any of them until each workspace is regenerated. Splitting a primitive out of a formatter is
+therefore not a safe in-place edit: it is live to the old invocation the moment it lands.
+
+The history below describes the merge that produced the primitive, when it still lived inside the
+claude formatter.
+
+Two spawn paths render untrusted values into one-line terminal progress messages, and each was
+correct on the half the other got wrong. `truncateSafe` here cut on a real UTF-8 character boundary
+but neutralised nothing: its own `jsonUnescape` *decodes* a spec-legal `\r` into a live CR and prints
+it, so a `Bash` call carrying `echo hi\rrm -rf / # FORGED` reached stderr with the CR intact and
+forged the line — measured, `od -c` showed the `\r` byte in the output — and a raw ESC in the same
+string passed through untouched. Its only partial defence was `jsonUnescape` dropping `\uXXXX`, one
+of three ways the same byte can arrive. `AgentsScalewayHarness.sh`'s `AgentsScalewayTruncateArg`
+folded every C0 byte and DEL correctly but cut with `${value:0:120}`, which is **byte**-based under
+`LC_ALL=C` — measured on bash 3.2.57, that emitted a lone `e2` lead byte mid-character, the exact
+defect `truncateSafe` existed to prevent. Under an inherited `en_US.UTF-8` the same expression is
+character-based and safe, so it bit only in a C/POSIX-locale context: daemon, cron, remote bootstrap.
+One primitive now does both, and both callers reach it.
+
+- **It lives in this file because a generated console pins this file's path, and for no other reason.**
+  `DagcRunClaudeStreaming` runs `awk -f "$MDLT_ORIGIN/…/AgentsClaudeStreamJsonFormat.awk"` with a
+  single `-f`, and that line lives in `$MMDAPP/DistroAgentsConsole.sh` — a snapshot `cat`-ed from
+  `AgentsConsoleShellScript.template.sh` by `--make-console-command`, rewritten only when someone runs
+  it. Staleness is the steady state, not an edge case: measured during this pass, both live consoles
+  differed from the source template (91 and 120 lines), and both resolve `MDLT_ORIGIN` to a live
+  `source` tree, so each already runs an old invocation against today's awk file. POSIX awk does
+  concatenate multiple `-f` program files into one program, and a neutrally-named
+  `AgentsProgressLineSafe.awk` reached that way is the tidier shape — but it makes the second file a
+  hard runtime dependency, and one-true-awk answers a call to a function it was not given with
+  `calling undefined function`, a fatal exit 2 raised **at call time, not at parse time**. Every
+  console not yet regenerated would keep starting normally and then lose claude progress output at the
+  first tool call. So the pinned path is the primitive's home and the sharing runs the other way.
+- **The harness reaches it as an ordinary `awk -f` run**, `-v progressLineCap=<bytes>` with the value
+  on stdin. That variable is the entire switch: a guarded rule accumulates stdin as one value and
+  `next`s past the claude rules, and `END` prints the rendered result with no trailing newline. Unset,
+  it costs the claude path one numeric comparison per input line and nothing else, and the console's
+  own invocation is unchanged — which is what makes a stale console a non-event.
+- **The cap is bytes now, in both callers, and that is the point.** `truncateSafe` was already
+  documented and measured in bytes; `${value:0:120}` meant bytes or characters depending on the
+  ambient locale. One locale-independent definition beats two, and for the ASCII paths and commands
+  these lines actually carry the two numbers are the same.
+- **The invariant is the source of an escape, not the escape itself.** This package emits ANSI deliberately,
+  for its own progress display, while every escape arriving in untrusted data — a tool-call argument,
+  model output, file content — is neutralised. Both halves are load-bearing together, and the failure
+  mode is a display improvement that quietly widens the first into the second by letting something
+  through so that it "renders properly". A change to any progress path is checked against this before
+  it is checked against how it looks.
+- **Cost, measured.** The harness swaps one fork for one fork — `printf | tr` became `printf | awk` —
+  and three rounds of 200 calls put the two inside each other's run-to-run spread (~4.4 ms per call
+  either way, dominated by the `$( )` capture; bare `awk` costs ~0.8 ms more to exec than bare `tr`,
+  and that difference does not survive the surrounding subshell). The claude path pays ~4 µs more per
+  progress line (39–40 → 44 µs over 5000 lines), because neutralising control bytes means inspecting
+  the bytes that are kept. A `[[:cntrl:]]` test gates that scan so a clean value skips it — a named
+  class, never a bracket range — and it gates rather than implements the fold on purpose: a class can
+  over-match across locales but cannot under-match, so a gate built on it costs at worst a wasted
+  pass, while the authoritative fold stays the explicit `ordTable` walk. Verified as exactly
+  `{0x01–0x1F, 0x7F}` on one-true-awk 20200816 and gawk, with no high-byte hits that would corrupt UTF-8.
+- **The claude path's tool NAME goes through it too, not only the argument.** A name is model output
+  like everything else on that line, an MCP server names its own tools, and it was reaching stderr
+  raw — the harness's own rule already said "the function name included, since that is model output
+  too". It is folded but never cut, which is what it did before.
+- **`AgentsScalewayHarnessV1.sh` keeps its own `tr`-based copy and was deliberately not touched**, on
+  the standing rule in the section below that no new work belongs in it.
+
+## Streaming transport, and `AgentsScalewayHarnessV1.sh` — the preserved blocking one
+
+Two variants of the harness exist on purpose, not from drift, and which one carries the plain name is
+itself a decision. `AgentsScalewayHarness.sh` — the default, the file the console runs with nothing
+set — is the SSE-streaming implementation. `AgentsScalewayHarnessV1.sh` is the earlier blocking one,
+preserved unchanged apart from its own renamed self-references, and reachable only by naming it:
+`MDAT_SCALEWAY_HARNESS=AgentsScalewayHarnessV1.sh`.
+
+The streaming file began as a verbatim copy of the blocking one, and most of it still is: tool schemas,
+the five tool-execution functions, access-root enforcement and its fragment parser, credential
+resolution, `--tier`/`--session-id`/`--agent` handling, the `AgentsScalewayJsonField.awk`-based field
+reader, `AgentsScalewayTruncateArg`, and everything from the error checks through message-history
+assembly and tool dispatch. Two things are genuinely its own:
+
+- **The transport.** v1 makes one blocking `curl` call per round and parses one complete JSON body;
+  the default opens Scaleway's SSE stream (`"stream":true`) via `curl -N` and consumes it
+  incrementally, then falls through into that same unchanged error-handling and tool-dispatch code
+  once a round's stream completes — a second, streaming-shaped tool-dispatch path was deliberately
+  not built, so a dispatch bug has one place to be fixed, not two.
+- **The stderr presentation layer.** `AgentsScalewayAnnounceTool` is NOT a verbatim copy any more:
+  the default's is the icon/colour/round-rule form described in the progress-line bullet above, next
+  to a startup model+tier line, a `🔗 session` line, a `🔁 RETRY` line, and colourised `⛔ ERROR:`
+  prefixes on every diagnostic. v1 keeps the plain `# AgentsScalewayHarnessV1.sh: ...` stamps
+  throughout and has no colour block at all. This is the one place the two files' shared lineage has
+  actually been broken, and it was broken on purpose — the visual layer landed on the streaming file
+  because that is the file that survives.
+
+The rest of this section is the streaming transport in detail — all of it belongs to
+`AgentsScalewayHarness.sh`, none of it to `AgentsScalewayHarnessV1.sh`:
 
 - **Real SSE shape, live-confirmed, OpenAI-compatible.** Plain-text and tool-call progress arrive as
   `data: {...}` events; a tool call's `function.arguments` arrives as successive fragments keyed by
@@ -1075,6 +1224,14 @@ so a dispatch bug has one place to be fixed, not two.
   mid-stream disconnect exercising the discard-and-retry path end to end. Unlike v1's own entries above,
   no concrete transcript/numbers are filed in this document yet — add them here once available, the same
   standard v1's own live-test claims are held to elsewhere in this section.
-- Not yet wired into the console's own exec dispatch or `--owner-setup-scaleway` — v1 remains the only
-  variant either of those reach. Standalone and independently invokable, the same way v1 was before its
-  own console wiring landed (see v1's "Now wired into the console's own exec dispatch" point above).
+- **Both are reached through the console's own exec dispatch, and the default flipped by rename.** The
+  streaming file was standalone-only at first, then selectable through `MDAT_SCALEWAY_HARNESS`, and is
+  now the default: the two files were swapped on disk — the blocking one to `AgentsScalewayHarnessV1.sh`,
+  the streaming one to `AgentsScalewayHarness.sh` — so `DAGC_SCALEWAY_HARNESS`'s unchanged default path
+  resolves to streaming and the override is what reaches back to blocking. `--owner-setup-scaleway`'s
+  install-probe and `AgentsToolsSpawnCliPresent` both keep testing the plain default name and so are
+  unaffected; neither follows `MDAT_SCALEWAY_HARNESS`, deliberately (they ask whether the release
+  reached this workspace, not which variant a run selects).
+- The stated end state is a *single* `*ScalewayHarness.sh` — the streaming one. The blocking protocol
+  survives only against a possible later reuse as a separate generic variant for other providers; it is
+  not a maintained second Scaleway path, and no new work belongs in it.

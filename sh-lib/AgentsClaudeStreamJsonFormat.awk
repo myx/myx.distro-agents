@@ -6,6 +6,12 @@
 # exiting 0 or 1 per that line's `.is_error`. Run under `LC_ALL=C awk -f` for
 # byte safety, fed by claude's own stdout -- see AgentsConsoleShellScript.template.sh.
 #
+# NOT STANDALONE. It calls progressLineSafe(), which lives in
+# AgentsProgressLineSafe.awk, so every caller must load that file FIRST:
+#   awk -f AgentsProgressLineSafe.awk -f AgentsClaudeStreamJsonFormat.awk
+# Loading this one alone is a fatal exit 2 the first time a progress line is
+# rendered -- at call time, undetectable by any syntax check -- see MAGIC.md.
+#
 # Bespoke regex extraction for this stream's own known line shapes -- not a
 # general JSON parser. A record's own top-level `type` is not reliably its
 # first key (the real terminal line carries it near the end), so classification
@@ -67,41 +73,6 @@ function extractJsonField(sourceLine, fieldKey, searchFrom,   needlePattern, fou
 	return jsonUnescape(substr(afterNeedle, 1, valueEnd))
 }
 
-# Cuts `rawText` to at most `capBytes` bytes. If the byte at the cut point is
-# part of a multi-byte UTF-8 character, walks back to that character's own
-# lead byte and checks whether the character is actually complete within
-# `capBytes` -- a complete character ending exactly at the cut point is kept
-# whole (not dropped just for touching the boundary); only a character that
-# would genuinely be split gets dropped in full, back to the byte before its
-# lead byte. Malformed input (continuation bytes with no lead byte found
-# before position 0) falls back to dropping the whole unresolved run --
-# never emits a broken byte sequence. `ordTable` is built once in BEGIN below.
-function truncateSafe(rawText, capBytes,   cutAt, byteVal, leadPos, seqLen) {
-	if (length(rawText) <= capBytes) return rawText
-	cutAt = capBytes
-	byteVal = ordTable[substr(rawText, cutAt, 1)]
-	if (byteVal >= 128) {
-		leadPos = cutAt
-		while (leadPos > 0) {
-			byteVal = ordTable[substr(rawText, leadPos, 1)]
-			if (byteVal >= 192 || byteVal < 128) break
-			leadPos--
-		}
-		if (leadPos > 0 && byteVal >= 192) {
-			seqLen = (byteVal >= 240) ? 4 : (byteVal >= 224) ? 3 : 2
-			if (leadPos + seqLen - 1 > cutAt) cutAt = leadPos - 1
-			## else: the character ending at cutAt is complete -- keep cutAt as-is.
-		} else {
-			## Ran off the start (leadPos == 0) or hit a plain ASCII byte while
-			## backing up through stray continuation bytes with no lead byte of
-			## their own -- either way there is nothing valid to keep from this
-			## run, so cut right after whatever leadPos landed on.
-			cutAt = leadPos
-		}
-	}
-	return substr(rawText, 1, cutAt) "..."
-}
-
 function printProgress(progressText) {
 	print "  " progressText > "/dev/stderr"
 	fflush("/dev/stderr")
@@ -111,7 +82,6 @@ function printProgress(progressText) {
 # arguments don't reduce to one clear candidate is left off this table and
 # prints its bare name instead, never a guessed or misleading field.
 BEGIN {
-	for (byteVal = 0; byteVal < 256; byteVal++) ordTable[sprintf("%c", byteVal)] = byteVal
 	argKeyForTool["Skill"] = "skill"
 	argKeyForTool["Read"] = "file_path"
 	argKeyForTool["Edit"] = "file_path"
@@ -141,11 +111,12 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 		if (toolName == "") continue
 		argKey = argKeyForTool[toolName]
 		argVal = (argKey == "") ? "" : extractJsonField(blockText, argKey, 1)
+		## A name is model output too, and an MCP server names its own tools.
+		toolName = progressLineSafe(toolName, 0)
 		if (argVal == "") {
 			printProgress("-> tool: " toolName)
 		} else {
-			gsub(/\n/, " ", argVal)
-			printProgress("-> tool: " toolName "(" truncateSafe(argVal, 110) ")")
+			printProgress("-> tool: " toolName "(" progressLineSafe(argVal, 110) ")")
 		}
 	}
 }
@@ -163,15 +134,13 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 		## line also has a tool call.
 		if ($0 ~ /"type":"thinking"/) {
 			previewText = extractJsonField($0, "thinking", 1)
-			gsub(/\n/, " ", previewText)
-			printProgress(previewText == "" ? "thinking..." : "thinking: " truncateSafe(previewText, 260))
+			printProgress(previewText == "" ? "thinking..." : "thinking: " progressLineSafe(previewText, 260))
 		}
 		if ($0 ~ /"type":"tool_use"/) {
 			reportToolCalls($0)
 		} else if ($0 ~ /"type":"text"/) {
 			previewText = extractJsonField($0, "text", 1)
-			gsub(/\n/, " ", previewText)
-			printProgress(previewText == "" ? "answering..." : "answering: " truncateSafe(previewText, 260))
+			printProgress(previewText == "" ? "answering..." : "answering: " progressLineSafe(previewText, 260))
 		}
 	} else if ($0 ~ /"type":"user"/) {
 		printProgress(($0 ~ /"is_error":true/) ? "<- tool result (error)" : "<- tool result")

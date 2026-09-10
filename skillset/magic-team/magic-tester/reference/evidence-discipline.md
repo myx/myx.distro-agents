@@ -317,17 +317,27 @@ the roster, the tracking document it was told to write, a direct ping. Never tre
 rests on it. This is the reporting-surface rule applied to sessions — the channel
 that would have carried the news is not the channel that holds the state.
 
-## Read `git status` before measuring a package under concurrent edit
+## A working-tree probe is evidence only in a checkout the task owns
 
 A working tree that another session is editing is not one state, it is two: what
 is committed and what is not. A measurement that does not separate them reports
 in-progress lines as settled fact, cites line numbers that have already moved, and
 produces findings that will not reproduce for whoever reads them next.
 
-So the first command of any code measurement is `git status --porcelain` over the
-package, and every finding names which of the two it holds in — HEAD, working
-tree, or both. Untracked files are the sharpest case: a file that exists only in
-the working tree makes the code around it read as finished work. Where a cited
-line number does not carry what a report said it carried, treat that as the
-coordinates having moved under an active edit, and re-measure by content rather
-than by line — not as the finding being false.
+**That separation is only available where the checkout belongs to the task alone.**
+Version control runs asynchronously to the work and sweeps parallel work in with
+it, so in a shared checkout a status probe answers about every session active on
+that machine rather than about the task that ran. It cannot attribute a change to
+the task, and neither a clean nor a dirty answer means what it appears to mean —
+which makes it useless for the question it is most often reached for, whether only
+the expected files changed. Verify that by reading the specific files the task was
+expected to touch.
+
+The probe is real evidence in a task-own branch, a task-own checkout, or on a
+machine operating under other rules, and there it is worth running first: every
+finding then names which of the two states it holds in — HEAD, working tree, or
+both. Untracked files are the sharpest case: a file that exists only in the working
+tree makes the code around it read as finished work. Where a cited line number does
+not carry what a report said it carried, treat that as the coordinates having moved
+under an active edit, and re-measure by content rather than by line — not as the
+finding being false.

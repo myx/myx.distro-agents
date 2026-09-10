@@ -61,6 +61,75 @@ DAGC_CLI="copilot"
 DAGC_CLI_GIVEN="false"
 DAGC_CLI_AUTO="false"
 DAGC_CLI_CONFIGURED="false"
+## The one file the `scaleway` CLI name resolves to, resolved ONCE here and
+## then read by both of this file's scaleway sites -- DagcCliPresent()'s
+## existence test just below, and the DAGC_CLI_EXEC assignment further down.
+## Those two must never disagree: presence-checking one file while exec'ing
+## another is exactly how a console reports a CLI as available and then fails
+## to start it, so they share this variable rather than repeating a path.
+##
+## Default -- MDAT_SCALEWAY_HARNESS unset or empty -- is AgentsScalewayHarness.sh,
+## which is the SSE-STREAMING implementation: live text and per-tool progress on
+## stderr as the model generates them. That is the production default; nothing
+## needs to be set to get it.
+##
+## Setting this variable selects a different harness, per workspace. The one
+## concrete alternative shipping in sh-lib/ today is AgentsScalewayHarnessV1.sh,
+## the earlier BLOCKING implementation (one plain POST per round, no streaming,
+## no visual progress layer) -- it is preserved deliberately and this variable
+## is now the ONLY way to reach it:
+##     MDAT_SCALEWAY_HARNESS=AgentsScalewayHarnessV1.sh
+## The variable keeps its original purpose alongside that: one workspace can run
+## a candidate implementation while every other workspace sharing this same
+## MDLT_ORIGIN tree keeps the default, which is what makes a candidate testable
+## for real without promoting it everywhere at once.
+##
+## Two accepted shapes, and why only these:
+##  - a bare filename (no '/'), taken from this package's own sh-lib/ -- the
+##    normal case, since the harness variants worth selecting ship there. A
+##    value with no slash in it cannot traverse anywhere, so it needs no
+##    containment check of its own.
+##  - an absolute path, for a candidate harness still being developed outside
+##    the package tree. Deliberately allowed rather than confined to sh-lib/:
+##    the point of this variable is trying an implementation before it is
+##    promoted, and that work does not always happen inside the package.
+## A relative path containing '/' is refused rather than resolved, since it
+## would silently resolve against $MMDAPP (this script cd's there above) --
+## not against anything the caller writing "../x/harness.sh" meant.
+##
+## Whichever shape it takes, the file must exist and be executable, checked
+## here at the top so a bad value fails on its own name. Otherwise it would
+## surface far downstream: as an exec "not found", or -- worse, because it is
+## silent -- as scaleway reported absent by DagcCliPresent() and quietly
+## skipped by --cli-auto, which is indistinguishable from scaleway simply not
+## being installed. An unset variable reaches none of this.
+DAGC_SCALEWAY_HARNESS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh"
+if [ -n "$MDAT_SCALEWAY_HARNESS" ] ; then
+	case "$MDAT_SCALEWAY_HARNESS" in
+		.|..)
+			echo "⛔ ERROR: DistroAgentsConsole: MDAT_SCALEWAY_HARNESS is not a harness filename: $MDAT_SCALEWAY_HARNESS" >&2
+			exit 1
+		;;
+		/*)
+			DAGC_SCALEWAY_HARNESS="$MDAT_SCALEWAY_HARNESS"
+		;;
+		*/*)
+			echo "⛔ ERROR: DistroAgentsConsole: MDAT_SCALEWAY_HARNESS must be a bare filename in $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib, or an absolute path -- a relative path is refused, because it would resolve against $MMDAPP rather than against anything you named: $MDAT_SCALEWAY_HARNESS" >&2
+			exit 1
+		;;
+		*)
+			DAGC_SCALEWAY_HARNESS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$MDAT_SCALEWAY_HARNESS"
+		;;
+	esac
+	if [ ! -f "$DAGC_SCALEWAY_HARNESS" ] ; then
+		echo "⛔ ERROR: DistroAgentsConsole: MDAT_SCALEWAY_HARNESS=$MDAT_SCALEWAY_HARNESS names no such file: $DAGC_SCALEWAY_HARNESS" >&2
+		exit 1
+	fi
+	if [ ! -x "$DAGC_SCALEWAY_HARNESS" ] ; then
+		echo "⛔ ERROR: DistroAgentsConsole: MDAT_SCALEWAY_HARNESS=$MDAT_SCALEWAY_HARNESS names a file that is not executable: $DAGC_SCALEWAY_HARNESS" >&2
+		exit 1
+	fi
+fi
 ## scaleway has no real binary at all -- `command -v scaleway` can never
 ## succeed on any machine -- so every presence check in this file goes
 ## through here instead, exactly as `--owner-setup-scaleway`'s own
@@ -68,7 +137,7 @@ DAGC_CLI_CONFIGURED="false"
 ## AgentsTools.Owner.include and MAGIC.md).
 DagcCliPresent(){
 	case "$1" in
-		scaleway) [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh" ] ;;
+		scaleway) [ -f "$DAGC_SCALEWAY_HARNESS" ] ;;
 		*) command -v "$1" >/dev/null 2>&1 ;;
 	esac
 }
@@ -195,9 +264,12 @@ fi
 ## stands in for it. `$DAGC_CLI` itself stays the logical name everywhere
 ## else in this file (DISTRO_CONSOLE_EXEC=, the credential/flag case
 ## statements, the warnings), so reporting and dispatch never disagree about
-## what was selected.
+## what was selected. The harness file itself is NOT re-derived here: it is
+## whatever DAGC_SCALEWAY_HARNESS resolved to at the top of this file, the same
+## value DagcCliPresent() tested, so the file this exec's is always the file
+## that was checked for.
 case "$DAGC_CLI" in
-	scaleway) DAGC_CLI_EXEC="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh" ;;
+	scaleway) DAGC_CLI_EXEC="$DAGC_SCALEWAY_HARNESS" ;;
 	*)        DAGC_CLI_EXEC="$DAGC_CLI" ;;
 esac
 
@@ -217,8 +289,9 @@ fi
 ## is what does that, and both CLIs spell the flag identically. Absent/empty
 ## fragment -> no tokens added; grok gets nothing (out of scope). scaleway
 ## also gets nothing here -- it has no real binary to hand a flag to, and its
-## own harness (AgentsScalewayHarness.sh) reads this same fragment file
-## itself instead; see MAGIC.md. One token
+## own harness (whichever DAGC_SCALEWAY_HARNESS resolved to above; both
+## AgentsScalewayHarness.sh and AgentsScalewayHarnessV1.sh do this, with the
+## same parser) reads this same fragment file itself instead; see MAGIC.md. One token
 ## per line, so a root containing spaces survives being read back into the
 ## array intact. The DAGC_COPILOT_* names, the fragment's own filename and
 ## the installer op that writes it all predate claude being included here and
@@ -308,7 +381,10 @@ done
 ## reported and dropped rather than silently ignored, since the dispatch
 ## record would otherwise name a session nothing else ever reports. scaleway
 ## has no external hook observer of its own -- its harness just announces the
-## id to stderr, the only "join" possible for it (see AgentsScalewayHarness.sh).
+## id to stderr, the only "join" possible for it (see the harness
+## DAGC_SCALEWAY_HARNESS resolved to above: AgentsScalewayHarness.sh by
+## default, AgentsScalewayHarnessV1.sh when MDAT_SCALEWAY_HARNESS names it --
+## both announce it, in their own respective line shapes).
 DAGC_SESSION_ID_ARGS=()
 if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
 	if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "scaleway" ] ; then
@@ -388,9 +464,12 @@ fi
 ## would break the spawn proxy's PID-based timeout kill, so claude runs
 ## backgrounded with its real PID captured, and TERM/INT are forwarded to it.
 DagcRunClaudeStreaming(){
-	local claudePrompt="$1" streamAwkPath claudePid awkPid claudeStatus
+	local claudePrompt="$1" progressAwkPath streamAwkPath claudePid awkPid claudeStatus
+	## Order is load-bearing: the formatter calls progressLineSafe() and does not
+	## define it, and an undefined awk function is a fatal exit 2 at call time.
+	progressAwkPath="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsProgressLineSafe.awk"
 	streamAwkPath="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeStreamJsonFormat.awk"
-	exec 3> >( LC_ALL=C awk -f "$streamAwkPath" )
+	exec 3> >( LC_ALL=C awk -f "$progressAwkPath" -f "$streamAwkPath" )
 	awkPid=$!
 	"$DAGC_CLI" --verbose --output-format stream-json "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$claudePrompt" >&3 &
 	claudePid=$!
@@ -413,7 +492,8 @@ DagcRunClaudeStreaming(){
 if [ "$1" == "--non-interactive" ] ; then
 	shift
 	## -- closes the option list for claude, whose prompt is positional; copilot's -p takes the body as its value.
-	## scaleway takes neither: AgentsScalewayHarness.sh's own arg parser knows
+	## scaleway takes neither: the harness's own arg parser -- the same one in
+	## AgentsScalewayHarness.sh and AgentsScalewayHarnessV1.sh alike -- knows
 	## --tier/--access-root/--, and reads its prompt as plain trailing argv
 	## (or stdin) exactly like claude/copilot's *own* prompt body does once
 	## their flags are stripped -- a `-p`/`-p --` token would hit its default
