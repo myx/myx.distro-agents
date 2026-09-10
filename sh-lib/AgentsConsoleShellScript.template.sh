@@ -304,12 +304,14 @@ done
 
 ## The spawn proxy mints this session uuid, records it on its own dispatch
 ## document and exports it here, so a hook's own session_id joins that record.
-## claude and copilot both take the flag; any other CLI has it reported and
-## dropped rather than silently ignored, since the dispatch record would
-## otherwise name a session nothing else ever reports.
+## claude, copilot and scaleway all take the flag; any other CLI has it
+## reported and dropped rather than silently ignored, since the dispatch
+## record would otherwise name a session nothing else ever reports. scaleway
+## has no external hook observer of its own -- its harness just announces the
+## id to stderr, the only "join" possible for it (see AgentsScalewayHarness.sh).
 DAGC_SESSION_ID_ARGS=()
 if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
-	if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "copilot" ] ; then
+	if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "scaleway" ] ; then
 		DAGC_SESSION_ID_ARGS=( --session-id "$MDAT_SPAWN_SESSION_ID" )
 	else
 		echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_SESSION_ID is set but '$DAGC_CLI' has no --session-id flag -- this spawn runs without it, and its dispatch record will not join the agent's own session" >&2
@@ -323,17 +325,41 @@ fi
 ## takes the definition inline; copilot instead reads it from its own
 ## `~/.copilot/agents/<member>.agent.md` file, generated once per member by
 ## `--install-copilot-agent-files`, and only `--agent`s it when that file is
-## actually there. The name is checked against a bare-token set before it is
-## placed inside JSON or a path, so no member name can alter the document's
+## actually there. scaleway resolves the member itself, from its own skill
+## directory (`$MDAT_SKILLSET_ROOT/<name>/<name>.basic.md`), so no
+## pre-existing-file gate is needed here the way copilot's is. The name is
+## checked against a bare-token set -- letters, digits, '.', '_' or '-' only,
+## enumerated character-by-character rather than via a collation-dependent
+## [a-zA-Z0-9._-] bracket range (see MAGIC.md's "A bracket range is never
+## used in a `case` pattern" and AgentsToolsAssertBareName in
+## sh-scripts/DistroAgentsTools.fn.sh, whose exact enumerated set this
+## mirrors), with the literal tokens '.' and '..' rejected explicitly since
+## both consist only of otherwise-allowed characters -- before it is placed
+## inside JSON or a path, so no member name can alter the document's
 ## structure or point outside the agents directory.
 DAGC_AGENT_ARGS=()
 if [ -n "$MDAT_SPAWN_AGENT" ] ; then
 	case "$MDAT_SPAWN_AGENT" in
-		''|*[!a-zA-Z0-9._-]*)
+		''|.|..)
 			echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_AGENT is not a bare member name: $MDAT_SPAWN_AGENT" >&2
 			exit 1
 		;;
 	esac
+	DAGC_AGENT_CHECK_REST="$MDAT_SPAWN_AGENT"
+	while [ -n "$DAGC_AGENT_CHECK_REST" ] ; do
+		DAGC_AGENT_CHECK_CHAR="${DAGC_AGENT_CHECK_REST%"${DAGC_AGENT_CHECK_REST#?}"}"
+		DAGC_AGENT_CHECK_REST="${DAGC_AGENT_CHECK_REST#?}"
+		case "$DAGC_AGENT_CHECK_CHAR" in
+			a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+			A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+			0|1|2|3|4|5|6|7|8|9) ;;
+			-|_|.) ;;
+			*)
+				echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_AGENT is not a bare member name: $MDAT_SPAWN_AGENT" >&2
+				exit 1
+			;;
+		esac
+	done
 	case "$DAGC_CLI" in
 		claude)
 			DAGC_AGENT_ARGS=(
@@ -347,6 +373,9 @@ if [ -n "$MDAT_SPAWN_AGENT" ] ; then
 			else
 				echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_AGENT is set but ~/.copilot/agents/$MDAT_SPAWN_AGENT.agent.md does not exist yet -- this spawn runs without --agent, and its hooks report the generic agent type rather than $MDAT_SPAWN_AGENT" >&2
 			fi
+		;;
+		scaleway)
+			DAGC_AGENT_ARGS=( --agent "$MDAT_SPAWN_AGENT" )
 		;;
 		*)
 			echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_AGENT is set but '$DAGC_CLI' has no --agent/--agents flag -- this spawn runs without them, and its hooks report the generic agent type rather than $MDAT_SPAWN_AGENT" >&2

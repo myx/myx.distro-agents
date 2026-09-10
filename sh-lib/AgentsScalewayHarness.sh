@@ -10,6 +10,8 @@ scalewayHere="$( cd "$( dirname -- "$0" )" && pwd )"
 
 scalewayTier="normal"
 scalewayAccessRoots=()
+scalewaySessionId=""
+scalewayAgent=""
 while [ $# -gt 0 ] ; do
 	case "$1" in
 		--tier)
@@ -30,6 +32,54 @@ while [ $# -gt 0 ] ; do
 			scalewayAccessRoots+=( "$2" )
 			shift 2
 		;;
+		--session-id)
+			## Light validation only -- this harness owns no uuid-format contract;
+			## that belongs to whoever mints the id (the spawn proxy, via uuidgen).
+			## A value is required, nothing more is checked.
+			if [ -z "${2:-}" ] ; then
+				echo "⛔ ERROR: AgentsScalewayHarness.sh: --session-id: value required" >&2
+				exit 1
+			fi
+			scalewaySessionId="$2"
+			shift 2
+		;;
+		--agent)
+			## Same bare-token gate AgentsConsoleShellScript.template.sh applies to
+			## MDAT_SPAWN_AGENT before it goes into JSON or a path -- reproduced
+			## here rather than shared, since this harness is standalone and
+			## sources no include of its own. Character-by-character
+			## enumeration, never a collation-dependent [a-zA-Z0-9._-] bracket
+			## range (see MAGIC.md's "A bracket range is never used in a `case`
+			## pattern" and AgentsToolsAssertBareName in
+			## sh-scripts/DistroAgentsTools.fn.sh, whose exact enumerated set
+			## this mirrors). '.' and '..' are rejected explicitly: both consist
+			## only of otherwise-allowed characters, and $scalewayAgent below is
+			## used as a path segment fed to `cd` -- either would walk one
+			## directory level outside $MDAT_SKILLSET_ROOT.
+			case "${2:-}" in
+				''|.|..)
+					echo "⛔ ERROR: AgentsScalewayHarness.sh: --agent is not a bare member name: ${2:-<none>}" >&2
+					exit 1
+				;;
+			esac
+			scalewayAgentCheckRest="${2:-}"
+			while [ -n "$scalewayAgentCheckRest" ] ; do
+				scalewayAgentCheckChar="${scalewayAgentCheckRest%"${scalewayAgentCheckRest#?}"}"
+				scalewayAgentCheckRest="${scalewayAgentCheckRest#?}"
+				case "$scalewayAgentCheckChar" in
+					a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+					A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+					0|1|2|3|4|5|6|7|8|9) ;;
+					-|_|.) ;;
+					*)
+						echo "⛔ ERROR: AgentsScalewayHarness.sh: --agent is not a bare member name: ${2:-<none>}" >&2
+						exit 1
+					;;
+				esac
+			done
+			scalewayAgent="$2"
+			shift 2
+		;;
 		--)
 			shift
 			break
@@ -39,6 +89,40 @@ while [ $# -gt 0 ] ; do
 		;;
 	esac
 done
+
+## --session-id: Scaleway has no external hook observer the way claude/copilot
+## do under Claude Code's own instrumented lifecycle (confirmed by
+## investigation), so this announce line is the only "join" possible at all --
+## the harness itself is the one thing that can surface the id anywhere.
+if [ -n "$scalewaySessionId" ] ; then
+	echo "# AgentsScalewayHarness.sh: session-id: $scalewaySessionId" >&2
+fi
+
+## --agent: the member's own real identity, read from its own skill directory.
+## Prepended into the system prompt below (scalewaySystemText), replacing the
+## generic opener entirely. Missing/unreadable is a loud, immediate failure --
+## never a silent fallback to the generic prompt, which would look like a
+## successful --agent spawn while actually running as nobody in particular.
+scalewayAgentBasicText=""
+scalewayAgentRealDir=""
+if [ -n "$scalewayAgent" ] ; then
+	scalewayAgentDir="${MDAT_SKILLSET_ROOT:-}/$scalewayAgent"
+	scalewayAgentBasicFile="$scalewayAgentDir/$scalewayAgent.basic.md"
+	if [ -z "${MDAT_SKILLSET_ROOT:-}" ] || [ ! -f "$scalewayAgentBasicFile" ] || [ ! -r "$scalewayAgentBasicFile" ] ; then
+		echo "⛔ ERROR: AgentsScalewayHarness.sh: --agent $scalewayAgent: no such file, or unreadable: ${MDAT_SKILLSET_ROOT:-<MDAT_SKILLSET_ROOT unset>}/$scalewayAgent/$scalewayAgent.basic.md" >&2
+		exit 1
+	fi
+	scalewayAgentBasicText="$( cat "$scalewayAgentBasicFile" )"
+	## Access roots are granted by real, symlink-resolved path
+	## (AgentsToolsClientAccessRootsMembers's own `pwd -P`), while
+	## AgentsScalewayPathAllowed does a raw string-prefix match with no symlink
+	## resolution of its own (documented above it). $MDAT_SKILLSET_ROOT/<name>
+	## is normally a symlink into that real location, so the armed.md path
+	## handed to the model below must be resolved here too -- otherwise the
+	## model's own read_file call on it is refused as outside the allowed
+	## roots despite being the exact same file.
+	scalewayAgentRealDir="$( cd "$scalewayAgentDir" 2>/dev/null && pwd -P )" || scalewayAgentRealDir="$scalewayAgentDir"
+fi
 
 ## Remaining argv joined into one prompt, matching DistroAgentsConsole.sh's
 ## own --non-interactive convention exactly -- this is also the exact shape
@@ -304,9 +388,27 @@ scalewayToolsJson='[
 {"type":"function","function":{"name":"run_command","description":"Run a shell command with the given working directory.","parameters":{"type":"object","properties":{"cwd":{"type":"string","description":"Absolute path of the working directory the command runs in."},"command":{"type":"string","description":"The shell command line to run."}},"required":["cwd","command"]}}}
 ]'
 
-scalewaySystemText="You are an autonomous coding agent running through a bespoke Scaleway harness (no sandboxing beyond the paths below). You may only read, write, list, search or run commands with a working directory under one of these access roots:
+scalewaySystemTail=" (no sandboxing beyond the paths below). You may only read, write, list, search or run commands with a working directory under one of these access roots:
 $scalewayRoots
 Use the given tools to accomplish the request, then reply with a final plain-text message once done. Do not ask the user a question -- there is no one to answer it; make the most reasonable choice and state what you did."
+
+## --agent given: the member's own real identity opens the system prompt,
+## replacing the generic "autonomous coding agent" opener entirely, not
+## alongside it -- one clear identity, not two. The full .armed.md is
+## deliberately NOT inlined here (some run to roughly 48K tokens, the wrong
+## tradeoff for a metered, max_tokens-capped cheap-tier model); the model is
+## told to read_file it itself, on the same access grant that already lets it
+## reach its own .basic.md (AgentsTools.ClientAccessRoots.include's
+## member-access-root grant).
+if [ -n "$scalewayAgent" ] ; then
+	scalewaySystemText="$scalewayAgentBasicText
+
+If this task needs duty-level detail beyond the above, read_file your own $scalewayAgentRealDir/$scalewayAgent.armed.md yourself -- it is not included here.
+
+You are running through a bespoke Scaleway harness$scalewaySystemTail"
+else
+	scalewaySystemText="You are an autonomous coding agent running through a bespoke Scaleway harness$scalewaySystemTail"
+fi
 
 scalewayMessages=(
 	'{"role":"system","content":"'"$( printf '%s' "$scalewaySystemText" | LC_ALL=C awk -f "$scalewayHere/AgentsMcpJsonEscape.awk" )"'"}'
