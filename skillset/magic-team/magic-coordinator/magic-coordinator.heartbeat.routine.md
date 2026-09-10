@@ -21,7 +21,7 @@ Routine-heartbeat is the team's continuous, self-driven operating rhythm — dec
 
 - Does:
   - Decides what's due (`magic-team.grooming.routine`/`magic-coordinator.daily.routine`/`magic-coordinator.advance.routine`), then dispatches each as a separate spawned session via **spawn-proxy**.
-  - Dispatches one `magic-coordinator.advance.routine` pass as a separate spawned session every `next-iteration`, at the end of the loop.
+  - Dispatches one `magic-coordinator.advance.routine` pass as a separate spawned session every `next-iteration`, at the end of the loop, and **waits for it to return** — the pass is not finished, and the lock is not released, until that child is done.
   - Triggered only by **"Magic, do main loop"**/**"Magic, start main loop"** — starts the `main-loop` iterator (`main-loop-mode`), which spawns a fresh `next-iteration` every cycle.
     - Ongoing resource commitment (30s-2min-ish cadence, potentially hours) — the iterator is never started implicitly just because this routine exists.
 - Doesn't do:
@@ -94,11 +94,16 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - **Once escalated**:
          - rule: don't re-escalate the same flag on later `next-iteration`s unless the human-owner's response itself calls for a follow-up
          - step: record `escalated: <timestamp>` alongside the flag in the `heartbeat-state-note`'s `active-project` field
-     - **Board advance, end of loop, every `next-iteration`**: dispatch one `magic-coordinator.advance.routine` pass as a separate spawned session via a background `Agent` call (`Skill(magic-coordinator)` as its first action) — not **spawn-proxy**, an external-CLI launcher. Every pass, no first-today/later-today gate.
+     - **Board advance, end of loop, every `next-iteration`**: dispatch one `magic-coordinator.advance.routine` pass as a separate spawned session via **spawn-proxy** with `--wait` — `--magic-heartbeat-spawn-proxy magic-coordinator --wait`. Every pass, no first-today/later-today gate.
+       - **`--wait` is what makes it synchronous.** The call blocks until the spawned session finishes, so this pass does not continue and no Closure step runs while that child is live: the `single-instance-lock` stays held for its whole run, the ✅ at **conclude-event-track-thread** means the whole pass concluded, and **report-status-to-spawner** carries the child's own `STATUS`/`EXIT_CODE`/`LAUNCHED` rather than only that something was dispatched.
+       - **Never an `Agent` call.** Not every host CLI offers one, so an `Agent`-worded rule is unimplementable on hosts this loop actually runs on. Worse, an `Agent` child is in-process: it dies with the session, and this routine exits within seconds of dispatching, so the child is destroyed having done almost nothing while the pass reports ✅ over it. Measured, not theorised.
+       - The wait is bounded by the call itself, and one cut short says so in its own receipt — so a hung child cannot hold this pass open indefinitely. Being a proxy call, a dispatch that cannot succeed falls under the spawn-required branch's own parked fallback; an `Agent` dispatch inherited no fallback at all.
+       - **`--wait` is also what makes the child's progress visible, and it must stay that way.** Only on that path does the child's own output reach this pass's own stderr, so the spawned session's tool-progress lines appear live for the whole wait. Two things take that away and neither belongs here: dropping `--wait`, which returns at once having only launched something; and passing `--from-board`/`--from-vault`/`--from-audit`, which keeps a dispatch document and redirects the whole run into an audit log, blinding this pass until the child exits. A long wait with nothing to watch is the same silence that hid the old behaviour, so never take a tracking document in exchange for it.
+       - Releasing the lock with the advance child still running is the defect this rule exists to stop. It lets the next `next-iteration` acquire the lock and start while the previous pass's board work is still in flight, so two passes mutate the board at once — and the ✅ claims a completion that has not happened.
 
 # Closure steps
 
-1. **close-state-and-unlock**: per the `single-instance-lock` procedure, using the `--magic-heartbeat-close-state-and-unlock` operation.
+1. **close-state-and-unlock**: per the `single-instance-lock` procedure, using the `--magic-heartbeat-close-state-and-unlock` operation. Reached only once the **Board advance** step's child has returned — that step is synchronous precisely so the lock outlives it.
 2. **conclude-event-track-thread**: conclude the `slack-event-track` thread opened at **open-event-track-thread** via the `--member-comms-slack-react` operation, reacting ✅ on that thread — a direct `mcp__myx_distro__execute` call, same as every other call this `next-iteration` makes.
 3. **report-status-to-spawner**: report status to whatever session spawned this `next-iteration`, via `SendMessage`, then exit.
    - `SendMessage(to:"main", ...)` always reaches the true root, never a mid-tree ancestor — if the actual spawner is `main-loop-mode`'s own iterator rather than root, report to `"main"` instead and let it relay down.
@@ -195,7 +200,7 @@ PID=48219
 OUTPUT_FILE=<audit-dir>/spawn-proxy-20260908T072500-48217.output.log
 ```
 
-- Printed on every call: `RECEIPT_ID`, `DISPATCH_DOC`, `STATUS`, `OUTPUT_FILE`. `TRACKING_ITEM` accompanies `DISPATCH_DOC=reuse` and `DISPATCH_ITEM` accompanies `create`, while `none` prints neither; `PID` accompanies the async path and `EXIT_CODE` the `--wait` path. There is no `RECEIPT_FILE` key — a pass looking for one finds nothing on every path.
+- Printed on every call: `RECEIPT_ID`, `DISPATCH_DOC`, `STATUS`. `TRACKING_ITEM` accompanies `DISPATCH_DOC=reuse` and `DISPATCH_ITEM` accompanies `create`, while `none` prints neither. `PID` accompanies the async path; `EXIT_CODE` and `LAUNCHED` accompany the `--wait` path, joined by `TIMEOUT_SECONDS` when the wait was cut short and by `SETUP_STATUS` when the CLI was not configured. `OUTPUT_FILE` appears only where the child's streams went to a file — always on the async path, and on the `--wait` path only when a dispatch document was kept. A `--wait` call carrying none has those streams on the caller's own stderr instead and prints no `OUTPUT_FILE`, which is the shape **Board advance** uses and why that step can watch the child live. There is no `RECEIPT_FILE` key — a pass looking for one finds nothing on every path.
 - `RECEIPT_ID` is the correlation id, and it is what this routine's caller records on the related board item as `execution-receipt`. `OUTPUT_FILE` names the spawned session's own raw stdout/stderr log — read it to find out what that session actually did.
 - `WAIT: no` is default path (async, `STATUS=started`); `WAIT: yes` is for explicit blocking cases.
 - Any spawn-required branch that cannot produce a successful proxy call in the same pass is a hard execution failure and must follow `magic-coordinator.advance.routine` parked fallback (never silent defer).
@@ -329,6 +334,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - New work discovered mid-loop files into the relevant inbox or board queue rather than `main-loop` routing around it inline because it's convenient.
 - If this routine is already running (holding its own lock) and gets invoked again from anywhere, the second invocation's own lock-acquire fails and it exits without duplicating any work.
+- A pass whose **Board advance** child has not yet returned has not reached any Closure step: its lock is still held, no ✅ has been reacted, and no status has been reported. A pass that released the lock or reacted ✅ while that child was still running has failed, however complete its report reads.
 
 ## Librarian Comments
 
