@@ -3,10 +3,11 @@
 
 ##
 ## AgentsTools.MemberCommsJira.include -- the raw per-member Jira Cloud comms
-## operations (identity, JQL search, issue read, comment read). READ SIDE ONLY:
-## nothing here creates or edits an issue, a comment or a field. Transport is
-## the shared Atlassian layer (AgentsTools.InternOpAtlassianCall.include) plus
-## the two Atlassian JSON readers beside it -- no Python worker is involved.
+## operations: identity, JQL search, issue read, comment read, issue create,
+## issue update, issue transition, comment add. Transport is the shared
+## Atlassian layer (AgentsTools.InternOpAtlassianCall.include) plus the two
+## Atlassian JSON readers beside it; the one write-side JSON merge/validation
+## step (AgentsAtlassianJsonObjectMerge.py) is the only Python involved.
 ##
 
 ## The shared Atlassian layer, sourced for its definitions only. Its own case
@@ -48,6 +49,20 @@ AgentsToolsJiraAgileRead() {
 			echo "# $MDSC_CMD --$3: this response carried no isLast field, so whether more results exist is UNKNOWN -- it is not a confirmation that the page is complete" >&2
 		;;
 	esac
+	return 0
+}
+
+## Validates that a caller-supplied ADF document (an issue description, a
+## comment body) is at least syntactically valid JSON before it is spliced
+## into a request body -- a malformed value here would otherwise surface as a
+## confusing Atlassian 400 instead of a clear local one. Arguments: the JSON
+## text, a label for the error, and the calling context.
+AgentsToolsJiraAdfValidate() {
+	local adfText="$1" adfLabel="$2" adfContext="$3"
+	if ! python3 -c "import json,sys; json.loads(sys.argv[1])" "$adfText" >/dev/null 2>&1 ; then
+		echo "⛔ ERROR: $MDSC_CMD --$adfContext: $adfLabel is not valid JSON -- an Atlassian Document Format value is a full JSON document ({\"type\":\"doc\",\"version\":1,\"content\":[...]}), and the value passed did not parse as one" >&2
+		return 1
+	fi
 	return 0
 }
 
@@ -220,6 +235,296 @@ case "$1" in
 			return 0
 		;;
 
+		--member-comms-jira-issue-create)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-create: syntax is <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>] -- the acting member is required, since the issue is created under that identity and only in a project it can see" >&2
+				set +e ; return 1
+			fi
+			local jiraProject="" jiraIssuetype="" jiraSummary="" jiraSummaryGiven="false"
+			local jiraDescriptionAdf="" jiraDescriptionGiven="false" jiraFieldsJson=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--project)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-create: --project requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraProject="$1" ; shift
+					;;
+					--issuetype)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-create: --issuetype requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraIssuetype="$1" ; shift
+					;;
+					--summary)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-create: --summary requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraSummary="$1" ; jiraSummaryGiven="true" ; shift
+					;;
+					--description-adf)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-create: --description-adf requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraDescriptionAdf="$1" ; jiraDescriptionGiven="true" ; shift
+					;;
+					--description-adf-from-stdin)
+						jiraDescriptionAdf="$( cat )" ; jiraDescriptionGiven="true" ; shift
+					;;
+					--description-adf-from-file)
+						shift
+						if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-create: --description-adf-from-file: file not found: ${1:-}" >&2
+							set +e ; return 1
+						fi
+						jiraDescriptionAdf="$( cat "$1" )" ; jiraDescriptionGiven="true" ; shift
+					;;
+					--fields-json)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-create: --fields-json requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraFieldsJson="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-create: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ -z "$jiraProject" ] || [ -z "$jiraIssuetype" ] || [ "$jiraSummaryGiven" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-create: --project, --issuetype and --summary are all required. Everything else depends on that project's own create screen (a subtask, for instance, additionally needs fields.parent.key) -- pass it via --fields-json. This operation never fetches that project's own createmeta to validate fields it usually already knows apply; a caller targeting an unfamiliar project/issuetype should read /rest/api/3/issue/createmeta/{project}/issuetypes/{issueTypeId} itself first" >&2
+				set +e ; return 1
+			fi
+			if [ "$jiraDescriptionGiven" = "true" ] ; then
+				AgentsToolsJiraAdfValidate "$jiraDescriptionAdf" "--description-adf" member-comms-jira-issue-create || { set +e ; return 1 ; }
+			fi
+			local jiraProjectEsc jiraIssuetypeEsc jiraSummaryEsc
+			jiraProjectEsc="$( printf '%s' "$jiraProject" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			jiraIssuetypeEsc="$( printf '%s' "$jiraIssuetype" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			jiraSummaryEsc="$( printf '%s' "$jiraSummary" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			local jiraCreateFields="{\"project\":{\"key\":\"$jiraProjectEsc\"},\"issuetype\":{\"name\":\"$jiraIssuetypeEsc\"},\"summary\":\"$jiraSummaryEsc\""
+			[ "$jiraDescriptionGiven" = "true" ] && jiraCreateFields="$jiraCreateFields,\"description\":$jiraDescriptionAdf"
+			jiraCreateFields="$jiraCreateFields}"
+			if [ -n "$jiraFieldsJson" ] ; then
+				jiraCreateFields="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonObjectMerge.py" "$jiraCreateFields" "$jiraFieldsJson" )" || {
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-create: --fields-json was rejected (see diagnostic above) -- nothing was created" >&2
+					set +e ; return 1
+				}
+			fi
+			local jiraRc=0
+			AgentsToolsAtlassianCall "$memberName" jira POST /rest/api/3/issue member-comms-jira-issue-create "{\"fields\":$jiraCreateFields}" || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-create: COULD NOT CREATE the issue as $memberName (rc=$jiraRc) -- the diagnostic above is the site's own. HTTP 400 there is a real field-validation rejection from this project's own create screen (Atlassian's own errors object is in that diagnostic), never the shared layer's generic UNKNOWN. Any other UNKNOWN (a timeout, a 5xx) must NEVER be retried blindly: Jira's create endpoint has no idempotency key, so a retry can leave two issues behind with no way to tell from here -- check the project in Jira itself before trying again" >&2
+				set +e ; return "$jiraRc"
+			fi
+			return 0
+		;;
+
+		--member-comms-jira-issue-update)
+			shift
+			local memberName="$1"
+			shift || true
+			local jiraIssueKey="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$jiraIssueKey" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-update: syntax is <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users] -- at least one of --fields-json/--update-json is required. --fields-json is the WHOLE fields object, plain set-semantics per field it names (an array field such as labels is a full replace, not an append: read the current array first if only adding one value); --update-json is Jira's own {\"field\":[{\"add\":...}/{\"remove\":...}/{\"set\":...}]} shape for precise add/remove on a multi-value field. fields.status is refused in either shape -- move an issue's status through --member-comms-jira-issue-transition instead, never through this operation. There is no read-before-write here: this is ordinary last-write-wins" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$jiraIssueKey" "<issue-key>" member-comms-jira-issue-update || { set +e ; return 1 ; }
+			local jiraFieldsJson="" jiraUpdateJson="" jiraNotifyUsers="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--fields-json)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-update: --fields-json requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraFieldsJson="$1" ; shift
+					;;
+					--update-json)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-update: --update-json requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraUpdateJson="$1" ; shift
+					;;
+					--notify-users)
+						jiraNotifyUsers="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-update: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ -z "$jiraFieldsJson" ] && [ -z "$jiraUpdateJson" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-update: at least one of --fields-json or --update-json is required -- nothing was changed" >&2
+				set +e ; return 1
+			fi
+			local jiraUpdateBody="{" jiraUpdateHasPart="false"
+			if [ -n "$jiraFieldsJson" ] ; then
+				local jiraMergedFields=""
+				jiraMergedFields="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonObjectMerge.py" "{}" "$jiraFieldsJson" status )" || {
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-update: --fields-json was rejected (see diagnostic above) -- nothing was changed" >&2
+					set +e ; return 1
+				}
+				jiraUpdateBody="$jiraUpdateBody\"fields\":$jiraMergedFields"
+				jiraUpdateHasPart="true"
+			fi
+			if [ -n "$jiraUpdateJson" ] ; then
+				local jiraMergedUpdate=""
+				jiraMergedUpdate="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonObjectMerge.py" "{}" "$jiraUpdateJson" status )" || {
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-update: --update-json was rejected (see diagnostic above) -- nothing was changed" >&2
+					set +e ; return 1
+				}
+				[ "$jiraUpdateHasPart" = "true" ] && jiraUpdateBody="$jiraUpdateBody,"
+				jiraUpdateBody="$jiraUpdateBody\"update\":$jiraMergedUpdate"
+			fi
+			jiraUpdateBody="$jiraUpdateBody}"
+			local jiraRc=0
+			AgentsToolsAtlassianCall "$memberName" jira PUT "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraIssueKey" )?notifyUsers=$jiraNotifyUsers" member-comms-jira-issue-update "$jiraUpdateBody" || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-update: COULD NOT UPDATE issue $jiraIssueKey as $memberName (rc=$jiraRc) -- the diagnostic above is the site's own. HTTP 400 there means an invalid or read-only field for that project's own screen; HTTP 404 means the issue is absent or invisible" >&2
+				set +e ; return "$jiraRc"
+			fi
+			return 0
+		;;
+
+		--member-comms-jira-issue-transition)
+			shift
+			local memberName="$1"
+			shift || true
+			local jiraIssueKey="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$jiraIssueKey" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: syntax is <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>] -- <name> is matched exactly (never fuzzily) against each transition CURRENTLY AVAILABLE from this issue's own status, by that transition's own destination status name (to.name), never by the transition's own action label" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$jiraIssueKey" "<issue-key>" member-comms-jira-issue-transition || { set +e ; return 1 ; }
+			local jiraToStatus="" jiraFieldsJson="" jiraCommentAdf="" jiraCommentGiven="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--to-status)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: --to-status requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraToStatus="$1" ; shift
+					;;
+					--fields-json)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: --fields-json requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraFieldsJson="$1" ; shift
+					;;
+					--comment-adf)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: --comment-adf requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraCommentAdf="$1" ; jiraCommentGiven="true" ; shift
+					;;
+					--comment-adf-from-stdin)
+						jiraCommentAdf="$( cat )" ; jiraCommentGiven="true" ; shift
+					;;
+					--comment-adf-from-file)
+						shift
+						if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: --comment-adf-from-file: file not found: ${1:-}" >&2
+							set +e ; return 1
+						fi
+						jiraCommentAdf="$( cat "$1" )" ; jiraCommentGiven="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ -z "$jiraToStatus" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: --to-status is required" >&2
+				set +e ; return 1
+			fi
+			if [ "$jiraCommentGiven" = "true" ] ; then
+				AgentsToolsJiraAdfValidate "$jiraCommentAdf" "--comment-adf" member-comms-jira-issue-transition || { set +e ; return 1 ; }
+			fi
+
+			## The lookup is internal and mandatory, run immediately before the POST:
+			## a transition id is workflow- and status-specific plumbing an agent has
+			## no legitimate way to already hold, and a caller-cached id could go
+			## stale exactly like a Confluence version -- but unlike Confluence's
+			## version, nothing is lost by always re-resolving right before the
+			## write, so it is never caller-supplied.
+			local jiraListBody jiraListRc=0
+			jiraListBody="$( AgentsToolsAtlassianCall "$memberName" jira GET "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraIssueKey" )/transitions" member-comms-jira-issue-transition "" )" || jiraListRc=$?
+			if [ "$jiraListRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: COULD NOT READ the available transitions for issue $jiraIssueKey as $memberName (rc=$jiraListRc) -- nothing was changed. The diagnostic above is the site's own" >&2
+				set +e ; return "$jiraListRc"
+			fi
+			local jiraTransitionRows jiraTransitionRowsRc=0
+			jiraTransitionRows="$( printf '%s\n' "$jiraListBody" | LC_ALL=C awk -v array=transitions -v want='id,name,to.name' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || jiraTransitionRowsRc=$?
+			if [ "$jiraTransitionRowsRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: the transitions call returned no transitions array (rc=$jiraTransitionRowsRc) -- nothing was changed" >&2
+				set +e ; return 1
+			fi
+			local jiraMatchedIds jiraMatchCount
+			jiraMatchedIds="$( printf '%s\n' "$jiraTransitionRows" | LC_ALL=C awk -F'\t' -v want="$jiraToStatus" '$3 == want { print $1 }' )"
+			jiraMatchCount=0
+			[ -z "$jiraMatchedIds" ] || jiraMatchCount="$( printf '%s\n' "$jiraMatchedIds" | awk 'END { print NR }' )"
+			if [ "$jiraMatchCount" -eq 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: no transition leads to a status named exactly '$jiraToStatus' from issue $jiraIssueKey's own current status -- nothing was changed. Transitions available from here (action -> destination status):" >&2
+				printf '%s\n' "$jiraTransitionRows" | LC_ALL=C awk -F'\t' '{ print "#   " $2 " -> " $3 }' >&2
+				set +e ; return 1
+			fi
+			if [ "$jiraMatchCount" -gt 1 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: '$jiraToStatus' matched $jiraMatchCount transitions from issue $jiraIssueKey's own current status -- ambiguous, so nothing was changed. This is never fuzzy-resolved" >&2
+				set +e ; return 1
+			fi
+			local jiraTransitionId="$jiraMatchedIds"
+			local jiraTransitionIdEsc
+			jiraTransitionIdEsc="$( printf '%s' "$jiraTransitionId" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			local jiraTransitionBody="{\"transition\":{\"id\":\"$jiraTransitionIdEsc\"}"
+			if [ -n "$jiraFieldsJson" ] ; then
+				local jiraMergedFields=""
+				jiraMergedFields="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonObjectMerge.py" "{}" "$jiraFieldsJson" )" || {
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: --fields-json was rejected (see diagnostic above) -- nothing was changed" >&2
+					set +e ; return 1
+				}
+				jiraTransitionBody="$jiraTransitionBody,\"fields\":$jiraMergedFields"
+			fi
+			if [ "$jiraCommentGiven" = "true" ] ; then
+				jiraTransitionBody="$jiraTransitionBody,\"update\":{\"comment\":[{\"add\":{\"body\":$jiraCommentAdf}}]}"
+			fi
+			jiraTransitionBody="$jiraTransitionBody}"
+			local jiraRc=0
+			AgentsToolsAtlassianCall "$memberName" jira POST "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraIssueKey" )/transitions" member-comms-jira-issue-transition "$jiraTransitionBody" || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-transition: COULD NOT TRANSITION issue $jiraIssueKey to '$jiraToStatus' as $memberName (rc=$jiraRc) -- the diagnostic above is the site's own. HTTP 400 here usually means the issue moved again in the race between the lookup above and this call, or a field this workflow's screen requires (commonly resolution) was not supplied via --fields-json -- re-run to re-resolve the transition" >&2
+				set +e ; return "$jiraRc"
+			fi
+			echo "# $MDSC_CMD --member-comms-jira-issue-transition: issue $jiraIssueKey transitioned to '$jiraToStatus' (transition id $jiraTransitionId)" >&2
+			return 0
+		;;
+
 		## One issue's comments, as TSV with its own header row. Same --format
 		## meaning as issue-read, applied to each comment body.
 		--member-comms-jira-comment-read)
@@ -291,6 +596,59 @@ case "$1" in
 					fi
 				;;
 			esac
+			return 0
+		;;
+
+		--member-comms-jira-comment-add)
+			shift
+			local memberName="$1"
+			shift || true
+			local jiraIssueKey="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$jiraIssueKey" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-add: syntax is <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>) -- the acting member is required, since the comment is posted under that identity. There is no visibility (role/group) restriction here: every comment this posts is visible to everyone the issue is already shared with" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$jiraIssueKey" "<issue-key>" member-comms-jira-comment-add || { set +e ; return 1 ; }
+			local jiraBodyAdf="" jiraBodyGiven="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--body-adf)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-add: --body-adf requires a value" >&2
+							set +e ; return 1
+						fi
+						jiraBodyAdf="$1" ; jiraBodyGiven="true" ; shift
+					;;
+					--body-adf-from-stdin)
+						jiraBodyAdf="$( cat )" ; jiraBodyGiven="true" ; shift
+					;;
+					--body-adf-from-file)
+						shift
+						if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-add: --body-adf-from-file: file not found: ${1:-}" >&2
+							set +e ; return 1
+						fi
+						jiraBodyAdf="$( cat "$1" )" ; jiraBodyGiven="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-add: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ "$jiraBodyGiven" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-add: one of --body-adf, --body-adf-from-stdin or --body-adf-from-file is required" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsJiraAdfValidate "$jiraBodyAdf" "--body-adf" member-comms-jira-comment-add || { set +e ; return 1 ; }
+			local jiraRc=0
+			AgentsToolsAtlassianCall "$memberName" jira POST "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraIssueKey" )/comment" member-comms-jira-comment-add "{\"body\":$jiraBodyAdf}" || jiraRc=$?
+			if [ "$jiraRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-jira-comment-add: COULD NOT COMMENT on issue $jiraIssueKey as $memberName (rc=$jiraRc) -- the diagnostic above is the site's own. HTTP 400 there means malformed ADF; HTTP 404 means the issue is absent or invisible" >&2
+				set +e ; return "$jiraRc"
+			fi
 			return 0
 		;;
 
@@ -477,7 +835,7 @@ case "$1" in
 		## A --member-comms-jira-* name this file does not implement. Reported,
 		## never swallowed.
 		--member-comms-jira-*)
-			echo "⛔ ERROR: $MDSC_CMD: unknown --member-comms-jira-* operation: $1 -- the supported operations are --member-comms-jira-whoami, --member-comms-jira-issue-search, --member-comms-jira-issue-read, --member-comms-jira-comment-read, --member-comms-jira-board-list, --member-comms-jira-board-read, --member-comms-jira-board-issue-search, --member-comms-jira-sprint-list and --member-comms-jira-sprint-issue-search" >&2
+			echo "⛔ ERROR: $MDSC_CMD: unknown --member-comms-jira-* operation: $1 -- the supported operations are --member-comms-jira-whoami, --member-comms-jira-issue-search, --member-comms-jira-issue-read, --member-comms-jira-issue-create, --member-comms-jira-issue-update, --member-comms-jira-issue-transition, --member-comms-jira-comment-read, --member-comms-jira-comment-add, --member-comms-jira-board-list, --member-comms-jira-board-read, --member-comms-jira-board-issue-search, --member-comms-jira-sprint-list and --member-comms-jira-sprint-issue-search" >&2
 			set +e ; return 1
 		;;
 

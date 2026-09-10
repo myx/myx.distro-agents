@@ -3,8 +3,8 @@
 
 ##
 ## AgentsTools.MemberCommsConfluence.include -- the raw per-member Confluence
-## Cloud comms operations (identity, page read, CQL search, comment read).
-## Transport is the shared Atlassian layer
+## Cloud comms operations: identity, page read, CQL search, comment read, page
+## create, page update, comment add. Transport is the shared Atlassian layer
 ## (AgentsTools.InternOpAtlassianCall.include) plus the two Atlassian JSON
 ## readers beside it -- no Python worker is involved.
 ##
@@ -158,6 +158,262 @@ case "$1" in
 			return 0
 		;;
 
+		--member-comms-confluence-page-create)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: syntax is <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>] -- the acting member is required, since the page is created under that identity and only in a space it can see" >&2
+				set +e ; return 1
+			fi
+			local confluenceSpaceKey="" confluenceSpaceId="" confluenceTitle="" confluenceTitleGiven="false"
+			local confluenceParentId="" confluenceBodyStorage="" confluenceBodyGiven="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--space)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: --space requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceSpaceKey="$1" ; shift
+					;;
+					--space-id)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: --space-id requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceSpaceId="$1" ; shift
+					;;
+					--title)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: --title requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceTitle="$1" ; confluenceTitleGiven="true" ; shift
+					;;
+					--parent-id)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: --parent-id requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceParentId="$1" ; shift
+					;;
+					--body-storage)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: --body-storage requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceBodyStorage="$1" ; confluenceBodyGiven="true" ; shift
+					;;
+					--body-storage-from-stdin)
+						confluenceBodyStorage="$( cat )" ; confluenceBodyGiven="true" ; shift
+					;;
+					--body-storage-from-file)
+						shift
+						if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: --body-storage-from-file: file not found: ${1:-}" >&2
+							set +e ; return 1
+						fi
+						confluenceBodyStorage="$( cat "$1" )" ; confluenceBodyGiven="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ -n "$confluenceSpaceKey" ] && [ -n "$confluenceSpaceId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: --space and --space-id are mutually exclusive -- give exactly one" >&2
+				set +e ; return 1
+			fi
+			if [ -z "$confluenceSpaceKey" ] && [ -z "$confluenceSpaceId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: one of --space <key> or --space-id <numeric id> is required -- REST v2 wants the numeric space id, not the key; --space resolves the key to an id first" >&2
+				set +e ; return 1
+			fi
+			if [ -n "$confluenceSpaceId" ] ; then
+				case "$confluenceSpaceId" in
+					*[!0123456789]*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: --space-id must be a whole number, got: $confluenceSpaceId" >&2
+						set +e ; return 1
+					;;
+				esac
+			fi
+			if [ -n "$confluenceParentId" ] ; then
+				case "$confluenceParentId" in
+					*[!0123456789]*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: --parent-id must be a whole number, got: $confluenceParentId" >&2
+						set +e ; return 1
+					;;
+				esac
+			fi
+			if [ "$confluenceTitleGiven" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: --title is required" >&2
+				set +e ; return 1
+			fi
+			if [ "$confluenceBodyGiven" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: one of --body-storage, --body-storage-from-stdin or --body-storage-from-file is required" >&2
+				set +e ; return 1
+			fi
+
+			if [ -n "$confluenceSpaceKey" ] ; then
+				local confluenceSpaceLookupBody confluenceSpaceLookupRc=0
+				confluenceSpaceLookupBody="$( AgentsToolsAtlassianCall "$memberName" confluence GET "/wiki/api/v2/spaces?keys=$( AgentsToolsAtlassianUrlEncode "$confluenceSpaceKey" )" member-comms-confluence-page-create "" )" || confluenceSpaceLookupRc=$?
+				if [ "$confluenceSpaceLookupRc" -ne 0 ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: COULD NOT RESOLVE space '$confluenceSpaceKey' to its numeric id as $memberName (rc=$confluenceSpaceLookupRc) -- nothing was created. The diagnostic above is the site's own" >&2
+					set +e ; return "$confluenceSpaceLookupRc"
+				fi
+				local confluenceSpaceRows confluenceSpaceRowsRc=0
+				confluenceSpaceRows="$( printf '%s\n' "$confluenceSpaceLookupBody" | LC_ALL=C awk -v array=results -v want='id,key' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || confluenceSpaceRowsRc=$?
+				if [ "$confluenceSpaceRowsRc" -ne 0 ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: the space lookup returned no results array (rc=$confluenceSpaceRowsRc) -- nothing was created" >&2
+					set +e ; return 1
+				fi
+				local confluenceSpaceMatches confluenceSpaceMatchCount
+				confluenceSpaceMatches="$( printf '%s\n' "$confluenceSpaceRows" | LC_ALL=C awk -F'\t' -v want="$confluenceSpaceKey" '$2 == want { print $1 }' )"
+				confluenceSpaceMatchCount=0
+				[ -z "$confluenceSpaceMatches" ] || confluenceSpaceMatchCount="$( printf '%s\n' "$confluenceSpaceMatches" | awk 'END { print NR }' )"
+				if [ "$confluenceSpaceMatchCount" -ne 1 ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: space key '$confluenceSpaceKey' resolved to $confluenceSpaceMatchCount ids as $memberName, not exactly one -- nothing was created. A 0 usually means this identity cannot see that space or the key is wrong; pass --space-id directly if the numeric id is already known" >&2
+					set +e ; return 1
+				fi
+				confluenceSpaceId="$confluenceSpaceMatches"
+			fi
+
+			local confluenceTitleEsc confluenceBodyEsc
+			confluenceTitleEsc="$( printf '%s' "$confluenceTitle" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			confluenceBodyEsc="$( printf '%s' "$confluenceBodyStorage" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			local confluenceCreateBody="{\"spaceId\":\"$confluenceSpaceId\",\"status\":\"current\",\"title\":\"$confluenceTitleEsc\""
+			[ -n "$confluenceParentId" ] && confluenceCreateBody="$confluenceCreateBody,\"parentId\":\"$confluenceParentId\""
+			confluenceCreateBody="$confluenceCreateBody,\"body\":{\"representation\":\"storage\",\"value\":\"$confluenceBodyEsc\"}}"
+
+			local confluenceRc=0
+			AgentsToolsAtlassianCall "$memberName" confluence POST /wiki/api/v2/pages member-comms-confluence-page-create "$confluenceCreateBody" || confluenceRc=$?
+			if [ "$confluenceRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-create: COULD NOT CREATE the page as $memberName (rc=$confluenceRc) -- the diagnostic above is the site's own. HTTP 400 there usually means a missing field or a bad spaceId/parentId; HTTP 404 means parentId is absent or invisible" >&2
+				set +e ; return "$confluenceRc"
+			fi
+			return 0
+		;;
+
+		--member-comms-confluence-page-update)
+			shift
+			local memberName="$1"
+			shift || true
+			local confluencePageId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$confluencePageId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-update: syntax is <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>] -- <n> is the version this caller already read (e.g. via --member-comms-confluence-page-read), NEVER re-read here: this operation computes <n>+1 and submits it, so re-reading the version right before the write would defeat the optimistic lock this endpoint exists to provide. This is a FULL REPLACE: --title and --status are required on every call and are overwritten with whatever is passed, even when only the body actually changed" >&2
+				set +e ; return 1
+			fi
+			local confluenceVersion="" confluenceTitle="" confluenceTitleGiven="false"
+			local confluenceStatus="" confluenceStatusGiven="false" confluenceSpaceId=""
+			local confluenceBodyStorage="" confluenceBodyGiven="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--version)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-update: --version requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceVersion="$1" ; shift
+					;;
+					--title)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-update: --title requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceTitle="$1" ; confluenceTitleGiven="true" ; shift
+					;;
+					--status)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-update: --status requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceStatus="$1" ; confluenceStatusGiven="true" ; shift
+					;;
+					--space-id)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-update: --space-id requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceSpaceId="$1" ; shift
+					;;
+					--body-storage)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-update: --body-storage requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceBodyStorage="$1" ; confluenceBodyGiven="true" ; shift
+					;;
+					--body-storage-from-stdin)
+						confluenceBodyStorage="$( cat )" ; confluenceBodyGiven="true" ; shift
+					;;
+					--body-storage-from-file)
+						shift
+						if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-update: --body-storage-from-file: file not found: ${1:-}" >&2
+							set +e ; return 1
+						fi
+						confluenceBodyStorage="$( cat "$1" )" ; confluenceBodyGiven="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-update: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			case "$confluenceVersion" in
+				''|*[!0123456789]*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-update: --version must be the whole number this caller already read as the page's current version, got: '$confluenceVersion'" >&2
+					set +e ; return 1
+				;;
+			esac
+			if [ -n "$confluenceSpaceId" ] ; then
+				case "$confluenceSpaceId" in
+					*[!0123456789]*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-update: --space-id must be a whole number, got: $confluenceSpaceId" >&2
+						set +e ; return 1
+					;;
+				esac
+			fi
+			if [ "$confluenceTitleGiven" != "true" ] || [ "$confluenceStatusGiven" != "true" ] || [ "$confluenceBodyGiven" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-update: --title, --status and one of --body-storage/--body-storage-from-stdin/--body-storage-from-file are all required -- this is a full-resource replace, so a field left out is not left unchanged, it is overwritten" >&2
+				set +e ; return 1
+			fi
+
+			local confluenceIdEsc confluenceStatusEsc confluenceTitleEsc confluenceBodyEsc
+			confluenceIdEsc="$( printf '%s' "$confluencePageId" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			confluenceStatusEsc="$( printf '%s' "$confluenceStatus" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			confluenceTitleEsc="$( printf '%s' "$confluenceTitle" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			confluenceBodyEsc="$( printf '%s' "$confluenceBodyStorage" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			local confluenceNextVersion=$(( confluenceVersion + 1 ))
+			local confluenceUpdateBody="{\"id\":\"$confluenceIdEsc\",\"status\":\"$confluenceStatusEsc\",\"title\":\"$confluenceTitleEsc\",\"version\":{\"number\":$confluenceNextVersion}"
+			[ -n "$confluenceSpaceId" ] && confluenceUpdateBody="$confluenceUpdateBody,\"spaceId\":\"$confluenceSpaceId\""
+			confluenceUpdateBody="$confluenceUpdateBody,\"body\":{\"representation\":\"storage\",\"value\":\"$confluenceBodyEsc\"}}"
+
+			local confluenceRc=0
+			AgentsToolsAtlassianCall "$memberName" confluence PUT "/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confluencePageId" )" member-comms-confluence-page-update "$confluenceUpdateBody" || confluenceRc=$?
+			if [ "$confluenceRc" = "5" ] ; then
+				echo "⛔ ERROR CONFLICT: $MDSC_CMD --member-comms-confluence-page-update: HTTP 409 updating page $confluencePageId as $memberName -- the version submitted ($confluenceNextVersion) is stale. Re-read the page for the real current version/title/body and decide whether to reapply this edit on the new content -- NEVER resubmit version+1 unchanged" >&2
+				set +e ; return "$confluenceRc"
+			fi
+			if [ "$confluenceRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-update: COULD NOT UPDATE page $confluencePageId as $memberName (rc=$confluenceRc) -- the diagnostic above is the site's own" >&2
+				set +e ; return "$confluenceRc"
+			fi
+			return 0
+		;;
+
 		## Footer comments on one page, as TSV with its own header row.
 		--member-comms-confluence-comment-read)
 			shift
@@ -193,8 +449,91 @@ case "$1" in
 			return 0
 		;;
 
+		--member-comms-confluence-comment-add)
+			shift
+			local memberName="$1"
+			shift || true
+			local confluencePageId="$1"
+			shift || true
+			if [ -z "$memberName" ] || [ -z "$confluencePageId" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-add: syntax is <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>] -- the acting member is required, since the comment is posted under that identity. There is no ADF path here, same as the read side: the body is always Confluence's own storage format" >&2
+				set +e ; return 1
+			fi
+			local confluenceBodyStorage="" confluenceBodyGiven="false" confluenceParentCommentId=""
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--body-storage)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-add: --body-storage requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceBodyStorage="$1" ; confluenceBodyGiven="true" ; shift
+					;;
+					--body-storage-from-stdin)
+						confluenceBodyStorage="$( cat )" ; confluenceBodyGiven="true" ; shift
+					;;
+					--body-storage-from-file)
+						shift
+						if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-add: --body-storage-from-file: file not found: ${1:-}" >&2
+							set +e ; return 1
+						fi
+						confluenceBodyStorage="$( cat "$1" )" ; confluenceBodyGiven="true" ; shift
+					;;
+					--parent-comment-id)
+						shift
+						if [ -z "${1:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-add: --parent-comment-id requires a value" >&2
+							set +e ; return 1
+						fi
+						confluenceParentCommentId="$1" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-add: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+			if [ "$confluenceBodyGiven" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-add: one of --body-storage, --body-storage-from-stdin or --body-storage-from-file is required" >&2
+				set +e ; return 1
+			fi
+			if [ -n "$confluenceParentCommentId" ] ; then
+				case "$confluenceParentCommentId" in
+					*[!0123456789]*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-add: --parent-comment-id must be a whole number, got: $confluenceParentCommentId" >&2
+						set +e ; return 1
+					;;
+				esac
+			fi
+			local confluencePageIdEsc confluenceBodyEsc
+			confluencePageIdEsc="$( printf '%s' "$confluencePageId" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			confluenceBodyEsc="$( printf '%s' "$confluenceBodyStorage" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+			## Atlassian's real POST /wiki/api/v2/footer-comments requires
+			## EXACTLY ONE of pageId/parentCommentId, not both -- confirmed
+			## live via a genuine HTTP 400 when both were sent together. So
+			## these two are mutually exclusive in the body, not additive:
+			## a threaded reply names its parent comment only, a top-level
+			## comment names its page only.
+			local confluenceCommentBody
+			if [ -n "$confluenceParentCommentId" ] ; then
+				confluenceCommentBody="{\"parentCommentId\":\"$confluenceParentCommentId\",\"body\":{\"representation\":\"storage\",\"value\":\"$confluenceBodyEsc\"}}"
+			else
+				confluenceCommentBody="{\"pageId\":\"$confluencePageIdEsc\",\"body\":{\"representation\":\"storage\",\"value\":\"$confluenceBodyEsc\"}}"
+			fi
+
+			local confluenceRc=0
+			AgentsToolsAtlassianCall "$memberName" confluence POST /wiki/api/v2/footer-comments member-comms-confluence-comment-add "$confluenceCommentBody" || confluenceRc=$?
+			if [ "$confluenceRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-confluence-comment-add: COULD NOT COMMENT on page $confluencePageId as $memberName (rc=$confluenceRc) -- the diagnostic above is the site's own. HTTP 400 there usually means a malformed storage body or a missing pageId; HTTP 404 means the page is absent or invisible" >&2
+				set +e ; return "$confluenceRc"
+			fi
+			return 0
+		;;
+
 		*)
-			echo "⛔ ERROR: $MDSC_CMD: unknown --member-comms-confluence-* operation: $1 -- this family is read-only today; the supported operations are --member-comms-confluence-whoami, --member-comms-confluence-page-read, --member-comms-confluence-page-search and --member-comms-confluence-comment-read" >&2
+			echo "⛔ ERROR: $MDSC_CMD: unknown --member-comms-confluence-* operation: $1 -- the supported operations are --member-comms-confluence-whoami, --member-comms-confluence-page-search, --member-comms-confluence-page-read, --member-comms-confluence-page-create, --member-comms-confluence-page-update, --member-comms-confluence-comment-read and --member-comms-confluence-comment-add" >&2
 			set +e ; return 1
 		;;
 

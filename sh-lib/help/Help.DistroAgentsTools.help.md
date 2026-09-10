@@ -35,11 +35,18 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-whoami <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-search <team-member> <cql> [--limit <n>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-comment-read <team-member> <page-id>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-whoami <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-search <team-member> <jql> [--limit <n>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-create <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-update <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-list <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-read <team-member> <board-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-issue-search <team-member> <board-id>
@@ -1585,6 +1592,60 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--member-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
+			`<team-member>` is the member this create acts as, and it is
+			required: the page is created under that identity and only in a
+			space it can see.
+
+			REST v2 wants the numeric space id, not the key most callers
+			hold. `--space <key>` resolves it first with one internal `GET
+			/wiki/api/v2/spaces?keys=<key>` lookup and refuses outright on
+			zero or more than one match, never guessing; `--space-id
+			<numeric id>` skips that round trip for a caller that already
+			holds it. Exactly one of the two is required.
+
+			`--title` is required. The body is one of `--body-storage`
+			(inline), `--body-storage-from-stdin` or
+			`--body-storage-from-file <path>` — Confluence's own storage
+			format, plain XHTML, exactly as `--member-comms-confluence-page-read`'s
+			default format reads it back. `--parent-id` is optional.
+
+			No version gate and no read-before-write: there is nothing yet
+			to conflict with. The created page's own response body (its new
+			id among it) goes to stdout.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
+			`<team-member>` is the member this update acts as, and it is
+			required: a page is editable only by identities it is shared
+			with.
+
+			**`<n>` is the version this caller already read** — from
+			`--member-comms-confluence-page-read`'s own stderr diagnostic —
+			and is NEVER re-read here: this operation computes `<n>+1` and
+			submits it. Re-fetching the freshest version internally right
+			before the write would silently turn Confluence's own
+			optimistic lock into last-write-wins, defeating the one
+			guarantee a caller relying on `--version` has.
+
+			**This is a FULL-RESOURCE REPLACE, not a patch.** `--title` and
+			`--status` (commonly `current`) are required on every call and
+			are overwritten with whatever is passed — an edit meant to
+			touch only the body must still resubmit the unchanged title and
+			status, or they are silently lost. `--space-id` is accepted and
+			forwarded when given but is not required: measured live against
+			`ndm.atlassian.net`, this endpoint accepts the write with no
+			`spaceId` in the body at all.
+
+			**HTTP 409 means the version submitted is stale** — the shared
+			transport's own distinct conflict exit, never folded into a
+			generic UNKNOWN. Re-read the page for the real current
+			version/title/body and decide whether to reapply this edit on
+			the new content. NEVER resubmit version+1 unchanged.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--member-comms-confluence-comment-read <team-member> <page-id>
 			`<team-member>` is the member this read acts as, and it is
 			required: comments are visible only to identities the page is
@@ -1599,10 +1660,17 @@
 			the operation always states `more: unknown` on stderr rather than
 			letting a full page read as a confirmed-complete one.
 
-			**This family is read-only.** There is no operation here that
-			creates or edits a page or a comment, and that is a sequencing
-			decision rather than an omission — the write side is its own
-			separate piece of work.
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
+			`<team-member>` is the member this comment is posted as, and it
+			is required: the comment is posted under that identity.
+
+			**There is no ADF path here, same as the read side.** The body
+			is always Confluence's own storage format, one of
+			`--body-storage`, `--body-storage-from-stdin` or
+			`--body-storage-from-file <path>`. `--parent-comment-id` makes
+			it a threaded reply. No version gate, no read-before-write.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1693,6 +1761,110 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--member-comms-jira-issue-create <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
+			`<team-member>` is the member this create acts as, and it is
+			required: the issue is created under that identity and only in
+			a project it can see.
+
+			`--project`, `--issuetype` and `--summary` are always required.
+			Everything else a project's own create screen may additionally
+			demand — a subtask's `fields.parent.key`, for instance — travels
+			through `--fields-json`, a JSON object merged into the request's
+			own `fields`. **This operation never calls createmeta** to
+			validate fields it usually already knows apply; a caller
+			targeting an unfamiliar project/issuetype should read
+			`/rest/api/3/issue/createmeta/{project}/issuetypes/{issueTypeId}`
+			itself first.
+
+			`--description-adf`/`--description-adf-from-stdin`/
+			`--description-adf-from-file <path>` is the same Atlassian
+			Document Format JSON `--member-comms-jira-issue-read --format
+			adf` already emits for `fields.description` — passed straight
+			through, never re-encoded.
+
+			**Never retry a create whose outcome came back UNKNOWN** (a
+			timeout, a 5xx): Jira's create endpoint carries no idempotency
+			key, so a blind retry can leave two issues behind with no way
+			to tell from here afterward. An HTTP 400 is a different, real
+			outcome — a genuine field-validation rejection, with
+			Atlassian's own `errors` object already in the diagnostic
+			printed above — but the shared transport does not distinguish
+			the two by exit code (both come back as the same UNKNOWN), so
+			read the diagnostic itself before deciding which happened.
+
+			The created issue's own response body (its new key among it)
+			goes to stdout.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-issue-update <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
+			`<team-member>` is the member this update acts as, and it is
+			required: an issue is editable only by identities its project
+			is shared with.
+
+			**Both of Jira's write shapes are offered, and at least one is
+			required.** `--fields-json <json>` is the WHOLE `fields`
+			object, plain set-semantics per field it names — an array field
+			such as `labels` is a full replace, not an append, so adding
+			one label means reading the current array first; there is no
+			read-before-write here at all. `--update-json <json>` is
+			Jira's own `{"field":[{"add":...}/{"remove":...}/{"set":...}]}`
+			shape for precise add/remove on a multi-value field. Both may
+			be given in the same call.
+
+			**`fields.status`/`update.status` are refused, locally, before
+			any HTTP call is made.** Jira Cloud rejects a status change
+			through this endpoint outright — move an issue's status through
+			`--member-comms-jira-issue-transition` instead.
+
+			**`notifyUsers` defaults to `false`** on every write this
+			operation makes, the opposite of Jira's own API default,
+			specifically to avoid spamming real watchers/assignees on an
+			automated edit. `--notify-users` opts back into notifications.
+
+			Errors beyond 401/403/409: HTTP 400 means an invalid or
+			read-only field for that project's own screen; HTTP 404 means
+			the issue is absent or invisible.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
+			`<team-member>` is the member this transition acts as, and it
+			is required: an issue is editable only by identities its
+			project is shared with.
+
+			**The transition id is never caller-supplied.** This operation
+			always runs its own `GET .../transitions` immediately before
+			the `POST`, on every call — a transition id is workflow- and
+			status-specific plumbing an agent has no legitimate way to
+			already hold, and unlike a Confluence page version, nothing is
+			lost by always re-resolving it fresh, so it is never worth
+			caching.
+
+			`--to-status <name>` is matched exactly, never fuzzily, against
+			each transition CURRENTLY AVAILABLE from the issue's own
+			status, by that transition's own destination status name
+			(`to.name`) — never by the transition's own action label, which
+			can genuinely read differently (a button labelled "Start
+			Progress" landing on status "In Progress"). Zero matches or
+			more than one is a loud, local failure before any `POST`,
+			listing the transitions actually available from the issue's
+			current status.
+
+			`--fields-json` passes through into the transition's own
+			`fields` — some workflows require a field, commonly
+			`resolution`, on a specific transition's screen.
+			`--comment-adf`/`--comment-adf-from-stdin`/
+			`--comment-adf-from-file <path>` adds a comment in the same
+			call.
+
+			HTTP 400 on the `POST` itself usually means the issue moved
+			again in the race between the lookup and the write, or the
+			target transition's own screen required a field that was not
+			supplied — re-run to re-resolve the transition fresh.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--member-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered]
 			`<team-member>` is the member this read acts as, and it is
 			required: comments are visible only to identities the issue is
@@ -1709,10 +1881,18 @@
 			An issue carrying more comments than one page holds is reported
 			on stderr, naming how many exist and how many were read.
 
-			**This family is read-only.** There is no operation here that
-			creates or edits an issue, a comment or a field, and that is a
-			sequencing decision rather than an omission — the write side is
-			its own separate piece of work.
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
+			`<team-member>` is the member this comment is posted as, and it
+			is required: the comment is posted under that identity.
+
+			Same ADF body shape the read side already emits
+			(`{"body": <ADF-doc>}`), one of `--body-adf`,
+			`--body-adf-from-stdin` or `--body-adf-from-file <path>`.
+			**There is no `visibility` (role/group restriction) here** —
+			every comment this posts is visible to everyone the issue is
+			already shared with. No read-before-write.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

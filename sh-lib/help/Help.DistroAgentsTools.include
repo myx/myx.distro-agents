@@ -126,9 +126,12 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-script" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-comment-read <team-member> <page-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-search <team-member> <cql> [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-whoami <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-contact-digest-send <team-member> (--resolved|--needs-ruling) <text...>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check <team-member>" >&2
@@ -151,9 +154,13 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-whoami <team-me
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-issue-search <team-member> <board-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-list <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-read <team-member> <board-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-create <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-search <team-member> <jql> [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-update <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-issue-search <team-member> <sprint-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-list <team-member> <board-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-whoami <team-member>" >&2
