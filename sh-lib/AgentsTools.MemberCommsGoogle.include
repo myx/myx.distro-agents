@@ -94,7 +94,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-whoami: syntax is <team-member> -- the acting member is required, since a refresh token resolves to exactly one account and this operation exists to say which one" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-whoami: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			if [ $# -gt 0 ] ; then
@@ -117,13 +117,13 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-file-find: syntax is <team-member> <search-term> [--full-text] [--include-trashed] [--raw-query] [--limit <n>] -- the acting member is required, since a Drive search returns only what that identity can see" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-file-find: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			local googleQuery="$1"
 			shift || true
 			if [ -z "$googleQuery" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-file-find: a search term is required -- an empty term is refused rather than silently listing the whole Drive" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-file-find: <search-term> missing" >&2
 				set +e ; return 1
 			fi
 			local googleLimit="" googleFullText="" googleIncludeTrashed="" googleRawQuery=""
@@ -132,7 +132,7 @@ case "$1" in
 					--limit)
 						shift
 						if [ -z "$1" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --member-comms-google-file-find: --limit requires a value" >&2
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-google-file-find: --limit value missing" >&2
 							set +e ; return 1
 						fi
 						googleLimit="$1" ; shift
@@ -172,7 +172,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-read: syntax is <team-member> <sheet-id> <a1-range> [--unformatted] -- the acting member is required, since a spreadsheet is readable only by identities it is shared with" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-read: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			local googleSheetId="$1"
@@ -211,13 +211,13 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-info: syntax is <team-member> <sheet-id> -- the acting member is required, since a spreadsheet is readable only by identities it is shared with" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-info: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			local googleSheetId="$1"
 			shift || true
 			if [ -z "$googleSheetId" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-info: a spreadsheet id is required" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-google-sheet-info: <sheet-id> missing" >&2
 				set +e ; return 1
 			fi
 			if [ $# -gt 0 ] ; then

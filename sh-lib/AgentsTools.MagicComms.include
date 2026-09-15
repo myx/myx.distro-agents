@@ -498,6 +498,743 @@ case "$1" in
 		set +e ; return 4
 	;;
 
+	--magic-comms-trello-post-comment)
+		shift
+		local callingMember="$1"
+		shift || true
+		local cardId="$1"
+		shift || true
+
+		if [ -z "$callingMember" ] || [ -z "$cardId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: syntax is <team-member> <card-id> [text...]|--from-stdin|--from-file <path>" >&2
+			set +e ; return 1
+		fi
+
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" magic-comms-trello-post-comment || { set +e ; return 1 ; }
+		case "$callingMember" in
+			routine-*)
+			;;
+			*)
+				if [ ! -d "$MDAT_SKILLSET_ROOT/$callingMember" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: no such member skill directory: $MDAT_SKILLSET_ROOT/$callingMember" >&2
+					set +e ; return 1
+				fi
+			;;
+		esac
+
+		if [ -z "$cardId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: <card-id> must not be empty -- it must be a Trello card id: the 24-character hex id, or the short link from the card URL" >&2
+			set +e ; return 1
+		fi
+		local cardIdRest="$cardId" cardIdChar
+		while [ -n "$cardIdRest" ] ; do
+			cardIdChar="${cardIdRest%"${cardIdRest#?}"}"
+			cardIdRest="${cardIdRest#?}"
+			case "$cardIdChar" in
+				a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+				A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+				0|1|2|3|4|5|6|7|8|9) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: <card-id> must be a Trello card id -- letters and digits only, no '/', '?', '#', '.', '-' or whitespace; the value goes into the request path, so it is refused, never repaired: $cardId" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		local bodyMode="args" bodyText fromFilePath
+		case "$1" in
+			--from-stdin)
+				bodyMode="stdin"
+				shift
+				[ $# -eq 0 ] || {
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: --from-stdin takes no trailing arguments" >&2
+					set +e ; return 1
+				}
+			;;
+			--from-file)
+				bodyMode="file"
+				fromFilePath="$2"
+				shift 2 || true
+				if [ -z "$fromFilePath" ] || [ ! -f "$fromFilePath" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: --from-file requires an existing file" >&2
+					set +e ; return 1
+				fi
+				[ $# -eq 0 ] || {
+					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: --from-file takes no trailing arguments" >&2
+					set +e ; return 1
+				}
+			;;
+		esac
+
+		case "$bodyMode" in
+			stdin)
+				bodyText="$( cat )"
+			;;
+			file)
+				bodyText="$( cat "$fromFilePath" )"
+			;;
+			args)
+				bodyText="$*"
+			;;
+		esac
+
+		if [ -z "$bodyText" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: empty comment text" >&2
+			set +e ; return 1
+		fi
+
+		local trelloKey trelloToken
+		trelloKey="$( DistroAgentsTools --agents-config-option "$callingMember" --select TRELLO_KEY )"
+		trelloToken="$( DistroAgentsTools --agents-config-option "$callingMember" --select TRELLO_TOKEN )"
+		if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: TRELLO_KEY/TRELLO_TOKEN not fully set in ${callingMember}'s own scope in .local/.agents" >&2
+			set +e ; return 1
+		fi
+		local trelloNewline=$'\n'
+		case "$trelloKey$trelloToken" in
+			*"$trelloNewline"*)
+				echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: TRELLO_KEY/TRELLO_TOKEN in ${callingMember}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		local trelloKeyEsc trelloTokenEsc
+		trelloKeyEsc="${trelloKey//\\/\\\\}"
+		trelloKeyEsc="${trelloKeyEsc//\"/\\\"}"
+		trelloTokenEsc="${trelloToken//\\/\\\\}"
+		trelloTokenEsc="${trelloTokenEsc//\"/\\\"}"
+		echo "# $MDSC_CMD --magic-comms-trello-post-comment: posting comment to card=$cardId" >&2
+		local trelloRc=0
+		printf 'header = "Authorization: OAuth oauth_consumer_key=\\"%s\\", oauth_token=\\"%s\\""\n' \
+			"$trelloKeyEsc" "$trelloTokenEsc" \
+			| curl -sS --connect-timeout 10 --max-time 120 --fail-with-body -K - -X POST "https://api.trello.com/1/cards/${cardId}/actions/comments" \
+				--data-urlencode "text=${bodyText}" || trelloRc=$?
+		if [ "$trelloRc" -ne 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: posting the comment to card=$cardId failed (curl rc=$trelloRc) -- the comment was NOT posted; curl's own error is on the line above" >&2
+			set +e ; return "$trelloRc"
+		fi
+		return 0
+	;;
+
+	--magic-comms-jira-board-list)
+		shift
+		local actingMember="${1:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:|2:--start-at) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-list: not accepted: $actingMember $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-board-list || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-list: runs only as magic-coordinator, and $actingMember is not it -- the client-facing listing is --client-comms-jira-board-list" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-board-list --member "$actingMember" --context magic-comms-jira-board-list "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-jira-board-read)
+		shift
+		local actingMember="${1:-}" boardId="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-read: <board-id> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$boardId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-read: <board-id> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-read: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-board-read || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-read: runs only as magic-coordinator, and $actingMember is not it -- the client-facing read is --client-comms-jira-board-read" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-board-read --member "$actingMember" --context magic-comms-jira-board-read --board-id "$boardId" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-jira-board-issue-search)
+		shift
+		local actingMember="${1:-}" boardId="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-issue-search: <board-id> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$boardId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-issue-search: <board-id> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:|2:--start-at) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-issue-search: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-board-issue-search || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-board-issue-search: runs only as magic-coordinator, and $actingMember is not it -- the client-facing read is --client-comms-jira-board-issue-search" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-board-issue-search --member "$actingMember" --context magic-comms-jira-board-issue-search --board-id "$boardId" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-jira-sprint-list)
+		shift
+		local actingMember="${1:-}" boardId="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-sprint-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-sprint-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-sprint-list: <board-id> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$boardId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-sprint-list: <board-id> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:|2:--start-at) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-sprint-list: not accepted: $actingMember $boardId $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-sprint-list || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-sprint-list: runs only as magic-coordinator, and $actingMember is not it -- the client-facing read is --client-comms-jira-sprint-list" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-sprint-list --member "$actingMember" --context magic-comms-jira-sprint-list --board-id "$boardId" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-jira-sprint-issue-search)
+		shift
+		local actingMember="${1:-}" sprintId="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-sprint-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-sprint-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-sprint-issue-search: <sprint-id> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$sprintId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-sprint-issue-search: <sprint-id> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:|2:--start-at) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-sprint-issue-search: not accepted: $actingMember $sprintId $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-sprint-issue-search || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-sprint-issue-search: runs only as magic-coordinator, and $actingMember is not it -- the client-facing read is --client-comms-jira-sprint-issue-search" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-sprint-issue-search --member "$actingMember" --context magic-comms-jira-sprint-issue-search --sprint-id "$sprintId" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-jira-issue-search)
+		shift
+		local actingMember="${1:-}" jqlQuery="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-search: <jql> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$jqlQuery" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-search: <jql> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:|2:--limit) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-search: not accepted: $actingMember $jqlQuery $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-issue-search || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-search: runs only as magic-coordinator, and $actingMember is not it -- the client-facing search is --client-comms-jira-issue-search" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-issue-search --member "$actingMember" --context magic-comms-jira-issue-search --jql "$jqlQuery" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-jira-issue-read)
+		shift
+		local actingMember="${1:-}" issueKey="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-read: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$issueKey" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-read: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:|2:--format) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-read: not accepted: $actingMember $issueKey $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-issue-read || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-read: runs only as magic-coordinator, and $actingMember is not it -- the client-facing read is --client-comms-jira-issue-read" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-issue-read --member "$actingMember" --context magic-comms-jira-issue-read --issue-key "$issueKey" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-jira-comment-read)
+		shift
+		local actingMember="${1:-}" issueKey="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-comment-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-comment-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-comment-read: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$issueKey" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-comment-read: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}:${3:-}" in
+			0::|2:--format:|2:--start-at:|4:--format:--start-at|4:--start-at:--format) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-comment-read: not accepted: $actingMember $issueKey $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-comment-read || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-comment-read: runs only as magic-coordinator, and $actingMember is not it -- the client-facing read is --client-comms-jira-comment-read" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-comment-read --member "$actingMember" --context magic-comms-jira-comment-read --issue-key "$issueKey" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-jira-issue-create)
+		shift
+		local actingMember="${1:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-create: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-create: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-issue-create || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-create: runs only as magic-coordinator, and $actingMember is not it -- the client-facing write is --client-comms-jira-issue-create" >&2
+				set +e ; return 1
+			;;
+		esac
+		local stubArg stubTakesValue=""
+		for stubArg in "$@" ; do
+			if [ -n "$stubTakesValue" ] ; then
+				stubTakesValue=""
+				continue
+			fi
+			case "$stubArg" in
+				--project|--issuetype|--summary|--description-adf|--description-adf-from-file|--fields-json) stubTakesValue=yes ;;
+				--description-adf-from-stdin) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-create: unexpected: $stubArg" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-issue-create --member "$actingMember" --context magic-comms-jira-issue-create "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-jira-issue-update)
+		shift
+		local actingMember="${1:-}" issueKey="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-update: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-update: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-update: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+		case "$issueKey" in
+			''|-*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-update: <issue-key> missing" >&2
+				set +e ; return 1
+			;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-issue-update || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-update: runs only as magic-coordinator, and $actingMember is not it -- the client-facing write is --client-comms-jira-issue-update" >&2
+				set +e ; return 1
+			;;
+		esac
+		local stubArg stubTakesValue=""
+		for stubArg in "$@" ; do
+			if [ -n "$stubTakesValue" ] ; then
+				stubTakesValue=""
+				continue
+			fi
+			case "$stubArg" in
+				--fields-json|--update-json) stubTakesValue=yes ;;
+				--notify-users) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-update: unexpected: $stubArg" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-issue-update --member "$actingMember" --context magic-comms-jira-issue-update --issue-key "$issueKey" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-jira-issue-transition)
+		shift
+		local actingMember="${1:-}" issueKey="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-transition: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-transition: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-transition: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+		case "$issueKey" in
+			''|-*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-transition: <issue-key> missing" >&2
+				set +e ; return 1
+			;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-issue-transition || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-transition: runs only as magic-coordinator, and $actingMember is not it -- the client-facing write is --client-comms-jira-issue-transition" >&2
+				set +e ; return 1
+			;;
+		esac
+		local stubArg stubTakesValue=""
+		for stubArg in "$@" ; do
+			if [ -n "$stubTakesValue" ] ; then
+				stubTakesValue=""
+				continue
+			fi
+			case "$stubArg" in
+				--to-status|--fields-json|--comment-adf|--comment-adf-from-file) stubTakesValue=yes ;;
+				--comment-adf-from-stdin) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-transition: unexpected: $stubArg" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-issue-transition --member "$actingMember" --context magic-comms-jira-issue-transition --issue-key "$issueKey" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-jira-comment-add)
+		shift
+		local actingMember="${1:-}" issueKey="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-comment-add: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-comment-add: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-comment-add: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+		case "$issueKey" in
+			''|-*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-comment-add: <issue-key> missing" >&2
+				set +e ; return 1
+			;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-comment-add || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-comment-add: runs only as magic-coordinator, and $actingMember is not it -- the client-facing write is --client-comms-jira-comment-add" >&2
+				set +e ; return 1
+			;;
+		esac
+		local stubArg stubTakesValue=""
+		for stubArg in "$@" ; do
+			if [ -n "$stubTakesValue" ] ; then
+				stubTakesValue=""
+				continue
+			fi
+			case "$stubArg" in
+				--body-adf|--body-adf-from-file) stubTakesValue=yes ;;
+				--body-adf-from-stdin) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-comment-add: unexpected: $stubArg" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-comment-add --member "$actingMember" --context magic-comms-jira-comment-add --issue-key "$issueKey" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-jira-issue-delete)
+		shift || :
+		local actingMember="${1:-}" issueKey="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-delete: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-delete: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-delete: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$issueKey" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-delete: <issue-key> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-delete: not accepted: $actingMember $issueKey $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-jira-issue-delete || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-jira-issue-delete: runs only as magic-coordinator, and $actingMember is not it -- the client-facing write is --client-comms-jira-issue-delete" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-jira-issue-delete --member "$actingMember" --context magic-comms-jira-issue-delete --issue-key "$issueKey" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-confluence-space-list)
+		shift
+		local actingMember="${1:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-space-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-space-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:|2:--cursor) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-space-list: not accepted: $actingMember $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-confluence-space-list || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-space-list: runs only as magic-coordinator, and $actingMember is not it -- the client-facing listing is --client-comms-confluence-space-list" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-confluence-space-list --member "$actingMember" --context magic-comms-confluence-space-list "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-confluence-page-read)
+		shift
+		local actingMember="${1:-}" pageId="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-read: <page-id> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$pageId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-read: <page-id> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:|2:--format) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-read: not accepted: $actingMember $pageId $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-confluence-page-read || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-read: runs only as magic-coordinator, and $actingMember is not it -- the client-facing read is --client-comms-confluence-page-read" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-confluence-page-read --member "$actingMember" --context magic-comms-confluence-page-read --page-id "$pageId" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-confluence-page-search)
+		shift
+		local actingMember="${1:-}" cqlQuery="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-search: <cql> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$cqlQuery" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-search: <cql> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:|2:--limit) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-search: not accepted: $actingMember $cqlQuery $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-confluence-page-search || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-search: runs only as magic-coordinator, and $actingMember is not it -- the client-facing search is --client-comms-confluence-page-search" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-confluence-page-search --member "$actingMember" --context magic-comms-confluence-page-search --cql "$cqlQuery" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-confluence-comment-read)
+		shift
+		local actingMember="${1:-}" pageId="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-comment-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-comment-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-comment-read: <page-id> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$pageId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-comment-read: <page-id> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-comment-read: not accepted: $actingMember $pageId $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-confluence-comment-read || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-comment-read: runs only as magic-coordinator, and $actingMember is not it -- the client-facing read is --client-comms-confluence-comment-read" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-confluence-comment-read --member "$actingMember" --context magic-comms-confluence-comment-read --page-id "$pageId" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-confluence-page-create)
+		shift
+		local actingMember="${1:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-create: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-create: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-confluence-page-create || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-create: runs only as magic-coordinator, and $actingMember is not it -- the client-facing write is --client-comms-confluence-page-create" >&2
+				set +e ; return 1
+			;;
+		esac
+		local stubArg stubTakesValue=""
+		for stubArg in "$@" ; do
+			if [ -n "$stubTakesValue" ] ; then
+				stubTakesValue=""
+				continue
+			fi
+			case "$stubArg" in
+				--space|--space-id|--title|--parent-id|--body-storage|--body-storage-from-file) stubTakesValue=yes ;;
+				--body-storage-from-stdin) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-create: unexpected: $stubArg" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-confluence-page-create --member "$actingMember" --context magic-comms-confluence-page-create "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-confluence-page-update)
+		shift
+		local actingMember="${1:-}" pageId="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-update: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-update: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-update: <page-id> missing" >&2 ; set +e ; return 1 ; }
+		case "$pageId" in
+			''|-*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-update: <page-id> missing" >&2
+				set +e ; return 1
+			;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-confluence-page-update || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-update: runs only as magic-coordinator, and $actingMember is not it -- the client-facing write is --client-comms-confluence-page-update" >&2
+				set +e ; return 1
+			;;
+		esac
+		local stubArg stubTakesValue=""
+		for stubArg in "$@" ; do
+			if [ -n "$stubTakesValue" ] ; then
+				stubTakesValue=""
+				continue
+			fi
+			case "$stubArg" in
+				--version|--title|--status|--space-id|--body-storage|--body-storage-from-file) stubTakesValue=yes ;;
+				--body-storage-from-stdin) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-update: unexpected: $stubArg" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-confluence-page-update --member "$actingMember" --context magic-comms-confluence-page-update --page-id "$pageId" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-confluence-comment-add)
+		shift
+		local actingMember="${1:-}" pageId="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-comment-add: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-comment-add: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-comment-add: <page-id> missing" >&2 ; set +e ; return 1 ; }
+		case "$pageId" in
+			''|-*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-comment-add: <page-id> missing" >&2
+				set +e ; return 1
+			;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-confluence-comment-add || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-comment-add: runs only as magic-coordinator, and $actingMember is not it -- the client-facing write is --client-comms-confluence-comment-add" >&2
+				set +e ; return 1
+			;;
+		esac
+		local stubArg stubTakesValue=""
+		for stubArg in "$@" ; do
+			if [ -n "$stubTakesValue" ] ; then
+				stubTakesValue=""
+				continue
+			fi
+			case "$stubArg" in
+				--body-storage|--body-storage-from-file|--parent-comment-id) stubTakesValue=yes ;;
+				--body-storage-from-stdin) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-comment-add: unexpected: $stubArg" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-confluence-comment-add --member "$actingMember" --context magic-comms-confluence-comment-add --page-id "$pageId" "$@" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
+	--magic-comms-confluence-page-delete)
+		shift || :
+		local actingMember="${1:-}" pageId="${2:-}"
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-delete: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-delete: <team-member> missing" >&2 ; set +e ; return 1 ; }
+		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-delete: <page-id> missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$pageId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-delete: <page-id> missing" >&2 ; set +e ; return 1 ; }
+		case "$#:${1:-}" in
+			0:) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-delete: not accepted: $actingMember $pageId $*" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsAssertBareName "$actingMember" "<team-member>" magic-comms-confluence-page-delete || { set +e ; return 1 ; }
+		case "$actingMember" in
+			magic-coordinator) ;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --magic-comms-confluence-page-delete: runs only as magic-coordinator, and $actingMember is not it -- the client-facing write is --client-comms-confluence-page-delete" >&2
+				set +e ; return 1
+			;;
+		esac
+		local opRc=0
+		DistroAgentsTools --intern-op-atlassian-confluence-page-delete --member "$actingMember" --context magic-comms-confluence-page-delete --page-id "$pageId" || opRc=$?
+		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
+		return 0
+	;;
+
 	*)
 		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1

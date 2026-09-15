@@ -13,7 +13,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: syntax is <team-member> -- the acting member is required, since a mailbox belongs to one identity and the member decides which inbox is checked" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-check || { set +e ; return 1 ; }
@@ -62,7 +62,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: syntax is <team-member> <uid> [--seen] -- the acting member is required, since a UID is only meaningful inside one identity's own mailbox" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-read || { set +e ; return 1 ; }
@@ -79,7 +79,7 @@ case "$1" in
 			local uid="$1"
 			shift || true
 			if [ -z "$uid" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: UID required" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: <uid> missing" >&2
 				set +e ; return 1
 			fi
 			local markSeen="false"
@@ -136,7 +136,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: syntax is <team-member> <uid> -- the acting member is required, since a UID is only meaningful inside one identity's own mailbox and this operation MUTATES that mailbox" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-mark-seen || { set +e ; return 1 ; }
@@ -153,7 +153,7 @@ case "$1" in
 			local uid="$1"
 			shift || true
 			if [ -z "$uid" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: UID required" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: <uid> missing" >&2
 				set +e ; return 1
 			fi
 
@@ -185,7 +185,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: syntax is <team-member> <email@address>... -- <subject> -- <body...> -- the acting member is required, since a mailbox belongs to one identity and the member decides which account the mail is sent from" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-send || { set +e ; return 1 ; }
@@ -214,7 +214,7 @@ case "$1" in
 							set +e ; return 1
 						fi
 						if [ -z "$2" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --in-reply-to requires a <message-id> argument (the parent message's own Message-Id header value, angle brackets included)" >&2
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --in-reply-to value missing" >&2
 							set +e ; return 1
 						fi
 						inReplyTo="$2"
@@ -241,7 +241,15 @@ case "$1" in
 								echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-file given alongside --from-stdin -- use one or the other, not both" >&2
 								set +e ; return 1
 							fi
-							if [ -z "$2" ] || [ ! -f "$2" ] ; then
+							if [ $# -lt 2 ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-file value missing" >&2
+								set +e ; return 1
+							fi
+							if [ -z "$2" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-file invalid: ${2:-<no value>}" >&2
+								set +e ; return 1
+							fi
+							if [ ! -f "$2" ] ; then
 								echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-file: file not found: $2" >&2
 								set +e ; return 1
 							fi
@@ -296,7 +304,7 @@ case "$1" in
 				set +e ; return 1
 			fi
 			if [ -z "$subject" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: syntax is <team-member> <email@address>... -- <subject> -- <body...>" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: <subject> missing" >&2
 				set +e ; return 1
 			fi
 

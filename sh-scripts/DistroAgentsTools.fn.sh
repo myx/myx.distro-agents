@@ -127,21 +127,12 @@ DistroAgentsTools(){
 			esac
 		;;
 
-		## SLACK ROUTES ONLY -- NO SLACK CODE IN THIS FILE. Each Slack family gets
-		## its own arm, and each arm does nothing but source an include. Every
-		## non-member Slack op and every shared helper lives in the single file
-		## sh-lib/AgentsTools.CommsSlack.include; the member stubs keep their own
-		## arms and source that file only for the helper definitions.
-		## These stay ahead of the --member-* route below, which would otherwise
-		## take every --member-comms-slack-* op. A future --intern-op-slack-* op
-		## routing anywhere else goes above the glob arm, the same rule
-		## --intern-op-item-* already lives under.
 		--member-comms-slack-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlack.include"
 			return $?
 		;;
 
-		--magic-comms-slack-*)
+		--magic-comms-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
 			return $?
 		;;
@@ -183,6 +174,12 @@ DistroAgentsTools(){
 
 		--member-comms-jira-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsJira.include"
+			return $?
+		;;
+
+		## Grouped with the Atlassian --member-comms-* arms above, as --intern-op-slack-* sits with the Slack routes.
+		--intern-op-atlassian-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpAtlassianCall.include"
 			return $?
 		;;
 
@@ -397,13 +394,13 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--magic-contact-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicContact.include"
+		--client-comms-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientComms.include"
 			return $?
 		;;
 
-		--magic-comms-trello-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicTrello.include"
+		--magic-contact-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicContact.include"
 			return $?
 		;;
 

@@ -19,8 +19,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] --from-file <path>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-info <team-member> <file-id> [--identity-bot] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-fetch <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-get <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set <team-member> [--display-name <v>] [--title <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-get <team-member> [--raw]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set <team-member> {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-conversations-roster <team-member> [--identity user|bot|both] [--types <csv>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check <team-member>
@@ -32,26 +32,56 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-read <team-member> <uid> [--seen]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-read <team-member> <notification-id>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-whoami <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-search <team-member> <cql> [--limit <n>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-space-list <team-member> [--cursor <value>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-comment-read <team-member> <page-id>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-whoami <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-search <team-member> <jql> [--limit <n>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-space-list <team-member> [--cursor <value>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-search <team-member> <cql> [--limit <n>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-comment-read <team-member> <page-id>
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-delete <team-member> <page-id>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-space-list <team-member> [--cursor <value>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-search <team-member> <cql> [--limit <n>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-comment-read <team-member> <page-id>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-delete <team-member> <page-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-create <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-update <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-list <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-list <team-member> [--start-at <n>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-read <team-member> <board-id>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-issue-search <team-member> <board-id>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-list <team-member> <board-id>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-issue-search <team-member> <sprint-id>
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-issue-search <team-member> <board-id> [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-list <team-member> <board-id> [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-issue-search <team-member> <sprint-id> [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-board-list <team-member> [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-board-read <team-member> <board-id>
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-board-issue-search <team-member> <board-id> [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-sprint-list <team-member> <board-id> [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-sprint-issue-search <team-member> <sprint-id> [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-search <team-member> <jql> [--limit <n>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered] [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-create <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-update <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-delete <team-member> <issue-key>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-list <team-member> [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-read <team-member> <board-id>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-issue-search <team-member> <board-id> [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-sprint-list <team-member> <board-id> [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-sprint-issue-search <team-member> <sprint-id> [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-search <team-member> <jql> [--limit <n>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered] [--start-at <n>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-create <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-update <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-delete <team-member> <issue-key>
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-self-test
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-harden
@@ -118,19 +148,19 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-refresh <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-close-state-and-unlock <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-advance-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-status <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-refresh <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-close-state-and-unlock <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-status <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-refresh <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-daily-close-state-and-unlock <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-daily-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-status <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-retro-close-state-and-unlock <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-retro-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-status <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
@@ -159,6 +189,14 @@
 		heartbeat, board advancement) the team's routines depend on. Call
 		it directly for anything it already covers, rather than a raw
 		shell command or file edit.
+
+		Reading a syntax line: an argument in square brackets is
+		optional, a parenthesised group separated by bars is a required
+		choice of exactly one, a brace group separated by bars is a
+		required choice of at least one — any number of its members, but
+		not none — `<name>` marks a value the caller supplies, and
+		everything else is required. An operation that
+		refuses a missing argument names it in that same spelling.
 
 		**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -286,7 +324,8 @@
 			target matching none of these forms is REJECTED with an error
 			and nothing is sent anywhere. Content comes from
 			trailing text args, --from-stdin, or --from-file <path> —
-			exactly one. --identity-bot posts as the team bot instead of
+			exactly one. --message-from-stdin is accepted as an alias of
+			--from-stdin. --identity-bot posts as the team bot instead of
 			this member's own identity.
 
 			**Trailing text args are shell argv, not a safe string
@@ -885,7 +924,8 @@
 			replacement text comes from the same three input forms
 			--member-comms-slack-send-message accepts: trailing argv,
 			`--from-stdin`, or
-			`--from-file <path>`. `--format` is not offered here: this op
+			`--from-file <path>`. `--message-from-stdin` is accepted as an
+			alias of `--from-stdin`. `--format` is not offered here: this op
 			edits plain text only. Empty replacement text is refused rather
 			than applied, since that would blank the message. Re-running the
 			same edit is safe -- it leaves the message as the first run left
@@ -1180,7 +1220,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-slack-profile-set <team-member> [--display-name <v>] [--title <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end]
+		--member-comms-slack-profile-set <team-member> {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 			`<team-member>` is both the acting identity and the account
 			written: this sets that member's own Slack display name, title,
 			custom status, presence and do-not-disturb state.
@@ -1527,46 +1567,25 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-confluence-whoami <team-member>
-			`<team-member>` is the member this lookup acts as, and it is
-			required: the identity returned is whoever that member's own
-			Confluence credential resolves to, with no fallback to another
-			member's scope.
+		--member-comms-confluence-space-list <team-member> [--cursor <value>]
+			`<team-member>` is the member this listing acts as, and it is
+			required: the listing is exactly what that identity can see,
+			with no fallback to another member's scope. Any other argument is
+			refused with 1 before any call.
 
-			Confluence keeps its own credential, separate from Jira's, even
-			where one Atlassian token authenticates both on the same site —
-			so either service's credential can be rotated, revoked or
-			pointed at another account without disturbing the other.
+			Lists the Confluence spaces visible to that identity. Emits one
+			TSV row per space with its own header row: `SPACE_ID`, `KEY`,
+			`NAME`, `TYPE`, `STATUS`.
 
-			Prints `CONFLUENCE_ACCOUNT_ID=`, `CONFLUENCE_ACCOUNT_EMAIL=` and
-			`CONFLUENCE_ACCOUNT_NAME=`, one per line, and returns non-zero
-			when the identity could not be established — an unknown identity
-			is never reported as an empty one. `CONFLUENCE_ACCOUNT_NAME=` is
-			the account's public name where one is set, its display name
-			otherwise — never the literal word "None".
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
-		--member-comms-confluence-page-search <team-member> <cql> [--limit <n>]
-			`<team-member>` is the member this search acts as, and it comes
-			first. It is required and strict: the results are what that
-			member's own identity can see in Confluence, never another
-			member's, and there is no fallback to another member's scope.
-
-			The entry point for this family, since the page/comment
-			operations need a page id and this is what produces one. The CQL
-			is passed through as given, the way the Jira family passes JQL:
-			for a plain text search it is `text ~ "term"`.
-
-			Emits one TSV row per result with its own header row:
-			`CONTENT_ID`, `TYPE`, `TITLE`, `LAST_MODIFIED`, `URL`. `--limit`
-			defaults to 25.
-
-			**This endpoint carries no completeness signal at all.** Unlike
-			the Jira family, it reports no `isLast`/total, so the operation
-			always states `more: unknown` on stderr — whether results exist
-			beyond this page cannot be determined from the response, and
-			this is never reported as a confirmed-complete page.
+			**This listing terminates.** `--cursor <value>` continues a prior
+			page: pass back the cursor that page's own stderr printed,
+			verbatim — the value is Atlassian's own already-encoded token, so
+			it is passed on exactly as received rather than re-encoded.
+			Completeness is stated on stderr: `more: yes` together with the
+			next `--cursor` value while pages follow, `more: no` on the page
+			whose response carries no next link — this endpoint omits that
+			link only on its last page, so `more: no` is a real,
+			confirmed-complete answer rather than an unknown one.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -1574,7 +1593,7 @@
 			`<team-member>` is the member this read acts as, and it is
 			required: a page is readable only by identities it is shared
 			with, read strictly from that member's own scope with no
-			fallback.
+			fallback. Any other argument is refused with 1 before any call.
 
 			The body goes to stdout and the identifying metadata to stderr,
 			so `page-read > file` yields the body and nothing else. Title,
@@ -1583,7 +1602,8 @@
 			`--format storage` is the default: Confluence's own storage
 			format, a plain XHTML string. `--format atlas_doc_format`
 			returns the Atlassian Document Format JSON instead, captured
-			whole since it is a document rather than a scalar.
+			whole since it is a document rather than a scalar. Any other
+			`--format` value is refused with 1 before any call.
 
 			A 404 from Confluence does NOT establish that the page is
 			absent: it returns 404 both for missing content and for content
@@ -1592,10 +1612,69 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
-			`<team-member>` is the member this create acts as, and it is
-			required: the page is created under that identity and only in a
-			space it can see.
+		--magic-comms-confluence-space-list <team-member> [--cursor <value>]
+			Runs only as `magic-coordinator` — any other name is refused,
+			naming `--client-comms-confluence-space-list` as the
+			client-facing listing instead. `<team-member>` is required and is
+			the identity the listing is made under; there is no separate
+			identity parameter, since the acting member already IS the
+			credential selection. Any other argument is refused with 1
+			before any call.
+
+			The TSV output, the `--cursor` paging and the `more: yes`/`more: no`
+			completeness reporting on stderr are as
+			`--member-comms-confluence-space-list` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call.
+			Everything else is as `--member-comms-confluence-page-read`
+			describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-confluence-page-search <team-member> <cql> [--limit <n>]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call.
+
+			The entry point for the page and comment operations, since they
+			need a page id and this is what produces one. The CQL is passed
+			through as given, the way the Jira issue search passes JQL: for a
+			plain text search it is `text ~ "term"`.
+
+			Emits one TSV row per result with its own header row:
+			`CONTENT_ID`, `TYPE`, `TITLE`, `LAST_MODIFIED`, `URL`. `--limit`
+			defaults to 25.
+
+			**This endpoint carries no completeness signal at all.** It
+			reports no `isLast`/total, so the operation always states
+			`more: unknown` on stderr — whether results exist beyond this page
+			cannot be determined from the response, and this is never
+			reported as a confirmed-complete page.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-confluence-comment-read <team-member> <page-id>
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call.
+
+			The page's top-level footer comments, as TSV with its own header
+			row: `COMMENT_ID`, `VERSION_AUTHOR_ID`, `CREATED`, `BODY`. Replies
+			to a comment are not read.
+
+			**This endpoint carries no completeness signal either.** Same gap
+			as `--magic-comms-confluence-page-search`: no `isLast`/total, so
+			the operation always states `more: unknown` on stderr rather than
+			letting a full page read as a confirmed-complete one.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call. The page
+			is created under that identity and only in a space it can see.
 
 			REST v2 wants the numeric space id, not the key most callers
 			hold. `--space <key>` resolves it first with one internal `GET
@@ -1607,8 +1686,8 @@
 			`--title` is required. The body is one of `--body-storage`
 			(inline), `--body-storage-from-stdin` or
 			`--body-storage-from-file <path>` — Confluence's own storage
-			format, plain XHTML, exactly as `--member-comms-confluence-page-read`'s
-			default format reads it back. `--parent-id` is optional.
+			format, plain XHTML, exactly as page-read's default format reads
+			it back. `--parent-id` is optional.
 
 			No version gate and no read-before-write: there is nothing yet
 			to conflict with. The created page's own response body (its new
@@ -1616,18 +1695,18 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
-			`<team-member>` is the member this update acts as, and it is
-			required: a page is editable only by identities it is shared
-			with.
+		--magic-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call. A page is
+			editable only by identities it is shared with.
 
 			**`<n>` is the version this caller already read** — from
-			`--member-comms-confluence-page-read`'s own stderr diagnostic —
-			and is NEVER re-read here: this operation computes `<n>+1` and
-			submits it. Re-fetching the freshest version internally right
-			before the write would silently turn Confluence's own
-			optimistic lock into last-write-wins, defeating the one
-			guarantee a caller relying on `--version` has.
+			page-read's own stderr diagnostic — and is NEVER re-read here:
+			this operation computes `<n>+1` and submits it. Re-fetching the
+			freshest version internally right before the write would
+			silently turn Confluence's own optimistic lock into
+			last-write-wins, defeating the one guarantee a caller relying on
+			`--version` has.
 
 			**This is a FULL-RESOURCE REPLACE, not a patch.** `--title` and
 			`--status` (commonly `current`) are required on every call and
@@ -1638,83 +1717,373 @@
 			`ndm.atlassian.net`, this endpoint accepts the write with no
 			`spaceId` in the body at all.
 
-			**HTTP 409 means the version submitted is stale** — the shared
-			transport's own distinct conflict exit, never folded into a
-			generic UNKNOWN. Re-read the page for the real current
+			**HTTP 409 means the version submitted is stale** — status 5, the
+			shared layer's own conflict exit, never folded into a generic
+			UNKNOWN. Re-read the page for the real current
 			version/title/body and decide whether to reapply this edit on
 			the new content. NEVER resubmit version+1 unchanged.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-confluence-comment-read <team-member> <page-id>
-			`<team-member>` is the member this read acts as, and it is
-			required: comments are visible only to identities the page is
-			shared with, read strictly from that member's own scope with no
-			fallback.
-
-			Footer comments on one page, as TSV with its own header row:
-			`COMMENT_ID`, `VERSION_AUTHOR_ID`, `CREATED`, `BODY`.
-
-			**This endpoint carries no completeness signal either.** Same gap
-			as `--member-comms-confluence-page-search`: no `isLast`/total, so
-			the operation always states `more: unknown` on stderr rather than
-			letting a full page read as a confirmed-complete one.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
-		--member-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
-			`<team-member>` is the member this comment is posted as, and it
-			is required: the comment is posted under that identity.
+		--magic-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call. The
+			comment is posted under that identity.
 
 			**There is no ADF path here, same as the read side.** The body
 			is always Confluence's own storage format, one of
 			`--body-storage`, `--body-storage-from-stdin` or
 			`--body-storage-from-file <path>`. `--parent-comment-id` makes
-			it a threaded reply. No version gate, no read-before-write.
+			it a threaded reply: the parent is read first, and a parent on
+			another page refuses the reply with 1 before anything is posted.
+			No version gate.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-jira-whoami <team-member>
-			`<team-member>` is the member this lookup acts as, and it is
-			required: the identity returned is whoever that member's own
-			Jira credential resolves to, with no fallback to another
-			member's scope.
+		--magic-comms-confluence-page-delete <team-member> <page-id>
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. A missing `<team-member>` or `<page-id>` is refused with 1,
+			naming the missing parameter, and any other argument is refused
+			with 1 before any call. The page is deleted under that identity,
+			and only where that identity may delete it.
 
-			Jira keeps its own credential, separate from Confluence's, even
-			where one Atlassian token authenticates both on the same site —
-			so either service's credential can be rotated, revoked or
-			pointed at another account without disturbing the other.
+			`<page-id>` is the numeric id and is refused before the call
+			when it is not. This operation never purges a page: it sends no
+			purge request. A deleted page then reads back as 8, a 404 under
+			the default view. No operation here restores a page.
 
-			Call it first after a token is filed, and whenever a report has to
-			state WHICH Jira account a read was made as. Prints
-			`JIRA_ACCOUNT_ID=`, `JIRA_ACCOUNT_EMAIL=` and
-			`JIRA_ACCOUNT_NAME=`, one per line, and returns non-zero when the
-			identity could not be established — an unknown identity is never
-			reported as an empty one.
+			Returns 0 when the page was deleted, with nothing on stdout. A 3
+			means the outcome is UNKNOWN: the answer was lost, so the delete
+			may still have taken effect — read the page before acting again,
+			and never repeat the deletion blindly. A 9 is the opposite: the
+			site answered and refused, so the page was not deleted and no
+			retry of the same request changes that. Every other status also
+			means it was not deleted. A 404, which is 8, does NOT establish
+			that the page is absent: Confluence returns 404 both for a
+			missing page and for one this account may not delete.
 
-			It is also the only operation here that reports a bad credential
-			as one: Jira treats a request carrying a rejected token as
-			anonymous, and a private issue is invisible to anonymous, so an
-			issue read answers "not found" rather than "not authorised".
-			Diagnose a credential with this operation, never with a read that
-			failed.
+			A failure prints one line on stderr: the mark, this operation's
+			own name, the status, and Confluence's own body verbatim. What
+			the site said is the diagnosis; nothing here restates it.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-jira-issue-search <team-member> <jql> [--limit <n>]
+		--client-comms-confluence-space-list <team-member> [--cursor <value>]
+			Runs only as a `client-*` member — any other name is refused.
+			The gate is the `client-*` pattern itself, never a named client,
+			so a second client member joins this family by existing, with no
+			edit here. This family reads and writes an external
+			organisation's own Confluence, under that member's own
+			credential. Any other argument is refused with 1 before any call.
+
+			The TSV output, the `--cursor` paging and the `more: yes`/`more: no`
+			completeness reporting on stderr are as
+			`--member-comms-confluence-space-list` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
+			Runs only as a `client-*` member, under that member's own
+			credential; any other name is refused with 1. Any other argument
+			is refused with 1 before any call. Everything else is as
+			`--member-comms-confluence-page-read` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-confluence-page-search <team-member> <cql> [--limit <n>]
+			Runs only as a `client-*` member, under that member's own
+			credential; any other name is refused with 1. Any other argument
+			is refused with 1 before any call. Everything else is as
+			`--magic-comms-confluence-page-search` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-confluence-comment-read <team-member> <page-id>
+			Runs only as a `client-*` member, under that member's own
+			credential; any other name is refused with 1. Any other argument
+			is refused with 1 before any call. Everything else is as
+			`--magic-comms-confluence-comment-read` describes: top-level
+			footer comments only, no replies.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
+			Runs only as a `client-*` member, writing to that external
+			organisation's own Confluence under that member's own credential;
+			any other name is refused with 1. Any other argument is refused
+			with 1 before any call. Everything else is as
+			`--magic-comms-confluence-page-create` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
+			Runs only as a `client-*` member, writing to that external
+			organisation's own Confluence under that member's own credential;
+			any other name is refused with 1. Any other argument is refused
+			with 1 before any call. Everything else is as
+			`--magic-comms-confluence-page-update` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
+			Runs only as a `client-*` member, writing to that external
+			organisation's own Confluence under that member's own credential;
+			any other name is refused with 1. Any other argument is refused
+			with 1 before any call. Everything else is as
+			`--magic-comms-confluence-comment-add` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-confluence-page-delete <team-member> <page-id>
+			Runs only as a `client-*` member, writing to that external
+			organisation's own Confluence under that member's own credential;
+			any other name is refused with 1. Any other argument is refused
+			with 1 before any call. Everything else is as
+			`--magic-comms-confluence-page-delete` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
+			`<team-member>` is the member this read acts as, and it is
+			required: an issue is readable only by identities its project is
+			shared with, read strictly from that member's own scope with no
+			fallback. Any other argument is refused with 1 before any call.
+
+			The description goes to stdout and the identifying metadata to
+			stderr, so `issue-read > file` yields the description and nothing
+			else. Type, status, resolution, assignee, reporter, priority,
+			created, updated, labels and summary are the stderr diagnostics.
+
+			`--format adf` is the default: the Atlassian Document Format JSON
+			Jira accepts back on a write, so read-edit-write stays possible.
+			`--format rendered` returns Jira's own HTML instead — what a
+			human reads, and it cannot be written back. Any other `--format`
+			value is refused with 1 before any call.
+
+			An issue whose description field came back null really has no
+			description: stdout stays empty, stderr says so, and the
+			operation returns zero. That is a different outcome from a read
+			that failed, which returns non-zero and reports the content as
+			UNKNOWN. A 404 from Jira does NOT establish that the issue is
+			absent — Jira returns 404 both for a missing issue and for one
+			this account cannot see, and says so itself.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-board-list <team-member> [--start-at <n>]
+			`<team-member>` is the member this listing acts as, and it is
+			required: the boards returned are the ones that member's own
+			Jira credential can see, with no fallback to another member's
+			scope. Any other argument is refused with 1 before any call.
+
+			Lists the Agile boards on that member's Jira site. The response
+			body is written to stdout as the site returned it, so
+			`--member-comms-jira-board-list > file` yields the boards and
+			nothing else; everything this operation has to say about the call
+			goes to stderr.
+
+			`--start-at <n>` continues a prior page whose stderr said
+			`more: yes`: pass back the sum of that page's own `startAt` and
+			`maxResults`, both read from its body.
+
+			Whether the listing is complete is stated on stderr in one of three
+			forms: `more: no` when the site reported this page as the last,
+			`more: yes` when it reported otherwise, and `more: unknown` when the
+			response carried no such signal. Only `more: no` means complete; a
+			listing that could not be read and one that is whole never look
+			alike.
+
+			Returns 0 when the site answered. A non-zero status is the shared
+			Atlassian layer's own and keeps its meaning there. Faults: 1 for a
+			call refused before anything was attempted, 3 when the answer is
+			UNKNOWN rather than empty, 4 when the credential itself was
+			rejected. Designed refusals: 6 when this member holds no Jira
+			credential, so nothing was called; 7 when the account is refused;
+			8 when the site answers not found, which also covers content this
+			account cannot see; 9 when the site answered and refused, which no
+			retry of the same request changes. An empty listing at status 0 is
+			a real answer; a failed call is never an empty one.
+
+			9 covers every other 4xx, 410 among them. Most are the request to
+			fix: a 400 or a 422 names what it rejected. A 410 is not — it
+			means the endpoint this layer calls has been retired by Atlassian,
+			so no change to the request helps and the path has to be updated
+			in this package. The status is in the failure line, so the two are
+			told apart where they are read.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-board-read <team-member> <board-id>
+			`<team-member>` is the member this read acts as, and it comes
+			first. It is required and strict: a board is readable only by
+			identities its project is shared with, and there is no fallback to
+			another member's scope. Any other argument is refused with 1
+			before any call.
+
+			`<board-id>` is a whole number, and anything else is refused before
+			the call is made rather than sent and rejected by the site.
+
+			Writes the board to stdout as the site returned it. One board is a
+			single object rather than a page, so this operation carries no
+			completeness line at all — there is nothing that could be truncated,
+			and a line claiming the point either way would be noise.
+
+			Returns 0 when the site answered, and otherwise the shared
+			Atlassian layer's own status. Faults: 1 refused before anything was
+			attempted, 3 the answer is UNKNOWN, 4 the credential was rejected.
+			Designed refusals: 6 no Jira credential for this member, nothing
+			called; 7 the account is refused on this board; 8 not found or not
+			visible; 9 the site answered and refused, which no retry of the
+			same request changes. An 8 never means "no such board": Jira answers 404 both
+			for a board that does not exist and for one this account cannot
+			see, and the two are indistinguishable from here.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-board-issue-search <team-member> <board-id> [--start-at <n>]
 			`<team-member>` is the member this search acts as, and it comes
-			first. It is required and strict: the results are what that
-			member's own identity can see in Jira, never another member's,
-			and there is no fallback to another member's scope.
+			first. It is required and strict: the issues returned are the ones
+			that identity can see, never another member's, and there is no
+			fallback to another member's scope. Any other argument is refused
+			with 1 before any call.
 
-			The entry point for this family, since the issue operations need
-			an issue key and this is what produces one.
+			`<board-id>` is a whole number, refused before the call when it is
+			not. Returns the issues the named board currently carries, which is
+			the board's own filter applied by the site rather than a query this
+			operation composes — for an arbitrary query use
+			`--magic-comms-jira-issue-search` or
+			`--client-comms-jira-issue-search`, which take JQL.
 
-			The JQL is passed through as given, the way the Confluence
-			family passes CQL: it is the documented query surface a caller is
-			expected to write, and it has no single safe general wrapping.
-			Jira refuses an unrestricted query outright, so the JQL names at
-			least one restriction — `project = DATA ORDER BY updated DESC`,
+			Whether the result is complete is stated on stderr in one of three
+			forms, from the site's own total: `more: no` once this page reaches
+			it, `more: yes` while rows remain, naming the `--start-at` value
+			that continues, and `more: unknown` when the response carried no
+			numeric total or start. Only `more: no` means complete.
+
+			Returns 0 when the site answered, and otherwise the shared
+			Atlassian layer's own status. Faults: 1 refused, 3 UNKNOWN, 4
+			credential rejected. Designed refusals: 6 no Jira credential, 7
+			refused on this board, 8 not found or not visible, 9 the site
+			answered and refused. An empty result at status 0 is a real
+			answer.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-sprint-list <team-member> <board-id> [--start-at <n>]
+			`<team-member>` is the member this listing acts as, and it comes
+			first. It is required and strict, with no fallback to another
+			member's scope. Any other argument is refused with 1 before any
+			call.
+
+			`<board-id>`, not a sprint id: a sprint belongs to a board, and this
+			operation lists the sprints of the board named here. It is a whole
+			number and is refused before the call when it is not. Use the sprint
+			ids it returns with `--member-comms-jira-sprint-issue-search`.
+
+			`--start-at <n>` continues a prior page whose stderr said
+			`more: yes`: pass back the sum of that page's own `startAt` and
+			`maxResults`, both read from its body.
+
+			Whether the listing is complete is stated on stderr in one of three
+			forms: `more: no` when the site reported this page as the last,
+			`more: yes` when it reported otherwise, and `more: unknown` when the
+			response carried no such signal. Only `more: no` means complete.
+
+			Returns 0 when the site answered, and otherwise the shared
+			Atlassian layer's own status. Faults: 1 refused, 3 UNKNOWN, 4
+			credential rejected. Designed refusals: 6 no Jira credential, 7
+			refused on this board, 8 not found or not visible, 9 the site
+			answered and refused. An empty listing
+			at status 0 is a real answer — a board with no sprints is an
+			ordinary state, not a failure. A kanban board, or a simple board
+			whose sprints feature is disabled, holds no sprints at all: the
+			listing is empty at status 0, stderr names the board, and the sprint
+			endpoint is not called. When the features of a simple board cannot
+			be read, the operation returns the layer's own status for that
+			read; when they are read and give its sprints feature any state
+			other than ENABLED or DISABLED, none included, it returns 3.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-comms-jira-sprint-issue-search <team-member> <sprint-id> [--start-at <n>]
+			`<team-member>` is the member this search acts as, and it comes
+			first. It is required and strict: the issues returned are the ones
+			that identity can see, and there is no fallback to another member's
+			scope. Any other argument is refused with 1 before any call.
+
+			`<sprint-id>`, not a board id — the two are separate number spaces
+			and passing one for the other reaches a different sprint or none at
+			all rather than failing visibly. It is a whole number and is refused
+			before the call when it is not. Obtain it from
+			`--member-comms-jira-sprint-list`.
+
+			Whether the result is complete is stated on stderr in one of three
+			forms, from the site's own total: `more: no` once this page reaches
+			it, `more: yes` while rows remain, naming the `--start-at` value
+			that continues, and `more: unknown` when the response carried no
+			numeric total or start. Only `more: no` means complete.
+
+			Returns 0 when the site answered, and otherwise the shared
+			Atlassian layer's own status. Faults: 1 refused, 3 UNKNOWN, 4
+			credential rejected. Designed refusals: 6 no Jira credential, 7
+			refused on this sprint, 8 not found or not visible, 9 the site
+			answered and refused. An empty result at status 0 is a real
+			answer.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-jira-board-list <team-member> [--start-at <n>]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1, naming `--client-comms-jira-board-list` as the client-facing
+			listing. `<team-member>` is required and is the identity the
+			listing is made under. Any other argument is refused with 1
+			before any call.
+
+			Output, `--start-at`, the completeness line and the exit statuses
+			are as `--member-comms-jira-board-list` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-jira-board-read <team-member> <board-id>
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call.
+			Everything else is as `--member-comms-jira-board-read` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-jira-board-issue-search <team-member> <board-id> [--start-at <n>]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call.
+			Everything else is as `--member-comms-jira-board-issue-search`
+			describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-jira-sprint-list <team-member> <board-id> [--start-at <n>]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call.
+			Everything else is as `--member-comms-jira-sprint-list` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-jira-sprint-issue-search <team-member> <sprint-id> [--start-at <n>]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call.
+			Everything else is as `--member-comms-jira-sprint-issue-search`
+			describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-jira-issue-search <team-member> <jql> [--limit <n>]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call.
+
+			The entry point for the issue operations, since they need an issue
+			key and this is what produces one. The JQL is passed through as
+			given: it is the documented query surface a caller is expected to
+			write, and it has no single safe general wrapping. Jira refuses an
+			unrestricted query outright, so the JQL names at least one
+			restriction — `project = DATA ORDER BY updated DESC`,
 			`assignee = currentUser() AND statusCategory != Done`.
 
 			**An empty result is not evidence that nothing matches.** Jira
@@ -1727,44 +2096,50 @@
 			Emits one TSV row per issue with its own header row:
 			`ISSUE_KEY`, `TYPE`, `STATUS`, `ASSIGNEE`, `UPDATED`, `SUMMARY`.
 			`--limit` defaults to 25 and must be a positive whole number.
-			The endpoint pages by token and reports no total, so when more
-			issues match than the page carries, the operation says that on
-			stderr and how many more is unknown; raise `--limit` or narrow
-			the query.
+			Completeness is stated on stderr: `more: no` when the site reported
+			this page as the last, `more: yes` when more issues match, and
+			`more: unknown` when the response carried no such signal. The
+			endpoint reports no total, so after `more: yes` raise `--limit` or
+			narrow the query.
+
+			Exit statuses are as `--member-comms-jira-board-list` lists them.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
-			`<team-member>` is the member this read acts as, and it is
-			required: an issue is readable only by identities its project is
-			shared with, read strictly from that member's own scope with no
-			fallback.
-
-			The description goes to stdout and the identifying metadata to
-			stderr, so `issue-read > file` yields the description and nothing
-			else. Type, status, resolution, assignee, reporter, priority,
-			created, updated, labels and summary are the stderr diagnostics.
-
-			`--format adf` is the default: the Atlassian Document Format JSON
-			Jira accepts back on a write, so read-edit-write stays possible
-			once the write side exists. `--format rendered` returns Jira's
-			own HTML instead — what a human reads, and it cannot be written
-			back.
-
-			An issue whose description field came back null really has no
-			description: stdout stays empty, stderr says so, and the
-			operation returns zero. That is a different outcome from a read
-			that failed, which returns non-zero and reports the content as
-			UNKNOWN. A 404 from Jira does NOT establish that the issue is
-			absent — Jira returns 404 both for a missing issue and for one
-			this account cannot see, and says so itself.
+		--magic-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call.
+			Everything else is as `--member-comms-jira-issue-read` describes.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-jira-issue-create <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
-			`<team-member>` is the member this create acts as, and it is
-			required: the issue is created under that identity and only in
-			a project it can see.
+		--magic-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered] [--start-at <n>]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call.
+
+			Comments on one issue, as TSV with its own header row:
+			`COMMENT_ID`, `AUTHOR_ID`, `AUTHOR_NAME`, `CREATED`, `UPDATED`,
+			`BODY`. `--format` carries the same meaning as it does for
+			`--member-comms-jira-issue-read`, applied to each comment body:
+			`adf` (default) emits the Atlassian Document Format JSON on one
+			line, `rendered` emits Jira's own HTML. Any other `--format` value
+			is refused with 1 before any call.
+
+			Whether the list is complete is stated on stderr from the issue's
+			comment total: `more: no` once this page reaches it, `more: yes`
+			while comments remain, naming the `--start-at` value that
+			continues, and `more: unknown` when the response carried no
+			numeric total or start.
+
+			Exit statuses are as `--member-comms-jira-board-list` lists them.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--magic-comms-jira-issue-create <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call. The
+			issue is created under that identity and only in a project it
+			can see.
 
 			`--project`, `--issuetype` and `--summary` are always required.
 			Everything else a project's own create screen may additionally
@@ -1797,10 +2172,10 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-jira-issue-update <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
-			`<team-member>` is the member this update acts as, and it is
-			required: an issue is editable only by identities its project
-			is shared with.
+		--magic-comms-jira-issue-update <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call. An issue
+			is editable only by identities its project is shared with.
 
 			**Both of Jira's write shapes are offered, and at least one is
 			required.** `--fields-json <json>` is the WHOLE `fields`
@@ -1815,7 +2190,7 @@
 			**`fields.status`/`update.status` are refused, locally, before
 			any HTTP call is made.** Jira Cloud rejects a status change
 			through this endpoint outright — move an issue's status through
-			`--member-comms-jira-issue-transition` instead.
+			`--magic-comms-jira-issue-transition` instead.
 
 			**`notifyUsers` defaults to `false`** on every write this
 			operation makes, the opposite of Jira's own API default,
@@ -1828,10 +2203,10 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
-			`<team-member>` is the member this transition acts as, and it
-			is required: an issue is editable only by identities its
-			project is shared with.
+		--magic-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call. An issue
+			is editable only by identities its project is shared with.
 
 			**The transition id is never caller-supplied.** This operation
 			always runs its own `GET .../transitions` immediately before
@@ -1865,27 +2240,10 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered]
-			`<team-member>` is the member this read acts as, and it is
-			required: comments are visible only to identities the issue is
-			shared with, read strictly from that member's own scope with no
-			fallback.
-
-			Comments on one issue, as TSV with its own header row:
-			`COMMENT_ID`, `AUTHOR_ID`, `AUTHOR_NAME`, `CREATED`, `UPDATED`,
-			`BODY`. `--format` carries the same meaning as it does for
-			`--member-comms-jira-issue-read`, applied to each comment body:
-			`adf` (default) emits the Atlassian Document Format JSON on one
-			line, `rendered` emits Jira's own HTML.
-
-			An issue carrying more comments than one page holds is reported
-			on stderr, naming how many exist and how many were read.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
-		--member-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
-			`<team-member>` is the member this comment is posted as, and it
-			is required: the comment is posted under that identity.
+		--magic-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. Any other argument is refused with 1 before any call. The
+			comment is posted under that identity.
 
 			Same ADF body shape the read side already emits
 			(`{"body": <ADF-doc>}`), one of `--body-adf`,
@@ -1896,127 +2254,148 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-jira-board-list <team-member>
-			`<team-member>` is the member this listing acts as, and it is
-			required: the boards returned are the ones that member's own
-			Jira credential can see, with no fallback to another member's
-			scope.
+		--magic-comms-jira-issue-delete <team-member> <issue-key>
+			Runs only as `magic-coordinator`; any other name is refused with
+			1. A missing `<team-member>` or `<issue-key>` is refused with 1,
+			naming the missing parameter, and any other argument is refused
+			with 1 before any call. The issue is deleted under that
+			identity, and only where its project allows that identity to
+			delete it.
 
-			Lists the Agile boards on that member's Jira site. The response
-			body is written to stdout as the site returned it, so
-			`--member-comms-jira-board-list > file` yields the boards and
-			nothing else; everything this operation has to say about the call
-			goes to stderr.
+			**An issue that has subtasks is refused, and subtasks are never
+			deleted.** Jira answers HTTP 400 for such an issue, because this
+			operation never asks it to delete subtasks. No operation here
+			restores a deleted issue.
 
-			Whether the listing is COMPLETE is stated on stderr in one of three
-			forms, and only one of them means complete: silence when the site
-			reported this page as the last, a line naming that MORE RESULTS
-			EXIST when it reported otherwise, and a line naming the answer as
-			UNKNOWN when the site said nothing either way or its response could
-			not be parsed. An unparseable response is never reported as a
-			complete listing — a listing that could not be read and one that is
-			whole must not look alike.
+			Returns 0 when the issue was deleted, with nothing on stdout. A
+			3 means the outcome is UNKNOWN: the answer was lost, so the
+			delete may still have taken effect — read the issue before
+			acting again, and never repeat the deletion blindly. A 9 is the
+			opposite: the site answered and refused, so the issue was not
+			deleted and no retry of the same request changes that. The
+			subtask refusal arrives that way, as a 9 whose line shows HTTP
+			400. Every other status also means it was not deleted. A 404,
+			which is 8, does NOT establish that the issue is absent.
 
-			Returns 0 when the site answered. A non-zero status is the shared
-			Atlassian layer's own and keeps its meaning there: 1 for a call
-			refused before anything was attempted, 3 when the answer is UNKNOWN
-			rather than empty, and 4 when the credential itself was rejected.
-			An empty listing at status 0 is a real answer; a failed call is
-			never an empty one.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
-		--member-comms-jira-board-read <team-member> <board-id>
-			`<team-member>` is the member this read acts as, and it comes
-			first. It is required and strict: a board is readable only by
-			identities its project is shared with, and there is no fallback to
-			another member's scope.
-
-			`<board-id>` is a whole number, and anything else is refused before
-			the call is made rather than sent and rejected by the site.
-
-			Writes the board to stdout as the site returned it. One board is a
-			single object rather than a page, so this operation carries no
-			completeness line at all — there is nothing that could be truncated,
-			and a line claiming the point either way would be noise.
-
-			Returns 0 when the site answered, and otherwise the shared
-			Atlassian layer's own status: 1 refused before anything was
-			attempted, 3 the answer is UNKNOWN, 4 the credential was rejected.
-			A 404 is reported as UNKNOWN and never as "no such board": Jira
-			answers 404 both for a board that does not exist and for one this
-			account cannot see, and the two are indistinguishable from here.
+			A failure prints one line on stderr: the mark, this operation's
+			own name, the status, and Jira's own body verbatim. That body
+			is where the subtask refusal names itself; nothing here
+			restates it.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-jira-board-issue-search <team-member> <board-id>
-			`<team-member>` is the member this search acts as, and it comes
-			first. It is required and strict: the issues returned are the ones
-			that identity can see, never another member's, and there is no
-			fallback to another member's scope.
+		--client-comms-jira-board-list <team-member> [--start-at <n>]
+			Runs only as a `client-*` member; any other name is refused with
+			1. The gate is the `client-*` pattern itself, never a named client,
+			so a second client member joins this family by existing. This
+			family reads an external organisation's own Jira, under that
+			member's own credential. Any other argument is refused with 1
+			before any call.
 
-			`<board-id>` is a whole number, refused before the call when it is
-			not. Returns the issues the named board currently carries, which is
-			the board's own filter applied by the site rather than a query this
-			operation composes — for an arbitrary query use
-			`--member-comms-jira-issue-search`, which takes JQL.
-
-			Whether the result is COMPLETE is stated on stderr in the same three
-			forms this family uses everywhere: silence for a last page, MORE
-			RESULTS EXIST when the site reported otherwise, and UNKNOWN when it
-			said nothing either way or its response could not be parsed. An
-			unparseable response is never reported as a complete result set.
-
-			Returns 0 when the site answered, and otherwise the shared
-			Atlassian layer's own status: 1 refused, 3 UNKNOWN, 4 credential
-			rejected. An empty result at status 0 is a real answer.
+			Output, `--start-at`, the completeness line and the exit statuses
+			are as `--member-comms-jira-board-list` describes.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-jira-sprint-list <team-member> <board-id>
-			`<team-member>` is the member this listing acts as, and it comes
-			first. It is required and strict, with no fallback to another
-			member's scope.
-
-			`<board-id>`, not a sprint id: a sprint belongs to a board, and this
-			operation lists the sprints of the board named here. It is a whole
-			number and is refused before the call when it is not. Use the sprint
-			ids it returns with `--member-comms-jira-sprint-issue-search`.
-
-			Whether the listing is COMPLETE is stated on stderr in the same three
-			forms this family uses everywhere: silence for a last page, MORE
-			RESULTS EXIST when the site reported otherwise, and UNKNOWN when it
-			said nothing either way or its response could not be parsed. An
-			unparseable response is never reported as a complete listing.
-
-			Returns 0 when the site answered, and otherwise the shared
-			Atlassian layer's own status: 1 refused, 3 UNKNOWN, 4 credential
-			rejected. An empty listing at status 0 is a real answer — a board
-			with no sprints is an ordinary state, not a failure.
+		--client-comms-jira-board-read <team-member> <board-id>
+			Runs only as a `client-*` member, under that member's own
+			credential; any other name is refused with 1. Any other argument
+			is refused with 1 before any call. Everything else is as
+			`--member-comms-jira-board-read` describes.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-jira-sprint-issue-search <team-member> <sprint-id>
-			`<team-member>` is the member this search acts as, and it comes
-			first. It is required and strict: the issues returned are the ones
-			that identity can see, and there is no fallback to another member's
-			scope.
+		--client-comms-jira-board-issue-search <team-member> <board-id> [--start-at <n>]
+			Runs only as a `client-*` member, under that member's own
+			credential; any other name is refused with 1. Any other argument
+			is refused with 1 before any call. Everything else is as
+			`--member-comms-jira-board-issue-search` describes.
 
-			`<sprint-id>`, not a board id — the two are separate number spaces
-			and passing one for the other reaches a different sprint or none at
-			all rather than failing visibly. It is a whole number and is refused
-			before the call when it is not. Obtain it from
-			`--member-comms-jira-sprint-list`.
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-			Whether the result is COMPLETE is stated on stderr in the same three
-			forms this family uses everywhere: silence for a last page, MORE
-			RESULTS EXIST when the site reported otherwise, and UNKNOWN when it
-			said nothing either way or its response could not be parsed. An
-			unparseable response is never reported as a complete result set.
+		--client-comms-jira-sprint-list <team-member> <board-id> [--start-at <n>]
+			Runs only as a `client-*` member, under that member's own
+			credential; any other name is refused with 1. Any other argument
+			is refused with 1 before any call. Everything else is as
+			`--member-comms-jira-sprint-list` describes.
 
-			Returns 0 when the site answered, and otherwise the shared
-			Atlassian layer's own status: 1 refused, 3 UNKNOWN, 4 credential
-			rejected. An empty result at status 0 is a real answer.
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-jira-sprint-issue-search <team-member> <sprint-id> [--start-at <n>]
+			Runs only as a `client-*` member, under that member's own
+			credential; any other name is refused with 1. Any other argument
+			is refused with 1 before any call. Everything else is as
+			`--member-comms-jira-sprint-issue-search` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-jira-issue-search <team-member> <jql> [--limit <n>]
+			Runs only as a `client-*` member, under that member's own
+			credential; any other name is refused with 1. Any other argument
+			is refused with 1 before any call. Everything else is as
+			`--magic-comms-jira-issue-search` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
+			Runs only as a `client-*` member, under that member's own
+			credential; any other name is refused with 1. Any other argument
+			is refused with 1 before any call. Everything else is as
+			`--member-comms-jira-issue-read` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered] [--start-at <n>]
+			Runs only as a `client-*` member, under that member's own
+			credential; any other name is refused with 1. Any other argument
+			is refused with 1 before any call. Everything else is as
+			`--magic-comms-jira-comment-read` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-jira-issue-create <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
+			Runs only as a `client-*` member, writing to that external
+			organisation's own Jira under that member's own credential; any
+			other name is refused with 1. Any other argument is refused with
+			1 before any call. Everything else is as
+			`--magic-comms-jira-issue-create` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-jira-issue-update <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
+			Runs only as a `client-*` member, writing to that external
+			organisation's own Jira under that member's own credential; any
+			other name is refused with 1. Any other argument is refused with
+			1 before any call. Everything else is as
+			`--magic-comms-jira-issue-update` describes, except that a status
+			change goes through `--client-comms-jira-issue-transition`.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
+			Runs only as a `client-*` member, writing to that external
+			organisation's own Jira under that member's own credential; any
+			other name is refused with 1. Any other argument is refused with
+			1 before any call. Everything else is as
+			`--magic-comms-jira-issue-transition` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
+			Runs only as a `client-*` member, writing to that external
+			organisation's own Jira under that member's own credential; any
+			other name is refused with 1. Any other argument is refused with
+			1 before any call. Everything else is as
+			`--magic-comms-jira-comment-add` describes.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--client-comms-jira-issue-delete <team-member> <issue-key>
+			Runs only as a `client-*` member, writing to that external
+			organisation's own Jira under that member's own credential; any
+			other name is refused with 1. Any other argument is refused with
+			1 before any call. Everything else is as
+			`--magic-comms-jira-issue-delete` describes.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -2246,7 +2625,8 @@
 			does not determine the target path. Does not rewrite prior content.
 			Missing target transcript is an error unless --create is passed.
 			Payload must be provided by exactly one source: --message,
-			--from-stdin, or --from-file <path>.
+			--from-stdin, or --from-file <path>. --message-from-stdin is
+			accepted as an alias of --from-stdin.
 			Returns append audit details: target path plus added line and byte
 			counts.
 

@@ -134,7 +134,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: syntax is <team-member> <channel>:<ts> [--thread] [--identity-bot] -- the acting member is required, since a direct conversation belongs to one identity and the member decides which conversation is read" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-read || { set +e ; return 1 ; }
@@ -269,7 +269,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: syntax is <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw] -- the acting member is required, and it is the only thing selecting which user token performs the search" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-search-messages || { set +e ; return 1 ; }
@@ -300,7 +300,7 @@ case "$1" in
 							set +e ; return 1
 						fi
 						if [ -z "${2:-}" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: $1 requires a value" >&2
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: $1 value missing" >&2
 							set +e ; return 1
 						fi
 						cutoffKind="$1" ; cutoffValue="$2" ; shift 2
@@ -514,7 +514,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: syntax is <team-member> <channel>:<ts> <emoji-name> [--identity-bot] -- the acting member is required, since a reaction is posted by one identity and the member decides which one posts it" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-react || { set +e ; return 1 ; }
@@ -628,7 +628,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: syntax is <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot] -- the acting member is required, since Slack permits deleting only a message the acting identity itself authored" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-delete-message || { set +e ; return 1 ; }
@@ -662,7 +662,7 @@ case "$1" in
 			done
 
 			if [ "${#deleteTargets[@]}" -eq 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: syntax is <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot] -- at least one target is required. <channel>:<ts> only, same target grammar as --member-comms-slack-react (no magic-team/human-owner shortcut, since a deletion always targets one exact message, not a channel)" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: <channel>:<ts> missing" >&2
 				set +e ; return 1
 			fi
 
@@ -766,7 +766,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: syntax is <team-member> <channel>:<ts> [--identity-bot] [text...] -- the acting member is required, since Slack permits editing only a message the acting identity itself authored" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-edit-message || { set +e ; return 1 ; }
@@ -785,7 +785,7 @@ case "$1" in
 			shift || true
 
 			if [ -z "$target" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: syntax is <team-member> <channel>:<ts> [--identity-bot] [text...] -- or --from-stdin / --from-file <path>. <channel>:<ts> only, same target grammar as --member-comms-slack-delete-message (no magic-team/human-owner shortcut, since an edit replaces one exact message, not a channel)" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: <channel>:<ts> missing" >&2
 				set +e ; return 1
 			fi
 
@@ -800,12 +800,20 @@ case "$1" in
 						fromStdin="true" ; shift
 					;;
 					--from-file)
-						if [ -z "$2" ] || [ ! -f "$2" ] ; then
+						if [ $# -lt 2 ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: --from-file value missing" >&2
+							set +e ; return 1
+						fi
+						if [ -z "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: --from-file invalid: ${2:-<no value>}" >&2
+							set +e ; return 1
+						fi
+						if [ ! -f "$2" ] ; then
 							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: --from-file: file not found: $2" >&2
 							set +e ; return 1
 						fi
 						stdinContent="$( cat "$2" )"
-						fromStdin="true"
+						fromStdin="file"
 						shift 2
 					;;
 					--*)
@@ -819,8 +827,16 @@ case "$1" in
 			done
 
 			local sourceText
-			if [ "$fromStdin" = "true" ] ; then
-				[ -n "$stdinContent" ] || stdinContent="$( cat )"
+			if [ "$fromStdin" = "file" ] && [ -n "$textArgs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: --from-file given alongside trailing body argv -- use one or the other, not both" >&2
+				set +e ; return 1
+			fi
+			if [ "$fromStdin" = "true" ] && [ -n "$textArgs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: --from-stdin given alongside trailing body argv -- use one or the other, not both" >&2
+				set +e ; return 1
+			fi
+			if [ "$fromStdin" != "false" ] ; then
+				[ "$fromStdin" = "file" ] || [ -n "$stdinContent" ] || stdinContent="$( cat )"
 				sourceText="$stdinContent"
 			else
 				sourceText="${textArgs# }"
@@ -898,7 +914,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: syntax is <team-member> <file-id> [--identity-bot] [--raw] -- the acting member is required, since a file lives in a conversation and the identity asking decides whether it is visible at all" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-file-info || { set +e ; return 1 ; }
@@ -917,7 +933,7 @@ case "$1" in
 			shift || true
 
 			if [ -z "$fileId" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: syntax is <team-member> <file-id> [--identity-bot] [--raw] -- a Slack file id (F...), not a URL, a filename or a message ts. This op reports metadata ABOUT a file and never retrieves its content." >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: <file-id> missing" >&2
 				set +e ; return 1
 			fi
 
@@ -1059,7 +1075,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: syntax is <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite] -- the acting member is required, since a file lives in a conversation and the identity fetching decides whether its bytes are reachable at all" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-fetch: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-file-fetch || { set +e ; return 1 ; }
@@ -1282,7 +1298,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: syntax is <team-member> <target> (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-file-share || { set +e ; return 1 ; }
@@ -1301,7 +1317,7 @@ case "$1" in
 			local shareTarget="$1"
 			shift || true
 			if [ -z "$shareTarget" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: a <target> is required -- a share needs a conversation to land in." >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: <target> missing" >&2
 				set +e ; return 1
 			fi
 
@@ -1320,21 +1336,21 @@ case "$1" in
 					;;
 					--snippet-type)
 						if [ -z "${2:-}" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: --snippet-type: value required" >&2
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: --snippet-type value missing" >&2
 							set +e ; return 1
 						fi
 						shareSnippetType="$2" ; shift 2
 					;;
 					--title)
 						if [ -z "${2:-}" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: --title: value required" >&2
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: --title value missing" >&2
 							set +e ; return 1
 						fi
 						shareTitle="$2" ; shift 2
 					;;
 					--comment)
 						if [ -z "${2:-}" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: --comment: value required" >&2
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: --comment value missing" >&2
 							set +e ; return 1
 						fi
 						shareComment="$2" ; shareCommentGiven="true" ; shift 2
@@ -1533,7 +1549,7 @@ case "$1" in
 		local memberName="$1"
 		shift || true
 		if [ -z "$memberName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: syntax is <team-member> <target> [--identity-bot] [--address-to <who>]... [text...] (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>) -- or --from-stdin / --from-file <path>, each with [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: <team-member> missing" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-send-message || { set +e ; return 1 ; }
@@ -1553,7 +1569,7 @@ case "$1" in
 		shift || true
 
 		if [ -z "$target" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: target required (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>)" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: <target> missing" >&2
 			set +e ; return 1
 		fi
 
@@ -1613,38 +1629,54 @@ case "$1" in
 				;;
 				--address-to)
 					if [ $# -lt 2 ] || [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to requires a value (a team member name, a Slack user id, or a conversation id)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to value missing" >&2
 						set +e ; return 1
 					fi
 					addressToList="$addressToList $2" ; shift 2
 				;;
 				--message-text)
 					if [ $# -lt 2 ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --message-text requires a value" >&2
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --message-text value missing" >&2
 						set +e ; return 1
 					fi
 					messageText="$2" ; messageTextGiven="true" ; shift 2
 				;;
 				--message-text-from-file)
-					if [ -z "$2" ] || [ ! -f "$2" ] ; then
+					if [ $# -lt 2 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --message-text-from-file value missing" >&2
+						set +e ; return 1
+					fi
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --message-text-from-file invalid: ${2:-<no value>}" >&2
+						set +e ; return 1
+					fi
+					if [ ! -f "$2" ] ; then
 						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --message-text-from-file: file not found: $2" >&2
 						set +e ; return 1
 					fi
 					messageText="$( cat "$2" )" ; messageTextGiven="true" ; shift 2
 				;;
 				--from-file)
-					if [ -z "$2" ] || [ ! -f "$2" ] ; then
+					if [ $# -lt 2 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --from-file value missing" >&2
+						set +e ; return 1
+					fi
+					if [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --from-file invalid: ${2:-<no value>}" >&2
+						set +e ; return 1
+					fi
+					if [ ! -f "$2" ] ; then
 						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --from-file: file not found: $2" >&2
 						set +e ; return 1
 					fi
 					stdinContent="$( cat "$2" )"
-					fromStdin="true"
+					fromStdin="file"
 					bodySourceKind="file"
 					shift 2
 				;;
 				--format)
 					if [ $# -lt 2 ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format requires a value" >&2
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --format value missing" >&2
 						set +e ; return 1
 					fi
 					format="$2" ; shift 2
@@ -1660,8 +1692,16 @@ case "$1" in
 		done
 
 		local rawText blocksJson sourceText
-		if [ "$fromStdin" = "true" ] ; then
-			[ -n "$stdinContent" ] || stdinContent="$( cat )"
+		if [ "$fromStdin" = "file" ] && [ -n "$textArgs" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --from-file given alongside trailing body argv -- use one or the other, not both" >&2
+			set +e ; return 1
+		fi
+		if [ "$fromStdin" = "true" ] && [ -n "$textArgs" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --from-stdin given alongside trailing body argv -- use one or the other, not both" >&2
+			set +e ; return 1
+		fi
+		if [ "$fromStdin" != "false" ] ; then
+			[ "$fromStdin" = "file" ] || [ -n "$stdinContent" ] || stdinContent="$( cat )"
 			sourceText="$stdinContent"
 		else
 			sourceText="${textArgs# }"

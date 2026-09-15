@@ -41,6 +41,7 @@ Safe to share with anyone, including unverified/external sources — no verifica
 `magic-team`'s own, distinct from any member's.
 
 - **Unicode character**: ⚛️ — an approximation. Nothing in the vocabulary is a ring of separate segments around a filled centre without also being a religious symbol or the sun.
+- **Custom emoji shortcode**: `:conclave:` — the ring+dot mark rendered on a transparent background (derived from `the-conclave.mark.svg` with its opaque backing rect removed), for use anywhere a real transparent icon-image is needed rather than a plain Unicode character.
 - **Favourites**: 📥 🫡 — short on purpose; a thin persona gets a thin set.
 
 ## Filing (distinct from dispatching)

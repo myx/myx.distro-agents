@@ -75,7 +75,7 @@ case "$1" in
 		local profileMember="$1"
 		shift || true
 		if [ -z "$profileMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: syntax is <team-member> [--display-name <v>] [--title <v>] [--status-text <v>] [--status-emoji <v>] [--status-expiry <ts>] [--avatar <path>] [--presence auto|away] [--snooze <minutes>|--snooze-end] -- the acting member is required, and it is the account whose own profile is written: this operation has no other way to know whose persona it is setting" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: <team-member> missing" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$profileMember" "<team-member>" member-comms-slack-profile-set || { set +e ; return 1 ; }
@@ -109,7 +109,7 @@ case "$1" in
 					## Positional presence, not a non-empty test: `--status-text ""`
 					## is how a status is cleared.
 					if [ $# -lt 2 ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: $1: a value is required (pass an empty string to clear the field)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: $1 value missing" >&2
 						set +e ; return 1
 					fi
 					case "$1" in
@@ -151,7 +151,7 @@ case "$1" in
 						set +e ; return 1
 					fi
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --status-expiry: value required (epoch seconds, or 0 for no expiry)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --status-expiry value missing" >&2
 						set +e ; return 1
 					fi
 					if ! printf '%s\n' "$2" | LC_ALL=C grep -qE '^[0-9][0-9]*$' ; then
@@ -185,7 +185,7 @@ case "$1" in
 						set +e ; return 1
 					fi
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --snooze: value required (a positive whole number of minutes)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --snooze value missing" >&2
 						set +e ; return 1
 					fi
 					if ! printf '%s\n' "$2" | LC_ALL=C grep -qE '^[0-9][0-9]*$' || [ "$2" = "0" ] ; then
@@ -211,7 +211,7 @@ case "$1" in
 						set +e ; return 1
 					fi
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --avatar: value required (a path to an image file). There is no empty value here: Slack has no 'clear the photo' form of this call, so an avatar is replaced, never unset." >&2
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-set: --avatar value missing" >&2
 						set +e ; return 1
 					fi
 					case "$2" in
@@ -385,7 +385,7 @@ case "$1" in
 		local profileMember="$1"
 		shift || true
 		if [ -z "$profileMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: syntax is <team-member> [--raw] -- the acting member is required, and it is the account being read: a profile, a presence and a do-not-disturb state each belong to one Slack account" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-profile-get: <team-member> missing" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$profileMember" "<team-member>" member-comms-slack-profile-get || { set +e ; return 1 ; }

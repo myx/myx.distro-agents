@@ -19,8 +19,12 @@
 ## The helper takes every value as an argument and reads nothing from a
 ## caller's frame, so no arm owes it a `local` declaration.
 ##
-## Exit: 0 answered, 1 contract error, 3 answer UNKNOWN, 4 credential rejected,
-## 5 conflict (HTTP 409 -- stale precondition, re-read and retry, not UNKNOWN).
+## Exit -- the mark follows the CLASS, never the number (MAGIC.md severity marks).
+## 0 answered. Faults, ⛔ ERROR: 1 contract error, 3 answer UNKNOWN, 4 credential
+## rejected (401). Designed refusals, 🙋 WARNING -- the site answered and the
+## answer is no: 5 conflict (409), 6 not configured, 7 forbidden (403), 8 not
+## found or invisible (404), 9 the site answered and refused, and no retry of the
+## same request will change it (every other 4xx, 410 included).
 ##
 
 ## One authenticated Atlassian request. Arguments in order: acting member,
@@ -39,7 +43,7 @@ AgentsToolsAtlassianCall() {
 		;;
 		*)
 			if [ ! -d "$MDAT_SKILLSET_ROOT/$actingMember" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --$callContext: no such member skill directory: $MDAT_SKILLSET_ROOT/$actingMember" >&2
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: no such member skill directory: $MDAT_SKILLSET_ROOT/$actingMember" >&2
 				return 1
 			fi
 		;;
@@ -50,7 +54,7 @@ AgentsToolsAtlassianCall() {
 		jira)       keyPrefix=JIRA ;;
 		confluence) keyPrefix=CONFLUENCE ;;
 		*)
-			echo "⛔ ERROR: $MDSC_CMD --$callContext: unknown product: $productName -- jira or confluence" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: --product invalid: $productName" >&2
 			return 1
 		;;
 	esac
@@ -58,7 +62,7 @@ AgentsToolsAtlassianCall() {
 	case "$methodName" in
 		GET|POST|PUT|DELETE) ;;
 		*)
-			echo "⛔ ERROR: $MDSC_CMD --$callContext: unknown method: $methodName -- GET, POST, PUT or DELETE" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: --method invalid: $methodName" >&2
 			return 1
 		;;
 	esac
@@ -66,7 +70,7 @@ AgentsToolsAtlassianCall() {
 	case "$pathText" in
 		/*) ;;
 		*)
-			echo "⛔ ERROR: $MDSC_CMD --$callContext: the path must start with '/' and carry no scheme or host: $pathText" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: the path must start with '/' and carry no scheme or host: $pathText" >&2
 			return 1
 		;;
 	esac
@@ -77,9 +81,15 @@ AgentsToolsAtlassianCall() {
 	local siteHost="$( DistroAgentsTools --agents-config-option "$actingMember" --select "${keyPrefix}_SITE" )"
 	local userEmail="$( DistroAgentsTools --agents-config-option "$actingMember" --select "${keyPrefix}_USER" )"
 	local apiToken="$( DistroAgentsTools --agents-config-option "$actingMember" --select "${keyPrefix}_API_TOKEN" )"
+	## Not a contract error: a member holding no credential for this product is an
+	## expected state, so it carries its own code rather than 1.
 	if [ -z "$siteHost" ] || [ -z "$userEmail" ] || [ -z "$apiToken" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE/${keyPrefix}_USER/${keyPrefix}_API_TOKEN not fully set in ${actingMember}'s own scope in .local/.agents. Each product keeps its own key set even where one Atlassian token also serves both, so the other product's values are never read here" >&2
-		return 1
+		local missingKeys=""
+		[ -n "$siteHost" ] || missingKeys="${keyPrefix}_SITE"
+		[ -n "$userEmail" ] || missingKeys="${missingKeys:+$missingKeys/}${keyPrefix}_USER"
+		[ -n "$apiToken" ] || missingKeys="${missingKeys:+$missingKeys/}${keyPrefix}_API_TOKEN"
+		printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: $missingKeys missing" >&2
+		return 6
 	fi
 
 	## An embedded newline means the stored config is corrupted, and it is refused
@@ -87,7 +97,7 @@ AgentsToolsAtlassianCall() {
 	local configNewline=$'\n'
 	case "$siteHost$userEmail$apiToken" in
 		*"$configNewline"*)
-			echo "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE/${keyPrefix}_USER/${keyPrefix}_API_TOKEN in ${actingMember}'s own scope in .local/.agents contains a newline -- none of them ever legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting 401 would be misread as a revoked credential" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE/${keyPrefix}_USER/${keyPrefix}_API_TOKEN in ${actingMember}'s own scope in .local/.agents contains a newline -- none of them ever legitimately does, so the config is corrupted. The value is NOT stripped or repaired here: the resulting 401 would be misread as a revoked credential" >&2
 			return 1
 		;;
 	esac
@@ -96,7 +106,7 @@ AgentsToolsAtlassianCall() {
 	## rather than raise an obvious error.
 	case "$siteHost" in
 		*/*|*:*)
-			echo "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE must be a bare host such as example.atlassian.net -- no scheme, no path, no port. Got: $siteHost" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: ${keyPrefix}_SITE invalid: $siteHost" >&2
 			return 1
 		;;
 	esac
@@ -111,9 +121,9 @@ AgentsToolsAtlassianCall() {
 	## the flag that would stop it is not portable; a wrapped header is not one.
 	## curl's own stderr passes through untouched, keeping stdout the body alone.
 	local curlOut curlRc=0
-	curlOut="$( curl "${curlArgs[@]}" <<< "Authorization: Basic $( printf '%s' "$userEmail:$apiToken" | base64 | tr -d '\n' )" )" || curlRc=$?
+	curlOut="$( printf '%s\n' "Authorization: Basic $( printf '%s' "$userEmail:$apiToken" | base64 | tr -d '\n' )" | curl "${curlArgs[@]}" )" || curlRc=$?
 	if [ "$curlRc" -ne 0 ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --$callContext: the call could not be performed (curl exit $curlRc), so the answer is UNKNOWN, not empty" >&2
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: curl exit $curlRc" >&2
 		return 3
 	fi
 
@@ -127,30 +137,112 @@ AgentsToolsAtlassianCall() {
 		204)
 			## Reached and succeeded with nothing to return, which is what every
 			## write answers. Said on stderr so stdout stays the body alone.
-			echo "# $MDSC_CMD --$callContext: HTTP 204, the request succeeded and the response carries no content. This is an answer, not a failed call" >&2
+			printf '%s\n' "# $MDSC_CMD --$callContext: HTTP 204, the request succeeded and the response carries no content. This is an answer, not a failed call" >&2
 			return 0
 		;;
-		401|403)
-			echo "⛔ ERROR: $MDSC_CMD --$callContext: the site rejected the credential with HTTP $httpStatus. The answer is UNKNOWN. A 401 usually means the email or API token is wrong or the token has been revoked; a 403 usually means the account is authenticated but has no permission on that content. Neither is fixed by retrying. Atlassian's own response: $responseBody" >&2
+		## 401 and 403 were one arm and are two: a rejected token is our fault, an
+		## authenticated identity refused on that content is the site's decision.
+		401)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: 401${responseBody:+: $responseBody}" >&2
 			return 4
 		;;
+		403)
+			printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: 403${responseBody:+: $responseBody}" >&2
+			return 7
+		;;
 		404)
-			echo "⛔ ERROR: $MDSC_CMD --$callContext: HTTP 404, so the answer is UNKNOWN. This is NOT proof the content is absent: Atlassian returns 404 both for genuinely missing content and for content this account cannot see. Atlassian's own response: $responseBody" >&2
-			return 3
+			printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: 404${responseBody:+: $responseBody}" >&2
+			return 8
 		;;
 		409)
-			echo "⛔ ERROR CONFLICT: $MDSC_CMD --$callContext: HTTP 409 CONFLICT, a stale precondition -- NOT the same UNKNOWN a 3 reports. A conditional write's own version/If-Match no longer matches the current state: re-read the current state and retry against it, never resubmit the same body unchanged. Atlassian's own response: $responseBody" >&2
+			printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: 409${responseBody:+: $responseBody}" >&2
 			return 5
 		;;
-		410)
-			echo "⛔ ERROR: $MDSC_CMD --$callContext: HTTP 410, which Atlassian returns for a REST endpoint it has retired. The answer is UNKNOWN, and no retry helps: the path has to be moved to whatever the response names. Atlassian's own response: $responseBody" >&2
-			return 3
+		4??)
+			printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: $httpStatus${responseBody:+: $responseBody}" >&2
+			return 9
 		;;
 		*)
-			echo "⛔ ERROR: $MDSC_CMD --$callContext: the call failed with HTTP $httpStatus, so the answer is UNKNOWN, not empty. Atlassian's own response: $responseBody" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: $httpStatus${responseBody:+: $responseBody}" >&2
 			return 3
 		;;
 	esac
+}
+
+
+## A whole number, or a refusal naming the field it came from. Arguments: value,
+## field label, calling context.
+AgentsToolsAtlassianAssertNumber() {
+	case "$1" in
+		''|*[!0123456789]*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$3: $2 not a number: $1" >&2
+			return 1
+		;;
+	esac
+	return 0
+}
+
+AgentsToolsJiraAgileRead() {
+	local agileMember="$1" agilePath="$2" agileContext="$3" agileStartAt="$4" agileLimit="$5" agileArray="$6"
+	local agileJoin="?"
+	case "$agilePath" in *'?'*) agileJoin="&" ;; esac
+	if [ -n "$agileStartAt" ] ; then agilePath="$agilePath${agileJoin}startAt=$agileStartAt" ; agileJoin="&" ; fi
+	## Jira spells the page size maxResults; --limit is this package's own
+	## caller-facing spelling, shared with the Confluence listings.
+	if [ -n "$agileLimit" ] ; then agilePath="$agilePath${agileJoin}maxResults=$agileLimit" ; fi
+	local agileBody agileRc=0
+	agileBody="$( AgentsToolsAtlassianCall "$agileMember" jira GET "$agilePath" "$agileContext" "" )" || agileRc=$?
+	if [ "$agileRc" -ne 0 ] ; then
+		return "$agileRc"
+	fi
+	printf '%s\n' "$agileBody"
+	if [ -n "$agileArray" ] ; then
+		local agileFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
+		local agileTotal="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v path=total -v optional=1 -f "$agileFieldAwk" 2>/dev/null )"
+		local agileRespStart="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v path=startAt -v optional=1 -f "$agileFieldAwk" 2>/dev/null )"
+		local agileRows agileCount=0 agileRowsRc=0
+		agileRows="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v array="$agileArray" -v want=key -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" 2>/dev/null )" || agileRowsRc=$?
+		if [ "$agileRowsRc" -ne 0 ] ; then
+			printf '%s\n' "# $agileContext: more: unknown -- this response carried no readable $agileArray array, so the rows on this page cannot be counted. That is NOT a confirmation that the page is complete" >&2
+			return 0
+		fi
+		[ -z "$agileRows" ] || agileCount="$( printf '%s\n' "$agileRows" | awk 'END { print NR }' )"
+		case "$agileTotal" in
+			''|*[!0123456789]*)
+				printf '%s\n' "# $agileContext: more: unknown -- this response carried no numeric total, so whether rows exist beyond the $agileCount here cannot be told from it. That is NOT a confirmation that the page is complete" >&2
+			;;
+			*)
+				case "$agileRespStart" in
+					''|*[!0123456789]*)
+						printf '%s\n' "# $agileContext: more: unknown -- this response carried no numeric startAt, so completeness cannot be computed from it. That is NOT a confirmation that the page is complete" >&2
+					;;
+					*)
+						if [ "$(( agileRespStart + agileCount ))" -lt "$agileTotal" ] ; then
+							printf '%s\n' "# $agileContext: more: yes -- $agileTotal rows in total; this page starts at $agileRespStart and carries $agileCount, so the rest were not read. Pass $(( agileRespStart + agileCount )) back as --start-at" >&2
+						elif [ "$agileCount" -eq 0 ] ; then
+							printf '%s\n' "# $agileContext: more: no -- $agileTotal rows in total; this page starts at $agileRespStart and carries none" >&2
+						else
+							printf '%s\n' "# $agileContext: more: no -- $agileTotal rows in total; this page starts at $agileRespStart and ends at the last of them" >&2
+						fi
+					;;
+				esac
+			;;
+		esac
+		return 0
+	fi
+	local agileIsLast="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v path=isLast -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+	case "$agileIsLast" in
+		true)
+			printf '%s\n' "# $agileContext: more: no -- the site reported isLast=true, so the rows above are the complete set visible to $agileMember" >&2
+		;;
+		false)
+			printf '%s\n' "# $agileContext: more: yes -- MORE RESULTS EXIST beyond this page and were not read. Read this page's own startAt and maxResults from the body above and pass their sum back as --start-at" >&2
+		;;
+		*)
+			printf '%s\n' "# $agileContext: more: unknown -- this response carried no isLast field, so whether more results exist cannot be told from it. That is NOT a confirmation that the page is complete" >&2
+		;;
+	esac
+	return 0
 }
 
 ## Percent-encodes one value for a URL path segment or query string, byte for
@@ -172,6 +264,40 @@ AgentsToolsAtlassianUrlEncode() {
 	}'
 }
 
+## Validates that a caller-supplied ADF document (an issue description, a
+## comment body) is at least syntactically valid JSON before it is spliced
+## into a request body -- a malformed value here would otherwise surface as a
+## confusing Atlassian 400 instead of a clear local one. Arguments: the JSON
+## text, a label for the error, and the calling context. Shared by every Jira
+## write arm below.
+AgentsToolsJiraAdfValidate() {
+	local adfText="$1" adfLabel="$2" adfContext="$3"
+	if ! python3 -c "import json,sys; json.loads(sys.argv[1])" "$adfText" >/dev/null 2>&1 ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$adfContext: $adfLabel is not valid JSON -- an Atlassian Document Format value is a full JSON document ({\"type\":\"doc\",\"version\":1,\"content\":[...]}), and the value passed did not parse as one" >&2
+		return 1
+	fi
+	return 0
+}
+
+case "$1" in
+	--intern-op-atlassian-*)
+		local scanSeen=" " scanArg
+		for scanArg in "$@" ; do
+			case "$scanArg" in
+				--member|--context)
+					case "$scanSeen" in
+						*" $scanArg "*)
+							printf '%s\n' "⛔ ERROR: $MDSC_CMD: $scanArg is given twice, so the call is refused before anything is sent" >&2
+							set +e ; return 1
+						;;
+					esac
+					scanSeen="$scanSeen$scanArg "
+				;;
+			esac
+		done
+	;;
+esac
+
 case "$1" in
 
 	--intern-op-atlassian-call)
@@ -182,7 +308,7 @@ case "$1" in
 			case "$1" in
 				--member|--product|--method|--path|--json-body|--context)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-call: $1 requires a value" >&2
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-call: $1 value missing" >&2
 						set +e ; return 1
 					fi
 					case "$1" in
@@ -196,13 +322,13 @@ case "$1" in
 					shift 2
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-call: invalid option: $1" >&2
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-call: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$callMember" ] || [ -z "$callProduct" ] || [ -z "$callPath" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-call: syntax is --member <team-member> --product jira|confluence --path </rest/...> [--method GET|POST|PUT|DELETE] [--json-body <json>] [--context <caller>] -- the acting member is required, since an API token resolves to exactly one Atlassian account and a read returns only what that identity can see" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-call: syntax is --member <team-member> --product jira|confluence --path </rest/...> [--method GET|POST|PUT|DELETE] [--json-body <json>] [--context <caller>] -- the acting member is required, since an API token resolves to exactly one Atlassian account and a read returns only what that identity can see" >&2
 			set +e ; return 1
 		fi
 		local callRc=0
@@ -218,7 +344,7 @@ case "$1" in
 			case "$1" in
 				--member|--product)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: $1 requires a value" >&2
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: $1 value missing" >&2
 						set +e ; return 1
 					fi
 					case "$1" in
@@ -228,13 +354,13 @@ case "$1" in
 					shift 2
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: invalid option: $1" >&2
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$checkMember" ] || [ -z "$checkProduct" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: syntax is --member <team-member> --product jira|confluence -- the acting member is required, since this operation exists to say which Atlassian account that member's own credential resolves to" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: syntax is --member <team-member> --product jira|confluence -- the acting member is required, since this operation exists to say which Atlassian account that member's own credential resolves to" >&2
 			set +e ; return 1
 		fi
 		## Each product names its own current-user endpoint; there is no shared one.
@@ -243,23 +369,1310 @@ case "$1" in
 			jira)       checkPath="/rest/api/3/myself" ;;
 			confluence) checkPath="/wiki/rest/api/user/current" ;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: unknown product: $checkProduct -- jira or confluence" >&2
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: --product invalid: $checkProduct" >&2
 				set +e ; return 1
 			;;
 		esac
 		local checkRc=0
 		AgentsToolsAtlassianCall "$checkMember" "$checkProduct" GET "$checkPath" intern-op-atlassian-check "" || checkRc=$?
 		if [ "$checkRc" -ne 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-atlassian-check: COULD NOT DETERMINE which Atlassian account ${checkMember}'s $checkProduct credential resolves to (rc=$checkRc) -- the acting identity is UNKNOWN, which is NOT the same as anonymous; the diagnostic above is the site's own" >&2
 			set +e ; return "$checkRc"
+		fi
+		return 0
+	;;
+
+	## Confluence spaces, the one endpoint behind every space listing. It names its
+	## product because it is product-specific: --call and --check take --product and
+	## serve both, while only Confluence has spaces. Same shape for any future
+	## product-specific op in this family.
+	--intern-op-atlassian-confluence-space-list)
+		shift
+		local spaceMember="" spaceCursor="" spaceLimit="" spaceContext="intern-op-atlassian-confluence-space-list"
+		while [ $# -gt 0 ] ; do
+			## Every flag here takes a value, so the one emptiness check covers them all.
+			case "$1" in
+				--member|--cursor|--limit|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)  spaceMember="$2" ;;
+						--cursor)  spaceCursor="$2" ;;
+						--limit)   spaceLimit="$2" ;;
+						--context) spaceContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$spaceMember" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: syntax is --member <team-member> [--cursor <value>] [--limit <n>] [--context <caller>] -- the acting member is required, since the listing is exactly what that identity can see" >&2
+			set +e ; return 1
+		fi
+		## The cursor lands in the query string, so a value carrying '&' would append
+		## parameters of its own -- changing sort or status MID-WALK, which silently
+		## skips or repeats rows and breaks the completeness this operation reports.
+		## Refused, never repaired, matching the Slack target grammar; re-encoding is
+		## not the fix, since it double-encodes the padding a real cursor ends in.
+		## Enumerated, never a bracket range: those are collation-dependent.
+		local spaceCursorRest="$spaceCursor" spaceCursorChar
+		while [ -n "$spaceCursorRest" ] ; do
+			spaceCursorChar="${spaceCursorRest%"${spaceCursorRest#?}"}"
+			spaceCursorRest="${spaceCursorRest#?}"
+			case "$spaceCursorChar" in
+				a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+				A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+				0|1|2|3|4|5|6|7|8|9) ;;
+				-|_|.|~|%|=|+|/) ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: --cursor invalid: $spaceCursor" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -n "$spaceLimit" ] ; then
+			case "$spaceLimit" in
+				''|*[!0123456789]*|0)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: --limit not above zero: $spaceLimit" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		## The same v2 endpoint page-create already resolves a space key against.
+		local spacePath="/wiki/api/v2/spaces" spaceJoin="?"
+		## Atlassian's own already-encoded token, taken from its next link verbatim:
+		## re-encoding it here would double-encode the padding it ends in.
+		if [ -n "$spaceCursor" ] ; then spacePath="$spacePath${spaceJoin}cursor=$spaceCursor" ; spaceJoin="&" ; fi
+		if [ -n "$spaceLimit" ] ; then spacePath="$spacePath${spaceJoin}limit=$spaceLimit" ; fi
+		local spaceBody spaceRc=0
+		spaceBody="$( AgentsToolsAtlassianCall "$spaceMember" confluence GET "$spacePath" "$spaceContext" "" )" || spaceRc=$?
+		if [ "$spaceRc" -ne 0 ] ; then
+			set +e ; return "$spaceRc"
+		fi
+		local spaceRows spaceRowsRc=0
+		spaceRows="$( printf '%s\n' "$spaceBody" | LC_ALL=C awk -v array=results -v want='id,key,name,type,status' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || spaceRowsRc=$?
+		if [ "$spaceRowsRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: results array unreadable" >&2
+			set +e ; return 3
+		fi
+		printf 'SPACE_ID\tKEY\tNAME\tTYPE\tSTATUS\n'
+		[ -z "$spaceRows" ] || printf '%s\n' "$spaceRows"
+		## Unlike page-search, this endpoint DOES terminate: _links.next is present
+		## while pages follow and absent on the last one. Measured at both ends.
+		local spaceNext="$( printf '%s\n' "$spaceBody" | LC_ALL=C awk -v path=_links.next -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+		if [ -n "$spaceNext" ] ; then
+			## Cut at the FIRST '&': from page 2 on the next link appends &limit=N after
+			## the cursor, and emitting that whole tail prints a value this operation's
+			## own validator then refuses -- while the refusal tells the caller to pass
+			## back exactly what was printed. Measured: page 3 of a --limit walk.
+			local spaceNextCursor="${spaceNext#*cursor=}"
+			spaceNextCursor="${spaceNextCursor%%&*}"
+			printf '%s\n' "# $spaceContext: more: yes -- MORE SPACES EXIST beyond this page and were not read. Continue with --cursor $spaceNextCursor" >&2
+		else
+			printf '%s\n' "# $spaceContext: more: no -- this response carries no next link, which this endpoint omits only on its last page, so the spaces above are the complete set visible to $spaceMember" >&2
+		fi
+		return 0
+	;;
+
+	## Jira agile boards, the one endpoint behind every board listing. Names its
+	## product for the same reason the Confluence op above does.
+	--intern-op-atlassian-jira-board-list)
+		shift
+		local boardMember="" boardStartAt="" boardLimit="" boardContext="intern-op-atlassian-jira-board-list"
+		while [ $# -gt 0 ] ; do
+			## Every flag here takes a value, so the one emptiness check covers them all.
+			case "$1" in
+				--member|--start-at|--limit|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)   boardMember="$2" ;;
+						--start-at) boardStartAt="$2" ;;
+						--limit)    boardLimit="$2" ;;
+						--context)  boardContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$boardMember" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardContext: syntax is --member <team-member> [--start-at <n>] [--limit <n>] [--context <caller>] -- the acting member is required, since a board is visible only to identities its project is shared with" >&2
+			set +e ; return 1
+		fi
+		## Both land in the query string, so a value carrying '&' would append
+		## parameters of its own and silently change the result set mid-walk. Whole
+		## numbers only, refused rather than repaired. --start-at 0 is the first
+		## page and legitimate; a --limit of 0 asks for nothing.
+		if [ -n "$boardStartAt" ] ; then
+			case "$boardStartAt" in
+				*[!0123456789]*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardContext: --start-at not a number: $boardStartAt" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		if [ -n "$boardLimit" ] ; then
+			case "$boardLimit" in
+				*[!0123456789]*|0)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardContext: --limit not above zero: $boardLimit" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		local boardPath="/rest/agile/1.0/board" boardJoin="?"
+		if [ -n "$boardStartAt" ] ; then boardPath="$boardPath${boardJoin}startAt=$boardStartAt" ; boardJoin="&" ; fi
+		## Jira spells the page size maxResults; --limit is this package's own
+		## caller-facing spelling, shared with the Confluence listings.
+		if [ -n "$boardLimit" ] ; then boardPath="$boardPath${boardJoin}maxResults=$boardLimit" ; fi
+		local boardBody boardRc=0
+		boardBody="$( AgentsToolsAtlassianCall "$boardMember" jira GET "$boardPath" "$boardContext" "" )" || boardRc=$?
+		if [ "$boardRc" -ne 0 ] ; then
+			set +e ; return "$boardRc"
+		fi
+		printf '%s\n' "$boardBody"
+		## isLast is the only truncation signal this endpoint carries, and all three
+		## states are stated: a complete page and an unanswerable one must never read
+		## alike, which is exactly what silence-means-complete made them.
+		local boardIsLast="$( printf '%s\n' "$boardBody" | LC_ALL=C awk -v path=isLast -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+		case "$boardIsLast" in
+			true)
+				printf '%s\n' "# $boardContext: more: no -- the site reported isLast=true, so the boards above are the complete set visible to $boardMember" >&2
+			;;
+			false)
+				printf '%s\n' "# $boardContext: more: yes -- MORE BOARDS EXIST beyond this page and were not read. Read this page's own startAt and maxResults from the body above and pass their sum back as --start-at" >&2
+			;;
+			*)
+				printf '%s\n' "# $boardContext: more: unknown -- this response carried no isLast field, so whether more boards exist cannot be told from it. That is NOT a confirmation that the page is complete" >&2
+			;;
+		esac
+		return 0
+	;;
+
+	## One board. A single object rather than a page, so it carries no isLast and
+	## goes through the transport directly rather than the agile-read helper.
+	--intern-op-atlassian-jira-board-read)
+		shift
+		local boardReadMember="" boardReadId="" boardReadContext="intern-op-atlassian-jira-board-read"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--board-id|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardReadContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)   boardReadMember="$2" ;;
+						--board-id) boardReadId="$2" ;;
+						--context)  boardReadContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardReadContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$boardReadMember" ] || [ -z "$boardReadId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$boardReadContext: syntax is --member <team-member> --board-id <n> [--context <caller>] -- the acting member is required, since a board is visible only to identities its project is shared with" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$boardReadId" "<board-id>" "$boardReadContext" || { set +e ; return 1 ; }
+		local boardReadRc=0
+		AgentsToolsAtlassianCall "$boardReadMember" jira GET "/rest/agile/1.0/board/$boardReadId" "$boardReadContext" "" || boardReadRc=$?
+		if [ "$boardReadRc" -ne 0 ] ; then
+			## Worded conditionally: this arm also runs for an rc where no call was
+			## made, and an unconditional 404 note would describe a round trip that
+			## never happened.
+			set +e ; return "$boardReadRc"
+		fi
+		return 0
+	;;
+
+	## The three paged agile reads. Same shape, different path, so they share the
+	## agile-read helper and differ only in which id they take.
+	--intern-op-atlassian-jira-board-issue-search|--intern-op-atlassian-jira-sprint-list|--intern-op-atlassian-jira-sprint-issue-search)
+		local agileOpName="${1#--intern-op-atlassian-jira-}"
+		shift
+		local agileOpMember="" agileOpId="" agileOpStartAt="" agileOpLimit="" agileOpContext="intern-op-atlassian-jira-$agileOpName"
+		local agileOpIdFlag="--board-id"
+		case "$agileOpName" in sprint-issue-search) agileOpIdFlag="--sprint-id" ;; esac
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--board-id|--sprint-id|--start-at|--limit|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$agileOpContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)               agileOpMember="$2" ;;
+						--board-id|--sprint-id) agileOpId="$2" ;;
+						--start-at)             agileOpStartAt="$2" ;;
+						--limit)                agileOpLimit="$2" ;;
+						--context)              agileOpContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$agileOpContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$agileOpMember" ] || [ -z "$agileOpId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$agileOpContext: syntax is --member <team-member> $agileOpIdFlag <n> [--start-at <n>] [--limit <n>] [--context <caller>] -- the acting member is required, since these rows are only those that identity can see" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$agileOpId" "<${agileOpIdFlag#--}>" "$agileOpContext" || { set +e ; return 1 ; }
+		## Both land in the query string, so a value carrying '&' would append
+		## parameters of its own and change the result set mid-walk.
+		if [ -n "$agileOpStartAt" ] ; then
+			AgentsToolsAtlassianAssertNumber "$agileOpStartAt" "--start-at" "$agileOpContext" || { set +e ; return 1 ; }
+		fi
+		if [ -n "$agileOpLimit" ] ; then
+			AgentsToolsAtlassianAssertNumber "$agileOpLimit" "--limit" "$agileOpContext" || { set +e ; return 1 ; }
+			case "$agileOpLimit" in 0) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$agileOpContext: --limit not above zero" >&2 ; set +e ; return 1 ;; esac
+		fi
+		local agileOpPath
+		case "$agileOpName" in
+			board-issue-search)  agileOpPath="/rest/agile/1.0/board/$agileOpId/issue" ;;
+			sprint-list)         agileOpPath="/rest/agile/1.0/board/$agileOpId/sprint" ;;
+			sprint-issue-search) agileOpPath="/rest/agile/1.0/sprint/$agileOpId/issue" ;;
+		esac
+		if [ "$agileOpName" = sprint-list ] ; then
+			local agileBoardBody agileBoardRc=0
+			agileBoardBody="$( AgentsToolsAtlassianCall "$agileOpMember" jira GET "/rest/agile/1.0/board/$agileOpId" "$agileOpContext" "" )" || agileBoardRc=$?
+			if [ "$agileBoardRc" -ne 0 ] ; then
+				set +e ; return "$agileBoardRc"
+			fi
+			local agileBoardType="$( printf '%s\n' "$agileBoardBody" | LC_ALL=C awk -v path=type -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+			case "$agileBoardType" in
+				kanban)
+					printf '%s\n' '{"values":[]}'
+					printf '%s\n' "# $agileOpContext: more: no -- board $agileOpId is a kanban board, which holds no sprints; the sprint endpoint was not called, so the listing is empty" >&2
+					return 0
+				;;
+				simple)
+					local agileFeatureBody agileFeatureRc=0 agileFeatureRows agileFeatureRowsRc=0
+					agileFeatureBody="$( AgentsToolsAtlassianCall "$agileOpMember" jira GET "/rest/agile/1.0/board/$agileOpId/features" "$agileOpContext" "" )" || agileFeatureRc=$?
+					if [ "$agileFeatureRc" -ne 0 ] ; then
+						set +e ; return "$agileFeatureRc"
+					fi
+					agileFeatureRows="$( printf '%s\n' "$agileFeatureBody" | LC_ALL=C awk -v array=features -v want=boardFeature,state -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" 2>/dev/null )" || agileFeatureRowsRc=$?
+					local agileSprintState=""
+					[ "$agileFeatureRowsRc" -ne 0 ] || agileSprintState="$( printf '%s\n' "$agileFeatureRows" | LC_ALL=C awk -F '\t' '$1 == "SPRINTS" { print $2 ; exit }' )"
+					case "$agileSprintState" in
+						ENABLED) ;;
+						DISABLED)
+							printf '%s\n' '{"values":[]}'
+							printf '%s\n' "# $agileOpContext: more: no -- board $agileOpId is a simple board with its sprints feature disabled, so it holds no sprints; the sprint endpoint was not called, so the listing is empty" >&2
+							return 0
+						;;
+						*)
+							printf '%s\n' "⛔ ERROR: $MDSC_CMD --$agileOpContext: sprints feature state ${agileSprintState:-none} unrecognised" >&2
+							set +e ; return 3
+						;;
+					esac
+				;;
+			esac
+		fi
+		local agileArray=issues
+		case "$agileOpName" in sprint-list) agileArray="" ;; esac
+		local agileOpRc=0
+		AgentsToolsJiraAgileRead "$agileOpMember" "$agileOpPath" "$agileOpContext" "$agileOpStartAt" "$agileOpLimit" "$agileArray" || agileOpRc=$?
+		if [ "$agileOpRc" -ne 0 ] ; then set +e ; return "$agileOpRc" ; fi
+		return 0
+	;;
+
+	## One Jira issue search. Full impl: every flag a caller may need, none
+	## hardcoded -- --magic-*/--client-* stubs forward their own argv here
+	## unchanged, after inserting --member.
+	--intern-op-atlassian-jira-issue-search)
+		shift
+		local jiraSearchMember="" jiraSearchJql="" jiraSearchLimit="" jiraSearchContext="intern-op-atlassian-jira-issue-search"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--jql|--limit|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraSearchContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)  jiraSearchMember="$2" ;;
+						--jql)     jiraSearchJql="$2" ;;
+						--limit)   jiraSearchLimit="$2" ;;
+						--context) jiraSearchContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraSearchContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraSearchMember" ] || [ -z "$jiraSearchJql" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraSearchContext: syntax is --member <team-member> --jql <jql> [--limit <n>] [--context <caller>] -- the acting member is required, since a search returns only what that identity can see. Jira refuses an unrestricted query, so the JQL names at least one restriction: project = DATA ORDER BY updated DESC" >&2
+			set +e ; return 1
+		fi
+		[ -n "$jiraSearchLimit" ] || jiraSearchLimit=25
+		local jiraSearchPath="/rest/api/3/search/jql?jql=$( AgentsToolsAtlassianUrlEncode "$jiraSearchJql" )&maxResults=$( AgentsToolsAtlassianUrlEncode "$jiraSearchLimit" )&fields=$( AgentsToolsAtlassianUrlEncode "summary,status,issuetype,assignee,updated" )"
+		local jiraSearchBody jiraSearchRc=0
+		jiraSearchBody="$( AgentsToolsAtlassianCall "$jiraSearchMember" jira GET "$jiraSearchPath" "$jiraSearchContext" "" )" || jiraSearchRc=$?
+		if [ "$jiraSearchRc" -ne 0 ] ; then
+			set +e ; return "$jiraSearchRc"
+		fi
+		local jiraSearchRows jiraSearchRowsRc=0
+		jiraSearchRows="$( printf '%s\n' "$jiraSearchBody" | LC_ALL=C awk -v array=issues -v want='key,fields.issuetype.name,fields.status.name,fields.assignee.displayName,fields.updated,fields.summary' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || jiraSearchRowsRc=$?
+		if [ "$jiraSearchRowsRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraSearchContext: issues array unreadable" >&2
+			set +e ; return 3
+		fi
+		printf 'ISSUE_KEY\tTYPE\tSTATUS\tASSIGNEE\tUPDATED\tSUMMARY\n'
+		[ -z "$jiraSearchRows" ] || printf '%s\n' "$jiraSearchRows"
+		if [ -z "$jiraSearchRows" ] ; then
+			printf '%s\n' "# $jiraSearchContext: the query ran and matched nothing. Jira answers an unresolvable or malformed query with an empty page rather than an error, so this does NOT establish that no issue matches what you meant: re-check the query itself. The JQL as sent: $jiraSearchJql" >&2
+		fi
+		local jiraSearchIsLast="$( printf '%s\n' "$jiraSearchBody" | LC_ALL=C awk -v path=isLast -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+		case "$jiraSearchIsLast" in
+			true)
+				printf '%s\n' "# $jiraSearchContext: more: no -- the site reported isLast=true, so the issues above are the complete set this query matched for $jiraSearchMember" >&2
+			;;
+			false)
+				printf '%s\n' "# $jiraSearchContext: more: yes -- MORE ISSUES MATCH beyond this page and were not read. This endpoint returns no total, so how many is unknown; raise --limit or narrow the query" >&2
+			;;
+			*)
+				printf '%s\n' "# $jiraSearchContext: more: unknown -- this response carried no isLast field, so whether more issues match cannot be told from it. That is NOT a confirmation that the page is complete" >&2
+			;;
+		esac
+		return 0
+	;;
+
+	--intern-op-atlassian-jira-issue-read)
+		shift
+		local jiraReadMember="" jiraReadKeyArg="" jiraReadFormat="" jiraReadContext="intern-op-atlassian-jira-issue-read"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--issue-key|--format|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)    jiraReadMember="$2" ;;
+						--issue-key) jiraReadKeyArg="$2" ;;
+						--format)    jiraReadFormat="$2" ;;
+						--context)   jiraReadContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraReadMember" ] || [ -z "$jiraReadKeyArg" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: syntax is --member <team-member> --issue-key <issue-key> [--format adf|rendered] [--context <caller>] -- the acting member is required, since an issue is readable only by identities its project is shared with" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$jiraReadKeyArg" "<issue-key>" "$jiraReadContext" || { set +e ; return 1 ; }
+		[ -n "$jiraReadFormat" ] || jiraReadFormat=adf
+		case "$jiraReadFormat" in
+			adf|rendered) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: --format invalid: $jiraReadFormat" >&2 ; set +e ; return 1 ;;
+		esac
+		local jiraReadPath="/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraReadKeyArg" )?fields=$( AgentsToolsAtlassianUrlEncode "summary,status,assignee,reporter,priority,issuetype,resolution,labels,created,updated,description" )"
+		[ "$jiraReadFormat" = rendered ] && jiraReadPath="${jiraReadPath}&expand=renderedFields"
+		local jiraReadBody jiraReadRc=0
+		jiraReadBody="$( AgentsToolsAtlassianCall "$jiraReadMember" jira GET "$jiraReadPath" "$jiraReadContext" "" )" || jiraReadRc=$?
+		if [ "$jiraReadRc" -ne 0 ] ; then
+			set +e ; return "$jiraReadRc"
+		fi
+		local jiraReadFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
+		local jiraReadKeySeen="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=key -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )"
+		[ -n "$jiraReadKeySeen" ] || jiraReadKeySeen="$jiraReadKeyArg"
+		local jiraReadLabels="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.labels -v raw=1 -f "$jiraReadFieldAwk" 2>/dev/null | sed -e 's/^\[//' -e 's/\]$//' -e 's/"//g' )"
+		printf '# issue %s: type=%s status=%s resolution=%s assignee=%s reporter=%s priority=%s created=%s updated=%s labels=%s format=%s\n' \
+			"$jiraReadKeySeen" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.issuetype.name -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.status.name -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.resolution.name -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.assignee.displayName -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.reporter.displayName -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.priority.name -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.created -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.updated -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$jiraReadLabels" \
+			"$jiraReadFormat" >&2
+		printf '# issue %s: summary=%s\n' "$jiraReadKeySeen" "$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.summary -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" >&2
+		if [ "$jiraReadFormat" = rendered ] ; then
+			local jiraReadRendered="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=renderedFields.description -f "$jiraReadFieldAwk" 2>/dev/null )"
+			if [ -z "$jiraReadRendered" ] ; then
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: renderedFields description unreadable" >&2
+				set +e ; return 3
+			fi
+			printf '%s' "$jiraReadRendered"
+			return 0
+		fi
+		local jiraReadDescription jiraReadDescRc=0
+		jiraReadDescription="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.description -v raw=1 -f "$jiraReadFieldAwk" 2>/dev/null )" || jiraReadDescRc=$?
+		if [ "$jiraReadDescRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: description field unreadable" >&2
+			set +e ; return 3
+		fi
+		if [ -z "$jiraReadDescription" ] ; then
+			printf '%s\n' "# issue $jiraReadKeySeen: this issue really has no description -- the field was returned and its value is null, which is an answer, not a failed read" >&2
+		else
+			printf '%s\n' "$jiraReadDescription"
+		fi
+		return 0
+	;;
+
+	--intern-op-atlassian-jira-comment-read)
+		shift
+		local jiraCRMember="" jiraCRKey="" jiraCRFormat="" jiraCRStartAt="" jiraCRContext="intern-op-atlassian-jira-comment-read"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--issue-key|--format|--start-at|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCRContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)    jiraCRMember="$2" ;;
+						--issue-key) jiraCRKey="$2" ;;
+						--format)    jiraCRFormat="$2" ;;
+						--start-at)  jiraCRStartAt="$2" ;;
+						--context)   jiraCRContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCRContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraCRMember" ] || [ -z "$jiraCRKey" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCRContext: syntax is --member <team-member> --issue-key <issue-key> [--format adf|rendered] [--start-at <n>] [--context <caller>] -- the acting member is required, since comments are visible only to identities the issue is shared with" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$jiraCRKey" "<issue-key>" "$jiraCRContext" || { set +e ; return 1 ; }
+		[ -n "$jiraCRFormat" ] || jiraCRFormat=adf
+		case "$jiraCRFormat" in
+			adf|rendered) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCRContext: --format invalid: $jiraCRFormat" >&2 ; set +e ; return 1 ;;
+		esac
+		if [ -n "$jiraCRStartAt" ] ; then
+			AgentsToolsAtlassianAssertNumber "$jiraCRStartAt" "--start-at" "$jiraCRContext" || { set +e ; return 1 ; }
+		fi
+		local jiraCRPath="/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraCRKey" )/comment?maxResults=100"
+		[ -z "$jiraCRStartAt" ] || jiraCRPath="${jiraCRPath}&startAt=$jiraCRStartAt"
+		[ "$jiraCRFormat" = rendered ] && jiraCRPath="${jiraCRPath}&expand=renderedBody"
+		local jiraCRBody jiraCRRc=0
+		jiraCRBody="$( AgentsToolsAtlassianCall "$jiraCRMember" jira GET "$jiraCRPath" "$jiraCRContext" "" )" || jiraCRRc=$?
+		if [ "$jiraCRRc" -ne 0 ] ; then
+			set +e ; return "$jiraCRRc"
+		fi
+		local jiraCRWant='id,author.accountId,author.displayName,created,updated'
+		local jiraCRRawFlag=()
+		if [ "$jiraCRFormat" = rendered ] ; then
+			jiraCRWant="${jiraCRWant},renderedBody"
+		else
+			jiraCRWant="${jiraCRWant},body"
+			jiraCRRawFlag=( -v raw=body )
+		fi
+		local jiraCRRows jiraCRRowsRc=0
+		jiraCRRows="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v array=comments -v want="$jiraCRWant" "${jiraCRRawFlag[@]}" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || jiraCRRowsRc=$?
+		if [ "$jiraCRRowsRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCRContext: comments field unreadable" >&2
+			set +e ; return 3
+		fi
+		printf 'COMMENT_ID\tAUTHOR_ID\tAUTHOR_NAME\tCREATED\tUPDATED\tBODY\n'
+		[ -z "$jiraCRRows" ] || printf '%s\n' "$jiraCRRows"
+		local jiraCRFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
+		local jiraCRTotal="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v path=total -v optional=1 -f "$jiraCRFieldAwk" 2>/dev/null )"
+		local jiraCRRespStart="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v path=startAt -v optional=1 -f "$jiraCRFieldAwk" 2>/dev/null )"
+		local jiraCREmitted=0
+		[ -z "$jiraCRRows" ] || jiraCREmitted="$( printf '%s\n' "$jiraCRRows" | awk 'END { print NR }' )"
+		case "$jiraCRTotal" in
+			''|*[!0123456789]*)
+				printf '%s\n' "# $jiraCRContext: more: unknown -- this response carried no numeric total, so whether issue $jiraCRKey has comments beyond these $jiraCREmitted cannot be told from it. That is NOT a confirmation that the list is complete" >&2
+			;;
+			*)
+				case "$jiraCRRespStart" in
+					''|*[!0123456789]*)
+						printf '%s\n' "# $jiraCRContext: more: unknown -- this response carried no numeric startAt, so completeness cannot be computed from it. That is NOT a confirmation that the list is complete" >&2
+					;;
+					*)
+						if [ "$(( jiraCRRespStart + jiraCREmitted ))" -lt "$jiraCRTotal" ] ; then
+							printf '%s\n' "# $jiraCRContext: more: yes -- issue $jiraCRKey has $jiraCRTotal comments; this page starts at $jiraCRRespStart and carries $jiraCREmitted, so the rest were not read. Pass $(( jiraCRRespStart + jiraCREmitted )) back as --start-at" >&2
+						elif [ "$jiraCREmitted" -eq 0 ] ; then
+							printf '%s\n' "# $jiraCRContext: more: no -- issue $jiraCRKey has $jiraCRTotal comments; this page starts at $jiraCRRespStart and carries none" >&2
+						else
+							printf '%s\n' "# $jiraCRContext: more: no -- issue $jiraCRKey has $jiraCRTotal comments; this page starts at $jiraCRRespStart and ends at the last of them" >&2
+						fi
+					;;
+				esac
+			;;
+		esac
+		return 0
+	;;
+
+	--intern-op-atlassian-jira-issue-create)
+		shift
+		local jiraICMember="" jiraICProject="" jiraICIssuetype="" jiraICSummary="" jiraICSummaryGiven="false"
+		local jiraICDescriptionAdf="" jiraICDescriptionGiven="false" jiraICFieldsJson="" jiraICContext="intern-op-atlassian-jira-issue-create"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --member value missing" >&2 ; set +e ; return 1 ; } ; jiraICMember="$1" ; shift ;;
+				--project)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --project value missing" >&2 ; set +e ; return 1 ; } ; jiraICProject="$1" ; shift ;;
+				--issuetype)  shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --issuetype value missing" >&2 ; set +e ; return 1 ; } ; jiraICIssuetype="$1" ; shift ;;
+				--summary)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --summary value missing" >&2 ; set +e ; return 1 ; } ; jiraICSummary="$1" ; jiraICSummaryGiven="true" ; shift ;;
+				--description-adf)
+					shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --description-adf value missing" >&2 ; set +e ; return 1 ; }
+					jiraICDescriptionAdf="$1" ; jiraICDescriptionGiven="true" ; shift
+				;;
+				--description-adf-from-stdin)
+					jiraICDescriptionAdf="$( cat )" ; jiraICDescriptionGiven="true" ; shift
+				;;
+				--description-adf-from-file)
+					shift
+					if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --description-adf-from-file: file not found: ${1:-}" >&2
+						set +e ; return 1
+					fi
+					jiraICDescriptionAdf="$( cat "$1" )" ; jiraICDescriptionGiven="true" ; shift
+				;;
+				--fields-json) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --fields-json value missing" >&2 ; set +e ; return 1 ; } ; jiraICFieldsJson="$1" ; shift ;;
+				--context)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --context value missing" >&2 ; set +e ; return 1 ; } ; jiraICContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraICMember" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: syntax is --member <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>] [--context <caller>] -- --project, --issuetype and --summary are all required. This operation never fetches that project's own createmeta to validate fields it usually already knows apply; a caller targeting an unfamiliar project/issuetype should read /rest/api/3/issue/createmeta/{project}/issuetypes/{issueTypeId} itself first" >&2
+			set +e ; return 1
+		fi
+		[ -n "$jiraICProject" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --project missing" >&2 ; set +e ; return 1 ; }
+		[ -n "$jiraICIssuetype" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --issuetype missing" >&2 ; set +e ; return 1 ; }
+		[ "$jiraICSummaryGiven" = "true" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --summary missing" >&2 ; set +e ; return 1 ; }
+		if [ "$jiraICDescriptionGiven" = "true" ] ; then
+			AgentsToolsJiraAdfValidate "$jiraICDescriptionAdf" "--description-adf" "$jiraICContext" || { set +e ; return 1 ; }
+		fi
+		local jiraICProjectEsc jiraICIssuetypeEsc jiraICSummaryEsc
+		jiraICProjectEsc="$( printf '%s' "$jiraICProject" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+		jiraICIssuetypeEsc="$( printf '%s' "$jiraICIssuetype" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+		jiraICSummaryEsc="$( printf '%s' "$jiraICSummary" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+		local jiraICFields="{\"project\":{\"key\":\"$jiraICProjectEsc\"},\"issuetype\":{\"name\":\"$jiraICIssuetypeEsc\"},\"summary\":\"$jiraICSummaryEsc\""
+		[ "$jiraICDescriptionGiven" = "true" ] && jiraICFields="$jiraICFields,\"description\":$jiraICDescriptionAdf"
+		jiraICFields="$jiraICFields}"
+		if [ -n "$jiraICFieldsJson" ] ; then
+			jiraICFields="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonObjectMerge.py" "$jiraICFields" "$jiraICFieldsJson" )" || {
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraICContext: --fields-json rejected -- nothing was created" >&2
+				set +e ; return 1
+			}
+		fi
+		local jiraICRc=0
+		AgentsToolsAtlassianCall "$jiraICMember" jira POST /rest/api/3/issue "$jiraICContext" "{\"fields\":$jiraICFields}" || jiraICRc=$?
+		if [ "$jiraICRc" -ne 0 ] ; then
+			set +e ; return "$jiraICRc"
+		fi
+		return 0
+	;;
+
+	--intern-op-atlassian-jira-issue-update)
+		shift
+		local jiraIUMember="" jiraIUKey="" jiraIUFieldsJson="" jiraIUUpdateJson="" jiraIUNotify="false" jiraIUContext="intern-op-atlassian-jira-issue-update"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)      shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --member value missing" >&2 ; set +e ; return 1 ; } ; jiraIUMember="$1" ; shift ;;
+				--issue-key)   shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --issue-key value missing" >&2 ; set +e ; return 1 ; } ; jiraIUKey="$1" ; shift ;;
+				--fields-json) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --fields-json value missing" >&2 ; set +e ; return 1 ; } ; jiraIUFieldsJson="$1" ; shift ;;
+				--update-json) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --update-json value missing" >&2 ; set +e ; return 1 ; } ; jiraIUUpdateJson="$1" ; shift ;;
+				--notify-users) jiraIUNotify="true" ; shift ;;
+				--context)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --context value missing" >&2 ; set +e ; return 1 ; } ; jiraIUContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraIUMember" ] || [ -z "$jiraIUKey" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: syntax is --member <team-member> --issue-key <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users] [--context <caller>] -- at least one of --fields-json/--update-json is required. --fields-json is the WHOLE fields object, plain set-semantics per field it names; --update-json is Jira's own {\"field\":[{\"add\"/\"remove\"/\"set\"}]} shape. fields.status is refused in either shape -- change status with the issue-transition operation of the same family instead. There is no read-before-write here: this is ordinary last-write-wins" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$jiraIUKey" "<issue-key>" "$jiraIUContext" || { set +e ; return 1 ; }
+		if [ -z "$jiraIUFieldsJson" ] && [ -z "$jiraIUUpdateJson" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --fields-json|--update-json missing" >&2
+			set +e ; return 1
+		fi
+		local jiraIUBody="{" jiraIUHasPart="false"
+		if [ -n "$jiraIUFieldsJson" ] ; then
+			local jiraIUMergedFields=""
+			jiraIUMergedFields="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonObjectMerge.py" "{}" "$jiraIUFieldsJson" status )" || {
+				local jiraIUMergeRc=$?
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --fields-json rejected -- nothing was changed" >&2
+				[ "$jiraIUMergeRc" -ne 3 ] || printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: status cannot be set through --fields-json or --update-json -- change status with the issue-transition operation of the same family instead" >&2
+				set +e ; return 1
+			}
+			jiraIUBody="$jiraIUBody\"fields\":$jiraIUMergedFields"
+			jiraIUHasPart="true"
+		fi
+		if [ -n "$jiraIUUpdateJson" ] ; then
+			local jiraIUMergedUpdate=""
+			jiraIUMergedUpdate="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonObjectMerge.py" "{}" "$jiraIUUpdateJson" status )" || {
+				local jiraIUMergeRc=$?
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: --update-json rejected -- nothing was changed" >&2
+				[ "$jiraIUMergeRc" -ne 3 ] || printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIUContext: status cannot be set through --fields-json or --update-json -- change status with the issue-transition operation of the same family instead" >&2
+				set +e ; return 1
+			}
+			[ "$jiraIUHasPart" = "true" ] && jiraIUBody="$jiraIUBody,"
+			jiraIUBody="$jiraIUBody\"update\":$jiraIUMergedUpdate"
+		fi
+		jiraIUBody="$jiraIUBody}"
+		local jiraIURc=0
+		AgentsToolsAtlassianCall "$jiraIUMember" jira PUT "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraIUKey" )?notifyUsers=$jiraIUNotify" "$jiraIUContext" "$jiraIUBody" || jiraIURc=$?
+		if [ "$jiraIURc" -ne 0 ] ; then
+			set +e ; return "$jiraIURc"
+		fi
+		return 0
+	;;
+
+	--intern-op-atlassian-jira-issue-transition)
+		shift
+		local jiraITMember="" jiraITKey="" jiraITToStatus="" jiraITFieldsJson="" jiraITCommentAdf="" jiraITCommentGiven="false" jiraITContext="intern-op-atlassian-jira-issue-transition"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --member value missing" >&2 ; set +e ; return 1 ; } ; jiraITMember="$1" ; shift ;;
+				--issue-key) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --issue-key value missing" >&2 ; set +e ; return 1 ; } ; jiraITKey="$1" ; shift ;;
+				--to-status) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --to-status value missing" >&2 ; set +e ; return 1 ; } ; jiraITToStatus="$1" ; shift ;;
+				--fields-json) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --fields-json value missing" >&2 ; set +e ; return 1 ; } ; jiraITFieldsJson="$1" ; shift ;;
+				--comment-adf)
+					shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --comment-adf value missing" >&2 ; set +e ; return 1 ; }
+					jiraITCommentAdf="$1" ; jiraITCommentGiven="true" ; shift
+				;;
+				--comment-adf-from-stdin)
+					jiraITCommentAdf="$( cat )" ; jiraITCommentGiven="true" ; shift
+				;;
+				--comment-adf-from-file)
+					shift
+					if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --comment-adf-from-file: file not found: ${1:-}" >&2
+						set +e ; return 1
+					fi
+					jiraITCommentAdf="$( cat "$1" )" ; jiraITCommentGiven="true" ; shift
+				;;
+				--context) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --context value missing" >&2 ; set +e ; return 1 ; } ; jiraITContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraITMember" ] || [ -z "$jiraITKey" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: syntax is --member <team-member> --issue-key <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>] [--context <caller>] -- <name> is matched exactly (never fuzzily) against each transition CURRENTLY AVAILABLE from this issue's own status, by that transition's own destination status name (to.name), never by the transition's own action label" >&2
+			set +e ; return 1
+		fi
+		[ -n "$jiraITToStatus" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --to-status missing" >&2 ; set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$jiraITKey" "<issue-key>" "$jiraITContext" || { set +e ; return 1 ; }
+		if [ "$jiraITCommentGiven" = "true" ] ; then
+			AgentsToolsJiraAdfValidate "$jiraITCommentAdf" "--comment-adf" "$jiraITContext" || { set +e ; return 1 ; }
+		fi
+		local jiraITListBody jiraITListRc=0
+		jiraITListBody="$( AgentsToolsAtlassianCall "$jiraITMember" jira GET "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraITKey" )/transitions" "$jiraITContext" "" )" || jiraITListRc=$?
+		if [ "$jiraITListRc" -ne 0 ] ; then
+			set +e ; return "$jiraITListRc"
+		fi
+		local jiraITRows jiraITRowsRc=0
+		jiraITRows="$( printf '%s\n' "$jiraITListBody" | LC_ALL=C awk -v array=transitions -v want='id,name,to.name' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || jiraITRowsRc=$?
+		if [ "$jiraITRowsRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: the transitions call returned no transitions array (rc=$jiraITRowsRc) -- nothing was changed" >&2
+			set +e ; return 1
+		fi
+		local jiraITMatchedIds jiraITMatchCount
+		jiraITMatchedIds="$( printf '%s\n' "$jiraITRows" | LC_ALL=C awk -F'\t' -v want="$jiraITToStatus" '$3 == want { print $1 }' )"
+		jiraITMatchCount=0
+		[ -z "$jiraITMatchedIds" ] || jiraITMatchCount="$( printf '%s\n' "$jiraITMatchedIds" | awk 'END { print NR }' )"
+		if [ "$jiraITMatchCount" -eq 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: no transition leads to a status named exactly '$jiraITToStatus' from issue $jiraITKey's own current status -- nothing was changed. Transitions available from here (action -> destination status):" >&2
+			printf '%s\n' "$jiraITRows" | LC_ALL=C awk -F'\t' '{ print "#   " $2 " -> " $3 }' >&2
+			set +e ; return 1
+		fi
+		if [ "$jiraITMatchCount" -gt 1 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: '$jiraITToStatus' matched $jiraITMatchCount transitions from issue $jiraITKey's own current status -- ambiguous, so nothing was changed. This is never fuzzy-resolved" >&2
+			set +e ; return 1
+		fi
+		local jiraITTransitionId="$jiraITMatchedIds"
+		local jiraITTransitionIdEsc
+		jiraITTransitionIdEsc="$( printf '%s' "$jiraITTransitionId" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+		local jiraITBody="{\"transition\":{\"id\":\"$jiraITTransitionIdEsc\"}"
+		if [ -n "$jiraITFieldsJson" ] ; then
+			local jiraITMergedFields=""
+			jiraITMergedFields="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonObjectMerge.py" "{}" "$jiraITFieldsJson" )" || {
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: --fields-json rejected -- nothing was changed" >&2
+				set +e ; return 1
+			}
+			jiraITBody="$jiraITBody,\"fields\":$jiraITMergedFields"
+		fi
+		if [ "$jiraITCommentGiven" = "true" ] ; then
+			jiraITBody="$jiraITBody,\"update\":{\"comment\":[{\"add\":{\"body\":$jiraITCommentAdf}}]}"
+		fi
+		jiraITBody="$jiraITBody}"
+		local jiraITRc=0
+		AgentsToolsAtlassianCall "$jiraITMember" jira POST "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraITKey" )/transitions" "$jiraITContext" "$jiraITBody" || jiraITRc=$?
+		if [ "$jiraITRc" -ne 0 ] ; then
+			set +e ; return "$jiraITRc"
+		fi
+		printf '%s\n' "# $jiraITContext: issue $jiraITKey transitioned to '$jiraITToStatus' (transition id $jiraITTransitionId)" >&2
+		return 0
+	;;
+
+	--intern-op-atlassian-jira-comment-add)
+		shift
+		local jiraCAMember="" jiraCAKey="" jiraCABodyAdf="" jiraCABodyGiven="false" jiraCAContext="intern-op-atlassian-jira-comment-add"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: --member value missing" >&2 ; set +e ; return 1 ; } ; jiraCAMember="$1" ; shift ;;
+				--issue-key) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: --issue-key value missing" >&2 ; set +e ; return 1 ; } ; jiraCAKey="$1" ; shift ;;
+				--body-adf)
+					shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: --body-adf value missing" >&2 ; set +e ; return 1 ; }
+					jiraCABodyAdf="$1" ; jiraCABodyGiven="true" ; shift
+				;;
+				--body-adf-from-stdin)
+					jiraCABodyAdf="$( cat )" ; jiraCABodyGiven="true" ; shift
+				;;
+				--body-adf-from-file)
+					shift
+					if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: --body-adf-from-file: file not found: ${1:-}" >&2
+						set +e ; return 1
+					fi
+					jiraCABodyAdf="$( cat "$1" )" ; jiraCABodyGiven="true" ; shift
+				;;
+				--context) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: --context value missing" >&2 ; set +e ; return 1 ; } ; jiraCAContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraCAMember" ] || [ -z "$jiraCAKey" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: syntax is --member <team-member> --issue-key <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>) [--context <caller>] -- there is no visibility (role/group) restriction here: every comment this posts is visible to everyone the issue is already shared with" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$jiraCAKey" "<issue-key>" "$jiraCAContext" || { set +e ; return 1 ; }
+		if [ "$jiraCABodyGiven" != "true" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCAContext: --body-adf|--body-adf-from-stdin|--body-adf-from-file missing" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsJiraAdfValidate "$jiraCABodyAdf" "--body-adf" "$jiraCAContext" || { set +e ; return 1 ; }
+		local jiraCARc=0
+		AgentsToolsAtlassianCall "$jiraCAMember" jira POST "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraCAKey" )/comment" "$jiraCAContext" "{\"body\":$jiraCABodyAdf}" || jiraCARc=$?
+		if [ "$jiraCARc" -ne 0 ] ; then
+			set +e ; return "$jiraCARc"
+		fi
+		return 0
+	;;
+
+	--intern-op-atlassian-jira-issue-delete)
+		shift || :
+		local jiraIDMember="" jiraIDKey="" jiraIDContext="intern-op-atlassian-jira-issue-delete" jiraIDFlag="" jiraIDValue=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--issue-key|--context)
+					jiraIDFlag="$1"
+					shift || :
+					jiraIDValue="${1:-}"
+					shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIDContext: $jiraIDFlag value missing" >&2 ; set +e ; return 1 ; }
+					[ -n "$jiraIDValue" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIDContext: $jiraIDFlag value missing" >&2 ; set +e ; return 1 ; }
+					case "$jiraIDFlag" in
+						--member)     jiraIDMember="$jiraIDValue" ;;
+						--issue-key)  jiraIDKey="$jiraIDValue" ;;
+						--context)    jiraIDContext="$jiraIDValue" ;;
+					esac
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIDContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$jiraIDMember" ] || [ -z "$jiraIDKey" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraIDContext: syntax is --member <team-member> --issue-key <issue-key> [--context <caller>] -- the acting member is required, since an issue is deleted only by an identity its project allows to delete it" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$jiraIDKey" "<issue-key>" "$jiraIDContext" || { set +e ; return 1 ; }
+		local jiraIDRc=0
+		AgentsToolsAtlassianCall "$jiraIDMember" jira DELETE "/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraIDKey" )" "$jiraIDContext" "" || jiraIDRc=$?
+		if [ "$jiraIDRc" -ne 0 ] ; then
+			set +e ; return "$jiraIDRc"
+		fi
+		return 0
+	;;
+
+	--intern-op-atlassian-confluence-page-read)
+		shift
+		local confPRMember="" confPRPageId="" confPRFormat="" confPRContext="intern-op-atlassian-confluence-page-read"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--page-id|--format|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)  confPRMember="$2" ;;
+						--page-id) confPRPageId="$2" ;;
+						--format)  confPRFormat="$2" ;;
+						--context) confPRContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confPRMember" ] || [ -z "$confPRPageId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: syntax is --member <team-member> --page-id <page-id> [--format storage|atlas_doc_format] [--context <caller>] -- a page is readable only by identities it is shared with" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$confPRPageId" "<page-id>" "$confPRContext" || { set +e ; return 1 ; }
+		[ -n "$confPRFormat" ] || confPRFormat=storage
+		case "$confPRFormat" in
+			storage|atlas_doc_format) ;;
+			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: --format invalid: $confPRFormat" >&2 ; set +e ; return 1 ;;
+		esac
+		local confPRPath="/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confPRPageId" )?body-format=$( AgentsToolsAtlassianUrlEncode "$confPRFormat" )"
+		local confPRBody confPRRc=0
+		confPRBody="$( AgentsToolsAtlassianCall "$confPRMember" confluence GET "$confPRPath" "$confPRContext" "" )" || confPRRc=$?
+		if [ "$confPRRc" -ne 0 ] ; then
+			set +e ; return "$confPRRc"
+		fi
+		local confPRFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
+		local confPRRawFlag=()
+		[ "$confPRFormat" = storage ] || confPRRawFlag=( -v raw=1 )
+		local confPRValue confPRValueRc=0
+		confPRValue="$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path="body.$confPRFormat.value" "${confPRRawFlag[@]}" -f "$confPRFieldAwk" 2>/dev/null )" || confPRValueRc=$?
+		if [ "$confPRValueRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: $confPRFormat body unreadable" >&2
+			set +e ; return 3
+		fi
+		printf '# page %s: title=%s version=%s spaceId=%s format=%s\n' \
+			"$confPRPageId" \
+			"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=title -v optional=1 -f "$confPRFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=version.number -v optional=1 -f "$confPRFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=spaceId -v optional=1 -f "$confPRFieldAwk" 2>/dev/null )" \
+			"$confPRFormat" >&2
+		printf '%s' "$confPRValue"
+		return 0
+	;;
+
+	--intern-op-atlassian-confluence-page-search)
+		shift
+		local confPSMember="" confPSCql="" confPSLimit="" confPSContext="intern-op-atlassian-confluence-page-search"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--cql|--limit|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPSContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)  confPSMember="$2" ;;
+						--cql)     confPSCql="$2" ;;
+						--limit)   confPSLimit="$2" ;;
+						--context) confPSContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPSContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confPSMember" ] || [ -z "$confPSCql" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPSContext: syntax is --member <team-member> --cql <cql> [--limit <n>] [--context <caller>] -- a search returns only what that identity can see. For a plain text search the CQL is: text ~ \"term\"" >&2
+			set +e ; return 1
+		fi
+		[ -n "$confPSLimit" ] || confPSLimit=25
+		local confPSPath="/wiki/rest/api/search?cql=$( AgentsToolsAtlassianUrlEncode "$confPSCql" )&limit=$( AgentsToolsAtlassianUrlEncode "$confPSLimit" )"
+		local confPSBody confPSRc=0
+		confPSBody="$( AgentsToolsAtlassianCall "$confPSMember" confluence GET "$confPSPath" "$confPSContext" "" )" || confPSRc=$?
+		if [ "$confPSRc" -ne 0 ] ; then
+			set +e ; return "$confPSRc"
+		fi
+		local confPSRows confPSRowsRc=0
+		confPSRows="$( printf '%s\n' "$confPSBody" | LC_ALL=C awk -v array=results -v want='content.id,content.type,title,lastModified,url' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || confPSRowsRc=$?
+		if [ "$confPSRowsRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPSContext: results field unreadable" >&2
+			set +e ; return 3
+		fi
+		printf 'CONTENT_ID\tTYPE\tTITLE\tLAST_MODIFIED\tURL\n'
+		[ -z "$confPSRows" ] || printf '%s\n' "$confPSRows"
+		printf '%s\n' "# $confPSContext: more: unknown -- this endpoint reports no isLast/total, so whether results exist beyond this page cannot be determined from the response" >&2
+		return 0
+	;;
+
+	--intern-op-atlassian-confluence-comment-read)
+		shift
+		local confCRMember="" confCRPageId="" confCRContext="intern-op-atlassian-confluence-comment-read"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--page-id|--context)
+					if [ -z "${2:-}" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--member)  confCRMember="$2" ;;
+						--page-id) confCRPageId="$2" ;;
+						--context) confCRContext="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confCRMember" ] || [ -z "$confCRPageId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: syntax is --member <team-member> --page-id <page-id> [--context <caller>] -- comments are visible only to identities the page is shared with" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$confCRPageId" "<page-id>" "$confCRContext" || { set +e ; return 1 ; }
+		local confCRPath="/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confCRPageId" )/footer-comments?body-format=storage&limit=100"
+		local confCRBody confCRRc=0
+		confCRBody="$( AgentsToolsAtlassianCall "$confCRMember" confluence GET "$confCRPath" "$confCRContext" "" )" || confCRRc=$?
+		if [ "$confCRRc" -ne 0 ] ; then
+			set +e ; return "$confCRRc"
+		fi
+		local confCRRows confCRRowsRc=0
+		confCRRows="$( printf '%s\n' "$confCRBody" | LC_ALL=C awk -v array=results -v want='id,version.authorId,version.createdAt,body.storage.value' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || confCRRowsRc=$?
+		if [ "$confCRRowsRc" -ne 0 ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: results field unreadable" >&2
+			set +e ; return 3
+		fi
+		printf 'COMMENT_ID\tVERSION_AUTHOR_ID\tCREATED\tBODY\n'
+		[ -z "$confCRRows" ] || printf '%s\n' "$confCRRows"
+		printf '%s\n' "# $confCRContext: more: unknown -- this endpoint reports no isLast/total, so whether comments exist beyond this page cannot be determined from the response" >&2
+		return 0
+	;;
+
+	--intern-op-atlassian-confluence-page-create)
+		shift
+		local confPCMember="" confPCSpaceKey="" confPCSpaceId="" confPCTitle="" confPCTitleGiven="false"
+		local confPCParentId="" confPCBodyStorage="" confPCBodyGiven="false" confPCContext="intern-op-atlassian-confluence-page-create"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --member value missing" >&2 ; set +e ; return 1 ; } ; confPCMember="$1" ; shift ;;
+				--space)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --space value missing" >&2 ; set +e ; return 1 ; } ; confPCSpaceKey="$1" ; shift ;;
+				--space-id)  shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --space-id value missing" >&2 ; set +e ; return 1 ; } ; confPCSpaceId="$1" ; shift ;;
+				--title)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --title value missing" >&2 ; set +e ; return 1 ; } ; confPCTitle="$1" ; confPCTitleGiven="true" ; shift ;;
+				--parent-id) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --parent-id value missing" >&2 ; set +e ; return 1 ; } ; confPCParentId="$1" ; shift ;;
+				--body-storage)
+					shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --body-storage value missing" >&2 ; set +e ; return 1 ; }
+					confPCBodyStorage="$1" ; confPCBodyGiven="true" ; shift
+				;;
+				--body-storage-from-stdin)
+					confPCBodyStorage="$( cat )" ; confPCBodyGiven="true" ; shift
+				;;
+				--body-storage-from-file)
+					shift
+					if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --body-storage-from-file: file not found: ${1:-}" >&2
+						set +e ; return 1
+					fi
+					confPCBodyStorage="$( cat "$1" )" ; confPCBodyGiven="true" ; shift
+				;;
+				--context) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --context value missing" >&2 ; set +e ; return 1 ; } ; confPCContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confPCMember" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: syntax is --member <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>] [--context <caller>] -- the page is created under that identity and only in a space it can see" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$confPCSpaceKey" ] && [ -n "$confPCSpaceId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --space and --space-id both given" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$confPCSpaceKey" ] && [ -z "$confPCSpaceId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --space|--space-id missing" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$confPCSpaceId" ] ; then
+			case "$confPCSpaceId" in
+				*[!0123456789]*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --space-id not a number: $confPCSpaceId" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		if [ -n "$confPCParentId" ] ; then
+			case "$confPCParentId" in
+				*[!0123456789]*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --parent-id not a number: $confPCParentId" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		if [ "$confPCTitleGiven" != "true" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --title missing" >&2
+			set +e ; return 1
+		fi
+		if [ "$confPCBodyGiven" != "true" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: --body-storage|--body-storage-from-stdin|--body-storage-from-file missing" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$confPCSpaceKey" ] ; then
+			local confPCLookupBody confPCLookupRc=0
+			confPCLookupBody="$( AgentsToolsAtlassianCall "$confPCMember" confluence GET "/wiki/api/v2/spaces?keys=$( AgentsToolsAtlassianUrlEncode "$confPCSpaceKey" )" "$confPCContext" "" )" || confPCLookupRc=$?
+			if [ "$confPCLookupRc" -ne 0 ] ; then
+				set +e ; return "$confPCLookupRc"
+			fi
+			local confPCSpaceRows confPCSpaceRowsRc=0
+			confPCSpaceRows="$( printf '%s\n' "$confPCLookupBody" | LC_ALL=C awk -v array=results -v want='id,key' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || confPCSpaceRowsRc=$?
+			if [ "$confPCSpaceRowsRc" -ne 0 ] ; then
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: the space lookup returned no results array (rc=$confPCSpaceRowsRc) -- nothing was created" >&2
+				set +e ; return 1
+			fi
+			local confPCSpaceMatches confPCSpaceMatchCount
+			confPCSpaceMatches="$( printf '%s\n' "$confPCSpaceRows" | LC_ALL=C awk -F'\t' -v want="$confPCSpaceKey" '$2 == want { print $1 }' )"
+			confPCSpaceMatchCount=0
+			[ -z "$confPCSpaceMatches" ] || confPCSpaceMatchCount="$( printf '%s\n' "$confPCSpaceMatches" | awk 'END { print NR }' )"
+			if [ "$confPCSpaceMatchCount" -ne 1 ] ; then
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: space key '$confPCSpaceKey' resolved to $confPCSpaceMatchCount ids as $confPCMember, not exactly one -- nothing was created. A 0 usually means this identity cannot see that space or the key is wrong; pass --space-id directly if the numeric id is already known" >&2
+				set +e ; return 1
+			fi
+			confPCSpaceId="$confPCSpaceMatches"
+		fi
+		local confPCTitleEsc confPCBodyEsc
+		confPCTitleEsc="$( printf '%s' "$confPCTitle" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+		confPCBodyEsc="$( printf '%s' "$confPCBodyStorage" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+		local confPCCreateBody="{\"spaceId\":\"$confPCSpaceId\",\"status\":\"current\",\"title\":\"$confPCTitleEsc\""
+		[ -n "$confPCParentId" ] && confPCCreateBody="$confPCCreateBody,\"parentId\":\"$confPCParentId\""
+		confPCCreateBody="$confPCCreateBody,\"body\":{\"representation\":\"storage\",\"value\":\"$confPCBodyEsc\"}}"
+		local confPCRc=0
+		AgentsToolsAtlassianCall "$confPCMember" confluence POST /wiki/api/v2/pages "$confPCContext" "$confPCCreateBody" || confPCRc=$?
+		if [ "$confPCRc" -ne 0 ] ; then
+			set +e ; return "$confPCRc"
+		fi
+		return 0
+	;;
+
+	--intern-op-atlassian-confluence-page-update)
+		shift
+		local confPUMember="" confPUPageId="" confPUVersion="" confPUTitle="" confPUTitleGiven="false"
+		local confPUStatus="" confPUStatusGiven="false" confPUSpaceId="" confPUBodyStorage="" confPUBodyGiven="false" confPUContext="intern-op-atlassian-confluence-page-update"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --member value missing" >&2 ; set +e ; return 1 ; } ; confPUMember="$1" ; shift ;;
+				--page-id)   shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --page-id value missing" >&2 ; set +e ; return 1 ; } ; confPUPageId="$1" ; shift ;;
+				--version)   shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --version value missing" >&2 ; set +e ; return 1 ; } ; confPUVersion="$1" ; shift ;;
+				--title)     shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --title value missing" >&2 ; set +e ; return 1 ; } ; confPUTitle="$1" ; confPUTitleGiven="true" ; shift ;;
+				--status)    shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --status value missing" >&2 ; set +e ; return 1 ; } ; confPUStatus="$1" ; confPUStatusGiven="true" ; shift ;;
+				--space-id)  shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --space-id value missing" >&2 ; set +e ; return 1 ; } ; confPUSpaceId="$1" ; shift ;;
+				--body-storage)
+					shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --body-storage value missing" >&2 ; set +e ; return 1 ; }
+					confPUBodyStorage="$1" ; confPUBodyGiven="true" ; shift
+				;;
+				--body-storage-from-stdin)
+					confPUBodyStorage="$( cat )" ; confPUBodyGiven="true" ; shift
+				;;
+				--body-storage-from-file)
+					shift
+					if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --body-storage-from-file: file not found: ${1:-}" >&2
+						set +e ; return 1
+					fi
+					confPUBodyStorage="$( cat "$1" )" ; confPUBodyGiven="true" ; shift
+				;;
+				--context) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --context value missing" >&2 ; set +e ; return 1 ; } ; confPUContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confPUMember" ] || [ -z "$confPUPageId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: syntax is --member <team-member> --page-id <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>] [--context <caller>] -- <n> is the version this caller already read, NEVER re-read here: this operation computes <n>+1 and submits it. This is a FULL REPLACE: --title and --status are required on every call and are overwritten with whatever is passed, even when only the body actually changed" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$confPUPageId" "<page-id>" "$confPUContext" || { set +e ; return 1 ; }
+		case "$confPUVersion" in
+			''|*[!0123456789]*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --version not a number: '$confPUVersion'" >&2
+				set +e ; return 1
+			;;
+		esac
+		if [ -n "$confPUSpaceId" ] ; then
+			case "$confPUSpaceId" in
+				*[!0123456789]*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --space-id not a number: $confPUSpaceId" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		if [ "$confPUTitleGiven" != "true" ] || [ "$confPUStatusGiven" != "true" ] || [ "$confPUBodyGiven" != "true" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPUContext: --title, --status and one of --body-storage/--body-storage-from-stdin/--body-storage-from-file are all required -- this is a full-resource replace, so a field left out is not left unchanged, it is overwritten" >&2
+			set +e ; return 1
+		fi
+		local confPUIdEsc confPUStatusEsc confPUTitleEsc confPUBodyEsc
+		confPUIdEsc="$( printf '%s' "$confPUPageId" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+		confPUStatusEsc="$( printf '%s' "$confPUStatus" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+		confPUTitleEsc="$( printf '%s' "$confPUTitle" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+		confPUBodyEsc="$( printf '%s' "$confPUBodyStorage" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+		local confPUNextVersion=$(( confPUVersion + 1 ))
+		local confPUUpdateBody="{\"id\":\"$confPUIdEsc\",\"status\":\"$confPUStatusEsc\",\"title\":\"$confPUTitleEsc\",\"version\":{\"number\":$confPUNextVersion}"
+		[ -n "$confPUSpaceId" ] && confPUUpdateBody="$confPUUpdateBody,\"spaceId\":\"$confPUSpaceId\""
+		confPUUpdateBody="$confPUUpdateBody,\"body\":{\"representation\":\"storage\",\"value\":\"$confPUBodyEsc\"}}"
+		local confPURc=0
+		AgentsToolsAtlassianCall "$confPUMember" confluence PUT "/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confPUPageId" )" "$confPUContext" "$confPUUpdateBody" || confPURc=$?
+		if [ "$confPURc" = "5" ] ; then
+			set +e ; return "$confPURc"
+		fi
+		if [ "$confPURc" -ne 0 ] ; then
+			set +e ; return "$confPURc"
+		fi
+		return 0
+	;;
+
+	--intern-op-atlassian-confluence-comment-add)
+		shift
+		local confCAMember="" confCAPageId="" confCABodyStorage="" confCABodyGiven="false" confCAParentCommentId="" confCAContext="intern-op-atlassian-confluence-comment-add"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)  shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: --member value missing" >&2 ; set +e ; return 1 ; } ; confCAMember="$1" ; shift ;;
+				--page-id) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: --page-id value missing" >&2 ; set +e ; return 1 ; } ; confCAPageId="$1" ; shift ;;
+				--body-storage)
+					shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: --body-storage value missing" >&2 ; set +e ; return 1 ; }
+					confCABodyStorage="$1" ; confCABodyGiven="true" ; shift
+				;;
+				--body-storage-from-stdin)
+					confCABodyStorage="$( cat )" ; confCABodyGiven="true" ; shift
+				;;
+				--body-storage-from-file)
+					shift
+					if [ -z "${1:-}" ] || [ ! -f "$1" ] ; then
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: --body-storage-from-file: file not found: ${1:-}" >&2
+						set +e ; return 1
+					fi
+					confCABodyStorage="$( cat "$1" )" ; confCABodyGiven="true" ; shift
+				;;
+				--parent-comment-id) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: --parent-comment-id value missing" >&2 ; set +e ; return 1 ; } ; confCAParentCommentId="$1" ; shift ;;
+				--context) shift ; [ -n "${1:-}" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: --context value missing" >&2 ; set +e ; return 1 ; } ; confCAContext="$1" ; shift ;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confCAMember" ] || [ -z "$confCAPageId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: syntax is --member <team-member> --page-id <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>] [--context <caller>] -- there is no ADF path here, same as the read side: the body is always Confluence's own storage format" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$confCAPageId" "<page-id>" "$confCAContext" || { set +e ; return 1 ; }
+		if [ "$confCABodyGiven" != "true" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: --body-storage|--body-storage-from-stdin|--body-storage-from-file missing" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$confCAParentCommentId" ] ; then
+			case "$confCAParentCommentId" in
+				*[!0123456789]*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: --parent-comment-id not a number: $confCAParentCommentId" >&2
+					set +e ; return 1
+				;;
+			esac
+			local confCAParentBody confCAParentRc=0
+			confCAParentBody="$( AgentsToolsAtlassianCall "$confCAMember" confluence GET "/wiki/api/v2/footer-comments/$confCAParentCommentId" "$confCAContext" "" )" || confCAParentRc=$?
+			if [ "$confCAParentRc" -ne 0 ] ; then
+				set +e ; return "$confCAParentRc"
+			fi
+			local confCAParentPageId="$( printf '%s\n' "$confCAParentBody" | LC_ALL=C awk -v path=pageId -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+			if [ "$confCAParentPageId" != "$confCAPageId" ] ; then
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: parent comment $confCAParentCommentId belongs to page ${confCAParentPageId:-<not stated in the response>}, not page $confCAPageId -- the reply was NOT posted" >&2
+				set +e ; return 1
+			fi
+		fi
+		local confCAPageIdEsc confCABodyEsc
+		confCAPageIdEsc="$( printf '%s' "$confCAPageId" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+		confCABodyEsc="$( printf '%s' "$confCABodyStorage" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+		local confCABody
+		if [ -n "$confCAParentCommentId" ] ; then
+			confCABody="{\"parentCommentId\":\"$confCAParentCommentId\",\"body\":{\"representation\":\"storage\",\"value\":\"$confCABodyEsc\"}}"
+		else
+			confCABody="{\"pageId\":\"$confCAPageIdEsc\",\"body\":{\"representation\":\"storage\",\"value\":\"$confCABodyEsc\"}}"
+		fi
+		local confCARc=0
+		AgentsToolsAtlassianCall "$confCAMember" confluence POST /wiki/api/v2/footer-comments "$confCAContext" "$confCABody" || confCARc=$?
+		if [ "$confCARc" -ne 0 ] ; then
+			set +e ; return "$confCARc"
 		fi
 		return 0
 	;;
 
 	## An Atlassian operation name this file does not implement. Reported, never
 	## swallowed. Never widen this glob -- see DUAL USE in this file's header.
+	--intern-op-atlassian-confluence-page-delete)
+		shift || :
+		local confPDMember="" confPDPageId="" confPDContext="intern-op-atlassian-confluence-page-delete" confPDFlag="" confPDValue=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member|--page-id|--context)
+					confPDFlag="$1"
+					shift || :
+					confPDValue="${1:-}"
+					shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPDContext: $confPDFlag value missing" >&2 ; set +e ; return 1 ; }
+					[ -n "$confPDValue" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPDContext: $confPDFlag value missing" >&2 ; set +e ; return 1 ; }
+					case "$confPDFlag" in
+						--member)   confPDMember="$confPDValue" ;;
+						--page-id)  confPDPageId="$confPDValue" ;;
+						--context)  confPDContext="$confPDValue" ;;
+					esac
+				;;
+				*)
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPDContext: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$confPDMember" ] || [ -z "$confPDPageId" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPDContext: syntax is --member <team-member> --page-id <page-id> [--context <caller>] -- the acting member is required, since a page is deleted only by an identity allowed to delete it" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAtlassianAssertNumber "$confPDPageId" "<page-id>" "$confPDContext" || { set +e ; return 1 ; }
+		local confPDRc=0
+		AgentsToolsAtlassianCall "$confPDMember" confluence DELETE "/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confPDPageId" )" "$confPDContext" "" || confPDRc=$?
+		if [ "$confPDRc" -ne 0 ] ; then
+			set +e ; return "$confPDRc"
+		fi
+		return 0
+	;;
+
 	--intern-op-atlassian-*)
-		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		printf '%s\n' "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;
 

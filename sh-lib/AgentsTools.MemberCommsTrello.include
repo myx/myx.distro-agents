@@ -13,7 +13,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-check: syntax is <team-member> -- the acting member is required, since a Trello notification feed belongs to one identity and the member decides whose unread list is read" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-check: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-trello-check || { set +e ; return 1 ; }
@@ -59,7 +59,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: syntax is <team-member> <notification-id> -- the acting member is required, since a notification is visible only to the identity it was raised for" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-trello-read || { set +e ; return 1 ; }
@@ -76,7 +76,7 @@ case "$1" in
 			local notificationId="$1"
 			shift || true
 			if [ -z "$notificationId" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: notification id required" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: <notification-id> missing" >&2
 				set +e ; return 1
 			fi
 
@@ -118,7 +118,7 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: syntax is <team-member> -- the acting member is required, since members/me resolves against whichever token is presented" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: <team-member> missing" >&2
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-trello-whoami || { set +e ; return 1 ; }
