@@ -47,7 +47,13 @@ fi
 cd "$MMDAPP"
 export MMDAPP
 
-DAGC_KNOWN_CLIS="copilot claude grok scaleway"
+DAGC_KNOWN_CLIS="copilot claude claude-native grok scaleway"
+## claude-native is the VENDOR claude CLI under its own name. It is listed
+## after claude deliberately: this string is also the --cli-auto scan order,
+## and the scan takes the first PRESENT one, so a machine carrying the vendor
+## binary must not have claude-native selected ahead of claude by accident.
+## Its binary is `claude`, not its own name -- see DagcCliPresent() and the
+## DAGC_CLI_EXEC case below, which are the two places that difference lives.
 ## scaleway added here on a real, live-confirmed round-trip through this
 ## console itself (--cli scaleway --non-interactive, end to end) -- not
 ## speculatively. It has no interactive shape at all (no real binary, no
@@ -56,7 +62,7 @@ DAGC_KNOWN_CLIS="copilot claude grok scaleway"
 ## grok is the opposite case (a real interactive binary, not yet proven
 ## non-interactive), scaleway is proven non-interactive and categorically
 ## cannot be the other thing. See MAGIC.md.
-DAGC_NONINTERACTIVE_CLIS="copilot claude scaleway"
+DAGC_NONINTERACTIVE_CLIS="copilot claude claude-native scaleway"
 DAGC_CLI="copilot"
 DAGC_CLI_GIVEN="false"
 DAGC_CLI_AUTO="false"
@@ -73,16 +79,12 @@ DAGC_CLI_CONFIGURED="false"
 ## stderr as the model generates them. That is the production default; nothing
 ## needs to be set to get it.
 ##
-## Setting this variable selects a different harness, per workspace. The one
-## concrete alternative shipping in sh-lib/ today is AgentsScalewayHarnessV1.sh,
-## the earlier BLOCKING implementation (one plain POST per round, no streaming,
-## no visual progress layer) -- it is preserved deliberately and this variable
-## is now the ONLY way to reach it:
-##     MDAT_SCALEWAY_HARNESS=AgentsScalewayHarnessV1.sh
-## The variable keeps its original purpose alongside that: one workspace can run
-## a candidate implementation while every other workspace sharing this same
-## MDLT_ORIGIN tree keeps the default, which is what makes a candidate testable
-## for real without promoting it everywhere at once.
+## Setting this variable selects a different harness, per workspace. No
+## alternative harness ships in sh-lib/ today, so nothing in this package is
+## currently worth naming here. The variable's purpose is unchanged: one
+## workspace can run a candidate implementation while every other workspace
+## sharing this same MDLT_ORIGIN tree keeps the default, which is what makes a
+## candidate testable for real without promoting it everywhere at once.
 ##
 ## Two accepted shapes, and why only these:
 ##  - a bare filename (no '/'), taken from this package's own sh-lib/ -- the
@@ -138,6 +140,12 @@ fi
 DagcCliPresent(){
 	case "$1" in
 		scaleway) [ -f "$DAGC_SCALEWAY_HARNESS" ] ;;
+		## claude-native's BINARY is `claude`; its own name is on no PATH. Without
+		## this arm the default below would run `command -v claude-native`, find
+		## nothing, and report the vendor CLI absent on a machine where it is
+		## installed -- which --cli-auto reads as "not installed" and skips
+		## silently, indistinguishable from it really being missing.
+		claude-native) command -v claude >/dev/null 2>&1 ;;
 		*) command -v "$1" >/dev/null 2>&1 ;;
 	esac
 }
@@ -178,7 +186,11 @@ if [ "$DAGC_CLI_AUTO" = "true" ] ; then
 		DAGC_CLI="$DAGC_CLI_SERVICE"
 		DAGC_CLI_GIVEN="true"
 	elif [ "$DAGC_CLI_CONFIGURED" = "true" ] ; then
-		echo "⛔ ERROR: DistroAgentsConsole: SPAWN_CLI_SERVICE is not configured in this workspace, so no external agent CLI is selected here. rc=5 means exactly this -- nothing was chosen to start, which is distinct from rc=1 (something was chosen and could not be started). Spawn an internal agent instead, or select one with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-claude --apply" >&2
+		## Every spawn service is named, not one of them. This error reaches a
+		## workspace that has chosen NOTHING yet, so naming a single flag steers
+		## that choice by whichever name an error string happened to carry --
+		## a policy nobody decided, expressed as an example. The reader picks.
+		echo "⛔ ERROR: DistroAgentsConsole: SPAWN_CLI_SERVICE is not configured in this workspace, so no external agent CLI is selected here. rc=5 means exactly this -- nothing was chosen to start, which is distinct from rc=1 (something was chosen and could not be started). Spawn an internal agent instead, or choose one of the spawn services and select it with --apply: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-claude --apply (this package's own Claude harness), or --owner-setup-claude-native (the vendor claude CLI as installed on this machine), or --owner-setup-copilot, or --owner-setup-scaleway." >&2
 		exit 5
 	else
 		for DAGC_AUTO_CLI in $DAGC_KNOWN_CLIS ; do
@@ -203,7 +215,7 @@ if [ "$DAGC_CLI_AUTO" = "true" ] ; then
 	fi
 fi
 case "$DAGC_CLI" in
-	copilot|claude|grok|scaleway) ;;
+	copilot|claude|claude-native|grok|scaleway) ;;
 	*)
 		echo "⛔ ERROR: DistroAgentsConsole: unsupported --cli: $DAGC_CLI (known: $DAGC_KNOWN_CLIS)" >&2
 		exit 1
@@ -269,8 +281,13 @@ fi
 ## value DagcCliPresent() tested, so the file this exec's is always the file
 ## that was checked for.
 case "$DAGC_CLI" in
-	scaleway) DAGC_CLI_EXEC="$DAGC_SCALEWAY_HARNESS" ;;
-	*)        DAGC_CLI_EXEC="$DAGC_CLI" ;;
+	scaleway)      DAGC_CLI_EXEC="$DAGC_SCALEWAY_HARNESS" ;;
+	## The second name whose binary is not itself. `claude-native` exists to say
+	## WHICH claude is meant once this package ships a claude leg of its own; the
+	## thing it launches is still the vendor binary, spelled `claude`. This arm is
+	## what stops the exec below reaching for a `claude-native` that is on no PATH.
+	claude-native) DAGC_CLI_EXEC="claude" ;;
+	*)             DAGC_CLI_EXEC="$DAGC_CLI" ;;
 esac
 
 DAGC_MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
@@ -289,9 +306,8 @@ fi
 ## is what does that, and both CLIs spell the flag identically. Absent/empty
 ## fragment -> no tokens added; grok gets nothing (out of scope). scaleway
 ## also gets nothing here -- it has no real binary to hand a flag to, and its
-## own harness (whichever DAGC_SCALEWAY_HARNESS resolved to above; both
-## AgentsScalewayHarness.sh and AgentsScalewayHarnessV1.sh do this, with the
-## same parser) reads this same fragment file itself instead; see MAGIC.md. One token
+## own harness (whichever DAGC_SCALEWAY_HARNESS resolved to above)
+## reads this same fragment file itself instead; see MAGIC.md. One token
 ## per line, so a root containing spaces survives being read back into the
 ## array intact. The DAGC_COPILOT_* names, the fragment's own filename and
 ## the installer op that writes it all predate claude being included here and
@@ -311,7 +327,7 @@ fi
 ## hand-edit) is treated as wildcard too: an entry with no recorded provenance
 ## is never trusted unconditionally.
 DAGC_COPILOT_ADDDIR=()
-if [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "claude" ] ; then
+if [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] ; then
 	DAGC_COPILOT_FRAGMENT="$MMDAPP/.claude/copilot-add-dir.fragment"
 	DAGC_ADDDIR_GUARANTEED=0
 	DAGC_ADDDIR_WILDCARD_TOTAL=0
@@ -364,6 +380,8 @@ fi
 ## process argv, no log and no output.
 case "$DAGC_CLI" in
 	claude)   DAGC_CLI_CREDENTIALS="ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN" ;;
+	## Nothing of ours: claude-native runs on the machine's own claude sign-in.
+	claude-native) DAGC_CLI_CREDENTIALS="" ;;
 	copilot)  DAGC_CLI_CREDENTIALS="COPILOT_GITHUB_TOKEN" ;;
 	scaleway) DAGC_CLI_CREDENTIALS="SCALEWAY_DEEPSEEK SCALEWAY_GEMMA" ;;
 	*)        DAGC_CLI_CREDENTIALS="" ;;
@@ -382,12 +400,11 @@ done
 ## record would otherwise name a session nothing else ever reports. scaleway
 ## has no external hook observer of its own -- its harness just announces the
 ## id to stderr, the only "join" possible for it (see the harness
-## DAGC_SCALEWAY_HARNESS resolved to above: AgentsScalewayHarness.sh by
-## default, AgentsScalewayHarnessV1.sh when MDAT_SCALEWAY_HARNESS names it --
-## both announce it, in their own respective line shapes).
+## DAGC_SCALEWAY_HARNESS resolved to above -- AgentsScalewayHarness.sh by
+## default, and it announces the id itself).
 DAGC_SESSION_ID_ARGS=()
 if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
-	if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "scaleway" ] ; then
+	if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] || [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "scaleway" ] ; then
 		DAGC_SESSION_ID_ARGS=( --session-id "$MDAT_SPAWN_SESSION_ID" )
 	else
 		echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_SESSION_ID is set but '$DAGC_CLI' has no --session-id flag -- this spawn runs without it, and its dispatch record will not join the agent's own session" >&2
@@ -471,7 +488,16 @@ DagcRunClaudeStreaming(){
 	streamAwkPath="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeStreamJsonFormat.awk"
 	exec 3> >( LC_ALL=C awk -f "$progressAwkPath" -f "$streamAwkPath" )
 	awkPid=$!
-	"$DAGC_CLI" --verbose --output-format stream-json "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$claudePrompt" >&3 &
+	## $DAGC_CLI_EXEC, not $DAGC_CLI: this launches a BINARY, and the two differ
+	## for any CLI whose name is not its own executable. It read $DAGC_CLI safely
+	## only while its sole callers were gated on `claude`, the one CLI where the
+	## two strings coincide -- claude-native removes that coincidence. Every other
+	## launch site in this file already uses $DAGC_CLI_EXEC for exactly this
+	## reason; this one was the outlier. The failure it would have caused is
+	## invisible: this runs backgrounded with stdout redirected into the awk
+	## formatter, so a 127 surfaces through a stream formatter rather than as
+	## "command not found".
+	"$DAGC_CLI_EXEC" --verbose --output-format stream-json "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$claudePrompt" >&3 &
 	claudePid=$!
 	## Installed immediately after capture, before anything else -- including
 	## the otherwise-harmless `exec 3>&-` below -- so there is no window in
@@ -492,8 +518,8 @@ DagcRunClaudeStreaming(){
 if [ "$1" == "--non-interactive" ] ; then
 	shift
 	## -- closes the option list for claude, whose prompt is positional; copilot's -p takes the body as its value.
-	## scaleway takes neither: the harness's own arg parser -- the same one in
-	## AgentsScalewayHarness.sh and AgentsScalewayHarnessV1.sh alike -- knows
+	## scaleway takes neither: the harness's own arg parser, in
+	## AgentsScalewayHarness.sh, knows
 	## --tier/--access-root/--, and reads its prompt as plain trailing argv
 	## (or stdin) exactly like claude/copilot's *own* prompt body does once
 	## their flags are stripped -- a `-p`/`-p --` token would hit its default
@@ -501,19 +527,25 @@ if [ "$1" == "--non-interactive" ] ; then
 	case "$DAGC_CLI" in
 		copilot)  DAGC_NONINTERACTIVE_PERM_FLAGS="--allow-all-tools" ; DAGC_PROMPT_ARGS=( -p ) ;;
 		scaleway) DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=() ;;
+		## claude-native takes NO arm here on purpose, and the reason is worth
+		## stating because the next reader will want to add one: the default IS
+		## claude's shape, so the vendor CLI under either of its names lands here
+		## correctly. An arm spelling out the same two values would be a second
+		## copy to keep in step with this one. Correct-by-default is only safe
+		## when it is deliberate, so this comment is the deliberateness.
 		*)        DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=( -p -- ) ;;
 	esac
 	## The launch signal, on its own channel: the stdout line below shares a stream with the agent's own output.
 	[ -z "$MDAT_SPAWN_LAUNCH_MARKER" ] || printf '%s\n' "$DAGC_CLI" > "$MDAT_SPAWN_LAUNCH_MARKER"
 	if [ $# -gt 0 ] ; then
 		echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-		if [ "$DAGC_CLI" = "claude" ] ; then
+		if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] ; then
 			DagcRunClaudeStreaming "$*"
 		fi
 		exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$*"
 	fi
 	echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-	if [ "$DAGC_CLI" = "claude" ] ; then
+	if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] ; then
 		DagcRunClaudeStreaming "$( cat )"
 	fi
 	exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$( cat )"

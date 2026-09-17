@@ -47,7 +47,10 @@ AgentsToolsAssertBareName(){
 
 DistroAgentsTools(){
 	local MDSC_CMD='DistroAgentsTools'
-	[ -z "$MDSC_DETAIL" ] || echo "> $MDSC_CMD $@" >&2
+	## Guarded like MDAT_SKILLSET_ROOT below: identical behaviour when set, and
+	## no unbound-variable death for a caller that runs under `set -u`. No
+	## shipped caller does today -- this is idiom, not a fix for a live fault.
+	[ -z "${MDSC_DETAIL:-}" ] || echo "> $MDSC_CMD $@" >&2
 	set -e
 
 	## The skillset root, resolved once here for the same reason MDAT_DATA_ROOT
@@ -484,5 +487,12 @@ case "$0" in
 		fi
 
 		DistroAgentsTools "$@"
+	;;
+	*)
+		## Executed by an unrecognised path: error. Sourced ($0 differs from BASH_SOURCE[0]): stay silent.
+		if [ "${BASH_SOURCE[0]:-}" = "$0" ] ; then
+			echo "⛔ ERROR: DistroAgentsTools.fn.sh: executed as '$0', which this file's own dispatch does not match, so nothing ran. Invoke it by a path ending in /myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh, or source it." >&2
+			exit 1
+		fi
 	;;
 esac

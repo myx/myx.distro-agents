@@ -28,9 +28,10 @@ agent client on this machine:
 	bash .local/myx/myx.distro-.local/sh-scripts/DistroLocalTools.fn.sh --install-distro-agents
 	DistroAgentsTools.fn.sh --install-workspace-integrations
 
-That one command does both setup steps: it links the team's members into the
-skill directories agent clients read, workspace-local and user-home, then
-installs the VS Code integrations. Run the steps on their own when you need to:
+`--install-workspace-integrations` does both setup steps: it links the team's
+members into the skill directories agent clients read, workspace-local and
+user-home, then installs the VS Code integrations. Run the steps on their own
+when you need to:
 
 	DistroAgentsTools.fn.sh --install-skillset-symlinks --scope workspace
 	DistroAgentsTools.fn.sh --install-skillset-symlinks --scope user-home
@@ -39,6 +40,27 @@ installs the VS Code integrations. Run the steps on their own when you need to:
 Re-run `--install-skillset-symlinks` after adding or removing a member: it
 reconciles this workspace's registered set rather than only adding to it. Remove
 everything this workspace registered with `--install-skillset-symlinks --remove`.
+
+## Choosing the agent CLI
+
+Each CLI this workspace can start has its own setup domain. A bare call reports
+what is still missing and names the command that closes it:
+
+	DistroAgentsTools.fn.sh --owner-setup-claude-native
+	DistroAgentsTools.fn.sh --owner-setup-claude-native --apply
+
+- `--check` writes the per-setting detail, read-only.
+- `--apply` carries the setup out.
+- `--print-apply-command` writes the command an `--apply` would run, and changes
+  nothing — use it when a credential has to be supplied.
+
+The CLI domains are `claude`, `claude-native`, `copilot` and `scaleway`:
+
+- `claude-native` runs the vendor `claude` already installed and signed in on
+  this machine. It stores no credential here — sign in once with
+  `claude auth login`, and every workspace on the machine uses that sign-in.
+- `claude`, `copilot` and `scaleway` each store their own credential in this
+  workspace, so a workspace can run under an account of its own.
 
 ## Adding your own team members
 
@@ -84,7 +106,7 @@ See exactly which operations one member is allowed to run:
 
 ## Running the agents console
 
-	DistroAgentsConsole.sh [--cli copilot|claude|grok|scaleway] [--cli-auto] [--non-interactive] [args...]
+	DistroAgentsConsole.sh [--cli copilot|claude|claude-native|grok|scaleway] [--cli-auto] [--non-interactive] [args...]
 
 	./DistroAgentsConsole.sh
 	./DistroAgentsConsole.sh --cli claude
@@ -92,19 +114,20 @@ See exactly which operations one member is allowed to run:
 	./DistroAgentsConsole.sh --non-interactive "list the projects that changed today"
 	echo "list the projects that changed today" | ./DistroAgentsConsole.sh --non-interactive
 
-- Known CLIs, in preference order: `copilot`, `claude`, `grok`, `scaleway`. The default is `copilot`.
-  `scaleway` has no real binary -- it names `sh-lib/AgentsScalewayHarness.sh`, this package's own
-  bespoke tool-calling harness against Scaleway's Serverless Generative APIs (see
-  `--owner-setup-scaleway`). It has no interactive shape either (the harness runs one
-  request/response tool-calling cycle and exits, so `--cli scaleway` without `--non-interactive` is
-  refused with a stated reason) -- unlike `grok`, which is a real interactive binary not yet proven
-  non-interactive, `scaleway` is the opposite case and is wired into non-interactive dispatch only.
+- Known CLIs, in preference order: `copilot`, `claude`, `claude-native`, `grok`, `scaleway`. The
+  default is `copilot`.
+- `claude-native` runs the `claude` CLI already installed and signed in on this machine, using that
+  existing login rather than any credential configured here.
+- `scaleway` needs no vendor CLI installed at all — it works against Scaleway's own API, so it runs
+  on a machine where nothing else is set up. Configure it once with
+  `DistroAgentsTools.fn.sh --owner-setup-scaleway`. It is one-shot only: always pass
+  `--non-interactive`, and it will tell you so if you forget.
 - `--cli-auto` — pick the first known CLI that is actually installed.
 - `--cli <name>` — start that CLI. A CLI missing from `PATH` is an error; there is no fallback.
 - No `--cli` given — try the default, then the rest of the known list, then fall back to an
   interactive bash session.
 - `--non-interactive` — one-shot, no attached terminal.
-	- Supported for `copilot`, `claude` and `scaleway`.
+	- Supported for `copilot`, `claude`, `claude-native` and `scaleway`.
 	- Remaining arguments are joined into one prompt.
 	- With no arguments, the prompt is read from stdin.
 	- Exits with an error rather than falling back to bash when no CLI is available.

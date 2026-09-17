@@ -184,11 +184,13 @@ Team-owned notes for the magic-* team.
 
 ## Environment init in `DistroAgentsTools.fn.sh`
 
-- `${MDLT_ORIGIN:=$MMDAPP/.local}` at file load is a default, not an init — it only fills a blank. The real init is `DistroAgentsContext --run-from-detect` in the tail guard, which reads `MDLT_CONSOLE_ORIGIN` and resolves the configured origin. `DistroSourceTools.fn.sh` and `DistroDeployTools.fn.sh` carry the same pair.
+- `${MDLT_ORIGIN:=$MMDAPP/.local}` at file load is a default, not an init — it only fills a blank. The real init is `DistroAgentsContext --distro-path-auto` in the tail guard: `AgentsContext.include` declares no arm for that option, so it falls to the `*)` delegation and reaches `SystemContext.SetInputSpec.include`'s `--distro-*` arm, which reads `MDLT_CONSOLE_ORIGIN` and re-exports `MDLT_ORIGIN`. `DistroSourceTools.fn.sh` and `DistroDeployTools.fn.sh` carry the same call against `DistroSystemContext`.
+- This entry said `--run-from-detect` and claimed the two siblings carried it. Both halves were false: measured, that spelling appears nowhere in this package, `myx.distro-source` or `myx.distro-deploy` — it belongs to `myx.distro-remote`, whose `RemoteContext.include` does declare an arm for it. The same false generalisation is restated in `keeper-myx.armed.md`, which is not this package's to correct.
 - Only some tools in the family default `MDLT_ORIGIN` at file load. `DistroSourceTools.fn.sh` and `DistroDeployTools.fn.sh` do not, so their tail-guard test on `[ -z "$MDLT_ORIGIN" ]` is live and does real work. This tool does default it, which is what makes the same test dead here.
 - It belongs in the tail guard's executed-only `case "$0"` arm, above the help branch so `--help` also resolves its own help file. A sourced caller must never trigger it, which is what the guard is for.
 - An operation arm cannot do this work. The file-load bootstrap and the `MDAT_DATA_ROOT` preamble at the top of the function both run before the dispatcher `case`, so by the time any arm executes the environment is already established, right or wrong.
-- `MDLT_ORIGIN` being set proves nothing, because the file-load default sets it unconditionally. `MDLT_OPTION` is the only witness that a resolution actually ran, and `AgentsContext.include`'s idempotence guard tests it alongside `MDLT_ORIGIN` so re-init is a no-op inside a console. A guard written on `MDLT_ORIGIN` alone is dead code after the default.
+- `MDLT_ORIGIN` being set proves nothing, because the file-load default sets it unconditionally. `MDLT_OPTION` is the only witness that a resolution actually ran, and a guard written on `MDLT_ORIGIN` alone is dead code after the default.
+- `AgentsContext.include`'s idempotence guard — the `MDLT_ORIGIN`/`MDLT_OPTION` test that makes re-init a no-op inside a console — sits on its `--init-variables|--run-from-detect` arm. `--distro-path-auto` matches neither pattern, so the tail guard's own call falls to the `*)` delegation and never enters that guard. This entry previously implied it did.
 - A command executed through one of this tool's operations inherits the resolved environment. That is the reason to host an MCP execute operation here: `myx.common`'s MCP path performs no environment init, so anything it runs starts bare.
 
 ## `MDAT_SKILLSET_ROOT`: where the member set is read from
@@ -216,7 +218,7 @@ Team-owned notes for the magic-* team.
 - `MDAT_SPAWN_AGENT` carries the acting member's name. The console builds an inline `--agents` document from it and selects that agent with `--agent`, so a hook reports the member name as `agent_type` instead of the generic type.
 - The definition is inline at spawn and never a standing file. Members ship as skills; a standing agent definition would make one member exist twice, under two mechanisms, with nothing keeping the two in step.
 - The member name is tested against a bare-token set before it is placed inside the JSON, so no name can alter the document's structure.
-- `MDAT_SPAWN_SESSION_ID` is honoured by `claude`, `copilot` and `scaleway` (each takes its own `--session-id` flag); `MDAT_SPAWN_AGENT` reaches all three too, though each resolves it a different way — claude's own is the inline `--agents`/`--agent` document described above, scaleway's is documented in the `AgentsScalewayHarness.sh` section below. On any other CLI (`grok`) each variable is reported and dropped rather than silently ignored — a variable that vanishes without a word is indistinguishable from one that was honoured.
+- `MDAT_SPAWN_SESSION_ID` is honoured by `claude`, `copilot` and `scaleway` (each takes its own `--session-id` flag); `MDAT_SPAWN_AGENT` reaches all three too, though each resolves it a different way — claude's own is the inline `--agents`/`--agent` document described above, scaleway's is documented in the universal-harness sections below. On any other CLI (`grok`) each variable is reported and dropped rather than silently ignored — a variable that vanishes without a word is indistinguishable from one that was honoured.
 - Status: the `--agents`/`--agent` path is not yet exercised against a live spawn, so `agent_type` carrying the member name is designed and not demonstrated. `--help` short-circuits before `--agents` is validated, so valid and malformed values both exit 0 and prove nothing. `ws-myx-devops` is otherwise ready: `SPAWN_CLI_SERVICE` is `claude` and its console is regenerated byte-identical to the template. Two things gate the observation. The spawn is an `--intern-op-*`/`--magic-*` operation, so it belongs to `magic-coordinator` rather than to any member. And reading the field back needs a recording `PreToolUse` hook wired into a workspace `.claude/settings.json`, which the harness gates; `capture-hook-input.sh` sits unwired in `ws-myx-devops/.claude/hooks/` for whoever wires it.
 
 ## Inherited precondition: a caller must not export both origin variables
@@ -872,23 +874,86 @@ The rule the two share: data an op maintains lives beside the symlinks, and the 
 hold package content. `.gitignore` carries
 `skillset/magic-team/human-owner/human-owner.workspaces.md` so the packaged path stays free of it.
 
-## `AgentsScalewayHarness.sh` — the fourth spawn service, and why it is not a fourth CLI
+## The universal harness, the wire adapter, and a provider stub
+
+**Three layers, and the rule that decides which one a thing belongs in.** A value that would have to
+CHANGE to point at another vendor is a *specific* and lives in a stub; behaviour that would stay the
+same across vendors is *logic* and lives in the core; anything whose SHAPE is fixed by an endpoint's
+request/response schema is *wire* and lives in an adapter. The endpoint, the host named in a refusal,
+the credential variable names, the tier models and a harness's own self-name are specifics. The round
+cap, the access-root enforcement, the tool implementations and the retry policy are logic. Reading
+`choices.0.message.tool_calls.N.id` is wire; capping a tool result at a fixed byte count is not — that
+is policy, and it stays in the core.
+
+- **`sh-lib/AgentsUniversalHarness.sh` is the core, and it is never invoked directly.** It holds the
+  whole request/tool-call/response loop and the provider-independent functions behind it. A stub sets
+  the `HARNESS_*` variables and `exec`s it — `exec`, not source, so the core BECOMES that process: the
+  console still launches one path and gets one process, and `$0` resolves to the core's own directory
+  for its sibling `.awk` lookups.
+- **A stub holds one provider's specifics and nothing else.** It names its endpoint, its host, its
+  credential variable names, its tier→model table, its wire and its own self-name, then execs the core.
+  `AgentsScalewayHarness.sh` is the worked example; `AgentsAnthropicStub.sh` is the deliberately
+  non-working one.
+- **The stub keeps the invoker's filename, and the core is the new file.** The console resolves the
+  `scaleway` CLI name to exactly `sh-lib/AgentsScalewayHarness.sh` — `DAGC_SCALEWAY_HARNESS` in
+  `AgentsConsoleShellScript.template.sh`, which is both what `DagcCliPresent()` existence-tests and what
+  `exec` reaches for — and `--owner-setup-scaleway`'s install-probe tests that same path. So the split
+  is invisible upstream: one invoker, one process, and nothing outside had to learn it happened.
+- **`HARNESS_WIRE` NAMES a wire; it does not implement one.** The core sources
+  `sh-lib/Agents${HARNESS_WIRE}Wire.sh`. Scaleway's stub says `OpenAiChat` and resolves to
+  `AgentsOpenAiChatWire.sh`; Anthropic's says `AnthropicMessages` and resolves to a file that does not
+  exist yet, which is that stub's own declared gap.
+- **A wire is shared by every provider speaking it, which is why it is not a provider file.** Scaleway,
+  self-hosted DeepSeek and (as documented rather than confirmed on the wire) Copilot all speak the
+  OpenAI chat-completions shape. A copy of the adapter per provider would reintroduce, at a coarser
+  grain, exactly the duplication this split removes.
+- **A stub names its own specifics and must not grow into a selector.** The fence is written into the
+  Scaleway stub itself: the thing that CHOOSES between stubs — a registry, a known-CLI list, a preset
+  selector — is separate, unbuilt, and deliberately out of scope. If a selector starts being written in
+  a stub, that is the signal to stop, not to continue.
+
+**Where the reasoning lives, rather than restated here.** Three things are documented at their own site,
+and that site is the source rather than this file:
+
+- **The tier table and its justification** live in `AgentsScalewayHarness.sh`, carried over with their
+  evidence under the heading **"THESE MODEL NAMES ARE OBSERVED, NOT DOCUMENTED"**. The table is in the
+  stub and not in the core because two stubs cannot share one — Anthropic's tiers name different models
+  and read a different credential, so a table in the core would be one provider's table pretending to
+  be everyone's. The core keeps only the SHAPE of the mapping.
+- **The `AgentsWire*` roster** — the functions the core calls, which any second adapter must define —
+  is item 7 of `AgentsAnthropicStub.sh`'s constraints block, where whoever writes that adapter already
+  stands. It records that an adapter omitting one fails at the CALL rather than at load, with no check
+  that catches it, and it instructs the reader to re-derive the set from the core's call sites rather
+  than trust the list. Treat it that way: it is dated, and nothing verifies it.
+- **`AgentsOpenAiChatWire.sh` is the first dot-sourced `.sh` in this tree.** It carries the
+  `# ^^^ for syntax checking in the editor only` marker that the dot-sourced files in `sh-lib` carry,
+  and its own header states plainly that adopting it here is SETTING a convention for a new file kind
+  rather than following an established one — `sh-lib` holds five `.sh` files and four are this split's
+  own output, so "it matches its siblings" is close to circular.
+
+**A second stub exists and does not run.** `AgentsAnthropicStub.sh` is structure with named gaps: it
+refuses to run and lists them. It is deliberately non-working because no field name in it could be
+confirmed on the wire, documentation-derived names are already wrong on one model in use, and lifting
+names from a neighbouring parser was refused as a shortcut. Honest and non-working beats plausible and
+wrong, and its constraints block records what the missing adapter has to satisfy.
+
+## `AgentsScalewayHarness.sh` — the Scaleway stub, and why scaleway is not a fourth CLI
 
 `scaleway` (`DAGC_KNOWN_CLIS`, `--owner-setup-scaleway`, `DAGC_CLI_CREDENTIALS`) is a fourth agent-spawn
 backend alongside `claude`/`copilot`/`grok`, decided in the backlog's own "Scaleway as a fourth agent
 spawn service" entry. Unlike the other three, there is no real `scaleway` binary: Scaleway's own
 Serverless Generative APIs are a bare
-`POST https://api.scaleway.ai/v1/chat/completions`, so `sh-lib/AgentsScalewayHarness.sh` *is* the CLI —
-a standalone, independently-invokable bash script that runs the whole request/tool-call/response loop
-itself, using the exact curl `-H @-` bearer-stdin pattern `AgentsTools.CommsSlack.include` already
-proves. No sandboxing beyond its own access-root check (matches copilot's `--allow-all-tools` trust
-model, not a gap this closes); no context-window management — an unboundedly long conversation is a
-known limit of both harness variants, guarded only by a hard 25-round cap (see below), never a
-silent one.
+`POST https://api.scaleway.ai/v1/chat/completions`, so this package *is* the CLI —
+`sh-lib/AgentsScalewayHarness.sh` is the stub the console execs, and it execs
+`sh-lib/AgentsUniversalHarness.sh`, which runs the whole request/tool-call/response loop itself using
+the exact curl `-H @-` bearer-stdin pattern `AgentsTools.CommsSlack.include` already proves. No
+sandboxing beyond the core's own access-root check (matches copilot's `--allow-all-tools` trust model,
+not a gap this closes); no context-window management — an unboundedly long conversation is a known
+limit, guarded only by a hard 25-round cap (see below), never a silent one.
 
-**Research on making this harness universal is recorded elsewhere, not here.** The human-owner's TODO of 2026-09-15 — one common UHP + MCP harness for all spawning, covering Scaleway/DeepSeek, Anthropic/Claude and GitHub/Copilot spawners, hooks, visual output and checkpoint/rewind — is held as board item `task-20260915T0924Z-common-uhp-mcp-harness-for-all-spawning.md` (backlog), and the measured research from four seats is written up in the backlog document's `### Context Detail — 2026-09-15 session (harness research, measured)`. **That Context Detail entry is canonical for the research; this file documents the code, and documents that subject when something is built.** The plan drawn from it, with its subtasks and the open questions they are blocked on, is in two further entries of the same date — `### Context Detail — 2026-09-15 session (harness planning, measured)` and `### Context Detail — 2026-09-15 session (session lessons)`. Implementation is not yet, by his own word.
+**Research on making this harness universal is recorded elsewhere, not here.** The human-owner's TODO of 2026-09-15 — one common UHP + MCP harness for all spawning, covering Scaleway/DeepSeek, Anthropic/Claude and GitHub/Copilot spawners, hooks, visual output and checkpoint/rewind — is held as board item `task-20260915T0924Z-common-uhp-mcp-harness-for-all-spawning.md` (backlog), and the measured research from four seats is written up in the backlog document's `### Context Detail — 2026-09-15 session (harness research, measured)`. **That Context Detail entry is canonical for the research; this file documents the code, and documents that subject when something is built.** The plan drawn from it, with its subtasks and the open questions they are blocked on, is in two further entries of the same date — `### Context Detail — 2026-09-15 session (harness planning, measured)` and `### Context Detail — 2026-09-15 session (session lessons)`. **What has since been built is the universal/stub split described in the chapter above, and this file documents it because it exists.** The rest of that TODO — the MCP surface, hooks, checkpoint/rewind, and spawning across the five execution classes — is not implemented, and stays in those entries until it is. This file documents a part when it is built, never when it is planned.
 
-**Future plans, in outline only — the detail and its attribution live in the Context Detail entries above, which are the main source.** Decisions an implementer would otherwise collide with: checkpoint/rewind is cheap, the conversation being one serialisable array rather than scattered state; visual output is a merge of two working implementations rather than new work; hooks are new construction, confirmed by the human-owner; and the tool surface is the gap, six of the ten named tools existing nowhere in this package. These are decisions drawn from that research rather than measurements, and their evidence and attribution live in those entries — measurements as measurements, judgements as judgements. This file is not the main source for any of it.
+**Future plans, in outline only — the detail and its attribution live in the Context Detail entries above, which are the main source.** Decisions an implementer would otherwise collide with: checkpoint/rewind is cheap, the conversation being one serialisable array rather than scattered state; visual output is a merge of two working implementations rather than new work; hooks are new construction, confirmed by the human-owner; and the tool surface is the gap: the harness implements six of the ten named tools — `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `run_command` — and carries no implementation of `SendMessage`, `ListAgents`, `WebSearch` or `Fetch`. `list_dir` no longer exists: it was a plain `ls -la` matching no patterns, and it was folded into `glob`, which tests its root before evaluating the pattern so that a missing directory stays distinguishable from an empty match, and keeps a `long` argument so the fold dropped no capability. `edit_file` was added as the partial-edit primitive, so `write_file` is no longer the only way to change a file. These are decisions drawn from that research rather than measurements, and their evidence and attribution live in those entries — measurements as measurements, judgements as judgements. This file is not the main source for any of it.
 
 **Service facts the harness is written against.** The endpoint is OpenAI **Chat-Completions**-compatible
 and supports `stream:true` (SSE), `tools` and `tool_choice`. There is **no Responses API**, and that
@@ -899,17 +964,18 @@ bare and carry no slash prefix. A key is scoped by Project and policy rather tha
 reaches every model that Project serves — `Help.DistroAgentsTools-setup-scaleway.help.md` states that
 last half for the setup reader.
 
-**Two files ship, and the default is the streaming one.** `sh-lib/AgentsScalewayHarness.sh` — the
-plain name, the file the console reaches with nothing set — is the SSE-streaming implementation: live
-text echo and a per-tool visual progress layer on stderr as the model generates. The earlier
-BLOCKING implementation (one plain `POST` per round, one complete JSON body parsed at the end, no
-streaming and no visual progress layer) is preserved beside it as
-`sh-lib/AgentsScalewayHarnessV1.sh`, and `MDAT_SCALEWAY_HARNESS=AgentsScalewayHarnessV1.sh` is now
-the only way to reach it — nothing selects it on its own. This was a deliberate default flip, not
-drift: the streaming file is the one the work continues on, and the blocking protocol survives only
-against a possible later reuse as a generic variant for other providers. Everything in this section
-holds for both variants unless it names one of them; what differs is the transport and the stderr
-presentation, both covered in the section below.
+**One harness ships, and it streams.** The earlier blocking implementation and its
+`AgentsScalewayHarnessV1.sh` file are deleted, on the human-owner's own word. Nothing in this package
+references them and no variant selection remains, so anything below describes one code path rather
+than a default and an alternative.
+
+**`MDAT_SCALEWAY_HARNESS` survives and has a different job now.** It repoints
+`DAGC_SCALEWAY_HARNESS` at a CANDIDATE harness — a bare filename in `sh-lib`, or an absolute path, with
+a relative path refused for a stated reason (it would resolve against `$MMDAPP` rather than against
+anything the caller named), then checked for existence and for the execute bit. Unset, the console
+resolves the stub's own plain path. `--owner-setup-scaleway`'s install-probe and
+`AgentsToolsSpawnCliPresent` both test that plain default name and deliberately do not follow the
+override: they ask whether the release reached this workspace, not which file a run selects.
 
 - **Standalone by design, not sourced.** Every sibling `Agents*.include` is dot-sourced into
   `DistroAgentsTools` and resolves its neighbours through `$MDLT_ORIGIN`. This script is executed
@@ -968,11 +1034,14 @@ presentation, both covered in the section below.
   (no slash) is the confirmed, non-provisional id for `normal`/`heavy` (see the reclassification above —
   it anchors the top two tiers, not `light`, once its real active-parameter count and price were known).
 
-- **Tool schemas: five, OpenAI `tools`-array shaped.** `read_file`, `write_file`, `list_dir`, `grep`,
-  `run_command`. `write_file` is a whole-file overwrite/create, never a partial patch — there is no
-  existing diff/edit primitive to reuse (`AgentsBoardItemPatchApply.py` is a different, board-item-
-  specific grammar) and building a general one is out of scope for this pass; "edit" is the model
-  reading a file first and writing back the complete new content. `run_command` bounds only its own
+- **Tool schemas: six, OpenAI `tools`-array shaped.** `read_file`, `write_file`, `edit_file`, `glob`,
+  `grep`, `run_command`. `write_file` is a whole-file overwrite/create; `edit_file` is the partial-edit
+  primitive beside it, replacing by exact literal and refusing unless the text occurs exactly once.
+  It reads the whole file inside the process and returns only a one-line result, so it is the way to
+  change a file too long to read back — which is why the earlier instruction here, that "edit" means
+  reading a file and writing back its complete content, was a data-loss prescription rather than a
+  limitation. Its uniqueness guard counts occurrences with the same `index()` call that performs the
+  substitution, never `grep -c`, which counts matching lines. `run_command` bounds only its own
   `cwd` to the access-root set — the command itself is not sandboxed further, the same trust level
   `--allow-all-tools` already grants copilot.
 
@@ -981,7 +1050,7 @@ presentation, both covered in the section below.
   `DAGC_COPILOT_ADDDIR` from `.claude/copilot-add-dir.fragment` (`<own|explicit|wildcard>\t<path>` lines,
   or a bare `--add-dir`/`/*` pair in the old two-line format) only for `copilot`/`claude`, because only
   they take a `--add-dir` flag to hand it to. There is nothing to hand a flag to here, so
-  `AgentsScalewayHarness.sh` parses that same fragment itself, rather than being threaded a pre-parsed
+  the core parses that same fragment itself, rather than being threaded a pre-parsed
   array from the console. This is a real, accepted duplication of one small parsing block, not a shared
   primitive — flagged here so the day a third reader of this exact fragment format appears, factoring it
   out is an easy, obvious follow-up rather than a silent third copy.
@@ -1041,27 +1110,27 @@ presentation, both covered in the section below.
 
 - **`--session-id <id>` and `--agent <name>`: the same two spawn-proxy exports claude/copilot already took, now
   reaching scaleway too.** `AgentsConsoleShellScript.template.sh`'s `DAGC_SESSION_ID_ARGS`/`DAGC_AGENT_ARGS`
-  conditionals widened from `claude`/`copilot`-only to include `scaleway` for both flags. `--session-id` only
-  announces the id to stderr — `🔗 session <id>` from the default streaming `AgentsScalewayHarness.sh`, and
-  `# AgentsScalewayHarnessV1.sh: session-id: <id>` from the blocking one — scaleway has no external hook
-  observer the way claude/copilot run under Claude Code's own instrumented lifecycle, so that line is the only
-  "join" this harness can make at all. `--agent <name>` (checked against the same bare-token gate the template
-  already applies to `MDAT_SPAWN_AGENT`, reproduced here rather than shared since this harness sources no
+  conditionals widened from `claude`/`copilot`-only to include `scaleway` for both flags, and both are handled
+  in the core. `--session-id` only announces the id to stderr as `🔗 session <id>` — scaleway has no external
+  hook observer the way claude/copilot run under Claude Code's own instrumented lifecycle, so that line is the
+  only "join" this harness can make at all. `--agent <name>` (checked against the same bare-token gate the
+  template already applies to `MDAT_SPAWN_AGENT`, reproduced in the core rather than shared since it sources no
   include of its own) reads `$MDAT_SKILLSET_ROOT/<name>/<name>.basic.md` and prepends it as the system prompt's
-  real identity, replacing the generic "autonomous coding agent" opener entirely rather than alongside it. The
-  full `.armed.md` is deliberately not inlined — some run to ~48K tokens, the wrong tradeoff against this
-  harness's metered, `max_tokens`-capped cheap-tier model — so the model is told to `read_file` its own
-  `.armed.md` itself, on the same access grant that already lets it reach `.basic.md`. A missing or unreadable
-  `.basic.md` is a loud `exit 1`, never a silent fallback to the generic prompt, which would look like a
-  successful `--agent` spawn while actually running as nobody in particular.
+  real identity, replacing the generic opener entirely rather than standing alongside it — one clear identity,
+  not two. The full `.armed.md` is deliberately not inlined — some run to ~48K tokens, the wrong tradeoff
+  against this harness's metered, `max_tokens`-capped cheap-tier model — so the model is told to `read_file`
+  its own `.armed.md` itself, on the same access grant that already lets it reach `.basic.md`. A missing or
+  unreadable `.basic.md` is a loud `exit 1`, never a silent fallback to the generic prompt, which would look
+  like a successful `--agent` spawn while actually running as nobody in particular.
 
-- **A symlink-resolution bug was found and fixed while wiring `--agent` in.** Access-root grants are made
-  against the real, `pwd -P`-resolved path (`AgentsToolsClientAccessRootsMembers`'s own convention);
-  `AgentsScalewayPathAllowed` does a raw string-prefix match with no symlink resolution of its own.
-  `$MDAT_SKILLSET_ROOT/<name>` is normally a symlink into that real location, so handing the model the
-  symlinked directory in its `read_file` hint would have had that exact call refused as outside the allowed
-  roots — the very file the prompt just told it to read. Fixed by resolving the agent's directory to its real
-  path once at spawn time, before it goes into the prompt text.
+- **What the live rounds have and have not established, stated rather than inferred.** Two things are
+  proved: one live round exercised the wire end to end, and a second proved `read_file` against a plain
+  path. The symlinked access-root case FAILED and is under repair by the seat that owns it.
+  `$MDAT_SKILLSET_ROOT/<name>` is normally a symlink into the member's real location, while access-root
+  grants are made against the real, `pwd -P`-resolved path, so the interaction between a symlinked root
+  and the core's own path check is exactly the region being worked on. Nothing in this document
+  describes that case as working, and this section takes its account from that seat when the repair
+  lands rather than filling one in now.
 
 - **`--owner-setup-scaleway`'s install-probe is a file test, never `command -v`.** The shared
   `claude|copilot|scaleway)` declare-args arm still emits `--install-probe "command -v $setupDomain"`
@@ -1071,7 +1140,7 @@ presentation, both covered in the section below.
   declared: the harness ships with the package release, so there is nothing an `--apply` installs: an
   absent file means the release has not reached this workspace, not that a package is missing.
 
-- **`AgentsScalewayJsonField.awk` is a new file, not a reuse of `AgentsSlackJsonField.awk` as-is.** Both
+- **`AgentsHarnessJsonField.awk` is a new file, not a reuse of `AgentsSlackJsonField.awk` as-is.** Both
   copy the same recursive-descent engine verbatim, the family's own established propagation path for it
   (`AgentsSlackJsonField.awk` ← `AgentsSlackConversationCounterparty.awk` ← `AgentsSlackMessagesFormat
   .awk` ← `myx.common`'s `agentMcpJsonParseRequest.awk`) — this is one more copy in that same lineage,
@@ -1087,7 +1156,8 @@ presentation, both covered in the section below.
   own call sites need to.
 
 - **A required response field missing is a stated exit 1, never a bare `set -e` kill.** `id`/`name`/
-  `arguments` off a `tool_calls` entry are each read through `AgentsScalewayResponseField`, which checks
+  `arguments` off a `tool_calls` entry are each read through the wire adapter's own
+  `AgentsWireResponseField`, which checks
   the field reader's own rc and, on non-zero (rc 3 absent, rc 1 malformed), prints which field and which
   round before exiting — rather than the assignment `x="$( ... )"` failing silently under `set -e` with
   nothing downstream ever testing it. A model or API returning a `tool_calls` shape this harness cannot
@@ -1124,40 +1194,32 @@ presentation, both covered in the section below.
 - **A per-round tool-call progress line, announced immediately BEFORE the tool call executes, not
   after.** Human-owner's own ask: the harness's tool-execution dispatch had zero stderr announcement
   anywhere in its success path, and real-time visibility into what it is doing matters especially for a
-  `run_command` that might hang. `AgentsScalewayAnnounceTool` is where it happens, and it is the one
-  place the two variants **do** differ outside the transport, so the two shapes are worth stating apart:
-  - `AgentsScalewayHarnessV1.sh` prints `# AgentsScalewayHarnessV1.sh: round $round: $funcName: <detail>`
-    — the same `# <this file>: ...` stderr prefix its own `--session-id` announce line uses. `<detail>`
-    is `path=` for `read_file`/`write_file`/`list_dir`, `pattern=`+`path=` for `grep`,
-    `command=`+`cwd=` for `run_command`.
-  - `AgentsScalewayHarness.sh` (the default) prints the same information as a per-tool icon line
-    (`📖`/`📝`/`📂`/`🔍`/`💻`), with the tool name in a fixed-width colour column and the values beside
-    it, under a `── round N ───` rule printed once per round rather than a round stamp per call. It
-    also announces the model and tier once at startup (`🤖 scaleway <model> · <tier> tier`) and the
-    session id as `🔗 session <id>`. Colour is gated on `[ -t 2 ]` + `NO_COLOR` + a real `TERM`
-    (`tput colors` ≥ 8) exactly as `myx.common`'s own `lib/catMarkdown.Common` gates its stdout; the
-    emoji are not gated, being printable UTF-8 rather than escapes.
+  `run_command` that might hang. `AgentsScalewayAnnounceTool`, in the core, is where it happens. It
+  prints a per-tool icon line (`📖`/`📝`/`📂`/`🔍`/`💻`), with the tool name in a fixed-width colour
+  column and the values beside it, under a `── round N ───` rule printed once per round rather than a
+  round stamp per call. It also announces the model and tier once at startup
+  (`🤖 scaleway <model> · <tier> tier`) and the session id as `🔗 session <id>`. Colour is gated on
+  `[ -t 2 ]` + `NO_COLOR` + a real `TERM` (`tput colors` ≥ 8) exactly as `myx.common`'s own
+  `lib/catMarkdown.Common` gates its stdout; the emoji are not gated, being printable UTF-8 rather than
+  escapes.
 
-  Both share the rule that matters: never `write_file`'s own content, only the path being written to,
+  The rule that matters: never `write_file`'s own content, only the path being written to,
   and every value — the function name included, since that is model output too — passes through
   `AgentsScalewayTruncateArg` first: collapsed to one line, every C0 control byte and DEL folded to a
   space, cut at 120 bytes (`...` appended), never dumped whole. That control-byte fold is what
   stops a prompt-injection payload arriving as a tool-call argument from forging or moving the
-  harness's own chrome. Live-confirmed real-time on v1 (polled while the process was still running, not
-  merely present at exit) against a real multi-tool-call session.
-  The rule is shared; the implementation is no longer. `AgentsScalewayHarness.sh`'s
-  `AgentsScalewayTruncateArg` is now one line handing the value to `progressLineSafe` — the one
-  primitive, in `AgentsClaudeStreamJsonFormat.awk`, that claude's own progress lines use as well — so
-  its cut is UTF-8-boundary-safe in every locale. `AgentsScalewayHarnessV1.sh` keeps the earlier
-  `printf | tr` copy, whose `${value:0:120}` cut splits a multi-byte character under `LC_ALL=C`.
-  See the `AgentsClaudeStreamJsonFormat.awk` section below for why the primitive lives where it does.
+  harness's own chrome.
+  `AgentsScalewayTruncateArg` is one line handing the value to `progressLineSafe` — the one
+  primitive, in `AgentsProgressLineSafe.awk`, that claude's own progress lines use as well — so
+  its cut is UTF-8-boundary-safe in every locale.
+  See that file's own section below for why the primitive lives where it does.
 
 ## `sh-lib/AgentsProgressLineSafe.awk` — `progressLineSafe`, the one progress-line primitive
 
 **The primitive is its own file, and it is not owned by any spawn service.** `AgentsProgressLineSafe.awk`
 holds the `ordTable` BEGIN, `progressLineSafe()` itself, and a standalone stdin mode; every caller loads
 it. There are two ways in, and the file's own header states both: `awk -v progressLineCap=<bytes> -f
-AgentsProgressLineSafe.awk` renders one value from stdin, which is how `AgentsScalewayHarness.sh` uses
+AgentsProgressLineSafe.awk` renders one value from stdin, which is how the universal harness uses
 it; `awk -f AgentsProgressLineSafe.awk -f <rules>.awk` loads it ahead of a formatter that calls the
 function, which is how the claude path uses it. With `progressLineCap` unset the standalone rule never
 fires, so the loaded rules see every line; when it is set, that rule's `next` is what keeps the line
@@ -1185,7 +1247,7 @@ but neutralised nothing: its own `jsonUnescape` *decodes* a spec-legal `\r` into
 it, so a `Bash` call carrying `echo hi\rrm -rf / # FORGED` reached stderr with the CR intact and
 forged the line — measured, `od -c` showed the `\r` byte in the output — and a raw ESC in the same
 string passed through untouched. Its only partial defence was `jsonUnescape` dropping `\uXXXX`, one
-of three ways the same byte can arrive. `AgentsScalewayHarness.sh`'s `AgentsScalewayTruncateArg`
+of three ways the same byte can arrive. The scaleway harness's own `AgentsScalewayTruncateArg`
 folded every C0 byte and DEL correctly but cut with `${value:0:120}`, which is **byte**-based under
 `LC_ALL=C` — measured on bash 3.2.57, that emitted a lone `e2` lead byte mid-character, the exact
 defect `truncateSafe` existed to prevent. Under an inherited `en_US.UTF-8` the same expression is
@@ -1234,38 +1296,17 @@ One primitive now does both, and both callers reach it.
   like everything else on that line, an MCP server names its own tools, and it was reaching stderr
   raw — the harness's own rule already said "the function name included, since that is model output
   too". It is folded but never cut, which is what it did before.
-- **`AgentsScalewayHarnessV1.sh` keeps its own `tr`-based copy and was deliberately not touched**, on
-  the standing rule in the section below that no new work belongs in it.
+## Streaming transport
 
-## Streaming transport, and `AgentsScalewayHarnessV1.sh` — the preserved blocking one
+The core opens Scaleway's SSE stream (`"stream":true`) via `curl -N` and consumes it incrementally,
+then falls through into the same error-handling and tool-dispatch code once a round's stream
+completes — a second, streaming-shaped tool-dispatch path was deliberately not built, so a dispatch
+bug has one place to be fixed, not two.
 
-Two variants of the harness exist on purpose, not from drift, and which one carries the plain name is
-itself a decision. `AgentsScalewayHarness.sh` — the default, the file the console runs with nothing
-set — is the SSE-streaming implementation. `AgentsScalewayHarnessV1.sh` is the earlier blocking one,
-preserved unchanged apart from its own renamed self-references, and reachable only by naming it:
-`MDAT_SCALEWAY_HARNESS=AgentsScalewayHarnessV1.sh`.
-
-The streaming file began as a verbatim copy of the blocking one, and most of it still is: tool schemas,
-the five tool-execution functions, access-root enforcement and its fragment parser, credential
-resolution, `--tier`/`--session-id`/`--agent` handling, the `AgentsScalewayJsonField.awk`-based field
-reader, `AgentsScalewayTruncateArg`, and everything from the error checks through message-history
-assembly and tool dispatch. Two things are genuinely its own:
-
-- **The transport.** v1 makes one blocking `curl` call per round and parses one complete JSON body;
-  the default opens Scaleway's SSE stream (`"stream":true`) via `curl -N` and consumes it
-  incrementally, then falls through into that same unchanged error-handling and tool-dispatch code
-  once a round's stream completes — a second, streaming-shaped tool-dispatch path was deliberately
-  not built, so a dispatch bug has one place to be fixed, not two.
-- **The stderr presentation layer.** `AgentsScalewayAnnounceTool` is NOT a verbatim copy any more:
-  the default's is the icon/colour/round-rule form described in the progress-line bullet above, next
-  to a startup model+tier line, a `🔗 session` line, a `🔁 RETRY` line, and colourised `⛔ ERROR:`
-  prefixes on every diagnostic. v1 keeps the plain `# AgentsScalewayHarnessV1.sh: ...` stamps
-  throughout and has no colour block at all. This is the one place the two files' shared lineage has
-  actually been broken, and it was broken on purpose — the visual layer landed on the streaming file
-  because that is the file that survives.
-
-The rest of this section is the streaming transport in detail — all of it belongs to
-`AgentsScalewayHarness.sh`, none of it to `AgentsScalewayHarnessV1.sh`:
+**Which layer owns what, in this section specifically.** The stream's SHAPE — the event grammar, the
+field paths, the fragment keying, the sentinel — is the wire adapter's, because it is fixed by the
+endpoint rather than chosen by us. The retry policy, the round cap and the stall bound are the core's,
+because they would hold the same way against any provider.
 
 - **Real SSE shape, live-confirmed, OpenAI-compatible.** Plain-text and tool-call progress arrive as
   `data: {...}` events; a tool call's `function.arguments` arrives as successive fragments keyed by
@@ -1281,7 +1322,7 @@ The rest of this section is the streaming transport in detail — all of it belo
 - **Design decision — a mid-stream disconnect discards partial state and retries the whole round from
   scratch, bounded at 3 attempts (`scalewayStreamMaxAttempts`).** There is no resume primitive on this
   API — no server-side stream id, no partial-completion token — so retrying the exact same full
-  conversation-so-far request v1 already builds each round is not an approximation of resuming, it is
+  conversation-so-far request each round already builds is not an approximation of resuming, it is
   the only next request this API accepts. A partial `function.arguments` accumulation is very likely
   not valid JSON on its own (a prefix cut at an arbitrary byte), and a partial plain-text answer printed
   as the final answer would silently hand the caller a truncated reply with no signal it was cut off.
@@ -1301,26 +1342,33 @@ The rest of this section is the streaming transport in detail — all of it belo
   aborts only once throughput has been near zero for a sustained 45-second window — long enough that a
   heavy-reasoning model's own thinking pause before its next chunk is not mistaken for a dead
   connection, short enough that a genuinely dead connection does not hang the harness indefinitely.
-  `--max-time` is deliberately absent, unlike v1: a flat cap is wrong once total generation time can
-  legitimately run past it (heavy tier, a slow but alive stream). `--connect-timeout` is unchanged from
-  v1 and only bounds the initial TCP+TLS handshake.
+  `--max-time` is deliberately absent: a flat cap is wrong once total generation time can
+  legitimately run past it (heavy tier, a slow but alive stream). `--connect-timeout` bounds only the
+  initial TCP+TLS handshake and is not a bound on the stream at all.
 - **`${PIPESTATUS[0]}` is what is actually tested after the streaming `curl`, not `$?`.** Once `curl` is
   the left side of a pipe into the consuming `while read` loop, `$?` reports the pipeline's own exit
   status (the loop's), not curl's — captured on the very next line, before anything else runs, exactly
   as `set +e`/`set -e` bracket that one statement so the surrounding `set -e` does not trip on a
   non-zero curl exit it needs to inspect itself.
-- Reported by the implementing session: all three required live tests passed, including a real forced
-  mid-stream disconnect exercising the discard-and-retry path end to end. Unlike v1's own entries above,
-  no concrete transcript/numbers are filed in this document yet — add them here once available, the same
-  standard v1's own live-test claims are held to elsewhere in this section.
-- **Both are reached through the console's own exec dispatch, and the default flipped by rename.** The
-  streaming file was standalone-only at first, then selectable through `MDAT_SCALEWAY_HARNESS`, and is
-  now the default: the two files were swapped on disk — the blocking one to `AgentsScalewayHarnessV1.sh`,
-  the streaming one to `AgentsScalewayHarness.sh` — so `DAGC_SCALEWAY_HARNESS`'s unchanged default path
-  resolves to streaming and the override is what reaches back to blocking. `--owner-setup-scaleway`'s
-  install-probe and `AgentsToolsSpawnCliPresent` both keep testing the plain default name and so are
-  unaffected; neither follows `MDAT_SCALEWAY_HARNESS`, deliberately (they ask whether the release
-  reached this workspace, not which variant a run selects).
-- The stated end state is a *single* `*ScalewayHarness.sh` — the streaming one. The blocking protocol
-  survives only against a possible later reuse as a separate generic variant for other providers; it is
-  not a maintained second Scaleway path, and no new work belongs in it.
+- **Prompt-cache stability is the adapter's responsibility, and it fails quietly.** Caching is a
+  byte-prefix match, so a re-serialised `tools` array in a different key order stays VALID JSON and
+  loses the entire cache — no error, no log line, only cost. The tools declaration is therefore a fixed
+  literal rendered once, never rebuilt per round, and the request body appends in a fixed order. Do not
+  "simplify" either into a rebuild from an array: the same rebuild that merely COSTS here is a hard
+  failure on a wire that binds its prefix, and the cheaper leg is the one that fails silently.
+- **Field names in the adapter are observed, never documented.** Every path was read off real responses
+  from this endpoint. The rule exists because it has already been broken elsewhere: DeepSeek documents
+  `prompt_cache_hit_tokens` while Scaleway-hosted DeepSeek emits `prompt_tokens_details.cached_tokens`.
+  A documentation-derived field name in an adapter is silent, permanent, and already wrong on at least
+  one model in use.
+- **Reached through the console's own exec dispatch.** `DAGC_SCALEWAY_HARNESS` resolves to the stub,
+  `DAGC_CLI_EXEC` maps `scaleway` to it, and the `exec` lines launch that path — so the console reaches
+  the stub and the stub reaches the core, one invoker and one process throughout.
+  `--owner-setup-scaleway`'s install-probe and `AgentsToolsSpawnCliPresent` both test the plain default
+  name and deliberately do not follow `MDAT_SCALEWAY_HARNESS`: they ask whether the release reached this
+  workspace, not which file a run selects.
+- **What this section does not claim.** The live position is recorded once, in the stub section above,
+  and is deliberately not restated per bullet: one round exercised the wire end to end, a second proved
+  `read_file` on a plain path, and the symlinked access-root case failed and is under repair by the seat
+  that owns it. No transcript or timing numbers are filed here. Treat any behaviour described above that
+  those rounds did not touch as designed rather than demonstrated.

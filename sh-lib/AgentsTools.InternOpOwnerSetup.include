@@ -21,7 +21,7 @@ AgentsToolsOwnerSetupOptionSpec(){
 		## No '|' inside a field: it is this line's own separator, so one in a
 		## placeholder splits the entry and every later field arrives shifted.
 		SPAWN_CLI_SERVICE)
-			printf '%s\n' 'magic-team|<cli-name>|plain|the agent CLI this workspace starts -- copilot, claude, grok or scaleway. A spawned agent runs non-interactively, where the console accepts only copilot, claude and scaleway.'
+			printf '%s\n' 'magic-team|<cli-name>|plain|the agent CLI this workspace starts -- copilot, claude, claude-native, grok or scaleway. A spawned agent runs non-interactively, where the console accepts only copilot, claude, claude-native and scaleway.'
 		;;
 		CLIENT_ACCESS_ROOTS_EXTRA)
 			printf '%s\n' 'magic-team|<abs-path>[:<abs-path>...]|plain|extra directories a spawned agent may read and write, beyond the member and source roots the installer already grants. Absolute paths, colon-separated.'
