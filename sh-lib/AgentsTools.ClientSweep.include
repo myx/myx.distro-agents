@@ -105,7 +105,7 @@ case "$1" in
 				--all-types --filter-owner "$clientMember" \
 				--do-inbox-inquiry-active --do-inbox-reflections \
 				--do-inbox-notes --do-inbox-other \
-				--comms-do-all --comms-member-scope-only "${commsCutoffArgs[@]}" \
+				--do-all --member-scope-only "${commsCutoffArgs[@]}" \
 				--context --client-sweep-input-scan
 		)" || clientSweepStatus=$?
 

@@ -93,7 +93,7 @@ case "$1" in
 		fi
 
 		ExtractOpNames(){
-			awk '
+			LC_ALL=C awk '
 				/^## DistroAgentsTools magic-tooling operations/ { inBlock=1; next; }
 				inBlock && /^## / { inBlock=0; }
 				inBlock && /^- `--/ {
@@ -151,7 +151,7 @@ case "$1" in
 
 
 		export MDAT_MEMBER_HELP_NAMES="$allNames"
-		awk '
+		LC_ALL=C awk '
 			BEGIN {
 				count = split(ENVIRON["MDAT_MEMBER_HELP_NAMES"], arr, "\n");
 				for (i = 1; i <= count; i++) { if (arr[i] != "") nameList[arr[i]] = 1; };
@@ -181,7 +181,7 @@ case "$1" in
 
 		echo >&2
 
-		awk '
+		LC_ALL=C awk '
 			BEGIN {
 				count = split(ENVIRON["MDAT_MEMBER_HELP_NAMES"], arr, "\n");
 				for (i = 1; i <= count; i++) { if (arr[i] != "") nameList[arr[i]] = 1; };

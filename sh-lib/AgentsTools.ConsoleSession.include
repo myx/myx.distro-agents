@@ -101,7 +101,7 @@ case "$1" in
 				*) echo "⛔ ERROR: $MDSC_CMD --console-start: unrecognized console: $consoleName" >&2 ; set +e ; return 1 ;;
 			esac
 
-			local slug ; slug="$( printf '%s' "$workspace" | cksum | awk '{print $1}' )"
+			local slug ; slug="$( printf '%s' "$workspace" | cksum | LC_ALL=C awk '{print $1}' )"
 			local channelId="${MDAT_CHANNEL_PREFIX}.${slug}.${consoleShortName}"
 			local channelDir="$MMDAPP/.local/temp/$channelId"
 			local fifo="$channelDir/fifo"

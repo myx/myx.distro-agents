@@ -135,6 +135,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --intern-op-session-context-scan <team-member> (--all-types|--type-prefix:<value>...) [--state <state>]... [--header <name>]... [--item <item-filename>]... [--item-include-inbox] [--filter-owner <member>] [--do-all] [--do-slack] [--do-email] [--do-trello] [--no-slack] [--no-email] [--no-trello] [--do-slack-tags] [--member-scope-only] [--comms-since-utime <v>|--comms-since-date-time <v>] [--do-inbox-inquiry-active|--do-inbox-inquiry-all] [--no-inbox-inquiry] [--do-inbox-reflections] [--no-inbox-reflections] [--do-inbox-notes] [--no-inbox-notes] [--do-inbox-other] [--no-inbox-other] [--do-inbox-also-member <member>]... [--do-board-related-active|--do-board-related-all] [--no-board-related] [--context <caller-op>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -1318,6 +1319,11 @@
 
 			Unread Trello notifications only (`read_filter=unread`), not a
 			full board read. Uses configured Trello credentials.
+
+			Returns 0 only when Trello itself answered. Credentials the API
+			rejects return 22, with Trello's own error body still printed;
+			credentials not both set return 1 — a rejected credential is
+			never reported as an empty unread list.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -2995,13 +3001,16 @@
 			(mode 0755, regenerated idempotently every run --
 			tmp+`cmp`+`mv`, a no-op run touches nothing):
 			`deny-memory-md-read.sh` (denies `Read` on the memory-system's
-			`MEMORY.md` index file, any workspace/project, with reason
-			"read workspace, repository and project MAGIC.md") and
-			`deny-bash-tool.sh` (denies every `Bash` tool call outright,
-			with reason "always use MCP TOOLING to properly execute shell
-			commands" -- this also fully covers `python3`/`rm`/`mv`/
-			anything else run through Bash, since nothing reaches a shell
-			any other way). Neither writes nor touches
+			`MEMORY.md` index file, any workspace/project) and
+			`deny-bash-tool.sh` (denies every `Bash` tool call outright --
+			this also fully covers `python3`/`rm`/`mv`/anything else run
+			through Bash, since nothing reaches a shell any other way).
+			The decision each script returns, and the text it returns
+			alongside it, are not stated here: both are generated from
+			`sh-lib/AgentsTools.ClientToolPolicy.include`, the one place a
+			client tool policy is written down, so this manual names that
+			source instead of carrying a second copy of a value that would
+			then drift from it. Neither writes nor touches
 			`protect-memory-md.sh` (the already-verified `Edit`/`Write`
 			MEMORY.md guard) -- that hook, and its own `hooks.PreToolUse`
 			entry, are left exactly as found.
@@ -3040,6 +3049,13 @@
 			same trust rule the declared-member scan follows.
 			A run that changes nothing (already current) is reported as
 			such, not silently treated the same as a write.
+			Before reporting success -- on a run that wrote and on a run
+			that found the file already current alike -- re-reads
+			`<workspace>/.claude/settings.json` and confirms
+			`hooks.PreToolUse` carries an entry for each hook the policy
+			source names. Each is reported `OK` or `MISSING` by name, and
+			a `MISSING` one fails the run (exit 1), so a merge that
+			dropped a hook is never reported as an install.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -3751,6 +3767,189 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--intern-op-session-context-scan <team-member> (--all-types|--type-prefix:<value>...) [--state <state>]... [--header <name>]... [--item <item-filename>]... [--item-include-inbox] [--filter-owner <member>] [--do-all] [--do-slack] [--do-email] [--do-trello] [--no-slack] [--no-email] [--no-trello] [--do-slack-tags] [--member-scope-only] [--comms-since-utime <v>|--comms-since-date-time <v>] [--do-inbox-inquiry-active|--do-inbox-inquiry-all] [--no-inbox-inquiry] [--do-inbox-reflections] [--no-inbox-reflections] [--do-inbox-notes] [--no-inbox-notes] [--do-inbox-other] [--no-inbox-other] [--do-inbox-also-member <member>]... [--do-board-related-active|--do-board-related-all] [--no-board-related] [--context <caller-op>]
+			Read-only: the single scan behind every --*-input-scan
+			wrapper. Internal -- a routine calls its own wrapper and
+			never this, and each wrapper hardcodes the argument list
+			below for the one view that routine needs. The flag
+			spellings live here and nowhere else: a skillset file
+			states this document's contract in its own terms and never
+			names a flag.
+
+			It emits the `# Session Sweep Report` document. What the
+			document must look like is the skillset's own
+			"Session-context document" entry and its skeleton file;
+			what follows is how a caller asks for it.
+
+			<team-member> is required and is the acting identity: every
+			comms read acts as that member, under that member's own
+			credentials, and the board and inbox reads are scoped to it.
+
+			Every section is requested, declined, or neither, and a
+			caller states two of the three. A --do-* flag requests a
+			section: it is scanned and emitted. A --no-* flag declines
+			it: no section at all, no heading and no **NOTE:** line. A
+			section named by neither flag is emitted as its heading plus
+			`**NOTE:** not requested` and nothing else. A wrapper
+			therefore passes both halves -- a --do-* for every section
+			it wants and a --no-* for every section it deliberately does
+			not -- so that a produced document carrying `not requested`
+			says the request itself was incomplete, and nothing else
+			says it.
+
+			Requesting is per breadth, declining is per section. A scope
+			offering two breadths is requested at exactly one of them,
+			and passing both is refused rather than unioned: both fill
+			the same heading, and a section carrying two scopes states
+			neither. Its decline names the section alone -- one --no-*
+			per section, never one per breadth. A --do-* and the --no-*
+			naming the same section are refused together: disagreeing
+			values are an error, not an intersection.
+
+			Exit code, reporting how much of the requested source set
+			was actually read: 0 when every source was scanned, and when
+			there was none to scan; 3 when some were read and some could
+			not be; 4 when none was read; 1 when the operation failed
+			before producing a document.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+			--all-types|--type-prefix:<value>...
+				The board-item type filter for `## Board Items`. Exactly
+				one of the two is required -- there is no implicit
+				default. --type-prefix: is repeatable and matches an item
+				filename by prefix; the two are mutually exclusive.
+
+			--state <state>
+				Repeatable. A board state to walk: backlog, pending,
+				running, blocked, parked, processed, archived or
+				retained. A --do-board-related-* flag supplies its own
+				state set, and a --state list beside one has to
+				byte-match it, order included, or the call is refused.
+
+			--header <name>
+				Repeatable. Emit only these frontmatter keys in each
+				board item's block. With none given, every key is
+				emitted.
+
+			--item <item-filename>
+				Repeatable. Restrict `## Board Items` to the named items.
+				The value is the full filename, `.md` included.
+
+			--item-include-inbox
+				A --item name found in no walked board state is then
+				looked up in the acting member's own inbox -- live root
+				first, then processed/ -- and rendered as an inbox block
+				there. A name found in neither is reported by name rather
+				than dropped.
+
+			--filter-owner <member>
+				Keep only board items whose `owner:` is this member. A
+				--do-board-related-* flag already binds the owner to the
+				acting <team-member>; passing --filter-owner beside one
+				with a different value is refused, because an
+				intersection would return a set neither argument asked
+				for.
+
+			--do-all
+				Requests all three comms sections: IM, email and Trello.
+				The whole set, not a shorthand to combine with part of it
+				-- passing it together with --do-slack, --do-email or
+				--do-trello is refused, and so is passing it together
+				with --no-slack, --no-email or --no-trello.
+
+			--do-slack
+			--do-email
+			--do-trello
+				Request one comms section each: `## Incoming IM Updates`,
+				`## Incoming Email Updates`, `## Incoming Trello Updates`.
+
+			--no-slack
+			--no-email
+			--no-trello
+				Decline one comms section each. A declined section is not
+				emitted at all. With all three declined the parent
+				`# New Incoming Communications` heading is not emitted
+				either.
+
+			--do-slack-tags
+				An additional IM source: mentions of the acting member,
+				read through the same per-conversation pipeline as
+				everything else. It needs the IM scan itself, so pass it
+				alongside --do-slack or --do-all. It is not a section of
+				its own and has no --no-* form.
+
+			--member-scope-only
+				Restrict the comms read to the acting member's own
+				configured sources under its own credentials, instead of
+				the team-side sources. It restricts a requested comms
+				scan and needs one, so pass it alongside --do-all,
+				--do-slack, --do-email or --do-trello. It is not a
+				section and has no --no-* form.
+
+			--comms-since-utime <v>|--comms-since-date-time <v>
+				The comms cut-off. --comms-since-utime takes epoch
+				seconds, with or without a fractional part;
+				--comms-since-date-time takes a YYYY-MM-DD-leading value.
+				Mutually exclusive, neither repeatable -- one cut-off,
+				one spelling. A cut-off with no comms section requested
+				is refused: it reads like comms were asked for when none
+				were. Given none, the IM read falls back to a recent
+				window and says so in that section's own `instrument:`
+				line -- a wrapper passes its own value rather than
+				letting it default.
+
+			--do-inbox-inquiry-active|--do-inbox-inquiry-all
+				Request `## Active Inbox Inquiry Items` at one of its two
+				breadths: the inbox's top level alone, or that plus
+				not-yet-collected processed/. Mutually exclusive.
+
+			--no-inbox-inquiry
+				Decline that section, at neither breadth in particular --
+				one decline for the section.
+
+			--do-inbox-reflections
+			--no-inbox-reflections
+			--do-inbox-notes
+			--no-inbox-notes
+			--do-inbox-other
+			--no-inbox-other
+				Request or decline `## Current Inbox Reflections`,
+				`## Current Inbox Notes` and `## Other Inbox Items`. Each
+				has one breadth, so each has one request and one decline.
+
+			--do-inbox-also-member <member>
+				Repeatable. Widens the inbox sections to that member's
+				inbox as well, each in its own group. A read-only
+				widening and nothing more: the acting identity, the
+				credentials every comms read uses, the board's owner
+				scoping and the named-item lookup all stay with
+				<team-member>, and nothing is written into another
+				member's inbox. Naming the acting member itself is
+				refused, naming one twice is refused, and passing it with
+				no inbox section requested is refused -- there would be
+				nothing to widen. A declined inbox section is declined
+				for every widened inbox alike.
+
+			--do-board-related-active|--do-board-related-all
+				Request `## Board Items` bound to the acting
+				<team-member> at one of its two breadths: the five active
+				states, or all eight. Mutually exclusive. The flag
+				supplies its own state set and its own owner filter.
+
+			--no-board-related
+				Decline that section, at neither breadth in particular --
+				one decline for the section. It declines the request only:
+				--state, --item, --type-prefix: and --filter-owner still
+				select board items, and the `## Board Items` heading is
+				still emitted whenever any of them produced one, because
+				an item block with no heading above it is a corrupt
+				document.
+
+			--context <caller-op>
+				Names the operation this scan was run for. Every wrapper
+				passes its own name.
+
 		--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item into board/running/, in one call, and/or
 			patches its frontmatter. Auto-stamps started-at (date-time) on
@@ -3947,7 +4146,10 @@
 			expected prepared rather than typed inline.
 
 			--from-file <path>
-				Replace the note body with this file's contents.
+				Replace the whole note, frontmatter included, with this
+				file's contents -- a field the file does not carry is gone
+				from the note. `session-id` is the exception: it is carried
+				forward, so a body-replacing write cannot orphan the lock.
 
 			--edit-patch-from-stdin
 				Apply a JSON array of {"old","new","replace_all"} patches to
@@ -3989,7 +4191,10 @@
 				always re-stamped by the operation and cannot be overridden.
 
 			--from-file <path>
-				Replace the note body with this file's contents.
+				Replace the whole note, frontmatter included, with this
+				file's contents -- a field the file does not carry is gone
+				from the note. `session-id` is the exception: it is carried
+				forward, so a body-replacing write cannot orphan the lock.
 
 			--edit-patch-from-stdin
 				Apply a JSON array of {"old","new","replace_all"} patches to

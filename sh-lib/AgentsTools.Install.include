@@ -137,6 +137,49 @@ AgentsToolsInstallReportIcon(){
 	esac
 }
 
+## The lines a generated deny hook echoes for one client tool policy, taken
+## from the single policy source instead of written a second time here: $1 is
+## the subject that picks the record, and that record's decision and redirect
+## are the verbatim values the installed hook returns. $2 is the indent, which
+## is the caller's because one hook echoes at the top level of its own script
+## and the other from inside a guard. A subject no policy states is refused
+## rather than written as an empty decision. Needs
+## AgentsTools.ClientToolPolicy.include sourced by the caller.
+AgentsToolsInstallClientToolPolicyHookEcho(){
+	local policyWantSubject="$1" policyIndent="$2"
+	local policyRecord policyRest policySubject policyDecision policyRedirect
+	local policyFound=""
+	## Whole lines, split by expansion: a tab is an IFS whitespace character,
+	## so `IFS=$'\t' read` folds the empty reason field away and hands the
+	## redirect back as the reason -- measured on bash 3.2, not assumed.
+	while IFS= read -r policyRecord ; do
+		policySubject="${policyRecord%%$'\t'*}"
+		[ "$policySubject" = "$policyWantSubject" ] || continue
+		policyRest="${policyRecord#*$'\t'}"
+		policyDecision="${policyRest%%$'\t'*}"
+		policyRest="${policyRest#*$'\t'}"
+		policyRedirect="${policyRest#*$'\t'}"
+		policyFound="$policySubject"
+		break
+	done <<< "$( AgentsToolsClientToolPolicy )"
+	if [ -z "$policyFound" ] ; then
+		echo "⛔ ERROR: AgentsToolsInstallClientToolPolicyHookEcho: no client tool policy is stated for subject '$policyWantSubject', so the hook that would carry it cannot be written" >&2
+		return 1
+	fi
+	## Both values land inside a JSON string, so the two characters that can
+	## end one early are escaped here. A tab or a newline cannot arrive: the
+	## record format refuses both where the record is produced.
+	policyDecision="${policyDecision//\\/\\\\}" ; policyDecision="${policyDecision//\"/\\\"}"
+	policyRedirect="${policyRedirect//\\/\\\\}" ; policyRedirect="${policyRedirect//\"/\\\"}"
+	printf "%secho '{\n" "$policyIndent"
+	printf '%s\t"hookSpecificOutput": {\n' "$policyIndent"
+	printf '%s\t\t"hookEventName": "PreToolUse",\n' "$policyIndent"
+	printf '%s\t\t"permissionDecision": "%s",\n' "$policyIndent" "$policyDecision"
+	printf '%s\t\t"permissionDecisionReason": "%s"\n' "$policyIndent" "$policyRedirect"
+	printf '%s\t}\n' "$policyIndent"
+	printf "%s}'\n" "$policyIndent"
+}
+
 case "$1" in
 
 	--install-skillset-symlinks)
@@ -324,11 +367,11 @@ case "$1" in
 		[ -n "$originRoot" ] || originRoot="$compositeRoot"
 
 		local dcMember dcSources dcCount dcLinkTarget dcSrc
-		for dcMember in $( printf '%s' "$memberSources" | awk 'NF { print $1; }' | sort -u ) ; do
-			dcSources="$( printf '%s\n' "$memberSources" | awk -v m="$dcMember" '$1 == m { sub(/^[^ ]+ /, ""); print; }' )"
+		for dcMember in $( printf '%s' "$memberSources" | LC_ALL=C awk 'NF { print $1; }' | sort -u ) ; do
+			dcSources="$( printf '%s\n' "$memberSources" | LC_ALL=C awk -v m="$dcMember" '$1 == m { sub(/^[^ ]+ /, ""); print; }' )"
 			dcCount="$( printf '%s' "$dcSources" | grep -c '' )"
 
-			if printf '%s\n' "$ownedMembers" | awk -v m="$dcMember" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
+			if printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$dcMember" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
 				echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: NAME COLLISION on team-member $dcMember -- it is both bundled and declared by a workspace project. The bundled copy holds the slot $targetRoot/$dcMember and stays registered; the declared source(s) below are NOT linked and NOT registered, and will be shadowed until one of the two is renamed:" >&2
 				while IFS= read -r dcSrc ; do
 					[ -n "$dcSrc" ] || continue
@@ -421,7 +464,7 @@ case "$1" in
 				[ -d "${unclaimedDir%/}" ] || continue
 				unclaimedName="$( basename "${unclaimedDir%/}" )"
 				[ "$unclaimedName" != "trash" ] || continue
-				if ! printf '%s\n' "$ownedMembers" | awk -v m="$unclaimedName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
+				if ! printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$unclaimedName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
 					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundled team-member $unclaimedName was not installed into $targetRoot and will not load" >&2
 				fi
 			done
@@ -602,7 +645,7 @@ case "$1" in
 			else
 				local rcOwned rcEntry rcName rcType rcRel rcPath rcSlot rcTmp
 				rcOwned="$(
-					awk -F: -v w="$workspaceName" '
+					LC_ALL=C awk -F: -v w="$workspaceName" '
 						$2 == w {
 							rest = substr( $0, length($1) + length($2) + length($3) + 4 )
 							printf "%s\t%s\t%s\n", $1, $3, rest
@@ -611,7 +654,7 @@ case "$1" in
 				)"
 				while IFS=$'\t' read -r rcName rcType rcRel ; do
 					[ -n "$rcName" ] || continue
-					if printf '%s\n' "$ownedMembers" | awk -v m="$rcName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
+					if printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$rcName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
 						continue
 					fi
 
@@ -679,7 +722,7 @@ case "$1" in
 				## a rules file is not a skill member -- keep it out of the
 				## foreign-members table/count the same as everywhere else below
 				case " $rulesNames " in *" $regLineName "*) continue ;; esac
-				printf '%s\n' "$ownedMembers" | awk -v m="$regLineName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' && continue
+				printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$regLineName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' && continue
 				foreignMembers="${foreignMembers}${regLineName} "
 			done < "$registryFile"
 		fi
@@ -984,7 +1027,7 @@ case "$1" in
 			## What the registry claimed BEFORE this run. An entry here but not in the
 			## post-rewrite projection is one this workspace has just given up, and is
 			## the only thing that may be removed -- nothing is identified by shape.
-			awk -F: 'NF >= 4 {
+			LC_ALL=C awk -F: 'NF >= 4 {
 				grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
 				if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
 			}' "$permissionsRegistry" > "$grantsFile.prev"
@@ -1036,7 +1079,7 @@ case "$1" in
 			## holds a row per workspace, and its grant survives until the last goes.
 			## Field 4 is taken whole by offset, never by splitting, so a grant
 			## carrying its own colons is reproduced exactly.
-			awk -F: 'NF >= 4 {
+			LC_ALL=C awk -F: 'NF >= 4 {
 				grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
 				if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
 			}' "$permissionsRegistry" > "$grantsFile"
@@ -1167,9 +1210,19 @@ case "$1" in
 
 		local hooksFailed=0
 
+		## The one place a client tool policy is stated. Both hook scripts
+		## below take their decision and their redirect text from it, and the
+		## verification at the end of this op takes the hook keys from it, so
+		## no value it holds is written down a second time in this file.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientToolPolicy.include"
+
 		local readHookFile="$hooksDir/deny-memory-md-read.sh"
 		local readHookTmp="$readHookFile.tmp.$$"
-		cat > "$readHookTmp" <<'HOOKEOF'
+		## A subshell, not a group: the generator's own failure has to end the
+		## script body without a line of it missing, and an `exit` in a group
+		## here would end the process that sourced this file.
+		(
+		cat <<'HOOKEOF'
 #!/bin/bash
 # Denies Read on the memory-system's MEMORY.md index file, with a reason,
 # since the plain permissions.deny array cannot carry a custom denial
@@ -1184,18 +1237,15 @@ IFS= read -r -d '' hookInput
 # The closing quote anchors the end of the JSON string value, so a path that
 # merely starts with it (MEMORY.md.bak) is not matched.
 if [[ "$hookInput" == *'/.claude/projects/'*'/memory/MEMORY.md"'* ]]; then
-	echo '{
-		"hookSpecificOutput": {
-			"hookEventName": "PreToolUse",
-			"permissionDecision": "deny",
-			"permissionDecisionReason": "read workspace, repository and project MAGIC.md"
-		}
-	}'
+HOOKEOF
+		AgentsToolsInstallClientToolPolicyHookEcho "Read" $'\t' || exit 1
+		cat <<'HOOKEOF'
 	exit 0
 fi
 
 exit 0
 HOOKEOF
+		) > "$readHookTmp"
 		if [ "$?" != "0" ] || ! chmod 0755 "$readHookTmp" ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not write $readHookFile" >&2
 			rm -f "$readHookTmp"
@@ -1210,22 +1260,21 @@ HOOKEOF
 
 		local bashHookFile="$hooksDir/deny-bash-tool.sh"
 		local bashHookTmp="$bashHookFile.tmp.$$"
-		cat > "$bashHookTmp" <<'HOOKEOF'
+		## Same subshell reason as the read hook above.
+		(
+		cat <<'HOOKEOF'
 #!/bin/bash
 # Denies all Bash tool usage wholesale -- git, rm, mv, python3, every command
 # -- with a reason, since the plain permissions.deny array cannot carry a
 # custom denial message. Workspace-wide: no file-path scoping, every Bash
 # call is denied regardless of what it would run.
 cat >/dev/null
-echo '{
-	"hookSpecificOutput": {
-		"hookEventName": "PreToolUse",
-		"permissionDecision": "deny",
-		"permissionDecisionReason": "always use myx.distro MCP TOOLING to properly execute shell commands"
-	}
-}'
+HOOKEOF
+		AgentsToolsInstallClientToolPolicyHookEcho "Bash" "" || exit 1
+		cat <<'HOOKEOF'
 exit 0
 HOOKEOF
+		) > "$bashHookTmp"
 		if [ "$?" != "0" ] || ! chmod 0755 "$bashHookTmp" ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not write $bashHookFile" >&2
 			rm -f "$bashHookTmp"
@@ -1352,19 +1401,38 @@ HOOKEOF
 			set +e ; return 1
 		fi
 
+		local restrictionsState="installed"
 		if cmp -s "$settingsTmp" "$settingsFile" ; then
 			rm -f "$settingsTmp"
-			echo "✅ workspace restrictions already current: $settingsFile" >&2
-			return 0
-		fi
-
-		if ! mv -f "$settingsTmp" "$settingsFile" ; then
+			restrictionsState="already current"
+		elif ! mv -f "$settingsTmp" "$settingsFile" ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $settingsFile" >&2
 			rm -f "$settingsTmp"
 			set +e ; return 1
 		fi
 
-		echo "✅ workspace restrictions installed: $settingsFile" >&2
+		## Read the settings file back before reporting an install: the merge
+		## is a text transform over a file this op did not write alone, so a
+		## hook it failed to add reads from here exactly like a run that added
+		## it. The keys come from the same policy source the hook scripts do,
+		## captured with $( ), which strips the trailing newline the verifier
+		## would otherwise take as an empty key -- and an empty key reports OK
+		## against any non-empty PreToolUse, which is the one way this check
+		## could pass while asserting nothing.
+		local restrictionsHookKeys restrictionsVerify
+		restrictionsHookKeys="$( AgentsToolsClientToolPolicyHookKeys )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the client tool policy names no hook keys, so the hooks written into $settingsFile could not be verified" >&2
+			set +e ; return 1
+		}
+		restrictionsVerify="$( MYX_CLAUDEVERIFY_HOOK_KEYS="$restrictionsHookKeys" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeSettingsVerify.awk" \
+			< "$settingsFile" )" || {
+			printf '%s\n' "$restrictionsVerify" >&2
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $settingsFile does not carry every hook the client tool policy names -- the MISSING line above names which" >&2
+			set +e ; return 1
+		}
+
+		echo "✅ workspace restrictions $restrictionsState: $settingsFile" >&2
 		return 0
 	;;
 

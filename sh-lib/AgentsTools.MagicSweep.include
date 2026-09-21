@@ -127,6 +127,10 @@ case "$1" in
 			--state backlog --state pending --state running --state blocked \
 			--header communication-channel-id \
 			--all-types \
+			--no-slack --no-email --no-trello \
+			--no-inbox-inquiry --no-inbox-reflections \
+			--no-inbox-notes --no-inbox-other \
+			--no-board-related \
 			--context --magic-sweep-input-scan )" || return 1
 
 		local survivorNames
@@ -135,7 +139,7 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		## MENTIONS ARE ASKED FOR EXPLICITLY. `--comms-do-all` is Slack, email and
+		## MENTIONS ARE ASKED FOR EXPLICITLY. `--do-all` is Slack, email and
 		## Trello; it has never implied the tag search, so until now the only way a
 		## channel mention reached this sweep was as a side effect of thread
 		## discovery. Asking for it here is what makes the mention path stand on
@@ -146,7 +150,7 @@ case "$1" in
 		## persona's mentions are only ever the ones sitting in a conversation
 		## already read above. A member holding no SLACK_USER_TOKEN says so in its
 		## own partial note rather than reporting silence.
-		local commsArgs=( --comms-do-all --intern-op-do-slack-tags "${commsCutoffArgs[@]}" )
+		local commsArgs=( --do-all --do-slack-tags "${commsCutoffArgs[@]}" )
 
 		local phaseBArgs=( --state backlog --state pending --state running --state blocked ) n
 		while IFS= read -r n ; do
@@ -157,6 +161,7 @@ case "$1" in
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" --all-types "${commsArgs[@]}" \
 			--do-inbox-inquiry-active --do-inbox-reflections \
 			--do-inbox-notes --do-inbox-other \
+			--no-board-related \
 			--context --magic-sweep-input-scan || magicSweepStatus=$?
 		case "$magicSweepStatus" in
 			0|3|4) ;;

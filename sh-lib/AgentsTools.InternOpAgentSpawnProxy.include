@@ -46,11 +46,32 @@ AgentsToolsSpawnProxyAnnounceCli(){
 	echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: 🤖 AI service used: ${announceCli:-none -- no agent CLI was launched}" >&2
 }
 
+## Which board state folder actually holds an item, or empty when none does.
+## --intern-op-data-read searches several lookup folders and does not report which
+## one matched, and the board upsert has to be told the state -- so it is
+## established here rather than assumed to be `running`, which is true only of a
+## document this op created itself. A reused tracking document belongs to a caller
+## and may sit in any state; moving it would relocate that caller's own work item
+## as a side effect of spawning.
+AgentsToolsSpawnProxyBoardStateOf(){ ## item-filename
+	local stateName
+	for stateName in running pending backlog blocked parked processed archived retained ; do
+		if [ -f "$MDAT_DATA_ROOT/board/$stateName/$1" ] ; then
+			printf '%s' "$stateName"
+			return 0
+		fi
+	done
+	return 0
+}
+
 AgentsToolsSpawnProxyCloseDispatch(){
 	local itemName="$1" briefBody="$2" childExit="$3" childOutputFile="$4" outcome="$5"
+	## Defaulted rather than required, so the create path calls this exactly as it
+	## always has and only the reuse path names a state of its own.
+	local itemState="${6:-running}"
 	local currentBody resultBody
 	currentBody="$( DistroAgentsTools --intern-op-data-read "$itemName" \
-		--lookup-folder "$MDAT_DATA_ROOT/board/running" \
+		--lookup-folder "$MDAT_DATA_ROOT/board/$itemState" \
 		--context --intern-op-agent-spawn-proxy )" || currentBody="$briefBody"
 	resultBody="$( printf '%s\n' \
 		"$currentBody" \
@@ -61,8 +82,8 @@ AgentsToolsSpawnProxyCloseDispatch(){
 		"exit-code: $childExit" \
 		"output-file: $childOutputFile" \
 		"completed-at: $( date -u +%Y-%m-%dT%H:%M:%SZ )" )"
-	printf '%s\n' "$resultBody" | DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
-		--from-state:running \
+	printf '%s\n' "$resultBody" | DistroAgentsTools --intern-op-board-upsert-move-edit "$itemState" "$itemName" \
+		--from-state:"$itemState" \
 		--header:upsert:status:dispatch-"$outcome" \
 		--header:upsert:resolved-at:"$( date +"%Y-%m-%d %H:%M %z" )" \
 		--upsert-from-stdin \
@@ -87,6 +108,9 @@ case "$1" in
 		local callerName="$1"
 		shift || true
 		local contextFromFile="false" waitMode="false" spawnContext=""
+		## Which agent CLI this one spawn runs on. Empty means the workspace setting
+		## decides, which is what every caller got before this option existed.
+		local spawnCliService=""
 		local fromBoardName="" fromVaultName="" fromAuditName="" fromFilePath=""
 		local sourceMode="stdin"
 		local boardStates=()
@@ -160,6 +184,36 @@ case "$1" in
 						;;
 					esac
 					shift
+				;;
+				## The spelling this package already uses for the same thing: the
+				## owner-setup option that writes SPAWN_CLI_SERVICE is spelled
+				## --spawn-cli-service, so a per-spawn override of that same setting
+				## is not given a second name.
+				--spawn-cli-service)
+					if [ -z "$2" ] ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --spawn-cli-service requires <cli-name>" >&2
+						set +e ; return 1
+					fi
+					## Reaches a command line, so it is gated by explicit character
+					## enumeration rather than a bracket range -- [a-z] is
+					## collation-dependent and has matched `A` on this estate.
+					spawnCliCheckRest="$2"
+					while [ -n "$spawnCliCheckRest" ] ; do
+						spawnCliCheckChar="${spawnCliCheckRest%"${spawnCliCheckRest#?}"}"
+						spawnCliCheckRest="${spawnCliCheckRest#?}"
+						case "$spawnCliCheckChar" in
+							a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+							A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+							0|1|2|3|4|5|6|7|8|9) ;;
+							-|_|.) ;;
+							*)
+								echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --spawn-cli-service is not a bare CLI name: $2" >&2
+								set +e ; return 1
+							;;
+						esac
+					done
+					spawnCliService="$2"
+					shift 2
 				;;
 				--wait)
 					waitMode="true"
@@ -267,11 +321,35 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		## How this spawn selects its CLI. --cli-configured is the default and is what
+		## every caller got before this option existed: the workspace setting decides,
+		## and an unset setting means no external CLI was chosen.
+		local spawnCliArgs=( --cli-configured )
+		if [ -n "$spawnCliService" ] ; then
+			## A console carrying --cli-configured but no --cli) arm would fall out of
+			## its own option loop on this flag, run its hardcoded default
+			## interactively and STILL print the success sentinel -- the same failure
+			## the vintage guard above exists to refuse, reached by a different door.
+			## So the arm this spawn is about to use is checked, not assumed from the
+			## other one being present.
+			if ! grep -q -- '--cli)' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null ; then
+				echo "SETUP_STATUS=console-stale"
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --spawn-cli-service $spawnCliService was asked for, but $MMDAPP/DistroAgentsConsole.sh carries no --cli arm, so the service could not be selected and this spawn would have run the console's own default while reporting success. Regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
+				set +e ; return 1
+			fi
+			spawnCliArgs=( --cli "$spawnCliService" )
+		fi
+
 		## Configured-only: an agent-initiated spawn starts the CLI named by
 		## SPAWN_CLI_SERVICE or it starts none. A console without the --cli-configured
 		## arm cannot answer that -- it breaks out of its own option loop, runs its
 		## hardcoded default interactively and still prints the success sentinel -- so
 		## it is refused here rather than invoked.
+		## STILL GREPPED FOR, and deliberately, even when this spawn names its own
+		## service and will pass --cli instead: this string is what establishes the
+		## console's VINTAGE, not what selects the mode. Dropping it because the
+		## command line changed would retire the guard silently, which is the shape
+		## of breakage nothing reports.
 		if ! grep -q 'cli-configured' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null || ! grep -q 'MDAT_SPAWN_LAUNCH_MARKER' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null ; then
 			echo "SETUP_STATUS=console-stale"
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $MMDAPP/DistroAgentsConsole.sh predates --cli-configured or MDAT_SPAWN_LAUNCH_MARKER, so a configured spawn cannot be started here, or its launch could not be told apart from a silent no-op. Spawn an internal agent instead, or regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
@@ -345,15 +423,53 @@ case "$1" in
 			}
 		fi
 
+		## A REUSED tracking document is marked at the START, not only closed at the
+		## end. Before this, --dispatch-doc:reuse read the named item as its brief and
+		## then wrote nothing back to it ever -- no session id, no status, no result --
+		## so the document named a spawn that was running and carried nothing saying
+		## so. That is the whole of what made the tracking document a record in name
+		## and not in fact, and it is why nothing downstream could consult it.
+		## HEADERS ONLY: the caller's own body is never rewritten here.
+		local trackedItemState=""
+		if [ "$dispatchDocMode" = "reuse" ] ; then
+			case "$sourceMode" in
+				board)
+					trackedItemState="$( AgentsToolsSpawnProxyBoardStateOf "$trackedItemName" )"
+					if [ -z "$trackedItemState" ] ; then
+						## Read from somewhere this op cannot write back to. Said, and said
+						## on stdout too, rather than leaving the caller to assume a record.
+						echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: --dispatch-doc:reuse: $trackedItemName is in no board state folder, so this spawn records nothing on it" >&2
+						echo "TRACKING_RECORD=absent"
+					else
+						DistroAgentsTools --intern-op-board-upsert-move-edit "$trackedItemState" "$trackedItemName" \
+							--from-state:"$trackedItemState" \
+							--context "$opContext" \
+							--header:upsert:session-id:"$MDAT_SPAWN_SESSION_ID" \
+							--header:upsert:status:dispatch-started \
+							--log-verb:updated \
+							|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: could not mark tracking item $trackedItemName as started" >&2
+					fi
+				;;
+				*)
+					## vault and audit are not board stores and this op has no sanctioned
+					## write path into either. Stated once, plainly, rather than writing
+					## nothing and letting a caller believe a record exists -- which is the
+					## exact failure this change was dispatched to close.
+					echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: --dispatch-doc:reuse with a --from-$sourceMode source records nothing: $sourceMode is not a board store and this op has no write path into it" >&2
+					echo "TRACKING_RECORD=absent"
+				;;
+			esac
+		fi
+
 		if [ "$waitMode" = "true" ] ; then
 			local exitCode spawnPid watchPid timedOut waitTimeoutSeconds
 			set +e
 			waitTimeoutSeconds="$( DistroAgentsTools --agents-config-option magic-team --select-default SPAWN_WAIT_TIMEOUT_SECONDS 900 )"
 			case "$waitTimeoutSeconds" in *[!0123456789]*|'') waitTimeoutSeconds=900 ;; esac
 			if [ -n "$outputFile" ] ; then
-				env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-configured --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 &
+				env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 &
 			else
-				env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-configured --non-interactive <<< "$spawnContext" >&2 &
+				env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 &
 			fi
 			spawnPid=$!
 			## An interactive Ctrl-C (or an external TERM sent to this call) must
@@ -397,6 +513,10 @@ case "$1" in
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome"
+			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
+				## The item's own state, never `running`: closing a spawn must not move
+				## a caller's backlog or parked item into the running column.
+				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$exitCode" "$outputFile" "$spawnOutcome" "$trackedItemState"
 			fi
 			echo "RECEIPT_ID=$receiptId"
 			echo "DISPATCH_DOC=$dispatchDocMode"
@@ -424,14 +544,17 @@ case "$1" in
 
 		(
 			set +e
-			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" --cli-configured --non-interactive <<< "$spawnContext"
+			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext"
 			bgExitCode=$?
 			set -e
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
+			## Nothing bounds this branch, so nothing timed out: 0 is the fact, not a placeholder.
 			if [ "$dispatchDocMode" = "create" ] ; then
-				## Nothing bounds this branch, so nothing timed out: 0 is the fact, not a placeholder.
 				bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome"
+			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
+				bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
+				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$bgExitCode" "$outputFile" "$bgOutcome" "$trackedItemState"
 			fi
 			rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
 		) > "$outputFile" 2>&1 &

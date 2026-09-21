@@ -789,9 +789,123 @@ AgentsHarnessToolBash(){
 	printf '(exit status %s)\n' "$toolStatus"
 }
 
-## Refuses by construction: nothing here configures a search provider, and guessing one would be worse than refusing.
-AgentsHarnessToolWebSearch(){
-	printf '%s\n' 'ERROR: WebSearch is not configured on this installation -- this harness has no search endpoint and no search credential, nothing was searched, and no provider is guessed here. Missing: a search provider chosen by the human-owner, its endpoint, and its credential name declared beside the others in AgentsToolsOwnerSetupOptionSpec and stored with --owner-setup. Do not retry; say in your answer that web search was unavailable, and use the file, Glob, Grep and Bash tools for anything reachable locally.'
+## One scalar out of a search response, by path. Its own reader rather than a reuse
+## of AgentsHarnessArgValue below: that one names a tool call and this one names a
+## search result, and one spelling shared between them would make a later change to
+## either silently change the other.
+AgentsHarnessSearchField(){ ## response JSON, path
+	printf '%s\n' "$1" | LC_ALL=C awk -v path="$2" -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null || :
+}
+
+## One array of {Text, FirstURL} records, rendered under its own denominator. Both
+## arrays this endpoint returns carry that shape, and RelatedTopics additionally
+## carries GROUP entries holding nested topics instead of a link -- those are counted
+## as skipped and said so, never dropped in silence, because a list that quietly
+## shows four of nine reads as a list of four.
+AgentsHarnessSearchTopics(){ ## response JSON, array path, heading, cap
+	local topicsBody="$1" topicsPath="$2" topicsHeading="$3" topicsCap="$4"
+	local topicsCount topicsIndex=0 topicsShown=0 topicsSkipped=0 topicsText topicsUrl
+	topicsCount="$( AgentsHarnessSearchField "$topicsBody" "$topicsPath.__count" )"
+	## Explicit digit enumeration, never a bracket range: [0-9] is collation-dependent.
+	case "$topicsCount" in ''|*[!0123456789]*) topicsCount=0 ;; esac
+	[ "$topicsCount" -gt 0 ] || return 0
+	printf '%s (%s found):\n' "$topicsHeading" "$topicsCount"
+	while [ "$topicsIndex" -lt "$topicsCap" ] && [ "$topicsIndex" -lt "$topicsCount" ] ; do
+		topicsText="$( AgentsHarnessSearchField "$topicsBody" "$topicsPath.$topicsIndex.Text" )"
+		topicsUrl="$( AgentsHarnessSearchField "$topicsBody" "$topicsPath.$topicsIndex.FirstURL" )"
+		topicsIndex=$(( topicsIndex + 1 ))
+		if [ -z "$topicsUrl" ] ; then
+			topicsSkipped=$(( topicsSkipped + 1 ))
+			continue
+		fi
+		topicsShown=$(( topicsShown + 1 ))
+		printf '  %s. %s\n     %s\n' "$topicsShown" "${topicsText:-<no text on this entry>}" "$topicsUrl"
+	done
+	[ "$topicsSkipped" = 0 ] || printf '  (%s of the first %s carried a nested topic group rather than a link, and are not shown)\n' "$topicsSkipped" "$topicsIndex"
+	[ "$topicsIndex" -ge "$topicsCount" ] || printf '  (first %s of %s examined, capped at %s)\n' "$topicsIndex" "$topicsCount" "$topicsCap"
+	return 0
+}
+
+## DuckDuckGo Instant Answer, the provider the human-owner chose. KEYLESS BY
+## MEASUREMENT rather than by assumption: this endpoint answered HTTP 200 with a
+## real abstract for FreeBSD and for bhyve, and with eight related topics for awk,
+## carrying no credential of any kind -- so no search credential is declared in
+## AgentsToolsOwnerSetupOptionSpec and none is stored with --owner-setup. A slot
+## added there for symmetry with the other tools would stand empty forever and read
+## as a value nobody got round to filling, which is worse than no slot at all.
+## The two HTML front ends were measured in the same session and are NOT fallbacks
+## this may quietly try: html.duckduckgo.com and lite.duckduckgo.com each answer 202
+## with an anti-bot challenge and zero results, with and without a browser
+## User-Agent. curl builds the query string itself through --data-urlencode, so a
+## query carrying a space, an & or an = is never encoded by hand here.
+##
+## A query that finds nothing is NOT dressed as an error: this endpoint indexes
+## named things, so an ordinary question returning nothing is its ordinary
+## behaviour, and only a request that could not be made at all says ERROR.
+AgentsHarnessToolWebSearch(){ ## query
+	local toolQuery="$1" searchBody searchStatus searchRc=0 searchEmitted=0 searchCount
+	local searchAbstract searchAbstractSource searchAbstractUrl
+	local searchAnswer searchAnswerType searchDefinition searchDefinitionUrl
+	if [ -z "$toolQuery" ] ; then
+		printf 'ERROR: query is required and was empty, so nothing was searched.\n' ; return 0
+	fi
+	## Body to its own file, so the capture holds the one-line status and nothing else.
+	searchStatus="$( curl -sS -L --connect-timeout 10 --max-time 60 -G \
+		--data-urlencode "q=$toolQuery" \
+		-d format=json -d no_redirect=1 -d no_html=1 -d t=myx.distro-agents \
+		-o "$harnessScratch/search.body" -w '%{http_code}' \
+		-- 'https://api.duckduckgo.com/' 2>"$harnessScratch/search.err" )" || searchRc=$?
+	if [ "$searchRc" != "0" ] ; then
+		printf 'ERROR: the search request did not complete (curl rc=%s), so NOTHING was searched and nothing may be concluded about this query either way: %s\n' "$searchRc" "$( cat "$harnessScratch/search.err" 2>/dev/null )" ; return 0
+	fi
+	case "$searchStatus" in
+		2??) ;;
+		*)
+			printf 'ERROR: the search endpoint answered HTTP %s rather than a result set, so NOTHING was searched. This is the endpoint refusing or failing, never a query that found nothing.\n' "$searchStatus" ; return 0
+		;;
+	esac
+	searchBody="$( cat "$harnessScratch/search.body" 2>/dev/null )"
+	if [ -z "$searchBody" ] ; then
+		printf 'ERROR: the search endpoint answered HTTP %s with an empty body, so nothing could be read and NOTHING was searched.\n' "$searchStatus" ; return 0
+	fi
+	printf '... DuckDuckGo Instant Answer for: %s ...\n' "$toolQuery"
+	## AbstractText is the same prose without markup; Abstract is the fallback only
+	## because no_html=1 is a request the endpoint honours rather than a guarantee.
+	searchAbstract="$( AgentsHarnessSearchField "$searchBody" AbstractText )"
+	[ -n "$searchAbstract" ] || searchAbstract="$( AgentsHarnessSearchField "$searchBody" Abstract )"
+	searchAbstractSource="$( AgentsHarnessSearchField "$searchBody" AbstractSource )"
+	searchAbstractUrl="$( AgentsHarnessSearchField "$searchBody" AbstractURL )"
+	if [ -n "$searchAbstract" ] ; then
+		searchEmitted=$(( searchEmitted + 1 ))
+		printf 'Abstract%s: %s\n' "${searchAbstractSource:+ ($searchAbstractSource)}" "$searchAbstract"
+		[ -z "$searchAbstractUrl" ] || printf '  %s\n' "$searchAbstractUrl"
+	fi
+	searchAnswer="$( AgentsHarnessSearchField "$searchBody" Answer )"
+	searchAnswerType="$( AgentsHarnessSearchField "$searchBody" AnswerType )"
+	if [ -n "$searchAnswer" ] ; then
+		searchEmitted=$(( searchEmitted + 1 ))
+		printf 'Answer%s: %s\n' "${searchAnswerType:+ ($searchAnswerType)}" "$searchAnswer"
+	fi
+	searchDefinition="$( AgentsHarnessSearchField "$searchBody" Definition )"
+	searchDefinitionUrl="$( AgentsHarnessSearchField "$searchBody" DefinitionURL )"
+	if [ -n "$searchDefinition" ] ; then
+		searchEmitted=$(( searchEmitted + 1 ))
+		printf 'Definition: %s\n' "$searchDefinition"
+		[ -z "$searchDefinitionUrl" ] || printf '  %s\n' "$searchDefinitionUrl"
+	fi
+	## Counted here as well as inside the renderer, because what decides the
+	## found-nothing sentence below is whether the response carried anything at all.
+	searchCount="$( AgentsHarnessSearchField "$searchBody" Results.__count )"
+	case "$searchCount" in ''|*[!0123456789]*) searchCount=0 ;; esac
+	[ "$searchCount" = 0 ] || searchEmitted=$(( searchEmitted + 1 ))
+	AgentsHarnessSearchTopics "$searchBody" Results "Results" 10
+	searchCount="$( AgentsHarnessSearchField "$searchBody" RelatedTopics.__count )"
+	case "$searchCount" in ''|*[!0123456789]*) searchCount=0 ;; esac
+	[ "$searchCount" = 0 ] || searchEmitted=$(( searchEmitted + 1 ))
+	AgentsHarnessSearchTopics "$searchBody" RelatedTopics "Related topics" 10
+	if [ "$searchEmitted" = 0 ] ; then
+		printf 'No instant-answer content for this query. The endpoint was reached and answered HTTP %s; it simply holds no abstract, answer, definition, result or related topic for these words. THIS IS A COMPLETE, SUCCESSFUL SEARCH AND NOT A FAILURE: the DuckDuckGo Instant Answer API indexes named things rather than arbitrary phrases, so an ordinary multi-word question returns exactly this. Do not retry the same query. A shorter query naming one thing may well answer; otherwise say in your final answer that the search returned nothing, never that web search was unavailable.\n' "$searchStatus"
+	fi
 }
 
 ## Unrestricted by the human-owner's own ruling: any address this host can reach, no allow-list.
@@ -943,6 +1057,498 @@ AgentsHarnessToolWait(){
 	cat "$harnessScratch/wait.out"
 }
 
+## ONE optional labelled field, appended only where it carries a value. A label printed
+## over an empty value is worse than its absence: it asserts the writer considered that
+## field and had nothing, which is exactly what an omission must never be read as.
+AgentsHarnessFormalField(){ ## label, value
+	[ -n "$2" ] || return 0
+	printf '%s\n%s\n\n' "$1" "$2"
+}
+
+## The four report tools below are SendMessage with a fixed shape and NOT a second
+## delivery path -- one mechanism, four stubs over it, which is the shape the
+## specification asks for. This is the one place that shape is applied: the target
+## check, the identity rule and the send itself are written once rather than four
+## times, and each stub owns only its own field validation and body. Deliberately NOT
+## named AgentsHarnessTool*: that family is the static tool class
+## AgentsHarnessSelfCheck.awk matches site by site, and a helper with no tool behind it
+## is reported there as an orphan.
+AgentsHarnessFormalSend(){ ## tool name, target, as_bot, body text
+	local formalName="$1" formalTo="$2" formalAsBot="$3" formalBody="$4"
+	if [ -z "$formalTo" ] ; then
+		printf 'ERROR: %s: to is required and was empty, so there is nowhere to post it. Nothing was sent.\n' "$formalName" ; return 0
+	fi
+	AgentsHarnessToolSendMessage "$formalTo" "$formalBody" "$formalAsBot"
+}
+
+## Posting a handback does not end this run and releases nobody waiting on it -- the
+## description says so, because a model reading otherwise stops working mid-task.
+AgentsHarnessToolSubagentHandback(){
+	local toolTo="$1" toolTask="$2" toolOutcome="$3" toolFindings="$4" toolUnfinished="$5" toolAsBot="$6" toolBody
+	if [ -z "$toolOutcome" ] ; then
+		printf 'ERROR: SubagentHandback: outcome is required and was empty. A handback carrying no outcome reports nothing, so nothing was sent.\n' ; return 0
+	fi
+	toolBody="$( {
+		printf 'Handback\n\n'
+		AgentsHarnessFormalField 'Task as given:' "$toolTask"
+		AgentsHarnessFormalField 'Outcome:' "$toolOutcome"
+		AgentsHarnessFormalField 'Findings:' "$toolFindings"
+		AgentsHarnessFormalField 'Unfinished, and what was not checked:' "$toolUnfinished"
+	} )"
+	AgentsHarnessFormalSend SubagentHandback "$toolTo" "$toolAsBot" "$toolBody"
+}
+
+AgentsHarnessToolReportFindings(){
+	local toolTo="$1" toolSubject="$2" toolFindings="$3" toolEvidence="$4" toolConfidence="$5" toolAsBot="$6" toolBody
+	if [ -z "$toolSubject" ] || [ -z "$toolFindings" ] ; then
+		printf 'ERROR: ReportFindings: both subject and findings are required, and one of them was empty. Nothing was sent.\n' ; return 0
+	fi
+	## Caller text never lands in a format string: a % in a subject would otherwise be
+	## read as a conversion specifier and corrupt the line it sits on.
+	toolBody="$( {
+		printf 'Findings: %s\n\n' "$toolSubject"
+		AgentsHarnessFormalField 'What was established:' "$toolFindings"
+		AgentsHarnessFormalField 'Evidence:' "$toolEvidence"
+		AgentsHarnessFormalField 'Confidence, and what was not checked:' "$toolConfidence"
+	} )"
+	AgentsHarnessFormalSend ReportFindings "$toolTo" "$toolAsBot" "$toolBody"
+}
+
+AgentsHarnessToolPushNotification(){
+	local toolTo="$1" toolSeverity="$2" toolHeadline="$3" toolDetail="$4" toolAction="$5" toolAsBot="$6" toolBody toolMark
+	if [ -z "$toolHeadline" ] ; then
+		printf 'ERROR: PushNotification: headline is required and was empty. Nothing was sent.\n' ; return 0
+	fi
+	## Enumerated, never defaulted: an unrecognised severity quietly rendered as info is
+	## a real alert delivered as a note, which is the one failure this field prevents.
+	case "$toolSeverity" in
+		info)  toolMark="INFO" ;;
+		warn)  toolMark="WARN" ;;
+		alert) toolMark="ALERT" ;;
+		*)
+			printf 'ERROR: PushNotification: severity must be info, warn or alert, got: %s. Nothing was sent, because guessing it would deliver an alert as a note.\n' "${toolSeverity:-<none>}" ; return 0
+		;;
+	esac
+	toolBody="$( {
+		printf '%s -- %s\n\n' "$toolMark" "$toolHeadline"
+		AgentsHarnessFormalField 'Detail:' "$toolDetail"
+		AgentsHarnessFormalField 'Action required:' "$toolAction"
+	} )"
+	AgentsHarnessFormalSend PushNotification "$toolTo" "$toolAsBot" "$toolBody"
+}
+
+## Announces a document; it publishes nothing and creates nothing. The URL is gated the
+## way WebFetch gates its own, because announcing a link nobody can open is worse than
+## not announcing it: a reader cannot tell a wrong URL from a document they lack access to.
+AgentsHarnessToolArtifact(){
+	local toolTo="$1" toolUrl="$2" toolTitle="$3" toolKind="$4" toolSummary="$5" toolAsBot="$6" toolBody
+	case "$toolUrl" in
+		http://*|https://*) ;;
+		*)
+			printf 'ERROR: Artifact: url must be the absolute http:// or https:// URL of a document that already exists, got: %s. Nothing was sent, and nothing was published -- this tool only announces a document other tooling created.\n' "${toolUrl:-<none>}" ; return 0
+		;;
+	esac
+	toolBody="$( {
+		printf '%s\n\n' "${toolTitle:-Document}"
+		AgentsHarnessFormalField 'Kind:' "$toolKind"
+		AgentsHarnessFormalField 'Link:' "$toolUrl"
+		AgentsHarnessFormalField 'Summary:' "$toolSummary"
+	} )"
+	AgentsHarnessFormalSend Artifact "$toolTo" "$toolAsBot" "$toolBody"
+}
+
+## Composed from the two tools it is built on and nothing else: the question goes out
+## through AgentsHarnessToolSendMessage and the wait is AgentsHarnessToolWait over the
+## same target. THE OUTCOME LINE IS THIS TOOL'S WHOLE CONTRACT. POSTED, RECEIVED,
+## TIMEOUT and an ERROR must never read alike, because what to do next differs for all
+## four -- and above all a question that was never posted must never look like one
+## nobody answered. Both call sites capture rather than stream, which is safe because
+## each of those functions already redirects its own child to a file: nothing the send
+## or the wait forks holds this capture pipe open.
+AgentsHarnessToolAskUserQuestion(){
+	local toolTo="$1" toolQuestion="$2" toolOptions="$3" toolContext="$4" toolWait="$5" toolTimeout="$6" toolSource="$7" toolAsBot="$8"
+	local askBody askSent askSince askWaitOut askFirst askOutcome
+	if [ -z "$toolTo" ] ; then
+		printf 'ERROR: AskUserQuestion: to is required and was empty, so there is nobody to ask. Nothing was sent.\n' ; return 0
+	fi
+	if [ -z "$toolQuestion" ] ; then
+		printf 'ERROR: AskUserQuestion: question is required and was empty. Nothing was sent.\n' ; return 0
+	fi
+	askBody="$( {
+		printf 'Question\n\n%s\n\n' "$toolQuestion"
+		AgentsHarnessFormalField 'Options:' "$toolOptions"
+		AgentsHarnessFormalField 'Context:' "$toolContext"
+	} )"
+	## Taken BEFORE the send, so an answer arriving while the send is still in flight
+	## counts as an arrival rather than as scenery the wait then sits through.
+	askSince="$( date +%s 2>/dev/null )" || askSince=""
+	AgentsHarnessWholeNumber "$askSince" || askSince=""
+	askSent="$( AgentsHarnessToolSendMessage "$toolTo" "$askBody" "$toolAsBot" )"
+	case "$askSent" in
+		ERROR:*)
+			printf 'ERROR: AskUserQuestion: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. This is not a question that went unanswered. What the send reported follows:\n%s\n' "$askSent"
+			return 0
+		;;
+	esac
+	case "$toolWait" in
+		false|0|no)
+			printf 'ASK-RESULT: POSTED\nThe question is posted to %s and no wait was asked for, so no answer was collected here. It stands and stays answerable, and can be picked up later. What the send reported follows:\n%s\n' "$toolTo" "$askSent"
+			return 0
+		;;
+	esac
+	## The conversation the question went to is where an answer arrives, so the source is
+	## derived from `to` rather than asked for twice; an explicit one still wins.
+	[ -n "$toolSource" ] || toolSource="slack:$toolTo"
+	askWaitOut="$( AgentsHarnessToolWait "$toolSource" "$toolTimeout" "" "$askSince" )"
+	case "$askWaitOut" in
+		ERROR:*)
+			printf 'ERROR: AskUserQuestion: the question WAS posted to %s, and then the wait for an answer could not be performed -- so the question stands and NOTHING is known about whether it was answered. Its silence must not be read as quiet. What the wait reported follows:\n%s\n' "$toolTo" "$askWaitOut"
+			return 0
+		;;
+	esac
+	## The outcome is read off the wait operation's own first line, which carries
+	## RECEIVED, TIMEOUT or ERROR. An answer in any other shape is stated as unclassified
+	## rather than folded into one of the three, since each of them directs a different
+	## next step and guessing between them is the failure this line exists to prevent.
+	askFirst="${askWaitOut%%$'\n'*}"
+	case "$askFirst" in
+		*RECEIVED*) askOutcome="RECEIVED" ;;
+		*TIMEOUT*)  askOutcome="TIMEOUT" ;;
+		*ERROR*)    askOutcome="ERROR" ;;
+		*)          askOutcome="UNCLASSIFIED" ;;
+	esac
+	printf 'ASK-RESULT: %s\nThe question was posted to %s. What the wait returned follows verbatim.\n%s\n' "$askOutcome" "$toolTo" "$askWaitOut"
+}
+
+## The three MCP resource tools reach the same servers this run already enumerated,
+## through the same client the mcp__ tools use. A server is resolvable out of the config
+## by name alone, so the grant is enforced HERE: a name this run was not started with is
+## refused rather than started, which is what keeps --mcp-server the whole of the grant.
+## Outside the AgentsHarnessTool* family for the reason AgentsHarnessMcpCall is.
+AgentsHarnessMcpResourceServers(){ ## optional single server name; prints the servers to use
+	local wantName="$1" haveName
+	[ "${#harnessMcpServers[@]}" -gt 0 ] || return 1
+	if [ -z "$wantName" ] ; then
+		printf '%s\n' "${harnessMcpServers[@]}"
+		return 0
+	fi
+	for haveName in "${harnessMcpServers[@]}" ; do
+		[ "$haveName" != "$wantName" ] || { printf '%s\n' "$wantName" ; return 0 ; }
+	done
+	return 2
+}
+
+## One resources/list exchange with one server, leaving its answer in mcp.result the way
+## AgentsHarnessMcpCall leaves its own. Non-zero with $harnessMcpFault set where the
+## server could not be run or never answered. The ids continue that file's own sequence,
+## so a reply is matched by id rather than by position in a stream that also carries
+## banners and notifications.
+AgentsHarnessMcpResourceList(){ ## server name
+	local listServer="$1"
+	{
+		AgentsHarnessMcpHandshake
+		printf '%s\n' '{"jsonrpc":"2.0","id":4,"method":"resources/list","params":{}}'
+	} > "$harnessScratch/mcp.req"
+	AgentsHarnessMcpRun "$listServer" "$harnessRunTimeout" || return 1
+	AgentsHarnessMcpReply 4 || { harnessMcpFault="it returned no answer to resources/list (exit status $harnessMcpStatus)${harnessMcpDiag:+ -- it said: $harnessMcpDiag}" ; return 1 ; }
+	printf '%s\n' "$harnessMcpReply" > "$harnessScratch/mcp.result"
+}
+
+## One resources/read exchange. The uri is escaped and its line breaks folded first: a
+## JSON-RPC request is one physical line, and a raw newline inside a string literal is
+## not legal JSON anyway, so folding one can never change a value.
+AgentsHarnessMcpResourceRead(){ ## server name, uri
+	local readServer="$1" readUri="$2" readUriEsc
+	readUri="${readUri//$'\n'/ }"
+	readUri="${readUri//$'\r'/ }"
+	readUriEsc="$( printf '%s' "$readUri" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"
+	{
+		AgentsHarnessMcpHandshake
+		printf '%s\n' '{"jsonrpc":"2.0","id":5,"method":"resources/read","params":{"uri":"'"$readUriEsc"'"}}'
+	} > "$harnessScratch/mcp.req"
+	AgentsHarnessMcpRun "$readServer" "$harnessRunTimeout" || return 1
+	AgentsHarnessMcpReply 5 || { harnessMcpFault="it returned no answer to resources/read (exit status $harnessMcpStatus)${harnessMcpDiag:+ -- it said: $harnessMcpDiag}" ; return 1 ; }
+	printf '%s\n' "$harnessMcpReply" > "$harnessScratch/mcp.result"
+}
+
+## Renders whatever resources/read answer is sitting in mcp.result. Shared by the single
+## read and the prefix read so one server answer can never render two different ways.
+## LC_ALL=C for the whole body, so the length test and the cut count the same bytes the
+## cap is expressed in -- under the ambient UTF-8 locale they count characters instead.
+AgentsHarnessMcpResourceRender(){ ## uri
+	local LC_ALL=C
+	local renderUri="$1" renderRc=0 renderCount renderIndex renderText renderMime renderBytes renderErr
+	renderErr="$( AgentsHarnessMcpField error.message < "$harnessScratch/mcp.result" )" || renderErr=""
+	if [ -n "$renderErr" ] ; then
+		printf 'ERROR: the server refused to read %s: %s\n' "$renderUri" "$renderErr"
+		return 0
+	fi
+	renderCount="$( AgentsHarnessMcpField result.contents.__count < "$harnessScratch/mcp.result" )" || renderRc=$?
+	if [ "$renderRc" != "0" ] ; then
+		printf 'ERROR: the server answered the read of %s in a shape this harness cannot read -- no result.contents array (rc=%s). Nothing is implied about what that resource holds.\n' "$renderUri" "$renderRc"
+		return 0
+	fi
+	renderIndex=0
+	while [ "$renderIndex" -lt "$renderCount" ] 2>/dev/null ; do
+		renderRc=0
+		renderMime="$( AgentsHarnessMcpField "result.contents.$renderIndex.mimeType" < "$harnessScratch/mcp.result" )" || renderMime=""
+		renderText="$( AgentsHarnessMcpField "result.contents.$renderIndex.text" < "$harnessScratch/mcp.result" )" || renderRc=$?
+		renderIndex=$(( renderIndex + 1 ))
+		if [ "$renderRc" != "0" ] ; then
+			printf '[part %s of %s carries no text%s -- a binary or otherwise non-text part, which this harness does not render]\n' "$renderIndex" "$renderCount" "${renderMime:+, media type $renderMime}"
+			continue
+		fi
+		## Capped and said so, as Read states its own cap: a cut resource otherwise reads
+		## as the whole of one.
+		renderBytes="${#renderText}"
+		if [ "$renderBytes" -gt 100000 ] ; then
+			printf '%s\n' "${renderText:0:100000}"
+			printf '... TRUNCATED at 100000 of %s bytes ...\n' "$renderBytes"
+		else
+			printf '%s\n' "$renderText"
+		fi
+	done
+	[ "$renderCount" != 0 ] || printf '(the server returned no content for %s)\n' "$renderUri"
+}
+
+AgentsHarnessToolListMcpResourcesTool(){ ## server (optional)
+	local toolServer="$1" listServers="" listServerRc=0 listName listRc listCount listIndex
+	local listUri listResName listMime listDesc listErr
+	listServers="$( AgentsHarnessMcpResourceServers "$toolServer" )" || listServerRc=$?
+	case "$listServerRc" in
+		0) ;;
+		1)
+			printf 'ERROR: ListMcpResourcesTool: this run enumerated no MCP server at all, so there is nothing to list. A server is reachable only because this harness was started naming it, and nothing here can add one.\n' ; return 0
+		;;
+		*)
+			printf 'ERROR: ListMcpResourcesTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
+		;;
+	esac
+	while IFS= read -r listName ; do
+		[ -n "$listName" ] || continue
+		printf '... MCP server %s ...\n' "$listName"
+		if ! AgentsHarnessMcpResourceList "$listName" ; then
+			printf 'ERROR: %s could not be asked for its resources: %s\n' "$listName" "$harnessMcpFault"
+			continue
+		fi
+		listRc=0
+		listCount="$( AgentsHarnessMcpField result.resources.__count < "$harnessScratch/mcp.result" )" || listRc=$?
+		if [ "$listRc" != "0" ] ; then
+			listErr="$( AgentsHarnessMcpField error.message < "$harnessScratch/mcp.result" )" || listErr=""
+			if [ -n "$listErr" ] ; then
+				printf 'ERROR: %s refused resources/list: %s\n' "$listName" "$listErr"
+			else
+				printf 'ERROR: %s answered resources/list in a shape this harness cannot read -- no result.resources array (rc=%s). Nothing is implied about whether it publishes resources.\n' "$listName" "$listRc"
+			fi
+			continue
+		fi
+		## Every listing carries its denominator: without one, a reader cannot tell a
+		## server publishing nothing from a walk that read nothing.
+		printf '%s resource(s) published:\n' "$listCount"
+		listIndex=0
+		while [ "$listIndex" -lt "$listCount" ] 2>/dev/null ; do
+			listUri="$( AgentsHarnessMcpField "result.resources.$listIndex.uri" < "$harnessScratch/mcp.result" )" || listUri=""
+			listResName="$( AgentsHarnessMcpField "result.resources.$listIndex.name" < "$harnessScratch/mcp.result" )" || listResName=""
+			listMime="$( AgentsHarnessMcpField "result.resources.$listIndex.mimeType" < "$harnessScratch/mcp.result" )" || listMime=""
+			listDesc="$( AgentsHarnessMcpField "result.resources.$listIndex.description" < "$harnessScratch/mcp.result" )" || listDesc=""
+			listIndex=$(( listIndex + 1 ))
+			printf '  %s. %s\n' "$listIndex" "${listUri:-<this entry carries no uri, so it cannot be read>}"
+			[ -z "$listResName" ] || printf '     name: %s\n' "$listResName"
+			[ -z "$listMime" ] || printf '     type: %s\n' "$listMime"
+			[ -z "$listDesc" ] || printf '     %s\n' "$listDesc"
+		done
+		[ "$listCount" != 0 ] || printf '  (this server publishes no resources. It was reached and it answered, so that is a complete answer and not a failure.)\n'
+	done <<< "$listServers"
+}
+
+AgentsHarnessToolReadMcpResourceTool(){ ## server, uri
+	local toolServer="$1" toolUri="$2" readServers="" readServerRc=0
+	if [ -z "$toolServer" ] || [ -z "$toolUri" ] ; then
+		printf 'ERROR: ReadMcpResourceTool: both server and uri are required, and one of them was empty. Nothing was read.\n' ; return 0
+	fi
+	readServers="$( AgentsHarnessMcpResourceServers "$toolServer" )" || readServerRc=$?
+	case "$readServerRc" in
+		0) ;;
+		1)
+			printf 'ERROR: ReadMcpResourceTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it, and nothing here can add one.\n' ; return 0
+		;;
+		*)
+			printf 'ERROR: ReadMcpResourceTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
+		;;
+	esac
+	if ! AgentsHarnessMcpResourceRead "$toolServer" "$toolUri" ; then
+		printf 'ERROR: ReadMcpResourceTool: the MCP server `%s` could not be run: %s\n' "$toolServer" "$harnessMcpFault" ; return 0
+	fi
+	printf '... %s on %s ...\n' "$toolUri" "$toolServer"
+	AgentsHarnessMcpResourceRender "$toolUri"
+}
+
+AgentsHarnessToolReadMcpResourceDirTool(){ ## server, uri_prefix, limit
+	local toolServer="$1" toolPrefix="$2" toolLimit="$3" dirServers="" dirServerRc=0 dirRc=0
+	local dirCount dirIndex dirUri dirMatched=0 dirRead=0 dirMatches="" dirErr
+	if [ -z "$toolServer" ] ; then
+		printf 'ERROR: ReadMcpResourceDirTool: server is required and was empty. Nothing was read.\n' ; return 0
+	fi
+	if [ -z "$toolPrefix" ] ; then
+		printf 'ERROR: ReadMcpResourceDirTool: uri_prefix is required and was empty. An empty prefix matches every resource a server publishes, which is a listing rather than a read -- use ListMcpResourcesTool for that.\n' ; return 0
+	fi
+	if [ -n "$toolLimit" ] ; then
+		if ! AgentsHarnessWholeNumber "$toolLimit" || [ "$toolLimit" -lt 1 ] ; then
+			printf 'ERROR: ReadMcpResourceDirTool: limit must be a whole number of resources, at least 1, got: %s\n' "$toolLimit" ; return 0
+		fi
+	else
+		toolLimit=20
+	fi
+	dirServers="$( AgentsHarnessMcpResourceServers "$toolServer" )" || dirServerRc=$?
+	case "$dirServerRc" in
+		0) ;;
+		1)
+			printf 'ERROR: ReadMcpResourceDirTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it, and nothing here can add one.\n' ; return 0
+		;;
+		*)
+			printf 'ERROR: ReadMcpResourceDirTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
+		;;
+	esac
+	if ! AgentsHarnessMcpResourceList "$toolServer" ; then
+		printf 'ERROR: ReadMcpResourceDirTool: the MCP server `%s` could not be asked for its resources: %s\n' "$toolServer" "$harnessMcpFault" ; return 0
+	fi
+	dirCount="$( AgentsHarnessMcpField result.resources.__count < "$harnessScratch/mcp.result" )" || dirRc=$?
+	if [ "$dirRc" != "0" ] ; then
+		dirErr="$( AgentsHarnessMcpField error.message < "$harnessScratch/mcp.result" )" || dirErr=""
+		if [ -n "$dirErr" ] ; then
+			printf 'ERROR: ReadMcpResourceDirTool: `%s` refused resources/list: %s\n' "$toolServer" "$dirErr"
+		else
+			printf 'ERROR: ReadMcpResourceDirTool: `%s` answered resources/list in a shape this harness cannot read -- no result.resources array (rc=%s). Nothing is implied about what it publishes.\n' "$toolServer" "$dirRc"
+		fi
+		return 0
+	fi
+	## The whole listing is consumed into a list of matching uris BEFORE any read runs.
+	## Each read overwrites mcp.result, so walking the listing and reading inside the
+	## same loop would read the first match and then keep walking a document that is no
+	## longer there -- silently, and reporting a count it never had.
+	dirIndex=0
+	while [ "$dirIndex" -lt "$dirCount" ] 2>/dev/null ; do
+		dirUri="$( AgentsHarnessMcpField "result.resources.$dirIndex.uri" < "$harnessScratch/mcp.result" )" || dirUri=""
+		dirIndex=$(( dirIndex + 1 ))
+		[ -n "$dirUri" ] || continue
+		case "$dirUri" in
+			"$toolPrefix"*) ;;
+			*) continue ;;
+		esac
+		dirMatched=$(( dirMatched + 1 ))
+		[ "$dirMatched" -le "$toolLimit" ] || continue
+		dirMatches="$dirMatches$dirUri"$'\n'
+	done
+	printf '... %s of the %s resource(s) on %s start with %s ...\n' "$dirMatched" "$dirCount" "$toolServer" "$toolPrefix"
+	if [ "$dirMatched" = 0 ] ; then
+		printf 'No resource uri on this server starts with that text. The server was reached and it published %s resource(s), so this is a COMPLETE, SUCCESSFUL call and not a failure -- run ListMcpResourcesTool to see the uris it does publish.\n' "$dirCount"
+		return 0
+	fi
+	while IFS= read -r dirUri ; do
+		[ -n "$dirUri" ] || continue
+		printf -- '--- %s ---\n' "$dirUri"
+		if ! AgentsHarnessMcpResourceRead "$toolServer" "$dirUri" ; then
+			printf 'ERROR: %s could not be read: %s\n' "$dirUri" "$harnessMcpFault"
+			continue
+		fi
+		dirRead=$(( dirRead + 1 ))
+		AgentsHarnessMcpResourceRender "$dirUri"
+	done <<< "$dirMatches"
+	printf '... read %s of the %s matching resource(s); the bound on this call was %s ...\n' "$dirRead" "$dirMatched" "$toolLimit"
+}
+
+## Explicit character enumeration rather than a bracket range, which is collation-
+## dependent: `[a-z]` has matched `A` on this estate.
+AgentsHarnessSkillSegmentOk(){ ## one path segment
+	local segRest="$1" segChar
+	case "$segRest" in ''|.|..) return 1 ;; esac
+	while [ -n "$segRest" ] ; do
+		segChar="${segRest%"${segRest#?}"}"
+		segRest="${segRest#?}"
+		case "$segChar" in
+			a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+			A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+			0|1|2|3|4|5|6|7|8|9) ;;
+			-|_|.) ;;
+			*) return 1 ;;
+		esac
+	done
+}
+
+## Reaches the skillset directly and DELIBERATELY NOT through AgentsHarnessPathAllowed.
+## A member folder under the skillset root is a SYMLINK into whatever source tree owns
+## it, so resolving a candidate with `cd ... && pwd -P` and prefix-matching it against
+## the resolved root refuses every real member file -- the containment check would be
+## correct and the tool would be useless. Containment is held lexically instead, decided
+## before any resolution: a relative name carrying no `..` segment, no leading slash and
+## nothing outside the gated character set cannot name anything the join does not place
+## under the root, whatever that root later resolves to.
+AgentsHarnessToolSkill(){ ## name, file, list
+	local toolName="$1" toolFile="$2" toolList="$3"
+	local skillRoot skillDir skillPath skillRest skillSeg skillBytes
+	skillRoot="${MDAT_SKILLSET_ROOT:-}"
+	if [ -z "$skillRoot" ] ; then
+		printf 'ERROR: Skill: MDAT_SKILLSET_ROOT is not set in this process, so there is no skillset to read from. Nothing was read, and no skill is implied to be absent.\n' ; return 0
+	fi
+	if ! AgentsHarnessSkillSegmentOk "$toolName" ; then
+		printf 'ERROR: Skill: name is not a bare skill folder name -- letters, digits, underscore, dot and hyphen only, and never . or .. : %s\n' "${toolName:-<none>}" ; return 0
+	fi
+	skillDir="$skillRoot/$toolName"
+	if [ ! -d "$skillDir" ] ; then
+		printf 'ERROR: Skill: no such skill folder: %s\n' "$skillDir" ; return 0
+	fi
+	case "$toolList" in
+		true|1|yes)
+			## -L because a member folder under the skillset root is a symlink into the
+			## tree that owns it, and without it the walk lists that entry without ever
+			## entering it -- printing a clean empty result for a folder full of files.
+			find -L "$skillDir/" -type f > "$harnessScratch/skill.out" 2>&1 || :
+			skillBytes="$( wc -c < "$harnessScratch/skill.out" | tr -d ' ' )"
+			if [ "$skillBytes" -gt 100000 ] ; then
+				head -c 100000 "$harnessScratch/skill.out"
+				printf '\n... TRUNCATED at 100000 of %s bytes ...\n' "$skillBytes"
+			else
+				cat "$harnessScratch/skill.out"
+			fi
+			return 0
+		;;
+	esac
+	[ -n "$toolFile" ] || toolFile="SKILL.md"
+	case "$toolFile" in
+		/*)
+			printf 'ERROR: Skill: file is a name inside the skill folder, never an absolute path: %s\n' "$toolFile" ; return 0
+		;;
+	esac
+	skillRest="$toolFile"
+	while [ -n "$skillRest" ] ; do
+		skillSeg="${skillRest%%/*}"
+		case "$skillRest" in
+			*/*) skillRest="${skillRest#*/}" ;;
+			*)   skillRest="" ;;
+		esac
+		if ! AgentsHarnessSkillSegmentOk "$skillSeg" ; then
+			printf 'ERROR: Skill: file names a segment that is not a bare filename -- letters, digits, underscore, dot and hyphen only, and never . or .. : %s\n' "$toolFile" ; return 0
+		fi
+	done
+	skillPath="$skillDir/$toolFile"
+	if [ ! -f "$skillPath" ] ; then
+		printf 'ERROR: Skill: no such file in the %s skill folder: %s -- call this again with list set true to see what that folder holds\n' "$toolName" "$skillPath" ; return 0
+	fi
+	## Existence is not readability, and the two are refused separately: without this the
+	## size test below compares an empty value and emits shell noise, not an answer.
+	if [ ! -r "$skillPath" ] ; then
+		printf 'ERROR: Skill: not readable (permission denied): %s\n' "$skillPath" ; return 0
+	fi
+	## Capped and said so, exactly as Read states its own cap.
+	skillBytes="$( wc -c < "$skillPath" | tr -d ' ' )"
+	if [ "$skillBytes" -gt 200000 ] ; then
+		head -c 200000 "$skillPath"
+		printf '\n... TRUNCATED at 200000 of %s bytes ...\n' "$skillBytes"
+	else
+		cat "$skillPath"
+	fi
+}
+
 ## A tool_call's own `function.arguments` is itself a JSON document, so the same field
 ## reader runs again on it rather than a second parser being written.
 AgentsHarnessArgValue(){
@@ -1059,6 +1665,59 @@ AgentsHarnessAnnounceTool(){
 			announceIcon="⏳"
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announceArgsRaw" )$harnessOff"
 		;;
+		## The four report tools are SendMessage with a fixed shape, so each announces the
+		## one field that identifies the call rather than the whole body it composed.
+		SubagentHandback)
+			announceIcon="📦"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" to )" )$harnessOff"
+		;;
+		ReportFindings)
+			announceIcon="📊"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" subject )" )$harnessOff"
+		;;
+		PushNotification)
+			announceIcon="📣"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" headline )" )$harnessOff"
+		;;
+		Artifact)
+			announceIcon="🔗"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" url )" )$harnessOff"
+		;;
+		## The question, then the conversation on its own line: a question and a target
+		## on one line push each other off the terminal, and this call may hold the run
+		## for minutes, so what it is waiting on has to be visible.
+		AskUserQuestion)
+			announceIcon="❔"
+			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" to )" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" question )" )$harnessOff"
+			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim to$harnessOff $harnessValue$announcePath$harnessOff"
+		;;
+		## server is optional here, so a bare call states what it will actually do rather
+		## than announcing an empty detail that reads as a stall.
+		ListMcpResourcesTool)
+			announceIcon="🗂️"
+			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" server )" )"
+			announceDetail="$harnessDim every MCP server this run enumerated$harnessOff"
+			[ -z "$announcePath" ] || announceDetail="$harnessValue$announcePath$harnessOff"
+		;;
+		ReadMcpResourceTool)
+			announceIcon="📄"
+			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" server )" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" uri )" )$harnessOff"
+			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim on$harnessOff $harnessValue$announcePath$harnessOff"
+		;;
+		ReadMcpResourceDirTool)
+			announceIcon="🗃️"
+			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" server )" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" uri_prefix )" )$harnessOff"
+			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim on$harnessOff $harnessValue$announcePath$harnessOff"
+		;;
+		Skill)
+			announceIcon="📚"
+			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" file )" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" name )" )$harnessOff"
+			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim file$harnessOff $harnessValue$announcePath$harnessOff"
+		;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		## The whole argument object is shown, since only the server knows its own shape.
 		mcp__*)
@@ -1110,7 +1769,7 @@ Everything else above you may read, list, search and run commands in, but not wr
 harnessSystemTail=" (no sandboxing beyond the paths below). You may only read, write, list, search or run commands with a working directory under one of these access roots:
 $harnessRoots
 $harnessWriteNote
-Use the given tools to accomplish the request, then reply with a final plain-text message once done. Do not ask the user a question -- there is no one to answer it; make the most reasonable choice and state what you did."
+Use the given tools to accomplish the request, then reply with a final plain-text message once done. Nobody is reading this terminal, so a question written into your own answer reaches no one: where you genuinely need a decision only a person can make, AskUserQuestion is the one way to ask for one. Otherwise make the most reasonable choice and state what you did."
 
 ## --agent given: the member's own identity replaces the generic opener entirely.
 ## Read below is a tool name in prose, which no structural check can see.
@@ -1371,11 +2030,20 @@ $harnessSummary" )" )
 			Edit)      harnessResult="$( AgentsHarnessToolEdit "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" old_text )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" new_text )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" replace_all )" )" ;;
 			Grep)      harnessResult="$( AgentsHarnessToolGrep "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" before )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" after )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" ignore_case )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_mode )" )" ;;
 			Bash)      harnessResult="$( AgentsHarnessToolBash "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" )" ;;
-			WebSearch) harnessResult="$( AgentsHarnessToolWebSearch )" ;;
+			WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" )" ;;
 			WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" )" ;;
 			SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" message )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 			ListAgents) harnessResult="$( AgentsHarnessToolListAgents )" ;;
 			Wait)      harnessResult="$( AgentsHarnessToolWait "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" sources )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" poll_interval )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" since_utime )" )" ;;
+			SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" outcome )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" unfinished )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
+			ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" subject )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" evidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" confidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
+			PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" severity )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" headline )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" detail )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" action_required )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
+			Artifact)  harnessResult="$( AgentsHarnessToolArtifact "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" title )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" kind )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" summary )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
+			AskUserQuestion) harnessResult="$( AgentsHarnessToolAskUserQuestion "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" question )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" options )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait_source )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
+			ListMcpResourcesTool) harnessResult="$( AgentsHarnessToolListMcpResourcesTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" )" ;;
+			ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri )" )" ;;
+			ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri_prefix )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
+			Skill)     harnessResult="$( AgentsHarnessToolSkill "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" name )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" list )" )" ;;
 			## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 			mcp__*)    harnessResult="$( AgentsHarnessMcpCall "$harnessFuncName" "$harnessFuncArgsRaw" )" ;;
 			*)         harnessResult="ERROR: unknown tool: $harnessFuncName" ;;

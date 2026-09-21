@@ -789,6 +789,8 @@ case "$1" in
 			--all-types \
 			--do-inbox-inquiry-active --do-inbox-reflections \
 			--do-inbox-notes --do-inbox-other \
+			--no-slack --no-email --no-trello \
+			--no-board-related \
 			--context --magic-grooming-input-scan
 		return $?
 	;;

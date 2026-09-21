@@ -206,7 +206,7 @@ AgentsToolsJiraAgileRead() {
 			printf '%s\n' "# $agileContext: more: unknown -- this response carried no readable $agileArray array, so the rows on this page cannot be counted. That is NOT a confirmation that the page is complete" >&2
 			return 0
 		fi
-		[ -z "$agileRows" ] || agileCount="$( printf '%s\n' "$agileRows" | awk 'END { print NR }' )"
+		[ -z "$agileRows" ] || agileCount="$( printf '%s\n' "$agileRows" | LC_ALL=C awk 'END { print NR }' )"
 		case "$agileTotal" in
 			''|*[!0123456789]*)
 				printf '%s\n' "# $agileContext: more: unknown -- this response carried no numeric total, so whether rows exist beyond the $agileCount here cannot be told from it. That is NOT a confirmation that the page is complete" >&2
@@ -906,7 +906,7 @@ case "$1" in
 		local jiraCRTotal="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v path=total -v optional=1 -f "$jiraCRFieldAwk" 2>/dev/null )"
 		local jiraCRRespStart="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v path=startAt -v optional=1 -f "$jiraCRFieldAwk" 2>/dev/null )"
 		local jiraCREmitted=0
-		[ -z "$jiraCRRows" ] || jiraCREmitted="$( printf '%s\n' "$jiraCRRows" | awk 'END { print NR }' )"
+		[ -z "$jiraCRRows" ] || jiraCREmitted="$( printf '%s\n' "$jiraCRRows" | LC_ALL=C awk 'END { print NR }' )"
 		case "$jiraCRTotal" in
 			''|*[!0123456789]*)
 				printf '%s\n' "# $jiraCRContext: more: unknown -- this response carried no numeric total, so whether issue $jiraCRKey has comments beyond these $jiraCREmitted cannot be told from it. That is NOT a confirmation that the list is complete" >&2
@@ -1107,7 +1107,7 @@ case "$1" in
 		local jiraITMatchedIds jiraITMatchCount
 		jiraITMatchedIds="$( printf '%s\n' "$jiraITRows" | LC_ALL=C awk -F'\t' -v want="$jiraITToStatus" '$3 == want { print $1 }' )"
 		jiraITMatchCount=0
-		[ -z "$jiraITMatchedIds" ] || jiraITMatchCount="$( printf '%s\n' "$jiraITMatchedIds" | awk 'END { print NR }' )"
+		[ -z "$jiraITMatchedIds" ] || jiraITMatchCount="$( printf '%s\n' "$jiraITMatchedIds" | LC_ALL=C awk 'END { print NR }' )"
 		if [ "$jiraITMatchCount" -eq 0 ] ; then
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: no transition leads to a status named exactly '$jiraITToStatus' from issue $jiraITKey's own current status -- nothing was changed. Transitions available from here (action -> destination status):" >&2
 			printf '%s\n' "$jiraITRows" | LC_ALL=C awk -F'\t' '{ print "#   " $2 " -> " $3 }' >&2
@@ -1461,7 +1461,7 @@ case "$1" in
 			local confPCSpaceMatches confPCSpaceMatchCount
 			confPCSpaceMatches="$( printf '%s\n' "$confPCSpaceRows" | LC_ALL=C awk -F'\t' -v want="$confPCSpaceKey" '$2 == want { print $1 }' )"
 			confPCSpaceMatchCount=0
-			[ -z "$confPCSpaceMatches" ] || confPCSpaceMatchCount="$( printf '%s\n' "$confPCSpaceMatches" | awk 'END { print NR }' )"
+			[ -z "$confPCSpaceMatches" ] || confPCSpaceMatchCount="$( printf '%s\n' "$confPCSpaceMatches" | LC_ALL=C awk 'END { print NR }' )"
 			if [ "$confPCSpaceMatchCount" -ne 1 ] ; then
 				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: space key '$confPCSpaceKey' resolved to $confPCSpaceMatchCount ids as $confPCMember, not exactly one -- nothing was created. A 0 usually means this identity cannot see that space or the key is wrong; pass --space-id directly if the numeric id is already known" >&2
 				set +e ; return 1

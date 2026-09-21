@@ -320,6 +320,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-librarian.basic.md` — identity.
 - This file's own "Team-Member's (-specific) local rules" section — who may run/change this skill, decision-making (per `magic-team/magic-team.shared.md`'s folder-shape spec, an acting member's access facts live inside its own `.armed.md`).
 - `reference/mcp.md` — MCP (Model Context Protocol) / JSON-RPC 2.0 reference module. Fully populated; the canonical home for MCP guidance, with no separate MCP skill beside it.
+- `reference/project-inf.md` — install-fragment and declared-directive reference module: the shapes, ordering and idioms the shipped `myx.distro-*` manuals do not carry. The `project.inf` file itself is not this module's subject — its single home is the `myx.distro-.local` package's own `project.inf` file-format manual, reached through that package's help pair, which this module points at rather than restating.
 - `reference/messaging.md` — messaging-platform reference module: message-size limits and silent truncation (with the measured evidence behind `magic-team/magic-team.conversations.md`'s **message-shape-is-correctness**), identity-scoped send/read asymmetry, and the endpoint-derivation method for scope grants. Platform specifics live here deliberately; the conventions file stays platform-neutral.
 - A `reference/` module serving one member's own domain stays with that member — same shape as `magic-devops`'s and `magic-developer`'s own `reference/` modules, not this file's own cross-cutting protocol/format reference.
 - `magic-librarian.conventions-check.routine` / `magic-librarian.morning-review.routine` — this skill's two named routines; files named in `# Domain knowledge`'s `## Routines (index)`.
@@ -330,7 +331,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 #### Named future candidates (not built yet)
 
-HTTP (HTTP/0.9–1.1, gzip/deflate, chunked transfer, pipelining, headers), TLS, SSH, ACM.TPL conventions, config/deploy file formats — each becomes a real module only when an actual task needs it.
+HTTP (HTTP/0.9–1.1, gzip/deflate, chunked transfer, pipelining, headers), TLS, SSH, ACM.TPL conventions — each becomes a real module only when an actual task needs it.
 
 ### Conventions
 

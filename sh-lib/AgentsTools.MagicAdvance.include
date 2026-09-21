@@ -154,6 +154,9 @@ case "$1" in
 			--do-inbox-inquiry-active \
 			--do-inbox-reflections \
 			--do-inbox-notes \
+			--no-slack --no-email --no-trello \
+			--no-inbox-other \
+			--no-board-related \
 			"${advanceInboxAlso[@]+"${advanceInboxAlso[@]}"}" \
 			--context --magic-advance-input-scan
 		return $?

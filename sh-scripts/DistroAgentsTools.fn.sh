@@ -54,16 +54,16 @@ DistroAgentsTools(){
 	set -e
 
 	## The skillset root, resolved once here for the same reason MDAT_DATA_ROOT
-	## is: this workspace's own member set where --install-skillset-symlinks
-	## --scope workspace put one, the machine's otherwise. A SKILL.md decides it,
-	## because .claude/skills exists empty on a workspace that only has the
-	## restrictions installed.
+	## is: the machine's own member set, this workspace's where only
+	## --install-skillset-symlinks --scope workspace put one. A SKILL.md decides
+	## it, because --owner-workspace-upsert mkdir -p's $HOME/.claude/skills for
+	## its own registry, so an empty one exists where there is no member set.
 	if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
 		local skillsetMember
-		MDAT_SKILLSET_ROOT="$HOME/.claude/skills"
-		for skillsetMember in "$MMDAPP/.claude/skills"/*/ ; do
+		MDAT_SKILLSET_ROOT="$MMDAPP/.claude/skills"
+		for skillsetMember in "$HOME/.claude/skills"/*/ ; do
 			[ -f "$skillsetMember/SKILL.md" ] || continue
-			MDAT_SKILLSET_ROOT="$MMDAPP/.claude/skills"
+			MDAT_SKILLSET_ROOT="$HOME/.claude/skills"
 			break
 		done
 		export MDAT_SKILLSET_ROOT

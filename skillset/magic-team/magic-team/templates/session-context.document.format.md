@@ -18,8 +18,9 @@ comms since it last looked, the member's own live inbox, and the board rows that
 
 ## Goals
 
-- A reader can tell, for every scope, whether it was **not requested**, **requested and empty**, or
-  **requested and impossible to check** — never guess between them.
+- A reader can tell, for every scope, whether it was **declined**, **neither requested nor declined**,
+  **requested and empty**, or **requested and impossible to check** — never guess between them. A
+  declined scope has no section at all; each of the other three says which it is.
 - Shell-readable, human-readable and agent-readable at once: stable headings, one item per block,
   `key: value` lines, blank line between blocks.
 
@@ -31,8 +32,8 @@ comms since it last looked, the member's own live inbox, and the board rows that
 - Doesn't:
   - Restructure board rows. The board section keeps the per-item shape the existing
     `--*-input-scan` documents already emit — it is inserted into this structure, not rewritten.
-  - Imply a scan happened. A scope that was not requested says so; a scope that could not be
-    scanned says so, per scope, never once for the whole run.
+  - Imply a scan happened. A scope that was requested but could not be scanned says so, per scope,
+    never once for the whole run; a scope that was neither requested nor declined says that instead.
 
 # Skeleton
 
@@ -53,8 +54,10 @@ comms-cut-off: <--comms-since-* kind and value, or "none — per-service unread 
 ## Incoming IM Updates
 
 **NOTE:** no new incoming IM updates              <- when requested and empty
-**NOTE:** not requested                           <- when the scope was not asked for
+**NOTE:** not requested                           <- when neither requested nor declined
 **NOTE:** no scan was made -- <reason>            <- when asked for but not performable
+
+<- a DECLINED scope emits no section at all: no heading, and no **NOTE:** line.
 
 ## <type-name> <id>
 <key>: <value>
@@ -124,8 +127,17 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, all types, 
   of* items. **Annotation marks** — `partial`, `truncated` — accompany items, and may co-occur with
   each other: a section can be over its cap and missing a source at once.
 - rule: The three status forms are distinct and not interchangeable — *no new X* (looked,
-  found nothing), *not requested* (never looked), *no scan was made -- reason* (asked, could not
-  look). Collapsing them loses the one distinction this document exists to preserve.
+  found nothing), *not requested* (nobody asked and nobody declined, so nothing looked), *no scan was
+  made -- reason* (asked, could not look). Collapsing them loses the one distinction this document
+  exists to preserve.
+- rule: **Every scope is in one of three states, and no two of them render alike.** A scope is
+  requested, declined, or neither. Requested produces the section. Declined produces no section at
+  all — no heading, no `**NOTE:**` line. Neither produces the heading and `**NOTE:** not requested`,
+  and nothing beside it. `**NOTE:** not requested` therefore reports the request and never the tree:
+  the run stated nothing about that section, which is not the same as that section being empty.
+- rule: **Requesting is per breadth, declining is per section.** A scope offering two breadths is
+  requested at exactly one of them, one breadth per run, and passing both is an error rather than a
+  union. Its decline names the section alone — one decline per section, never one per breadth.
 - rule: **A string this document emits is code. Every emitted string uses ASCII `--`, never an em
   dash.** It governs every `scope:`, `**NOTE:**`, `identity:`, `instrument:` and `sources-scanned:`
   line quoted in this file — reproduce those characters exactly and never compose one at the point of

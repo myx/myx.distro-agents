@@ -40,6 +40,10 @@ case "$1" in
 		local doInboxInquiryActive="false" doInboxInquiryAll="false"
 		local doInboxReflections="false" doInboxNotes="false"
 		local doInboxOther="false"
+		local noSlack="false" noEmail="false" noTrello="false"
+		local noInboxInquiry="false" noInboxReflections="false"
+		local noInboxNotes="false" noInboxOther="false"
+		local noBoardRelated="false"
 		## Read-only widening of the INBOX section only. Never touches actingMember:
 		## the acting identity, the credentials every comms read uses, the board's
 		## owner scoping and the named-item lookup all stay with actingMember, and
@@ -102,12 +106,15 @@ case "$1" in
 					items+=( "$2" )
 					shift 2
 				;;
-				--comms-do-all)    commsDoAll="true" ; shift ;;
-				--intern-op-do-slack)  commsDoSlack="true" ; shift ;;
-				--comms-do-email)  commsDoEmail="true" ; shift ;;
-				--comms-do-trello) commsDoTrello="true" ; shift ;;
-				--intern-op-do-slack-tags) commsDoSlackTags="true" ; shift ;;
-				--comms-member-scope-only) commsMemberScopeOnly="true" ; shift ;;
+				--do-all)    commsDoAll="true" ; shift ;;
+				--do-slack)  commsDoSlack="true" ; shift ;;
+				--do-email)  commsDoEmail="true" ; shift ;;
+				--do-trello) commsDoTrello="true" ; shift ;;
+				--do-slack-tags) commsDoSlackTags="true" ; shift ;;
+				--member-scope-only) commsMemberScopeOnly="true" ; shift ;;
+				--no-slack)  noSlack="true" ; shift ;;
+				--no-email)  noEmail="true" ; shift ;;
+				--no-trello) noTrello="true" ; shift ;;
 				--do-inbox-inquiry-active) doInboxInquiryActive="true" ; shift ;;
 				--do-inbox-inquiry-all)    doInboxInquiryAll="true" ; shift ;;
 				--do-inbox-reflections)    doInboxReflections="true" ; shift ;;
@@ -134,6 +141,11 @@ case "$1" in
 				;;
 				--do-board-related-active) doBoardRelatedActive="true" ; shift ;;
 				--do-board-related-all)    doBoardRelatedAll="true" ; shift ;;
+				--no-inbox-inquiry)        noInboxInquiry="true" ; shift ;;
+				--no-inbox-reflections)    noInboxReflections="true" ; shift ;;
+				--no-inbox-notes)          noInboxNotes="true" ; shift ;;
+				--no-inbox-other)          noInboxOther="true" ; shift ;;
+				--no-board-related)        noBoardRelated="true" ; shift ;;
 				--item-include-inbox)      itemIncludeInbox="true" ; shift ;;
 				--comms-since-date-time|--comms-since-utime)
 					if [ -z "${2:-}" ] ; then
@@ -194,22 +206,38 @@ case "$1" in
 		## no-op: it reads like comms were requested when none were.
 		if [ -n "$commsCutoffKind" ] && [ "$commsDoAll" != "true" ] && [ "$commsDoSlack" != "true" ] \
 			&& [ "$commsDoEmail" != "true" ] && [ "$commsDoTrello" != "true" ] ; then
-			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: $commsCutoffKind given with no comms selector (--comms-do-all, --intern-op-do-slack, --comms-do-email, --comms-do-trello) -- a cut-off applies to a requested comms scan, and requesting none is never implied to mean all" >&2
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: $commsCutoffKind given with no comms selector (--do-all, --do-slack, --do-email, --do-trello) -- a cut-off applies to a requested comms scan, and requesting none is never implied to mean all" >&2
 			set +e ; return 1
 		fi
 		if [ "$commsDoSlackTags" = "true" ] && [ "$commsDoAll" != "true" ] && [ "$commsDoSlack" != "true" ] ; then
-			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --intern-op-do-slack-tags is an additional Slack/IM source and needs the IM scan itself -- pass it alongside --intern-op-do-slack or --comms-do-all" >&2
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-slack-tags is an additional Slack/IM source and needs the IM scan itself -- pass it alongside --do-slack or --do-all" >&2
 			set +e ; return 1
 		fi
 		if [ "$commsMemberScopeOnly" = "true" ] && [ "$commsDoAll" != "true" ] && [ "$commsDoSlack" != "true" ] \
 			&& [ "$commsDoEmail" != "true" ] && [ "$commsDoTrello" != "true" ] ; then
-			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --comms-member-scope-only restricts a requested comms scan and needs one -- pass it alongside --comms-do-all, --intern-op-do-slack, --comms-do-email or --comms-do-trello" >&2
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --member-scope-only restricts a requested comms scan and needs one -- pass it alongside --do-all, --do-slack, --do-email or --do-trello" >&2
 			set +e ; return 1
 		fi
-		## --comms-do-all is the whole set, not a shorthand to combine with
+		## --do-all is the whole set, not a shorthand to combine with
 		## part of it -- same fixed-wrapper discipline as --all-types.
 		if [ "$commsDoAll" = "true" ] && { [ "$commsDoSlack" = "true" ] || [ "$commsDoEmail" = "true" ] || [ "$commsDoTrello" = "true" ] ; } ; then
-			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --comms-do-all and the individual --intern-op-do-slack/--comms-do-email/--comms-do-trello selectors are mutually exclusive" >&2
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-all and the individual --do-slack/--do-email/--do-trello selectors are mutually exclusive" >&2
+			set +e ; return 1
+		fi
+		if [ "$commsDoAll" = "true" ] && { [ "$noSlack" = "true" ] || [ "$noEmail" = "true" ] || [ "$noTrello" = "true" ] ; } ; then
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-all requests the whole comms set and --no-slack/--no-email/--no-trello decline part of it -- disagreeing values are an error, not an intersection" >&2
+			set +e ; return 1
+		fi
+		if [ "$commsDoSlack" = "true" ] && [ "$noSlack" = "true" ] ; then
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-slack and --no-slack name the same section -- disagreeing values are an error, not an intersection" >&2
+			set +e ; return 1
+		fi
+		if [ "$commsDoEmail" = "true" ] && [ "$noEmail" = "true" ] ; then
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-email and --no-email name the same section -- disagreeing values are an error, not an intersection" >&2
+			set +e ; return 1
+		fi
+		if [ "$commsDoTrello" = "true" ] && [ "$noTrello" = "true" ] ; then
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-trello and --no-trello name the same section -- disagreeing values are an error, not an intersection" >&2
 			set +e ; return 1
 		fi
 
@@ -229,6 +257,28 @@ case "$1" in
 		fi
 		if [ "$doBoardRelatedActive" = "true" ] && [ "$doBoardRelatedAll" = "true" ] ; then
 			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-board-related-active and --do-board-related-all are mutually exclusive -- both fill the same section, and a section carrying two scopes states neither" >&2
+			set +e ; return 1
+		fi
+		## Declining is per section and requesting is per breadth, so a decline
+		## disagrees with either breadth of the section it names.
+		if [ "$noInboxInquiry" = "true" ] && { [ "$doInboxInquiryActive" = "true" ] || [ "$doInboxInquiryAll" = "true" ] ; } ; then
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --no-inbox-inquiry declines the section --do-inbox-inquiry-active/--do-inbox-inquiry-all request -- disagreeing values are an error, not an intersection" >&2
+			set +e ; return 1
+		fi
+		if [ "$noInboxReflections" = "true" ] && [ "$doInboxReflections" = "true" ] ; then
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-inbox-reflections and --no-inbox-reflections name the same section -- disagreeing values are an error, not an intersection" >&2
+			set +e ; return 1
+		fi
+		if [ "$noInboxNotes" = "true" ] && [ "$doInboxNotes" = "true" ] ; then
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-inbox-notes and --no-inbox-notes name the same section -- disagreeing values are an error, not an intersection" >&2
+			set +e ; return 1
+		fi
+		if [ "$noInboxOther" = "true" ] && [ "$doInboxOther" = "true" ] ; then
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --do-inbox-other and --no-inbox-other name the same section -- disagreeing values are an error, not an intersection" >&2
+			set +e ; return 1
+		fi
+		if [ "$noBoardRelated" = "true" ] && { [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; } ; then
+			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --no-board-related declines the section --do-board-related-active/--do-board-related-all request -- disagreeing values are an error, not an intersection" >&2
 			set +e ; return 1
 		fi
 
@@ -1171,18 +1221,24 @@ case "$1" in
 				[ "$trelloFailed" = "true" ] || sessionContextSourcesScanned=$(( sessionContextSourcesScanned + 1 ))
 			fi
 
-			printf '# New Incoming Communications\n\n'
+			## The container goes with its three children when every one of them
+			## was declined: a declined section is not emitted at all.
+			local commsAllDeclined="false"
+			if [ "$noSlack" = "true" ] && [ "$noEmail" = "true" ] && [ "$noTrello" = "true" ] ; then
+				commsAllDeclined="true"
+			fi
+			[ "$commsAllDeclined" = "true" ] || printf '# New Incoming Communications\n\n'
 			if [ "$anyCommsRequested" = "false" ] ; then
-				printf '**NOTE:** not requested\n\n'
+				[ "$commsAllDeclined" = "true" ] || printf '**NOTE:** not requested\n\n'
 			elif [ "$anyCommsConfigured" = "false" ] ; then
 				printf '**NOTE:** no scan was made -- no requested comms source is configured in this member'"'"'s own scope\n\n'
 			elif [ "$allCommsEmptyAndScanned" = "true" ] ; then
 				printf '**NOTE:** no new incoming communications\n\n'
 			fi
 
-			printf '## Incoming IM Updates\n\n'
+			[ "$noSlack" = "true" ] || printf '## Incoming IM Updates\n\n'
 			if [ "$wantSlack" != "true" ] ; then
-				printf '**NOTE:** not requested\n\n'
+				[ "$noSlack" = "true" ] || printf '**NOTE:** not requested\n\n'
 			elif [ "$imFailed" = "true" ] ; then
 				printf 'identity: slack %s (config: %s)\n' "$imIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$imInstrument"
@@ -1331,9 +1387,9 @@ case "$1" in
 				fi
 			fi
 
-			printf '## Incoming Email Updates\n\n'
+			[ "$noEmail" = "true" ] || printf '## Incoming Email Updates\n\n'
 			if [ "$wantEmail" != "true" ] ; then
-				printf '**NOTE:** not requested\n\n'
+				[ "$noEmail" = "true" ] || printf '**NOTE:** not requested\n\n'
 			elif [ "$emailNotConfigured" = "true" ] ; then
 				## No sources-scanned: line -- an unconfigured optional source has no
 				## denominator to be a fraction of.
@@ -1362,9 +1418,9 @@ case "$1" in
 				fi
 			fi
 
-			printf '## Incoming Trello Updates\n\n'
+			[ "$noTrello" = "true" ] || printf '## Incoming Trello Updates\n\n'
 			if [ "$wantTrello" != "true" ] ; then
-				printf '**NOTE:** not requested\n\n'
+				[ "$noTrello" = "true" ] || printf '**NOTE:** not requested\n\n'
 			elif [ "$trelloNotConfigured" = "true" ] ; then
 				## No sources-scanned: line, same reason as the email section.
 				printf 'identity: trello %s (config: %s)\n' "$trelloIdentity" "$actingMember"
@@ -1394,7 +1450,7 @@ case "$1" in
 			local sessionContextCapInboxItemBytes=8192
 			local inboxDir
 			local inboxScanned inboxMatched=() inboxOrdered inboxScopeLine inboxFilterText inboxHeading inboxPrefix
-			local inboxSpec inboxWanted inboxWithProcessed ii
+			local inboxSpec inboxWanted inboxWithProcessed inboxDeclined ii
 			local inboxFilterDesc inboxCandidates=() ci inboxEmit=()
 
 			## The acting member's own inbox first -- byte-for-byte the same sections as
@@ -1416,11 +1472,13 @@ case "$1" in
 				inboxDir="$MDAT_DATA_ROOT/inboxes/$inboxMember"
 
 				for inboxSpec in \
-					"Active Inbox Inquiry Items inquiry- $doInboxInquiryActive$doInboxInquiryAll $doInboxInquiryAll" \
-					"Current Inbox Reflections reflection- $doInboxReflections false" \
-					"Current Inbox Notes note- $doInboxNotes false" \
-					"Other Inbox Items -other- $doInboxOther false" \
+					"Active Inbox Inquiry Items inquiry- $doInboxInquiryActive$doInboxInquiryAll $doInboxInquiryAll $noInboxInquiry" \
+					"Current Inbox Reflections reflection- $doInboxReflections false $noInboxReflections" \
+					"Current Inbox Notes note- $doInboxNotes false $noInboxNotes" \
+					"Other Inbox Items -other- $doInboxOther false $noInboxOther" \
 				; do
+					inboxDeclined="${inboxSpec##* }"
+					inboxSpec="${inboxSpec% *}"
 					inboxWithProcessed="${inboxSpec##* }"
 					inboxSpec="${inboxSpec% *}"
 					inboxWanted="${inboxSpec##* }"
@@ -1432,6 +1490,9 @@ case "$1" in
 					else
 						inboxHeadingText="$inboxHeading -- $inboxMember"
 					fi
+
+					## Before the first printf: a declined section emits nothing at all.
+					if [ "true" = "$inboxDeclined" ] ; then continue ; fi
 
 					case "$inboxWanted" in
 						*true*)
@@ -1538,17 +1599,21 @@ case "$1" in
 			fi
 			boardScopeLine="board/<state>/*.md -- $boardStatesText, $boardTypeText, $boardOwnerText"
 
-			printf '## Board Items\n'
-			if [ ${#matchedFiles[@]} -gt 0 ] \
-				|| [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; then
-				printf 'scope: %s\n' "$boardScopeLine"
-			fi
-			if [ ${#matchedFiles[@]} -eq 0 ] \
-				&& { [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; } ; then
-				printf '**NOTE:** no new Board Items -- scanned %s items, 0 matched owner: %s across %s\n\n' \
-					"$boardScanned" "$actingMember" "$boardRelatedStatesText"
-			else
-				printf '\n'
+			## The item blocks are emitted below, outside this block: a decline may
+			## drop the heading only when there are none for it to head.
+			if [ "$noBoardRelated" != "true" ] || [ ${#matchedFiles[@]} -gt 0 ] ; then
+				printf '## Board Items\n'
+				if [ ${#matchedFiles[@]} -gt 0 ] \
+					|| [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; then
+					printf 'scope: %s\n' "$boardScopeLine"
+				fi
+				if [ ${#matchedFiles[@]} -eq 0 ] \
+					&& { [ "$doBoardRelatedActive" = "true" ] || [ "$doBoardRelatedAll" = "true" ] ; } ; then
+					printf '**NOTE:** no new Board Items -- scanned %s items, 0 matched owner: %s across %s\n\n' \
+						"$boardScanned" "$actingMember" "$boardRelatedStatesText"
+				else
+					printf '\n'
+				fi
 			fi
 		fi
 

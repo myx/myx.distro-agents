@@ -49,6 +49,10 @@ case "$1" in
 		local phaseAOutput
 		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseAArgs[@]}" \
 			--header blocks --header blocked-by --all-types \
+			--no-slack --no-email --no-trello \
+			--no-inbox-inquiry --no-inbox-reflections \
+			--no-inbox-notes --no-inbox-other \
+			--no-board-related \
 			--context --routine-coworking-session-input-scan )" || return 1
 
 		local unionNames=()
@@ -79,6 +83,8 @@ case "$1" in
 			--all-types --item-include-inbox \
 			--do-inbox-inquiry-active --do-inbox-reflections \
 			--do-inbox-notes --do-inbox-other \
+			--no-slack --no-email --no-trello \
+			--no-board-related \
 			--context --routine-coworking-session-input-scan
 		return $?
 	;;

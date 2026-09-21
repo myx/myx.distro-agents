@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ClientToolPolicy.include -- the single source of the client
+## tool-policy set: one place each policy's subject, decision, reason and
+## redirect is stated, for every expression generated from it.
+##
+## Output contract: raw tab-separated records, one per line, in the fixed
+## field order the format version names, with NO JSON and no quoting --
+## nothing needs escaping because no field may carry the delimiter, and the
+## producers below refuse a record that does.
+##
+## Dot-sourced. Nothing here is an operation, so there is no flag and no
+## help pair; a consumer calls these functions directly.
+##
+
+## The canonicalization format version, one token on one line. The token IS
+## the field set and its order, so neither can move without moving it too.
+## A consequence of the fingerprint design rather than a property of this
+## file: the version is hashed once per fingerprint, so a bump moves every
+## host's fingerprint at the same moment -- while the version is hashed in
+## and the spawn check is fail-closed, a field reorder is a fleet-wide
+## re-install rather than a local edit.
+AgentsToolsClientToolPolicyFormatVersion(){
+	printf '%s\n' "subject-decision-reason-redirect"
+}
+
+## One tab-separated record per four arguments, in that field order. Every
+## field of every record is checked before anything reaches stdout, so a
+## refused record leaves the stream empty rather than half-written.
+## The reason field may be empty and the other three may not: a refusal here
+## is the instruction on what to use instead, never a place for explanation.
+AgentsToolsClientToolPolicyEmitRecord(){
+	local policyRecords="" policySubject policyDecision policyReason policyRedirect
+	if [ "$#" -lt 4 ] || [ "$(( $# % 4 ))" != "0" ] ; then
+		echo "⛔ ERROR: AgentsToolsClientToolPolicyEmitRecord: a record is four fields -- subject, decision, reason, redirect -- and the arguments do not divide into whole records: $#" >&2
+		return 1
+	fi
+	while [ "$#" -ge 4 ] ; do
+		policySubject="$1" ; policyDecision="$2" ; policyReason="$3" ; policyRedirect="$4"
+		shift 4
+		case "$policySubject$policyDecision$policyReason$policyRedirect" in
+			*$'\t'*|*$'\n'*)
+				echo "⛔ ERROR: AgentsToolsClientToolPolicyEmitRecord: a field of the record for '$policySubject' carries a tab or a newline, which this record format cannot represent" >&2
+				return 1
+			;;
+		esac
+		if [ -z "$policySubject" ] || [ -z "$policyDecision" ] || [ -z "$policyRedirect" ] ; then
+			echo "⛔ ERROR: AgentsToolsClientToolPolicyEmitRecord: subject, decision and redirect are each required, got: '$policySubject' '$policyDecision' '$policyRedirect'" >&2
+			return 1
+		fi
+		policyRecords="${policyRecords}${policySubject}"$'\t'"${policyDecision}"$'\t'"${policyReason}"$'\t'"${policyRedirect}"$'\n'
+	done
+	printf '%s' "$policyRecords"
+}
+
+## The client tool policies themselves, one record each. Subject is the hook
+## matcher the policy governs, decision and redirect are the verbatim values
+## the installed hook returns.
+AgentsToolsClientToolPolicy(){
+	AgentsToolsClientToolPolicyEmitRecord \
+		"Read" "deny" "" "read workspace, repository and project MAGIC.md" \
+		"Bash" "deny" "" "always use myx.distro MCP TOOLING to properly execute shell commands"
+}
+
+## The dedupe keys, one per line -- the plain substring each installed hook
+## is recognised by inside the raw hooks.PreToolUse text. A consumer captures
+## this with $( ), which strips the final newline, and passes it on that call
+## as MYX_CLAUDEVERIFY_HOOK_KEYS. An empty element there reports OK against
+## any non-empty PreToolUse, and an empty list asserts nothing at all while
+## still succeeding, so both are refused here rather than emitted.
+AgentsToolsClientToolPolicyHookKeys(){
+	local policyHookKeys="" policyHookKey
+	for policyHookKey in ".claude/hooks/deny-memory-md-read.sh" ".claude/hooks/deny-bash-tool.sh" ; do
+		case "$policyHookKey" in
+			""|*$'\t'*|*$'\n'*)
+				echo "⛔ ERROR: AgentsToolsClientToolPolicyHookKeys: a hook key is empty or carries a tab or a newline, which the verifier reads as an assertion it never made" >&2
+				return 1
+			;;
+		esac
+		policyHookKeys="${policyHookKeys}${policyHookKey}"$'\n'
+	done
+	if [ -z "$policyHookKeys" ] ; then
+		echo "⛔ ERROR: AgentsToolsClientToolPolicyHookKeys: no hook keys -- an empty list makes the verifier assert nothing and report success" >&2
+		return 1
+	fi
+	printf '%s' "$policyHookKeys"
+}

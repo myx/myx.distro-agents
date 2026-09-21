@@ -644,6 +644,14 @@ The tracked list carries paths and nothing else. A path's corresponding name is 
 
 The list is read/added-to/removed-from only via `DistroAgentsTools.fn.sh --owner-workspace-list` / `--owner-workspace-upsert` / `--owner-workspace-forget`. Anything needing an actual path calls `--owner-workspace-list` at the point of use — never a path hardcoded here, or copied into a second file.
 
+## The team on a machine is the sum of the workspaces present on it
+
+A machine's team is not a fixed roster and is not copied anywhere. Each tracked workspace publishes its own members, and the team that machine has is every member published by the workspaces it tracks, linked into that machine user's own skills root. A member published by more than one tracked workspace is carried once per publishing workspace. Both the tracked workspace list and the installer's own member registry belong to the machine rather than to any package, so two machines tracking different workspaces carry different teams from the same skillset.
+
+A workspace is tracked whether or not it is currently reachable — the list records what the team tracks, not what is mounted, and a tracked workspace may sit on a volume that is not mounted. A member published by a workspace that is not present therefore resolves to a link that does not open.
+
+**That is the absence of the workspace, not a defect.** Nothing is repaired, relinked, removed or reinstalled for it, it is not reported as broken, and it never blocks work or becomes a question to raise. The member is available again as soon as its own workspace is present again. Which members a session can actually reach is established by resolving them, never by assuming the roster describes the machine.
+
 ## What a member does not edit
 
 - Don't edit tooling or skillset source.

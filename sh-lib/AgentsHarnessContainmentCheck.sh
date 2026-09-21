@@ -11,7 +11,7 @@ rigHarness="$rigHere/AgentsUniversalHarness.sh"
 [ -f "$rigHarness" ] || { echo "⛔ ERROR: harness not found beside this check: $rigHarness" >&2 ; exit 1 ; }
 
 rigExtract(){
-	awk -v fnName="$1" '
+	LC_ALL=C awk -v fnName="$1" '
 		$0 ~ "^" fnName "\\(\\)\\{" { inFn=1 }
 		inFn { print }
 		inFn && /^\}/ { exit }

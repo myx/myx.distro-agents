@@ -158,6 +158,10 @@ case "$1" in
 
 	--owner-credential-store-verify)
 		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-verify: takes no arguments" >&2
+			set +e ; return 1
+		fi
 		local storeDir="$MMDAPP/.local/.agents"
 		if [ ! -d "$storeDir" ] ; then
 			echo "# $MDSC_CMD --owner-credential-store-verify: $storeDir does not exist yet (nothing to verify)" >&2
@@ -222,6 +226,10 @@ case "$1" in
 
 	--owner-credential-store-self-test)
 		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-self-test: takes no arguments" >&2
+			set +e ; return 1
+		fi
 		echo "# $MDSC_CMD --owner-credential-store-self-test: exercising --agents-config-option permission-hardening under umask 022 (ignoring caller's ambient umask)" >&2
 
 		local probeKey="DAT_SELFTEST_PROBE"
@@ -750,17 +758,40 @@ case "$1" in
 					## adapter, the hooks and the mcp client. A syntax error in any of
 					## them fails the spawn at startup, so checking one leaves the rest
 					## unchecked.
+					## The tools-JSON check is listed too, though it gates through its own
+					## rc below either way: a reader of this list takes it for the set of
+					## files whose syntax was proven, and a name absent from it reads as a
+					## file nobody checked.
 					for setupParseFile in "$setupHarnessFile" "$setupWireFile" "$setupStubFile" \
-						"$setupLibDir/AgentsHarnessHooks.sh" "$setupLibDir/AgentsHarnessMcpClient.sh" ; do
+						"$setupLibDir/AgentsHarnessHooks.sh" "$setupLibDir/AgentsHarnessMcpClient.sh" \
+						"$setupLibDir/AgentsHarnessToolsJsonCheck.sh" ; do
 						bash -n "$setupParseFile" 2>/dev/null || setupParseBad="$setupParseBad ${setupParseFile##*/}"
 					done
 					if [ -z "$setupParseBad" ] ; then
-						echo "HARNESS_PARSES: OK (core, wire adapter, stub, hooks, mcp client)"
+						echo "HARNESS_PARSES: OK (core, wire adapter, stub, hooks, mcp client, tools-json check)"
 					else
 						echo "HARNESS_PARSES: FAIL"
 						echo "  warn: these do not parse, so every spawn on this leg fails at startup"
 						echo "        rather than at a first tool call:$setupParseBad"
 						echo "  fix:  repair the syntax error, or re-run this workspace's own release step"
+						setupRc=1
+					fi
+
+					## The blind spot BETWEEN the two checks above, and reachable by
+					## neither: the tools declaration is one bash single-quoted literal,
+					## so the shell never parses its contents and HARNESS_PARSES stays
+					## clean over a broken one, while HARNESS_TOOL_SITES matches the
+					## envelope as text and reports OK over the same file. Measured: a
+					## missing comma between two declarations passes both. It then
+					## reaches the endpoint as a 400 the harness prints as a refused
+					## request, reading as an API or credential fault rather than as a
+					## local edit. Parsed through the slice reader rather than the one
+					## the harness runs its own responses through, since a literal
+					## checked by its own consumer proves only that the two agree.
+					local setupToolsJsonOut="" setupToolsJsonRc=0
+					setupToolsJsonOut="$( bash "$setupLibDir/AgentsHarnessToolsJsonCheck.sh" "$setupWireFile" 2>&1 )" || setupToolsJsonRc=$?
+					printf '%s\n' "$setupToolsJsonOut"
+					if [ "$setupToolsJsonRc" != "0" ] ; then
 						setupRc=1
 					fi
 
@@ -1446,7 +1477,7 @@ case "$1" in
 						echo "  fix:  $setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-workspace-integrations"
 						set +e ; return 1
 					fi
-					setupLabels=" $( awk -F: 'NF >= 4 { print $2 ; }' "$setupRegistry" | sort -u | tr '\n' ' ' )"
+					setupLabels=" $( LC_ALL=C awk -F: 'NF >= 4 { print $2 ; }' "$setupRegistry" | sort -u | tr '\n' ' ' )"
 					if [ "$setupLabels" = " " ] ; then
 						echo "WORKSPACE_REGISTRY: FAIL"
 						echo "  warn: the registry holds no line carrying a workspace name, so it names"
