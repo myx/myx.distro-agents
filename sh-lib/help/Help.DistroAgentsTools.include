@@ -221,6 +221,8 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <mem
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-read-board-item <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> --wait-list-sources" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge" >&2

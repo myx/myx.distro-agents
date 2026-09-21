@@ -35,6 +35,18 @@ HARNESS_CREDENTIAL_NAMES="SCALEWAY_DEEPSEEK or SCALEWAY_GEMMA"
 ## falls back to the other rather than failing.
 HARNESS_MODEL_LIGHT="gemma-4-26b-a4b-it"
 HARNESS_MODEL_MAIN="deepseek-v4-flash-0731"
+
+## Context budget belongs here, beside the models it describes -- the core cannot know
+## it, and its own fallback is a floor for a provider that sets nothing. Scaleway's
+## /v1/models publishes no context length (id, object, created, owned_by only), so
+## this is a chosen working value, not a measured model limit: raise or lower it here
+## when the real window is known, and nothing else has to change. Set deliberately
+## above this team's own instruction set -- the five files a heartbeat next-iteration
+## reads before it acts total roughly 122k tokens, so a smaller budget restarts the
+## pass before it performs a single step.
+HARNESS_MODEL_CONTEXT_TOKENS="900000"
+: "${MDAT_HARNESS_CONTEXT_TOKENS:=$HARNESS_MODEL_CONTEXT_TOKENS}"
+export MDAT_HARNESS_CONTEXT_TOKENS
 HARNESS_TOKEN_LIGHT="${SCALEWAY_GEMMA:-${SCALEWAY_DEEPSEEK:-}}"
 HARNESS_TOKEN_MAIN="${SCALEWAY_DEEPSEEK:-${SCALEWAY_GEMMA:-}}"
 

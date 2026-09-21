@@ -217,6 +217,13 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## Ahead of the --member-* catch-all below, as every other --member-<service>
+		## family is: the long-poll operation is its own file, not a Member.include arm.
+		--member-wait-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWait.include"
+			return $?
+		;;
+
 		--member-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Member.include"
 			return $?

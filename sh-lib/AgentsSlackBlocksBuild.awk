@@ -360,7 +360,7 @@ function parseInlineStyles(line,   n, i, j, k, c, closeIdx, spanText, mname, run
 				k = labelEnd + 2
 				while (k <= n) {
 					if (substr(line, k, 1) == "(") parenDepth++
-					else if (substr(line, k, 1) == ")") { parenDepth-- ; if (parenDepth == 0) { urlEnd = k ; break ; } }
+					else if (substr(line, k, 1) == ")") { parenDepth-- ; if (parenDepth == 0) { urlEnd = k ; break ; } ; }
 					k++
 				}
 			}

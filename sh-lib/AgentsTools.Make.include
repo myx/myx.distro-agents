@@ -17,15 +17,38 @@ case "$1" in
 		shift
 		set -e
 		# shortcut for: `DistroAgentsTools --make-console-script`
+		## Built beside the target and renamed over it, never written in place. A direct
+		## redirect truncates on open, so a generation that dies partway leaves a
+		## truncated but still-executable console -- and AgentsTools.Owner.include:599
+		## records this redirection measured doing exactly that. The gate in
+		## AgentsTools.Owner.include deliberately does NOT guard against that stub: a
+		## reader cannot make a non-atomic writer safe, and a size or tail-token check
+		## only moves the race. It is fixed here, at the writer, or not at all.
+		## Same directory on purpose, against this family's .local/temp convention:
+		## rename is atomic only within a filesystem, and nothing guarantees .local is
+		## the same one. Same-directory needs no such assumption.
+		local consoleTempFile="$( mktemp "$MMDAPP/DistroAgentsConsole.sh.XXXXXX" )"
 		cat "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsoleShellScript.template.sh" \
-		> "$MMDAPP/DistroAgentsConsole.sh"
-		chmod 770 "$MMDAPP/DistroAgentsConsole.sh"
+		> "$consoleTempFile"
 
-		## What the spawn proxy greps for before it will start anything.
-		grep -q 'cli-configured' "$MMDAPP/DistroAgentsConsole.sh" || {
-			echo "$MDSC_CMD: ⛔ ERROR: --make-console-command: the console just written to $MMDAPP/DistroAgentsConsole.sh carries no --cli-configured arm, so an agent-initiated spawn through it is refused rather than started. It was generated from $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsoleShellScript.template.sh, and that template is what predates the arm -- point MDLT_CONSOLE_ORIGIN at a tree whose template carries it and run this again. The previous console has already been overwritten by this one." >&2
+		## What the spawn proxy greps for before it will start anything. Checked on the
+		## candidate, so a stale template leaves the working console in place instead of
+		## destroying it -- a complete-but-wrong console is the same booby trap as a
+		## truncated one.
+		grep -q 'cli-configured' "$consoleTempFile" || {
+			rm -f "$consoleTempFile"
+			echo "$MDSC_CMD: ⛔ ERROR: --make-console-command: the console generated from $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsoleShellScript.template.sh carries no --cli-configured arm, so an agent-initiated spawn through it would be refused rather than started. That template is what predates the arm -- point MDLT_CONSOLE_ORIGIN at a tree whose template carries it and run this again. Nothing was installed: the existing console at $MMDAPP/DistroAgentsConsole.sh is unchanged." >&2
 			set +e ; return 1
 		}
+
+		## chmod AFTER the validate and BEFORE the rename, and both halves matter.
+		## mv carries the temp's mode onto the target, so setting it after the rename
+		## would leave a mode-600 console -- which the integrations gate then regenerates
+		## on every apply, forever, presenting as a permissions fault rather than a
+		## generation one. Setting it before the validate would instead leave an
+		## executable stub behind on an aborted run, which is the artefact this removes.
+		chmod 770 "$consoleTempFile"
+		mv "$consoleTempFile" "$MMDAPP/DistroAgentsConsole.sh"
 
 		if [ "$1" != "--quiet" ] ; then
 			local consoles="$( ls $MMDAPP/Distro*Console.sh | sed 's|^|	|g' )"

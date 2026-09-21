@@ -13,6 +13,8 @@
 	lineText = $0
 	sub(/^[ \t]+/, "", lineText)
 	sub(/[ \t]+$/, "", lineText)
+	## A comment is prose, and prose ends in a brace often enough to matter.
+	if (lineText ~ /^#/) next
 	if (lineText !~ /\}$/ || lineText == "}") next
 	beforeBrace = substr(lineText, 1, length(lineText) - 1)
 	sub(/[ \t]+$/, "", beforeBrace)

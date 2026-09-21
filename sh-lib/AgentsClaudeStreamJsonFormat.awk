@@ -73,8 +73,28 @@ function extractJsonField(sourceLine, fieldKey, searchFrom,   needlePattern, fou
 	return jsonUnescape(substr(afterNeedle, 1, valueEnd))
 }
 
-function printProgress(progressText) {
-	print "  " progressText > "/dev/stderr"
+# Wrapped to the terminal and indented, so a long line reads as one block rather
+# than as a wall the terminal reflowed against the left margin. Layout only: the
+# text arrived through progressLineSafe(), so every control byte is already a
+# space and nothing here can reintroduce one. COLUMNS via ENVIRON, never -v,
+# which backslash-decodes what it is given.
+function printProgress(progressText, leadText,   wrapWidth, wordCount, wordList, wordIndex, lineText, indentText) {
+	wrapWidth = ENVIRON["COLUMNS"] + 0
+	if (wrapWidth < 40) wrapWidth = 100
+	## Passed in, never prefixed onto the text: default field splitting strips leading
+	## blanks, so an indent carried inside progressText is silently eaten.
+	if (leadText == "") leadText = "  "
+	indentText = "       "
+	wordCount = split(progressText, wordList, " ")
+	lineText = leadText
+	for (wordIndex = 1; wordIndex <= wordCount; wordIndex++) {
+		if (lineText != leadText && lineText != indentText && length(lineText) + length(wordList[wordIndex]) + 1 > wrapWidth) {
+			print lineText > "/dev/stderr"
+			lineText = indentText
+		}
+		lineText = lineText (lineText == leadText || lineText == indentText ? "" : " ") wordList[wordIndex]
+	}
+	if (lineText != leadText && lineText != indentText) print lineText > "/dev/stderr"
 	fflush("/dev/stderr")
 }
 
@@ -97,6 +117,43 @@ BEGIN {
 	argKeyForTool["Task"] = "description"
 }
 
+# A path's identity is at its end, so cutting from the right removes exactly the
+# part a reader needs: three sibling files under one long directory all render as
+# the same truncated prefix. Elides from the LEFT for a value holding a separator,
+# keeping the tail; anything else keeps the existing right-hand cut, where the
+# start is what identifies it. Sanitised first with no cut, so the control-byte
+# guard still runs over the whole value before any of it is dropped.
+function elideForDisplay(rawValue, capBytes,   safeValue, tailText) {
+	safeValue = progressLineSafe(rawValue, 0)
+	if (length(safeValue) <= capBytes) return safeValue
+	if (substr(safeValue, 1, 1) == "/") {
+		tailText = substr(safeValue, length(safeValue) - capBytes + 4)
+		## This file is pinned LC_ALL=C, so that cut is by byte and lands mid-character
+		## as readily as not. The head of the sequence went with the elision, so any
+		## leading continuation byte is dropped rather than shown as a broken glyph.
+		sub(/^[\200-\277]+/, "", tailText)
+		return "..." tailText;
+	}
+	return progressLineSafe(safeValue, capBytes)
+}
+
+# Reasoning, with its own line structure intact. progressLineSafe() folds every C0
+# byte to a space, newlines included, so passing a whole thinking block through it
+# once returns a blob and no amount of wrapping restores the paragraphs and lists the
+# model wrote. Split first, sanitise each line on its own, and label the first line
+# only -- every line still goes through printProgress, so nothing the model emits
+# reaches column zero and the guard's intent is untouched. No cut: a cap here
+# discards reasoning and splices a literal "..." into the middle of a sentence.
+function printThinking(rawText,   lineCount, lineList, lineIndex, prefixText) {
+	lineCount = split(rawText, lineList, "\n")
+	prefixText = "  thinking: "
+	for (lineIndex = 1; lineIndex <= lineCount; lineIndex++) {
+		if (lineList[lineIndex] == "") continue
+		printProgress(progressLineSafe(lineList[lineIndex], 0), prefixText)
+		prefixText = "            ";
+	}
+}
+
 function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName, argKey, argVal) {
 	cursorPos = 1
 	while (match(substr(sourceLine, cursorPos), /"type":"tool_use"/)) {
@@ -116,7 +173,7 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 		if (argVal == "") {
 			printProgress("-> tool: " toolName)
 		} else {
-			printProgress("-> tool: " toolName "(" progressLineSafe(argVal, 110) ")")
+			printProgress("-> tool: " toolName "(" elideForDisplay(argVal, 110) ")")
 		}
 	}
 }
@@ -134,7 +191,8 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 		## line also has a tool call.
 		if ($0 ~ /"type":"thinking"/) {
 			previewText = extractJsonField($0, "thinking", 1)
-			printProgress(previewText == "" ? "thinking..." : "thinking: " progressLineSafe(previewText, 260))
+			if (previewText == "") printProgress("thinking...")
+			else printThinking(previewText);
 		}
 		if ($0 ~ /"type":"tool_use"/) {
 			reportToolCalls($0)

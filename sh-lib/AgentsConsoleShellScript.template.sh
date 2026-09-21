@@ -297,73 +297,55 @@ elif command -v myx.common >/dev/null 2>&1 ; then
 	MYX_AGENTMCP_TARGET_CWD="$MMDAPP" myx.common setup/agentMcp >/dev/null 2>&1 || :
 fi
 
-## Copilot and claude: read the prepared access fragment (the installer wrote
-## it via DistroAgentsTools --install-copilot-access-fragment) into the CLI's
-## launch argv as `--add-dir <root>` tokens, granting the same read/write
-## directory access the claude settings writers grant. Claude takes the same
-## tokens because its settings.json carries permission RULES for those roots
-## but does not put the directories themselves in the session -- `--add-dir`
-## is what does that, and both CLIs spell the flag identically. Absent/empty
-## fragment -> no tokens added; grok gets nothing (out of scope). scaleway
-## also gets nothing here -- it has no real binary to hand a flag to, and its
-## own harness (whichever DAGC_SCALEWAY_HARNESS resolved to above)
-## reads this same fragment file itself instead; see MAGIC.md. One token
-## per line, so a root containing spaces survives being read back into the
-## array intact. The DAGC_COPILOT_* names, the fragment's own filename and
-## the installer op that writes it all predate claude being included here and
-## are left exactly as they are: renaming them is its own change, across the
-## installer and its help, not a side effect of widening this branch.
-## Fragment lines are `<tag>\t<path>`, tag one of own/explicit/wildcard (see
-## AgentsTools.Install.include's --install-copilot-access-fragment and
-## AgentsTools.ClientAccessRoots.include's AgentsToolsClientAccessRootTag).
-## own/explicit are the installer's own guarantee -- created at install time,
-## added here unconditionally, no filesystem check. wildcard was only ever
-## matched because a workspace:* selector swept the WHOLE workspace registry,
-## never created by the installer, and is checked for real existence right
-## here at spawn time, since the registry can list a workspace that was never
-## a real tooling install -- an --add-dir naming a directory that does not
-## exist fails the whole spawn outright. An untagged line (the old two-line
-## `--add-dir`/path format, from before this format existed, or a stray
-## hand-edit) is treated as wildcard too: an entry with no recorded provenance
-## is never trusted unconditionally.
-DAGC_COPILOT_ADDDIR=()
-if [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] ; then
-	DAGC_COPILOT_FRAGMENT="$MMDAPP/.claude/copilot-add-dir.fragment"
-	DAGC_ADDDIR_GUARANTEED=0
-	DAGC_ADDDIR_WILDCARD_TOTAL=0
-	DAGC_ADDDIR_WILDCARD_ADDED=0
-	if [ -f "$DAGC_COPILOT_FRAGMENT" ] ; then
-		while IFS= read -r DAGC_COPILOT_LINE ; do
-			[ -n "$DAGC_COPILOT_LINE" ] || continue
-			case "$DAGC_COPILOT_LINE" in
+## The team's own access-root set, collected by the installer, rendered into
+## whichever spelling this client takes. The roots are team data: every client
+## that can be told where it may work is told here, in its own flag.
+## own/explicit are install-guaranteed and trusted unconditionally; wildcard and
+## untagged carry no provenance and are existence-checked at spawn, since a root
+## that does not exist fails the whole spawn.
+DAGC_ACCESS_FLAG=""
+case "$DAGC_CLI" in
+	copilot|claude|claude-native) DAGC_ACCESS_FLAG="--add-dir" ;;
+	scaleway)                     DAGC_ACCESS_FLAG="--access-read-root" ;;
+esac
+DAGC_ACCESS_ARGS=()
+if [ -n "$DAGC_ACCESS_FLAG" ] ; then
+	DAGC_ACCESS_FRAGMENT="$MMDAPP/.claude/copilot-add-dir.fragment"
+	DAGC_ACCESS_GUARANTEED=0
+	DAGC_ACCESS_WILDCARD_TOTAL=0
+	DAGC_ACCESS_WILDCARD_ADDED=0
+	if [ -f "$DAGC_ACCESS_FRAGMENT" ] ; then
+		while IFS= read -r DAGC_ACCESS_LINE ; do
+			[ -n "$DAGC_ACCESS_LINE" ] || continue
+			case "$DAGC_ACCESS_LINE" in
 				--add-dir)
-					## Old two-line format's own flag marker; the next line is a
-					## bare legacy path with no tag -- falls to the untagged case below.
+					## Old two-line format's marker; its path is the untagged arm below.
 					continue
 				;;
 				own$'\t'/*|explicit$'\t'/*)
-					DAGC_COPILOT_ADDDIR+=( "--add-dir" "${DAGC_COPILOT_LINE#*$'\t'}" )
-					DAGC_ADDDIR_GUARANTEED=$(( DAGC_ADDDIR_GUARANTEED + 1 ))
+					DAGC_ACCESS_ARGS+=( "$DAGC_ACCESS_FLAG" "${DAGC_ACCESS_LINE#*$'\t'}" )
+					DAGC_ACCESS_GUARANTEED=$(( DAGC_ACCESS_GUARANTEED + 1 ))
 				;;
 				wildcard$'\t'/*)
-					DAGC_COPILOT_WILDCARD_PATH="${DAGC_COPILOT_LINE#*$'\t'}"
-					DAGC_ADDDIR_WILDCARD_TOTAL=$(( DAGC_ADDDIR_WILDCARD_TOTAL + 1 ))
-					if [ -d "$DAGC_COPILOT_WILDCARD_PATH" ] ; then
-						DAGC_COPILOT_ADDDIR+=( "--add-dir" "$DAGC_COPILOT_WILDCARD_PATH" )
-						DAGC_ADDDIR_WILDCARD_ADDED=$(( DAGC_ADDDIR_WILDCARD_ADDED + 1 ))
+					DAGC_ACCESS_WILDCARD_PATH="${DAGC_ACCESS_LINE#*$'\t'}"
+					DAGC_ACCESS_WILDCARD_TOTAL=$(( DAGC_ACCESS_WILDCARD_TOTAL + 1 ))
+					if [ -d "$DAGC_ACCESS_WILDCARD_PATH" ] ; then
+						DAGC_ACCESS_ARGS+=( "$DAGC_ACCESS_FLAG" "$DAGC_ACCESS_WILDCARD_PATH" )
+						DAGC_ACCESS_WILDCARD_ADDED=$(( DAGC_ACCESS_WILDCARD_ADDED + 1 ))
 					fi
 				;;
 				/*)
-					DAGC_ADDDIR_WILDCARD_TOTAL=$(( DAGC_ADDDIR_WILDCARD_TOTAL + 1 ))
-					if [ -d "$DAGC_COPILOT_LINE" ] ; then
-						DAGC_COPILOT_ADDDIR+=( "--add-dir" "$DAGC_COPILOT_LINE" )
-						DAGC_ADDDIR_WILDCARD_ADDED=$(( DAGC_ADDDIR_WILDCARD_ADDED + 1 ))
+					## No recorded provenance, so never trusted unconditionally.
+					DAGC_ACCESS_WILDCARD_TOTAL=$(( DAGC_ACCESS_WILDCARD_TOTAL + 1 ))
+					if [ -d "$DAGC_ACCESS_LINE" ] ; then
+						DAGC_ACCESS_ARGS+=( "$DAGC_ACCESS_FLAG" "$DAGC_ACCESS_LINE" )
+						DAGC_ACCESS_WILDCARD_ADDED=$(( DAGC_ACCESS_WILDCARD_ADDED + 1 ))
 					fi
 				;;
 			esac
-		done < "$DAGC_COPILOT_FRAGMENT"
-		if [ "$DAGC_ADDDIR_GUARANTEED" -gt 0 ] || [ "$DAGC_ADDDIR_WILDCARD_TOTAL" -gt 0 ] ; then
-			echo "# console: copilot --add-dir: $DAGC_ADDDIR_GUARANTEED own+explicit (install-guaranteed) + $DAGC_ADDDIR_WILDCARD_ADDED of $DAGC_ADDDIR_WILDCARD_TOTAL wildcard candidates existed, added" >&2
+		done < "$DAGC_ACCESS_FRAGMENT"
+		if [ "$DAGC_ACCESS_GUARANTEED" -gt 0 ] || [ "$DAGC_ACCESS_WILDCARD_TOTAL" -gt 0 ] ; then
+			echo "# console: $DAGC_CLI $DAGC_ACCESS_FLAG: $DAGC_ACCESS_GUARANTEED install-guaranteed + $DAGC_ACCESS_WILDCARD_ADDED of $DAGC_ACCESS_WILDCARD_TOTAL live-checked candidates existed, added" >&2
 		fi
 	fi
 fi
@@ -497,7 +479,7 @@ DagcRunClaudeStreaming(){
 	## invisible: this runs backgrounded with stdout redirected into the awk
 	## formatter, so a 127 surfaces through a stream formatter rather than as
 	## "command not found".
-	"$DAGC_CLI_EXEC" --verbose --output-format stream-json "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$claudePrompt" >&3 &
+	"$DAGC_CLI_EXEC" --verbose --output-format stream-json "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$claudePrompt" >&3 &
 	claudePid=$!
 	## Installed immediately after capture, before anything else -- including
 	## the otherwise-harmless `exec 3>&-` below -- so there is no window in
@@ -520,7 +502,7 @@ if [ "$1" == "--non-interactive" ] ; then
 	## -- closes the option list for claude, whose prompt is positional; copilot's -p takes the body as its value.
 	## scaleway takes neither: the harness's own arg parser, in
 	## AgentsScalewayHarness.sh, knows
-	## --tier/--access-root/--, and reads its prompt as plain trailing argv
+	## --tier/--access-read-root/--, and reads its prompt as plain trailing argv
 	## (or stdin) exactly like claude/copilot's *own* prompt body does once
 	## their flags are stripped -- a `-p`/`-p --` token would hit its default
 	## `*) break` arm unconsumed and be read back as literal prompt text.
@@ -542,14 +524,14 @@ if [ "$1" == "--non-interactive" ] ; then
 		if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] ; then
 			DagcRunClaudeStreaming "$*"
 		fi
-		exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$*"
+		exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$*"
 	fi
 	echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
 	if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] ; then
 		DagcRunClaudeStreaming "$( cat )"
 	fi
-	exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$( cat )"
+	exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$( cat )"
 fi
 
 echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-exec "$DAGC_CLI_EXEC" "${DAGC_COPILOT_ADDDIR[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "$@"
+exec "$DAGC_CLI_EXEC" "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "$@"

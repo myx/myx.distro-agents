@@ -1,0 +1,397 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWait.include -- --member-wait-for-input: one bounded long
+## poll over a list of input sources, returning the moment any of them changes.
+##
+## The waiting happens HERE, in the shell, which is the whole point: a caller
+## that would otherwise burn a round trip per check spends one call and one
+## result, and its context does not grow while nothing is happening.
+##
+## A TIMEOUT IS NOT A FAILURE. "Nothing arrived within N seconds" is a normal,
+## successful outcome, and a caller must be able to tell it apart from "the
+## probe could not run" without guessing -- otherwise it cannot choose between
+## waiting again and escalating, which is the only reason this operation exists.
+## So stdout ALWAYS opens with exactly one marker line:
+##
+##     WAIT-RESULT: RECEIVED   -- something arrived; the detail follows
+##     WAIT-RESULT: TIMEOUT    -- the bound expired with nothing new; normal
+##     WAIT-RESULT: ERROR      -- the wait could not be performed; see stderr
+##
+## RECEIVED and TIMEOUT both return 0, because both are answers. ERROR returns 1.
+##
+## SOURCE ADAPTERS -- the extension point.
+##
+## A source is named `<kind>:<target>`. The kind selects a probe function by
+## name, `AgentsWaitProbe` + the kind with its first letter uppercased, and
+## $agentsWaitSourceKinds lists the kinds this build carries. Adding an input
+## source -- an IM bridge, a portal interaction feed, anything later -- is one
+## new function plus one word in that list. Nothing else in this operation, in
+## the Wait harness tool, or in the harness self-check knows a source kind.
+##
+## The adapter contract is deliberately narrow:
+##
+##     AgentsWaitProbe<Kind> <team-member> <target> <since-epoch> <render-file>
+##         rc 0 -- <render-file> now holds this source's current state for
+##                 <target>. An empty rendering is a legitimate state.
+##         rc 2 -- the probe could not run. <render-file> is not a rendering
+##                 and is not compared against anything.
+##
+## An adapter is never asked what "new" means: this operation decides that
+## generically, by comparing each rendering against the baseline it took at the
+## start of the wait. So an adapter needs no notion of cursors, read marks or
+## message identity -- only "render what is there now".
+##
+## The third argument is a READ FLOOR, not that decision. It defaults to the wait's
+## own start time, and an adapter that can narrow server-side should render only
+## from it -- otherwise every poll re-renders a whole conversation to discover
+## nothing changed. An adapter that cannot narrow ignores it and renders the lot;
+## the baseline comparison above is unaffected either way.
+##
+
+## The kinds this build carries. One word per adapter, in the order they are
+## offered to a caller that asks.
+agentsWaitSourceKinds="slack file"
+
+## Slack. Through the team's own sanctioned read operation and no other path:
+## the credential stays inside that operation and never reaches argv here.
+## A target carrying a `:` names one message, so its thread is rendered whole;
+## a bare conversation is rendered from the cut-off forward, which is Slack
+## doing the narrowing server-side rather than this operation pulling history
+## it would only throw away.
+AgentsWaitProbeSlack(){
+	local probeMember="$1" probeTarget="$2" probeSince="$3" probeOut="$4" probeRc=0
+	local probeArgs
+	probeArgs=( "$probeMember" )
+	case "$probeTarget" in
+		*:*)
+			probeArgs=( "${probeArgs[@]}" "$probeTarget" --thread )
+		;;
+		*)
+			probeArgs=( "${probeArgs[@]}" "$probeTarget" )
+			[ -z "$probeSince" ] || probeArgs=( "${probeArgs[@]}" --oldest "$probeSince" )
+		;;
+	esac
+	## Output to a file, never a capture: the read operation forks curl, and a
+	## capture returns on pipe EOF rather than on the process that holds it.
+	DistroAgentsTools --member-comms-slack-read "${probeArgs[@]}" \
+		> "$probeOut" 2> "$probeOut.err" || probeRc=$?
+	if [ "$probeRc" != "0" ] ; then
+		## Actually onto stderr: the TIMEOUT text tells the caller a failed probe's
+		## diagnostics are there, and without this the file is written, read by
+		## nothing, and removed with the working directory -- a claim that reads as
+		## verified while the reason is discarded.
+		[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
+		return 2
+	fi
+	return 0
+}
+
+## A local drop path -- a file, or a directory listed by name. This is the shape
+## an IM bridge or a portal interaction feed writes into before either has a
+## native adapter of its own, and it is what makes a wait testable with no host
+## involved. An absent path renders empty rather than failing: "not there yet"
+## is a state, and a drop that appears later is exactly the arrival being waited
+## for.
+AgentsWaitProbeFile(){
+	local probeMember="$1" probeTarget="$2" probeSince="$3" probeOut="$4" probeRc=0
+	case "$probeTarget" in
+		/*) ;;
+		*)  return 2 ;;
+	esac
+	if [ -d "$probeTarget" ] ; then
+		( cd "$probeTarget" && ls -1 ) > "$probeOut" 2>/dev/null || probeRc=$?
+		[ "$probeRc" = "0" ] || return 2
+		return 0
+	fi
+	if [ -f "$probeTarget" ] ; then
+		cat "$probeTarget" > "$probeOut" 2>/dev/null || probeRc=$?
+		[ "$probeRc" = "0" ] || return 2
+		return 0
+	fi
+	: > "$probeOut" || return 2
+	return 0
+}
+
+## `slack` -> `AgentsWaitProbeSlack`, without ${var^} -- bash 3.2 has no such
+## expansion, and this package targets it.
+AgentsWaitProbeFunctionName(){
+	local nameKind="$1" nameHead nameTail
+	nameHead="$( printf '%s' "$nameKind" | cut -c1 | tr '[:lower:]' '[:upper:]' )"
+	nameTail="$( printf '%s' "$nameKind" | cut -c2- )"
+	printf 'AgentsWaitProbe%s%s' "$nameHead" "$nameTail"
+}
+
+case "$1" in
+
+	--member-wait-for-input)
+		shift
+		local memberName="$1"
+		shift || true
+		if [ -z "$memberName" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: <team-member> missing" >&2
+			set +e ; return 1
+		fi
+		case "$memberName" in
+			--*)
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: <team-member> comes first, ahead of every flag, and '$memberName' is a flag. Nothing was waited on." >&2
+				set +e ; return 1
+			;;
+		esac
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-wait-for-input || {
+			echo "WAIT-RESULT: ERROR"
+			set +e ; return 1
+		}
+
+		local waitSources="" waitTimeout="" waitPoll="" waitSince="" waitListOnly="false"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--wait-source)
+					if [ -z "${2:-}" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source: value required (<kind>:<target>)" >&2
+						set +e ; return 1
+					fi
+					waitSources="$waitSources$2 "
+					shift 2
+				;;
+				--wait-timeout)
+					if [ -z "${2:-}" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-timeout: value required (whole seconds)" >&2
+						set +e ; return 1
+					fi
+					waitTimeout="$2"
+					shift 2
+				;;
+				--wait-poll-interval)
+					if [ -z "${2:-}" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-poll-interval: value required (whole seconds)" >&2
+						set +e ; return 1
+					fi
+					waitPoll="$2"
+					shift 2
+				;;
+				--wait-since-utime)
+					if [ -z "${2:-}" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-since-utime: value required (epoch seconds)" >&2
+						set +e ; return 1
+					fi
+					waitSince="$2"
+					shift 2
+				;;
+				--wait-list-sources)
+					waitListOnly="true"
+					shift
+				;;
+				*)
+					echo "WAIT-RESULT: ERROR"
+					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		## Asked what it can wait on, it answers and waits on nothing. This is the
+		## extension point made observable: whatever this prints is what a caller
+		## may name, with no second list to keep in step.
+		if [ "$waitListOnly" = "true" ] ; then
+			echo "WAIT-RESULT: RECEIVED"
+			echo "# input source kinds this build carries:"
+			local listKind
+			for listKind in $agentsWaitSourceKinds ; do
+				printf '%s\t%s\n' "$listKind" "$( AgentsWaitProbeFunctionName "$listKind" )"
+			done
+			return 0
+		fi
+
+		## Defaults. The two team conversations every member already watches, so a
+		## bare call is the common "tell me when anyone says anything to me" case.
+		if [ -z "$waitSources" ] ; then
+			waitSources="slack:magic-team slack:human-owner "
+		fi
+		[ -n "$waitTimeout" ] || waitTimeout=300
+		[ -n "$waitPoll" ] || waitPoll=15
+
+		case "$waitTimeout" in
+			''|*[!0-9]*)
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-timeout must be a whole number of seconds, got: $waitTimeout" >&2
+				set +e ; return 1
+			;;
+		esac
+		case "$waitPoll" in
+			''|*[!0-9]*)
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-poll-interval must be a whole number of seconds, got: $waitPoll" >&2
+				set +e ; return 1
+			;;
+		esac
+		if [ "$waitPoll" -lt 1 ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-poll-interval must be at least 1 second -- a zero interval is a spin, not a poll." >&2
+			set +e ; return 1
+		fi
+		if [ -n "$waitSince" ] ; then
+			case "$waitSince" in
+				''|*[!0-9]*)
+					echo "WAIT-RESULT: ERROR"
+					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-since-utime: not epoch seconds: $waitSince" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+
+		## Every source is resolved to its probe BEFORE the wait starts. A kind
+		## this build does not carry is a stated error at second zero, never a
+		## source that silently never fires for the length of the bound.
+		local checkSource checkKind checkTarget checkFn
+		for checkSource in $waitSources ; do
+			checkKind="${checkSource%%:*}"
+			checkTarget="${checkSource#*:}"
+			if [ "$checkKind" = "$checkSource" ] || [ -z "$checkTarget" ] ; then
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$checkSource' is not <kind>:<target>. Nothing was waited on. Kinds this build carries: $agentsWaitSourceKinds" >&2
+				set +e ; return 1
+			fi
+			checkFn="$( AgentsWaitProbeFunctionName "$checkKind" )"
+			if ! command -v "$checkFn" >/dev/null 2>&1 ; then
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: no input source of kind '$checkKind' exists in this build, so nothing was waited on -- this is NOT a wait that found nothing. Kinds this build carries: $agentsWaitSourceKinds" >&2
+				set +e ; return 1
+			fi
+		done
+
+		## mktemp, never `$$`: this operation is a shell function inside a long-lived
+		## process, so every call in that process shares one PID. Two concurrent waits
+		## by one member then share a directory, and the first to finish removes the
+		## other's state mid-poll -- which surfaces as a missing base file, not as the
+		## collision it is. Coworking makes concurrent waits the normal case.
+		local waitDir
+		mkdir -p "$MMDAPP/.local/temp" 2>/dev/null || true
+		## A unique name per call means an interrupted wait no longer has its directory
+		## overwritten by the next one, so they accumulate instead. An EXIT trap cannot
+		## clean up here -- this is a shell function inside a long-lived process, and its
+		## trap would silently replace the caller's -- so stale ones are swept on the way
+		## in. This member's own, and only those a running wait cannot still hold.
+		find "$MMDAPP/.local/temp" -maxdepth 1 -type d -name "mdat-member-wait.$memberName.*" -mtime +0 -exec rm -rf {} + 2>/dev/null || true
+		waitDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-member-wait.$memberName.XXXXXX" 2>/dev/null )"
+		if [ -z "$waitDir" ] || [ ! -d "$waitDir" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: could not create a working directory under $MMDAPP/.local/temp, so no probe could write a rendering. Nothing was waited on." >&2
+			set +e ; return 1
+		fi
+
+		## With a cut-off named, the caller is waiting on something at or after a
+		## moment it already knows -- so the first probe is EVALUATED against an
+		## empty baseline, and a reply already sitting there returns immediately.
+		## With no cut-off, "new" can only mean "different from now", so the first
+		## probe is the baseline and the wait starts from it.
+		local waitBaselineMode="first-probe"
+		[ -z "$waitSince" ] || waitBaselineMode="empty"
+
+		local waitStart waitDeadline
+		waitStart="$( date +%s )"
+		waitDeadline=$(( waitStart + waitTimeout ))
+
+		## What a probe READS from, which is not what the baseline is taken against.
+		## With no cut-off named, a source that can narrow reads from this wait's own
+		## start: measured at 142s per round otherwise -- 40s for one channel and 102s
+		## for a DM -- because each round re-renders the whole conversation only to
+		## diff it and find nothing. At that cost a 15s interval means nothing and a
+		## reply lands a minute or more late. A probe that cannot narrow ignores this,
+		## so the file adapter keeps comparing whole renderings and a file already
+		## sitting there still does not count as an arrival.
+		local waitReadFloor="${waitSince:-$waitStart}"
+
+		local waitRound=0 waitOutcome="TIMEOUT" waitHitSource="" waitHitFile=""
+		local waitProbeFailures=""
+		while : ; do
+			waitRound=$(( waitRound + 1 ))
+			local roundSource roundKind roundTarget roundFn roundIndex=0 roundRc
+			for roundSource in $waitSources ; do
+				roundIndex=$(( roundIndex + 1 ))
+				roundKind="${roundSource%%:*}"
+				roundTarget="${roundSource#*:}"
+				roundFn="$( AgentsWaitProbeFunctionName "$roundKind" )"
+
+				roundRc=0
+				"$roundFn" "$memberName" "$roundTarget" "$waitReadFloor" "$waitDir/now.$roundIndex" || roundRc=$?
+				if [ "$roundRc" != "0" ] ; then
+					## A probe that cannot run is reported, and the wait carries on
+					## over the sources that can: one unreachable source must not
+					## turn a multi-source wait into silence.
+					case "$waitProbeFailures" in
+						*"[$roundSource]"*) ;;
+						*) waitProbeFailures="$waitProbeFailures[$roundSource] " ;;
+					esac
+					continue
+				fi
+
+				if [ ! -f "$waitDir/base.$roundIndex" ] ; then
+					if [ "$waitBaselineMode" = "empty" ] ; then
+						: > "$waitDir/base.$roundIndex"
+					else
+						cp "$waitDir/now.$roundIndex" "$waitDir/base.$roundIndex" 2>/dev/null || : > "$waitDir/base.$roundIndex"
+						continue
+					fi
+				fi
+
+				if ! cmp -s "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ; then
+					waitOutcome="RECEIVED"
+					waitHitSource="$roundSource"
+					waitHitFile="$waitDir/now.$roundIndex"
+					break
+				fi
+			done
+			[ "$waitOutcome" != "RECEIVED" ] || break
+
+			local waitNow waitRemaining waitNap
+			waitNow="$( date +%s )"
+			if [ "$waitNow" -ge "$waitDeadline" ] ; then
+				break
+			fi
+			waitRemaining=$(( waitDeadline - waitNow ))
+			waitNap="$waitPoll"
+			[ "$waitNap" -le "$waitRemaining" ] || waitNap="$waitRemaining"
+			## The only thing this process does between probes. No spin, no token.
+			sleep "$waitNap"
+		done
+
+		local waitEnd waitElapsed
+		waitEnd="$( date +%s )"
+		waitElapsed=$(( waitEnd - waitStart ))
+
+		echo "WAIT-RESULT: $waitOutcome"
+		echo "# member: $memberName"
+		echo "# sources: ${waitSources% }"
+		echo "# waited: ${waitElapsed}s of ${waitTimeout}s bound, ${waitRound} poll round(s) at ${waitPoll}s, baseline: $waitBaselineMode"
+		[ -z "$waitProbeFailures" ] || echo "# probes that could not run this wait (their diagnostics are on stderr): ${waitProbeFailures% }"
+
+		case "$waitOutcome" in
+			RECEIVED)
+				echo "# arrived on: $waitHitSource"
+				echo "# --- what that source holds now follows ---"
+				cat "$waitHitFile"
+				echo "# --- end ---"
+			;;
+			*)
+				echo "# Nothing new arrived on any source within the bound. This is a COMPLETE, SUCCESSFUL wait, not a failure and not an error: those sources were read and held nothing new. Decide what to do next -- wait again, look elsewhere, or escalate under the rules that already govern escalation -- and do not report this as a fault."
+				[ -z "$waitProbeFailures" ] || echo "# NOTE: the sources listed above could not be read at all this wait, so nothing is known about them either way. Do not read their silence as quiet."
+			;;
+		esac
+
+		rm -rf "$waitDir" 2>/dev/null || true
+		return 0
+	;;
+
+		*)
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		;;
+esac

@@ -43,7 +43,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - `magic-devops` is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-devops` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - Operate carefully — change anything here the way you would operate on live infrastructure someone paid for, never casually.
-- **Establish a tool's behaviour before choosing it, not after it surprises you.** The manual is on disk at `sh-lib/help/Help.<Tool>.help.md`, in the same package as the tool's own `sh-scripts/` — read it, never assert semantics from memory, and never let a live run be what tells you what the tool does.
+- **Establish a tool's behaviour before choosing it, not after it surprises you.** `DistroAgentsTools.fn.sh --member-help magic-devops` prints what this member may run and how — read that, never assert semantics from memory, and never let a live run be what tells you what the tool does.
 - **Choose the narrowest tool that fits the job.** Narrow tools fail safe: one that must resolve to exactly one target refuses an ambiguous selector instead of acting on all of it, which is what catches a selector looser than assumed. What a selector actually resolves to is answered by a read-only listing call before acting, never by reasoning about it.
 - A task turns out to be about `myx.common`/`myx.distro-*` *source content* itself, rather than running or deploying it: hand off to the owning `keeper-*`. Do not edit source here.
 - A task is hand-rolled MCP server work (JSON-RPC, tools/resources, async/cancellation): hand off to `magic-librarian`'s `reference/mcp.md` module instead.
@@ -91,6 +91,13 @@ Real, non-`DistroAgentsTools` `myx.distro-*` shell-script command syntax this sk
 - **Bare-name reach ends at the packages.** A command is bare-name reachable exactly when it lives in an installed package's own `sh-scripts/`; a project's own script, a workspace-root console, an `actions/` entry is called by full path whichever console is open. `DeployRouting.fn.sh` does a job nothing else does; `DeploySettings.fn.sh` works alongside `DeployProjectSsh.fn.sh` rather than being replaced by it.
 - **The remote family is for a remote workspace, not for remote targets.** Reaching a deploy target's host is the deploy family's own work — the single-target and fan-out execution tools all reach remote hosts.
 - **An action is a caller distinction, not a quality one.** `actions/` entries exist so a person, or a task-menu binding, can fire a prepared parameter set; this member calls the tool, because doing the work means knowing which tool ran and with which parameters, and an action hides both.
+
+## Which tier a mutating operation reads is measured before it runs
+
+- **A house-standard input spec names a resolution order, not a tree.** `--distro-path-auto` is the ordinary spelling across this family and resolves to whichever tier is present, so two calls written identically can read two different trees on two different days.
+- **Where the operation mutates, the resolved tier is measured first — before the call, not from its output.** A mutating operation derives what it writes from what it read, so a stale read is not a stale report: it is the stale content written over the current one. Reading the tier afterwards establishes what happened, never what is about to.
+- Measured here: `--distro-path-auto` resolved to a cache tier lagging source by three weeks, and installing under it would have silently revoked seven live permission grants — a worse failure than the one being fixed, and one nothing in the run would have reported.
+- The read that settles it is a read-only listing call before acting, per this file's own narrowest-tool rule — never reasoning about which tier ought to be current, and never the fix's own run.
 
 ## Piping one host's console into another hides the source-side failure
 

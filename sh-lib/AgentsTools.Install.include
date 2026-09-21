@@ -811,18 +811,21 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## $MDAT_DATA_ROOT is resolved by DistroAgentsTools() at entry. Most
-		## installations configure no board: an empty boardRoot is valid, and the
-		## permissions writer then omits the grant and drops any stale one.
-		local boardRoot=""
-		[ -z "${MDAT_DATA_ROOT:-}" ] || boardRoot="$MDAT_DATA_ROOT/board"
-
 		## Declared allow-write grants, discovered exactly as --install-skillset-symlinks
 		## discovers team-members: the same two tools in-process, and the same trust
 		## rule -- an unreadable or empty scan is never read as "every grant
 		## disappeared", so revocation stays suppressed.
 		local grantsTrusted="true"
 		local selectedProjects declaredNamespace declaredWorkspace declaredProject selectStatus declaredStatus
+		## The index tier is established here rather than inherited: reached as a shell
+		## function nothing has run DistroAgentsTools.fn.sh's own tail guard, and an unset
+		## MDSC_INMODE selects no projects at all. Source, never --distro-path-auto: the
+		## grants are read off project.inf as it stands, and a prepared or output cache
+		## that lags source drops real declarations this run would then revoke.
+		DistroAgentsContext --distro-from-source || {
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot establish an input spec for workspace $workspace" >&2
+			set +e ; return 1
+		}
 		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
 		Require ListDistroProjects || :
 		Require ListDistroDeclares || :
@@ -942,17 +945,17 @@ case "$1" in
 			grantRows="${grantRows}${gMember}:${workspaceName}:project:Edit(/${workspace}/source/${gLine%% *}/${gGlob})"$'\n'
 		done <<< "$declaredProject"
 
-		## Member and board grants become registry rows too, so the record governs
-		## every grant this op writes rather than only the declared ones. A run
-		## records every member it can see, attributed to ITSELF: one member holds a
-		## row per workspace, the projection de-duplicates them into one grant, and
-		## that grant goes only when the LAST workspace stops recording it.
+		## Member grants become registry rows too, so the record governs every grant
+		## this op writes rather than only the declared ones. A run records every
+		## member it can see, attributed to ITSELF: one member holds a row per
+		## workspace, the projection de-duplicates them into one grant, and that
+		## grant goes only when the LAST workspace stops recording it.
+		## Acting members only: nobody is granted write on the identity record.
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
-		[ -z "$boardRoot" ] || grantRows="${grantRows}board:${workspaceName}:board:Edit(/${boardRoot}/**)"$'\n'
 		while IFS= read -r gOne ; do
 			[ -n "$gOne" ] || continue
 			grantRows="${grantRows}$( basename "$gOne" ):${workspaceName}:member:Edit(/${gOne}/**)"$'\n'
-		done <<< "$( AgentsToolsClientAccessRootsMembers )"
+		done <<< "$( AgentsToolsClientAccessRootsMembers acting )"
 
 		## Marks live in $HOME beside the members registry and follow its own record
 		## discipline: one row per (member, workspace), workspace in field 2, grant
@@ -1063,12 +1066,11 @@ case "$1" in
 		memberCount="$(
 			memberPathsFile="$MMDAPP/.local/temp/mdat-claude-permissions-members.$$"
 			trap 'rm -f "$memberPathsFile"' EXIT
-			mkdir -p "$MMDAPP/.local/temp" && AgentsToolsClientAccessRootsMembers > "$memberPathsFile" || {
+			mkdir -p "$MMDAPP/.local/temp" && AgentsToolsClientAccessRootsMembers acting > "$memberPathsFile" || {
 				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot write $memberPathsFile" >&2
 				exit 1
 			}
-			MYX_CLAUDEPERMS_BOARD_ROOT="$boardRoot" \
-				MYX_CLAUDEPERMS_STATIC_ALLOW_JSON="$staticAllowJson" \
+			MYX_CLAUDEPERMS_STATIC_ALLOW_JSON="$staticAllowJson" \
 				MYX_CLAUDEPERMS_DENY_ADD_JSON="$denyAddJson" \
 				MYX_CLAUDEPERMS_MEMBERS_FILE="$memberPathsFile" \
 				MYX_CLAUDEPERMS_GRANTS_FILE="$grantsFile" \
@@ -1083,19 +1085,25 @@ case "$1" in
 			set +e ; return 1
 		}
 
+		local settingsState="installed"
 		if cmp -s "$settingsTmp" "$settingsFile" ; then
 			rm -f "$settingsTmp"
-			echo "✅ claude permissions already current: $settingsFile ($memberCount member grant(s))" >&2
-			return 0
-		fi
-
-		if ! mv -f "$settingsTmp" "$settingsFile" ; then
+			settingsState="already current"
+		elif ! mv -f "$settingsTmp" "$settingsFile" ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: could not install $settingsFile" >&2
 			rm -f "$settingsTmp"
 			set +e ; return 1
 		fi
 
-		echo "✅ claude permissions installed: $settingsFile ($memberCount member grant(s))" >&2
+		## A run whose scan was not trusted reconciled no grant for this workspace, so
+		## the settings above are the registry as it already stood. Reported and exited
+		## as the failure it is -- a caller cannot otherwise tell it from a real install.
+		if [ "$grantsTrusted" != "true" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: declared allow-write was not determined for workspace $workspace, no grant was reconciled for it: $settingsFile $settingsState from the registry as it already stood ($memberCount member grant(s))" >&2
+			set +e ; return 1
+		fi
+
+		echo "✅ claude permissions $settingsState: $settingsFile ($memberCount member grant(s))" >&2
 		return 0
 	;;
 
@@ -1297,13 +1305,18 @@ HOOKEOF
 
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
 
-		## Extra reference roots come from the single access-root source
-		## (AgentsTools.ClientAccessRoots.include), built into the JSON array the
-		## merge awk expects -- so adding/changing a reference root is one edit
-		## there, shared with the copilot launch fragment. An empty reference
-		## list yields "[]" (no extra grants), never a malformed value.
-		local allowExtraRootsJson
-		allowExtraRootsJson="$( AgentsToolsClientAccessReferenceRoots "$workspace" | LC_ALL=C awk '
+		## The two reference sets stay apart all the way to the merge: the awk
+		## grants Read on one and Read+Edit on the other, so concatenating them
+		## would silently make the scratchpad read-only. No member is in scope --
+		## one settings file serves every member -- so the write half is the team
+		## scratchpad alone, never one member's own.
+		local allowExtraRootsJson allowWriteRootsJson
+		allowExtraRootsJson="$( AgentsToolsClientAccessReferenceRoots read "$workspace" | LC_ALL=C awk '
+			BEGIN { printf "["; }
+			{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\"%s\"", (NR > 1 ? "," : ""), $0; }
+			END { printf "]"; }
+		' )"
+		allowWriteRootsJson="$( AgentsToolsClientAccessReferenceRoots write "$workspace" | LC_ALL=C awk '
 			BEGIN { printf "["; }
 			{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\"%s\"", (NR > 1 ? "," : ""), $0; }
 			END { printf "]"; }
@@ -1330,6 +1343,7 @@ HOOKEOF
 				MYX_WSRESTRICT_ALLOW_SOURCE_ROOT="$sourceRoot" \
 				MYX_WSRESTRICT_ALLOW_AGENTS_ROOT="$workspace/.claude/skills" \
 				MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON="$allowExtraRootsJson" \
+				MYX_WSRESTRICT_ALLOW_WRITE_ROOTS_JSON="$allowWriteRootsJson" \
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeWorkspaceRestrictionsUpsert.awk" \
 				"$settingsFile" > "$settingsTmp"
 		) ; then
@@ -1405,7 +1419,7 @@ HOOKEOF
 			set +e ; return 1
 		fi
 		## One line so `local` masks grep's exit 1 on a legitimately empty member set.
-		local memberCount="$( AgentsToolsClientAccessRootsMembers | grep -c '' )"
+		local memberCount="$( AgentsToolsClientAccessRootsMembers readable | grep -c '' )"
 		if [ "$memberCount" -lt 1 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-copilot-access-fragment: no member skill directories resolved under $MDAT_SKILLSET_ROOT -- refusing to write a copilot fragment with no member grants" >&2
 			set +e ; return 1
@@ -1508,9 +1522,9 @@ HOOKEOF
 	;;
 
 	## Generates one ~/.copilot/agents/<member>.agent.md per active team-member --
-	## copilot's on-disk equivalent of claude's inline --agents JSON. Member set
-	## comes from AgentsToolsClientAccessRootsMembers, same as the copilot access
-	## fragment; no --workspace here since that reads $MDAT_SKILLSET_ROOT, fixed
+	## copilot's on-disk equivalent of claude's inline --agents JSON. Acting
+	## members only: a reference-only member is never spawned, so it gets no
+	## agent file; no --workspace here since that reads $MDAT_SKILLSET_ROOT, fixed
 	## at DistroAgentsTools() entry, not an op-level flag. Internal step of
 	## --install-workspace-integrations, out of help, same as --install-copilot-access-fragment.
 	--install-copilot-agent-files)
@@ -1534,7 +1548,7 @@ HOOKEOF
 		}
 
 		## One line so `local` masks grep's exit 1 on a legitimately empty member set.
-		local memberCount="$( AgentsToolsClientAccessRootsMembers | grep -c '' )"
+		local memberCount="$( AgentsToolsClientAccessRootsMembers acting | grep -c '' )"
 		if [ "$memberCount" -lt 1 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: no member skill directories resolved under $MDAT_SKILLSET_ROOT -- refusing to write copilot agent files for zero members" >&2
 			set +e ; return 1
@@ -1569,7 +1583,7 @@ HOOKEOF
 				rm -f "$agentTmp" ; hadError="true" ; continue
 			fi
 			writtenCount=$(( writtenCount + 1 ))
-		done <<< "$( AgentsToolsClientAccessRootsMembers )"
+		done <<< "$( AgentsToolsClientAccessRootsMembers acting )"
 
 		if [ "$hadError" = "true" ] ; then
 			set +e ; return 1
@@ -1769,8 +1783,13 @@ HOOKEOF
 			escapedWorkspace="$( printf '%s' "$workspace" | LC_ALL=C awk -f "$mcpRoot/include/data/agentMcpJsonEscape.awk" )"
 			local mmdappEnvJson="{\"MMDAPP\":\"$escapedWorkspace\"}"
 
+			mkdir -p "$workspace/.local/agents" 2>/dev/null || true
+			## Ours first, the native two after it: `.local/agents/mcp.servers.json`
+			## is what our own harness reads, and a client's own file is output we
+			## publish rather than a source anything of ours consults.
 			local mcpTarget
 			for mcpTarget in \
+				"$workspace/.local/agents/mcp.servers.json:mcpServers" \
 				"$vscodeMcpDir/mcp.json:servers" \
 				"$workspace/.mcp.json:mcpServers" \
 			; do
@@ -1824,6 +1843,7 @@ HOOKEOF
 			else
 				local distroTarget
 				for distroTarget in \
+					"$workspace/.local/agents/mcp.servers.json:mcpServers" \
 					"$vscodeMcpDir/mcp.json:servers" \
 					"$workspace/.mcp.json:mcpServers" \
 				; do

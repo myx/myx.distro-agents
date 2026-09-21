@@ -696,6 +696,18 @@ The contracts themselves live in `magic-team.shared.md`'s "Session-context docum
 - **The arm installs no EXIT trap and cleans up explicitly on every path**, because `--intern-op-slack-call` installs its own and clears it, which would silently take the arm's with it. See "An EXIT trap set inside an op replaces the caller's, silently".
 - **Settled, and not an oversight:** the upload URL reaches step 2 as an argv value, where a Slack token would travel in a header file instead. The two differ in exposure — argv is same-user and lives only for the call, and this URL is single-use and expires, where a token is long-lived and reused. Ruled: it stays in argv, and `--url-from-file` is not added. The reason sits at the `--url` arm itself, because a reader comparing the two handlings next to each other will otherwise read the difference as a defect and "fix" it.
 
+## `--member-wait-for-input` call contract
+
+- `--member-wait-for-input <team-member> [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>]`, and `--member-wait-for-input <team-member> --wait-list-sources`. One bounded long poll over a list of input sources, returning the moment any of them changes. Own file, `sh-lib/AgentsTools.MemberWait.include`, behind its own first-level arm. Defaults: the sources `slack:magic-team` and `slack:human-owner`, a 300-second bound, a 15-second poll. A poll interval below 1 is refused — a zero interval is a spin, not a poll.
+- **The waiting happens here, in the shell, and that is the whole point.** A caller that would otherwise spend a round trip per check spends one call and one result, and its context does not grow while nothing is happening.
+- **stdout ALWAYS opens with exactly one marker line**: `WAIT-RESULT: RECEIVED`, `WAIT-RESULT: TIMEOUT` or `WAIT-RESULT: ERROR`. RECEIVED and TIMEOUT both exit 0, because both are answers; ERROR exits 1. A TIMEOUT is a complete, successful wait, and the body says so in those words. The distinction is the reason the operation exists: a caller that cannot tell "nothing arrived" from "the probe could not run" cannot choose between waiting again and escalating.
+- **A source is `<kind>:<target>`, and the kind selects a probe function by name** — `AgentsWaitProbe` plus the kind with its first letter uppercased, with `$agentsWaitSourceKinds` listing what this build carries. Adding an IM bridge or a portal feed later is one new function plus one word in that list. Nothing else in this operation, in the `Wait` harness tool, or in the harness self-check knows a source kind. `--wait-list-sources` prints that list and waits on nothing, so the extension point is observable rather than a second list to keep in step.
+- **Two adapters ship.** `slack` goes through `--member-comms-slack-read` and no other path, so the credential stays inside that operation and never reaches argv here; a target carrying a `:` names one message and its thread is rendered whole. `file:<absolute-path>` watches a local drop path, file or directory — the shape a future bridge writes into, and what makes the whole thing testable with no host involved. An absent path renders empty rather than failing: "not there yet" is a state, and a drop that appears later is exactly the arrival being waited for.
+- **An adapter is never asked what "new" means.** It renders what is there now; the operation compares each rendering against the baseline it took at the start of the wait. So an adapter needs no cursor, read mark or message identity. With `--wait-since-utime` the baseline is empty, so a reply already sitting there returns immediately instead of reading as scenery; without it the first probe is the baseline.
+- **Every source is resolved to its probe before the wait starts.** A kind this build does not carry is a stated ERROR at second zero, naming the kinds that exist — never a source that silently never fires for the length of the bound. A `--wait-source` that is not `<kind>:<target>` is refused the same way.
+- **A probe that cannot run is reported by name and the wait carries on over the rest.** One unreachable source must not turn a multi-source wait into silence. The failing sources are listed in the body, and the TIMEOUT body adds that nothing is known about them either way and their silence must not be read as quiet.
+- **Probes render to files, never through `$( )`.** The Slack read forks `curl`, and a capture returns when the pipe has no writers left rather than when the process exits.
+
 ## The Atlassian operation families
 
 - Every Jira and Confluence operation keeps its whole logic in one internal operation in `sh-lib/AgentsTools.InternOpAtlassianCall.include`, reached through the one `--intern-op-atlassian-*` arm, over the shared transport `AgentsToolsAtlassianCall`. The public families are stubs over those operations and hold no logic of their own.
@@ -946,14 +958,18 @@ Serverless Generative APIs are a bare
 `POST https://api.scaleway.ai/v1/chat/completions`, so this package *is* the CLI —
 `sh-lib/AgentsScalewayHarness.sh` is the stub the console execs, and it execs
 `sh-lib/AgentsUniversalHarness.sh`, which runs the whole request/tool-call/response loop itself using
-the exact curl `-H @-` bearer-stdin pattern `AgentsTools.CommsSlack.include` already proves. No
-sandboxing beyond the core's own access-root check (matches copilot's `--allow-all-tools` trust model,
-not a gap this closes); no context-window management — an unboundedly long conversation is a known
-limit, guarded only by a hard 25-round cap (see below), never a silent one.
+the exact curl `-H @-` bearer-stdin pattern `AgentsTools.CommsSlack.include` already proves. Sandboxing
+is the core's own access-root check, plus the `PreToolUse` hooks `AgentsHarnessHooks.sh` consults before
+each tool call where the workspace configures any — fail-closed, so an unreadable hook configuration, a
+hook that does not complete, and an answer the harness cannot read each refuse the call rather than
+permit it. Beyond those, copilot's `--allow-all-tools` trust model, not a gap this closes.
+Context-window management is summarise-and-restart at `MDAT_HARNESS_CONTEXT_TOKENS`, bounded by
+`MDAT_HARNESS_MAX_RESTARTS` (see below), so a long enough run now ends on that restart budget rather
+than on the model's own context limit. Never a silent one.
 
-**Research on making this harness universal is recorded elsewhere, not here.** The human-owner's TODO of 2026-09-15 — one common UHP + MCP harness for all spawning, covering Scaleway/DeepSeek, Anthropic/Claude and GitHub/Copilot spawners, hooks, visual output and checkpoint/rewind — is held as board item `task-20260915T0924Z-common-uhp-mcp-harness-for-all-spawning.md` (backlog), and the measured research from four seats is written up in the backlog document's `### Context Detail — 2026-09-15 session (harness research, measured)`. **That Context Detail entry is canonical for the research; this file documents the code, and documents that subject when something is built.** The plan drawn from it, with its subtasks and the open questions they are blocked on, is in two further entries of the same date — `### Context Detail — 2026-09-15 session (harness planning, measured)` and `### Context Detail — 2026-09-15 session (session lessons)`. **What has since been built is the universal/stub split described in the chapter above, and this file documents it because it exists.** The rest of that TODO — the MCP surface, hooks, checkpoint/rewind, and spawning across the five execution classes — is not implemented, and stays in those entries until it is. This file documents a part when it is built, never when it is planned.
+**Research on making this harness universal is recorded elsewhere, not here.** The human-owner's TODO of 2026-09-15 — one common UHP + MCP harness for all spawning, covering Scaleway/DeepSeek, Anthropic/Claude and GitHub/Copilot spawners, hooks, visual output and checkpoint/rewind — is held as board item `task-20260915T0924Z-common-uhp-mcp-harness-for-all-spawning.md` (backlog), and the measured research from four seats is written up in the backlog document's `### Context Detail — 2026-09-15 session (harness research, measured)`. **That Context Detail entry is canonical for the research; this file documents the code, and documents that subject when something is built.** The plan drawn from it, with its subtasks and the open questions they are blocked on, is in two further entries of the same date — `### Context Detail — 2026-09-15 session (harness planning, measured)` and `### Context Detail — 2026-09-15 session (session lessons)`. **What has since been built is the universal/stub split described in the chapter above, and the fail-closed `PreToolUse` hooks that chapter names, and this file documents them because they exist.** The rest of that TODO — the MCP surface, checkpoint/rewind, and spawning across the five execution classes — is not implemented, and stays in those entries until it is. This file documents a part when it is built, never when it is planned.
 
-**Future plans, in outline only — the detail and its attribution live in the Context Detail entries above, which are the main source.** Decisions an implementer would otherwise collide with: checkpoint/rewind is cheap, the conversation being one serialisable array rather than scattered state; visual output is a merge of two working implementations rather than new work; hooks are new construction, confirmed by the human-owner; and the tool surface is the gap: the harness implements six of the ten named tools — `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `run_command` — and carries no implementation of `SendMessage`, `ListAgents`, `WebSearch` or `Fetch`. `list_dir` no longer exists: it was a plain `ls -la` matching no patterns, and it was folded into `glob`, which tests its root before evaluating the pattern so that a missing directory stays distinguishable from an empty match, and keeps a `long` argument so the fold dropped no capability. `edit_file` was added as the partial-edit primitive, so `write_file` is no longer the only way to change a file. These are decisions drawn from that research rather than measurements, and their evidence and attribution live in those entries — measurements as measurements, judgements as judgements. This file is not the main source for any of it.
+**Future plans, in outline only — the detail and its attribution live in the Context Detail entries above, which are the main source.** Decisions an implementer would otherwise collide with: checkpoint/rewind is cheap, the conversation being one serialisable array rather than scattered state; visual output is a merge of two working implementations rather than new work; hooks are built — `sh-lib/AgentsHarnessHooks.sh`, fail-closed, per the chapter above; and the tool surface is the gap: the harness implements `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash` and `WebFetch`, declares `WebSearch` as a refusal naming what is missing rather than a working search, and carries no implementation of `SendMessage` or `ListAgents`. `list_dir` no longer exists: it was a plain `ls -la` matching no patterns, and it was folded into `Glob`, which tests its root before evaluating the pattern so that a missing directory stays distinguishable from an empty match, and keeps a `long` argument so the fold dropped no capability. `Edit` was added as the partial-edit primitive, so `Write` is no longer the only way to change a file. These are decisions drawn from that research rather than measurements, and their evidence and attribution live in those entries — measurements as measurements, judgements as judgements. This file is not the main source for any of it.
 
 **Service facts the harness is written against.** The endpoint is OpenAI **Chat-Completions**-compatible
 and supports `stream:true` (SSE), `tools` and `tool_choice`. There is **no Responses API**, and that
@@ -1034,36 +1050,35 @@ override: they ask whether the release reached this workspace, not which file a 
   (no slash) is the confirmed, non-provisional id for `normal`/`heavy` (see the reclassification above —
   it anchors the top two tiers, not `light`, once its real active-parameter count and price were known).
 
-- **Tool schemas: six, OpenAI `tools`-array shaped.** `read_file`, `write_file`, `edit_file`, `glob`,
-  `grep`, `run_command`. `write_file` is a whole-file overwrite/create; `edit_file` is the partial-edit
+- **Tool schemas, OpenAI `tools`-array shaped.** The set itself is "The harness tool set" below.
+  `Write` is a whole-file overwrite/create; `Edit` is the partial-edit
   primitive beside it, replacing by exact literal and refusing unless the text occurs exactly once.
   It reads the whole file inside the process and returns only a one-line result, so it is the way to
   change a file too long to read back — which is why the earlier instruction here, that "edit" means
   reading a file and writing back its complete content, was a data-loss prescription rather than a
   limitation. Its uniqueness guard counts occurrences with the same `index()` call that performs the
-  substitution, never `grep -c`, which counts matching lines. `run_command` bounds only its own
+  substitution, never `grep -c`, which counts matching lines.
+  Both of its awk passes take the model's old and new text through `ENVIRON`, never `awk -v`: a `-v`
+  assignment is backslash-decoded before the program sees it, so a literal `\t` in text the model asked
+  to replace arrives as a real tab and matches a place nobody named. The rewrite emits
+  `printf "%s", $0` and re-joins the records on `RS` itself rather than using `print`, which appends
+  `ORS` and would leave a file carrying a trailing newline it never had. `Bash` bounds only its own
   `cwd` to the access-root set — the command itself is not sandboxed further, the same trust level
   `--allow-all-tools` already grants copilot.
 
-- **Access-root enforcement is the harness's own, and reads the fragment file directly — a second
-  reader, not a shared one, deliberately.** `AgentsConsoleShellScript.template.sh` builds
-  `DAGC_COPILOT_ADDDIR` from `.claude/copilot-add-dir.fragment` (`<own|explicit|wildcard>\t<path>` lines,
-  or a bare `--add-dir`/`/*` pair in the old two-line format) only for `copilot`/`claude`, because only
-  they take a `--add-dir` flag to hand it to. There is nothing to hand a flag to here, so
-  the core parses that same fragment itself, rather than being threaded a pre-parsed
-  array from the console. This is a real, accepted duplication of one small parsing block, not a shared
-  primitive — flagged here so the day a third reader of this exact fragment format appears, factoring it
-  out is an easy, obvious follow-up rather than a silent third copy.
-  **The independent review found this duplication was not a faithful copy.** The first cut's parser
-  handled only the two tagged-line shapes (`own\t`/`explicit\t`/`wildcard\t`) and silently produced ZERO
-  roots against a fragment in the old untagged two-line format (`--add-dir` on one line, the bare path on
-  the next) — a shape confirmed still live in a real workspace during this review (the mel/prv-farm
-  workspace's own `.claude/copilot-add-dir.fragment` predates the tagged format entirely). Against that
-  exact real file, every spawn through this harness would have refused with "no access roots resolved",
-  in a workspace that is otherwise fully configured and spawns claude/copilot without issue. Fixed to
-  parse the identical four line shapes the template does (`--add-dir` marker skipped, the three tagged
-  forms, and a bare `/*` line treated as existence-checked wildcard); re-verified against that same real
-  fragment file, which now resolves to its full 30+ roots.
+- **One access-root set, rendered per client in that client's own spelling.** The set is team data the
+  installer collects, and `AgentsConsoleShellScript.template.sh` renders it once into whichever flag the
+  selected client takes — `--add-dir` for `copilot`/`claude`, `--access-root` for this harness. Every
+  client that can be told where it may work is told by the console, on one code path, so there is no
+  second reader of the fragment to keep in step with the first. Provenance belongs to that path too:
+  `own`/`explicit` are install-guaranteed and trusted, while `wildcard` and untagged lines carry none
+  and are existence-checked before they are passed, since a root that does not exist fails the spawn.
+- **The harness's own fragment read is a stale-console fallback, and nothing else.** It runs only when
+  no `--access-root` reached it, which means a console generated before that leg existed. It therefore
+  does not reimplement the console's tagging and must not grow into a copy of it: every line shape that
+  format has ever written ends in its own path, so the fallback keeps the text after the last tab and
+  accepts it if it is absolute. Its whole job is that an un-regenerated workspace resolves roots instead
+  of refusing to run — and resolving none is a refusal, never an empty default.
 
 - **Now wired into the console's own exec dispatch, on a real, live, end-to-end console-level test —
   this was deliberately deferred in the first cut and is now done.**
@@ -1118,13 +1133,13 @@ override: they ask whether the release reached this workspace, not which file a 
   include of its own) reads `$MDAT_SKILLSET_ROOT/<name>/<name>.basic.md` and prepends it as the system prompt's
   real identity, replacing the generic opener entirely rather than standing alongside it — one clear identity,
   not two. The full `.armed.md` is deliberately not inlined — some run to ~48K tokens, the wrong tradeoff
-  against this harness's metered, `max_tokens`-capped cheap-tier model — so the model is told to `read_file`
+  against this harness's metered, `max_tokens`-capped cheap-tier model — so the model is told to `Read`
   its own `.armed.md` itself, on the same access grant that already lets it reach `.basic.md`. A missing or
   unreadable `.basic.md` is a loud `exit 1`, never a silent fallback to the generic prompt, which would look
   like a successful `--agent` spawn while actually running as nobody in particular.
 
 - **What the live rounds have and have not established, stated rather than inferred.** Two things are
-  proved: one live round exercised the wire end to end, and a second proved `read_file` against a plain
+  proved: one live round exercised the wire end to end, and a second proved `Read` against a plain
   path. The symlinked access-root case FAILED and is under repair by the seat that owns it.
   `$MDAT_SKILLSET_ROOT/<name>` is normally a symlink into the member's real location, while access-root
   grants are made against the real, `pwd -P`-resolved path, so the interaction between a symlinked root
@@ -1178,23 +1193,63 @@ override: they ask whether the release reached this workspace, not which file a 
   request or lets a value's content be read as adjacent JSON structure. The same awk file the MCP wire
   handler already uses for this reason is reused here rather than reinventing it.
 
-- **A round cap is load-bearing, not defensive decoration.** 25 request rounds, hard — the same
-  discipline the MCP wire handler's own "a spin loop whose counter resets after each sleep is a pacing
-  counter, not a limit" note states elsewhere in this file, applied to a loop whose every round is a
-  billed API call rather than a local spin. Hitting it is a loud failure (exit 1, stated reason), never
-  a silently-returned partial answer.
+- **There is no round ceiling by default, and a round was never the right unit.** A round is one model
+  turn; it tracks neither cost nor progress, and every turn re-sends the whole conversation, so turn
+  twenty-five costs many times turn one. The native CLIs this harness replaces bound spend directly —
+  `claude` takes `--max-budget-usd`, `copilot` takes `--max-ai-credits` — and count no turns at all.
+  `MDAT_HARNESS_MAX_ROUNDS` sets a ceiling where a caller wants one; unset means none.
+- **A bounded run keeps its work, and exit 3 is what says so.** Reaching a cap appends a closing
+  instruction, makes one more request, prints the model's own account of what it did and what is left
+  unfinished, and exits 3 — its own status, distinct from a completed run and from a fault, so a caller
+  can tell a run that was cut short but reported from one that failed. The conversation lives only in a
+  shell array, so a run that aborts instead discards every file read and every command run, and reports
+  identically to one that looped from the start.
+- **`tool_choice` is what changes for the closing round; `tools` never is.** Turning the tools off is a
+  request parameter, not an edit to the declaration. A conversation that already holds tool calls and
+  their results refers to tools by name, and a wire that validates those references against the declared
+  set refuses the request outright once the array is gone — the Anthropic wire does — so stripping it
+  would pass on one provider and fail hard on the next. It is also the fixed literal prompt caching
+  depends on (below): the declaration is rendered once and holds for the whole run, cap or no cap.
+- **Residual limit: the closing round is a request like any other.** A stream failure reaching it exits
+  1, and that run's work is lost exactly as an uncapped abort loses it — the one path the cap exists to
+  protect is the one path it does not protect to the end.
+- **Spend is recorded, not enforced.** `stream_options:{"include_usage":true}` is sent and the
+  usage-only chunk before `[DONE]` is read for the per-round and running totals. Measured on this
+  endpoint: every delta chunk carries `"usage":null`, so the gate tests for the object rather than the
+  key, and `prompt_tokens_details` is absent on gemma — nothing keys on it.
+- **A full context is met by summarise-and-restart, and by nothing else.** With no round cap set by default, a long run walks into the model's own context limit and the request simply fails. At `MDAT_HARNESS_CONTEXT_TOKENS` (default `64000`; `0` turns it off) the leg asks the model to write its own handover, then starts a fresh leg from that handover plus the original task. Nothing is dropped by age and nothing is evicted mechanically: the model judges what is worth carrying, which is the whole reason this shape was chosen over a sliding window.
+- **The signal is one round's own `total_tokens`, never the running sum.** Every round re-sends the whole conversation, so the running sum counts the same context once per round and passes any threshold long before the window is anywhere near full. One round's `prompt_tokens + completion_tokens` is what actually sat in the window, and that is what is compared. A restart zeroes it, so the summarise round's own large total cannot immediately re-trip the threshold it was raised by.
+- **`64000` is a policy value sized from this file's own caps, not from any model's published window.** Nothing in this package records a context size for either tier model, and a number taken from a vendor page would be exactly the documentation-derived constant the adapter rule above forbids. What is known here is what one round can add: a `Read` result caps at 200000 bytes and `max_tokens` is 8192, so the threshold leaves room for the largest single round that can follow a trip. A later reader retuning it is changing a policy decision, the way `MDAT_HARNESS_RUN_TIMEOUT`'s 900 is one.
+- **The cycle is bounded at `MDAT_HARNESS_MAX_RESTARTS` (default 3), and the bound ends the run the way a round cap does.** An unbounded summarise-restart cycle is worse than the failure it replaces: a task that keeps refilling the window is not converging, and each pass costs a whole context of tokens to discover that again. With the budget spent, the threshold raises a closing round instead -- tools off, the model's own account of what it did -- and exits 3, the existing cut-short-but-reported status. No second exit code and no second closing mechanism was added.
+- **The original task survives every restart because it is never rewritten.** A restart calls `AgentsWireInitMessages`, which renders `$harnessSystemText` and `$harnessPrompt` -- the same two variables the first leg was built from, both assigned during startup and never inside the round loop. The summary is appended after them as its own user record, framed as the model's own notes rather than as instruction, so what accumulates across restarts is one task plus one summary, never a summary of a summary.
+- **An empty summary ends the run at exit 1 rather than restarting onto nothing.** The summary is the whole of what survives a leg, so a summarise step that produced no text has already lost the work; continuing would finish the task on a view missing everything the first leg learned, and report as though it had not. The refusal names the round and the `finish_reason`.
+- **Enabled and never fed is said out loud, once.** The threshold can only fire where the wire reports usage. Where a round carries no usage chunk, round 1 prints a warning naming the setting and the fact that nothing here measures the context -- a run that then walks into the model's own limit would otherwise read exactly like one this managed.
+- **Residual limit: the threshold is checked between rounds, so one round can still overshoot it.** Several large tool results land in a single request, and that request is either accepted or it is not; the threshold sees the overshoot afterwards. The sizing rule above is what keeps an overshoot landable rather than fatal, and it is a sizing argument, not a guarantee.
 
-- **`run_command`'s output is never captured with `$( ... )`.** A model-supplied command is exactly the
+- **`Bash`'s output is never captured with `$( ... )`.** A model-supplied command is exactly the
   "arbitrary command" case the "Capturing an arbitrary command's output" section above names: it may
   background a child that holds a capture pipe's write end open forever. Its output goes to a scratch
   file (`mktemp -d -t`) and is read back, and its containment — `( cd ... && set -e && eval ... ) ||
   status=$?` — mirrors `--intern-mcp-execute`'s own `set -e`-containment pattern rather than inventing
   a second shape for the same problem.
 
+- **`Bash` bounds itself, and the shell watchdog is the live path rather than a fallback.**
+  `timeout` is used where it exists, `gtimeout` where coreutils supplied it, and neither is in a Darwin
+  base system — so on this platform the shell watchdog is what actually runs, and it is written to be
+  correct first rather than second. Its `sleep` is redirected with `>/dev/null`, and that redirection is
+  load-bearing: an orphaned watchdog otherwise inherits the enclosing function's capture pipe and holds
+  its write end open, so every call blocks for the whole timeout bound however fast the command itself
+  returned. The bound is a bound on a hung command, never a cost paid by one that finished.
+
+- `MDAT_HARNESS_WAIT_TIMEOUT` (default 600) bounds one `Wait` call, as `MDAT_HARNESS_RUN_TIMEOUT` bounds
+  one `Bash` call. Ten minutes is twice the operation's own five-minute default, so a model asking for a
+  longer single wait still gets one while no single call holds a run open indefinitely. A long vigil is
+  many bounded waits, not one unbounded one -- which is what lets the agent re-decide between them.
+
 - **A per-round tool-call progress line, announced immediately BEFORE the tool call executes, not
   after.** Human-owner's own ask: the harness's tool-execution dispatch had zero stderr announcement
   anywhere in its success path, and real-time visibility into what it is doing matters especially for a
-  `run_command` that might hang. `AgentsScalewayAnnounceTool`, in the core, is where it happens. It
+  `Bash` call that might hang. `AgentsHarnessAnnounceTool`, in the core, is where it happens. It
   prints a per-tool icon line (`📖`/`📝`/`📂`/`🔍`/`💻`), with the tool name in a fixed-width colour
   column and the values beside it, under a `── round N ───` rule printed once per round rather than a
   round stamp per call. It also announces the model and tier once at startup
@@ -1203,13 +1258,13 @@ override: they ask whether the release reached this workspace, not which file a 
   `lib/catMarkdown.Common` gates its stdout; the emoji are not gated, being printable UTF-8 rather than
   escapes.
 
-  The rule that matters: never `write_file`'s own content, only the path being written to,
+  The rule that matters: never `Write`'s own content, only the path being written to,
   and every value — the function name included, since that is model output too — passes through
-  `AgentsScalewayTruncateArg` first: collapsed to one line, every C0 control byte and DEL folded to a
+  `AgentsHarnessTruncateArg` first: collapsed to one line, every C0 control byte and DEL folded to a
   space, cut at 120 bytes (`...` appended), never dumped whole. That control-byte fold is what
   stops a prompt-injection payload arriving as a tool-call argument from forging or moving the
   harness's own chrome.
-  `AgentsScalewayTruncateArg` is one line handing the value to `progressLineSafe` — the one
+  `AgentsHarnessTruncateArg` is one line handing the value to `progressLineSafe` — the one
   primitive, in `AgentsProgressLineSafe.awk`, that claude's own progress lines use as well — so
   its cut is UTF-8-boundary-safe in every locale.
   See that file's own section below for why the primitive lives where it does.
@@ -1247,7 +1302,7 @@ but neutralised nothing: its own `jsonUnescape` *decodes* a spec-legal `\r` into
 it, so a `Bash` call carrying `echo hi\rrm -rf / # FORGED` reached stderr with the CR intact and
 forged the line — measured, `od -c` showed the `\r` byte in the output — and a raw ESC in the same
 string passed through untouched. Its only partial defence was `jsonUnescape` dropping `\uXXXX`, one
-of three ways the same byte can arrive. The scaleway harness's own `AgentsScalewayTruncateArg`
+of three ways the same byte can arrive. The scaleway harness's own `AgentsHarnessTruncateArg`
 folded every C0 byte and DEL correctly but cut with `${value:0:120}`, which is **byte**-based under
 `LC_ALL=C` — measured on bash 3.2.57, that emitted a lone `e2` lead byte mid-character, the exact
 defect `truncateSafe` existed to prevent. Under an inherited `en_US.UTF-8` the same expression is
@@ -1314,21 +1369,21 @@ because they would hold the same way against any provider.
   concatenated before the result is valid JSON. The stream ends with a literal `data: [DONE]` line —
   the completion sentinel this harness actually waits for, never `finish_reason` alone, because
   Scaleway can trail the real final chunk with a further usage-only chunk before `[DONE]` arrives.
-- **Per-round accumulator state lives in scratch files under `$scalewayScratch`, not shell variables.**
+- **Per-round accumulator state lives in scratch files under `$harnessScratch`, not shell variables.**
   `curl -N ... | while read` puts the loop on the right of a pipe, which bash always runs as a subshell
   (no `lastpipe`, a bash-4.2+ feature outside this package's bash-3.2 floor) — any variable the loop
   body set would be gone the moment the pipeline ends. Scratch files are the one channel that survives
   that boundary.
 - **Design decision — a mid-stream disconnect discards partial state and retries the whole round from
-  scratch, bounded at 3 attempts (`scalewayStreamMaxAttempts`).** There is no resume primitive on this
+  scratch, bounded at 3 attempts (`harnessStreamMaxAttempts`).** There is no resume primitive on this
   API — no server-side stream id, no partial-completion token — so retrying the exact same full
   conversation-so-far request each round already builds is not an approximation of resuming, it is
   the only next request this API accepts. A partial `function.arguments` accumulation is very likely
   not valid JSON on its own (a prefix cut at an arbitrary byte), and a partial plain-text answer printed
   as the final answer would silently hand the caller a truncated reply with no signal it was cut off.
   Every accumulator resets to empty at the start of every attempt, including a retried one.
-- **Design decision — a disconnect-triggered retry never consumes a round against the existing
-  25-round cap (`scalewayMaxRounds`).** `scalewayRound` increments exactly once per pass through the
+- **Design decision — a disconnect-triggered retry never consumes a round against a cap
+  (`harnessMaxRounds`, set only when a caller asks for one).** `harnessRound` increments exactly once per pass through the
   outer round loop, before the streaming attempt loop begins; a retried attempt lives entirely inside
   one outer-loop iteration. The round cap exists to bound how many times the harness goes back to the
   model with a conversation that has actually grown (new tool results appended, more context spent); a
@@ -1369,6 +1424,214 @@ because they would hold the same way against any provider.
   workspace, not which file a run selects.
 - **What this section does not claim.** The live position is recorded once, in the stub section above,
   and is deliberately not restated per bullet: one round exercised the wire end to end, a second proved
-  `read_file` on a plain path, and the symlinked access-root case failed and is under repair by the seat
+  `Read` on a plain path, and the symlinked access-root case failed and is under repair by the seat
   that owns it. No transcript or timing numbers are filed here. Treat any behaviour described above that
   those rounds did not touch as designed rather than demonstrated.
+
+## The harness tool set
+
+The harness declares eleven tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`, `WebSearch`, `WebFetch`, `SendMessage`, `ListAgents`, `Wait`. Each occupies four structural sites -- the `harnessToolsJson` literal in `sh-lib/AgentsOpenAiChatWire.sh`, and the announce arm, the dispatch arm and the tool function in `sh-lib/AgentsUniversalHarness.sh` -- and `sh-lib/AgentsHarnessSelfCheck.awk` proves all four for all eleven. MCP tools are added separately under `mcp__<server>__<tool>` and are not part of this set.
+
+`SendMessage` posts through `--member-comms-slack-send-message`, under the member identity `--agent` named; a harness started without `--agent` refuses to send rather than choosing one. The message text goes in on `--from-stdin`, so no shell parses it, and no credential ever reaches argv. Its `to` parameter is required because nothing hands the harness a thread of its own -- the full spawn-time environment is `MDAT_SPAWN_AGENT`, `MDAT_SPAWN_LAUNCH_MARKER` and `MDAT_SPAWN_SESSION_ID`.
+
+`ListAgents` lists the running-session records the team data store actually holds: the `dispatch-*` board items under `$MDAT_DATA_ROOT/board/running`, each carrying its own `session-id`, `owner` and `status`. There is no other session registry in this estate. A session id in `<channel>:<ts>` form is a thread `SendMessage` can post into. Where the store cannot be read the tool returns a stated ERROR, never an empty list, and every listing carries its denominator.
+
+`Wait` -- one bounded long poll over a list of input sources, returning the moment any of them changes. It calls `--member-wait-for-input` and adds nothing of its own: which sources exist is that operation's business. The waiting happens in the shell, so a run that is waiting spends no tokens and its context does not grow. The first line of its result is the outcome -- `RECEIVED`, `TIMEOUT` or `ERROR` -- and `TIMEOUT` is a successful wait, not a fault. What to do after a quiet wait is the skillset's escalation rules, never this tool's.
+
+**A tool description is shell code before it is prose.** The whole tools JSON is one bash single-quoted literal, so an ordinary English possessive -- `harness's`, `team's` -- closes it and the harness dies before its first request. Rewrite the possessive rather than escape it: `the team's own X` becomes `the X this team owns`. `AgentsHarnessSelfCheck.awk` matches text and does not parse, so it reports OK over a file in this state; `HARNESS_PARSES` is the check that sees it.
+
+## MCP enumeration -- `--mcp-server` spawns a named server once, at startup
+
+**Enumeration runs once, at source time, before the first round.** `sh-lib/AgentsHarnessMcpClient.sh` builds a catalogue of what a named server offers, writes it to stderr and to `$harnessMcpCatalogue`, and renders one declaration record per tool from it. Declaring those tools to the model and calling one are the same file's own work on top of that catalogue, and are the section below. A run naming no server puts no `mcp__` name on the wire; measured, with the request body captured from a fake `curl`: the eleven built-in tools, and zero occurrences of `mcp__`.
+
+- **No server is granted by default.** A server is spawned only because `--mcp-server <name>` named it. The flag is repeatable, and the name is resolved against `$MMDAPP/.mcp.json` under the `mcpServers` key -- the file this estate already keeps. There is no second config format and no path in any skillset file.
+- **A spawn naming none leaves the file inert**, which is also what keeps the offline checks offline: `AgentsHarnessRestartCheck.sh` drives the real core with no `--mcp-server`, so it opens no file and starts no process. Enumerating unconditionally at startup would destroy that check, so the guard on `${#harnessMcpServers[@]}` is load-bearing rather than defensive.
+- **`MMDAPP` unset or `.mcp.json` absent is not an error.** With no server named, nothing is printed at all, exactly as the hooks behave. With a server named it is a loud degrade instead of silence -- the operator asked for something they did not get -- and the run continues on the built-in tools.
+- **One process per enumeration, never a persistent connection.** The whole conversation is written before the server starts -- `initialize`, `notifications/initialized`, `tools/list` -- and the server reads three lines, answers, and reaches EOF, which is what ends it. bash 3.2 has no way to hold a bidirectional stdio session open without `mkfifo` plus statically allocated descriptors.
+- **The answers are read FROM A FILE, never through `$( )`.** A capture returns when the pipe has no writers left, not when the process exits, so one child a server leaves behind would hang the spawn for that child's whole lifetime. Measured against a fake server that backgrounds a `sleep` and never answers: the leg ends on its own bound, not on the orphan's.
+- **Every server interaction is bounded, the way `AgentsHarnessToolBash` bounds a command** -- `timeout` or `gtimeout` where one exists, the same background-plus-watchdog shape where neither does. Expiry is stated, never waited out silently. Enumeration and a tool call carry different bounds because they are different waits: enumeration happens at spawn time, before the member works, and is held to `MDAT_HARNESS_MCP_ENUM_TIMEOUT` -- 30 seconds by default, a chosen policy value rather than a guess, since a healthy stdio server answers `initialize` in milliseconds. A deliberate tool call keeps the run bound, `MDAT_HARNESS_RUN_TIMEOUT`, 900 seconds by default. Both are validated as whole seconds by explicit digit enumeration, never a bracket range.
+- **A name is gated by explicit character enumeration, never a bracket range** -- `[a-z]` is collation-dependent and has matched `A` on this estate. A server key or tool name outside `[A-Za-z0-9_.-]` is DROPPED saying so, and an `env` key outside `[A-Za-z0-9_]` likewise; nothing is quietly rewritten to fit. The declared name is `mcp__<server>__<tool>`, so an ungateable component cannot reach it.
+- **Credentials reach the child through its environment and never through argv.** `.mcp.json`'s own `env` object is passed as `NAME=value` tokens to `env`, which is also why `command` must be an absolute path: the leading `/` is what guarantees it can never be read as one of those assignments.
+- **The catalogue is the shape `harnessHooksList` carries** -- newline-delimited, TAB-separated `server<TAB>toolName<TAB>declaredName<TAB>schemaFile` -- so the per-call path stays builtins-only. The schema file holds that tool's own `inputSchema` as raw bytes, in the harness's own scratch directory, and goes with it on EXIT.
+- **A degrade names its reason once and says it twice**: a loud stderr line for the operator, and the same reason built into `$harnessMcpUnavailableNote`, the sentence the model is owed. Publishing it is this file's job; the core is what places it, appending it to `$harnessSystemText` before `AgentsWireInitMessages` builds the first request -- that server's tools are absent from the declarations, and nothing else in the run says why.
+- **No production caller passes `--mcp-server`.** No spawn proxy, console CLI or skillset operation names a server, so the flag is reached by hand and by `sh-lib/AgentsHarnessMcpCheck.sh`, which drives it against its own fake server.
+
+## An MCP tool on the wire -- declared per tool, dispatched last, frozen for the run
+
+**Each enumerated tool is declared to the model individually, as `mcp__<server>__<tool>`, in the same `tools` array as the eleven built-ins.** There is no umbrella "call this server" tool: the model picks an MCP tool by name the way it picks `Read`. `AgentsWireToolDeclaration` in `sh-lib/AgentsOpenAiChatWire.sh` renders one such record and is the only wire-shaped piece of MCP -- the `{"type":"function",...}` envelope is that endpoint's shape, so it lives with the wire rather than beside the catalogue it describes. The server's own `inputSchema` is passed through as the bytes it sent; only the description is escaped.
+
+- **The tool set is frozen before the first round and is byte-identical on every one of them, a summarise-and-restart included.** `$harnessMcpToolsJson` is built during enumeration and never changes afterwards, and `AgentsWireRequestBody` splices it into the wire's own literal set in one fixed place, by stripping the closing `]` and appending. A fresh leg reuses it rather than enumerating again. Neither half of the reason is cosmetic: `tools` sits inside the cached byte prefix, so a rebuild in a different key order stays valid JSON and silently loses the whole prompt cache, and on the Anthropic wire the declaration binds to the thinking blocks, where changing it mid-session is a 400 at replay.
+- **One `mcp__*` prefix arm in the dispatch `case` and one in the announce `case`, each placed after all eleven static arms** and before the unknown-tool fallback -- a prefix arm reached earlier could displace a built-in. The announce line shows the whole argument object, since only the server knows its own shape. `AgentsHarnessMcpCall` is deliberately outside the `AgentsHarnessTool*` family: that family is the static tool class `AgentsHarnessSelfCheck.awk` matches site by site, and a runtime-built tool has no site in the sources for it to match.
+- **The per-call path always prints a tool result.** A server that cannot be run, dies mid-run, refuses the call, sets `result.isError`, or answers in a shape this harness cannot read each becomes an `ERROR: ...` line the model reads, and the round carries on -- never a silent restart and never an exit. A declared name no catalogue row matches is refused the same way, saying that no MCP server this run enumerated declares it. Arguments are validated as one JSON object before anything is sent, and their newlines become spaces, since a JSON-RPC request is one line and a newline inside a string literal is not legal JSON anyway.
+- **A deny hook can actually deny an MCP call, because it is handed the call's real arguments.** The `*)` arm of `AgentsHarnessHooksRefusal` passes them through verbatim under `tool_input` -- an MCP tool's arguments already ARE the object a hook reads fields out of, and an empty object there would let a hook written to deny read nothing, match nothing and exit 0, which is an allow: fail-open inside a mechanism whose whole point is failing closed. They are validated as one JSON object first, and only an unparseable payload falls back to `{}`.
+
+## `sh-lib/AgentsHarnessJsonSlice.awk` -- raw bytes and key names, where the field reader returns neither
+
+`AgentsHarnessJsonField.awk` beside it decodes and returns SCALARS, so a schema subtree and a key whose name nobody knows in advance are both unreachable through it. This returns the two things that reader cannot: `-v mode=raw` prints one value's own source text, `-v mode=keys` prints the immediate child key names of the object at that path, one per line. Nothing is decoded -- a key name keeps its own escapes, so a name a caller cannot gate arrives visibly ungateable rather than silently rewritten into one that passes. Same rc contract as the field reader: 0 found, 3 parsed but the path absent, 1 not a parseable JSON object, 2 usage. `LC_ALL=C` is required, as it is there.
+
+## The harness instruments, and what each one proves
+
+Two of the six instruments read the harness's sources and prove coherence; the other four execute it
+and prove behaviour, and nothing else in this package does. Each carries its own negative control, because
+a checker reports green on its own counterexample as readily as on a clean subject and nothing in a
+green report tells the two apart — so every red recipe below is one that has been run, not one that
+ought to work.
+
+`AgentsTools.Owner.include`'s `--owner-setup-scaleway --check` arm runs all of them but the containment
+check, and is gated on `--check` for the work rather than only for the output: they parse sources, spawn
+awk processes and run several legs of the harness, and `--apply` must neither pay that nor start
+returning non-zero on a diagnostic finding.
+
+- **`sh-lib/AgentsHarnessSelfCheck.awk` — every tool occupies all four of its structural sites.**
+  - Proves: each tool has its declaration (in the wire adapter), its announce arm, its dispatch arm and
+    its tool function (those three in the core), and no `AgentsHarnessTool*` function survives with no
+    tool behind it. An empty tool population reports FAIL rather than passing, so an extraction that
+    matched nothing cannot read as a clean run.
+  - Does not prove: anything a tool does. A tool present at all four sites and broken at every one of
+    them passes. It also cannot see a tool the set gains at runtime: it matches the literal envelope in
+    the source, so a twelfth tool appended to `harnessToolsJson` goes on the wire unexamined while the
+    report stays `OK (11 tools, four sites each)`, byte-identical to a clean run. Written as a source
+    literal instead, that same tool is caught: FAIL naming its three missing sites. Both measured. The
+    dynamic class is `AgentsHarnessMcpCheck.sh`'s, below.
+  - What it proves of `Wait` is the four sites and nothing else. Whether a wait ever returns is outside
+    it entirely: a `Wait` that never came back, or that dressed a TIMEOUT as an ERROR, passes exactly as
+    any other tool does. That behaviour is shown by the operation's own offline demonstrations against
+    its `file` adapter, which needs no host — an absent drop path returns `WAIT-RESULT: TIMEOUT` at exit
+    0; a file appearing mid-wait returns `WAIT-RESULT: RECEIVED` carrying what that source now holds; an
+    unknown source kind returns `WAIT-RESULT: ERROR` at exit 1 inside the same second, naming the kinds
+    that exist; and a probe that cannot run is named in the body while the wait carries on over the rest.
+    All four measured, and all four are now held by `AgentsHarnessWaitCheck.sh` below, which runs at the
+    same call site. The wait class is this checker's blind spot, not the package's.
+  - Does not parse either. It matches text, so a bash syntax error in the sources it reads leaves its
+    report clean. Measured: an ordinary English possessive in a tool description closes the
+    single-quoted `harnessToolsJson` literal, `bash -n` rejects the file, and this still reports
+    `OK (11 tools, four sites each)`. `HARNESS_PARSES` is the check that sees it.
+  - Invoked: `cat sh-lib/AgentsUniversalHarness.sh sh-lib/AgentsOpenAiChatWire.sh | LC_ALL=C awk -f
+    sh-lib/AgentsHarnessSelfCheck.awk`. The two files are concatenated because the sites span both;
+    pointed at either alone it sees a half-populated set, which it correctly reports as FAIL.
+  - Its red: drop one tool's declaration line from a copy of the wire adapter. Measured —
+    `WebSearch: declared site missing`, exit 1.
+
+- **`sh-lib/AgentsHarnessContainmentCheck.sh` — access-root containment, in both polarities.**
+  - Proves: `AgentsHarnessResolveDir` and `AgentsHarnessPathAllowed` as a pair, behaviourally, against a
+    real symlink fixture — must-allow cases where a refusal locks an agent out of its own grant, and
+    must-refuse cases where an allow is an escape. The pair, because the defect it was written for lived
+    in their composition rather than in either one.
+  - Does not prove: that any tool honours the verdict. It calls the two functions directly, so a tool
+    that ignored `harnessResolvedPath` would pass this untouched.
+  - Invoked: `./sh-lib/AgentsHarnessContainmentCheck.sh`. **It is wired into nothing** — the setup arm
+    above runs the other five and not this one, so it is reached only by hand.
+  - Its red: stop canonicalising the roots in a copy's `AgentsHarnessResolveDir`. Measured — every
+    must-allow case turns REFUSE while every must-refuse case still passes, which is what makes carrying
+    both polarities load-bearing rather than decorative.
+
+- **`sh-lib/AgentsHarnessAwkAxiom.awk` — no statement shares a line with its closing brace without a `;`.**
+  - Proves: that one hazard, across whichever awk sources it is given. The awks that reject the form are
+    the ones not on a dev box, so a clean run under the local awk proves nothing and the axiom is held by
+    an instrument instead of by anyone remembering it.
+  - Does not prove: that an awk source parses, loads or does what it says. Own-line braces and a brace
+    inside a quoted payload are skipped as documented false positives.
+  - Invoked: `LC_ALL=C awk -f sh-lib/AgentsHarnessAwkAxiom.awk <awk source>...` — silent and exit 0 when
+    clean, one `<file>:<line>: <text>` line per hit otherwise. The wired call passes it the awks this leg
+    loads.
+  - Its red: a file carrying `{ nestDepth = 2 }`. Measured — one hit line, exit 1.
+
+- **`sh-lib/AgentsHarnessRestartCheck.sh` — summarise-and-restart, run rather than read.**
+  - Proves: behaviour, over summarise-and-restart and the restart budget that bounds it. A fake `curl`
+    first on PATH records each request body and replays a canned stream per round, while the real core
+    and the real wire drive the scenarios: the threshold fires and the leg restarts onto the original
+    task plus its own handover with the previous leg's history gone; the threshold is disabled and every
+    one of those assertions answers the other way; the summarise step produces nothing and the run fails
+    loud rather than restarting onto an empty summary; and the restart budget is spent, which closes the
+    run at exit 3.
+  - Does not prove: anything about a real endpoint. The stream is canned, so a wire change that breaks
+    against the live API passes here. It dispatches one tool, `Read`, and says nothing about the others.
+  - Offline by construction: it refuses to run at all unless the fake `curl` is first on PATH, that fake
+    opens no socket, the token is a literal and the host a reserved `.invalid` name that cannot resolve,
+    and an EXIT trap takes the whole fixture with it.
+  - Invoked: `bash sh-lib/AgentsHarnessRestartCheck.sh`. Through its interpreter, the way the two awk
+    instruments at that call site are invoked, so a lost execute bit cannot turn a behaviour check into a
+    fault.
+  - Its red: copy `sh-lib`, remove `harnessSummariseRound=1` from the copied core so the leg is told to
+    hand over and then never restarts, and run the copied check. Measured — the three restart scenarios
+    fail and each failed assertion names what it wanted against what it got, the threshold-disabled
+    scenario still passes in full, exit 1.
+  - The threshold-disabled scenario is why a green run here cannot be a vacuous one: it re-asks the same
+    questions of the same canned rounds and requires the opposite answers, so an instrument that had
+    stopped measuring would have to fail one of the two.
+
+- **`sh-lib/AgentsHarnessMcpCheck.sh` — the dynamic tool class, run rather than read.**
+  - Proves: that an enumerated MCP tool reaches all four of its sites, behaviourally — the rendered
+    declaration on the wire carrying the server's own description and input schema, the announce arm, the
+    dispatch arm, and the round trip to the server — while a built-in is still declared beside it. That
+    last assertion probes ONE name on the request body, `"name":"WebFetch"`, so what it proves is that an
+    MCP declaration did not displace the built-in set, never that all eleven of them survived.
+    With those: the freeze, since a summarise-and-restart re-offers the same declaration and the server is
+    enumerated once for the whole run; a server that dies after handing over its tools becoming an `ERROR`
+    tool result with the round carrying on; and a PreToolUse hook denying an MCP call on a value that
+    reaches it only through `tool_input`. A fake MCP server and a fake `curl` drive it, and the real core,
+    the real wire adapter, the real client and the real hooks are what run.
+  - Does not prove: anything about a real server or a real endpoint, both being fakes here — a protocol
+    detail this rig does not speak passes untouched. One server declaring one tool is the whole population.
+  - Offline by construction, and it refuses rather than reports where it cannot be: the fake `curl` must
+    be first on PATH, each scenario's own `MMDAPP` is where `.mcp.json` and `.claude/settings.json` are
+    read from, the token is a literal and the host a reserved `.invalid` name that cannot resolve, an EXIT
+    trap takes the whole fixture with it, and a scenario in which the harness issued no request at all
+    stops the run instead of reaching a PASS line.
+  - Invoked: `bash sh-lib/AgentsHarnessMcpCheck.sh`, through its interpreter on the same terms as the
+    behaviour check above. Green is `HARNESS_MCP: OK (4 scenarios, 35 assertions, offline)`.
+  - Its red: copy `sh-lib`, and in the copy's `AgentsHarnessHooks.sh` make the `*)` arm hand the hook `{}`
+    instead of the call's own arguments. Measured — the other three scenarios still pass, the hook
+    scenario falls to 3 of 7, the fake server records the call it should never have seen, and the run
+    closes `⛔ MCP CHECK FAILED: 4 of 35 assertion(s)`, exit 1.
+  - Its negative control is the no-server-named scenario: the same canned rounds with nothing declared,
+    nothing spawned and the call refused as unknown, so an instrument that had stopped measuring would
+    have to fail one of the two.
+
+- **`sh-lib/AgentsHarnessWaitCheck.sh` — the wait class, run rather than read.**
+  - Proves: behaviour, over `--member-wait-for-input` and the `Wait` tool that drives it. Seven scenarios
+    take the operation alone — an arrival mid-wait returns on the arrival rather than the bound, naming
+    the source that fired and what it now holds; the bound expiring with nothing new is
+    `WAIT-RESULT: TIMEOUT` at rc 0 and never an error; an unknown source kind is `WAIT-RESULT: ERROR` at
+    rc 1 inside the same second, naming the kinds that exist; a source that cannot be read is named while
+    the wait carries on over the rest, and alone still says its silence is not quiet; `--wait-since-utime`
+    counts content already present while its omission waits for a change; and `--wait-list-sources` offers
+    exactly the adapters the include defines, counted off the adapter functions in the source rather than
+    off the list the operation prints from.
+  - Three of its ten scenarios then drive the REAL harness and the real wire rather than the operation
+    alone: a TIMEOUT reaching the model as a TIMEOUT, an unwaitable source reaching it as a failed wait
+    rather than as silence, and a `Wait` with no `--agent` refused before any wait rather than run under a
+    guessed identity. That boundary is where the outcome split is actually at risk — a harness flattening
+    the two leaves every operation-level assertion above green and still costs the agent the choice
+    between waiting again and escalating, which is the only reason the operation exists.
+  - Its tenth scenario asserts the offline claim instead of stating it: every request any part of this
+    check could make is logged by destination, and the log is then read back — nothing named `slack`,
+    every request this check's own canned model round, and at least six of them so the log is live rather
+    than empty. That is the assertion the other nine rest on, since an instrument that quietly reached a
+    real conversation would still print PASS lines.
+  - Does not prove: anything about a real endpoint or a real conversation. Every model round is a canned
+    stream from a fake `curl`, and every source waited on is a `file:` source under the check's own temp
+    tree — the `slack` adapter is named in the listing and never exercised, so the kinds line is matched
+    as text with nothing behind it run.
+  - Offline by construction, and it refuses rather than reports where it cannot be: the fake `curl` must
+    be first on PATH, the token is a literal and the host a reserved `.invalid` name that cannot resolve,
+    an EXIT trap takes the whole fixture with it, and a harness scenario in which no request was issued at
+    all stops the run instead of reaching a PASS line. The fake logs the destination and never the argv,
+    because the `Wait` tool's own description carries the word `slack` and a log of argv would report a
+    Slack request on every model round.
+  - Invoked: `bash sh-lib/AgentsHarnessWaitCheck.sh`, through its interpreter on the same terms as the two
+    behaviour checks above. `MMDAPP` must be set, since the operation places its own working directory
+    under it. Green is `HARNESS_WAIT: OK (10 scenarios, 98 assertions, offline)`.
+  - Its red, both measured against a copy of the package with `MDLT_ORIGIN` pointed at it, breaking the
+    copied `sh-lib/AgentsTools.MemberWait.include` that the operation dispatches into:
+    - TIMEOUT returned non-zero. Four scenarios fail, `⛔ WAIT CHECK FAILED: 7 of 98 assertion(s)`, exit 1
+      — and at the tool boundary the model is shown `the wait could not be performed` where it should have
+      read `WAIT-RESULT: TIMEOUT`.
+    - An unknown source kind answering `WAIT-RESULT: TIMEOUT` at rc 0 rather than `ERROR` at rc 1. Two
+      scenarios fail, again 7 of 98, exit 1 — the operation reports a wait that found nothing over a wait
+      that never ran, and that is what reaches the model.
+  - Its negative controls sit inside the scenarios rather than beside them, because each needs the same
+    rig answering the other way: the unknown-kind scenario is paired with a known kind on the same
+    600-second bound, opposite on the marker, the rc and the diagnostic; the `--wait-since-utime` scenario
+    runs the flag and its omission over one unchanging file, so each leg is the other's control; and the
+    listing scenario requires a kind nothing defines, `pigeon`, to be absent from what it offers.

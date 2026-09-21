@@ -66,6 +66,14 @@
 #                                        own merge (nothing removed if an
 #                                        element is later dropped from the
 #                                        caller's list).
+#   MYX_WSRESTRICT_ALLOW_WRITE_ROOTS_JSON -- same shape and same add-if-missing
+#                                        merge, but each element is upserted as
+#                                        BOTH `Read(//<element>/**)` and
+#                                        `Edit(//<element>/**)`. The verb is the
+#                                        whole difference: a scratchpad is
+#                                        written to, a reference root is not.
+#                                        Optional -- unset is an empty list, so
+#                                        a caller predating it is unaffected.
 
 function skipws(   c) {
 	while (p <= n) {
@@ -317,9 +325,14 @@ BEGIN {
 	allowSourceRoot = ENVIRON["MYX_WSRESTRICT_ALLOW_SOURCE_ROOT"]
 	allowAgentsRoot = ENVIRON["MYX_WSRESTRICT_ALLOW_AGENTS_ROOT"]
 	allowExtraRootsRaw = ENVIRON["MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON"]
+	## Unset is an empty list, never a usage failure: every caller predating this
+	## input passes only the read-scoped one and must keep working unchanged.
+	allowWriteRootsRaw = ENVIRON["MYX_WSRESTRICT_ALLOW_WRITE_ROOTS_JSON"]
+	if (allowWriteRootsRaw == "") allowWriteRootsRaw = "[]"
 	if (denyAddRaw == "" || hooksFile == "" || allowSourceRoot == "" || allowAgentsRoot == "" || allowExtraRootsRaw == "") fail("usage")
 	if (!validJson(denyAddRaw, "[")) fail("deny-add-not-a-json-array")
 	if (!validJson(allowExtraRootsRaw, "[")) fail("allow-extra-roots-not-a-json-array")
+	if (!validJson(allowWriteRootsRaw, "[")) fail("allow-write-roots-not-a-json-array")
 
 	s = denyAddRaw; n = length(s); p = 1; skipws()
 	denyAddCount = stringArrayAt(p)
@@ -328,6 +341,10 @@ BEGIN {
 	s = allowExtraRootsRaw; n = length(s); p = 1; skipws()
 	allowExtraRootsCount = stringArrayAt(p)
 	for (i = 0; i < allowExtraRootsCount; i++) allowExtraRoots[i] = ELEMS[i]
+
+	s = allowWriteRootsRaw; n = length(s); p = 1; skipws()
+	allowWriteRootsCount = stringArrayAt(p)
+	for (i = 0; i < allowWriteRootsCount; i++) allowWriteRoots[i] = ELEMS[i]
 
 	hooksCount = 0
 	while ((getline hooksLine < hooksFile) > 0) {
@@ -383,30 +400,18 @@ END {
 	## permissions docs, "Read and Edit" pattern table). allowSourceRoot is
 	## already absolute (carries its own leading "/"), so exactly ONE more
 	## "/" here yields the required "//" -- prepending "//" would double it.
-	## Read and Edit only, never Write: a Write rule is not matched by file
-	## permission checks at all, and Claude reports each one as a warning at
-	## startup. An Edit rule covers every file-editing tool, Write included.
-	## The keep-filter recognises Write only to drop it -- a Write(...) entry
-	## is never a desired output (only Read/Edit are (re-)written below), so
-	## ANY Write(...) matching this source-root pattern is dropped here,
-	## whether it names the current root or a stale/moved one. Achieved by
-	## simply not exempting Write from the drop condition below: only the
-	## current root's own Read/Edit forms survive it.
-	## Same replace-not-accumulate shape, per verb.
+	## Read alone -- write comes from a member's own folder, temps and grants.
 	newAllowCount = 0
 	for (i = 0; i < oldAllowCount; i++) {
 		v = oldAllow[i]
-		if ((v ~ /^(Read|Edit|Write)\(\/\/.*\/source\/\*\*\)$/) && v != ("Read(/" allowSourceRoot "/**)") && v != ("Edit(/" allowSourceRoot "/**)")) continue
+		if ((v ~ /^(Read|Edit|Write)\(\/\/.*\/source\/\*\*\)$/) && v != ("Read(/" allowSourceRoot "/**)")) continue
 		## Anchored on Read alone: no other verb is ever written on a .agents
 		## path here, so a wider pattern could only drop a hand-added grant.
 		if ((v ~ /^Read\(\/\/.*\/\.agents\/\*\*\)$/) && v != ("Read(/" allowAgentsRoot "/**)")) continue
 		newAllow[newAllowCount++] = v
 	}
-	for (verbIdx = 0; verbIdx < 2; verbIdx++) {
-		verb = (verbIdx == 0) ? "Read" : "Edit"
-		desiredAllowEntry = verb "(/" allowSourceRoot "/**)"
-		if (!inList(newAllow, newAllowCount, desiredAllowEntry)) newAllow[newAllowCount++] = desiredAllowEntry
-	}
+	desiredAllowEntry = "Read(/" allowSourceRoot "/**)"
+	if (!inList(newAllow, newAllowCount, desiredAllowEntry)) newAllow[newAllowCount++] = desiredAllowEntry
 
 	## The workspace's own .agents root, where a spawned agent reads the skill
 	## files it needs before it can arm at all. Those entries are symlinks into
@@ -420,13 +425,19 @@ END {
 	## unlike allowSourceRoot above, these are NOT derived from the target
 	## workspace, so there is no stale "workspace moved" entry to replace:
 	## add-if-missing only, same shape MYX_WSRESTRICT_DENY_ADD_JSON's own merge
-	## below uses. Same two verbs as above, same reason.
+	## below uses. Read alone, same as above.
 	for (i = 0; i < allowExtraRootsCount; i++) {
-		for (verbIdx = 0; verbIdx < 2; verbIdx++) {
-			verb = (verbIdx == 0) ? "Read" : "Edit"
-			desiredExtraAllowEntry = verb "(/" allowExtraRoots[i] "/**)"
-			if (!inList(newAllow, newAllowCount, desiredExtraAllowEntry)) newAllow[newAllowCount++] = desiredExtraAllowEntry
-		}
+		desiredExtraAllowEntry = "Read(/" allowExtraRoots[i] "/**)"
+		if (!inList(newAllow, newAllowCount, desiredExtraAllowEntry)) newAllow[newAllowCount++] = desiredExtraAllowEntry
+	}
+
+	## The write-scoped half, kept a separate input because the verb is the whole
+	## difference: a team scratchpad is written to, a reference root is not.
+	for (i = 0; i < allowWriteRootsCount; i++) {
+		desiredExtraAllowEntry = "Read(/" allowWriteRoots[i] "/**)"
+		if (!inList(newAllow, newAllowCount, desiredExtraAllowEntry)) newAllow[newAllowCount++] = desiredExtraAllowEntry
+		desiredExtraAllowEntry = "Edit(/" allowWriteRoots[i] "/**)"
+		if (!inList(newAllow, newAllowCount, desiredExtraAllowEntry)) newAllow[newAllowCount++] = desiredExtraAllowEntry
 	}
 
 	sortList(newAllow, newAllowCount)

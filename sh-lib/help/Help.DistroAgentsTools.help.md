@@ -128,6 +128,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-read <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>]
+📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> --wait-list-sources
 📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <tracking-document>...
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>
@@ -3566,6 +3568,57 @@
 			--magic-sweep-input-scan's: 0 when every source was scanned,
 			3 when some were and some could not be, 4 when none could be,
 			1 when the operation failed before producing a document.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
+		--member-wait-for-input <team-member> [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>]
+		--member-wait-for-input <team-member> --wait-list-sources
+			One bounded long poll over a list of input sources,
+			returning the moment any of them changes. The waiting
+			happens inside this one call, down in the shell, so a
+			caller that would otherwise spend a round trip per check
+			spends one call and one result instead.
+
+			stdout ALWAYS opens with exactly one marker line:
+			`WAIT-RESULT: RECEIVED` -- something arrived, and what
+			that source holds now follows; `WAIT-RESULT: TIMEOUT` --
+			the bound expired with nothing new; `WAIT-RESULT: ERROR`
+			-- the wait could not be performed, see stderr. RECEIVED
+			and TIMEOUT both exit 0, because both are answers; ERROR
+			exits 1. A TIMEOUT is a COMPLETE, SUCCESSFUL wait, not a
+			failure and not an error: those sources were read and held
+			nothing new. What to do after a quiet wait -- wait again,
+			look elsewhere, or escalate -- is the caller's own
+			escalation rules, never this operation's.
+
+			A source is `<kind>:<target>` and --wait-source is
+			repeatable. Given none, the sources are `slack:magic-team`
+			and `slack:human-owner`. `slack:<conversation>` waits on a
+			conversation, `slack:<channel>:<ts>` on that one message's
+			thread, and `file:<absolute-path>` on a local drop path,
+			file or directory alike -- an absent path is a state, not
+			a failure, and a drop appearing later is exactly the
+			arrival being waited for. --wait-list-sources prints the
+			source kinds this build carries and waits on nothing.
+
+			--wait-timeout is the bound in whole seconds, default 300.
+			--wait-poll-interval is whole seconds between probes,
+			default 15, minimum 1 -- it never changes the outcome,
+			only how soon within the bound an arrival is noticed.
+			--wait-since-utime takes epoch seconds: give it when
+			waiting for something at or after a moment already known,
+			such as a message just posted, so a reply already sitting
+			there returns immediately rather than reading as part of
+			the scenery. Without it the first probe is the baseline
+			and only a later change counts.
+
+			A source kind this build does not carry is an ERROR at
+			second zero, naming the kinds that exist -- never a source
+			that silently never fires for the length of the bound. A
+			probe that cannot run is named in the body and the wait
+			carries on over the remaining sources; a TIMEOUT body then
+			states that nothing is known about those sources either
+			way, so their silence must not be read as quiet.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

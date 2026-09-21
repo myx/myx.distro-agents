@@ -8,11 +8,12 @@
 # THE FOUR SITES SPAN TWO FILES: the tools JSON literal is in the wire adapter,
 # AgentsOpenAiChatWire.sh; the announce arm, the dispatch arm and the tool
 # function are in AgentsUniversalHarness.sh. PASS BOTH -- passing one names the
-# other in its failure. Function names derive from the declared snake_case name
-# (read_file -> AgentsHarnessToolReadFile), and every defined AgentsHarnessTool*
+# other in its failure. Function names derive from the declared name
+# (Read -> AgentsHarnessToolRead), and every defined AgentsHarnessTool*
 # is matched back to a live tool so an orphan is a FAIL.
 #
-# It proves coherence and nothing about behaviour. See MAGIC.md.
+# It proves coherence and nothing about behaviour. MAGIC.md's own "The harness
+# instruments, and what each one proves" states what each of the four does not cover.
 
 function pascal(snakeName,   nameParts, partCount, partIndex, outName) {
 	partCount = split(snakeName, nameParts, "_")
@@ -28,7 +29,7 @@ BEGIN { inAnnounce = 0 ; }
 ## inside parameter descriptions.
 /\{"type":"function","function":\{"name":"/ {
 	declLine = $0
-	while (match(declLine, /\{"type":"function","function":\{"name":"[a-z_]+"/)) {
+	while (match(declLine, /\{"type":"function","function":\{"name":"[A-Za-z_]+"/)) {
 		declFrag = substr(declLine, RSTART, RLENGTH)
 		sub(/.*"name":"/, "", declFrag)
 		sub(/"$/, "", declFrag)
@@ -40,13 +41,13 @@ BEGIN { inAnnounce = 0 ; }
 ## Announce site: case arms inside AgentsHarnessAnnounceTool.
 /^AgentsHarnessAnnounceTool\(\)/ { inAnnounce = 1 ; next ; }
 inAnnounce && /^\}/ { inAnnounce = 0 ; next ; }
-inAnnounce && /^[ \t]+[a-z_]+\)[ \t]*$/ {
+inAnnounce && /^[ \t]+[A-Za-z_]+\)[ \t]*$/ {
 	armName = $0 ; sub(/^[ \t]+/, "", armName) ; sub(/\).*$/, "", armName)
 	siteSeen["announce", armName] = 1 ; toolNames[armName] = 1
 }
 
 ## Dispatch site: the case arms assigning harnessResult from a tool call.
-/^[ \t]+[a-z_]+\)[ \t]+harnessResult="\$\( AgentsHarnessTool/ {
+/^[ \t]+[A-Za-z_]+\)[ \t]+harnessResult="\$\( AgentsHarnessTool/ {
 	armName = $0 ; sub(/^[ \t]+/, "", armName) ; sub(/\).*$/, "", armName)
 	siteSeen["dispatch", armName] = 1 ; toolNames[armName] = 1
 }

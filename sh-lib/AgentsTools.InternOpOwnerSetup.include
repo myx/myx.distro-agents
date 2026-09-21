@@ -32,6 +32,14 @@ AgentsToolsOwnerSetupOptionSpec(){
 		TEAM_DATA_GIT_REMOTE)
 			printf '%s\n' 'magic-team|<git-remote-url>|plain|the clone URL of a repository you own, which the team data is pushed to. An empty repository is fine.'
 		;;
+		## Changing this on a running rig DELETES and re-clones the team-data checkout on
+		## the next iteration: myx.common git/clonePull switches branches by removing the
+		## working tree, ahead of any conflict handling, so onConflict does not protect it.
+		## Correct for command data pulled from a remote, and surprising from a settings
+		## edit, which is why it is said here rather than at the call site.
+		TEAM_DATA_BRANCH)
+			printf '%s\n' 'magic-team|<branch-name>|plain|the branch of the team-data repository this workspace tracks. Left unset the loop tracks "main".'
+		;;
 		## The three below are the CLIs' OWN variable names, not keys coined here:
 		## each is the name its CLI already reads out of its environment, so what
 		## is stored and what the console exports are one string and no mapping
@@ -95,20 +103,20 @@ case "$1" in
 		local setupDomain="$1"
 		shift || true
 		if [ -z "$setupDomain" ] ; then
-			echo "$MDSC_CMD: owner-setup: ⛔ ERROR: syntax is <domain> (--render-full|--render-missing|--apply) --workspace <path> [--require <KEY>]... [--allow <KEY>]... [--value <KEY>=<value>]... [--values-from-stdin] [--service-key <KEY> --service-value <value>] [--set-as-default]" >&2
+			echo "$MDSC_CMD: owner-setup: ⛔ ERROR: syntax is <domain> (--render-full|--render-missing|--apply) --workspace <path> [--require <KEY>]... [--allow <KEY>]... [--allow-shared <KEY>]... [--value <KEY>=<value>]... [--values-from-stdin] [--service-key <KEY> --service-value <value>] [--set-as-default]" >&2
 			set +e ; return 1
 		fi
 
 		local setupMode="" setupWorkspace="" setupForceDefault="" setupFromStdin=""
 		local setupServiceKey="" setupServiceValue=""
-		local setupRequired="" setupAllowed="" setupValues=""
+		local setupRequired="" setupAllowed="" setupShared="" setupValues=""
 		local setupInstallProbe="" setupInstallCommand="" setupVerifyCommand="" setupTogether=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--render-full|--render-missing|--apply) setupMode="$1" ; shift ;;
 				--set-as-default) setupForceDefault="yes" ; shift ;;
 				--values-from-stdin) setupFromStdin="yes" ; shift ;;
-				--require|--allow|--value|--workspace|--service-key|--service-value|--install-probe|--install-command|--verify-command|--require-together)
+				--require|--allow|--allow-shared|--value|--workspace|--service-key|--service-value|--install-probe|--install-command|--verify-command|--require-together)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: owner-setup: ⛔ ERROR: $1: value required" >&2
 						set +e ; return 1
@@ -119,6 +127,12 @@ case "$1" in
 						--service-value)  setupServiceValue="$2" ;;
 						--require)        setupRequired="$setupRequired $2" ; setupAllowed="$setupAllowed $2" ;;
 						--allow)          setupAllowed="$setupAllowed $2" ;;
+						## A setting the WORKSPACE owns, which this domain accepts
+						## without owning. Allowed exactly as --allow is, so --apply
+						## takes the same set either way; the difference is only that
+						## the rendered command is one domain's own syntax and a
+						## setting belonging to the workspace is not written into it.
+						--allow-shared)   setupAllowed="$setupAllowed $2" ; setupShared="$setupShared $2" ;;
 						## A domain declares what proves its software present, what
 						## installs it, what proves the domain works once configured,
 						## and which of its values only make sense together. All four
@@ -204,6 +218,15 @@ case "$1" in
 			setupHint="${setupSpec%%|*}" ; setupSpec="${setupSpec#*|}"
 			setupSecret="${setupSpec%%|*}" ; setupHowTo="${setupSpec#*|}"
 
+			## A shared setting is the workspace's, not this domain's, so it is out
+			## of both rendered forms -- what is written there is the syntax of one
+			## --owner-setup-<domain> command and nothing else. --apply is reached
+			## by the same walk over the same declaration and skips nothing, which
+			## is what keeps what is rendered from drifting from what is accepted.
+			case " $setupShared " in
+				*" $setupKey "*) [ "$setupMode" = "--apply" ] || continue ;;
+			esac
+
 			## Read-only where the scope has never been written: a --select
 			## through --agents-config-option creates the file it reads.
 			setupCurrent=""
@@ -241,7 +264,24 @@ case "$1" in
 		done
 
 		if [ "$setupMode" = "--render-full" ] || [ "$setupMode" = "--render-missing" ] ; then
-			[ -n "$setupAnyMissing" ] || return 0
+			## --render-missing answers what still has to be supplied, so nothing
+			## outstanding is nothing to write. --render-full writes this domain's
+			## own command, which a domain owning a service selection still has
+			## once every value is stored -- that apply installs, points the
+			## selection here and verifies, none of which is a value.
+			if [ "$setupMode" = "--render-missing" ] ; then
+				[ -n "$setupAnyMissing" ] || return 0
+			else
+				[ -n "$setupAnyMissing" ] || [ -n "$setupServiceKey" ] || return 0
+				## The flag that points the workspace's selection at THIS domain.
+				## Part of the domain's own syntax rather than one of its values, so
+				## it is written here rather than declared, and only where the
+				## domain owns a selection there is something to point.
+				if [ -n "$setupServiceKey" ] ; then
+					setupCommand="$setupCommand --set-as-default"
+					setupHelp="${setupHelp}    --set-as-default -- point $setupServiceKey at '$setupServiceValue', replacing whatever this workspace selects now. Left off, an existing selection is kept and only an unselected workspace is pointed here."$'\n'
+				fi
+			fi
 			if [ -n "$setupSecretPart" ] ; then
 				## A secret is named in the set on stdin, never as a flag value.
 				printf '  printf %s\n' "'%s\\n' \\"

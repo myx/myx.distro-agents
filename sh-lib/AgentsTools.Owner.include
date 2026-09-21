@@ -417,16 +417,22 @@ case "$1" in
 		local setupDeclareArgs=()
 		case "$setupDomain" in
 			claude|claude-native|copilot|scaleway)
-				## SPAWN_CLI_SERVICE is not declared required: the service selection
-				## below is what sets it, so requiring it too would refuse the very
-				## call that supplies it. It does block a spawn, and the arm below
-				## carries that: unset, it is a needs-apply blocker rather than a
-				## value the reader is asked for. CLIENT_ACCESS_ROOTS_EXTRA blocks
+				## Both of these belong to the WORKSPACE rather than to this domain:
+				## which CLI the workspace starts, and what every spawned agent may
+				## reach. Declared shared, so an --apply here still takes them and
+				## the rendered command stays the syntax of THIS domain alone --
+				## a --owner-setup-scaleway that advertised the CLI selection was
+				## reading as though scaleway configured copilot and grok.
+				## SPAWN_CLI_SERVICE is not declared required either: the service
+				## selection below is what sets it, so requiring it too would refuse
+				## the very call that supplies it. It does block a spawn, and the arm
+				## below carries that: unset, it is a needs-apply blocker rather than
+				## a value the reader is asked for. CLIENT_ACCESS_ROOTS_EXTRA blocks
 				## nothing -- it widens grants the installer already makes -- so it
 				## is optional in full and a bare call never names it.
 				setupDeclareArgs=(
-					--allow SPAWN_CLI_SERVICE
-					--allow CLIENT_ACCESS_ROOTS_EXTRA
+					--allow-shared SPAWN_CLI_SERVICE
+					--allow-shared CLIENT_ACCESS_ROOTS_EXTRA
 					--service-key SPAWN_CLI_SERVICE --service-value "$setupDomain"
 					--install-probe "command -v $setupDomain"
 				)
@@ -479,6 +485,7 @@ case "$1" in
 				setupDeclareArgs=(
 					--require TEAM_DATA_DIRECTORY
 					--allow TEAM_DATA_GIT_REMOTE
+					--allow TEAM_DATA_BRANCH
 				)
 			;;
 		esac
@@ -602,10 +609,18 @@ case "$1" in
 					## domain gets this by declaring rather than by reopening here.
 					case " ${setupDeclareArgs[*]} " in
 						*" --service-key SPAWN_CLI_SERVICE "*)
-							## The domain's own diagnosis is the gate: it already
-							## knows this domain's preconditions, so a workspace
-							## already current has nothing rewritten over it.
-							if ! ( DistroAgentsTools "--owner-setup-$setupDomain" ) >/dev/null 2>&1 ; then
+							## The console is what a spawn actually requires, so it is tested
+							## directly rather than inferred from this domain's own verdict:
+							## three of the six domains never look at it, which is why a green
+							## --owner-setup-scaleway --apply could leave a workspace with no
+							## console at all. The domain diagnosis stays as one more reason to
+							## regenerate, so this fires strictly more often than before and
+							## never less. Both greps keep 2>/dev/null -- an unreadable console
+							## must regenerate quietly rather than print from a silent gate.
+							if [ ! -x "$MMDAPP/DistroAgentsConsole.sh" ] \
+								|| ! grep -q 'cli-configured' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null \
+								|| ! grep -q 'MDAT_SPAWN_LAUNCH_MARKER' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null \
+								|| ! ( DistroAgentsTools "--owner-setup-$setupDomain" ) >/dev/null 2>&1 ; then
 								( DistroAgentsTools --make-workspace-integrations --quiet ) || {
 									echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: stopped at the workspace integrations step -- the settings above are stored, the console and the access grants are not" >&2
 									exit 1
@@ -693,11 +708,12 @@ case "$1" in
 				## at CALL time and invisible to `bash -n`, so a parse-only assertion
 				## would pass while the class it exists for went undetected.
 				## GATED ON --check FOR THE WORK, NOT ONLY THE OUTPUT: this parses the
-				## harness sources and spawns three awk processes, and --apply must
-				## neither pay that nor start returning non-zero on a diagnostic
-				## finding. No status row is emitted either: AgentsToolsOwnerSetupRow
-				## prints only while $setupOperation is empty, so a row called from
-				## inside a --check-gated block could never emit a line.
+				## harness sources and spawns a process per instrument and per awk
+				## helper it exercises, and --apply must neither pay that nor start
+				## returning non-zero on a diagnostic finding. No status row is
+				## emitted either: AgentsToolsOwnerSetupRow prints only while
+				## $setupOperation is empty, so a row called from inside a
+				## --check-gated block could never emit a line.
 				## Offline buys no request, no credential and no host -- it does NOT
 				## buy freedom from local process execution, and a diagnostic that
 				## executes what it diagnoses is worth stating rather than discovering.
@@ -712,9 +728,9 @@ case "$1" in
 				## function live in the core. So the checker reads the two CONCATENATED --
 				## pointed at either alone it sees an empty or half-populated tool set,
 				## which it correctly reports as FAIL.
-				## WHAT THEY DO NOT PROVE: behaviour preserved across a change. Nothing
-				## in this package exercises the harness, so a clean run means coherent
-				## and loadable, never that a refactor kept the runtime the same.
+				## WHAT THEY DO NOT PROVE: behaviour preserved across a change. They
+				## read the sources, so a clean run means coherent and loadable, never
+				## that a refactor kept the runtime the same -- the checks below RUN it.
 				if [ "$setupOperation" = "--check" ] && [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" ] ; then
 					local setupLibDir="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 					local setupHarnessFile="$setupLibDir/AgentsUniversalHarness.sh"
@@ -731,13 +747,15 @@ case "$1" in
 
 					## Every file on the spawn path, not one of them: the console execs
 					## the stub, the stub execs the core, and the core sources the wire
-					## adapter. A syntax error in any of the three fails the spawn at
-					## startup, so checking only one would leave two unchecked.
-					for setupParseFile in "$setupHarnessFile" "$setupWireFile" "$setupStubFile" ; do
+					## adapter, the hooks and the mcp client. A syntax error in any of
+					## them fails the spawn at startup, so checking one leaves the rest
+					## unchecked.
+					for setupParseFile in "$setupHarnessFile" "$setupWireFile" "$setupStubFile" \
+						"$setupLibDir/AgentsHarnessHooks.sh" "$setupLibDir/AgentsHarnessMcpClient.sh" ; do
 						bash -n "$setupParseFile" 2>/dev/null || setupParseBad="$setupParseBad ${setupParseFile##*/}"
 					done
 					if [ -z "$setupParseBad" ] ; then
-						echo "HARNESS_PARSES: OK (core, wire adapter, stub)"
+						echo "HARNESS_PARSES: OK (core, wire adapter, stub, hooks, mcp client)"
 					else
 						echo "HARNESS_PARSES: FAIL"
 						echo "  warn: these do not parse, so every spawn on this leg fails at startup"
@@ -756,8 +774,10 @@ case "$1" in
 						|| setupHelperBad="$setupHelperBad AgentsMcpJsonEscape.awk"
 					printf '{"a":{"b":"c"}}' | LC_ALL=C awk -v path=a.b -v optional=1 -f "$setupLibDir/AgentsHarnessJsonField.awk" >/dev/null 2>&1 \
 						|| setupHelperBad="$setupHelperBad AgentsHarnessJsonField.awk"
+					printf '{"a":{"b":"c"}}' | LC_ALL=C awk -v path=a -v mode=keys -f "$setupLibDir/AgentsHarnessJsonSlice.awk" >/dev/null 2>&1 \
+						|| setupHelperBad="$setupHelperBad AgentsHarnessJsonSlice.awk"
 					if [ -z "$setupHelperBad" ] ; then
-						echo "HARNESS_HELPERS_LOAD: OK (progress-line, json-escape, json-field)"
+						echo "HARNESS_HELPERS_LOAD: OK (progress-line, json-escape, json-field, json-slice)"
 					else
 						echo "HARNESS_HELPERS_LOAD: FAIL"
 						echo "  warn: these awk helpers did not load and run:$setupHelperBad"
@@ -775,6 +795,7 @@ case "$1" in
 					setupAxiomOut="$( LC_ALL=C awk -f "$setupLibDir/AgentsHarnessAwkAxiom.awk" \
 						"$setupLibDir/AgentsProgressLineSafe.awk" \
 						"$setupLibDir/AgentsHarnessJsonField.awk" \
+						"$setupLibDir/AgentsHarnessJsonSlice.awk" \
 						"$setupLibDir/AgentsMcpJsonEscape.awk" \
 						"$setupLibDir/AgentsHarnessSelfCheck.awk" \
 						"$setupLibDir/AgentsHarnessAwkAxiom.awk" 2>&1 )" || setupAxiomRc=$?
@@ -787,6 +808,70 @@ case "$1" in
 						echo "        this runs on elsewhere:"
 						printf '%s\n' "$setupAxiomOut" | sed 's/^/        /'
 						echo "  fix:  put ';' before the closing brace on each line above"
+						setupRc=1
+					fi
+
+					## BEHAVIOUR, and the boundary of this block: everything above reads
+					## the sources, everything from here down RUNS them -- a fake curl
+					## first on PATH replays a canned stream per round while the real core
+					## and the real wire drive summarise-and-restart. Its threshold-disabled
+					## scenario is its own negative control, so a green run here cannot be
+					## a vacuous one. Offline the same way the rest of this block is: no
+					## socket, no credential, and its own EXIT trap leaves nothing behind.
+					## Invoked through its interpreter, as the two awk instruments above
+					## are, so a lost execute bit cannot turn a behaviour check into a fault.
+					local setupRestartOut="" setupRestartRc=0
+					setupRestartOut="$( bash "$setupLibDir/AgentsHarnessRestartCheck.sh" 2>&1 )" || setupRestartRc=$?
+					printf '%s\n' "$setupRestartOut"
+					if [ "$setupRestartRc" != "0" ] ; then
+						echo "  warn: the harness no longer behaves the way summarise-and-restart"
+						echo "        requires -- each failed assertion above names what it"
+						echo "        wanted and what it got instead"
+						echo "  fix:  repair the behaviour in sh-lib/AgentsUniversalHarness.sh"
+						echo "        or sh-lib/AgentsOpenAiChatWire.sh -- never the assertion"
+						setupRc=1
+					fi
+
+					## The DYNAMIC tool class, which HARNESS_TOOL_SITES above provably cannot
+					## see: that one matches sites in the SOURCES, and an MCP tool is built at
+					## runtime, so a tool reaching the wire with no site in those sources leaves
+					## its report byte-identical to a clean one. This one RUNS the four sites --
+					## rendered declaration, announce arm, dispatch arm, server round-trip --
+					## against a fake MCP server and a fake curl, and carries its own negative
+					## control. Offline and invoked through its interpreter on the same terms as
+					## the behaviour check above.
+					local setupMcpOut="" setupMcpRc=0
+					setupMcpOut="$( bash "$setupLibDir/AgentsHarnessMcpCheck.sh" 2>&1 )" || setupMcpRc=$?
+					printf '%s\n' "$setupMcpOut"
+					if [ "$setupMcpRc" != "0" ] ; then
+						echo "  warn: an MCP tool no longer reaches the model, the dispatch, the hooks"
+						echo "        or the server the way this leg requires -- each failed assertion"
+						echo "        above names what it wanted and what it got instead"
+						echo "  fix:  repair the behaviour in sh-lib/AgentsHarnessMcpClient.sh,"
+						echo "        sh-lib/AgentsHarnessHooks.sh, sh-lib/AgentsUniversalHarness.sh"
+						echo "        or sh-lib/AgentsOpenAiChatWire.sh -- never the assertion"
+						setupRc=1
+					fi
+
+					## The WAIT class, which HARNESS_TOOL_SITES above can see no better than
+					## it sees an MCP tool: it proves `Wait` occupies its four sites and
+					## nothing whatever about a wait RETURNING. A build where TIMEOUT came
+					## back non-zero, or where an unknown source kind timed out instead of
+					## erroring, leaves every report above byte-identical to a clean one --
+					## and costs an agent the choice between waiting again and escalating,
+					## which is the only reason the operation exists. This one RUNS
+					## --member-wait-for-input and the Wait tool over it, and carries its own
+					## negative controls. Offline and invoked through its interpreter on the
+					## same terms as the two behaviour checks above.
+					local setupWaitOut="" setupWaitRc=0
+					setupWaitOut="$( bash "$setupLibDir/AgentsHarnessWaitCheck.sh" 2>&1 )" || setupWaitRc=$?
+					printf '%s\n' "$setupWaitOut"
+					if [ "$setupWaitRc" != "0" ] ; then
+						echo "  warn: a wait no longer comes back the way a caller has to be able"
+						echo "        to read it -- each failed assertion above names what it"
+						echo "        wanted and what it got instead"
+						echo "  fix:  repair the behaviour in sh-lib/AgentsTools.MemberWait.include"
+						echo "        or sh-lib/AgentsUniversalHarness.sh -- never the assertion"
 						setupRc=1
 					fi
 				fi

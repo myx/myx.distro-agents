@@ -13,9 +13,13 @@
 ## awk merge scripts.
 ##
 ## The set is deliberately NOT treated as fixed or complete: reference roots
-## and member/board/source derivations can be added or changed over time.
-## Keep the pieces below simple and independent so the settings side and the
-## fragment side can be refactored in parallel without colliding.
+## and member/source derivations can be added or changed over time. Keep the
+## pieces below simple and independent so the settings side and the fragment
+## side can be refactored in parallel without colliding.
+##
+## Read and write are separate sets, not one set spelled twice: a member may be
+## readable by every client and writable by none. Each producer below says which
+## it yields, and a consumer asks for the one its own grant means.
 ##
 ## Output contract: each function prints raw absolute paths, one per line,
 ## with NO formatting, quoting or flags -- the raw material each consumer
@@ -27,11 +31,25 @@
 ## require).
 ##
 
-## Active member skill directories, resolved to their real (symlink-followed)
-## locations under the resolved skillset root -- the same enumeration the claude
-## permissions writer grants, factored out here as the single source.
-## Skips `trash` and any `status: reference-only` member. Sorted-unique.
+## Member skill directories, resolved to their real (symlink-followed) locations
+## under the resolved skillset root. Skips `trash`. Sorted-unique.
+## Purpose picks the set, and the two differ by exactly one rule:
+##   acting   -- excludes a `status: reference-only` member. Nobody may write the
+##               identity record, and nobody may be spawned as it.
+##   readable -- includes it. The escalation path every session must be able to
+##               read lives inside one, so a read grant that skipped it would
+##               make the mandated route unreadable.
+## Required, never defaulted: a purpose guessed wrong is a silently wrong grant.
+##   $1 = acting | readable
 AgentsToolsClientAccessRootsMembers(){
+	local memberPurpose="$1"
+	case "$memberPurpose" in
+		acting|readable) : ;;
+		*)
+			echo "⛔ ERROR: AgentsToolsClientAccessRootsMembers: purpose must be 'acting' or 'readable', got: ${memberPurpose:-<none>}" >&2
+			return 1
+		;;
+	esac
 	local skillsRoot="$MDAT_SKILLSET_ROOT"
 	[ -d "$skillsRoot" ] || return 0
 	local memberEntry memberName memberReal
@@ -41,40 +59,45 @@ AgentsToolsClientAccessRootsMembers(){
 		[ "$memberName" != "trash" ] || continue
 		memberReal="$( cd "${memberEntry%/}" 2>/dev/null && pwd -P )" || continue
 		[ -n "$memberReal" ] || continue
-		if [ -f "$memberReal/SKILL.md" ] && grep -q '^status: reference-only' "$memberReal/SKILL.md" 2>/dev/null ; then
+		if [ "$memberPurpose" = "acting" ] && [ -f "$memberReal/SKILL.md" ] && grep -q '^status: reference-only' "$memberReal/SKILL.md" 2>/dev/null ; then
 			continue
 		fi
 		printf '%s\n' "$memberReal"
 	done | sort -u
 }
 
-## Extra reference roots granted to every client in addition to the resolved
-## member/board paths and the workspace source tree. Which directories those
-## are is a property of the machine, never of this code, so they come from the
-## workspace's own CLIENT_ACCESS_ROOTS_EXTRA (magic-team scope, colon-separated
-## absolute paths) -- set by --owner-setup-claude/--owner-setup-copilot. Both
-## the workspace settings writer and the copilot launch fragment read it here.
-## Anything not absolute is dropped: the setting's own contract is absolute
-## paths, and a relative one would grant whatever the client happened to be in.
-##   $1 = workspace root whose configuration is read.
+## Reference roots by purpose, required and never defaulted -- a purpose
+## guessed wrong is a silently wrong grant, same rule as the member split above.
+##   read  -- skillset under $MDLT_ORIGIN, the global symlinked skills dir, and
+##            the machine's own CLIENT_ACCESS_ROOTS_EXTRA; non-absolute dropped.
+##   write -- the team scratchpad, plus the named member's own two scopes;
+##            unnamed yields the team's alone, since everyone's own is nobody's.
+##   $1 = read | write, $2 = workspace root, $3 = member name (write only)
 AgentsToolsClientAccessReferenceRoots(){
-	local workspace="${1:-$MMDAPP}"
+	local rootsPurpose="$1" workspace="${2:-$MMDAPP}" memberName="$3"
+	case "$rootsPurpose" in
+		read|write) : ;;
+		*)
+			echo "⛔ ERROR: AgentsToolsClientAccessReferenceRoots: purpose must be 'read' or 'write', got: ${rootsPurpose:-<none>}" >&2
+			return 1
+		;;
+	esac
+	if [ "$rootsPurpose" = "write" ] ; then
+		[ -n "$workspace" ] || return 0
+		printf '%s\n' "$workspace/.local/temp/team"
+		[ -n "$memberName" ] || return 0
+		printf '%s\n' "$workspace/.local/temp/member/$memberName" "$workspace/.local/temp/task/$memberName"
+		return 0
+	fi
+	[ -z "${MDLT_ORIGIN:-}" ] || printf '%s\n' "$MDLT_ORIGIN/myx/myx.distro-agents/skillset"
+	printf '%s\n' "$HOME/.claude/skills"
 	[ -s "$workspace/.local/.agents/magic-team.agent.env" ] || return 0
 	local configuredRoots
 	configuredRoots="$( MMDAPP="$workspace" ; DistroAgentsTools --agents-config-option magic-team --select CLIENT_ACCESS_ROOTS_EXTRA || : )"
 	[ -n "$configuredRoots" ] || return 0
-	printf '%s\n' "$configuredRoots" | LC_ALL=C awk -F: '{ for ( rootIndex = 1 ; rootIndex <= NF ; rootIndex++ ) if ( $rootIndex ~ /^\// ) print $rootIndex }'
+	printf '%s\n' "$configuredRoots" | LC_ALL=C awk -F: '{ for ( rootIndex = 1 ; rootIndex <= NF ; rootIndex++ ) if ( $rootIndex ~ /^\// ) print $rootIndex ; }'
 }
 
-## The complete flat root set one client is granted, for the copilot launch
-## fragment: board path, active member real dirs, the workspace source tree,
-## and the configured reference roots -- matching the union of what the two
-## claude settings writers grant. One absolute path per line.
-##   $1 = target workspace root (its source/ tree is granted).
-## Board/source are emitted only when their input is present; the CALLER is
-## responsible for rejecting an empty or under-populated set (see the copilot
-## fragment op), exactly as the claude permissions writer rejects a missing
-## board root rather than writing a grant without one.
 ## Declared allow-write grants, each widened to the narrowest directory that
 ## contains everything its glob can match. A client's whole permission surface
 ## on the copilot side is `--add-dir <root>`: a glob cannot be expressed there,
@@ -155,20 +178,24 @@ AgentsToolsClientAccessRootTag(){
 	' "$tagsFile"
 }
 
+## The complete flat root set one client is granted, one absolute path per line:
+## readable member dirs, the workspace source tree, both reference sets and the
+## declared grants. `--add-dir` carries no verb, so read and write arrive here
+## as one union -- the vendor CLIs' own limit, not this model's; a client that
+## can be told a verb asks the two producers above for the half it means.
+## The board is absent by design; the CALLER rejects an empty set.
+##   $1 = workspace root, $2 = member name, for its own scratchpads
 AgentsToolsClientAccessRoots(){
-	local workspace="$1"
+	local workspace="$1" memberName="$2"
 	## Sorted-unique: the declared grants re-derive roots the functions above
-	## already yield, and a repeated root is a duplicate `--add-dir` and a count
-	## that overstates the set.
+	## already yield, and a repeated root is a duplicate `--add-dir`.
 	{
-		if [ -n "${MDAT_DATA_ROOT:-}" ] ; then
-			printf '%s\n' "$MDAT_DATA_ROOT/board"
-		fi
-		AgentsToolsClientAccessRootsMembers
+		AgentsToolsClientAccessRootsMembers readable
 		if [ -n "$workspace" ] ; then
 			printf '%s\n' "$workspace/source"
 		fi
-		AgentsToolsClientAccessReferenceRoots "$workspace"
+		AgentsToolsClientAccessReferenceRoots read "$workspace"
+		AgentsToolsClientAccessReferenceRoots write "$workspace" "$memberName"
 		AgentsToolsClientAccessGrantRoots
 	} | LC_ALL=C sort -u
 }

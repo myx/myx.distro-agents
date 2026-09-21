@@ -49,7 +49,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - This is the same real backlog `magic-coordinator`'s Prioritize section already points to; grooming is where that backlog gets actively worked, not just consulted.
    - Sub-checks, also part of gathering:
      - **Roster/tooling recheck** (grooming-cadence, not every routine):
-       - re-list `<skillset>/*/` and re-read each `SKILL.md` description frontmatter
+       - re-read each member's own `SKILL.md` description from the skill-discovery listing this session already carries
        - refresh the `roster-note` via the `--member-inbox-note-upsert` operation if anything drifted
        - spot-check `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section against anything that's actually come up as wrong since the last grooming
        - if a specific fact genuinely needs live confirmation, dispatch `magic-tester` for it — don't check it here directly

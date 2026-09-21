@@ -116,11 +116,32 @@ case "$1" in
 		fi
 
 		local sleepSeconds spawnRc nextDelaySeconds maxDelaySeconds mainLoopCliService
+		## The spawn proxy reports LAUNCHED/STATUS/EXIT_CODE on stdout. A command
+		## substitution would wait on pipe EOF and hang on any lingering child, so the
+		## documented remedy is a file plus a backgrounded command whose own PID $! is.
+		local mainLoopStatusFile="$MMDAPP/.local/temp/mdat-main-loop-status.$$" mainLoopExitCode
 		sleepSeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
 		case "$sleepSeconds" in *[!0123456789]*|'') sleepSeconds=29 ;; esac
 		maxDelaySeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_MAX_SECONDS 1200 )"
 		case "$maxDelaySeconds" in *[!0123456789]*|'') maxDelaySeconds=1200 ;; esac
 		nextDelaySeconds="$sleepSeconds"
+
+		## Team data is pulled by the loop, not by the deploy, and only when a remote is
+		## configured. The branch is passed explicitly and never left empty: clonePull
+		## compares the checkout against "${branch:-master}" AND "${branch:-main}", so an
+		## empty value deletes any checkout on a third branch and re-clones it every
+		## iteration. A configured value collapses both arms to one correct test.
+		local mainLoopDataRemote mainLoopDataBranch
+		mainLoopDataRemote="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		mainLoopDataBranch="$( DistroAgentsTools --agents-config-option magic-team --select-default TEAM_DATA_BRANCH main )"
+		[ -n "$mainLoopDataBranch" ] || mainLoopDataBranch="main"
+		local mainLoopTeamData="skipped" mainLoopTeamDataFailures=0
+
+		## Read from outside by a health check, so it is an interface rather than scratch:
+		## it lives beside the other durable command data, is world-readable, and is
+		## written atomically. Nothing secret may ever be added to it.
+		local mainLoopStateFile="$MMDAPP/.local/agents/main-loop.state"
+		local mainLoopConsecutiveFailures=0
 
 		local mainLoopInterrupted="false" mainLoopSpawnPid=""
 		## One Ctrl-C must kill whatever's in flight and stop the loop outright.
@@ -133,8 +154,54 @@ case "$1" in
 		## the console script's own claude-streaming fix.
 		trap 'mainLoopInterrupted="true" ; [ -z "$mainLoopSpawnPid" ] || kill -TERM "$mainLoopSpawnPid" 2>/dev/null' INT TERM
 
+		## Health reporting must never kill what it reports on, so every step is swallowed:
+		## set -e is in force and a failing mktemp, write, chmod or mv would end the loop.
+		## Atomic by the same recipe as the console -- chmod before the rename, because mv
+		## carries the temp's mode -- so an external reader never sees a half-written file.
+		AgentsToolsMainLoopWriteState() {
+			local stateOutcome="$1" stateTemp
+			(
+				mkdir -p "$MMDAPP/.local/agents"
+				stateTemp="$( mktemp "$mainLoopStateFile.XXXXXX" )"
+				{
+					printf 'MAIN_LOOP_LAST_OUTCOME=%s\n' "$stateOutcome"
+					printf 'MAIN_LOOP_LAST_ITERATION_UTC=%s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+					printf 'MAIN_LOOP_CONSECUTIVE_FAILURES=%s\n' "$mainLoopConsecutiveFailures"
+					printf 'MAIN_LOOP_CURRENT_DELAY_SECONDS=%s\n' "$nextDelaySeconds"
+					printf 'MAIN_LOOP_TEAM_DATA=%s\n' "$mainLoopTeamData"
+					printf 'MAIN_LOOP_TEAM_DATA_CONSECUTIVE_FAILURES=%s\n' "$mainLoopTeamDataFailures"
+				} > "$stateTemp"
+				chmod 644 "$stateTemp"
+				mv "$stateTemp" "$mainLoopStateFile"
+			) 2>/dev/null || echo "# $MDSC_CMD --intern-main-loop: could not write $mainLoopStateFile -- the loop is unaffected, the health check is blind" >&2
+		}
+
+		## Non-fatal by design: a network fault must not stop a loop that can still serve
+		## its local copy, and failing the iteration would lengthen the backoff -- making
+		## the loop do LESS work exactly when its data is stale. clonePull self-cleans a
+		## failed clone, so there is never a partial checkout to run against, and its own
+		## ConnectTimeout/BatchMode exports bound an unreachable remote to ~15-45s rather
+		## than hanging an unattended box. Persistent staleness is reported in the state
+		## file rather than logged and forgotten.
+		AgentsToolsMainLoopSyncTeamData() {
+			[ -n "$mainLoopDataRemote" ] || { mainLoopTeamData="skipped" ; return 0 ; }
+			if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/clonePull.Common" ] ; then
+				mainLoopTeamData="skipped"
+				echo "# $MDSC_CMD --intern-main-loop: team-data sync skipped -- myx.common git/clonePull unreachable" >&2
+				return 0
+			fi
+			if ( "$MYXROOT/bin/git/clonePull.Common" "$MDAT_DATA_ROOT" "$mainLoopDataRemote" "$mainLoopDataBranch" >&2 ) ; then
+				mainLoopTeamData="ok" ; mainLoopTeamDataFailures=0
+			else
+				mainLoopTeamData="stale" ; mainLoopTeamDataFailures=$(( mainLoopTeamDataFailures + 1 ))
+				echo "# $MDSC_CMD --intern-main-loop: team-data sync failed ($mainLoopTeamDataFailures in a row), continuing on the local copy" >&2
+			fi
+			return 0
+		}
+
 		## One heartbeat pass, spawn to reaped child, leaving the child's status in $spawnRc.
 		AgentsToolsMainLoopIteration() {
+			AgentsToolsMainLoopSyncTeamData
 			## The spawn runs --wait, so without these lines the caller is silent for a whole iteration.
 			echo "# $MDSC_CMD --intern-main-loop: heartbeat iteration starting" >&2
 			## Named here so the choice is visible from the output itself, not only
@@ -145,7 +212,11 @@ case "$1" in
 			## is a defensive label only, never expected to actually print.
 			mainLoopCliService="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )"
 			echo "# $MDSC_CMD --intern-main-loop: 🤖 spawning via ${mainLoopCliService:-not set}" >&2
-			cat "$mainLoopBriefFile" | DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait >&2 &
+			## Captured rather than merged into stderr: these five lines are the contract.
+			## Cost of capturing, accepted knowingly: they reach the log after the spawn
+			## ends instead of streaming live, so a long --wait goes quiet where it did not.
+			mkdir -p "$MMDAPP/.local/temp"
+			cat "$mainLoopBriefFile" | DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --wait > "$mainLoopStatusFile" &
 			mainLoopSpawnPid=$!
 			spawnRc=0
 			wait "$mainLoopSpawnPid" 2>/dev/null || spawnRc=$?
@@ -154,32 +225,65 @@ case "$1" in
 				wait "$mainLoopSpawnPid" 2>/dev/null || spawnRc=$?
 			done
 			mainLoopSpawnPid=""
+			## Nothing may sit between a wait and its spawnRc above: any diagnostic there
+			## becomes what $? reports. Everything below runs once the status is already held.
+			cat "$mainLoopStatusFile" >&2 2>/dev/null || :
+			## Required positively. Absent, empty, unreadable or truncated all read as
+			## failure -- never look for LAUNCHED=false and take its absence for success.
+			if ! grep -q '^LAUNCHED=true$' "$mainLoopStatusFile" 2>/dev/null ; then
+				[ 0 -ne "$spawnRc" ] || spawnRc=1
+			fi
+			## Two sources of truth, and the verdict is their union: the process status
+			## catches a writer that died before writing, the contract catches the rest.
+			mainLoopExitCode="$( sed -n 's/^EXIT_CODE=//p' "$mainLoopStatusFile" 2>/dev/null | tail -1 )"
+			case "$mainLoopExitCode" in
+				''|*[!0123456789]*|0) ;;
+				*) [ 0 -ne "$spawnRc" ] || spawnRc="$mainLoopExitCode" ;;
+			esac
+			rm -f "$mainLoopStatusFile"
+		}
+
+		## Every clean-stop path writes "stopped" before returning. That is the whole point
+		## of a state file over a success flag: a reader can tell a loop deliberately
+		## stopped from one wedged or crashed, which a timestamp alone cannot. The three
+		## interrupt returns below are exactly the paths a bottom-of-loop write would miss.
+		AgentsToolsMainLoopStopped() {
+			AgentsToolsMainLoopWriteState stopped
+			echo "# $MDSC_CMD --intern-main-loop: interrupted, stopping" >&2
 		}
 
 		## One look: same iteration, no sleep, no loop to leave.
 		if [ '--one' = "$mainLoopMode" ] ; then
 			AgentsToolsMainLoopIteration
 			trap - INT TERM
-			[ "$mainLoopInterrupted" = "false" ] || { echo "# $MDSC_CMD --intern-main-loop: interrupted, stopping" >&2 ; return 130 ; }
+			[ "$mainLoopInterrupted" = "false" ] || { AgentsToolsMainLoopStopped ; return 130 ; }
 			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- the spawned session's own output is above" >&2
+			[ 0 -eq "$spawnRc" ] && mainLoopConsecutiveFailures=0 || mainLoopConsecutiveFailures=1
+			[ 0 -eq "$spawnRc" ] && AgentsToolsMainLoopWriteState ok || AgentsToolsMainLoopWriteState failed
 			return "$spawnRc"
 		fi
 
 		while true ; do
 			AgentsToolsMainLoopIteration
-			[ "$mainLoopInterrupted" = "false" ] || { trap - INT TERM ; echo "# $MDSC_CMD --intern-main-loop: interrupted, stopping" >&2 ; return 130 ; }
+			[ "$mainLoopInterrupted" = "false" ] || { trap - INT TERM ; AgentsToolsMainLoopStopped ; return 130 ; }
 			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- the spawned session's own output is above" >&2
 
 			## Consecutive failures lengthen the wait; the delay is the state, so doubling stops at the ceiling and cannot overflow.
 			if [ 0 -eq "$spawnRc" ] ; then
 				nextDelaySeconds="$sleepSeconds"
-			elif [ "$nextDelaySeconds" -lt "$maxDelaySeconds" ] ; then
-				nextDelaySeconds=$(( nextDelaySeconds * 2 ))
+				mainLoopConsecutiveFailures=0
+			else
+				mainLoopConsecutiveFailures=$(( mainLoopConsecutiveFailures + 1 ))
+				[ "$nextDelaySeconds" -ge "$maxDelaySeconds" ] || nextDelaySeconds=$(( nextDelaySeconds * 2 ))
 			fi
 			[ "$nextDelaySeconds" -le "$maxDelaySeconds" ] || nextDelaySeconds="$maxDelaySeconds"
+			## Written after the delay is computed and before it is served: the reader's
+			## question is "should I have heard from you by now?", which needs the tolerance
+			## for the silence about to start, not the one already over.
+			[ 0 -eq "$spawnRc" ] && AgentsToolsMainLoopWriteState ok || AgentsToolsMainLoopWriteState failed
 			echo "# $MDSC_CMD --intern-main-loop: iteration ended, sleeping ${nextDelaySeconds}s before the next one" >&2
 			sleep "$nextDelaySeconds"
-			[ "$mainLoopInterrupted" = "false" ] || { trap - INT TERM ; echo "# $MDSC_CMD --intern-main-loop: interrupted, stopping" >&2 ; return 130 ; }
+			[ "$mainLoopInterrupted" = "false" ] || { trap - INT TERM ; AgentsToolsMainLoopStopped ; return 130 ; }
 		done
 	;;
 
