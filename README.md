@@ -114,18 +114,20 @@ See exactly which operations one member is allowed to run:
 	./DistroAgentsConsole.sh --non-interactive "list the projects that changed today"
 	echo "list the projects that changed today" | ./DistroAgentsConsole.sh --non-interactive
 
-- Known CLIs, in preference order: `copilot`, `claude`, `claude-native`, `grok`, `scaleway`. The
-  default is `copilot`.
+- Known CLIs, in preference order: `copilot`, `claude`, `claude-native`, `grok`, `scaleway`. That
+  order is the fallback, used when no CLI is configured.
 - `claude-native` runs the `claude` CLI already installed and signed in on this machine, using that
   existing login rather than any credential configured here.
 - `scaleway` needs no vendor CLI installed at all — it works against Scaleway's own API, so it runs
   on a machine where nothing else is set up. Configure it once with
   `DistroAgentsTools.fn.sh --owner-setup-scaleway`. It is one-shot only: always pass
   `--non-interactive`, and it will tell you so if you forget.
-- `--cli-auto` — pick the first known CLI that is actually installed.
+- `--cli-auto` — take the configured CLI (`SPAWN_CLI_SERVICE`), or the first installed one from the
+  order above when none is configured.
 - `--cli <name>` — start that CLI. A CLI missing from `PATH` is an error; there is no fallback.
-- No `--cli` given — try the default, then the rest of the known list, then fall back to an
-  interactive bash session.
+- No `--cli` given — the same as `--cli-auto`: the configured CLI, else the first installed one from
+  the order above, else an interactive bash session. A configured CLI missing from `PATH` is an
+  error, the same as naming it with `--cli`.
 - `--non-interactive` — one-shot, no attached terminal.
 	- Supported for `copilot`, `claude`, `claude-native` and `scaleway`.
 	- Remaining arguments are joined into one prompt.

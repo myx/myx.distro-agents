@@ -80,7 +80,7 @@ fi
 ## The caller uses emptiness as the verdict, so every path that cannot reach a
 ## decision prints a refusal rather than returning quietly.
 AgentsHarnessHooksRefusal(){
-	local hookToolName="$1" hookArgsRaw="$2" hookInputJson hookInputRc hookPayload hookMatcher hookCommand hookLine hookMatches hookRc hookDecision hookReason hookWatchPid hookRunPid
+	local hookToolName="$1" hookArgsRaw="$2" hookInputJson hookInputRc hookPayload hookMatcher hookCommand hookLine hookMatches hookRc hookDecision hookReason hookWatchPid hookRunPid hookReadOffset hookReadLimit
 	if [ -n "$harnessHooksFault" ] ; then
 		printf 'ERROR: refused before running: this harness cannot read the PreToolUse hook configuration -- %s. A hook configuration that cannot be read refuses every call rather than permitting one. Report this rather than working around it.\n' "$harnessHooksFault"
 		return 0
@@ -90,7 +90,17 @@ AgentsHarnessHooksRefusal(){
 	## The payload speaks claude's own vocabulary, because the hooks it must satisfy are
 	## written against `tool_input.file_path` and the rest of claude's argument spelling.
 	case "$hookToolName" in
-		Read)      hookInputJson='{"file_path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		## claude's own Read tool_input carries the range beside the path, so a hook here
+		## reads the same three fields. Each half is emitted only where the call carried a
+		## whole number: an absent range stays absent rather than arriving as 0, and a
+		## value that is not a number is left out rather than written as a broken literal.
+		Read)
+			hookReadOffset="$( AgentsHarnessArgValue "$hookArgsRaw" offset )"
+			hookReadLimit="$( AgentsHarnessArgValue "$hookArgsRaw" limit )"
+			AgentsHarnessWholeNumber "$hookReadOffset" || hookReadOffset=""
+			AgentsHarnessWholeNumber "$hookReadLimit" || hookReadLimit=""
+			hookInputJson='{"file_path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"'"${hookReadOffset:+,\"offset\":$hookReadOffset}${hookReadLimit:+,\"limit\":$hookReadLimit}"'}'
+		;;
 		Write)     hookInputJson='{"file_path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		Edit)      hookInputJson='{"file_path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		Glob)      hookInputJson='{"path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;

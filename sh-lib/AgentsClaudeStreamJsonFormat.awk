@@ -154,7 +154,36 @@ function printThinking(rawText,   lineCount, lineList, lineIndex, prefixText) {
 	}
 }
 
-function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName, argKey, argVal) {
+# `offset` and `limit` are JSON numbers, which extractJsonField cannot reach -- it
+# matches a quoted value. Returns "" where the key is absent, which is what keeps an
+# absent range absent instead of rendering it as 0.
+function extractJsonNumber(sourceLine, fieldKey,   needlePattern, foundAt, afterNeedle, scanIndex, scanChar, numberText) {
+	needlePattern = "\"" fieldKey "\":"
+	foundAt = index(sourceLine, needlePattern)
+	if (foundAt == 0) return ""
+	afterNeedle = substr(sourceLine, foundAt + length(needlePattern))
+	numberText = ""
+	for (scanIndex = 1; scanIndex <= length(afterNeedle); scanIndex++) {
+		scanChar = substr(afterNeedle, scanIndex, 1)
+		if (scanChar == " " && numberText == "") continue
+		if (index("0123456789", scanChar) == 0) break
+		numberText = numberText scanChar;
+	}
+	return numberText;
+}
+
+# The encoded length of a JSON string value, measured without unescaping it: a tool
+# result runs to hundreds of kilobytes, and building a second copy of one to size it
+# costs the whole stream. Returns -1 where that key carries no string at all, so a
+# size nothing could measure is never reported as a 0.
+function jsonStringLength(sourceLine, fieldKey,   needlePattern, foundAt) {
+	needlePattern = "\"" fieldKey "\":\""
+	foundAt = index(sourceLine, needlePattern)
+	if (foundAt == 0) return -1
+	return jsonStringEnd(substr(sourceLine, foundAt + length(needlePattern)));
+}
+
+function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName, argKey, argVal, rangeText, readOffset, readLimit) {
 	cursorPos = 1
 	while (match(substr(sourceLine, cursorPos), /"type":"tool_use"/)) {
 		cursorPos = cursorPos + RSTART + RLENGTH - 1
@@ -168,12 +197,22 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 		if (toolName == "") continue
 		argKey = argKeyForTool[toolName]
 		argVal = (argKey == "") ? "" : extractJsonField(blockText, argKey, 1)
+		## The range a read asked for, beside that one argument rather than inside the
+		## table above: it qualifies the path instead of competing to be it, and each
+		## half appears only where the call carried it.
+		rangeText = ""
+		if (toolName == "Read") {
+			readOffset = extractJsonNumber(blockText, "offset")
+			readLimit = extractJsonNumber(blockText, "limit")
+			if (readOffset != "") rangeText = rangeText " offset " readOffset
+			if (readLimit != "") rangeText = rangeText " limit " readLimit;
+		}
 		## A name is model output too, and an MCP server names its own tools.
 		toolName = progressLineSafe(toolName, 0)
 		if (argVal == "") {
-			printProgress("-> tool: " toolName)
+			printProgress("-> tool: " toolName rangeText)
 		} else {
-			printProgress("-> tool: " toolName "(" elideForDisplay(argVal, 110) ")")
+			printProgress("-> tool: " toolName "(" elideForDisplay(argVal, 110) ")" rangeText)
 		}
 	}
 }
@@ -201,7 +240,15 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 			printProgress(previewText == "" ? "answering..." : "answering: " progressLineSafe(previewText, 260))
 		}
 	} else if ($0 ~ /"type":"user"/) {
-		printProgress(($0 ~ /"is_error":true/) ? "<- tool result (error)" : "<- tool result")
+		## What the call actually returned, which is the half a PreToolUse hook cannot
+		## see. Encoded length of the tool_result string where the record carries one,
+		## the record's own length otherwise -- two units, named apart on the line so
+		## neither is ever read as the other.
+		resultBytes = jsonStringLength($0, "content")
+		resultText = ($0 ~ /"is_error":true/) ? "<- tool result (error)" : "<- tool result"
+		if (resultBytes < 0) resultText = resultText " record " length($0) " bytes"
+		else resultText = resultText " " resultBytes " encoded bytes"
+		printProgress(resultText)
 	} else if ($0 ~ /"type":"system"/) {
 		## Claude's stream carries several "system" subtypes (a one-time "init",
 		## and others like a periodic "thinking_tokens" token-count ping) -- only

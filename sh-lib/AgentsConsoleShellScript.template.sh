@@ -47,7 +47,7 @@ fi
 cd "$MMDAPP"
 export MMDAPP
 
-DAGC_KNOWN_CLIS="copilot claude claude-native grok scaleway"
+DAGC_KNOWN_CLIS="copilot copilot-native claude claude-native grok scaleway"
 ## claude-native is the VENDOR claude CLI under its own name. It is listed
 ## after claude deliberately: this string is also the --cli-auto scan order,
 ## and the scan takes the first PRESENT one, so a machine carrying the vendor
@@ -62,7 +62,7 @@ DAGC_KNOWN_CLIS="copilot claude claude-native grok scaleway"
 ## grok is the opposite case (a real interactive binary, not yet proven
 ## non-interactive), scaleway is proven non-interactive and categorically
 ## cannot be the other thing. See MAGIC.md.
-DAGC_NONINTERACTIVE_CLIS="copilot claude claude-native scaleway"
+DAGC_NONINTERACTIVE_CLIS="copilot copilot-native claude claude-native scaleway"
 DAGC_CLI="copilot"
 DAGC_CLI_GIVEN="false"
 DAGC_CLI_AUTO="false"
@@ -146,6 +146,7 @@ DagcCliPresent(){
 		## installed -- which --cli-auto reads as "not installed" and skips
 		## silently, indistinguishable from it really being missing.
 		claude-native) command -v claude >/dev/null 2>&1 ;;
+		copilot-native) command -v copilot >/dev/null 2>&1 ;;
 		*) command -v "$1" >/dev/null 2>&1 ;;
 	esac
 }
@@ -177,7 +178,7 @@ done
 # --cli-auto takes magic-team's own SPAWN_CLI_SERVICE where it is set, else the first installed known CLI.
 # --cli-configured takes the same setting and stops there: an unset setting means no external CLI was chosen,
 # which is a different answer from "none could be started" and is reported as rc=5 so a caller can branch on it.
-if [ "$DAGC_CLI_AUTO" = "true" ] ; then
+if [ "$DAGC_CLI_AUTO" = "true" ] || [ "$DAGC_CLI_GIVEN" != "true" ] ; then
 	DAGC_CLI_GIVEN="false"
 	## Tested, not bare: set -e would kill the console on an unreadable scope instead of falling through to the scan below.
 	DAGC_CLI_SERVICE="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )" || DAGC_CLI_SERVICE=""
@@ -190,7 +191,7 @@ if [ "$DAGC_CLI_AUTO" = "true" ] ; then
 		## workspace that has chosen NOTHING yet, so naming a single flag steers
 		## that choice by whichever name an error string happened to carry --
 		## a policy nobody decided, expressed as an example. The reader picks.
-		echo "⛔ ERROR: DistroAgentsConsole: SPAWN_CLI_SERVICE is not configured in this workspace, so no external agent CLI is selected here. rc=5 means exactly this -- nothing was chosen to start, which is distinct from rc=1 (something was chosen and could not be started). Spawn an internal agent instead, or choose one of the spawn services and select it with --apply: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-claude --apply (this package's own Claude harness), or --owner-setup-claude-native (the vendor claude CLI as installed on this machine), or --owner-setup-copilot, or --owner-setup-scaleway." >&2
+		echo "⛔ ERROR: DistroAgentsConsole: SPAWN_CLI_SERVICE is not configured in this workspace, so no external agent CLI is selected here. rc=5 means exactly this -- nothing was chosen to start, which is distinct from rc=1 (something was chosen and could not be started). Spawn an internal agent instead, or choose one of the spawn services and select it with --apply: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-claude --apply (this package's own Claude harness), or --owner-setup-claude-native (the vendor claude CLI as installed on this machine), or --owner-setup-copilot, or --owner-setup-copilot-native (the vendor copilot CLI as installed on this machine), or --owner-setup-scaleway." >&2
 		exit 5
 	else
 		for DAGC_AUTO_CLI in $DAGC_KNOWN_CLIS ; do
@@ -215,7 +216,7 @@ if [ "$DAGC_CLI_AUTO" = "true" ] ; then
 	fi
 fi
 case "$DAGC_CLI" in
-	copilot|claude|claude-native|grok|scaleway) ;;
+	copilot|copilot-native|claude|claude-native|grok|scaleway) ;;
 	*)
 		echo "⛔ ERROR: DistroAgentsConsole: unsupported --cli: $DAGC_CLI (known: $DAGC_KNOWN_CLIS)" >&2
 		exit 1
@@ -287,6 +288,7 @@ case "$DAGC_CLI" in
 	## thing it launches is still the vendor binary, spelled `claude`. This arm is
 	## what stops the exec below reaching for a `claude-native` that is on no PATH.
 	claude-native) DAGC_CLI_EXEC="claude" ;;
+	copilot-native) DAGC_CLI_EXEC="copilot" ;;
 	*)             DAGC_CLI_EXEC="$DAGC_CLI" ;;
 esac
 
@@ -305,7 +307,7 @@ fi
 ## that does not exist fails the whole spawn.
 DAGC_ACCESS_FLAG=""
 case "$DAGC_CLI" in
-	copilot|claude|claude-native) DAGC_ACCESS_FLAG="--add-dir" ;;
+	copilot|copilot-native|claude|claude-native) DAGC_ACCESS_FLAG="--add-dir" ;;
 	scaleway)                     DAGC_ACCESS_FLAG="--access-read-root" ;;
 esac
 DAGC_ACCESS_ARGS=()
@@ -365,6 +367,7 @@ case "$DAGC_CLI" in
 	## Nothing of ours: claude-native runs on the machine's own claude sign-in.
 	claude-native) DAGC_CLI_CREDENTIALS="" ;;
 	copilot)  DAGC_CLI_CREDENTIALS="COPILOT_GITHUB_TOKEN" ;;
+	copilot-native) DAGC_CLI_CREDENTIALS="" ;;
 	scaleway) DAGC_CLI_CREDENTIALS="SCALEWAY_DEEPSEEK SCALEWAY_GEMMA" ;;
 	*)        DAGC_CLI_CREDENTIALS="" ;;
 esac
@@ -386,7 +389,7 @@ done
 ## default, and it announces the id itself).
 DAGC_SESSION_ID_ARGS=()
 if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
-	if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] || [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "scaleway" ] ; then
+	if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] || [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "copilot-native" ] || [ "$DAGC_CLI" = "scaleway" ] ; then
 		DAGC_SESSION_ID_ARGS=( --session-id "$MDAT_SPAWN_SESSION_ID" )
 	else
 		echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_SESSION_ID is set but '$DAGC_CLI' has no --session-id flag -- this spawn runs without it, and its dispatch record will not join the agent's own session" >&2
@@ -507,7 +510,7 @@ if [ "$1" == "--non-interactive" ] ; then
 	## their flags are stripped -- a `-p`/`-p --` token would hit its default
 	## `*) break` arm unconsumed and be read back as literal prompt text.
 	case "$DAGC_CLI" in
-		copilot)  DAGC_NONINTERACTIVE_PERM_FLAGS="--allow-all-tools" ; DAGC_PROMPT_ARGS=( -p ) ;;
+		copilot|copilot-native)  DAGC_NONINTERACTIVE_PERM_FLAGS="--allow-all-tools" ; DAGC_PROMPT_ARGS=( -p ) ;;
 		scaleway) DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=() ;;
 		## claude-native takes NO arm here on purpose, and the reason is worth
 		## stating because the next reader will want to add one: the default IS

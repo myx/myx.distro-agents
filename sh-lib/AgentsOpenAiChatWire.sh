@@ -256,6 +256,8 @@ AgentsWireStreamConsume(){
 						usageCompletion="$( printf '%s\n' "$streamPayload" | LC_ALL=C awk -v path=usage.completion_tokens -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null )" || :
 						usageTotal="$( printf '%s\n' "$streamPayload" | LC_ALL=C awk -v path=usage.total_tokens -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null )" || :
 						[ -z "$usageTotal" ] || printf '%s %s %s\n' "$usagePrompt" "$usageCompletion" "$usageTotal" > "$harnessScratch/stream.usage"
+						## `absent` and `0` are two different answers here: no cached_tokens field at all, against a round that cached nothing.
+						[ -z "$usageTotal" ] || printf '\n%s\n' "   💾 ${harnessDim}prompt cache -- $usagePrompt prompt tokens this round, cached:${harnessOff} ${harnessValue}$( printf '%s\n' "$streamPayload" | LC_ALL=C awk -v path=usage.prompt_tokens_details.cached_tokens -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null || printf absent )${harnessOff}" >&2
 					;;
 				esac
 

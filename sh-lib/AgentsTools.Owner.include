@@ -44,16 +44,16 @@ AgentsToolsOwnerSetupBlock1Verdict(){
 	echo "Block 1:"
 	setupBlock1Printed="yes"
 	if [ -n "$setupNeedsApply" ] ; then
-		echo "Not set up yet -- Block 2's command below (it ends in --apply) closes what's fixable automatically."
+		echo "This workspace is not set up for $verdictDomain yet -- Block 2's command below (it ends in --apply) closes what's fixable automatically."
 		[ -z "$setupSetupSteps" ] || {
 			echo "It does not close these on its own:"
 			printf '%s' "$setupSetupSteps"
 		}
 	elif [ -n "$setupSetupSteps" ] ; then
-		echo "Not set up yet, and no command closes this automatically:"
+		echo "This workspace is not set up for $verdictDomain yet, and no command closes this automatically:"
 		printf '%s' "$setupSetupSteps"
 	elif [ -n "$setupBlockers" ] ; then
-		echo "Not set up yet, and no single command closes what is left."
+		echo "This workspace is not set up for $verdictDomain yet, and no single command closes what is left."
 		echo "Run --check for the detail on:$setupBlockers"
 	else
 		echo "This workspace is set up for $verdictDomain."
@@ -424,7 +424,7 @@ case "$1" in
 		## a change to the engine. A domain's subject is its own name.
 		local setupDeclareArgs=()
 		case "$setupDomain" in
-			claude|claude-native|copilot|scaleway)
+			claude|claude-native|copilot|copilot-native|scaleway)
 				## Both of these belong to the WORKSPACE rather than to this domain:
 				## which CLI the workspace starts, and what every spawned agent may
 				## reach. Declared shared, so an --apply here still takes them and
@@ -448,6 +448,7 @@ case "$1" in
 				[ "$setupDomain" != "claude" ] || setupDeclareArgs+=( --install-command "myx.common install/$setupDomain" )
 				## claude-native's subject is the vendor `claude` binary, so both name claude rather than the domain.
 				[ "$setupDomain" != "claude-native" ] || setupDeclareArgs+=( --install-probe "command -v claude" --install-command "myx.common install/claude" )
+				[ "$setupDomain" != "copilot-native" ] || setupDeclareArgs+=( --install-probe "command -v copilot" )
 				## scaleway has no real binary at all -- `command -v scaleway` would
 				## never pass on any machine -- so its own presence check is this
 				## package's own harness script shipping with the release, not PATH.
@@ -471,6 +472,7 @@ case "$1" in
 					## claude-native works off the sign-in already on this machine, so it declares no credential of ours.
 					claude-native) ;;
 					copilot)  setupDeclareArgs+=( --allow COPILOT_GITHUB_TOKEN ) ;;
+					copilot-native) ;;
 					scaleway) setupDeclareArgs+=( --allow SCALEWAY_DEEPSEEK --allow SCALEWAY_GEMMA ) ;;
 				esac
 			;;
@@ -1417,8 +1419,8 @@ case "$1" in
 				## run. Both sets are interim: which CLI gets selected is meant to
 				## come from config options that are not settled yet.
 				## Must equal DAGC_KNOWN_CLIS/DAGC_NONINTERACTIVE_CLIS in AgentsConsoleShellScript.template.sh.
-				local setupKnownClis="copilot claude claude-native grok scaleway"
-				local setupSpawnClis="copilot claude claude-native scaleway"
+				local setupKnownClis="copilot copilot-native claude claude-native grok scaleway"
+				local setupSpawnClis="copilot copilot-native claude claude-native scaleway"
 				## scaleway has no real binary at all -- `command -v scaleway` can
 				## never succeed on any machine -- so its presence here is the
 				## harness script shipping with the release, the same substitution
@@ -1435,6 +1437,7 @@ case "$1" in
 						scaleway) [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh" ] ;;
 						## Its binary is `claude`; `claude-native` is on no PATH.
 						claude-native) command -v claude >/dev/null 2>&1 ;;
+						copilot-native) command -v copilot >/dev/null 2>&1 ;;
 						*) command -v "$1" >/dev/null 2>&1 ;;
 					esac
 				}

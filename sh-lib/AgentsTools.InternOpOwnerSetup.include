@@ -279,7 +279,6 @@ case "$1" in
 				## domain owns a selection there is something to point.
 				if [ -n "$setupServiceKey" ] ; then
 					setupCommand="$setupCommand --set-as-default"
-					setupHelp="${setupHelp}    --set-as-default -- point $setupServiceKey at '$setupServiceValue', replacing whatever this workspace selects now. Left off, an existing selection is kept and only an unselected workspace is pointed here."$'\n'
 				fi
 			fi
 			if [ -n "$setupSecretPart" ] ; then
@@ -290,7 +289,7 @@ case "$1" in
 			else
 				printf '%s --apply\n' "$setupCommand"
 			fi
-			printf '%s' "$setupHelp"
+			[ "$setupMode" != "--render-missing" ] || printf '%s' "$setupHelp"
 			return 0
 		fi
 

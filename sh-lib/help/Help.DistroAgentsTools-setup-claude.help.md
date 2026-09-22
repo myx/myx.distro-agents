@@ -100,8 +100,10 @@
 
 		--check
 			Writes the per-setting detail behind the status a bare call
-			reports. Read-only. Its exit status is non-zero while the
-			domain is not set up, so it is usable as a readiness gate.
+			reports. Read-only. Its exit status is non-zero while this
+			workspace cannot spawn, so it is usable as a readiness gate
+			-- a selection pointing at another workable CLI is reported
+			and exits zero.
 
 		--apply
 			Carries the setup out non-interactively, in dependency order:

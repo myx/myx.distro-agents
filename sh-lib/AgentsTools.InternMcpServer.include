@@ -118,6 +118,11 @@ case "$1" in
 			mcpScript="$( cat "$MMDAPP/.local/temp/agent-mcp.$$/req/arg_command" 2>/dev/null || true )"
 			## Optional per-call workspace override; empty means "this server's own MMDAPP", unchanged.
 			mcpWorkspace="$( cat "$MMDAPP/.local/temp/agent-mcp.$$/req/arg_workspace" 2>/dev/null || true )"
+			## Every remaining per-request field is read HERE, before the fork: the next message wipes req/.
+			mcpTimeout="$( cat "$MMDAPP/.local/temp/agent-mcp.$$/req/arg_timeout" 2>/dev/null || true )"
+			mcpBackground="$( cat "$MMDAPP/.local/temp/agent-mcp.$$/req/arg_background" 2>/dev/null || true )"
+			mcpJob="$( cat "$MMDAPP/.local/temp/agent-mcp.$$/req/arg_job" 2>/dev/null || true )"
+			mcpAction="$( cat "$MMDAPP/.local/temp/agent-mcp.$$/req/arg_action" 2>/dev/null || true )"
 
 			AGENTS_MCP_REQ_SEQ=$(( AGENTS_MCP_REQ_SEQ + 1 ))
 			{
@@ -133,31 +138,155 @@ case "$1" in
 						AgentsMcpSendResult "$mcpId" '{}'
 					;;
 					tools/list)
-						AgentsMcpSendResult "$mcpId" '{"tools":[{"name":"execute","description":"Evaluate a shell script with its environment already established. MMDAPP is the workspace root and MDLT_ORIGIN the tooling tree, and the two may point at different trees. DistroAgentsTools, DistroAgentsContext, Agents, Require, Distro, Action and DistroSystemContext are all defined, and nothing in the caller environment is overwritten: a spec the caller already named stays. No input tier is resolved, so a script that reads a distro index names one itself, and loads the tool with Require first, because Distro resolves through PATH and this surface carries no sh-scripts directory. For example: DistroSystemContext --distro-from-source ; Require ListDistroProjects ; Distro ListDistroProjects --select-all. Defaults to this server'"'"'s own workspace; pass '"'"'workspace'"'"' to run against a different one instead: a fresh process with MMDAPP moved to it, its index caches dropped, and MDLT_ORIGIN deliberately unchanged, since that workspace own copy may be stale, broken or absent. Returns the script combined stdout and stderr, plus its exit status.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"Shell script to evaluate. May span multiple lines."},"workspace":{"type":"string","description":"Optional: absolute path of a different myx.distro workspace (one with its own .local) to run this one call against, overriding this server'"'"'s own default MMDAPP for this call only. Leave unset to use this server'"'"'s own workspace."}},"required":["command"]}}]}'
+						AgentsMcpSendResult "$mcpId" '{"tools":[{"name":"execute","description":"Evaluate a shell script with its environment already established. MMDAPP is the workspace root and MDLT_ORIGIN the tooling tree, and the two may point at different trees. DistroAgentsTools, DistroAgentsContext, Agents, Require, Distro, Action and DistroSystemContext are all defined, and nothing in the caller environment is overwritten: a spec the caller already named stays. No input tier is resolved, so a script that reads a distro index names one itself, and loads the tool with Require first, because Distro resolves through PATH and this surface carries no sh-scripts directory. For example: DistroSystemContext --distro-from-source ; Require ListDistroProjects ; Distro ListDistroProjects --select-all. Defaults to this server'"'"'s own workspace; pass '"'"'workspace'"'"' to run against a different one instead: a fresh process with MMDAPP moved to it, its index caches dropped, and MDLT_ORIGIN deliberately unchanged, since that workspace own copy may be stale, broken or absent. Returns the script combined stdout and stderr, plus its exit status.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"Shell script to evaluate. May span multiple lines."},"workspace":{"type":"string","description":"Optional: absolute path of a different myx.distro workspace (one with its own .local) to run this one call against, overriding this server'"'"'s own default MMDAPP for this call only. Leave unset to use this server'"'"'s own workspace."},"timeout":{"type":"integer","description":"Optional, foreground calls only: seconds to allow this script before it is killed (TERM, then KILL after 5s). Default 600, maximum 3600. On a timeout the call returns an error naming the limit, and the partial output is kept in a file whose path is named in that error, so a long build that stalls can still be inspected."},"background":{"type":"boolean","description":"Optional: start the script and return AT ONCE with a job id instead of waiting for it. Use this for anything long -- a build, a deploy, a sync -- so you keep working while it runs, watch its output as it appears, and can stop it. No timeout is applied to a background job, because you can see it and kill it. Poll it by calling execute again with '"'"'job'"'"' and no '"'"'command'"'"'."},"job":{"type":"integer","description":"Optional: the id of a background job started earlier by this same server. Pass it WITHOUT '"'"'command'"'"' to read whatever output has appeared since your last poll, plus whether the job is still running or its exit code. Each poll returns only what is new."},"action":{"type":"string","description":"Optional, only with '"'"'job'"'"': '"'"'kill'"'"' sends TERM to that job. Omit to poll it."}},"required":[]}}]}'
 					;;
 					tools/call)
+						mcpJobsDir="$MMDAPP/.local/temp/agent-mcp.$$/jobs"
+
 						if [ "execute" != "$mcpToolName" ] ; then
 							AgentsMcpSendError "$mcpId" -32602 "Unknown tool: $mcpToolName"
+
+						## A job named, no command: poll or kill a script already running.
+						elif [ -n "$mcpJob" ] ; then
+							case "$mcpJob" in
+								*[!0-9]*) AgentsMcpSendError "$mcpId" -32602 "job must be the numeric id returned by a background start: $mcpJob" ;;
+								*)
+									if [ ! -d "$mcpJobsDir/$mcpJob" ] ; then
+										AgentsMcpSendError "$mcpId" -32602 "no such job in this server: $mcpJob"
+									else
+										mcpJobPid="$( cat "$mcpJobsDir/$mcpJob/pid" 2>/dev/null || true )"
+										if [ "kill" = "$mcpAction" ] ; then
+											## Signals the job's whole process group: the pid is its leader, so
+											## the script and everything it forked go together. TERM to the pid
+											## alone kills the wrapper and leaves the real work running.
+											if [ -n "$mcpJobPid" ] && kill -0 "$mcpJobPid" 2>/dev/null ; then
+												kill -TERM -- "-$mcpJobPid" 2>/dev/null
+												mcpOutput="[job $mcpJob: TERM sent to process group $mcpJobPid]"
+											else
+												mcpOutput="[job $mcpJob: already finished, nothing to kill]"
+											fi
+											AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":false}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" )"
+										else
+											## Only what is NEW since the last poll, so polling a long build does
+											## not re-deliver everything each time.
+											mcpCursor="$( cat "$mcpJobsDir/$mcpJob/cursor" 2>/dev/null || true )"
+											case "$mcpCursor" in ''|*[!0-9]*) mcpCursor=0 ;; esac
+											mcpOutput="$( tail -c "+$(( mcpCursor + 1 ))" "$mcpJobsDir/$mcpJob/out" 2>/dev/null || true )"
+											wc -c < "$mcpJobsDir/$mcpJob/out" 2>/dev/null | tr -d ' ' > "$mcpJobsDir/$mcpJob/cursor"
+
+											## rc is written by the job itself, so its absence on a job no longer
+											## running is a real distinction and never reported as an exit code.
+											if [ -n "$mcpJobPid" ] && kill -0 "$mcpJobPid" 2>/dev/null ; then
+												mcpOutput="$mcpOutput"$'\n'"[job $mcpJob: still running, pid $mcpJobPid -- poll again for more]"
+											elif [ -f "$mcpJobsDir/$mcpJob/rc" ] ; then
+												mcpOutput="$mcpOutput"$'\n'"[job $mcpJob: finished, exit code $( cat "$mcpJobsDir/$mcpJob/rc" )]"
+											else
+												mcpOutput="$mcpOutput"$'\n'"[job $mcpJob: stopped before it could finish -- killed, or died without recording an exit code]"
+											fi
+											[ -n "$mcpOutput" ] || mcpOutput='(no new output)'
+											AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":false}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" )"
+										fi
+									fi
+								;;
+							esac
+
 						elif [ -z "$mcpScript" ] ; then
-							AgentsMcpSendError "$mcpId" -32602 "execute requires a non-empty 'command' argument"
+							AgentsMcpSendError "$mcpId" -32602 "execute requires a non-empty 'command' argument, or a 'job' id to poll or kill"
 						elif [ -n "$mcpWorkspace" ] && [ ! -d "$mcpWorkspace/.local" ] ; then
 							AgentsMcpSendError "$mcpId" -32602 "workspace has no .local, not a set-up myx.distro workspace: $mcpWorkspace"
-						else
-							mcpExitCode=0
+						## Starts and returns at once, with a job id to poll and to kill by.
+						## No timeout is imposed: a bound is what a foreground call needs,
+						## because nothing can watch it, and a job the caller can see needs none.
+						elif [ "true" = "$mcpBackground" ] ; then
+							mcpJobId="$AGENTS_MCP_REQ_SEQ"
+							mkdir -p "$mcpJobsDir/$mcpJobId"
+							: > "$mcpJobsDir/$mcpJobId/out"
+							printf '0\n' > "$mcpJobsDir/$mcpJobId/cursor"
+
+							## set -m puts the job in a process group of its own, so the recorded
+							## $! is its leader and one signal reaches everything the script forked.
+							## The whole pipeline goes inside the subshell for that: with a bare
+							## pipeline, $! is its LAST process and the group id is its first.
+							set -m
 							if [ -n "$mcpWorkspace" ] ; then
-								printf '%s\n' "$mcpScript" | ( exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) > "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ" 2>&1 || mcpExitCode=$?
+								(
+									mcpJobRc=0
+									printf '%s\n' "$mcpScript" | ( exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) >> "$mcpJobsDir/$mcpJobId/out" 2>&1 || mcpJobRc=$?
+									printf '%s\n' "$mcpJobRc" > "$mcpJobsDir/$mcpJobId/rc"
+								) &
 							else
-								printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute > "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ" 2>&1 || mcpExitCode=$?
+								(
+									mcpJobRc=0
+									printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute >> "$mcpJobsDir/$mcpJobId/out" 2>&1 || mcpJobRc=$?
+									printf '%s\n' "$mcpJobRc" > "$mcpJobsDir/$mcpJobId/rc"
+								) &
 							fi
+							printf '%s\n' "$!" > "$mcpJobsDir/$mcpJobId/pid"
+							set +m
+
+							mcpOutput="[job $mcpJobId started, pid $( cat "$mcpJobsDir/$mcpJobId/pid" )]"$'\n'"[poll it:  execute with job=$mcpJobId]"$'\n'"[stop it:  execute with job=$mcpJobId action=kill]"$'\n'"[log file: $mcpJobsDir/$mcpJobId/out]"
+							AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":false}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" )"
+
+						else
+							## Seconds. A non-numeric or absent value takes the default rather than
+							## failing the call, so a caller that never knew this argument exists
+							## keeps working; the cap stops one call holding the server for an hour.
+							case "$mcpTimeout" in
+								''|*[!0-9]*) mcpTimeout=600 ;;
+								*) [ "$mcpTimeout" -ge 1 ] 2>/dev/null || mcpTimeout=600 ;;
+							esac
+							[ "$mcpTimeout" -le 3600 ] || mcpTimeout=3600
+
+							mcpOutFile="$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ"
+							mcpKillFile="$MMDAPP/.local/temp/agent-mcp.$$/killed.$AGENTS_MCP_REQ_SEQ"
+							rm -f "$mcpKillFile"
+
+							## Both forks run under set -m, each in a process group of its own, so
+							## one signal reaches the whole tree and the watchdog's own sleep dies
+							## with it. Pipeline inside the subshell so $! is the group leader.
+							mcpExitCode=0
+							set -m
+							if [ -n "$mcpWorkspace" ] ; then
+								( printf '%s\n' "$mcpScript" | ( exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) ) > "$mcpOutFile" 2>&1 &
+							else
+								( printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute ) > "$mcpOutFile" 2>&1 &
+							fi
+							mcpCmdPid=$!
+
+							## Marks the kill before sending it, so the wait below tells a timeout
+							## from the script's own non-zero exit; TERM first for a script with
+							## traps of its own, KILL after a grace period for one that ignores it.
+							(
+								sleep "$mcpTimeout"
+								kill -0 "$mcpCmdPid" 2>/dev/null || exit 0
+								: > "$mcpKillFile"
+								kill -TERM -- "-$mcpCmdPid" 2>/dev/null
+								sleep 5
+								kill -KILL -- "-$mcpCmdPid" 2>/dev/null
+							) &
+							mcpWatchPid=$!
+							set +m
+
+							wait "$mcpCmdPid" || mcpExitCode=$?
+							kill -TERM -- "-$mcpWatchPid" 2>/dev/null
+							wait "$mcpWatchPid" 2>/dev/null
 							set +e
 
-							mcpOutput="$( < "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ" )"
-							rm -f "$MMDAPP/.local/temp/agent-mcp.$$/out.$AGENTS_MCP_REQ_SEQ"
+							mcpOutput="$( < "$mcpOutFile" )"
 
 							mcpIsError='false'
-							if [ 0 -ne "$mcpExitCode" ] ; then
+							if [ -f "$mcpKillFile" ] ; then
+								## The partial output is kept and its path named: a timeout is when
+								## the caller most needs to see how far the command got.
+								mcpIsError='true'
+								mcpOutput="$mcpOutput"$'\n'"[timed out after ${mcpTimeout}s and was killed; partial output above is kept at: $mcpOutFile]"
+								rm -f "$mcpKillFile"
+							elif [ 0 -ne "$mcpExitCode" ] ; then
 								mcpIsError='true'
 								mcpOutput="$mcpOutput"$'\n'"[exit code: $mcpExitCode]"
+								rm -f "$mcpOutFile"
+							else
+								rm -f "$mcpOutFile"
 							fi
 							[ -n "$mcpOutput" ] || mcpOutput='(no output)'
 
