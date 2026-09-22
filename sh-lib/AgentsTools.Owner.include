@@ -907,6 +907,24 @@ case "$1" in
 						echo "        or sh-lib/AgentsUniversalHarness.sh -- never the assertion"
 						setupRc=1
 					fi
+
+					## The COPILOT LEG, which none of the checks above touches: the behaviour
+					## checks there drive the core under a rig's own stub on a .invalid host,
+					## and this one drives it under the REAL leaf, which exports the real
+					## endpoint. It is offline on one guarantee rather than two, so its fake
+					## curl is load-bearing rather than defensive -- MAGIC.md carries the rest.
+					local setupCopilotLegOut="" setupCopilotLegRc=0
+					setupCopilotLegOut="$( bash "$setupLibDir/AgentsHarnessCopilotLegCheck.sh" 2>&1 )" || setupCopilotLegRc=$?
+					printf '%s\n' "$setupCopilotLegOut"
+					if [ "$setupCopilotLegRc" != "0" ] ; then
+						echo "  warn: the Copilot leg no longer carries its own declarations to the"
+						echo "        wire, or the core no longer behaves under them -- each failed"
+						echo "        assertion above names what it wanted and what it got instead"
+						echo "  fix:  repair the leg in sh-lib/AgentsCopilotHarness.sh, or the"
+						echo "        behaviour in sh-lib/AgentsUniversalHarness.sh -- never the"
+						echo "        assertion"
+						setupRc=1
+					fi
 				fi
 				DistroAgentsTools --intern-op-check-configs magic-team \
 					--optional "SCALEWAY_DEEPSEEK:<key>" --expect-secret SCALEWAY_DEEPSEEK \

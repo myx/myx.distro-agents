@@ -12,7 +12,7 @@ Team-owned notes for the magic-* team.
 
 - Single-dispatcher convention, shared with every sibling `Distro*Tools`/`Distro*Command` script: exactly one top-level function, one `case "$1" in ... esac`. New operations go inline in that `case`.
 - Never a separate `DistroAgentsTools<OpName>` function per operation. Such a function tends to call `DistroAgentsTools` assuming it exists as a sibling, which holds only because the file happens to define it — not because the pattern is sound.
-- Inline the logic in the operation's own `case` arm, especially for single-liners. A helper shared by several arms of one family goes in that family's own arm, not at file scope — see below. `AgentsToolsAssertBareName` is at file scope because it is genuinely general; that is the bar, and it is not licence to add more.
+- Inline the logic in the operation's own `case` arm, especially for single-liners. A helper shared by several arms of one family goes in that family's own arm, not at file scope — see below. `AgentsToolsAssertBareName` is defined in `AgentsContext.UseAgentsTools.include`, which every entry-point function sources, because it is genuinely general; that is the bar, and it is not licence to add more.
 
 ## Operation contracts worth knowing before calling
 
@@ -1532,7 +1532,7 @@ The harness declares twenty tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bas
 
 ## The harness instruments, and what each one proves
 
-Three of the seven instruments read the harness's sources and prove coherence; the other four execute it
+Three of the eight instruments read the harness's sources and prove coherence; the other five execute it
 and prove behaviour, and nothing else in this package does. Each carries its own negative control, because
 a checker reports green on its own counterexample as readily as on a clean subject and nothing in a
 green report tells the two apart — so every red recipe below is one that has been run, not one that
@@ -1610,7 +1610,7 @@ returning non-zero on a diagnostic finding.
   - Does not prove: that any tool honours the verdict. It calls the two functions directly, so a tool
     that ignored `harnessResolvedPath` would pass this untouched.
   - Invoked: `./sh-lib/AgentsHarnessContainmentCheck.sh`. **It is wired into nothing** — the setup arm
-    above runs the other five and not this one, so it is reached only by hand.
+    above runs every other instrument and not this one, so it is reached only by hand.
   - Its red: stop canonicalising the roots in a copy's `AgentsHarnessResolveDir`. Measured — every
     must-allow case turns REFUSE while every must-refuse case still passes, which is what makes carrying
     both polarities load-bearing rather than decorative.
@@ -1725,3 +1725,52 @@ returning non-zero on a diagnostic finding.
     600-second bound, opposite on the marker, the rc and the diagnostic; the `--wait-since-utime` scenario
     runs the flag and its omission over one unchanging file, so each leg is the other's control; and the
     listing scenario requires a kind nothing defines, `pigeon`, to be absent from what it offers.
+
+- **`sh-lib/AgentsHarnessCopilotLegCheck.sh` — the Copilot leg, run rather than read.**
+  - Proves: that `sh-lib/AgentsCopilotHarness.sh`'s own declarations reach the wire and that the core
+    behaves under them — the endpoint in argv; the provider name in the diagnostics and in what the model
+    is told; the tier-to-model mapping both ways; the bearer alone on curl's stdin as one line and
+    nowhere in argv; the credential gate refusing under the name the leaf both declares and reads; a tool
+    result carried back still under that model and that bearer; containment both ways, the refused write
+    checked off the filesystem rather than off the message; a complete non-streaming error body costing
+    exactly one request on a leaf declaring no exchange, its refusal naming the host and the code; a hook
+    denying a write; and the core's context floor governing a leaf that declares none. The provider name
+    and both model ids are READ from the leaf at run time, out of the environment it exports into the
+    request process, so a rename of any of them cannot report a defect that is not one; the endpoint, the
+    host and the credential name are PINNED, a wrong one there being the defect rather than a rename.
+  - Does not prove: anything about the live endpoint — not whether either model id is accepted under its
+    spelling, not whether the stored credential is accepted as the bearer with no exchange, not that
+    usage rides the stream (the rig cans it), not the real error-body shape or the status behind it
+    (scenario D's body is invented rather than captured, in the shape the adapter's error reader parses),
+    and not that Copilot speaks the OpenAI chat-completions wire at all, every canned stream being
+    OpenAI-shaped by construction — so the adapter is proven against itself, which this file holds open
+    already. Nor that the floor suits these models — proven in force, not proven right. Nor, and this is
+    the price of reading rather than pinning, that any value it reads is CORRECT: a read value is proven
+    to arrive unchanged and no further, so the provider name and both model ids are unverified here by
+    construction. The credential-exchange path is not exercised at all: this leaf declares none, and
+    green says nothing about it.
+  - Offline by construction, and it refuses rather than reports where it cannot be: the fake `curl` is
+    re-checked first on PATH before every scenario, refuses to run outside one, and logs every request
+    for the closing scenario to read back; a scenario issuing none stops the run short of a PASS line;
+    each scenario's own `MMDAPP` is where `.claude/settings.json` is read; an EXIT trap takes the fixture.
+    It alone cannot ALSO sit behind a `.invalid` host, the leaf's real endpoint being the subject, so
+    `COPILOT_GITHUB_TOKEN` is forced to a literal before the leaf is invoked — which is what stops a
+    machine holding the real token from ever having it enter the process.
+  - Invoked: `bash sh-lib/AgentsHarnessCopilotLegCheck.sh`, on the same terms as the three behaviour
+    checks above. Green is `HARNESS_COPILOT_LEG: OK (7 scenarios, 57 assertions, offline)`.
+  - Its red, all measured against a changed copy of `sh-lib`, the package untouched:
+    - The leaf repointed at a wrong endpoint and host. Scenario A 15 of 16, the error-body one 4 of 5,
+      the closing one 4 of 5 printing the wrong URL against the pinned one; 3 of 57, exit 1. The same
+      copy ran green at 57 of 57 before the endpoint was pinned, which is why it is pinned.
+    - The bearer moved from curl's stdin into its argv. Scenario A 13 of 16, the tool-round one 5 of 6,
+      the closing one 4 of 5 with all nineteen requests carrying another bearer; 5 of 57, exit 1.
+    - `AgentsHarnessToolWrite`'s guard checked against the read-root set. Containment 7 of 9, the refused
+      write on disk; 2 of 57, exit 1.
+  - Its negative controls sit inside the scenarios: the hook one removes the settings file and requires
+    every probe the other way, the file existing included; the context one runs a round under the floor
+    and one at it; containment carries an allowed read and write beside its two refusals; the tier one
+    requires the light id present and the main absent in one body. The reading rule has its own,
+    measured: renaming both model ids in a copied leaf leaves it green at 57 of 57, while pinning the
+    model in the copied wire adapter fails 3 of 57. Two of the 57 are standing guards rather than
+    results, and say so in their own assertion text — both require that no bearer exchange ran, and
+    nothing in this package declares one, so neither can fail until a leaf does.

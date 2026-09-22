@@ -356,11 +356,22 @@ AgentsWireSynthesizeResponse(){
 }
 
 ## The body decides success or failure, never curl's exit status, which succeeds on a
-## 4xx error body. This wire's error shape is flat: {"status":n,"error":"CODE","message":"..."}.
+## 4xx error body. Two envelopes reach this wire, both MEASURED unauthenticated: flat,
+## {"status":n,"error":"CODE","message":"..."}, and nested, {"error":{"code":...,"type":...}}.
+## A success body carries no top-level `error` at all, which is what keeps the two apart.
 ## Prints the code and returns: 0 an error body, 3 the success case, anything else unparseable.
 AgentsWireErrorCode(){
 	local errRc=0 errCode
 	errCode="$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path=error -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null )" || errRc=$?
+	if [ "$errRc" = "3" ] ; then
+		errRc=0
+		errCode="$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path=error.code -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null )" || errRc=$?
+		## A nested envelope need not carry `code`, and OpenAI's own sends it as null.
+		if [ -z "$errCode" ] ; then
+			errRc=0
+			errCode="$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path=error.type -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null )" || errRc=$?
+		fi
+	fi
 	printf '%s' "$errCode"
 	return "$errRc"
 }

@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## Sourced from inside an entry-point function: that is what puts `local` into
+## the caller's own scope and reads the caller's own "$@", the same shape as
+## SystemContext.UseStandardOptions.include. The caller sets its own MDSC_CMD first.
+
+if ! type AgentsToolsAssertBareName >/dev/null 2>&1 ; then
+	## The bare-name gate for the whole family: one path segment of letters, digits, '.', '_', '-'.
+	## Reports and returns 1, never exits. Never a [a-z] range -- bracket ranges are collation-dependent.
+	AgentsToolsAssertBareName(){
+		local nameValue="$1"
+		local nameLabel="$2"
+		local nameContext="$3"
+		case "$nameValue" in
+			''|.|..|-*|*/*)
+				echo "$MDSC_CMD: $nameContext: ❗ ASSERT: $nameLabel must be a bare name -- one path segment of letters, digits, '.', '_' or '-', not '.'/'..', no leading '-', no '/': $nameValue" >&2
+				return 1
+			;;
+		esac
+		local nameRest="$nameValue" nameChar
+		while [ -n "$nameRest" ] ; do
+			nameChar="${nameRest%"${nameRest#?}"}"
+			nameRest="${nameRest#?}"
+			case "$nameChar" in
+				a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+				A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+				0|1|2|3|4|5|6|7|8|9) ;;
+				-|_|.) ;;
+				*)
+					echo "$MDSC_CMD: $nameContext: ❗ ASSERT: $nameLabel contains a character outside the allowed set (letters, digits, '.', '_', '-'): $nameValue" >&2
+					return 1
+				;;
+			esac
+		done
+		return 0
+	}
+fi
+
+## Guarded like MDAT_SKILLSET_ROOT below: identical behaviour when set, and
+## no unbound-variable death for a caller that runs under `set -u`. No
+## shipped caller does today -- this is idiom, not a fix for a live fault.
+[ -z "${MDSC_DETAIL:-}" ] || echo "> $MDSC_CMD $@" >&2
+set -e
+
+## The skillset root, resolved once here for the same reason MDAT_DATA_ROOT
+## is: the machine's own member set, this workspace's where only
+## --install-skillset-symlinks --scope workspace put one. A SKILL.md decides
+## it, because --owner-workspace-upsert mkdir -p's $HOME/.claude/skills for
+## its own registry, so an empty one exists where there is no member set.
+if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
+	local skillsetMember
+	MDAT_SKILLSET_ROOT="$MMDAPP/.claude/skills"
+	for skillsetMember in "$HOME/.claude/skills"/*/ ; do
+		[ -f "$skillsetMember/SKILL.md" ] || continue
+		MDAT_SKILLSET_ROOT="$HOME/.claude/skills"
+		break
+	done
+	export MDAT_SKILLSET_ROOT
+fi
+
+if [ "$1" != "--agents-config-option" ] ; then
+	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
+		local teamDataDir
+		teamDataDir="$(
+			set -- --agents-config-option magic-coordinator --select TEAM_DATA_DIRECTORY
+			. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+		)" || teamDataDir=""
+		if [ -n "$teamDataDir" ] ; then
+			case "$teamDataDir" in
+				/*) MDAT_DATA_ROOT="$teamDataDir" ;;
+				*)
+					if [ -d "$MMDAPP/$teamDataDir" ] ; then
+						MDAT_DATA_ROOT="$MMDAPP/$teamDataDir"
+					elif [ -d "$MMDAPP/source/$teamDataDir" ] ; then
+						MDAT_DATA_ROOT="$MMDAPP/source/$teamDataDir"
+					else
+						MDAT_DATA_ROOT="$MMDAPP/$teamDataDir"
+					fi
+				;;
+			esac
+			export MDAT_DATA_ROOT
+		fi
+	fi
+fi
