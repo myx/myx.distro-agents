@@ -923,6 +923,23 @@ is policy, and it stays in the core.
   `sh-lib/Agents${HARNESS_WIRE}Wire.sh`. Scaleway's stub says `OpenAiChat` and resolves to
   `AgentsOpenAiChatWire.sh`; Anthropic's says `AnthropicMessages` and resolves to a file that does not
   exist yet, which is that stub's own declared gap.
+- **`HARNESS_TOKEN_EXCHANGE` names an exchange adapter the way `HARNESS_WIRE` names a wire, and is
+  optional.** Whether a credential is spent directly or traded first changes with the vendor, so it is a
+  specific. Empty or unset means the stored credential is itself the bearer, and the no-exchange path
+  runs no new code. Set, it is a bare name resolving to `sh-lib/Agents<Name>Exchange.sh`, sourced like a
+  wire. What that file owes — its one function, what reaches it and what it prints — is stated at the
+  core's own source site, beside the line that sources it. No adapter ships today.
+- **An auth-class refusal is the one complete error body the stream loop retries, and only on a stub
+  that exchanges.** A complete, non-streaming error body is otherwise never a disconnect and is never
+  retried. Where an exchange is declared, such a body drops the cached bearer and re-exchanges on the
+  next attempt, inside the existing three-attempt bound: on that path, only a bearer that has died
+  mid-run produces it.
+- **`HARNESS_EXTRA_HEADERS` carries complete header lines, one per line, and is optional.** Empty or
+  unset adds nothing. Each line is checked at startup rather than at the first request — non-empty, a
+  colon, no carriage return — because curl sends a header line verbatim, so a malformed one returns a
+  refusal that reads exactly like an auth failure. The lines ride the existing `-H @-` stdin channel, so
+  nothing moves to argv, and the core adds `Content-type` itself without checking whether a declared
+  line repeats it.
 - **A wire is shared by every provider speaking it, which is why it is not a provider file.** Scaleway,
   self-hosted DeepSeek and (as documented rather than confirmed on the wire) Copilot all speak the
   OpenAI chat-completions shape. A copy of the adapter per provider would reintroduce, at a coarser
@@ -932,8 +949,9 @@ is policy, and it stays in the core.
   selector — is separate, unbuilt, and deliberately out of scope. If a selector starts being written in
   a stub, that is the signal to stop, not to continue.
 
-**Where the reasoning lives, rather than restated here.** Three things are documented at their own site,
-and that site is the source rather than this file:
+**Where the reasoning lives, rather than restated here.** Four things are documented at their own site,
+and that site is the source rather than this file. Each is the provenance of a declared value rather
+than an explanation of code, which is what earns it more room there than a comment usually gets:
 
 - **The tier table and its justification** live in `AgentsScalewayHarness.sh`, carried over with their
   evidence under the heading **"THESE MODEL NAMES ARE OBSERVED, NOT DOCUMENTED"**. The table is in the
@@ -950,12 +968,39 @@ and that site is the source rather than this file:
   and its own header states plainly that adopting it here is SETTING a convention for a new file kind
   rather than following an established one — `sh-lib` holds five `.sh` files and four are this split's
   own output, so "it matches its siblings" is close to circular.
+- **The Copilot stub's model ids, and why both its optional knobs are empty**, live in
+  `AgentsCopilotHarness.sh` — the ids under the heading **"THESE MODEL IDS ARE ANCHORED BY ELIMINATION,
+  NOT BY MEASURED CAPABILITY"**, the knobs in the comment above them. Same reason as the tier table:
+  nothing else records where a declared value came from, so it is kept beside the value.
 
 **A second stub exists and does not run.** `AgentsAnthropicStub.sh` is structure with named gaps: it
 refuses to run and lists them. It is deliberately non-working because no field name in it could be
 confirmed on the wire, documentation-derived names are already wrong on one model in use, and lifting
 names from a neighbouring parser was refused as a shortcut. Honest and non-working beats plausible and
 wrong, and its constraints block records what the missing adapter has to satisfy.
+
+**A third stub exists, is complete, and has never been exercised.** `AgentsCopilotHarness.sh` declares
+GitHub Copilot's endpoint, host, wire, credential name and both tier models, and declares both optional
+knobs above as empty. Nothing in it refuses to run, and no request has been made to
+`api.githubcopilot.com` from this package, so every claim about what that endpoint accepts is still
+documentation-derived.
+
+- **Whether an exchange is needed here is open, and one observation settles it.** GitHub's published
+  extension sample calls this endpoint with a bearer and a content type and nothing else, and performs
+  no exchange — but an extension is handed a token its platform mints for that request, and a stored
+  `COPILOT_GITHUB_TOKEN` is a different credential. The sample and a requires-an-exchange premise can
+  both hold, of two different tokens, so the empty declaration is the starting position rather than a
+  finding. One real round with the stored token decides it: an auth-class refusal means an exchange is
+  required here, a completed round means it is not.
+- **It sets no context budget.** `HARNESS_MODEL_CONTEXT_TOKENS` is absent, so the core's own floor
+  applies. Deliberate, for want of a published window for these models; whether that floor suits them
+  is unsettled.
+- **The console does not route `copilot` to it.** `DAGC_CLI_EXEC` maps `copilot` to the vendor binary
+  of that name, and nothing resolves the stub. Routing is a separate change, held until this one is
+  confirmed working against the endpoint.
+
+That Copilot speaks the OpenAI chat-completions shape **as documented rather than confirmed on the
+wire** is not changed by this stub existing, and stands until a real round confirms it.
 
 ## `AgentsScalewayHarness.sh` — the Scaleway stub, and why scaleway is not a fourth CLI
 

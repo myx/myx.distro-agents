@@ -171,6 +171,54 @@ while [ -n "$harnessWireRest" ] ; do
 	esac
 done
 
+## Names a credential-exchange adapter the way HARNESS_WIRE names a wire; empty or unset
+## means the stored credential is itself the bearer. Same bare-name gate, same reason.
+harnessTokenExchange="${HARNESS_TOKEN_EXCHANGE:-}"
+case "$harnessTokenExchange" in
+	.|..)
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: HARNESS_TOKEN_EXCHANGE is not a bare exchange name: $harnessTokenExchange" >&2
+		exit 1
+	;;
+esac
+harnessExchangeRest="$harnessTokenExchange"
+while [ -n "$harnessExchangeRest" ] ; do
+	harnessExchangeChar="${harnessExchangeRest%"${harnessExchangeRest#?}"}"
+	harnessExchangeRest="${harnessExchangeRest#?}"
+	case "$harnessExchangeChar" in
+		a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+		A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+		0|1|2|3|4|5|6|7|8|9) ;;
+		*)
+			echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: HARNESS_TOKEN_EXCHANGE is not a bare exchange name: $harnessTokenExchange" >&2
+			exit 1
+		;;
+	esac
+done
+
+## Complete header lines, one per line, empty meaning no change. Checked here rather than
+## at the first request: curl sends a header line verbatim, so a malformed one becomes an
+## endpoint refusal that reads exactly like an auth failure.
+harnessExtraHeaders="${HARNESS_EXTRA_HEADERS:-}"
+if [ -n "$harnessExtraHeaders" ] ; then
+	while IFS= read -r harnessHeaderLine ; do
+		case "$harnessHeaderLine" in
+			''|*$'\r'*)
+				echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: HARNESS_EXTRA_HEADERS holds an empty line, or one carrying a carriage return -- a trailing newline on the declared value leaves an empty last line, and is the usual cause" >&2
+				exit 1
+			;;
+			:*)
+				echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: HARNESS_EXTRA_HEADERS holds a line whose field name is empty: $harnessHeaderLine" >&2
+				exit 1
+			;;
+			*:*) ;;
+			*)
+				echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: HARNESS_EXTRA_HEADERS holds a line with no colon: $harnessHeaderLine" >&2
+				exit 1
+			;;
+		esac
+	done <<< "$harnessExtraHeaders"
+fi
+
 harnessTier="normal"
 harnessAccessRoots=()
 harnessWriteAccessRoots=()
@@ -1739,6 +1787,58 @@ if [ ! -f "$harnessWireFile" ] ; then
 fi
 . "$harnessWireFile"
 
+## The bearer the auth header is built from. With no exchange declared it is the stored
+## credential, seeded once here, and no exchange code runs anywhere in this process.
+harnessBearer="$harnessToken"
+if [ -n "$harnessTokenExchange" ] ; then
+	harnessExchangeFile="$harnessHere/Agents${harnessTokenExchange}Exchange.sh"
+	if [ ! -f "$harnessExchangeFile" ] ; then
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: HARNESS_TOKEN_EXCHANGE=$harnessTokenExchange names no adapter in this package: $harnessExchangeFile" >&2
+		exit 1
+	fi
+	## Sourced like the wire. AgentsExchangeBearer takes the stored credential on stdin --
+	## the reason the token reaches curl that way -- and prints one line: the bearer, a
+	## space, and its absolute expiry epoch, or a zero where it cannot say.
+	. "$harnessExchangeFile"
+	## A name is not a function: sourcing proves the file is there, never that it defines this.
+	if [ "$( type -t AgentsExchangeBearer 2>/dev/null )" != function ] ; then
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: $harnessExchangeFile defines no AgentsExchangeBearer -- the one function an exchange adapter owes" >&2
+		exit 1
+	fi
+	harnessBearer=""
+	harnessBearerGoodUntil=0
+fi
+
+## Exchanges only where one is declared, and only where the bearer is absent or its margin
+## is spent -- which is why the header below reads one variable in both cases.
+AgentsHarnessRefreshBearer(){
+	[ -n "$harnessTokenExchange" ] || return 0
+	local exchangeNow="$( date +%s )"
+	[ -z "$harnessBearer" ] || [ "$exchangeNow" -ge "$harnessBearerGoodUntil" ] || return 0
+	local exchangeOut="$( printf '%s' "$harnessToken" | AgentsExchangeBearer )"
+	harnessBearer="${exchangeOut%% *}"
+	if [ -z "$harnessBearer" ] ; then
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: Agents${harnessTokenExchange}Exchange.sh returned no bearer for the credential named in $harnessCredentialNames -- this leg cannot authenticate" >&2
+		exit 1
+	fi
+	## Two fields or none: a single field is the bearer, and its expiry is then unknown.
+	local exchangeExpiry=0
+	case "$exchangeOut" in *' '*) exchangeExpiry="${exchangeOut#* }" ;; esac
+	AgentsHarnessWholeNumber "$exchangeExpiry" || exchangeExpiry=0
+	## Both numbers below are chosen policy values and not derived ones -- nothing here
+	## bounds a single stream, that curl carrying no --max-time -- so tuning either is a
+	## policy decision rather than a correction.
+	[ "$exchangeExpiry" != 0 ] || exchangeExpiry=$(( exchangeNow + 1800 ))
+	harnessBearerGoodUntil=$(( exchangeExpiry - 300 ))
+	## A lifetime shorter than the margin cannot be margined, and absorbing that silently
+	## re-exchanges on every attempt for the rest of the run.
+	if [ "$harnessBearerGoodUntil" -le "$exchangeNow" ] ; then
+		echo "${harnessWarn}⚠️  bearer lifetime is under the 300s margin${harnessOff} ${harnessDim}-- Agents${harnessTokenExchange}Exchange.sh returned an expiry $(( exchangeExpiry - exchangeNow ))s away; using it unmargined, which is a mis-parsed TTL or a very short-lived token${harnessOff}" >&2
+		harnessBearerGoodUntil="$exchangeExpiry"
+	fi
+	printf '%s\n' "${harnessDim}🔑 bearer exchanged via Agents${harnessTokenExchange}Exchange.sh -- $(( harnessBearerGoodUntil - exchangeNow ))s until the next exchange${harnessOff}" >&2
+}
+
 ## Sourced the same way, and after the wire so its refusals can name this run's tools.
 ## Absent, this refuses to start: a harness that cannot consult its hooks must not run
 ## unguarded, which is the same rule its hooks are held to.
@@ -1874,9 +1974,6 @@ while : ; do
 
 	harnessBody="$( AgentsWireRequestBody )"
 
-	## Token on curl's stdin, never argv.
-	harnessAuthHeader="Authorization: Bearer $harnessToken"
-
 	## Every attempt starts from a clean accumulator, and a retry here never touches
 	## $harnessRound above.
 	harnessStreamAttempt=0
@@ -1886,6 +1983,13 @@ while : ; do
 		harnessStreamAttempt=$(( harnessStreamAttempt + 1 ))
 		rm -f "$harnessScratch"/stream.* 2>/dev/null
 		: > "$harnessScratch/stream.content"
+
+		## Token on curl's stdin, never argv, and any declared extra header rides that same
+		## channel, so argv is the same length whatever a leaf declares. Built per attempt
+		## because the auth carve-out below re-exchanges the bearer and retries.
+		AgentsHarnessRefreshBearer
+		harnessAuthHeader="Authorization: Bearer $harnessBearer"
+		[ -z "$harnessExtraHeaders" ] || harnessAuthHeader="$harnessAuthHeader"$'\n'"$harnessExtraHeaders"
 
 		## Nothing else may sit in this pipe or block buffering returns.
 		## set +e brackets this one statement so ${PIPESTATUS[0]} is curl's, not the loop's.
@@ -1903,9 +2007,22 @@ while : ; do
 			break
 		fi
 
-		## A complete, non-streaming error body is not a disconnect: no retry.
+		## A complete, non-streaming error body is not a disconnect: no retry. The one
+		## exception is an auth-class refusal on a leg that exchanges its bearer, which is
+		## what a bearer dying mid-round looks like from here. No exchange, no carve-out.
 		if [ -s "$harnessScratch/stream.rawother" ] && [ ! -f "$harnessScratch/stream.done" ] ; then
-			break
+			if [ -z "$harnessTokenExchange" ] || [ "$harnessStreamAttempt" -ge "$harnessStreamMaxAttempts" ] ; then
+				break
+			fi
+			## Read off the refusal body: this curl hands back no HTTP status to read.
+			## Each spelling drops its own leading letter, so one pattern matches both cases.
+			case "$( cat "$harnessScratch/stream.rawother" )" in
+				*401*|*nauthorized*|*nvalid_token*|*xpired*) ;;
+				*) break ;;
+			esac
+			harnessBearer=""
+			echo "${harnessWarn}🔁 RETRY:${harnessOff} stream attempt $harnessStreamAttempt/$harnessStreamMaxAttempts was refused as an auth failure -- dropping the cached bearer, re-exchanging and retrying the whole round" >&2
+			continue
 		fi
 
 		echo "${harnessWarn}🔁 RETRY:${harnessOff} stream attempt $harnessStreamAttempt/$harnessStreamMaxAttempts disconnected mid-stream (curl rc=$harnessCurlRc$( [ ! -s "$harnessScratch/stream.curlerr" ] || printf ': %s' "$( cat "$harnessScratch/stream.curlerr" )" )) -- discarding partial output and retrying the whole round" >&2
