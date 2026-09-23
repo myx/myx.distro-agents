@@ -113,14 +113,32 @@ Measured on both sides, not argued:
 
 - **Send**: `chat.postMessage` accepts a **user id** as its `channel` and resolves the DM itself. No
   explicit conversation-open call is needed.
-- **Read**: `conversations.history` with a **user id** returns `channel_not_found`. Only the **DM id**
-  succeeds.
+- **Read**: `conversations.history` needs the **DM id**; a **user id** returns `channel_not_found`. The
+  id is only half of it. The reading identity must itself be in that conversation, so the DM id fails
+  the same way when it is not.
 - Reactions follow the read side, not the send side.
 - **Delete**: only the identity that authored a message may remove it. The operational consequence is the part that bites — a session's posts are spread across the identities that made them, so removing them takes each of those identities in turn, and is never one member's action.
+- **The two halves need not act as the same identity.** A send may go out under the member's own user
+  identity while a read of that same conversation acts as the bot. `--identity-bot` is the only
+  modifier and has no opposite, so a member whose read acts as bot cannot ask for a user-identity read.
+  Where a send goes out as user, its own read-back is structurally unavailable rather than merely
+  awkward.
+- **The failure wears the wrong name.** An unauthorised reader is told `channel_not_found`, which reads
+  as a bad target. So it looks like a mistyped id, gets retried, and never gets investigated. A reader
+  who knows this stops retrying and asks which identity is acting.
+- **The field naming the acting identity is not evidence on the send path.** It has reported the bot
+  while the call used the member's own user token. Treat it as a hint, never as a statement of which
+  identity acted.
 
-So a user id is a sufficient address for writing and an insufficient one for reading. The natural
-assumption is that all paths behave alike; they do not. **Any doc covering the send path must say so
-explicitly**, or a reader will generalise from the easy case.
+So a user id is a sufficient address for writing and an insufficient one for reading, and the address is
+not the whole of it. The natural assumption is that all paths behave alike; they do not. **Any doc
+covering the send path must say so explicitly**, or a reader will generalise from the easy case.
+
+**A verification is only a verification when the same identity performed both halves.** A read under one
+identity establishes nothing about a write made under another, and it fails in the shape of a target
+error, so the check looks as though it ran. Where the split makes a read-back impossible, an out-of-band
+confirmation is the stronger instrument anyway: a reply to what was sent establishes delivery, and no
+read of the sender's own conversation matches that.
 
 ### Why this matters for stored addresses
 

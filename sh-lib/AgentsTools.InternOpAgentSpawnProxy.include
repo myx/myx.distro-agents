@@ -102,6 +102,29 @@ AgentsToolsSpawnProxyCloseDispatch(){
 	return 0
 }
 
+## Closes the session tracking file by updating its frontmatter, through this
+## package's own header writer -- nothing here parses or re-emits frontmatter of its
+## own. The headers ARE the state, so a close is a header update and never a rewrite
+## of the file. A failure leaves the file exactly as it was: a tracking record that
+## still says started is recoverable by a rescan, where a truncated one is not.
+AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
+	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxOps sandboxBody
+	[ -f "$sandboxFile" ] || return 0
+	sandboxOps="$MMDAPP/.local/temp/mdat-session-header-ops.$$"
+	mkdir -p "$MMDAPP/.local/temp" || return 0
+	{
+		printf 'upsert\tstatus\tspawn-%s\n' "$sandboxOutcome"
+		printf 'upsert\toutcome\t%s\n' "$sandboxOutcome"
+		printf 'upsert\texit-code\t%s\n' "$sandboxExit"
+		printf 'upsert\tcompleted-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+	} > "$sandboxOps" || return 0
+	sandboxBody="$( LC_ALL=C awk -v opsFile="$sandboxOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$sandboxFile" )" || sandboxBody=""
+	rm -f "$sandboxOps"
+	[ -n "$sandboxBody" ] || return 0
+	printf '%s\n' "$sandboxBody" > "$sandboxFile"
+	return 0
+}
+
 case "$1" in
 
 	--intern-op-agent-spawn-proxy)
@@ -474,6 +497,64 @@ case "$1" in
 			esac
 		fi
 
+		## This spawn's own sandbox. Named by the tracking id, which is this spawn's
+		## primary key everywhere: a tracking document's name supplies it where one
+		## exists, and the receipt id is it where none does. Only a format suffix is
+		## stripped, so a dotted name keeps its dots. The shared bare-name gate runs
+		## first and is not widened for the suffix rule.
+		local sandboxName="$trackedItemName"
+		[ -n "$sandboxName" ] || sandboxName="$receiptId"
+		sandboxName="${sandboxName%.md}"
+		AgentsToolsAssertBareName "$sandboxName" "<tracking-name>" agent-spawn-proxy || { set +e ; return 1 ; }
+		local sandboxRoot="$MMDAPP/.local/agents/spawned/$sandboxName"
+		## Created even when nothing fills them: the directory's own presence is this
+		## spawn's registry entry, so an empty sandbox is a listed session rather than
+		## a missing one.
+		mkdir -p "$sandboxRoot/input" "$sandboxRoot/output" || {
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create the spawn sandbox: $sandboxRoot" >&2
+			set +e ; return 1
+		}
+		## The console renders the two roots from this, because a flag cannot cross that
+		## boundary -- the same reason the session id and the agent name are exported.
+		export MDAT_SPAWN_SANDBOX_ROOT="$sandboxRoot"
+
+		## The session tracking file, in the ROOT and never in input/ or output/: the root
+		## is granted to nothing, so this is the one record of the spawn the spawned
+		## session cannot reach and therefore cannot forge -- the same reasoning the launch
+		## marker already follows. Its frontmatter IS the state, which is what lets a
+		## rescan rebuild the registry by reading headers rather than bodies. Not team
+		## data: this is the session's own record, so no board rule reaches it and
+		## team-data retention never sweeps it.
+		local sandboxTracking="$sandboxRoot/session.md"
+		{
+			printf '%s\n' "---"
+			printf 'id: %s\n' "$sandboxName"
+			printf 'session-id: %s\n' "$MDAT_SPAWN_SESSION_ID"
+			printf 'owner: %s\n' "$callerName"
+			printf 'status: %s\n' "spawn-started"
+			printf 'started-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+			printf 'receipt-id: %s\n' "$receiptId"
+			[ -z "$outputFile" ] || printf 'output-file: %s\n' "$outputFile"
+			[ -z "$dispatchItemName" ] || printf 'board-item: %s\n' "$dispatchItemName"
+			[ -z "$trackedItemName" ] || printf 'tracking-item: %s\n' "$trackedItemName"
+			printf '%s\n' "---"
+			printf '\n# Spawn session: %s\n' "$sandboxName"
+		} > "$sandboxTracking" || {
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't write the session tracking file: $sandboxTracking" >&2
+			set +e ; return 1
+		}
+
+		## His own instruction: the sandbox path is named in the dispatch text, or the
+		## spawned session cannot use it at all. Appended after the dispatch document was
+		## written from the brief, so that document keeps the brief exactly as given.
+		spawnContext="$( printf '%s\n' \
+			"$spawnContext" \
+			"" \
+			"## Your sandbox" \
+			"" \
+			"Read-only input: $sandboxRoot/input" \
+			"Writable output, for deliverables and working files: $sandboxRoot/output" )"
+
 		if [ "$waitMode" = "true" ] ; then
 			local exitCode spawnPid watchPid timedOut waitTimeoutSeconds
 			set +e
@@ -524,6 +605,7 @@ case "$1" in
 			local spawnOutcome
 			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )"
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
+			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$spawnOutcome" "$exitCode"
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running pending
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
@@ -562,6 +644,7 @@ case "$1" in
 			set -e
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
 			## Nothing bounds this branch, so nothing timed out: 0 is the fact, not a placeholder.
+			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )" "$bgExitCode"
 			if [ "$dispatchDocMode" = "create" ] ; then
 				bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running pending

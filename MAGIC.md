@@ -215,6 +215,37 @@ Team-owned notes for the magic-* team.
 - The team scratchpad `MAGIC.md` files under `.local/temp/` are reachable, which the include grants on purpose.
 - **This is not a gap to close by widening the include.** The include serves three consumers, and the set already covers what needs reading.
 
+## A root flag replaces the set, and the write flag narrows what may be written
+
+- **Any root flag replaces the whole default set.** `sh-lib/AgentsTools.ClientAccessRoots.include` is consulted only where no root flag was given at all. A caller adding one root by flag has dropped every other root in the same call, and the run still starts.
+- **`--access-write-root` narrows writes to the roots it names.** With no write flag, writes are exactly as wide as reads. The two flags do opposite things to the set they join, and neither name says so.
+- **The generated console renders every root it holds as a read root, so a spawn's writes are as wide as its reads.** Adding one write root to grant a work directory revokes every other write, and the call reports success. That is the trap to read before treating either flag as additive.
+- **The split exists upstream and is lost on the way down.** The include holds read and write apart. A client's published launch fragment is the flattened union and carries no verb, because `--add-dir` has none, so a console reading the fragment cannot recover the halves.
+- **The include's write producer is not a spawn's write set.** It yields the work directories. What a spawn writes inside a source tree comes from the declared-grants producer, which the union folds in and neither half names. Composing the write side from the write producer alone takes source writes away from every spawned session.
+- **Where the console falls to `--add-dir` the split is not representable.** One flag, no verb, so a root granted for reading is granted for writing. That is the native path's own property, not a fault in it.
+- **The console passes no flag through to the CLI.** After `--non-interactive` the remaining argv is the prompt, so anything the CLI must be told crosses as an exported variable — the rule the spawn session-id and agent-name variables already follow.
+- **Where the flag carries a verb the console renders the two sets separately, from the include.** Reads stay the full union and writes are the work directories plus the roots a declared `Edit` grant names, so a later caller adding one write root adds it instead of replacing everything else. Where the flag carries no verb the launch fragment still serves that client's own integration, unchanged.
+
+## `.local/agents` is durable, and nothing in this package sweeps it
+
+- It holds the main-loop state, the MCP server descriptor and the composite skillset root. A path placed there persists until something removes it by name.
+- **No removal mechanism in this package reaches it.** The purge op empties one fixed cleanup directory and takes no argument. The team-data retention pass scans a team-data root's own processed and trash locations. A new location under `.local/agents` is reached by neither.
+- So a per-run directory created there is permanent by default. Anything placed in one that must not outlive the run needs its own removal, named and owned, decided before the directory is first written.
+
+## What a spawn is given, and what it is only pointed at
+
+- **A document reaches a spawn by grant and pointer, never by copy.** The member skill directories and the workspace source tree are granted roots, and the brief names the paths. Nothing in the spawn path copies a document anywhere.
+- A member's own skill files, a `MAGIC.md` at any tier, a tracking document and a routine's instructions are all read in place. A mechanism that copied them would be a second way to do what the grant already does.
+- **A place to put documents is therefore needed only for what a grant does not already reach.** Ask that of any such proposal before asking how a caller would name the contents.
+- **`held-context:` carries conversation context, not documents.** It is the messages and relays the calling routine is holding, written into the brief as prose. The name invites the opposite reading, and the spawn-prepare-brief block lists it among the parts the spawning agent judges rather than the parts the tooling emits.
+- **A spawn takes its brief from one source.** The proxy refuses more than one, so no existing route hands over a set of documents.
+
+## What `ListAgents` reads, and what it reports
+
+- It reads the `dispatch-*` items in the board's running state, and prints each one's session id, owner, status, started time and outcome.
+- **The state it reports comes from what the item carries, never from which folder holds it.** An item whose status records a finished dispatch is reported as finished. A listing is therefore not a running-or-not answer, and an item resting in a state is not by itself a stale entry.
+- The board item is the session record. A per-run directory beside it is that session's working space, so removing one is a matter of the directory and not of the register.
+
 ## `MDAT_SKILLSET_ROOT`: where the member set is read from
 
 - Resolved in the same preamble as `MDAT_DATA_ROOT` and exported alongside it: `$HOME/.claude/skills` where that directory holds at least one `<member>/SKILL.md`, `$MMDAPP/.claude/skills` otherwise. A consumer reads the variable; it never spells either path itself.
@@ -1672,6 +1703,13 @@ returning non-zero on a diagnostic finding.
   - Red recipe: point the no-flag resolution back at the fragment. Both assertions fail. The planted core still parses, which is why no syntax or text check reaches this class and a behavioural one must.
   - Self-contained. Every fixture is built in its own `mktemp -d`, and the scenario's own `MMDAPP` is that directory, so no file of the real workspace is read. Measured from `/` under `env -i`, with neither `MMDAPP`, `MDAT_*` nor `MDLT_ORIGIN` set: it passes.
   - Does not prove: whether a path is inside the roots once resolved. That is `AgentsHarnessContainmentCheck.sh`'s, and neither answers the other.
+- **`sh-lib/AgentsHarnessWriteSplitCheck.sh` — which of the two sets a path is inside.**
+  - Proves: where a write root is given, writes narrow to it while reads stay wider, and a root on the read side only is refused for writing **and still readable**. Where no write root is given at all, writes stay exactly as wide as reads, which is what every console generated before the split passes.
+  - Why it exists: the two root flags do opposite things to the set they join and neither name says so. A root flag replaces the default set; a write flag narrows writes. So a caller passing one write root in order to grant one directory takes every other write away in the same call, and the call reports success.
+  - The controls, and why each is there. A write into a granted-for-writing root must succeed, or the refusal above passes on a core that refuses every write. The read-only root must be **readable**, or it passes on a core that dropped the grant entirely. And a root granted on neither side must be unreadable, or that readability control passes on a core that reads anything at all. `Write` refuses an ungranted path and a read-only path with the same message, because it tests the write set first and never reaches the other, so the refusal text cannot tell those apart and readability is what does.
+  - Offline and unmetered: `--intern-tool` reaches no endpoint and needs no credential, so the tool gate itself is the observation. No wire, no stub `curl`, no recorded request body.
+  - Red recipe: drop the guard on the write set's fallback so it always takes the read set. The readable-but-not-writable assertion then reports a write where it must report a refusal.
+  - Does not prove: where the set came from, or whether a path is inside it at all. Those are the two checks beside it, and none of the three answers another.
 - **`sh-lib/AgentsHarnessSelfCheck.awk` — every tool occupies all four of its structural sites.**
   - Proves: each tool has its declaration (in the wire adapter), its announce arm, its dispatch arm and
     its tool function (those three in the core), and no `AgentsHarnessTool*` function survives with no

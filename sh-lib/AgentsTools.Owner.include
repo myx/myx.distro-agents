@@ -976,6 +976,29 @@ case "$1" in
 						setupRc=1
 					fi
 
+					## WHICH of the two sets a path is inside, which neither check above
+					## asks: one says where the set comes from, the other whether a path is
+					## inside it at all. The two root flags do opposite things to the set
+					## they join -- a root flag replaces the default set, a write flag
+					## narrows writes -- so a caller passing one write root to grant one
+					## directory takes every other write away in the same call and still
+					## reports success. Offline through --intern-tool, which reaches no
+					## endpoint, so this one needs neither a stub wire nor a credential.
+					local setupWriteSplitOut="" setupWriteSplitRc=0
+					setupWriteSplitOut="$( bash "$setupLibDir/AgentsHarnessWriteSplitCheck.sh" 2>&1 )" || setupWriteSplitRc=$?
+					printf '%s\n' "$setupWriteSplitOut"
+					if [ "$setupWriteSplitRc" != "0" ] ; then
+						echo "  warn: the write-root set no longer narrows writes the way the"
+						echo "        flag says, or it narrows them when no write root was"
+						echo "        given -- one leaves a granted root writable that must"
+						echo "        not be, the other takes writes from every caller that"
+						echo "        never asked for a narrower set"
+						echo "  fix:  repair the write-set derivation in"
+						echo "        sh-lib/AgentsUniversalHarness.sh -- never the assertion,"
+						echo "        and never by widening a caller's grant to suit it"
+						setupRc=1
+					fi
+
 					## WHICH tools the MCP server actually serves, which no check above asks
 					## either: a harness tool joins that floor by default, and the served set
 					## is a subtraction somebody has to remember. The mirror renders the whole

@@ -400,28 +400,89 @@ elif command -v myx.common >/dev/null 2>&1 ; then
 	MYX_AGENTMCP_TARGET_CWD="$MMDAPP" myx.common setup/agentMcp >/dev/null 2>&1 || :
 fi
 
-## The team's own access-root set, collected by the installer, rendered into
-## whichever spelling this client takes. The roots are team data: every client
-## that can be told where it may work is told here, in its own flag.
+## The team's own access-root set. Where this client's flag carries a verb the set
+## comes from this package's own definition, AgentsTools.ClientAccessRoots.include,
+## and read and write are rendered separately. Where the flag carries no verb the
+## launch fragment beside it still serves that client's own integration, unchanged.
 ## own/explicit are install-guaranteed and trusted unconditionally; wildcard and
 ## untagged carry no provenance and are existence-checked at spawn, since a root
 ## that does not exist fails the whole spawn.
+## Why the split is rendered at all: with no write flag the core makes writes exactly
+## as wide as reads, so the first caller to pass one write root collapses every other
+## write in the same call and still reports success.
 DAGC_ACCESS_FLAG=""
+DAGC_ACCESS_WRITE_FLAG=""
 if DagcCliIsLeg "$DAGC_CLI" ; then
 	## One spelling for every leg: they all reach the same universal core, which
 	## is what parses it, so this is a property of the harness and not of a provider.
 	DAGC_ACCESS_FLAG="--access-read-root"
+	DAGC_ACCESS_WRITE_FLAG="--access-write-root"
 else
 	case "$DAGC_CLI" in
+		## One flag, no verb, so a root granted for reading is granted for writing.
+		## That is this vendor CLI's own interface and not a gap here.
 		copilot|copilot-native|claude|claude-native) DAGC_ACCESS_FLAG="--add-dir" ;;
 	esac
 fi
 DAGC_ACCESS_ARGS=()
-if [ -n "$DAGC_ACCESS_FLAG" ] ; then
+DAGC_ACCESS_GUARANTEED=0
+DAGC_ACCESS_WILDCARD_TOTAL=0
+DAGC_ACCESS_WILDCARD_ADDED=0
+## One append site for both sets, so no root is admitted by one rule on the read
+## side and a different one on the write side.
+DagcAccessAppend(){
+	case "$( AgentsToolsClientAccessRootTag "$2" )" in
+		own|explicit)
+			DAGC_ACCESS_ARGS+=( "$1" "$2" )
+			DAGC_ACCESS_GUARANTEED=$(( DAGC_ACCESS_GUARANTEED + 1 ))
+		;;
+		*)
+			DAGC_ACCESS_WILDCARD_TOTAL=$(( DAGC_ACCESS_WILDCARD_TOTAL + 1 ))
+			if [ -d "$2" ] ; then
+				DAGC_ACCESS_ARGS+=( "$1" "$2" )
+				DAGC_ACCESS_WILDCARD_ADDED=$(( DAGC_ACCESS_WILDCARD_ADDED + 1 ))
+			fi
+		;;
+	esac
+}
+if [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
+	DAGC_ACCESS_INCLUDE="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
+	if [ ! -f "$DAGC_ACCESS_INCLUDE" ] ; then
+		echo "⛔ ERROR: DistroAgentsConsole: the access-root mechanism is missing: $DAGC_ACCESS_INCLUDE -- refusing rather than falling back to a rendered copy of it" >&2
+		exit 1
+	fi
+	## The include reaches the config store through this name. This console otherwise
+	## calls the tool by path, so without this the machine's own extra read roots are
+	## dropped in silence and a narrower grant looks exactly like a full one.
+	if ! type DistroAgentsTools >/dev/null 2>&1 ; then
+		DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
+	fi
+	. "$DAGC_ACCESS_INCLUDE"
+	## Reads stay the full union, which is what every console generated before this
+	## already passed. Writes narrow to what may actually be written: the work
+	## directories, plus the roots a declared Edit grant names.
+	while IFS= read -r DAGC_ACCESS_LINE ; do
+		case "$DAGC_ACCESS_LINE" in /*) DagcAccessAppend "$DAGC_ACCESS_FLAG" "$DAGC_ACCESS_LINE" ;; esac
+	done <<< "$( AgentsToolsClientAccessRoots "$MMDAPP" "$MDAT_SPAWN_AGENT" )"
+	while IFS= read -r DAGC_ACCESS_LINE ; do
+		case "$DAGC_ACCESS_LINE" in /*) DagcAccessAppend "$DAGC_ACCESS_WRITE_FLAG" "$DAGC_ACCESS_LINE" ;; esac
+	done <<< "$( { AgentsToolsClientAccessReferenceRoots write "$MMDAPP" "$MDAT_SPAWN_AGENT" ; AgentsToolsClientAccessGrantRoots ; } | LC_ALL=C sort -u )"
+	## This spawn's own sandbox, per-spawn and named by its tracking id: input/ is
+	## readable and output/ is writable. ADDED to the two sets above rather than
+	## replacing them, which is the whole reason the write set is rendered on its own
+	## flag -- one write root passed alone would take every other write away.
+	## The sandbox ROOT itself is granted on neither side on purpose: the session
+	## tracking file lives there, and a record the session can reach is one it can forge.
+	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
+		DagcAccessAppend "$DAGC_ACCESS_FLAG" "$MDAT_SPAWN_SANDBOX_ROOT/input"
+		DagcAccessAppend "$DAGC_ACCESS_WRITE_FLAG" "$MDAT_SPAWN_SANDBOX_ROOT/output"
+	fi
+	## Said because a partial set is otherwise silent: the member roots drop out
+	## where the skillset root is unresolved, and a narrower grant then looks
+	## exactly like a full one.
+	echo "# console: $DAGC_CLI access roots: $DAGC_ACCESS_GUARANTEED install-guaranteed + $DAGC_ACCESS_WILDCARD_ADDED of $DAGC_ACCESS_WILDCARD_TOTAL live-checked candidates existed, added; member set from ${MDAT_SKILLSET_ROOT:-<unresolved>}" >&2
+elif [ -n "$DAGC_ACCESS_FLAG" ] ; then
 	DAGC_ACCESS_FRAGMENT="$MMDAPP/.claude/copilot-add-dir.fragment"
-	DAGC_ACCESS_GUARANTEED=0
-	DAGC_ACCESS_WILDCARD_TOTAL=0
-	DAGC_ACCESS_WILDCARD_ADDED=0
 	if [ -f "$DAGC_ACCESS_FRAGMENT" ] ; then
 		while IFS= read -r DAGC_ACCESS_LINE ; do
 			[ -n "$DAGC_ACCESS_LINE" ] || continue
@@ -455,6 +516,14 @@ if [ -n "$DAGC_ACCESS_FLAG" ] ; then
 		if [ "$DAGC_ACCESS_GUARANTEED" -gt 0 ] || [ "$DAGC_ACCESS_WILDCARD_TOTAL" -gt 0 ] ; then
 			echo "# console: $DAGC_CLI $DAGC_ACCESS_FLAG: $DAGC_ACCESS_GUARANTEED install-guaranteed + $DAGC_ACCESS_WILDCARD_ADDED of $DAGC_ACCESS_WILDCARD_TOTAL live-checked candidates existed, added" >&2
 		fi
+	fi
+	## The sandbox on a flag that carries no verb. Both halves are granted alike here,
+	## so input/ is writable on this path -- a property of this CLI's own interface,
+	## stated rather than worked around. The root stays ungranted on every path.
+	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
+		DagcAccessAppend "$DAGC_ACCESS_FLAG" "$MDAT_SPAWN_SANDBOX_ROOT/input"
+		DagcAccessAppend "$DAGC_ACCESS_FLAG" "$MDAT_SPAWN_SANDBOX_ROOT/output"
+		echo "# console: $DAGC_CLI $DAGC_ACCESS_FLAG carries no verb, so the sandbox input/ is writable on this path" >&2
 	fi
 fi
 
