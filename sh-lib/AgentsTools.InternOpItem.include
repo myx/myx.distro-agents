@@ -9,6 +9,8 @@
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+
 AgentsToolsItemContextScan(){
 	opContext="<no --context given>"
 	local ctxWanted="" ctxArg
@@ -412,6 +414,9 @@ case "$1" in
 			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" )" || { set +e ; return 1 ; }
 		elif [ "$bodyMode" = "stdin" ] ; then
 			content="$( cat )"
+			## Measured, never refused. Only this branch carries the caller's own
+			## new text: a patch merges into content somebody else wrote.
+			printf '%s' "$content" | AgentsToolsOutputStyleRefusal "$callingMember" "" "${itemPath##*/}" "" none || :
 		elif [ "$contentFromFile" = "true" ] ; then
 			:
 		elif [ -f "$target" ] ; then

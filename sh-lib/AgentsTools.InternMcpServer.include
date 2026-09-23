@@ -66,7 +66,10 @@ case "$1" in
 			printf '%s\n' "      Speak JSON-RPC 2.0 over stdin/stdout until stdin closes." >&2
 			printf '%s\n' "      Launched by an MCP host, not by hand." >&2
 			printf '%s\n' "" >&2
-			printf '%s\n' "Exposes one tool, 'execute', backed by $MDSC_CMD --intern-mcp-execute." >&2
+			printf '%s\n' "Exposes 'execute', backed by $MDSC_CMD --intern-mcp-execute, plus the" >&2
+			printf '%s\n' "harness tool floor rendered by sh-lib/AgentsHarnessMcpMirror.sh and run one" >&2
+			printf '%s\n' "call at a time by sh-lib/AgentsUniversalHarness.sh --intern-tool. Bash is not" >&2
+			printf '%s\n' "among them: arbitrary command execution is myx.common's own MCP method." >&2
 			set +e ; return 1
 		fi
 		shift
@@ -92,8 +95,56 @@ case "$1" in
 		AGENTS_MCP_REQ_SEQ=0
 		trap 'rm -rf "$MMDAPP/.local/temp/agent-mcp.$$"' EXIT INT TERM
 
+		## The harness tool floor, rendered ONCE for this server's whole life, from the
+		## same wire declarations the model is offered. Nothing here is a second list:
+		## AgentsHarnessMcpMirror.sh derives it, and a render that fails leaves this
+		## server serving `execute` alone rather than a floor nobody rendered.
+		## Two tools are ABSENT rather than present-and-refusing: a tool that exists and
+		## refuses reads as a broken server. Bash, because arbitrary command execution is
+		## myx.common's own method. Monitor, because it starts a background job whose
+		## handle exists only inside the harness process that started it, and a tools/call
+		## runs one tool in a FRESH process -- measured, the handle is dead before the call
+		## returns and the job is left running with its log already removed. tools/call
+		## still names what to use instead, for both.
+		## THE TEST WHEN A NEW HARNESS TOOL LANDS: a tool that takes a command, or that
+		## hands back a handle only its own process can resolve, belongs on this list.
+		## Nothing else applies it, so MAGIC.md's own `A harness tool joins the served MCP
+		## floor by default` states it where a reader adding a tool will actually meet it.
+		## A marker inherited from an outer copy of this server means we were reached
+		## through another server: we then serve `execute` only, so enumeration cannot
+		## descend through us a second time.
+		mcpUnservedToolNames="Bash Monitor"
+		mcpServedToolsJson='' ; mcpServedToolNames=''
+		if [ -n "${MDAT_MCP_SERVED_MARKER:-}" ] ; then
+			printf '%s\n' "$MDSC_CMD: mcp-server: reached through another MCP server (MDAT_MCP_SERVED_MARKER is set) -- serving 'execute' only, and declining every harness tool, so enumeration cannot recurse through this server." >&2
+		else
+			mcpMirrorJson="$( bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessMcpMirror.sh" )" || mcpMirrorJson=''
+			if [ -z "$mcpMirrorJson" ] ; then
+				printf '%s\n' "$MDSC_CMD: mcp-server: ⛔ ERROR: the harness tool floor did not render, so ONLY 'execute' is served. The mirror's own error is above; repair the declaration it names in sh-lib/AgentsOpenAiChatWire.sh." >&2
+			else
+				mcpMirrorIndex=0
+				while : ; do
+					mcpMirrorName="$( printf '{"tools":%s}' "$mcpMirrorJson" | LC_ALL=C awk -v path="tools.$mcpMirrorIndex.name" -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonSlice.awk" 2>/dev/null )" || break
+					[ -n "$mcpMirrorName" ] || break
+					## The raw name carries its own quotes; the bare form is what routes.
+					mcpMirrorName="${mcpMirrorName#\"}" ; mcpMirrorName="${mcpMirrorName%\"}"
+					mcpMirrorEntry="$( printf '{"tools":%s}' "$mcpMirrorJson" | LC_ALL=C awk -v path="tools.$mcpMirrorIndex" -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonSlice.awk" 2>/dev/null )" || mcpMirrorEntry=''
+					mcpMirrorIndex=$(( mcpMirrorIndex + 1 ))
+					[ -n "$mcpMirrorEntry" ] || continue
+					case " $mcpUnservedToolNames " in
+						*" $mcpMirrorName "*) continue ;;
+					esac
+					mcpServedToolsJson="$mcpServedToolsJson$mcpMirrorEntry,"
+					mcpServedToolNames="$mcpServedToolNames $mcpMirrorName"
+				done
+				if [ -z "$mcpServedToolNames" ] ; then
+					printf '%s\n' "$MDSC_CMD: mcp-server: ⛔ ERROR: the floor rendered but no tool survived the walk, so ONLY 'execute' is served -- an empty population is a fault here, never a floor that declares nothing." >&2
+				fi
+			fi
+		fi
+
 		## Check-init witness; stderr only.
-		printf '%s\n' "# myx.distro agentMcp: pid=$$ origin=$MDLT_ORIGIN mode=${MDLC_INMODE:-?} spec=${MDLT_OPTION:-?} root=$MMDAPP scratch=$MMDAPP/.local/temp/agent-mcp.$$" >&2
+		printf '%s\n' "# myx.distro agentMcp: pid=$$ origin=$MDLT_ORIGIN mode=${MDLC_INMODE:-?} spec=${MDLT_OPTION:-?} root=$MMDAPP scratch=$MMDAPP/.local/temp/agent-mcp.$$ served=$( set -- $mcpServedToolNames ; echo $# ) harness tools plus execute" >&2
 
 		## `|| [ -n ... ]` keeps a final line that has no trailing newline.
 		while IFS= read -r mcpLine || [ -n "$mcpLine" ] ; do
@@ -138,12 +189,102 @@ case "$1" in
 						AgentsMcpSendResult "$mcpId" '{}'
 					;;
 					tools/list)
-						AgentsMcpSendResult "$mcpId" '{"tools":[{"name":"execute","description":"Evaluate a shell script with its environment already established. MMDAPP is the workspace root and MDLT_ORIGIN the tooling tree, and the two may point at different trees. DistroAgentsTools, DistroAgentsContext, Agents, Require, Distro, Action and DistroSystemContext are all defined, and nothing in the caller environment is overwritten: a spec the caller already named stays. No input tier is resolved, so a script that reads a distro index names one itself, and loads the tool with Require first, because Distro resolves through PATH and this surface carries no sh-scripts directory. For example: DistroSystemContext --distro-from-source ; Require ListDistroProjects ; Distro ListDistroProjects --select-all. Defaults to this server'"'"'s own workspace; pass '"'"'workspace'"'"' to run against a different one instead: a fresh process with MMDAPP moved to it, its index caches dropped, and MDLT_ORIGIN deliberately unchanged, since that workspace own copy may be stale, broken or absent. Returns the script combined stdout and stderr, plus its exit status.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"Shell script to evaluate. May span multiple lines."},"workspace":{"type":"string","description":"Optional: absolute path of a different myx.distro workspace (one with its own .local) to run this one call against, overriding this server'"'"'s own default MMDAPP for this call only. Leave unset to use this server'"'"'s own workspace."},"timeout":{"type":"integer","description":"Optional, foreground calls only: seconds to allow this script before it is killed (TERM, then KILL after 5s). Default 600, maximum 3600. On a timeout the call returns an error naming the limit, and the partial output is kept in a file whose path is named in that error, so a long build that stalls can still be inspected."},"background":{"type":"boolean","description":"Optional: start the script and return AT ONCE with a job id instead of waiting for it. Use this for anything long -- a build, a deploy, a sync -- so you keep working while it runs, watch its output as it appears, and can stop it. No timeout is applied to a background job, because you can see it and kill it. Poll it by calling execute again with '"'"'job'"'"' and no '"'"'command'"'"'."},"job":{"type":"integer","description":"Optional: the id of a background job started earlier by this same server. Pass it WITHOUT '"'"'command'"'"' to read whatever output has appeared since your last poll, plus whether the job is still running or its exit code. Each poll returns only what is new."},"action":{"type":"string","description":"Optional, only with '"'"'job'"'"': '"'"'kill'"'"' sends TERM to that job. Omit to poll it."}},"required":[]}}]}'
+						AgentsMcpSendResult "$mcpId" '{"tools":['"$mcpServedToolsJson"'{"name":"execute","description":"Evaluate a shell script with its environment already established. MMDAPP is the workspace root and MDLT_ORIGIN the tooling tree, and the two may point at different trees. DistroAgentsTools, DistroAgentsContext, Agents, Require, Distro, Action and DistroSystemContext are all defined, and nothing in the caller environment is overwritten: a spec the caller already named stays. No input tier is resolved, so a script that reads a distro index names one itself, and loads the tool with Require first, because Distro resolves through PATH and this surface carries no sh-scripts directory. For example: DistroSystemContext --distro-from-source ; Require ListDistroProjects ; Distro ListDistroProjects --select-all. Defaults to this server'"'"'s own workspace; pass '"'"'workspace'"'"' to run against a different one instead: a fresh process with MMDAPP moved to it, its index caches dropped, and MDLT_ORIGIN deliberately unchanged, since that workspace own copy may be stale, broken or absent. Returns the script combined stdout and stderr, plus its exit status.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"Shell script to evaluate. May span multiple lines."},"workspace":{"type":"string","description":"Optional: absolute path of a different myx.distro workspace (one with its own .local) to run this one call against, overriding this server'"'"'s own default MMDAPP for this call only. Leave unset to use this server'"'"'s own workspace."},"timeout":{"type":"integer","description":"Optional, foreground calls only: seconds to allow this script before it is killed (TERM, then KILL after 5s). Default 600, maximum 3600. On a timeout the call returns an error naming the limit, and the partial output is kept in a file whose path is named in that error, so a long build that stalls can still be inspected."},"background":{"type":"boolean","description":"Optional: start the script and return AT ONCE with a job id instead of waiting for it. Use this for anything long -- a build, a deploy, a sync -- so you keep working while it runs, watch its output as it appears, and can stop it. No timeout is applied to a background job, because you can see it and kill it. Poll it by calling execute again with '"'"'job'"'"' and no '"'"'command'"'"'."},"job":{"type":"integer","description":"Optional: the id of a background job started earlier by this same server. Pass it WITHOUT '"'"'command'"'"' to read whatever output has appeared since your last poll, plus whether the job is still running or its exit code. Each poll returns only what is new."},"action":{"type":"string","description":"Optional, only with '"'"'job'"'"': '"'"'kill'"'"' sends TERM to that job. Omit to poll it."}},"required":[]}}]}'
 					;;
 					tools/call)
 						mcpJobsDir="$MMDAPP/.local/temp/agent-mcp.$$/jobs"
 
-						if [ "execute" != "$mcpToolName" ] ; then
+						## Whole-token membership, and only for a name that is actually there:
+						## the served list carries a leading space, so an empty name would match
+						## it as a run of two and route a nameless call into the harness.
+						mcpIsHarnessTool=''
+						if [ -n "$mcpToolName" ] ; then
+							case " $mcpServedToolNames " in
+								*" $mcpToolName "*) mcpIsHarnessTool=1 ;;
+							esac
+						fi
+
+						## Bash is absent from tools/list rather than present-and-refusing, so a
+						## caller only reaches this by naming it anyway; it is told where
+						## arbitrary command execution actually lives instead of being refused
+						## with nothing to go on. myx.common is not modified by this.
+						if [ "Bash" = "$mcpToolName" ] ; then
+							AgentsMcpSendError "$mcpId" -32602 "Bash is not served by this server. Arbitrary command execution is myx.common's own MCP method -- call that server's lib_execShStdin instead. This server's own 'execute' is a different thing: it evaluates a shell script with the myx.distro workspace context already established."
+
+						## Any other tool the floor rendered: run exactly that one tool in the
+						## harness and return its output. The harness may leave a background
+						## child, and a $( ) capture waits on the pipe's writers rather than on
+						## the process -- so the output goes to a file and the pid is waited on,
+						## the same shape the execute path below already uses for the same reason.
+						elif [ -n "$mcpIsHarnessTool" ] ; then
+							## Lifted RAW out of the request and handed over unchanged: these
+							## bytes are already escaped for JSON, and escaping them again
+							## corrupts every value that carried an escape.
+							mcpToolArgs="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params.arguments" -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonSlice.awk" 2>/dev/null )" || mcpToolArgs=''
+							[ -n "$mcpToolArgs" ] || mcpToolArgs='{}'
+
+							mcpOutFile="$MMDAPP/.local/temp/agent-mcp.$$/tool.$AGENTS_MCP_REQ_SEQ"
+							mcpKillFile="$MMDAPP/.local/temp/agent-mcp.$$/toolkilled.$AGENTS_MCP_REQ_SEQ"
+							rm -f "$mcpKillFile"
+
+							## STDOUT ONLY is the result. The harness announces the call and
+							## names its hook source on stderr, and folding that in would put
+							## those lines inside the file a Read returned. A refusal is already
+							## on stdout, as `ERROR: ...`, so nothing a caller needs is lost.
+							## The bound is this server's cap rather than its default, and no
+							## caller argument sets it: `timeout` belongs to Wait and to
+							## AskUserQuestion themselves. Both block by design and carry their
+							## own inner bound, every other tool is quick, and each request
+							## already runs in its own job -- so a long call holds its own
+							## handler and never this server. The watchdog exists only so a
+							## wedged call cannot hold that handler for the process's whole life.
+							mcpExitCode=0
+							set -m
+							( printf '%s\n' "$mcpToolArgs" | "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$mcpToolName" ) > "$mcpOutFile" &
+							mcpCmdPid=$!
+							(
+								sleep 3600
+								kill -0 "$mcpCmdPid" 2>/dev/null || exit 0
+								: > "$mcpKillFile"
+								kill -TERM -- "-$mcpCmdPid" 2>/dev/null
+								sleep 5
+								kill -KILL -- "-$mcpCmdPid" 2>/dev/null
+							) &
+							mcpWatchPid=$!
+							set +m
+
+							wait "$mcpCmdPid" || mcpExitCode=$?
+							kill -TERM -- "-$mcpWatchPid" 2>/dev/null
+							wait "$mcpWatchPid" 2>/dev/null
+							set +e
+
+							mcpOutput="$( < "$mcpOutFile" )"
+							mcpIsError='false'
+							if [ -f "$mcpKillFile" ] ; then
+								mcpIsError='true'
+								mcpOutput="$mcpOutput"$'\n'"[$mcpToolName timed out after 3600s and was killed; partial output above is kept at: $mcpOutFile]"
+								rm -f "$mcpKillFile"
+							elif [ 0 -ne "$mcpExitCode" ] ; then
+								## The harness exits non-zero on its own ERROR result, which is
+								## already the text above -- so this marks it rather than
+								## restating it, and names a crash where there is no text at all.
+								mcpIsError='true'
+								[ -n "$mcpOutput" ] || mcpOutput="[$mcpToolName produced no output and exited $mcpExitCode -- the harness's own diagnostics are on this server's stderr]"
+								rm -f "$mcpOutFile"
+							else
+								rm -f "$mcpOutFile"
+							fi
+							[ -n "$mcpOutput" ] || mcpOutput='(no output)'
+
+							AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":%s}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" "$mcpIsError" )"
+
+						## Reached through another server: say which bound refused this, because
+						## the same name works on the server the host registered directly, and
+						## `unknown tool` would send a caller looking for a fault that is not there.
+						elif [ -n "${MDAT_MCP_SERVED_MARKER:-}" ] && [ "execute" != "$mcpToolName" ] ; then
+							AgentsMcpSendError "$mcpId" -32602 "This server was reached through another MCP server, so it serves 'execute' only and declines every harness tool -- otherwise an enumeration could descend through copies of this server without end. Call '$mcpToolName' on the myx.distro server your host registered directly."
+
+						elif [ "execute" != "$mcpToolName" ] ; then
 							AgentsMcpSendError "$mcpId" -32602 "Unknown tool: $mcpToolName"
 
 						## A job named, no command: poll or kill a script already running.

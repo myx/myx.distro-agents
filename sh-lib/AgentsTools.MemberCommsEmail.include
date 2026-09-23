@@ -6,6 +6,8 @@
 ## operations (IMAP check, read, mark-seen and SMTP send).
 ##
 
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+
 case "$1" in
 
 		--member-comms-email-check)
@@ -199,9 +201,18 @@ case "$1" in
 					fi
 				;;
 			esac
-			local recipients subject bodyLines state="recipients" bodyFromStdin="false" bodyFromFile="false" inReplyTo=""
+			local recipients subject bodyLines state="recipients" bodyFromStdin="false" bodyFromFile="false" inReplyTo="" textGroup=""
 			while [ $# -gt 0 ] ; do
 				case "$1" in
+					## The floor applies with no argument at all. This names the shape
+					## an explicit exception takes, never which default a caller gets.
+					--text-group)
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --text-group value missing -- report, brief or relay, and message is what every send carries without it" >&2
+							set +e ; return 1
+						fi
+						textGroup="$2" ; shift 2
+					;;
 					--)
 						if [ "$state" = "recipients" ] ; then state="subject"
 						elif [ "$state" = "subject" ] ; then state="body"
@@ -307,6 +318,18 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: <subject> missing" >&2
 				set +e ; return 1
 			fi
+
+			## Email reaches the human-owner and it reaches counterparties, so it
+			## carries the same floor the Slack operations do. The subject is a
+			## sentence a reader reads, so it is measured on its own rather than
+			## folded into the body's own sentence budget. This operation resolves
+			## no Slack identity, so no token source is passed.
+			## The predicates these sites refuse on, and the whole of a graduation:
+			## a name here refuses, a name absent reports beside it. sentence-cap
+			## is absent because it cannot tell a prose paragraph from a block
+			## written one fact per line -- see MAGIC.md.
+			printf '%s' "$subject" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients (subject)" "" "word-cap semicolon paragraph-gate" || { set +e ; return 1 ; }
+			printf '%s' "$bodyLines" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients" "" "word-cap semicolon paragraph-gate" || { set +e ; return 1 ; }
 
 			local emailUser emailPass smtpHost smtpPort
 			emailUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"

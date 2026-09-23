@@ -257,7 +257,7 @@ case "$1" in
 			AgentsToolsMainLoopIteration
 			trap - INT TERM
 			[ "$mainLoopInterrupted" = "false" ] || { AgentsToolsMainLoopStopped ; return 130 ; }
-			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- the spawned session's own output is above" >&2
+			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- the spawned session's own output is in the log named by the OUTPUT_FILE line above" >&2
 			[ 0 -eq "$spawnRc" ] && mainLoopConsecutiveFailures=0 || mainLoopConsecutiveFailures=1
 			[ 0 -eq "$spawnRc" ] && AgentsToolsMainLoopWriteState ok || AgentsToolsMainLoopWriteState failed
 			return "$spawnRc"
@@ -266,7 +266,7 @@ case "$1" in
 		while true ; do
 			AgentsToolsMainLoopIteration
 			[ "$mainLoopInterrupted" = "false" ] || { trap - INT TERM ; AgentsToolsMainLoopStopped ; return 130 ; }
-			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- the spawned session's own output is above" >&2
+			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- the spawned session's own output is in the log named by the OUTPUT_FILE line above" >&2
 
 			## Consecutive failures lengthen the wait; the delay is the state, so doubling stops at the ceiling and cannot overflow.
 			if [ 0 -eq "$spawnRc" ] ; then

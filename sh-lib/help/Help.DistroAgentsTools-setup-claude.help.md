@@ -3,10 +3,17 @@
 
 ##  Summary:
 
-		The claude domain makes this workspace able to run Anthropic's
-		claude CLI as its spawned agent: the CLI installed, this workspace
-		trusted by it, the generated agents console current, and the
-		directories a spawned agent may reach granted to it.
+		The claude domain makes this workspace able to run THIS PACKAGE'S
+		OWN claude harness leg as its spawned agent: the leg shipped with
+		the release, its credential stored, the generated agents console
+		current, and the directories a spawned agent may reach granted to
+		it. The leg talks to Anthropic directly; it is not the vendor
+		claude CLI.
+
+		The vendor claude CLI is a different subject with its own domain,
+		`--owner-setup-claude-native`, which is best-effort native support.
+		The two names never collided: `claude` is ours, `claude-native`
+		is theirs.
 
 		`--owner-setup-claude` reports what this workspace is still
 		missing and names the one command that supplies it. This document
@@ -19,15 +26,17 @@
 
 ##  What you do yourself, before --apply:
 
-		Installing the CLI is not one of these. `--apply` runs
-		`myx.common install/claude` wherever `command -v claude` finds
-		nothing.
+		Installing a CLI is not one of these, and no longer applies at
+		all: this domain's subject is the harness leg that ships with the
+		release, so there is nothing on PATH for it to install. Installing
+		the vendor binary belongs to `--owner-setup-claude-native`.
 
-		1. Start claude once, interactively, on this machine. It writes
-		   $HOME/.claude.json on its first run, and `--apply` records this
-		   workspace's trust INTO that file rather than standing a
-		   replacement in its place -- so an absent file stops the run
-		   with a message saying exactly this.
+		1. Obtain an Anthropic API key and supply it as
+		   --anthropic-api-key. The leg reads ANTHROPIC_API_KEY out of the
+		   environment the console exports it into, and refuses by that
+		   name when it is not set. Nothing else authenticates it: there
+		   is no interactive sign-in for a harness leg, which is the part
+		   that differs most from claude-native.
 
 		2. Give claude a way to authenticate. Either of these is enough,
 		   and this is the one step no `--apply` can perform for you:

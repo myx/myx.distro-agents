@@ -69,6 +69,15 @@ AgentsToolsSpawnProxyCloseDispatch(){
 	## Defaulted rather than required, so the create path calls this exactly as it
 	## always has and only the reuse path names a state of its own.
 	local itemState="${6:-running}"
+	## Where the closed item rests, named by the caller rather than derived here.
+	## Defaults to no move, so a caller naming no target keeps what it had: a
+	## REUSED document belongs to a caller and is never relocated by a spawn
+	## closing. One this op created itself moves to `pending`, so `running` holds
+	## only sessions that are actually running. It stops at `pending` and not at
+	## `processed` because grooming owns entry to that state -- human-owner ruling,
+	## 2026-09-23: "grooming owns the state - but spawn moves to pending - ok? so
+	## grooming sees". This op marks and parks; it never adjudicates the close.
+	local itemTargetState="${7:-$itemState}"
 	local currentBody resultBody
 	currentBody="$( DistroAgentsTools --intern-op-data-read "$itemName" \
 		--lookup-folder "$MDAT_DATA_ROOT/board/$itemState" \
@@ -82,7 +91,7 @@ AgentsToolsSpawnProxyCloseDispatch(){
 		"exit-code: $childExit" \
 		"output-file: $childOutputFile" \
 		"completed-at: $( date -u +%Y-%m-%dT%H:%M:%SZ )" )"
-	printf '%s\n' "$resultBody" | DistroAgentsTools --intern-op-board-upsert-move-edit "$itemState" "$itemName" \
+	printf '%s\n' "$resultBody" | DistroAgentsTools --intern-op-board-upsert-move-edit "$itemTargetState" "$itemName" \
 		--from-state:"$itemState" \
 		--header:upsert:status:dispatch-"$outcome" \
 		--header:upsert:resolved-at:"$( date +"%Y-%m-%d %H:%M %z" )" \
@@ -262,6 +271,10 @@ case "$1" in
 			;;
 			stdin)
 				spawnContext="$( cat )"
+				## Measured, never refused: a dispatch brief a session cannot start
+				## from is worse than one the floor would have flagged.
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+				printf '%s' "$spawnContext" | AgentsToolsOutputStyleRefusal "$callerName" "" "spawn brief $itemName" "" none || :
 			;;
 			board)
 				trackedMode="true"
@@ -512,7 +525,7 @@ case "$1" in
 			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )"
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
 			if [ "$dispatchDocMode" = "create" ] ; then
-				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome"
+				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running pending
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
 				## The item's own state, never `running`: closing a spawn must not move
 				## a caller's backlog or parked item into the running column.
@@ -551,7 +564,7 @@ case "$1" in
 			## Nothing bounds this branch, so nothing timed out: 0 is the fact, not a placeholder.
 			if [ "$dispatchDocMode" = "create" ] ; then
 				bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
-				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome"
+				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running pending
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
 				bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
 				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$bgExitCode" "$outputFile" "$bgOutcome" "$trackedItemState"

@@ -444,22 +444,29 @@ case "$1" in
 					--service-key SPAWN_CLI_SERVICE --service-value "$setupDomain"
 					--install-probe "command -v $setupDomain"
 				)
-				## Declared only where myx.common carries the installer; copilot has none.
-				[ "$setupDomain" != "claude" ] || setupDeclareArgs+=( --install-command "myx.common install/$setupDomain" )
-				## claude-native's subject is the vendor `claude` binary, so both name claude rather than the domain.
+				## A domain whose subject is one of this package's own harness legs has
+				## no binary at all -- `command -v scaleway` never passes on any
+				## machine, and `command -v claude` answers about the VENDOR CLI, which
+				## is a different subject reached as claude-native -- so its presence is
+				## the leg file shipping with the release, not PATH. One rule for every
+				## leg, by the same filename convention the console uses:
+				## sh-lib/Agents<Name>Harness.sh IS the leg <name>, so a new leg needs no
+				## arm here either. Appended after the shared probe above so it wins (the
+				## engine takes the last --install-probe it is given). It deliberately
+				## does not follow MDAT_<NAME>_HARNESS: the question it answers is
+				## whether the release reached this workspace at all, not which shipped
+				## harness variant a given console run selects.
+				local setupLegHead setupLegFile
+				setupLegHead="$( printf '%s' "$setupDomain" | cut -c1 | LC_ALL=C tr 'abcdefghijklmnopqrstuvwxyz' 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' )"
+				setupLegFile="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/Agents$setupLegHead$( printf '%s' "$setupDomain" | cut -c2- )Harness.sh"
+				[ ! -f "$setupLegFile" ] || setupDeclareArgs+=( --install-probe "test -f $setupLegFile" )
+				## The vendor CLIs. A -native domain's subject is the binary, which is
+				## spelled without the suffix, so both name it rather than the domain --
+				## and neither can match a leg file above, since no leg is named for a
+				## -native spelling. Declared only where myx.common carries the
+				## installer; copilot has none.
 				[ "$setupDomain" != "claude-native" ] || setupDeclareArgs+=( --install-probe "command -v claude" --install-command "myx.common install/claude" )
 				[ "$setupDomain" != "copilot-native" ] || setupDeclareArgs+=( --install-probe "command -v copilot" )
-				## scaleway has no real binary at all -- `command -v scaleway` would
-				## never pass on any machine -- so its own presence check is this
-				## package's own harness script shipping with the release, not PATH.
-				## Appended after the shared probe above so its assignment wins (the
-				## engine takes the last --install-probe it is given).
-				## The file named is the DEFAULT harness, AgentsScalewayHarness.sh
-				## (the streaming one). This probe deliberately does not follow
-				## MDAT_SCALEWAY_HARNESS: the question it answers is whether the
-				## release reached this workspace at all, not which of the two
-				## shipped harness variants a given console run selects.
-				[ "$setupDomain" != "scaleway" ] || setupDeclareArgs+=( --install-probe "test -f $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh" )
 				## Its own credential, under the CLI's own variable name, because
 				## that name is what the generated console exports and the CLI then
 				## reads -- one string, so nothing maps and nothing drifts. Never
@@ -797,6 +804,29 @@ case "$1" in
 						setupRc=1
 					fi
 
+					## The MCP MIRROR of the same floor, and the defect it catches that
+					## neither check above can: a declaration carrying a name but no
+					## `parameters` is valid JSON with a visible envelope, so both report
+					## clean, while MCP has no default for a missing inputSchema and that
+					## tool reaches a native console unusable. The list is RENDERED from
+					## the wire declarations rather than stored beside them, so the floor
+					## a native console is offered cannot drift from the floor the model
+					## is offered -- a second hand-maintained list is the drift this
+					## exists to make impossible.
+					local setupMirrorJson="" setupMirrorRc=0
+					setupMirrorJson="$( bash "$setupLibDir/AgentsHarnessMcpMirror.sh" "$setupWireFile" )" || setupMirrorRc=$?
+					if [ "$setupMirrorRc" = "0" ] ; then
+						printf 'HARNESS_MCP_MIRROR: OK (%s tools rendered for MCP from the wire declarations)\n' \
+							"$( printf '%s' "$setupMirrorJson" | LC_ALL=C awk '{ entryCount += gsub(/\{"name":"/, "&") ; } END { print entryCount + 0 ; }' )"
+					else
+						echo "HARNESS_MCP_MIRROR: FAIL"
+						echo "  warn: the harness tool floor does not render as an MCP tool list, so a"
+						echo "        native console would reach a server whose floor differs from the"
+						echo "        one the model is offered -- the error above names the declaration"
+						echo "  fix:  repair that declaration in sh-lib/AgentsOpenAiChatWire.sh"
+						setupRc=1
+					fi
+
 					## Each invocation EXERCISES its helper rather than merely reading
 					## it: progressLineCap>0 drives AgentsProgressLineSafe through its
 					## own progressLineSafe() call, which is the only way the call-time
@@ -923,6 +953,48 @@ case "$1" in
 						echo "  fix:  repair the leg in sh-lib/AgentsCopilotHarness.sh, or the"
 						echo "        behaviour in sh-lib/AgentsUniversalHarness.sh -- never the"
 						echo "        assertion"
+						setupRc=1
+					fi
+
+					## WHERE the access-root set comes from when no --access-root was passed,
+					## which no check above asks. It is the one gated path here that had no
+					## instrument at all: the core exits at its own HARNESS_* provider gate
+					## before the resolution runs, so a probe that merely starts the harness
+					## measures the gate. This one gets past it the way the checks above do,
+					## then reads the roots back off the request body its fake curl recorded.
+					local setupAccessRootsOut="" setupAccessRootsRc=0
+					setupAccessRootsOut="$( bash "$setupLibDir/AgentsHarnessAccessRootsCheck.sh" 2>&1 )" || setupAccessRootsRc=$?
+					printf '%s\n' "$setupAccessRootsOut"
+					if [ "$setupAccessRootsRc" != "0" ] ; then
+						echo "  warn: the no-flag access-root set is no longer taken from this"
+						echo "        package's own mechanism -- a client's published launch"
+						echo "        fragment is a rendered copy downstream of the one place"
+						echo "        that set is defined, and is never a source we consult"
+						echo "  fix:  repair the resolution in sh-lib/AgentsUniversalHarness.sh,"
+						echo "        against sh-lib/AgentsTools.ClientAccessRoots.include --"
+						echo "        never the assertion"
+						setupRc=1
+					fi
+
+					## WHICH tools the MCP server actually serves, which no check above asks
+					## either: a harness tool joins that floor by default, and the served set
+					## is a subtraction somebody has to remember. The mirror renders the whole
+					## floor by design, so its own check passing is what a new hole looks like.
+					## This one reads the served set off the real server's tools/list answer,
+					## then holds it both ways -- by the argument name the rule is written in,
+					## and by which tools the core actually runs a caller-supplied command for,
+					## which is the form a renamed argument cannot evade. Offline, and its own
+					## MMDAPP is its fixture, on the same terms as the checks above.
+					local setupServedFloorOut="" setupServedFloorRc=0
+					setupServedFloorOut="$( bash "$setupLibDir/AgentsHarnessServedFloorCheck.sh" 2>&1 )" || setupServedFloorRc=$?
+					printf '%s\n' "$setupServedFloorOut"
+					if [ "$setupServedFloorRc" != "0" ] ; then
+						echo "  warn: a tool that runs arbitrary code is served over MCP, around"
+						echo "        the hook that denies Bash on the *-native leg -- or a tool"
+						echo "        the floor needs was not served at all"
+						echo "  fix:  repair the served set in"
+						echo "        sh-lib/AgentsTools.InternMcpServer.include, saying there why"
+						echo "        each name is on it -- never the assertion"
 						setupRc=1
 					fi
 				fi
@@ -1200,19 +1272,24 @@ case "$1" in
 				local setupFragmentRoots setupCurrentRoots setupRootLine
 				local setupStaleRoots="" setupMissingRoots=""
 
-				if command -v copilot >/dev/null 2>&1 ; then
-					[ "$setupOperation" != "--check" ] || echo "COPILOT_CLI_INSTALLED: OK"
-					AgentsToolsOwnerSetupRow "Copilot CLI" "installed"
+				## This domain's subject is THIS PACKAGE'S OWN copilot harness leg, not
+				## the vendor copilot binary -- that one is copilot-native's subject and
+				## is probed on PATH in its own arm. So the question here is whether the
+				## leg file reached this workspace with the release.
+				local setupCopilotLeg="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsCopilotHarness.sh"
+				if [ -f "$setupCopilotLeg" ] ; then
+					[ "$setupOperation" != "--check" ] || echo "COPILOT_HARNESS_INSTALLED: OK"
+					AgentsToolsOwnerSetupRow "Copilot harness leg" "installed"
 				else
 					[ "$setupOperation" != "--check" ] || {
-						echo "COPILOT_CLI_INSTALLED: FAIL"
-						echo "  warn: copilot is not in PATH -- once it is the selected CLI the console"
-						echo "        exits rather than substituting another one, so nothing starts here"
-						echo "  fix:  $setupToolPath --owner-setup-copilot --apply"
+						echo "COPILOT_HARNESS_INSTALLED: FAIL"
+						echo "  warn: this package's own copilot harness leg is not in this workspace's"
+						echo "        release tree, so selecting 'copilot' starts nothing here"
+						echo "  path: $setupCopilotLeg"
+						echo "  fix:  upgrade the installed tools in this workspace"
 					}
-					AgentsToolsOwnerSetupRow "Copilot CLI" "NOT INSTALLED"
-					setupNeedsApply="yes"
-					setupBlockers="$setupBlockers COPILOT_CLI_INSTALLED"
+					AgentsToolsOwnerSetupRow "Copilot harness leg" "NOT INSTALLED"
+					setupBlockers="$setupBlockers COPILOT_HARNESS_INSTALLED"
 					setupRc=1
 				fi
 
@@ -1439,25 +1516,30 @@ case "$1" in
 				## Must equal DAGC_KNOWN_CLIS/DAGC_NONINTERACTIVE_CLIS in AgentsConsoleShellScript.template.sh.
 				local setupKnownClis="copilot copilot-native claude claude-native grok scaleway"
 				local setupSpawnClis="copilot copilot-native claude claude-native scaleway"
-				## scaleway has no real binary at all -- `command -v scaleway` can
-				## never succeed on any machine -- so its presence here is the
-				## harness script shipping with the release, the same substitution
-				## the console's own DagcCliPresent makes. Hand-copied from it, and
-				## the copy has one known difference left standing: the console
-				## resolves its path through DAGC_SCALEWAY_HARNESS (which
-				## MDAT_SCALEWAY_HARNESS can repoint at a candidate harness),
-				## while this copy always tests the
-				## default AgentsScalewayHarness.sh. Harmless for the question this
-				## one asks -- did the release reach this workspace at all -- and
-				## left alone here rather than half-fixed.
+				## A harness leg has no real binary at all -- `command -v scaleway` can
+				## never succeed on any machine -- so its presence here is the leg file
+				## shipping with the release, the same substitution the console's own
+				## DagcCliPresent makes, by the same Agents<Name>Harness.sh convention.
+				## One known difference is left standing: the console resolves a leg's
+				## path through MDAT_<NAME>_HARNESS where that is set, while this copy
+				## always tests the shipped default. Harmless for the question this one
+				## asks -- did the release reach this workspace at all -- and left alone
+				## here rather than half-fixed.
 				AgentsToolsSpawnCliPresent(){
+					local presentHead presentFile
 					case "$1" in
-						scaleway) [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh" ] ;;
-						## Its binary is `claude`; `claude-native` is on no PATH.
-						claude-native) command -v claude >/dev/null 2>&1 ;;
-						copilot-native) command -v copilot >/dev/null 2>&1 ;;
-						*) command -v "$1" >/dev/null 2>&1 ;;
+						## Its binary is `claude`; `claude-native` is on no PATH. Tested
+						## before the leg probe because no leg is named for a -native
+						## spelling, so these two can never reach it.
+						claude-native) command -v claude >/dev/null 2>&1 ; return $? ;;
+						copilot-native) command -v copilot >/dev/null 2>&1 ; return $? ;;
 					esac
+					presentHead="$( printf '%s' "$1" | cut -c1 | LC_ALL=C tr 'abcdefghijklmnopqrstuvwxyz' 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' )"
+					presentFile="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/Agents$presentHead$( printf '%s' "$1" | cut -c2- )Harness.sh"
+					if [ -f "$presentFile" ] ; then
+						return 0
+					fi
+					command -v "$1" >/dev/null 2>&1
 				}
 				local setupAutoCli="" setupCliName
 				for setupCliName in $setupSpawnClis ; do
@@ -1466,20 +1548,28 @@ case "$1" in
 					break
 				done
 
-				local setupClaudePath="$( command -v claude || : )"
+				## This domain's subject is THIS PACKAGE'S OWN claude harness leg, not the
+				## vendor claude binary -- that one is claude-native's subject and is
+				## probed on PATH in its own arm. So the question here is whether the leg
+				## file reached this workspace with the release. The variable keeps its
+				## name because the rest of this arm reads it as "the subject's path".
+				local setupClaudePath="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeHarness.sh"
 				local setupClaudeMissing=""
-				if [ -z "$setupClaudePath" ] ; then
+				if [ ! -f "$setupClaudePath" ] ; then
 					setupRc=1
 					setupClaudeMissing="yes"
 					[ "$setupOperation" != "--check" ] || {
-						echo "CLAUDE_CLI_INSTALLED: FAIL"
-						echo "  warn: claude is not in PATH, so no workspace on this machine runs it"
-						echo "  fix:  myx.common install/claude"
+						echo "CLAUDE_HARNESS_INSTALLED: FAIL"
+						echo "  warn: this package's own claude harness leg is not in this workspace's"
+						echo "        release tree, so selecting 'claude' starts nothing here"
+						echo "  path: $setupClaudePath"
+						echo "  fix:  upgrade the installed tools in this workspace"
 					}
-					AgentsToolsOwnerSetupRow "Claude CLI" "NOT INSTALLED"
+					AgentsToolsOwnerSetupRow "Claude harness leg" "NOT INSTALLED"
+					setupClaudePath=""
 				else
-					[ "$setupOperation" != "--check" ] || echo "CLAUDE_CLI_INSTALLED: OK"
-					AgentsToolsOwnerSetupRow "Claude CLI" "installed"
+					[ "$setupOperation" != "--check" ] || echo "CLAUDE_HARNESS_INSTALLED: OK"
+					AgentsToolsOwnerSetupRow "Claude harness leg" "installed"
 				fi
 
 				## Every root actually diagnosed, one absolute path per line, and the

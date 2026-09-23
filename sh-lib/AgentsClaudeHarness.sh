@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 set -e
 
-## AgentsAnthropicHarness.sh -- Anthropic's specifics, and nothing else: the
+## AgentsClaudeHarness.sh -- Anthropic's specifics, and nothing else: the
 ## endpoint, the tier models, the credential name and the wire it speaks. It then
 ## execs the universal harness, which holds the logic. Same shape as
 ## AgentsScalewayHarness.sh, deliberately: it is not a preset and must not grow
 ## into a selector.
 ##
-## THIS IS THE HARNESS LEG, NOT THE CLI LEG. `claude` in the console is the claude
-## CLI and is configured by --owner-setup-claude; that is a different thing which
-## this file neither replaces nor touches. Both legs read the same credential name
-## out of the process environment, which is the only thing they share.
+## The filename IS the console's own selection name: `claude` selects this file,
+## and --owner-setup-claude configures it. The vendor claude CLI is a different
+## thing, reached as `claude-native` and configured by --owner-setup-claude-native.
+## Both read the same credential name out of the process environment, which is the
+## only thing they share. HARNESS_PROVIDER_NAME below names the provider, Anthropic;
+## the selection name and the provider name are deliberately not the same string.
 
 harnessHere="$( cd "$( dirname -- "$0" )" && pwd )"
 
 ## --- Anthropic's identity, as it appears in diagnostics -------------------
 HARNESS_PROVIDER_NAME="Anthropic"
-HARNESS_SELF_NAME="AgentsAnthropicHarness.sh"
+HARNESS_SELF_NAME="AgentsClaudeHarness.sh"
 
 ## --- the endpoint, and the host named in its own refusal message ---------
 ## MEASURED, not transcribed. Anthropic serves an OpenAI-chat-completions-shaped

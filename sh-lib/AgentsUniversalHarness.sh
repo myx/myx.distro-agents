@@ -136,6 +136,29 @@ harnessHost="${HARNESS_HOST:-}"
 harnessWire="${HARNESS_WIRE:-}"
 harnessCredentialNames="${HARNESS_CREDENTIAL_NAMES:-}"
 
+## One tool, no model round: the MCP mirror serves the tool floor this file declares,
+## and a served call runs the tool HERE rather than through a second implementation.
+## No provider is involved, so the provider contract, the prompt, the credential and
+## the model are all skipped. First argument only -- a prompt is trailing argv.
+harnessToolOnly=""
+harnessToolOnlyName=""
+if [ "${1:-}" = --intern-tool ] ; then
+	if [ -z "${2:-}" ] ; then
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: --intern-tool: tool name required" >&2
+		exit 1
+	fi
+	harnessToolOnly=1
+	harnessToolOnlyName="$2"
+	shift 2
+	## The wire IS needed, and reaching an endpoint is not why: AgentsHarnessMcpClient.sh
+	## builds its declarations through the wire's own AgentsWireToolDeclaration, so the
+	## three MCP resource tools fail without an adapter in scope. Sourcing one costs
+	## nothing -- the adapter's whole top level is a JSON literal and two variables.
+	## A stub that named a wire keeps it; otherwise this is the same default
+	## AgentsHarnessMcpMirror.sh renders the floor from.
+	harnessWire="${harnessWire:-OpenAiChat}"
+fi
+
 harnessMissing=""
 [ -n "$harnessProviderName" ]    || harnessMissing="$harnessMissing HARNESS_PROVIDER_NAME"
 [ -n "$harnessEndpoint" ]        || harnessMissing="$harnessMissing HARNESS_ENDPOINT"
@@ -144,7 +167,7 @@ harnessMissing=""
 [ -n "$harnessCredentialNames" ] || harnessMissing="$harnessMissing HARNESS_CREDENTIAL_NAMES"
 [ -n "${HARNESS_MODEL_LIGHT:-}" ] || harnessMissing="$harnessMissing HARNESS_MODEL_LIGHT"
 [ -n "${HARNESS_MODEL_MAIN:-}" ]  || harnessMissing="$harnessMissing HARNESS_MODEL_MAIN"
-if [ -n "$harnessMissing" ] ; then
+if [ -n "$harnessMissing" ] && [ -z "$harnessToolOnly" ] ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: this is the universal core and is never run directly -- a provider stub sets these and execs it. Not set:$harnessMissing" >&2
 	exit 1
 fi
@@ -332,13 +355,18 @@ if [ -n "$harnessAgent" ] ; then
 fi
 
 ## Remaining argv joined into one prompt; stdin when no argv prompt was given.
-harnessPrompt="$*"
-if [ -z "$harnessPrompt" ] ; then
-	harnessPrompt="$( cat )"
-fi
-if [ -z "$harnessPrompt" ] ; then
-	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no prompt given -- pass it as trailing argv, or on stdin" >&2
-	exit 1
+## --intern-tool takes neither: its argument object is on stdin and is read where the
+## call is made, so reading a prompt here would swallow it.
+harnessPrompt=""
+if [ -z "$harnessToolOnly" ] ; then
+	harnessPrompt="$*"
+	if [ -z "$harnessPrompt" ] ; then
+		harnessPrompt="$( cat )"
+	fi
+	if [ -z "$harnessPrompt" ] ; then
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no prompt given -- pass it as trailing argv, or on stdin" >&2
+		exit 1
+	fi
 fi
 
 ## The stub decides which model and which key; the core owns only the mapping's shape.
@@ -359,13 +387,15 @@ case "$harnessTier" in
 	;;
 esac
 
-if [ -z "$harnessToken" ] ; then
-	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no credential -- $harnessCredentialNames must be set in this process's own environment. This leg reads those names itself, exactly as claude reads ANTHROPIC_API_KEY" >&2
-	exit 1
+## A tool call reaches no endpoint and is not metered, so --intern-tool needs neither.
+if [ -z "$harnessToolOnly" ] ; then
+	if [ -z "$harnessToken" ] ; then
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no credential -- $harnessCredentialNames must be set in this process's own environment. This leg reads those names itself, exactly as claude reads ANTHROPIC_API_KEY" >&2
+		exit 1
+	fi
+	## What this run costs, said once: the tier picked the model, and the model is metered.
+	printf '%s\n' "🤖 ${harnessDim}$harnessProviderName${harnessOff} ${harnessTool}$harnessModel${harnessOff} ${harnessDim}· $harnessTier tier${harnessOff}" >&2
 fi
-
-## What this run costs, said once: the tier picked the model, and the model is metered.
-printf '%s\n' "🤖 ${harnessDim}$harnessProviderName${harnessOff} ${harnessTool}$harnessModel${harnessOff} ${harnessDim}· $harnessTier tier${harnessOff}" >&2
 
 ## Roots are canonicalised by the same rule the candidate is, in one helper used by
 ## every append site: resolving one side only broke --access-root <symlink>.
@@ -376,25 +406,38 @@ AgentsHarnessResolveDir(){
 	printf '%s' "$resolveOut"
 }
 
-harnessRoots=""
-if [ "${#harnessAccessRoots[@]}" -gt 0 ] ; then
-	for harnessRoot in "${harnessAccessRoots[@]}" ; do
-		harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessRoot" )"$'\n'
-	done
-else
-	harnessFragment="${MMDAPP:-}/.claude/copilot-add-dir.fragment"
-	## Fallback only for a console generated before this leg was passed --access-root; every line shape it ever wrote ends in its own path.
-	if [ -f "$harnessFragment" ] ; then
-		while IFS= read -r harnessLine ; do
-			harnessLine="${harnessLine##*$'\t'}"
-			case "$harnessLine" in
-				/*) harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessLine" )"$'\n' ;;
-			esac
-		done < "$harnessFragment"
+## No root flags, whoever asked: the set comes from THIS package's own access-root
+## mechanism. AgentsTools.ClientAccessRoots.include is the one place it is defined, so a
+## caller takes what that yields and never a rendered copy downstream of it.
+## .claude/copilot-add-dir.fragment is exactly such a copy -- one of that include's own
+## consumers. It stays generated and stays copilot's own integration, and nothing here
+## reads it: it is output we publish, not a source anything of ours consults, which is
+## the rule mcp.servers.json already follows beside it. Sourced rather than re-entered
+## through a command script, because an internal caller already holds the context.
+## One block and no branch on which caller this is: yielding the set is one job.
+if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
+	harnessRootsInclude="$harnessHere/AgentsTools.ClientAccessRoots.include"
+	if [ ! -f "$harnessRootsInclude" ] ; then
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the access-root mechanism is missing from this package: $harnessRootsInclude" >&2
+		exit 1
 	fi
+	. "$harnessRootsInclude"
+	while IFS= read -r harnessOwnRoot ; do
+		case "$harnessOwnRoot" in
+			/*) harnessAccessRoots+=( "$harnessOwnRoot" ) ;;
+		esac
+	done <<< "$( AgentsToolsClientAccessRoots "${MMDAPP:-}" "$harnessAgent" )"
+	## Said because a partial set is otherwise silent: the member roots drop out when the
+	## skillset root is unresolved, and a narrower grant then looks exactly like a full one.
+	printf '%s\n' "🔐 ${harnessDim}access roots${harnessOff} ${harnessValue}${#harnessAccessRoots[@]}${harnessOff} ${harnessDim}from this package's own access-root mechanism${harnessOff}" >&2
 fi
+
+harnessRoots=""
+for harnessRoot in "${harnessAccessRoots[@]}" ; do
+	harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessRoot" )"$'\n'
+done
 if [ -z "$harnessRoots" ] ; then
-	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no access roots resolved -- refusing to run a tool-calling agent with nowhere it may touch. Pass --access-write-root for a root it may both read and write, or --access-read-root for one it may only read, or run this inside a workspace whose .claude/copilot-add-dir.fragment already exists (DistroAgentsTools --make-workspace-integrations)." >&2
+	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no access roots resolved -- refusing to run a tool-calling agent with nowhere it may touch. Pass --access-write-root for a root it may both read and write, or --access-read-root for one it may only read. With no flag at all the set comes from sh-lib/AgentsTools.ClientAccessRoots.include, so an empty set means that mechanism yielded nothing -- check MDAT_SKILLSET_ROOT and MMDAPP." >&2
 	exit 1
 fi
 
@@ -443,6 +486,10 @@ AgentsHarnessReapChildren(){
 }
 
 trap 'trap "" INT TERM ; AgentsHarnessRestoreTerminal ; AgentsHarnessReapChildren ; rm -rf -- "$harnessScratch"' EXIT
+
+## Monitor handles number from here rather than from a pid, so a handle stays readable
+## in a transcript and cannot be reused by the system for something else.
+harnessMonitorCount=0
 
 ## Reserved only once the cleanup above is armed, never before it: a scroll region set
 ## with nothing to undo it outlives this process and confines the next shell to the top
@@ -1103,6 +1150,540 @@ AgentsHarnessToolWait(){
 		return 0
 	fi
 	cat "$harnessScratch/wait.out"
+}
+
+## Helpers behind Agent, TaskStop and TaskOutput. Deliberately NOT named
+## AgentsHarnessTool*: that family is the static tool class AgentsHarnessSelfCheck.awk
+## matches site by site, and a helper with no tool behind it is an orphan there.
+
+## A value reaching a command line, gated by explicit character enumeration rather than
+## a bracket range -- [a-z] is collation-dependent and has matched `A` on this estate.
+AgentsHarnessBareName(){ ## candidate
+	local nameRest="$1" nameChar
+	[ -n "$nameRest" ] || return 1
+	while [ -n "$nameRest" ] ; do
+		nameChar="${nameRest%"${nameRest#?}"}"
+		nameRest="${nameRest#?}"
+		case "$nameChar" in
+			a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+			A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+			0|1|2|3|4|5|6|7|8|9) ;;
+			-|_|.) ;;
+			*) return 1 ;;
+		esac
+	done
+	return 0
+}
+
+## Where the spawn proxy records a session: one dispatch item per spawn, in whichever
+## board state holds it. Both handles taken here -- the item filename and the session
+## id -- are values ListAgents already prints, so nothing mints an identifier of its
+## own. Prints the item path, or nothing.
+AgentsHarnessDispatchItemPath(){ ## handle
+	local handleText="$1" dispatchState dispatchFile
+	local dispatchFiles=()
+	case "$handleText" in
+		''|*/*|*..*) return 0 ;;
+	esac
+	for dispatchState in running pending blocked parked processed archived retained backlog ; do
+		[ -f "$MDAT_DATA_ROOT/board/$dispatchState/$handleText" ] || continue
+		printf '%s' "$MDAT_DATA_ROOT/board/$dispatchState/$handleText"
+		return 0
+	done
+	for dispatchState in running pending blocked parked processed archived retained backlog ; do
+		for dispatchFile in "$MDAT_DATA_ROOT"/board/"$dispatchState"/dispatch-*.md ; do
+			[ -f "$dispatchFile" ] || continue
+			dispatchFiles+=( "$dispatchFile" )
+		done
+	done
+	[ "${#dispatchFiles[@]}" -gt 0 ] || return 0
+	## One pass over every candidate rather than one awk per file, and the id is matched
+	## inside the frontmatter only, so a body quoting it is not a hit. The wanted value
+	## travels in the environment: -v performs backslash decoding, ENVIRON does not.
+	MDAT_HARNESS_WANT_ID="$handleText" LC_ALL=C awk '
+		FNR == 1 { inFront = ($0 == "---") ; next ; }
+		!inFront { next ; }
+		$0 == "---" { inFront = 0 ; next ; }
+		/^session-id:/ {
+			idValue = $0
+			sub(/^session-id:[ \t]*/, "", idValue)
+			if (idValue == ENVIRON["MDAT_HARNESS_WANT_ID"]) { print FILENAME ; exit ; }
+		}
+	' "${dispatchFiles[@]}"
+	return 0
+}
+
+## One frontmatter field of a dispatch item, or empty.
+AgentsHarnessDispatchField(){ ## item path, field name
+	MDAT_HARNESS_WANT_FIELD="$2" LC_ALL=C awk '
+		NR == 1 { if ($0 != "---") exit ; next ; }
+		$0 == "---" { exit ; }
+		{
+			fieldName = ENVIRON["MDAT_HARNESS_WANT_FIELD"]
+			if (index($0, fieldName ":") == 1) {
+				fieldValue = substr($0, length(fieldName) + 2)
+				sub(/^[ \t]+/, "", fieldValue)
+				print fieldValue
+				exit
+			}
+		}
+	' "$1" 2>/dev/null || :
+}
+
+## The output path the spawn proxy writes into a dispatch item when it CLOSES one.
+## Empty while the session is still running, which is exactly when a caller wants it --
+## hence the receipt derivation below rather than this alone.
+AgentsHarnessDispatchOutputFile(){ ## item path
+	LC_ALL=C awk '
+		index($0, "output-file:") == 1 {
+			pathValue = substr($0, 13)
+			sub(/^[ \t]+/, "", pathValue)
+			if (pathValue != "") { print pathValue ; exit ; }
+		}
+	' "$1" 2>/dev/null || :
+}
+
+## The spawn proxy names its dispatch item and its output log from one receipt, so the
+## log is reachable from the item name while the session still runs. This derivation is
+## coupled to that naming; where it stops matching, the search below reports what it
+## looked for rather than reporting the log absent.
+AgentsHarnessDispatchReceipt(){ ## item filename
+	local nameText="${1%.md}"
+	case "$nameText" in
+		dispatch-*-spawn-proxy-*) ;;
+		*) return 0 ;;
+	esac
+	nameText="${nameText#dispatch-}"
+	printf 'spawn-proxy-%s-%s' "${nameText%%-spawn-proxy-*}" "${nameText##*-spawn-proxy-}"
+}
+
+## The live processes carrying a session id in their own command line. The console
+## passes --session-id to the CLI, so the id the dispatch item already records is also
+## an OS handle -- which is what lets a stop reach a helper that is cooperating in no
+## way. The id travels in the environment, never in argv, so this never matches itself.
+## -ww defeats the width truncation that would otherwise cut the id off a long CLI line.
+AgentsHarnessSessionPids(){ ## session id
+	export MDAT_HARNESS_WANT_SESSION="$1"
+	ps -A -ww -o pid=,args= 2>/dev/null | LC_ALL=C awk '
+		index($0, ENVIRON["MDAT_HARNESS_WANT_SESSION"]) > 0 { print $1 ; }
+	'
+}
+
+## Spawns a helper session through the team spawn operation this package owns, and
+## returns at once rather than waiting: a spawn that blocks for the helper lifetime is
+## not a spawn, and TaskOutput and TaskStop are how the caller follows up.
+##
+## --dispatch-doc:create is the whole point and is not optional here. It is what writes
+## the board item carrying the session id, and that item is what ListAgents reads, what
+## TaskOutput resolves and what TaskStop acts on. A spawn made without it leaves a
+## helper nothing can list, read or end, which is the failure this tool exists to close.
+##
+## The brief goes in on stdin, never argv, so no shell parses it. Output to a file
+## rather than a capture: the operation backgrounds a child, and a capture returns on
+## pipe EOF rather than on the command it ran.
+AgentsHarnessToolAgent(){ ## agent name, prompt, cli service
+	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" spawnRc=0
+	if [ -z "$harnessAgent" ] ; then
+		printf 'ERROR: this harness was started without --agent, so it has no team identity to spawn under, and one is never guessed here. Nothing was spawned. Report this rather than working around it.\n' ; return 0
+	fi
+	if [ -z "$toolAgentName" ] || [ -z "$toolPrompt" ] ; then
+		printf 'ERROR: both agent and prompt are required, and one of them was empty. Nothing was spawned.\n' ; return 0
+	fi
+	if ! AgentsHarnessBareName "$toolAgentName" ; then
+		printf 'ERROR: agent must be a bare member name such as keeper-myx, got: %s. Nothing was spawned.\n' "$toolAgentName" ; return 0
+	fi
+	if [ -n "$toolCliService" ] && ! AgentsHarnessBareName "$toolCliService" ; then
+		printf 'ERROR: cli_service must be a bare service name, got: %s. Nothing was spawned.\n' "$toolCliService" ; return 0
+	fi
+	if [ ! -x "${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
+		printf 'ERROR: the team tooling is not present beside this harness at %s, and no other spawn path exists here. Nothing was spawned.\n' "${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
+	fi
+	set -- "${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-agent-spawn-proxy "$toolAgentName" \
+		--from-stdin --dispatch-doc:create --context Agent
+	[ -z "$toolCliService" ] || set -- "$@" --spawn-cli-service "$toolCliService"
+	printf '%s' "$toolPrompt" | "$@" >"$harnessScratch/spawn.out" 2>&1 || spawnRc=$?
+	if [ "$spawnRc" != "0" ] ; then
+		printf 'ERROR: the spawn failed (rc=%s) and NO helper session is running. What the operation reported follows:\n' "$spawnRc"
+		cat "$harnessScratch/spawn.out"
+		return 0
+	fi
+	printf 'Spawned as %s. The DISPATCH_ITEM value below is the handle TaskOutput and TaskStop take, and ListAgents lists this session while it runs. What the operation reported follows:\n' "$toolAgentName"
+	cat "$harnessScratch/spawn.out"
+}
+
+## A bounded window over a file some other process is still writing, carrying its own
+## denominator: the range shown AND the total so far, never a bare window. It extends
+## the byte-cap shape AgentsHarnessToolBash already states rather than replacing it.
+##
+## It takes a path and nothing whatever about what wrote it, so a reader of any kind of
+## detached child output can use it. That is deliberate: the windowed read is the part
+## two such readers genuinely share, and it is factored out here so a second one need
+## not restate it.
+AgentsHarnessWindowedRead(){ ## path, byte offset, byte limit
+	local readPath="$1" readOffset="$2" readLimit="$3" readTotal readStart readEnd
+	readTotal="$( wc -c < "$readPath" | tr -d ' ' )"
+	[ -n "$readLimit" ] || readLimit=100000
+	if [ -z "$readOffset" ] ; then
+		## No offset means the end of the log, which is what following a live child wants.
+		readStart=$(( readTotal - readLimit ))
+		[ "$readStart" -ge 0 ] || readStart=0
+	else
+		readStart="$readOffset"
+	fi
+	if [ "$readStart" -ge "$readTotal" ] ; then
+		printf 'bytes %s-%s of %s so far: NOTHING NEW in this window -- the log has not grown past byte %s yet. That is a log with nothing further in it, never a log that has ended.\n' "$readStart" "$readStart" "$readTotal" "$readStart"
+		return 0
+	fi
+	readEnd=$(( readStart + readLimit ))
+	[ "$readEnd" -le "$readTotal" ] || readEnd="$readTotal"
+	printf 'bytes %s-%s of %s so far' "$readStart" "$readEnd" "$readTotal"
+	if [ "$readEnd" -lt "$readTotal" ] ; then
+		printf ', %s further byte(s) ahead of this window -- call again with offset %s\n\n' "$(( readTotal - readEnd ))" "$readEnd"
+	elif [ "$readStart" -gt 0 ] ; then
+		printf ', the end of the log so far; the earlier %s byte(s) are not shown\n\n' "$readStart"
+	else
+		printf ', the whole log so far\n\n'
+	fi
+	tail -c +$(( readStart + 1 )) "$readPath" | head -c "$readLimit"
+}
+
+## Reads a helper session output with no cooperation from it and no effect on it: the
+## spawn proxy redirects the child streams to a file on disk, so this is an ordinary
+## windowed read of that file at any moment, running or finished.
+##
+## THREE OUTCOMES, worded so they cannot be confused, because reading them alike is the
+## failure this tool exists to prevent. RUNNING: the session is still alive, and what it
+## has written SO FAR follows -- a window that ends is never the session ending. EMPTY:
+## the session is alive and has written nothing yet, which is not a session that
+## produced nothing. FINISHED: its record is closed. Anything that could not be read is
+## a stated ERROR instead, and is never dressed as a helper that was quiet.
+AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
+	local toolHandle="$1" toolOffset="$2" toolLimit="$3" toolOutputFile="$4"
+	local itemPath itemName itemStatus sessionId receiptId logPath="" logHow="" logCandidate
+	local liveNow="unknown" logTotal
+	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
+		printf 'ERROR: MDAT_DATA_ROOT is not set in this process, so the dispatch records naming a helper session cannot be located. Nothing was read, and no output is implied to be absent.\n' ; return 0
+	fi
+	if [ -n "$toolOffset" ] && ! AgentsHarnessWholeNumber "$toolOffset" ; then
+		printf 'ERROR: offset must be a whole number of bytes, got: %s\n' "$toolOffset" ; return 0
+	fi
+	if [ -n "$toolLimit" ] && { ! AgentsHarnessWholeNumber "$toolLimit" || [ "$toolLimit" -lt 1 ] ; } ; then
+		printf 'ERROR: limit must be a whole number of bytes above zero, got: %s\n' "$toolLimit" ; return 0
+	fi
+	[ -n "$toolLimit" ] || toolLimit=100000
+	[ "$toolLimit" -le 100000 ] || toolLimit=100000
+	if [ -n "$toolOutputFile" ] ; then
+		## Confined to the team data store: this parameter would otherwise be a read of
+		## any path at all, around the access roots that bound Read, Glob and Grep.
+		case "$toolOutputFile" in
+			"$MDAT_DATA_ROOT"/*) ;;
+			*)
+				printf 'ERROR: output_file is accepted only inside the team data store at %s, and this one is outside it: %s. Give the dispatch item name or the session id as handle instead.\n' "$MDAT_DATA_ROOT" "$toolOutputFile" ; return 0
+			;;
+		esac
+		case "$toolOutputFile" in
+			*..*)
+				printf 'ERROR: output_file may not step upward out of the team data store: %s\n' "$toolOutputFile" ; return 0
+			;;
+		esac
+		logPath="$toolOutputFile" ; logHow="the output_file given"
+	else
+		if [ -z "$toolHandle" ] ; then
+			printf 'ERROR: handle is required: the dispatch item filename or the session id, both of which ListAgents prints. Nothing was read.\n' ; return 0
+		fi
+		itemPath="$( AgentsHarnessDispatchItemPath "$toolHandle" )"
+		if [ -z "$itemPath" ] ; then
+			printf 'ERROR: no dispatch item matches handle %s in any board state under %s. A helper spawned WITHOUT a tracking document has no record here at all, so it cannot be reached by handle -- that is a property of how it was spawned, not a missing output.\n' "$toolHandle" "$MDAT_DATA_ROOT" ; return 0
+		fi
+		itemName="${itemPath##*/}"
+		itemStatus="$( AgentsHarnessDispatchField "$itemPath" status )"
+		sessionId="$( AgentsHarnessDispatchField "$itemPath" session-id )"
+		if [ -n "$sessionId" ] ; then
+			if [ -n "$( AgentsHarnessSessionPids "$sessionId" )" ] ; then liveNow=yes ; else liveNow=no ; fi
+		fi
+		logPath="$( AgentsHarnessDispatchOutputFile "$itemPath" )"
+		[ -z "$logPath" ] || logHow="the output-file the dispatch item records, which it writes only once the session closes"
+		if [ -z "$logPath" ] ; then
+			receiptId="$( AgentsHarnessDispatchReceipt "$itemName" )"
+			if [ -z "$receiptId" ] ; then
+				printf 'ERROR: dispatch item %s records no output-file and its name does not carry a spawn receipt, so its output log could not be located. Status recorded on the item: %s\n' "$itemName" "${itemStatus:-<none>}" ; return 0
+			fi
+			for logCandidate in "$MDAT_DATA_ROOT"/audit/*/"$receiptId".output.log ; do
+				[ -f "$logCandidate" ] || continue
+				## States only how the path was found. Whether the session is still open is
+				## reported on its own line from a live reading, and a clause here that
+				## could disagree with it would be worse than no clause at all.
+				logPath="$logCandidate" ; logHow="derived from the spawn receipt $receiptId"
+				break
+			done
+		fi
+		if [ -z "$logPath" ] ; then
+			printf 'ERROR: dispatch item %s was found, but no output log for receipt %s exists under %s/audit. Status recorded on the item: %s. The log is absent rather than unread -- a spawn whose dispatch document was suppressed writes its log to a scratch path this tool does not reach.\n' "$itemName" "$receiptId" "$MDAT_DATA_ROOT" "${itemStatus:-<none>}" ; return 0
+		fi
+	fi
+	if [ ! -f "$logPath" ] ; then
+		printf 'ERROR: the output log named for this session does not exist: %s\n' "$logPath" ; return 0
+	fi
+	if [ ! -r "$logPath" ] ; then
+		printf 'ERROR: the output log named for this session is not readable: %s\n' "$logPath" ; return 0
+	fi
+	logTotal="$( wc -c < "$logPath" | tr -d ' ' )"
+	## The outcome first, on its own line, before anything that could be mistaken for it.
+	if [ "$liveNow" = "yes" ] && [ "$logTotal" -eq 0 ] ; then
+		printf 'OUTPUT-RESULT: EMPTY\n'
+	elif [ "$liveNow" = "yes" ] ; then
+		printf 'OUTPUT-RESULT: RUNNING\n'
+	elif [ "$liveNow" = "no" ] ; then
+		printf 'OUTPUT-RESULT: FINISHED\n'
+	else
+		printf 'OUTPUT-RESULT: UNKNOWN\n'
+	fi
+	printf 'Output log: %s\n' "$logPath"
+	printf 'Located by: %s\n' "$logHow"
+	[ -z "$itemName" ] || printf 'Dispatch item: %s, status %s\n' "$itemName" "${itemStatus:-<none>}"
+	case "$liveNow" in
+		yes) printf 'A process still carries this session id, so this log is STILL BEING WRITTEN: what follows is what exists so far, and its end is not the end of the work.\n' ;;
+		no)  printf 'No process carries this session id any more, so this log is complete.\n' ;;
+		*)   printf 'Whether a process still carries this session id could not be established, so it is NOT known whether this log is complete.\n' ;;
+	esac
+	if [ "$logTotal" -eq 0 ] ; then
+		printf 'The log is zero bytes: this session has written NOTHING YET. That is an empty log, never a session that produced nothing.\n'
+		return 0
+	fi
+	printf '\n'
+	AgentsHarnessWindowedRead "$logPath" "$toolOffset" "$toolLimit"
+}
+
+## Ends a running helper session. The session id the dispatch item records is on the
+## command line of the CLI the console started, so this reaches the process itself and
+## needs nothing from the helper.
+##
+## TERM alone by default, and KILL only where the caller asks for it: a stop that
+## escalates silently is a destructive default. Nothing is reported as stopped until
+## the process list has been read AGAIN and the process is gone -- a signal delivered
+## is not a process ended, and the two must never read alike.
+AgentsHarnessToolTaskStop(){ ## handle, force
+	local toolHandle="$1" toolForce="$2"
+	local itemPath itemName itemStatus sessionId stopPids stopPid survivors forceWanted=no
+	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
+		printf 'ERROR: MDAT_DATA_ROOT is not set in this process, so the dispatch records naming a helper session cannot be located. Nothing was signalled, and no session is implied to be absent.\n' ; return 0
+	fi
+	if [ -z "$toolHandle" ] ; then
+		printf 'ERROR: handle is required: the dispatch item filename or the session id, both of which ListAgents prints. Nothing was signalled.\n' ; return 0
+	fi
+	case "$toolForce" in
+		true|1|yes) forceWanted=yes ;;
+	esac
+	itemPath="$( AgentsHarnessDispatchItemPath "$toolHandle" )"
+	if [ -z "$itemPath" ] ; then
+		printf 'ERROR: no dispatch item matches handle %s in any board state under %s. A helper spawned WITHOUT a tracking document has no record here at all, so it cannot be reached by handle -- that is a property of how it was spawned, and nothing was signalled.\n' "$toolHandle" "$MDAT_DATA_ROOT" ; return 0
+	fi
+	itemName="${itemPath##*/}"
+	itemStatus="$( AgentsHarnessDispatchField "$itemPath" status )"
+	sessionId="$( AgentsHarnessDispatchField "$itemPath" session-id )"
+	if [ -z "$sessionId" ] ; then
+		printf 'ERROR: dispatch item %s carries no session-id, so there is no handle on any process and NOTHING was signalled. Status recorded on the item: %s\n' "$itemName" "${itemStatus:-<none>}" ; return 0
+	fi
+	stopPids="$( AgentsHarnessSessionPids "$sessionId" )"
+	if [ -z "$stopPids" ] ; then
+		printf 'STOP-RESULT: NO-PROCESS\nDispatch item %s, session %s, status %s.\nNo running process carries that session id, so nothing was signalled. Where the status above is a closed one this session had already finished; otherwise the record says running and no process matches it, which is UNKNOWN rather than stopped -- the session may have died without its record being closed, or its CLI may not carry the session id on its command line.\n' "$itemName" "$sessionId" "${itemStatus:-<none>}" ; return 0
+	fi
+	for stopPid in $stopPids ; do
+		kill -TERM "$stopPid" 2>/dev/null || :
+	done
+	sleep 2
+	survivors="$( AgentsHarnessSessionPids "$sessionId" )"
+	if [ -z "$survivors" ] ; then
+		printf 'STOP-RESULT: STOPPED\nDispatch item %s, session %s.\nTERM was sent to pid(s) %s and the process list no longer carries that session id.\nThe dispatch item is closed by the spawn operation itself rather than here, so its status may still read as started for a moment.\n' "$itemName" "$sessionId" "$( printf '%s' "$stopPids" | tr '\n' ' ' )" ; return 0
+	fi
+	if [ "$forceWanted" != "yes" ] ; then
+		printf 'STOP-RESULT: STILL-RUNNING\nDispatch item %s, session %s.\nTERM was sent to pid(s) %s and pid(s) %s are still running two seconds later. Nothing further was sent: KILL happens only when force is asked for. Call again with force set true to send it.\n' "$itemName" "$sessionId" "$( printf '%s' "$stopPids" | tr '\n' ' ' )" "$( printf '%s' "$survivors" | tr '\n' ' ' )" ; return 0
+	fi
+	for stopPid in $survivors ; do
+		kill -KILL "$stopPid" 2>/dev/null || :
+	done
+	sleep 2
+	survivors="$( AgentsHarnessSessionPids "$sessionId" )"
+	if [ -z "$survivors" ] ; then
+		printf 'STOP-RESULT: KILLED\nDispatch item %s, session %s.\nTERM did not end it, KILL was sent because force was asked for, and the process list no longer carries that session id.\nA KILLed CLI reaps none of its own children, so anything it had started may still be running.\n' "$itemName" "$sessionId" ; return 0
+	fi
+	printf 'STOP-RESULT: NOT-STOPPED\nDispatch item %s, session %s.\nTERM and then KILL were both sent, and pid(s) %s are STILL present. This session was NOT stopped -- report it rather than working around it.\n' "$itemName" "$sessionId" "$( printf '%s' "$survivors" | tr '\n' ' ' )"
+}
+
+## The same windowed read as TaskOutput, pointed at the other kind of child: a shell
+## job this process started, rather than a helper session carrying a dispatch document.
+## The reading half is AgentsHarnessWindowedRead, shared rather than restated.
+##
+## LIFETIME is what the two kinds do NOT share, and it is decided the opposite way. A
+## helper session has its own tracking document, its own identity and its own report
+## path, so it legitimately outlives the run that spawned it. A shell job has none of
+## those: its whole value is this agent reading it, and a deploy still running on real
+## hosts with nobody reading it is the case this tool exists to prevent. So its pid is
+## recorded where AgentsHarnessReapChildren already looks, while its log and cursor keep
+## their own directory one level down, which that non-recursive glob does not reach.
+##
+## WHAT THAT REAPING ACTUALLY REACHES, measured rather than assumed: TERM goes to the
+## wrapper recorded in the pid file, and a command that forked its own children leaves
+## those orphaned -- a `sleep 25` outlived the run it was started in. That is the
+## PID-versus-process-group limit `magic-developer`'s own shell reference already states
+## for this hand-rolled shape. The tool says so rather than promising a lifetime it does
+## not enforce; a process-group signal is a separate change to a shared mechanism.
+##
+## FOUR OUTCOMES, the same words TaskOutput uses, because they are the same states.
+## There is no UNKNOWN one here: the job is this process's own child, so whether it is
+## alive is always readable rather than inferred.
+AgentsHarnessToolMonitor(){ ## command, cwd, handle, byte offset, byte limit
+	local toolCommand="$1" toolCwd="$2" toolHandle="$3" toolOffset="$4" toolLimit="$5"
+	local monitorLog monitorPid monitorAlive monitorStatus monitorTotal
+	if [ -n "$toolCommand" ] ; then
+		if ! AgentsHarnessPathAllowed "$toolCwd" ; then
+			printf 'ERROR: cwd not in the allowed access-root set: %s. Nothing was started.\n' "$toolCwd" ; return 0
+		fi
+		toolCwd="$harnessResolvedPath"
+		if [ ! -d "$toolCwd" ] ; then
+			printf 'ERROR: no such directory: %s. Nothing was started.\n' "$toolCwd" ; return 0
+		fi
+		if ! mkdir -p "$harnessScratch/monitor" ; then
+			printf 'ERROR: could not create the monitor state directory under %s, so no job could be registered. Nothing was started.\n' "$harnessScratch" ; return 0
+		fi
+		harnessMonitorCount=$(( harnessMonitorCount + 1 ))
+		toolHandle="job-$harnessMonitorCount"
+		printf '%s' "$toolCommand" > "$harnessScratch/monitor/$toolHandle.cmd"
+		: > "$harnessScratch/monitor/$toolHandle.log"
+		: > "$harnessScratch/monitor/$toolHandle.cursor"
+		## Redirected to a file and detached from this function's own capture pipe, never
+		## captured: a command substitution returns when that pipe has no writers left, so
+		## a child still holding it would hold this call open for the job's whole life.
+		## The status is written by the job itself, because nothing else can read it -- a
+		## `wait` here would block for exactly as long as the job runs.
+		## The eval gets a subshell of its own so that an `exit` inside the command ends
+		## THAT shell rather than this one: measured, a command ending in `exit 7` otherwise
+		## takes the status write with it, and the job then reads as having recorded no
+		## status at all -- a failure dressed as an unknown. The inner form is Bash's own,
+		## so the same command run either way behaves the same.
+		( monitorStatus=0 ; ( cd "$toolCwd" && set -e && eval "$toolCommand" ) || monitorStatus=$? ; printf '%s\n' "$monitorStatus" > "$harnessScratch/monitor/$toolHandle.status" ) \
+			< /dev/null > "$harnessScratch/monitor/$toolHandle.log" 2>&1 &
+		## Beside run.pid and watch.pid, so the one cleanup at EXIT reaches this too.
+		printf '%s\n' "$!" > "$harnessScratch/monitor-$toolHandle.pid"
+		printf 'MONITOR-RESULT: EMPTY\nMonitor handle: %s\nCommand: %s\nIn: %s\nThe job is RUNNING and has written nothing yet. Whatever it writes reaches you AUTOMATICALLY at the start of your following turns, in order from its first byte, with nothing skipped -- carry on with other work and react when it arrives. Read it sooner by calling Monitor with handle %s. When this run ends the job is signalled, but a command that forked its own children may leave those running, so do not leave it unattended.\n' \
+			"$toolHandle" "$toolCommand" "$toolCwd" "$toolHandle"
+		return 0
+	fi
+	if [ -z "$toolHandle" ] ; then
+		printf 'ERROR: give command and cwd to start a job, or handle to read one already started. Neither was given, so nothing was started and nothing was read.\n' ; return 0
+	fi
+	case "$toolHandle" in
+		job-[0-9]*) ;;
+		*)
+			printf 'ERROR: handle must be one a Monitor start returned, such as job-1, and this is not one: %s. Nothing was read.\n' "$toolHandle" ; return 0
+		;;
+	esac
+	monitorLog="$harnessScratch/monitor/$toolHandle.log"
+	if [ ! -f "$monitorLog" ] ; then
+		printf 'ERROR: no background job named %s was started in this run, so there is no log to read. This is a handle naming nothing, never a job that produced nothing.\n' "$toolHandle" ; return 0
+	fi
+	if [ -n "$toolOffset" ] && ! AgentsHarnessWholeNumber "$toolOffset" ; then
+		printf 'ERROR: offset must be a whole number of bytes, got: %s\n' "$toolOffset" ; return 0
+	fi
+	if [ -n "$toolLimit" ] && { ! AgentsHarnessWholeNumber "$toolLimit" || [ "$toolLimit" -lt 1 ] ; } ; then
+		printf 'ERROR: limit must be a whole number of bytes above zero, got: %s\n' "$toolLimit" ; return 0
+	fi
+	[ -n "$toolLimit" ] || toolLimit=100000
+	[ "$toolLimit" -le 100000 ] || toolLimit=100000
+	monitorTotal="$( wc -c < "$monitorLog" | tr -d ' ' )"
+	monitorPid=""
+	read -r monitorPid < "$harnessScratch/monitor-$toolHandle.pid" 2>/dev/null || monitorPid=""
+	if [ -n "$monitorPid" ] && kill -0 "$monitorPid" 2>/dev/null ; then
+		monitorAlive=yes
+	else
+		## Dropped once the job is gone, so the one cleanup cannot signal a pid the system
+		## has since handed to something else.
+		monitorAlive=no
+		rm -f "$harnessScratch/monitor-$toolHandle.pid"
+	fi
+	if [ "$monitorAlive" = yes ] && [ "$monitorTotal" -eq 0 ] ; then
+		printf 'MONITOR-RESULT: EMPTY\n'
+	elif [ "$monitorAlive" = yes ] ; then
+		printf 'MONITOR-RESULT: RUNNING\n'
+	else
+		printf 'MONITOR-RESULT: FINISHED\n'
+	fi
+	printf 'Monitor handle: %s\nCommand: %s\n' "$toolHandle" "$( cat "$harnessScratch/monitor/$toolHandle.cmd" )"
+	if [ "$monitorAlive" = yes ] ; then
+		printf 'This job is STILL RUNNING, so this log is STILL BEING WRITTEN: what follows is what exists so far, and its end is not the end of the work.\n'
+	elif [ -f "$harnessScratch/monitor/$toolHandle.status" ] ; then
+		printf 'This job has ENDED with exit status %s, so this log is complete.\n' "$( cat "$harnessScratch/monitor/$toolHandle.status" )"
+	else
+		printf 'This job is no longer running and recorded NO exit status, so it was killed or died before it could write one. The log is complete; whether the work finished is NOT known from it.\n'
+	fi
+	if [ "$monitorTotal" -eq 0 ] ; then
+		printf 'The log is zero bytes: this job has written NOTHING YET. That is an empty log, never a job that produced nothing.\n'
+		return 0
+	fi
+	printf '\nOutput from several targets arrives INTERLEAVED in this one stream. A line belongs to whichever target that line itself names, never to the target named by an earlier line.\n\n'
+	AgentsHarnessWindowedRead "$monitorLog" "$toolOffset" "$toolLimit"
+}
+
+## What makes Monitor a monitor rather than a poll. Called once per round, immediately
+## before the request body is frozen, it returns whatever every registered job has
+## written since the last round, or nothing at all. So the model never has to remember
+## to ask, and a deploy failing at minute one reaches it on the next round instead of
+## at minute nine.
+##
+## The cursor starts at byte zero and only ever moves forward, so a window is never a
+## tail: the beginning of a failing deploy cannot be skipped, which is the specific way
+## a silent tail turns three failed hosts into a clean ending.
+##
+## It stops at a line boundary. A line split across two rounds is exactly how one host's
+## error gets attributed to another host, because the half naming the host and the half
+## carrying the error arrive in different turns.
+AgentsHarnessMonitorSpool(){
+	local spoolLog spoolHandle spoolCursor spoolTotal spoolAvail spoolSpan spoolCut spoolPid
+	for spoolLog in "$harnessScratch"/monitor/*.log ; do
+		[ -f "$spoolLog" ] || continue
+		spoolHandle="${spoolLog##*/}" ; spoolHandle="${spoolHandle%.log}"
+		spoolCursor=""
+		read -r spoolCursor < "${spoolLog%.log}.cursor" 2>/dev/null || spoolCursor=""
+		case "$spoolCursor" in ''|*[!0-9]*) spoolCursor=0 ;; esac
+		spoolTotal="$( wc -c < "$spoolLog" | tr -d ' ' )"
+		spoolAvail=$(( spoolTotal - spoolCursor ))
+		[ "$spoolAvail" -gt 0 ] || continue
+		## One round's share, so a job writing faster than the model reads cannot take
+		## the whole window. What is left over is not lost: the cursor holds it for the
+		## next round, and Monitor with a handle reads it now.
+		[ "$spoolAvail" -le 20000 ] || spoolAvail=20000
+		## Bytes up to and including the last newline in that span. awk cannot see whether
+		## its input ended with a newline, so the sum of each record plus its terminator is
+		## compared against the span: one byte over means the final record was unterminated,
+		## and that partial line is held back rather than delivered cut.
+		spoolSpan="$( tail -c +$(( spoolCursor + 1 )) "$spoolLog" | head -c "$spoolAvail" | LC_ALL=C awk -v span="$spoolAvail" 'BEGIN{ sumBytes = 0 ; lastLen = 0 ; } { sumBytes += length($0) + 1 ; lastLen = length($0) ; } END{ if ( sumBytes == span + 1 ) { print sumBytes - 1 - lastLen ; } else { print sumBytes ; } }' )"
+		spoolCut=""
+		if [ "$spoolSpan" -eq 0 ] ; then
+			## No complete line yet, so nothing is said this round -- except where one line
+			## is longer than a whole window, which would otherwise stall forever. There the
+			## window is taken at the cap and says that it cut a line.
+			[ "$spoolAvail" -ge 20000 ] || continue
+			spoolSpan="$spoolAvail"
+			spoolCut=yes
+		fi
+		spoolPid=""
+		read -r spoolPid < "$harnessScratch/monitor-$spoolHandle.pid" 2>/dev/null || spoolPid=""
+		printf 'Background job %s, which you started with Monitor, has written more output while you were working. You did not ask for this. Nothing has been skipped: it arrives in order from the first byte, one piece per turn, so you can react before the job ends.\n' "$spoolHandle"
+		printf 'Command: %s\n' "$( cat "${spoolLog%.log}.cmd" )"
+		if [ -n "$spoolPid" ] && kill -0 "$spoolPid" 2>/dev/null ; then
+			printf 'State: RUNNING -- this job is still going, so the end of this window is NOT the end of the work, and more follows on your next turn.\n'
+		elif [ -f "${spoolLog%.log}.status" ] ; then
+			printf 'State: FINISHED, exit status %s.\n' "$( cat "${spoolLog%.log}.status" )"
+		else
+			printf 'State: FINISHED with NO exit status recorded, so it was killed or died before writing one. Whether its work completed is NOT known from this log.\n'
+		fi
+		printf 'Output from several targets arrives INTERLEAVED in this one stream. A line belongs to whichever target that line itself names, never to the target named by an earlier line.\n'
+		[ -z "$spoolCut" ] || printf 'NOTE: one line is longer than this whole window, so this window CUTS IT IN HALF and the remainder follows next turn. Do not read the cut end as the end of that line.\n'
+		printf '\n'
+		AgentsHarnessWindowedRead "$spoolLog" "$spoolCursor" "$spoolSpan"
+		printf '\n'
+		printf '%s\n' "$(( spoolCursor + spoolSpan ))" > "${spoolLog%.log}.cursor"
+	done
 }
 
 ## ONE optional labelled field, appended only where it carries a value. A label printed
@@ -1766,6 +2347,30 @@ AgentsHarnessAnnounceTool(){
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" name )" )$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim file$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
+		## The member being spawned, then the brief on its own line: this call starts a
+		## session that outlives the turn, so who it starts has to be visible at a glance.
+		Agent)
+			announceIcon="🚀"
+			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" prompt )" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" agent )" )$harnessOff"
+			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim brief$harnessOff $harnessValue$announcePath$harnessOff"
+		;;
+		TaskStop)
+			announceIcon="🛑"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" handle )" )$harnessOff"
+		;;
+		TaskOutput)
+			announceIcon="📜"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" handle )" )$harnessOff"
+		;;
+		## A start and a read are the same tool, and which one this call is decides which
+		## field identifies it, so both are shown rather than one that may be empty.
+		Monitor)
+			announceIcon="📡"
+			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" handle )" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" command )" )$harnessOff"
+			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim handle$harnessOff $harnessValue$announcePath$harnessOff"
+		;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		## The whole argument object is shown, since only the server knows its own shape.
 		mcp__*)
@@ -1777,6 +2382,43 @@ AgentsHarnessAnnounceTool(){
 	## without the reader hunting back through scrollback for the announce line.
 	AgentsHarnessTitleState "$announceFuncName"
 	printf '   %s %s%-*s%s %s\n' "$announceIcon" "$harnessTool" "$harnessLabelWidth" "$( AgentsHarnessTruncateArg "$announceFuncName" )" "$harnessOff" "$announceDetail" >&2
+}
+
+## One dispatch, two callers: the model loop below and the --intern-tool arm
+## above it. The arms keep their own spelling because AgentsHarnessSelfCheck.awk
+## locates them by it, and harnessResult stays global so the loop reads the
+## result exactly where it always did.
+AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
+	local harnessFuncName="$1" harnessFuncArgsRaw="$2"
+	case "$harnessFuncName" in
+		Read)      harnessResult="$( AgentsHarnessToolRead "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
+		Write)     harnessResult="$( AgentsHarnessToolWrite "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" content )" )" ;;
+		Glob)      harnessResult="$( AgentsHarnessToolGlob "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" long )" )" ;;
+		Edit)      harnessResult="$( AgentsHarnessToolEdit "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" old_text )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" new_text )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" replace_all )" )" ;;
+		Grep)      harnessResult="$( AgentsHarnessToolGrep "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" before )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" after )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" ignore_case )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_mode )" )" ;;
+		Bash)      harnessResult="$( AgentsHarnessToolBash "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" )" ;;
+		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" )" ;;
+		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" )" ;;
+		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" message )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
+		ListAgents) harnessResult="$( AgentsHarnessToolListAgents )" ;;
+		Wait)      harnessResult="$( AgentsHarnessToolWait "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" sources )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" poll_interval )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" since_utime )" )" ;;
+		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" outcome )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" unfinished )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
+		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" subject )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" evidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" confidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
+		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" severity )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" headline )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" detail )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" action_required )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
+		Artifact)  harnessResult="$( AgentsHarnessToolArtifact "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" title )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" kind )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" summary )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
+		AskUserQuestion) harnessResult="$( AgentsHarnessToolAskUserQuestion "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" question )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" options )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait_source )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
+		ListMcpResourcesTool) harnessResult="$( AgentsHarnessToolListMcpResourcesTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" )" ;;
+		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri )" )" ;;
+		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri_prefix )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
+		Skill)     harnessResult="$( AgentsHarnessToolSkill "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" name )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" list )" )" ;;
+		Agent)     harnessResult="$( AgentsHarnessToolAgent "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" agent )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" prompt )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cli_service )" )" ;;
+		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" force )" )" ;;
+		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_file )" )" ;;
+		Monitor)   harnessResult="$( AgentsHarnessToolMonitor "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
+		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
+		mcp__*)    harnessResult="$( AgentsHarnessMcpCall "$harnessFuncName" "$harnessFuncArgsRaw" )" ;;
+		*)         harnessResult="ERROR: unknown tool: $harnessFuncName" ;;
+	esac
 }
 
 ## Sourced, not exec'd: its functions run in this process and share everything above.
@@ -1849,6 +2491,29 @@ if [ ! -f "$harnessHooksFile" ] ; then
 fi
 . "$harnessHooksFile"
 
+## Which servers a served call may reach is the tool's own business, not its caller's,
+## so it is settled here rather than by whoever invoked this arm. Only the three
+## resource tools reach one at all, so only they pay for one being spawned. The set is
+## the workspace's own cooked mcp.servers.json, minus this package's own server: our
+## registered key and our serverInfo.name are both the literal myx.distro, and
+## enumerating ourselves is how a walk descends into a copy of itself. Self-exclusion
+## terminates only if every participant excludes itself, so the marker below travels
+## to every child as well -- a copy of us reached through a foreign server sees it and
+## declines. Named after the caller has parsed argv, and before the client is sourced,
+## because that file enumerates as it loads.
+if [ -n "$harnessToolOnly" ] ; then
+	export MDAT_MCP_SERVED_MARKER=1
+	case "$harnessToolOnlyName" in
+		ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool)
+			while IFS= read -r harnessToolPeer ; do
+				[ -n "$harnessToolPeer" ] || continue
+				[ "myx.distro" != "$harnessToolPeer" ] || continue
+				harnessMcpServers+=( "$harnessToolPeer" )
+			done <<< "$( LC_ALL=C awk -v path=mcpServers -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" < "${MMDAPP:-}/.local/agents/mcp.servers.json" 2>/dev/null )"
+		;;
+	esac
+fi
+
 ## Sourced on the same terms, and after the hooks so a server this enumerates is
 ## already subject to them. It enumerates only what --mcp-server named, so a spawn
 ## naming none reads no file and starts no process.
@@ -1858,6 +2523,29 @@ if [ ! -f "$harnessMcpFile" ] ; then
 	exit 1
 fi
 . "$harnessMcpFile"
+
+## --intern-tool ends here: the tools, the hooks and the MCP client are all in scope by
+## now, and everything below this point is the model path. The argument object arrives
+## on stdin as the same raw JSON a tool_call carries, so a served call and a model call
+## read their arguments through one reader. stdout carries the result and nothing else.
+if [ -n "$harnessToolOnly" ] ; then
+	harnessToolOnlyArgs="$( cat )"
+	[ -n "$harnessToolOnlyArgs" ] || harnessToolOnlyArgs="{}"
+	AgentsHarnessAnnounceTool "$harnessToolOnlyName" "$harnessToolOnlyArgs"
+	## Every hook gets its say here exactly as it does in the loop: a surface that skips
+	## them is a way around them.
+	harnessResult="$( AgentsHarnessHooksRefusal "$harnessToolOnlyName" "$harnessToolOnlyArgs" )"
+	[ -n "$harnessResult" ] || AgentsHarnessRunTool "$harnessToolOnlyName" "$harnessToolOnlyArgs"
+	printf '%s\n' "$harnessResult"
+	## A refused or unknown tool leaves a caller's status check dead otherwise.
+	case "$harnessResult" in
+		ERROR:*)
+			printf '%s\n' "   ${harnessBad}🚫 refused:${harnessOff} ${harnessDim}$( AgentsHarnessTruncateArg "$harnessResult" )${harnessOff}" >&2
+			exit 1
+		;;
+	esac
+	exit 0
+fi
 
 ## Said only when the two sets differ, so an ungranted run reads exactly as it did.
 harnessWriteNote=""
@@ -1971,6 +2659,14 @@ while : ; do
 	## character as part of an unbraced name.
 	AgentsHarnessTitleState
 	printf '%s\n' "${harnessDim}── round $harnessRound ─────────────────────────────────${harnessOff}${harnessUsageTotal:+ ${harnessDim}· $harnessUsageTotal tokens so far${harnessOff}}" >&2
+
+	## Output from a background job reaches the model HERE, between rounds, which is the
+	## only place on this wire it can: the body below is one complete document written in
+	## full before the first response byte arrives, and chat-completions has no verb for
+	## appending to a turn already in flight. An empty spool appends nothing, so a run
+	## that started no job sends a byte-identical request.
+	harnessMonitorPending="$( AgentsHarnessMonitorSpool )"
+	[ -z "$harnessMonitorPending" ] || harnessMessages+=( "$( AgentsWireUserRecord "$harnessMonitorPending" )" )
 
 	harnessBody="$( AgentsWireRequestBody )"
 
@@ -2140,31 +2836,7 @@ $harnessSummary" )" )
 		## the result the model reads, so the tool never executes.
 		harnessResult="$( AgentsHarnessHooksRefusal "$harnessFuncName" "$harnessFuncArgsRaw" )"
 
-		[ -n "$harnessResult" ] || case "$harnessFuncName" in
-			Read)      harnessResult="$( AgentsHarnessToolRead "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
-			Write)     harnessResult="$( AgentsHarnessToolWrite "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" content )" )" ;;
-			Glob)      harnessResult="$( AgentsHarnessToolGlob "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" long )" )" ;;
-			Edit)      harnessResult="$( AgentsHarnessToolEdit "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" old_text )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" new_text )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" replace_all )" )" ;;
-			Grep)      harnessResult="$( AgentsHarnessToolGrep "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" before )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" after )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" ignore_case )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_mode )" )" ;;
-			Bash)      harnessResult="$( AgentsHarnessToolBash "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" )" ;;
-			WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" )" ;;
-			WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" )" ;;
-			SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" message )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-			ListAgents) harnessResult="$( AgentsHarnessToolListAgents )" ;;
-			Wait)      harnessResult="$( AgentsHarnessToolWait "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" sources )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" poll_interval )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" since_utime )" )" ;;
-			SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" outcome )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" unfinished )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-			ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" subject )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" evidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" confidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-			PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" severity )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" headline )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" detail )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" action_required )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-			Artifact)  harnessResult="$( AgentsHarnessToolArtifact "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" title )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" kind )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" summary )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-			AskUserQuestion) harnessResult="$( AgentsHarnessToolAskUserQuestion "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" question )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" options )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait_source )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-			ListMcpResourcesTool) harnessResult="$( AgentsHarnessToolListMcpResourcesTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" )" ;;
-			ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri )" )" ;;
-			ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri_prefix )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
-			Skill)     harnessResult="$( AgentsHarnessToolSkill "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" name )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" list )" )" ;;
-			## Last, after every static arm: an mcp__ prefix must never displace a built-in.
-			mcp__*)    harnessResult="$( AgentsHarnessMcpCall "$harnessFuncName" "$harnessFuncArgsRaw" )" ;;
-			*)         harnessResult="ERROR: unknown tool: $harnessFuncName" ;;
-		esac
+		[ -n "$harnessResult" ] || AgentsHarnessRunTool "$harnessFuncName" "$harnessFuncArgsRaw"
 
 		## The announce line states an intent and reads the same whether the call ran or
 		## was refused, so a refusal is marked explicitly for a transcript reader.

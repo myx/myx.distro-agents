@@ -193,6 +193,28 @@ Team-owned notes for the magic-* team.
 - `AgentsContext.include`'s idempotence guard — the `MDLT_ORIGIN`/`MDLT_OPTION` test that makes re-init a no-op inside a console — sits on its `--init-variables|--run-from-detect` arm. `--distro-path-auto` matches neither pattern, so the tail guard's own call falls to the `*)` delegation and never enters that guard. This entry previously implied it did.
 - A command executed through one of this tool's operations inherits the resolved environment. That is the reason to host an MCP execute operation here: `myx.common`'s MCP path performs no environment init, so anything it runs starts bare.
 
+## Our own tooling reads our own descriptor, never a client's published file
+
+- **A file we generate for another product is output we publish, not a source anything of ours consults.** `AgentsTools.Install.include` already states this for `mcp.servers.json`, which our own harness reads, against the client config files beside it. The rule is general and applies to every such pair.
+- **`.claude/copilot-add-dir.fragment` is copilot's integration.** It stays, it keeps working, and copilot keeps using it. Nothing of ours treats it as the authority on anything.
+- **`sh-lib/AgentsTools.ClientAccessRoots.include` is the one place the access-root set is defined.** That fragment is one of its consumers, so reading the fragment read a copy from downstream of the definition.
+- **`AgentsUniversalHarness.sh` therefore sources that include and calls `AgentsToolsClientAccessRoots` whenever no `--access-root` flag was given.** One block, for every caller. It does not branch on which caller it is, because yielding the set is one job.
+- **The legacy console path goes through that same block.** It no longer reads the fragment, and no code path in the harness does. The fragment is named in a comment there, saying why it is not read.
+- **Where the mechanism is absent the run refuses, on both paths.** It never falls back to the fragment. Measured: the include removed while the fragment was present gives exit 1 on the tool path and on the console path alike.
+- **The console path is reachable by probe, and was not before.** The harness exits at the provider-variable gate first. Exercising it needs the dummy `HARNESS_*` a stub sets, plus a stubbed `curl`, exactly as this package's own rigs do. The resolved roots travel in the system prompt, so the recorded request body is the observation. A root only the fragment names is the discriminator. It reached the wire before this change and does not after.
+- **Cost is not the trade here.** The include resolves the whole set in under a second, so the clean shape is also the fast one.
+- This is a boundary rule, not a preference. A team and a current workspace are first-class here. Needing a secondary product's artifact to learn our own grants is the defect, whatever that artifact holds.
+
+## The workspace root is outside the access set, and `MAGIC.md` is why
+
+- **What a session needs to read is `MAGIC.md`, at project, repository and workspace tier.** Those are all types of project, and they are all git-tracked.
+- **The actual workspace root and repository root are not git-tracked.** So the root directory is not where the knowledge lives, and granting it would grant access to nothing worth reading.
+- That makes the set's shape principled rather than incidental. `$MMDAPP/source` is granted and `$MMDAPP` is not, because the git-tracked project trees are what hold every `MAGIC.md`.
+- **Measured against the set as it stands, with a control that refuses a file outside every root.** Every `MAGIC.md` in a git-tracked source tree is reachable. Neither workspace carries one at its own root, which is the reasoning above showing up on disk.
+- **The only unreachable ones are the installed copies under `.local/myx/myx.distro-*/`, and that is correct.** A served tool reaches the source `MAGIC.md` in the devops source tree, through the cross-workspace union the permissions registry already gives it. It never reaches the installed copy. `.local` is build output and is never the authority.
+- The team scratchpad `MAGIC.md` files under `.local/temp/` are reachable, which the include grants on purpose.
+- **This is not a gap to close by widening the include.** The include serves three consumers, and the set already covers what needs reading.
+
 ## `MDAT_SKILLSET_ROOT`: where the member set is read from
 
 - Resolved in the same preamble as `MDAT_DATA_ROOT` and exported alongside it: `$HOME/.claude/skills` where that directory holds at least one `<member>/SKILL.md`, `$MMDAPP/.claude/skills` otherwise. A consumer reads the variable; it never spells either path itself.
@@ -246,6 +268,57 @@ Team-owned notes for the magic-* team.
 - **Any string emitted onto the wire stays one physical line.** A `printf '%s'` of a value holding a newline produces a corrupt frame.
 - **A registration that freezes an absolute path plus an environment value validates the path by running, never the environment value.** That is where a stale registration surfaces later as an unrelated error.
 - A bare `wait` after the read loop drains the in-flight handlers before the scratch root is removed. Without it, end of stdin deletes `out.<seq>` under a handler still writing its response, and that request is answered never. A child the executed script itself left running is a grandchild, not a job of this shell, so it is never waited on and cannot hold shutdown.
+
+## A harness tool joins the served MCP floor by default
+
+- **`sh-lib/AgentsTools.InternMcpServer.include` serves the harness tool floor derived from the wire
+  declarations, so a tool added to that wire is offered over MCP without anyone deciding that it should
+  be.** Nothing asks the question, and no instrument tests it: the self-check counts a tool's four
+  structural sites, the tools-JSON check parses its declaration, and the mirror renders the whole floor
+  by design. A tool can therefore reach a `*-native` client the same day it is written, through a route
+  its author never looked at.
+- **The served set is a subtraction, named in `mcpUnservedToolNames`, and it is the only place the
+  question is asked.** THE TEST WHEN A NEW TOOL LANDS: a tool that takes a command, or that hands back a
+  handle only its own process can resolve, belongs on that list.
+- **`Bash` is unserved because arbitrary command execution is `myx.common`'s own MCP method**, and because
+  the `*-native` leg denies `Bash` wholesale through `.claude/hooks/deny-bash-tool.sh` and reroutes the
+  caller to this server's own `execute`. That hook denies whatever its matcher names. **A tool taking a
+  `command` under a different name is therefore an unguarded second path around it**, which is what makes
+  this a containment boundary rather than a tidiness rule.
+- **`Monitor` is unserved for a second, independent reason: it cannot work over this wire at all.** A
+  `tools/call` runs one tool in a FRESH `--intern-tool` process, so the scratch directory holding a job's
+  log and handle is created and removed inside the one call. Measured: a start returned `job-1`, no
+  scratch directory survived the call, a second call answered `no background job named job-1 was started
+  in this run`, and the job itself was left running with its log already gone. The between-rounds spool
+  never runs either, because there is no round loop. A read-only served form is not a lesser option but
+  an impossible one, since the only thing that mints a handle is a start in the same process.
+- **What the exclusion gives up: nothing that ever worked over MCP.** A caller wanting a watched
+  background job uses `execute` with `background` set, which this server holds across calls and can poll
+  by job id and kill. `Monitor` remains a harness tool, where the spool it exists for actually runs.
+- **Unserved is ABSENT from `tools/list`, not present-and-refusing**: a tool that exists and refuses reads
+  as a broken server. `tools/call` still names what to use instead for each unserved tool, because a
+  caller who names one anyway needs somewhere to go.
+- **`sh-lib/AgentsHarnessServedFloorCheck.sh` now holds this, so the subtraction is no longer a list
+  somebody has to remember.** It reads the served set off the real server's own `tools/list` answer rather
+  than re-applying the subtraction, and holds it in both forms below.
+- **The rule's scope is the harness tool floor, not everything served, and writing it the wider way makes
+  it false against a correct design.** Measured: `execute` is served and declares a `command` of its own,
+  deliberately — it is the sanctioned execution method here, which is the whole reason `Bash` is
+  subtracted and its caller sent there instead. The candidate population is therefore what
+  `AgentsHarnessMcpMirror.sh` renders, and `execute` falls outside it by construction rather than by being
+  carried as a remembered exception.
+- **`command` is NOT the whole predicate, and this was measured rather than argued.** The name-based rule
+  is evadable: with `Monitor` removed from the subtraction *and* its `command` parameter renamed to
+  `script` in its declaration alone, the check's `command` assertion PASSES while the behavioural one
+  FAILS. So the instrument also derives, from the core itself, which tools execute a caller-supplied
+  string as a shell command — `eval` or `bash -c` inside that tool's own `AgentsHarnessTool<Name>`
+  function — and requires every tool it finds to be absent from the served set. A renamed argument does not
+  evade that, and the check's own output names whichever tools it found.
+- **The other half of the documented test is not instrumented, and that is a limit rather than an
+  omission**: a tool handing back a handle only its own process can resolve is a fact about process
+  lifetime, visible in neither a declaration nor a source scan. `Monitor` is caught only because it also
+  takes a command. A future tool minting a process-local handle and taking none would pass every
+  assertion and still be unservable.
 
 ## Capturing an arbitrary command's output
 
@@ -502,6 +575,23 @@ Three bugs found and fixed in that splice, by real execution against the live te
 - **Its contract is not that a Slack rejection is impossible, and cannot be.** The empty-node rule is in none of Slack's published Block Kit pages — it was learned from a live rejection, so the rule set is open by construction. Caught: every class measured. Not caught, each documented by Slack: the 50-block cap per message, the 150-character header maximum, the per-type required fields of a caller-supplied payload, and any value Slack resolves rather than shapes.
 - **`invalid_blocks` is a verdict, not a transport fault.** Retrying it five times with backoff cost 30 seconds and produced a "Slack comms are stuck" email that was false — Slack answered, the payload was wrong. It breaks on the first response, with no email.
 - **The exhausted-retries arm ended `... ; return $?`, so the operation exited 0 whenever the notification email succeeded** — for a message that never landed, with empty stdout. Under `set -e` that same line was never reached at all when the email failed. The email call is tested with `||` now and the arm returns 1 unconditionally.
+
+## `--intern-` is a namespace, and the segment after it is the kind
+
+- **`--intern-` marks the internal namespace. What follows it names a kind, never an operation.** `--intern-op-*` is the operations kind. `--intern-tool-*` is the tools kind. Further kinds are open, and a new one is approved by the human-owner before it lands.
+- **A count of one kind says nothing about the namespace.** Every `--intern-*` name in this package was measured as a `DistroAgentsTools.fn.sh` operation, and the prefix was then read as marking an operation. The instrument was right and its scope was not. The `op` family was counted, and the conclusion was drawn about `--intern-` itself.
+- **The counter-evidence was inside that same measurement.** `--intern-mcp-server`, `--intern-mcp-execute` and `--intern-main-loop` already carry a kind after the namespace. They were read as exceptions rather than as the shape.
+- **`--intern-tool` is approved, as the tools kind.** It is `sh-lib/AgentsUniversalHarness.sh`'s own arm that runs exactly one harness tool and exits. It is not a flag borrowing an operation prefix.
+- Anyone re-running that count reaches the wrong conclusion. The namespace is written out here for that reason, rather than only the one name.
+
+## An external call takes a script, an internal call sources the include
+
+- **A script file is for an external caller, and it also establishes the execution context.** Both jobs at once, and the second is why it is a script.
+- That is why an MCP daemon execs the tooling instead of sourcing it. The daemon stays a daemon, and the tooling stays an executable run in the correct context.
+- **An internal caller does better to subshell the context and source the more exact include.** Environment variables carry most of what that include needs.
+- Re-entering a whole command script makes an internal caller pay again for option parsing it has already done.
+- **Design to SOLID, and stay efficient on speed.** Both at once, and neither traded away for the other.
+- **The eventual split of the harness into files is anticipated, and this principle governs it.** Nothing is built from it yet. It is recorded so that split is not designed against a different rule.
 
 ## `--intern-*` operations are excluded from customer-facing help
 
@@ -985,6 +1075,12 @@ knobs above as empty. Nothing in it refuses to run, and no request has been made
 `api.githubcopilot.com` from this package, so every claim about what that endpoint accepts is still
 documentation-derived.
 
+- **It is declaration-complete, and the leg is credential-blocked.** Every required value is declared,
+  both model fields among them, and the two optional knobs are declared empty. The stub does not refuse,
+  as said above — the core does. `HARNESS_TOKEN_LIGHT`/`HARNESS_TOKEN_MAIN` are
+  `"${COPILOT_GITHUB_TOKEN:-}"`, so with that name absent from the process environment the core's own
+  credential gate fires and exits 1 at `AgentsUniversalHarness.sh:392-395` before a socket is opened.
+  That gate, not an untried experiment, is why no request has been made.
 - **Whether an exchange is needed here is open, and one observation settles it.** GitHub's published
   extension sample calls this endpoint with a bearer and a content type and nothing else, and performs
   no exchange — but an extension is handed a token its platform mints for that request, and a stored
@@ -1532,14 +1628,14 @@ The harness declares twenty tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bas
 
 ## The harness instruments, and what each one proves
 
-Three of the eight instruments read the harness's sources and prove coherence; the other five execute it
-and prove behaviour, and nothing else in this package does. Each carries its own negative control, because
+Each instrument below either reads the harness's sources and proves coherence, or executes it and proves
+behaviour; its own entry says which, and nothing else in this package does either. Each carries its own negative control, because
 a checker reports green on its own counterexample as readily as on a clean subject and nothing in a
 green report tells the two apart — so every red recipe below is one that has been run, not one that
 ought to work.
 
-**Two ways an ad-hoc probe passes that discipline and still establishes nothing.** Both were hit while
-reviewing this package's own tool set, and both returned a clean answer that read as a finding. First,
+**Three ways an ad-hoc probe passes that discipline and still establishes nothing.** All three were hit while
+reviewing this package's own tool set, and each returned a clean answer that read as a finding. First,
 a control has to run the EXACT command shape whose negative is being reported, not a similar one:
 `find -L <root> -type l` reports only DANGLING links, because under `-L` a resolvable symlink is
 reported as its target's type — so it prints nothing over a tree full of them, and a control taken
@@ -1549,11 +1645,33 @@ lifted: the missing function exits 127, its output is empty, the caller falls th
 and returns 0, and the case reports success having called nothing. Assert every dependency is loaded
 and callable, not only the function under test, and withdraw such a case rather than counting it.
 
+Third, **a rig whose subject must reach its fixture through a gate the rig did not move passes and means
+nothing.** The access roots refuse `$TMPDIR` and `/tmp`, so a rig building fixtures with `mktemp -d -t`
+and starting work there is testing the subject in a place the subject cannot read or write. The failure
+arrives as a refusal the rig then stubs past, and every assertion downstream of that stub is void rather
+than green. The discriminator is not where the fixture sits — it is whether the gate was satisfied or
+moved. `AgentsHarnessAccessRootsCheck.sh` and `AgentsHarnessContainmentCheck.sh` both build under
+`mktemp -d -t` and are sound, because each **relocates the root under test onto its own fixture**: the
+first exports `MMDAPP="$rigTmp"` so the mechanism's own roots resolve inside it, the second passes
+`$rigTmp/real` as the allowed root and `$rigTmp/outside` as the refused one. A rig that instead replaces
+the gate with a permissive stand-in has neither satisfied it nor moved it, and its passes are void. Where
+a rig genuinely needs the real gate, the estate's own work directories are what it is granted:
+`$MMDAPP/.local/temp/team`, and `$MMDAPP/.local/temp/member/<member>` and `$MMDAPP/.local/temp/task/<member>`
+once a member is named — `sh-lib/AgentsTools.ClientAccessRoots.include` is where that set is produced.
+
 `AgentsTools.Owner.include`'s `--owner-setup-scaleway --check` arm runs all of them but the containment
 check, and is gated on `--check` for the work rather than only for the output: they parse sources, spawn
 awk processes and run several legs of the harness, and `--apply` must neither pay that nor start
 returning non-zero on a diagnostic finding.
 
+- **`sh-lib/AgentsHarnessAccessRootsCheck.sh` — where the no-flag access-root set comes from.**
+  - Proves: with no `--access-root` passed, the set is taken from `sh-lib/AgentsTools.ClientAccessRoots.include`, the one place it is defined. It is not taken from a client's published launch fragment. The discriminator is a root only such a fragment names. Our own mechanism cannot yield it, so its presence on the wire says the fragment was read. A root the mechanism always yields, `$workspace/source`, is asserted present too, so an empty or truncated body cannot pass.
+  - Why it exists: that path had no instrument at all. A path with no instrument is one where a false green is the default. An earlier ad-hoc probe of it could not fail. The core exits at its own `HARNESS_*` provider gate before the resolution runs, so merely starting the harness measures the gate and reports on nothing.
+  - How a gated path is reached, which is the part worth keeping. Set the dummy `HARNESS_*` a provider stub sets, and put a fake `curl` first on `PATH`. Those are a provider name, a `.invalid` endpoint and host, a wire name, a credential name, and a token that is not one. The core then runs as far as the wire. The resolved roots travel inside the system prompt, so the recorded request body is the observation. The behaviour checks below use the same technique.
+  - Refuses rather than reporting where the wire was never reached. Measured with the core made to exit early: zero PASS lines, an explicit refusal, exit 1. That property is what the void probe it replaces did not have.
+  - Red recipe: point the no-flag resolution back at the fragment. Both assertions fail. The planted core still parses, which is why no syntax or text check reaches this class and a behavioural one must.
+  - Self-contained. Every fixture is built in its own `mktemp -d`, and the scenario's own `MMDAPP` is that directory, so no file of the real workspace is read. Measured from `/` under `env -i`, with neither `MMDAPP`, `MDAT_*` nor `MDLT_ORIGIN` set: it passes.
+  - Does not prove: whether a path is inside the roots once resolved. That is `AgentsHarnessContainmentCheck.sh`'s, and neither answers the other.
 - **`sh-lib/AgentsHarnessSelfCheck.awk` — every tool occupies all four of its structural sites.**
   - Proves: each tool has its declaration (in the wire adapter), its announce arm, its dispatch arm and
     its tool function (those three in the core), and no `AgentsHarnessTool*` function survives with no
@@ -1601,6 +1719,30 @@ returning non-zero on a diagnostic finding.
     `bash -n` CLEAN and `HARNESS_TOOL_SITES: OK (N tools, four sites each)` over that same broken file,
     while this reports `HARNESS_TOOLS_JSON: FAIL ... NOT VALID JSON`, exit 1. That contrast is the reason
     it exists, and all three halves of it were measured in one invocation.
+
+- **`sh-lib/AgentsHarnessServedFloorCheck.sh` — which tools the MCP server actually serves.**
+  - Proves: that no harness tool on the served floor declares a `command` argument, and — independently of
+    any argument name — that no tool whose own function in the core runs a caller-supplied string as a
+    shell command is served. The served set is read off the real server's own `tools/list` answer, so the
+    subtraction under test is observed rather than recomputed.
+  - Why it exists: a harness tool joins that floor by default and nothing asked whether it should. The
+    site check counts four structural sites, the tools-JSON check parses a declaration, and the mirror
+    renders the whole floor by design — so all three stay green over a hole. `Monitor` reached the floor
+    that way, where a `tools/call` runs one tool in a fresh process: the command ran, no scratch survived
+    the call, and the job was left running with its log already deleted.
+  - Does not prove: that any served tool works, or that an unserved one is unservable for the right
+    reason. The process-local-handle half of the documented test is outside it entirely — see the section
+    above for why no source scan reaches it.
+  - Its reds, measured in a planted copy rather than reasoned. Drop `Monitor` from
+    `mcpUnservedToolNames`: the `command` assertion fails and so does `Monitor`'s own. Do that *and*
+    rename `Monitor`'s `command` parameter to `script` in its declaration alone: the `command` assertion
+    passes while the behavioural one still fails, which is the whole reason the behavioural form is
+    carried rather than the name alone.
+  - Self-contained and offline. `MMDAPP` — the root under test for the server's own scratch and every file
+    it reads — is relocated onto its own `mktemp -d` fixture, and `MDLT_ORIGIN` is the tree the check sits
+    in, so a planted copy tests itself. No socket, no credential, no file of the real workspace.
+  - Invoked: `./sh-lib/AgentsHarnessServedFloorCheck.sh`. Wired into the same
+    `--owner-setup-scaleway --check` pass, after `HARNESS_ACCESS_ROOTS`.
 
 - **`sh-lib/AgentsHarnessContainmentCheck.sh` — access-root containment, in both polarities.**
   - Proves: `AgentsHarnessResolveDir` and `AgentsHarnessPathAllowed` as a pair, behaviourally, against a

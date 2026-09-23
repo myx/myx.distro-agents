@@ -91,7 +91,7 @@ function parseString(   c, out, hex, code, hex2, code2, cp) {
 	return out
 }
 
-function emitLeaf(path, raw, val,   f, idx) {
+function emitLeaf(path, raw, val,   f, idx, argName) {
 	if (path == "method") { f = outDir "/method"; print val > f; close(f); }
 	else if (path == "id") {
 		f = outDir "/id"; print raw > f; close(f)
@@ -102,14 +102,6 @@ function emitLeaf(path, raw, val,   f, idx) {
 	else if (path == "params.requestId") { f = outDir "/cancel_request_id"; print raw > f; close(f); }
 	else if (path == "params.clientInfo.name") { f = outDir "/client_name"; print val > f; close(f); }
 	else if (path == "params.clientInfo.version") { f = outDir "/client_version"; print val > f; close(f); }
-	else if (path == "params.arguments.command") { f = outDir "/arg_command"; print val > f; close(f); }
-	else if (path == "params.arguments.workspace") { f = outDir "/arg_workspace"; print val > f; close(f); }
-	else if (path == "params.arguments.uname") { f = outDir "/arg_uname"; print val > f; close(f); }
-	else if (path == "params.arguments.stdin") { f = outDir "/arg_stdin"; print val > f; close(f); }
-	else if (path == "params.arguments.timeout") { f = outDir "/arg_timeout"; print val > f; close(f); }
-	else if (path == "params.arguments.background") { f = outDir "/arg_background"; print val > f; close(f); }
-	else if (path == "params.arguments.job") { f = outDir "/arg_job"; print val > f; close(f); }
-	else if (path == "params.arguments.action") { f = outDir "/arg_action"; print val > f; close(f); }
 	else if (path == "params.arguments.args.__count") { f = outDir "/arg_args_count"; print val > f; close(f); }
 	else if (index(path, "params.arguments.args.") == 1) {
 		idx = substr(path, length("params.arguments.args.") + 1)
@@ -123,6 +115,12 @@ function emitLeaf(path, raw, val,   f, idx) {
 			envEntryCount++
 			f = outDir "/arg_env_count"; print envEntryCount > f; close(f)
 		}
+	}
+	# The name becomes a filename, so the env gate above applies to every argument alike.
+	else if (index(path, "params.arguments.") == 1) {
+		argName = substr(path, length("params.arguments.") + 1)
+		if (argName ~ /^[A-Za-z_][A-Za-z0-9_]*$/) { f = outDir "/arg_" argName; print val > f; close(f); }
+		else print "# myx.distro agentMcp: argument dropped, name is not [A-Za-z_][A-Za-z0-9_]*: " argName > "/dev/stderr"
 	}
 }
 

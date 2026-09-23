@@ -67,26 +67,32 @@ DAGC_CLI="copilot"
 DAGC_CLI_GIVEN="false"
 DAGC_CLI_AUTO="false"
 DAGC_CLI_CONFIGURED="false"
-## The one file the `scaleway` CLI name resolves to, resolved ONCE here and
-## then read by both of this file's scaleway sites -- DagcCliPresent()'s
-## existence test just below, and the DAGC_CLI_EXEC assignment further down.
-## Those two must never disagree: presence-checking one file while exec'ing
-## another is exactly how a console reports a CLI as available and then fails
-## to start it, so they share this variable rather than repeating a path.
+## ---- harness legs, one mechanism for every provider ---------------------
+## A harness leg is a FILE, not a name in a list. sh-lib/Agents<Name>Harness.sh
+## IS the leg <name>: it declares one provider's endpoint, models, wire and
+## credential names, then execs the universal core which holds the logic.
+## Adding a leg -- deepseek, or any future one -- is adding that one file, and
+## no name in this console changes.
 ##
-## Default -- MDAT_SCALEWAY_HARNESS unset or empty -- is AgentsScalewayHarness.sh,
-## which is the SSE-STREAMING implementation: live text and per-tool progress on
-## stderr as the model generates them. That is the production default; nothing
-## needs to be set to get it.
+## What marks a file as a leg is that it DECLARES HARNESS_PROVIDER_NAME. The
+## core only reads that variable, so the same glob that finds every leg leaves
+## the core out by a property of the file rather than by its name.
 ##
-## Setting this variable selects a different harness, per workspace. No
-## alternative harness ships in sh-lib/ today, so nothing in this package is
-## currently worth naming here. The variable's purpose is unchanged: one
-## workspace can run a candidate implementation while every other workspace
+## The leg's filename IS its selection name: `claude`, `copilot` and `scaleway`
+## each select this package's own harness leg for that service. DAGC_VENDOR_CLIS
+## is the complement -- the names that mean the vendor's own CLI, which is what
+## `-native` says. It wins over leg resolution, so a leg can never shadow a
+## vendor name, and none of the six names in this file needs an arm of its own
+## anywhere below.
+##
+## MDAT_<NAME>_HARNESS, per leg, points that one leg at a different file: one
+## workspace runs a candidate implementation while every other workspace
 ## sharing this same MDLT_ORIGIN tree keeps the default, which is what makes a
 ## candidate testable for real without promoting it everywhere at once.
+## MDAT_SCALEWAY_HARNESS is that variable for the scaleway leg and is
+## unchanged; its name is now derived, so a new leg gets the same lever free.
 ##
-## Two accepted shapes, and why only these:
+## Two accepted shapes for that value, and why only these:
 ##  - a bare filename (no '/'), taken from this package's own sh-lib/ -- the
 ##    normal case, since the harness variants worth selecting ship there. A
 ##    value with no slash in it cannot traverse anywhere, so it needs no
@@ -102,44 +108,125 @@ DAGC_CLI_CONFIGURED="false"
 ## Whichever shape it takes, the file must exist and be executable, checked
 ## here at the top so a bad value fails on its own name. Otherwise it would
 ## surface far downstream: as an exec "not found", or -- worse, because it is
-## silent -- as scaleway reported absent by DagcCliPresent() and quietly
-## skipped by --cli-auto, which is indistinguishable from scaleway simply not
-## being installed. An unset variable reaches none of this.
-DAGC_SCALEWAY_HARNESS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsScalewayHarness.sh"
-if [ -n "$MDAT_SCALEWAY_HARNESS" ] ; then
-	case "$MDAT_SCALEWAY_HARNESS" in
-		.|..)
-			echo "⛔ ERROR: DistroAgentsConsole: MDAT_SCALEWAY_HARNESS is not a harness filename: $MDAT_SCALEWAY_HARNESS" >&2
+## silent -- as that leg reported absent by DagcCliPresent() and quietly
+## skipped by --cli-auto, which is indistinguishable from it simply not being
+## installed. An unset variable reaches none of this.
+DAGC_VENDOR_CLIS="copilot-native claude-native grok"
+DAGC_LEG_DIR="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+## Leg name, then its resolved file, one per line. Resolved ONCE here, so every
+## later site -- presence, exec, access flag, credential names, prompt shape --
+## reads the SAME path that was checked for. Presence-checking one file while
+## exec'ing another is exactly how a console reports a CLI as available and
+## then fails to start it.
+DAGC_LEG_TABLE=""
+for DAGC_LEG_FILE in "$DAGC_LEG_DIR/"Agents*Harness.sh ; do
+	[ -f "$DAGC_LEG_FILE" ] || continue
+	grep -q '^HARNESS_PROVIDER_NAME=' "$DAGC_LEG_FILE" || continue
+	DAGC_LEG_NAME="${DAGC_LEG_FILE##*/}"
+	DAGC_LEG_NAME="${DAGC_LEG_NAME#Agents}"
+	DAGC_LEG_NAME="${DAGC_LEG_NAME%Harness.sh}"
+	[ -n "$DAGC_LEG_NAME" ] || continue
+	DAGC_LEG_NAME="$( printf '%s' "$DAGC_LEG_NAME" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+	DAGC_LEG_LEVER="MDAT_$( printf '%s' "$DAGC_LEG_NAME" | LC_ALL=C tr 'abcdefghijklmnopqrstuvwxyz-' 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_' )_HARNESS"
+	DAGC_LEG_OVERRIDE="${!DAGC_LEG_LEVER}"
+	if [ -n "$DAGC_LEG_OVERRIDE" ] ; then
+		case "$DAGC_LEG_OVERRIDE" in
+			.|..)
+				echo "⛔ ERROR: DistroAgentsConsole: $DAGC_LEG_LEVER is not a harness filename: $DAGC_LEG_OVERRIDE" >&2
+				exit 1
+			;;
+			/*)
+				DAGC_LEG_FILE="$DAGC_LEG_OVERRIDE"
+			;;
+			*/*)
+				echo "⛔ ERROR: DistroAgentsConsole: $DAGC_LEG_LEVER must be a bare filename in $DAGC_LEG_DIR, or an absolute path -- a relative path is refused, because it would resolve against $MMDAPP rather than against anything you named: $DAGC_LEG_OVERRIDE" >&2
+				exit 1
+			;;
+			*)
+				DAGC_LEG_FILE="$DAGC_LEG_DIR/$DAGC_LEG_OVERRIDE"
+			;;
+		esac
+		if [ ! -f "$DAGC_LEG_FILE" ] ; then
+			echo "⛔ ERROR: DistroAgentsConsole: $DAGC_LEG_LEVER=$DAGC_LEG_OVERRIDE names no such file: $DAGC_LEG_FILE" >&2
 			exit 1
-		;;
-		/*)
-			DAGC_SCALEWAY_HARNESS="$MDAT_SCALEWAY_HARNESS"
-		;;
-		*/*)
-			echo "⛔ ERROR: DistroAgentsConsole: MDAT_SCALEWAY_HARNESS must be a bare filename in $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib, or an absolute path -- a relative path is refused, because it would resolve against $MMDAPP rather than against anything you named: $MDAT_SCALEWAY_HARNESS" >&2
+		fi
+		if [ ! -x "$DAGC_LEG_FILE" ] ; then
+			echo "⛔ ERROR: DistroAgentsConsole: $DAGC_LEG_LEVER=$DAGC_LEG_OVERRIDE names a file that is not executable: $DAGC_LEG_FILE" >&2
 			exit 1
-		;;
-		*)
-			DAGC_SCALEWAY_HARNESS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$MDAT_SCALEWAY_HARNESS"
-		;;
+		fi
+	fi
+	DAGC_LEG_TABLE="$DAGC_LEG_TABLE$DAGC_LEG_NAME
+$DAGC_LEG_FILE
+"
+done
+
+## The one place a name becomes a leg: prints that leg's resolved file, or
+## returns 1 for every name that is not one. Name and file are two lines rather
+## than one delimited line, because a path may legally contain any separator a
+## single line would have to choose.
+DagcLegFileFor(){
+	local legSought="$1" legLine legPending=""
+	case " $DAGC_VENDOR_CLIS " in
+		*" $legSought "*) return 1 ;;
 	esac
-	if [ ! -f "$DAGC_SCALEWAY_HARNESS" ] ; then
-		echo "⛔ ERROR: DistroAgentsConsole: MDAT_SCALEWAY_HARNESS=$MDAT_SCALEWAY_HARNESS names no such file: $DAGC_SCALEWAY_HARNESS" >&2
-		exit 1
+	[ -n "$legSought" ] || return 1
+	while IFS= read -r legLine ; do
+		[ -n "$legLine" ] || continue
+		if [ -z "$legPending" ] ; then
+			legPending="$legLine"
+		else
+			if [ "$legPending" = "$legSought" ] ; then
+				printf '%s\n' "$legLine"
+				return 0
+			fi
+			legPending=""
+		fi
+	done <<< "$DAGC_LEG_TABLE"
+	return 1
+}
+DagcCliIsLeg(){
+	DagcLegFileFor "$1" >/dev/null
+}
+## The auto-scan order, and the set this console advertises. DAGC_KNOWN_CLIS
+## above stays the explicit ranking, unchanged and still mirrored by
+## AgentsTools.Owner.include; every discovered leg not already named there is
+## appended AFTER it, so a new leg joins --cli-auto at the tail without an edit
+## and no existing name moves position.
+## Every leg is non-interactive-capable and interactive-incapable, by
+## construction: no binary, no REPL, one request/response tool-calling cycle to
+## completion and exit. So the same append builds the non-interactive set,
+## whose vendor-CLI half stays DAGC_NONINTERACTIVE_CLIS, unchanged.
+DAGC_SELECTABLE_CLIS="$DAGC_KNOWN_CLIS"
+DAGC_SELECTABLE_NONINTERACTIVE="$DAGC_NONINTERACTIVE_CLIS"
+DAGC_LEG_PENDING=""
+while IFS= read -r DAGC_LEG_LINE ; do
+	[ -n "$DAGC_LEG_LINE" ] || continue
+	if [ -z "$DAGC_LEG_PENDING" ] ; then
+		DAGC_LEG_PENDING="$DAGC_LEG_LINE"
+		continue
 	fi
-	if [ ! -x "$DAGC_SCALEWAY_HARNESS" ] ; then
-		echo "⛔ ERROR: DistroAgentsConsole: MDAT_SCALEWAY_HARNESS=$MDAT_SCALEWAY_HARNESS names a file that is not executable: $DAGC_SCALEWAY_HARNESS" >&2
-		exit 1
-	fi
-fi
-## scaleway has no real binary at all -- `command -v scaleway` can never
-## succeed on any machine -- so every presence check in this file goes
-## through here instead, exactly as `--owner-setup-scaleway`'s own
+	DAGC_LEG_SELECTABLE="$DAGC_LEG_PENDING"
+	DAGC_LEG_PENDING=""
+	case " $DAGC_SELECTABLE_NONINTERACTIVE " in
+		*" $DAGC_LEG_SELECTABLE "*) ;;
+		*) DAGC_SELECTABLE_NONINTERACTIVE="$DAGC_SELECTABLE_NONINTERACTIVE $DAGC_LEG_SELECTABLE" ;;
+	esac
+	case " $DAGC_SELECTABLE_CLIS " in
+		*" $DAGC_LEG_SELECTABLE "*) ;;
+		*) DAGC_SELECTABLE_CLIS="$DAGC_SELECTABLE_CLIS $DAGC_LEG_SELECTABLE" ;;
+	esac
+done <<< "$DAGC_LEG_TABLE"
+## A leg has no real binary at all -- `command -v scaleway` can never succeed on
+## any machine, and nor can any other leg's name -- so every presence check for
+## one goes through its file instead, exactly as `--owner-setup-scaleway`'s own
 ## install-probe already had to (a file test, not a PATH lookup; see
-## AgentsTools.Owner.include and MAGIC.md).
+## AgentsTools.Owner.include and MAGIC.md). The leg table is built from files
+## that exist, so membership IS presence.
 DagcCliPresent(){
+	if DagcCliIsLeg "$1" ; then
+		return 0
+	fi
 	case "$1" in
-		scaleway) [ -f "$DAGC_SCALEWAY_HARNESS" ] ;;
 		## claude-native's BINARY is `claude`; its own name is on no PATH. Without
 		## this arm the default below would run `command -v claude-native`, find
 		## nothing, and report the vendor CLI absent on a machine where it is
@@ -163,7 +250,7 @@ while true ; do
 		;;
 		--cli)
 			if [ -z "$2" ] ; then
-				echo "⛔ ERROR: DistroAgentsConsole: --cli requires a value (known: $DAGC_KNOWN_CLIS)" >&2
+				echo "⛔ ERROR: DistroAgentsConsole: --cli requires a value (known: $DAGC_SELECTABLE_CLIS)" >&2
 				exit 1
 			fi
 			DAGC_CLI="$2"
@@ -194,9 +281,9 @@ if [ "$DAGC_CLI_AUTO" = "true" ] || [ "$DAGC_CLI_GIVEN" != "true" ] ; then
 		echo "⛔ ERROR: DistroAgentsConsole: SPAWN_CLI_SERVICE is not configured in this workspace, so no external agent CLI is selected here. rc=5 means exactly this -- nothing was chosen to start, which is distinct from rc=1 (something was chosen and could not be started). Spawn an internal agent instead, or choose one of the spawn services and select it with --apply: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-claude --apply (this package's own Claude harness), or --owner-setup-claude-native (the vendor claude CLI as installed on this machine), or --owner-setup-copilot, or --owner-setup-copilot-native (the vendor copilot CLI as installed on this machine), or --owner-setup-scaleway." >&2
 		exit 5
 	else
-		for DAGC_AUTO_CLI in $DAGC_KNOWN_CLIS ; do
+		for DAGC_AUTO_CLI in $DAGC_SELECTABLE_CLIS ; do
 			if [ "$1" == "--non-interactive" ] ; then
-				case " $DAGC_NONINTERACTIVE_CLIS " in
+				case " $DAGC_SELECTABLE_NONINTERACTIVE " in
 					*" $DAGC_AUTO_CLI "*) ;;
 					*)
 						continue
@@ -210,34 +297,46 @@ if [ "$DAGC_CLI_AUTO" = "true" ] || [ "$DAGC_CLI_GIVEN" != "true" ] ; then
 			fi
 		done
 		if [ "$DAGC_CLI_GIVEN" != "true" ] && [ "$1" == "--non-interactive" ] ; then
-			echo "⛔ ERROR: DistroAgentsConsole: --cli-auto found no supported non-interactive CLI in PATH (tried: $DAGC_NONINTERACTIVE_CLIS)." >&2
+			echo "⛔ ERROR: DistroAgentsConsole: --cli-auto found no supported non-interactive CLI in PATH (tried: $DAGC_SELECTABLE_NONINTERACTIVE)." >&2
 			exit 1
 		fi
 	fi
 fi
-case "$DAGC_CLI" in
-	copilot|copilot-native|claude|claude-native|grok|scaleway) ;;
+## One membership test over the computed set, rather than a literal arm listing
+## every provider: the set already carries every vendor CLI and every leg, and
+## a leg's own -harness spelling is accepted here even though only its canonical
+## name is advertised above.
+case " $DAGC_SELECTABLE_CLIS " in
+	*" $DAGC_CLI "*) ;;
 	*)
-		echo "⛔ ERROR: DistroAgentsConsole: unsupported --cli: $DAGC_CLI (known: $DAGC_KNOWN_CLIS)" >&2
-		exit 1
+		if ! DagcCliIsLeg "$DAGC_CLI" ; then
+			echo "⛔ ERROR: DistroAgentsConsole: unsupported --cli: $DAGC_CLI (known: $DAGC_SELECTABLE_CLIS)" >&2
+			exit 1
+		fi
 	;;
 esac
-## scaleway has no interactive shape at all -- there is no real binary and no
+## A leg has no interactive shape at all -- there is no real binary and no
 ## REPL, only a harness that runs one request/response tool-calling cycle to
-## completion and exits -- so an explicit interactive request for it is
+## completion and exits -- so an explicit interactive request for one is
 ## refused here, with a stated reason, rather than falling through to a
-## plain `exec scaleway` that the shell itself would reject as "not found"
+## plain `exec <name>` that the shell itself would reject as "not found"
 ## for a reason this console never explains.
-if [ "$DAGC_CLI" = "scaleway" ] && [ "$1" != "--non-interactive" ] ; then
-	echo "⛔ ERROR: DistroAgentsConsole: 'scaleway' has no interactive shape -- its harness runs one request/response tool-calling cycle and exits; use --non-interactive." >&2
+if DagcCliIsLeg "$DAGC_CLI" && [ "$1" != "--non-interactive" ] ; then
+	echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' is a harness leg and has no interactive shape -- it runs one request/response tool-calling cycle and exits; use --non-interactive." >&2
 	exit 1
 fi
 if [ "$1" == "--non-interactive" ] ; then
-	case " $DAGC_NONINTERACTIVE_CLIS " in
+	## The leg test comes first, and is not covered by the set above: that set
+	## advertises each leg under ONE name, while a leg is selectable under its
+	## -harness spelling too. Testing membership alone would refuse the alias
+	## this console itself accepted at the --cli gate, two branches earlier.
+	case " $DAGC_SELECTABLE_NONINTERACTIVE " in
 		*" $DAGC_CLI "*) ;;
 		*)
-			echo "⛔ ERROR: DistroAgentsConsole: --non-interactive is currently supported only for: $DAGC_NONINTERACTIVE_CLIS (got: $DAGC_CLI)." >&2
-			exit 1
+			if ! DagcCliIsLeg "$DAGC_CLI" ; then
+				echo "⛔ ERROR: DistroAgentsConsole: --non-interactive is currently supported only for: $DAGC_SELECTABLE_NONINTERACTIVE (got: $DAGC_CLI)." >&2
+				exit 1
+			fi
 		;;
 	esac
 fi
@@ -247,12 +346,12 @@ if [ "$DAGC_CLI_GIVEN" = "true" ] ; then
 		exit 1
 	}
 elif ! DagcCliPresent "$DAGC_CLI" ; then
-	for DAGC_FALLBACK_CLI in $DAGC_KNOWN_CLIS ; do
+	for DAGC_FALLBACK_CLI in $DAGC_SELECTABLE_CLIS ; do
 		if [ "$DAGC_FALLBACK_CLI" = "$DAGC_CLI" ] ; then
 			continue
 		fi
 		if [ "$1" == "--non-interactive" ] ; then
-			case " $DAGC_NONINTERACTIVE_CLIS " in
+			case " $DAGC_SELECTABLE_NONINTERACTIVE " in
 				*" $DAGC_FALLBACK_CLI "*) ;;
 				*)
 					continue
@@ -271,26 +370,28 @@ elif ! DagcCliPresent "$DAGC_CLI" ; then
 	fi
 fi
 
-## The actual argv[0] `exec` below reaches for. Every other known CLI's own
-## name IS the binary; scaleway's is not -- there is no `scaleway` on any
-## PATH -- so this is the one substitution point where the harness script
-## stands in for it. `$DAGC_CLI` itself stays the logical name everywhere
-## else in this file (DISTRO_CONSOLE_EXEC=, the credential/flag case
-## statements, the warnings), so reporting and dispatch never disagree about
-## what was selected. The harness file itself is NOT re-derived here: it is
-## whatever DAGC_SCALEWAY_HARNESS resolved to at the top of this file, the same
-## value DagcCliPresent() tested, so the file this exec's is always the file
-## that was checked for.
-case "$DAGC_CLI" in
-	scaleway)      DAGC_CLI_EXEC="$DAGC_SCALEWAY_HARNESS" ;;
-	## The second name whose binary is not itself. `claude-native` exists to say
-	## WHICH claude is meant once this package ships a claude leg of its own; the
-	## thing it launches is still the vendor binary, spelled `claude`. This arm is
-	## what stops the exec below reaching for a `claude-native` that is on no PATH.
-	claude-native) DAGC_CLI_EXEC="claude" ;;
-	copilot-native) DAGC_CLI_EXEC="copilot" ;;
-	*)             DAGC_CLI_EXEC="$DAGC_CLI" ;;
-esac
+## The actual argv[0] `exec` below reaches for. A vendor CLI's own name IS the
+## binary; a leg's is not -- `claude`, `copilot` and `scaleway` name files, not
+## PATH -- so the leg branch is the one substitution point where the harness
+## script stands in for the name. `$DAGC_CLI` itself stays the logical name
+## everywhere else in this file (DISTRO_CONSOLE_EXEC=, the credential/flag
+## branches, the warnings), so reporting and dispatch never disagree about what
+## was selected. The harness file is NOT re-derived here: it is whatever the leg
+## table resolved at the top of this file, the same value DagcCliPresent()
+## tested, so the file this exec's is always the file that was checked for.
+if DagcCliIsLeg "$DAGC_CLI" ; then
+	DAGC_CLI_EXEC="$( DagcLegFileFor "$DAGC_CLI" )"
+else
+	case "$DAGC_CLI" in
+		## The name whose binary is not itself. `claude-native` exists to say
+		## WHICH claude is meant once this package ships a claude leg of its own; the
+		## thing it launches is still the vendor binary, spelled `claude`. This arm is
+		## what stops the exec below reaching for a `claude-native` that is on no PATH.
+		claude-native) DAGC_CLI_EXEC="claude" ;;
+		copilot-native) DAGC_CLI_EXEC="copilot" ;;
+		*)             DAGC_CLI_EXEC="$DAGC_CLI" ;;
+	esac
+fi
 
 DAGC_MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
 if [ -x "$DAGC_MYXROOT/bin/setup/agentMcp.Common" ] ; then
@@ -306,10 +407,15 @@ fi
 ## untagged carry no provenance and are existence-checked at spawn, since a root
 ## that does not exist fails the whole spawn.
 DAGC_ACCESS_FLAG=""
-case "$DAGC_CLI" in
-	copilot|copilot-native|claude|claude-native) DAGC_ACCESS_FLAG="--add-dir" ;;
-	scaleway)                     DAGC_ACCESS_FLAG="--access-read-root" ;;
-esac
+if DagcCliIsLeg "$DAGC_CLI" ; then
+	## One spelling for every leg: they all reach the same universal core, which
+	## is what parses it, so this is a property of the harness and not of a provider.
+	DAGC_ACCESS_FLAG="--access-read-root"
+else
+	case "$DAGC_CLI" in
+		copilot|copilot-native|claude|claude-native) DAGC_ACCESS_FLAG="--add-dir" ;;
+	esac
+fi
 DAGC_ACCESS_ARGS=()
 if [ -n "$DAGC_ACCESS_FLAG" ] ; then
 	DAGC_ACCESS_FRAGMENT="$MMDAPP/.claude/copilot-add-dir.fragment"
@@ -362,15 +468,42 @@ fi
 ## keychain or credential-store login on a machine configured that way. The
 ## value moves through a shell variable into a builtin export, so it reaches no
 ## process argv, no log and no output.
-case "$DAGC_CLI" in
-	claude)   DAGC_CLI_CREDENTIALS="ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN" ;;
-	## Nothing of ours: claude-native runs on the machine's own claude sign-in.
-	claude-native) DAGC_CLI_CREDENTIALS="" ;;
-	copilot)  DAGC_CLI_CREDENTIALS="COPILOT_GITHUB_TOKEN" ;;
-	copilot-native) DAGC_CLI_CREDENTIALS="" ;;
-	scaleway) DAGC_CLI_CREDENTIALS="SCALEWAY_DEEPSEEK SCALEWAY_GEMMA" ;;
-	*)        DAGC_CLI_CREDENTIALS="" ;;
-esac
+if DagcCliIsLeg "$DAGC_CLI" ; then
+	## A leg declares its own credential names, in HARNESS_CREDENTIAL_NAMES, and
+	## the universal core refuses by that same declaration when none of them is
+	## set. Reading the names out of the leg file is what keeps the gate a caller
+	## meets and the names exported here one single statement -- a console copy
+	## per provider is how the two drift, and a leg whose key is never exported
+	## fails at the gate for a reason that is true of the console, not of the key.
+	## Only upper-case tokens are taken, so a declaration reading
+	## "SCALEWAY_DEEPSEEK or SCALEWAY_GEMMA" yields the two names and not the word.
+	DAGC_CLI_CREDENTIALS="$( LC_ALL=C awk -F= '
+		$1 == "HARNESS_CREDENTIAL_NAMES" {
+			sub( /^[^=]*=/, "", $0 )
+			gsub( /[^A-Za-z0-9_]/, " ", $0 )
+			credentialCount = split( $0, credentialParts, " " )
+			credentialNames = ""
+			for ( credentialIndex = 1 ; credentialIndex <= credentialCount ; credentialIndex ++ ) {
+				if ( credentialParts[ credentialIndex ] !~ /^[A-Z][A-Z0-9_]*$/ ) { continue }
+				if ( credentialNames != "" ) { credentialNames = credentialNames " " }
+				credentialNames = credentialNames credentialParts[ credentialIndex ]
+			}
+			print credentialNames
+			exit
+		}
+	' "$DAGC_CLI_EXEC" )" || DAGC_CLI_CREDENTIALS=""
+	if [ -z "$DAGC_CLI_CREDENTIALS" ] ; then
+		echo "🙋 WARNING: DistroAgentsConsole: harness leg '$DAGC_CLI' declares no HARNESS_CREDENTIAL_NAMES in $DAGC_CLI_EXEC -- this spawn exports no credential for it, and the leg's own refusal is what a caller will see" >&2
+	fi
+else
+	## Every remaining name here is a vendor CLI, and none of them takes a
+	## credential from us: a -native CLI runs on the machine's own sign-in, and
+	## grok has no credential of ours either. The arms that once named
+	## ANTHROPIC_API_KEY and COPILOT_GITHUB_TOKEN for `claude` and `copilot`
+	## are gone with those names: both are harness legs now, and each declares
+	## its own credential names in the branch above.
+	DAGC_CLI_CREDENTIALS=""
+fi
 for DAGC_CREDENTIAL_NAME in $DAGC_CLI_CREDENTIALS ; do
 	## Tested, not bare: set -e would kill the console on an unreadable scope.
 	DAGC_CREDENTIAL_VALUE="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$DAGC_CREDENTIAL_NAME" 2>/dev/null )" || DAGC_CREDENTIAL_VALUE=""
@@ -380,16 +513,14 @@ done
 
 ## The spawn proxy mints this session uuid, records it on its own dispatch
 ## document and exports it here, so a hook's own session_id joins that record.
-## claude, copilot and scaleway all take the flag; any other CLI has it
+## claude, copilot and every harness leg take the flag; any other CLI has it
 ## reported and dropped rather than silently ignored, since the dispatch
-## record would otherwise name a session nothing else ever reports. scaleway
-## has no external hook observer of its own -- its harness just announces the
-## id to stderr, the only "join" possible for it (see the harness
-## DAGC_SCALEWAY_HARNESS resolved to above -- AgentsScalewayHarness.sh by
-## default, and it announces the id itself).
+## record would otherwise name a session nothing else ever reports. A leg has
+## no external hook observer of its own -- the universal core just announces
+## the id to stderr, which is the only "join" possible for it.
 DAGC_SESSION_ID_ARGS=()
 if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
-	if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] || [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "copilot-native" ] || [ "$DAGC_CLI" = "scaleway" ] ; then
+	if DagcCliIsLeg "$DAGC_CLI" || [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] || [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "copilot-native" ] ; then
 		DAGC_SESSION_ID_ARGS=( --session-id "$MDAT_SPAWN_SESSION_ID" )
 	else
 		echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_SESSION_ID is set but '$DAGC_CLI' has no --session-id flag -- this spawn runs without it, and its dispatch record will not join the agent's own session" >&2
@@ -403,9 +534,9 @@ fi
 ## takes the definition inline; copilot instead reads it from its own
 ## `~/.copilot/agents/<member>.agent.md` file, generated once per member by
 ## `--install-copilot-agent-files`, and only `--agent`s it when that file is
-## actually there. scaleway resolves the member itself, from its own skill
+## actually there. A harness leg resolves the member itself, from its own skill
 ## directory (`$MDAT_SKILLSET_ROOT/<name>/<name>.basic.md`), so no
-## pre-existing-file gate is needed here the way copilot's is. The name is
+## pre-existing-file gate is needed for one the way copilot's is. The name is
 ## checked against a bare-token set -- letters, digits, '.', '_' or '-' only,
 ## enumerated character-by-character rather than via a collation-dependent
 ## [a-zA-Z0-9._-] bracket range (see MAGIC.md's "A bracket range is never
@@ -438,27 +569,28 @@ if [ -n "$MDAT_SPAWN_AGENT" ] ; then
 			;;
 		esac
 	done
-	case "$DAGC_CLI" in
-		claude)
-			DAGC_AGENT_ARGS=(
-				--agents "{\"$MDAT_SPAWN_AGENT\":{\"description\":\"magic-team member $MDAT_SPAWN_AGENT\",\"prompt\":\"You are $MDAT_SPAWN_AGENT, a magic-team member. Read your own skill files before acting.\"}}"
-				--agent "$MDAT_SPAWN_AGENT"
-			)
-		;;
-		copilot)
-			if [ -f "$HOME/.copilot/agents/$MDAT_SPAWN_AGENT.agent.md" ] ; then
-				DAGC_AGENT_ARGS=( --agent "$MDAT_SPAWN_AGENT" )
-			else
-				echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_AGENT is set but ~/.copilot/agents/$MDAT_SPAWN_AGENT.agent.md does not exist yet -- this spawn runs without --agent, and its hooks report the generic agent type rather than $MDAT_SPAWN_AGENT" >&2
-			fi
-		;;
-		scaleway)
-			DAGC_AGENT_ARGS=( --agent "$MDAT_SPAWN_AGENT" )
-		;;
-		*)
-			echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_AGENT is set but '$DAGC_CLI' has no --agent/--agents flag -- this spawn runs without them, and its hooks report the generic agent type rather than $MDAT_SPAWN_AGENT" >&2
-		;;
-	esac
+	if DagcCliIsLeg "$DAGC_CLI" ; then
+		DAGC_AGENT_ARGS=( --agent "$MDAT_SPAWN_AGENT" )
+	else
+		case "$DAGC_CLI" in
+			claude)
+				DAGC_AGENT_ARGS=(
+					--agents "{\"$MDAT_SPAWN_AGENT\":{\"description\":\"magic-team member $MDAT_SPAWN_AGENT\",\"prompt\":\"You are $MDAT_SPAWN_AGENT, a magic-team member. Read your own skill files before acting.\"}}"
+					--agent "$MDAT_SPAWN_AGENT"
+				)
+			;;
+			copilot)
+				if [ -f "$HOME/.copilot/agents/$MDAT_SPAWN_AGENT.agent.md" ] ; then
+					DAGC_AGENT_ARGS=( --agent "$MDAT_SPAWN_AGENT" )
+				else
+					echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_AGENT is set but ~/.copilot/agents/$MDAT_SPAWN_AGENT.agent.md does not exist yet -- this spawn runs without --agent, and its hooks report the generic agent type rather than $MDAT_SPAWN_AGENT" >&2
+				fi
+			;;
+			*)
+				echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_AGENT is set but '$DAGC_CLI' has no --agent/--agents flag -- this spawn runs without them, and its hooks report the generic agent type rather than $MDAT_SPAWN_AGENT" >&2
+			;;
+		esac
+	fi
 fi
 
 ## claude only: piping its own JSON-lines stream through the awk formatter is
@@ -503,23 +635,25 @@ DagcRunClaudeStreaming(){
 if [ "$1" == "--non-interactive" ] ; then
 	shift
 	## -- closes the option list for claude, whose prompt is positional; copilot's -p takes the body as its value.
-	## scaleway takes neither: the harness's own arg parser, in
-	## AgentsScalewayHarness.sh, knows
+	## A harness leg takes neither: the universal core's own arg parser knows
 	## --tier/--access-read-root/--, and reads its prompt as plain trailing argv
 	## (or stdin) exactly like claude/copilot's *own* prompt body does once
 	## their flags are stripped -- a `-p`/`-p --` token would hit its default
 	## `*) break` arm unconsumed and be read back as literal prompt text.
-	case "$DAGC_CLI" in
-		copilot|copilot-native)  DAGC_NONINTERACTIVE_PERM_FLAGS="--allow-all-tools" ; DAGC_PROMPT_ARGS=( -p ) ;;
-		scaleway) DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=() ;;
-		## claude-native takes NO arm here on purpose, and the reason is worth
-		## stating because the next reader will want to add one: the default IS
-		## claude's shape, so the vendor CLI under either of its names lands here
-		## correctly. An arm spelling out the same two values would be a second
-		## copy to keep in step with this one. Correct-by-default is only safe
-		## when it is deliberate, so this comment is the deliberateness.
-		*)        DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=( -p -- ) ;;
-	esac
+	if DagcCliIsLeg "$DAGC_CLI" ; then
+		DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=()
+	else
+		case "$DAGC_CLI" in
+			copilot|copilot-native)  DAGC_NONINTERACTIVE_PERM_FLAGS="--allow-all-tools" ; DAGC_PROMPT_ARGS=( -p ) ;;
+			## claude-native takes NO arm here on purpose, and the reason is worth
+			## stating because the next reader will want to add one: the default IS
+			## claude's shape, so the vendor CLI under either of its names lands here
+			## correctly. An arm spelling out the same two values would be a second
+			## copy to keep in step with this one. Correct-by-default is only safe
+			## when it is deliberate, so this comment is the deliberateness.
+			*)        DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=( -p -- ) ;;
+		esac
+	fi
 	## The launch signal, on its own channel: the stdout line below shares a stream with the agent's own output.
 	[ -z "$MDAT_SPAWN_LAUNCH_MARKER" ] || printf '%s\n' "$DAGC_CLI" > "$MDAT_SPAWN_LAUNCH_MARKER"
 	if [ $# -gt 0 ] ; then

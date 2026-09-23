@@ -2,16 +2,21 @@
 maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 <!-- MAINTAINED BY magic-librarian — do not edit directly.
-     This is the durable, cross-cutting model doc for how the team's skill folders and routines work —
-     every acting member's own skill folder (magic-*/keeper-*/warden-*/partner-*/client-*), plus every `.routine.md`
-     procedure hosted inside one of them and the member executing it: the folder-shape spec, the
-     typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule. Named
-     `magic-team.shared.md` because it's hosted in magic-team's own folder, the same "<owning-folder-
-     name>.<type>.md" pattern every other typed file follows. Per-routine-specific content (executor/
-     maintainer notes, special-care details) is not duplicated here — it lives natively in each routine's
-     own single .routine.md file.
-     It also hosts the human-owner's own standing rules (last root section) — the one place they are
-     stated in full, because the skillset is the only thing that persists across machines. -->
+
+     This is the durable, cross-cutting model doc for how the team's skill folders and routines work.
+     Its subject is every acting member's own skill folder (magic-*/keeper-*/warden-*/partner-*/client-*).
+     It covers every `.routine.md` procedure hosted inside one of them, and the member executing it.
+     It specifies three things: the folder-shape spec, the typed-suffix file-format conventions, and
+     the executors-vs-maintainers quorum rule.
+
+     It is named `magic-team.shared.md` because it is hosted in magic-team's own folder. That is the
+     "<owning-folder-name>.<type>.md" pattern every other typed file follows.
+
+     Per-routine-specific content is not duplicated here. Executor and maintainer notes, and
+     special-care details, live natively in each routine's own single .routine.md file.
+
+     It also hosts the human-owner's own standing rules, in its last root section. That is the one
+     place they are stated in full. The skillset is the only thing that persists across machines. -->
 
 # Skill-folder model: the typed-suffix file scheme, and routines as procedures with executors
 
@@ -19,9 +24,22 @@ This file's own content is binding and obligatory on every team member who reads
 
 ## Core idea
 
-Every team routine/activity (`daily`, `grooming`, `retro`, `one-on-one`, `heartbeat`, ..., plus conversational ones like `interview`/`discuss`/`brainstorm`) is a named procedure, carried in one typed-suffix `.routine.md` file and executed by a team-member — never a member itself, and never its own Claude Code skill folder. Its full definition lives in one self-contained `.routine.md` file, hosted inside its owning/executing team member's own skill folder (one of `magic-coordinator`, `magic-team`, `magic-librarian`, a `partner-*`), named following that member's own typed-file convention: `<owning-member>.<short-name>.routine.md`. Only acting members (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) are real, separate Claude Code skill folders under `<skillset>/`, each with its own `SKILL.md` — a routine is not, and has no `SKILL.md` of its own.
+Every team routine or activity is a named procedure. Examples: `daily`, `grooming`, `retro`, `one-on-one`, `heartbeat`, plus conversational ones such as `interview`, `discuss` and `brainstorm`.
 
-A routine's executor is whichever member actually runs it — most often its own owning member, but any other member may run it too, by reading that routine's procedure directly out of the owning member's file and applying its own identity/skills while executing the steps. This is what makes `"magic-architect, ingest the task"` a real, distinct thing from `"Magic, ingest the task"` — the same procedure, performed by a different member, produces member-appropriate results.
+- A routine is carried in one typed-suffix `.routine.md` file.
+- A team-member executes it. A routine is never a member itself, and never its own Claude Code skill folder.
+- Its full definition lives in that one self-contained file.
+- That file is hosted inside its owning or executing team member's own skill folder.
+- It is named following that member's own typed-file convention: `<owning-member>.<short-name>.routine.md`.
+
+Only acting members are real, separate Claude Code skill folders under `<skillset>/`. Those are `magic-*`, `keeper-*`, `warden-*`, `partner-*` and `client-*`, each with its own `SKILL.md`. A routine is not one of those folders, and it has no `SKILL.md` of its own.
+
+A routine's executor is whichever member actually runs it. That is most often its own owning member. Any other member may run it too, steps:
+
+- read that routine's procedure directly out of the owning member's file
+- apply its own identity and skills while executing the steps
+
+This is what makes `"magic-architect, ingest the task"` a real, distinct thing from `"Magic, ingest the task"`. The same procedure, performed by a different member, produces member-appropriate results.
 
 ## Tooling
 
@@ -29,20 +47,30 @@ Read `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" sect
 
 ## Writing code
 
-Any member writing or editing code — in any language, including a shell script, an awk program or a one-off harness — reads `magic-developer/reference/code-craft.md` first, and `magic-developer/reference/shell.md` on top of it for shell and awk. A member *running* a shell command reads `shell.md` on the same terms: the traps that make a command answer confidently and wrongly are documented there, and a search or probe whose result will be acted on meets them whether or not any code was authored. These carry the team's general coding style: the member who happens to be on duty writes the code, so the style has to reach whoever that is. `magic-developer` owns and maintains them; everyone else reads them.
+Any member writing or editing code reads `magic-developer/reference/code-craft.md` first. That holds in any language, a shell script, an awk program or a one-off harness included. For shell and awk it reads `magic-developer/reference/shell.md` on top of that.
+
+A member *running* a shell command reads `shell.md` on the same terms. The traps that make a command answer confidently and wrongly are documented there. A search or probe whose result will be acted on meets those traps, whether or not any code was authored.
+
+These two files carry the team's general coding style. The member who happens to be on duty writes the code, so the style has to reach whoever that is. `magic-developer` owns and maintains them. Everyone else reads them.
 
 ### Searching the skillset
 
-The member directories under the skillset root are symlinks into the real source trees, and neither `grep -R` nor `find` follows a symlink by default.
+The member directories under the skillset root are symlinks into the real source trees. Neither `grep -R` nor `find` follows a symlink by default.
 
-- **The wrong form returns a clean zero, not an error.** A bare `grep -R` or `find` over the skillset root exits successfully having entered almost none of the tree, and prints exactly what a true absence prints — so its result reads as a finding rather than as a search that never looked.
-- **The form that works is `find -L <root> -type f -exec grep … {} +`**, which follows the root and the symlinked subdirectories alike. `magic-librarian`'s own `--librarian-list-team-files` is the listing equivalent.
-- **The control goes in the same invocation as the search** — a token confirmed present by reading a file directly. A zero arriving without one is not yet a result.
+- **The wrong form returns a clean zero, not an error.** A bare `grep -R` or `find` over the skillset root exits successfully, having entered almost none of the tree. It prints exactly what a true absence prints. Its result therefore reads as a finding rather than as a search that never looked.
+- **The form that works is `find -L <root> -type f -exec grep … {} +`.** It follows the root and the symlinked subdirectories alike. `magic-librarian`'s own `--librarian-list-team-files` is the listing equivalent.
+- **The control goes in the same invocation as the search.** A control is a token confirmed present by reading a file directly. A zero arriving without one is not yet a result.
 
 ## Human-owner conversations: two identities
 
-- The team bot and a member's own IM account are two separate conversations with the human-owner. The team bot is the shared identity a member with no account of its own falls back to, and its conversation carries what is informational — an outcome already settled, a report he does not have to act on. Anything needing him to act reaches him on his own direct channel instead, by this file's own human-owner standing rules, and a shared identity may be unable to reach that conversation at all.
-- Identity defaults to the member's own where it exists, the team bot otherwise; `--identity-bot` is the only modifier, and it selects the bot's conversation on reads, checks and reactions as well as sends — that is how a member with its own account works in the bot's conversation. There is no opposite flag. One exception: message search runs under the member's own identity only and refuses `--identity-bot` outright.
+- The team bot and a member's own IM account are two separate conversations with the human-owner.
+- The team bot is the shared identity a member with no account of its own falls back to.
+- The bot's conversation carries what is informational — an outcome already settled, a report he does not have to act on.
+- Anything needing him to act reaches him on his own direct channel instead, by this file's own human-owner standing rules. A shared identity may be unable to reach that conversation at all.
+- Identity defaults to the member's own where it exists, and to the team bot otherwise.
+- `--identity-bot` is the only modifier. It selects the bot's conversation on reads, checks and reactions as well as sends. That is how a member with its own account works in the bot's conversation.
+- There is no opposite flag.
+- One exception: message search runs under the member's own identity only, and refuses `--identity-bot` outright.
 
 ## Identifier and identity
 
@@ -51,22 +79,28 @@ A member, or the team, may carry two names. Neither is ever corrected into the o
 - **The identifier** — skill folder, config scope, member id, channel, bot handle, `project.inf` declares, symlink registry, board data. Mechanical, lowercase, load-bearing in paths, and it does not change.
 - **The identity** — what it is called when spoken about, what an outsider reads, what its mark stands for.
 
-Both are correct at once, in their own registers. A reader who finds two names for one thing reads this before deciding either is wrong, and a change to one is never a reason to change the other.
+Both are correct at once, in their own registers. A reader who finds two names for one thing reads this before deciding either is wrong. A change to one is never a reason to change the other.
 
-The team's own identifier is `magic-team` and its identity is The Conclave. A member's persona sits below both and belongs to that member, never to the group.
+The team's own identifier is `magic-team`. The team's own identity is The Conclave. A member's persona sits below both and belongs to that member, never to the group.
 
 ### Identity marks
 
-A member with a persona carries an `## Identity marks` block in its own `.basic.md`, holding how that persona renders. Its image files sit in that member's own `resources/` subfolder, the way the team's own mark does.
+A member with a persona carries an `## Identity marks` block in its own `.basic.md`. That block holds how the persona renders. Its image files sit in that member's own `resources/` subfolder, the way the team's own mark does.
 
-- **Unicode character** — required. The only field with no dependency on a platform: what the member reads as in plain text, an email, a transcript or an export, with nothing installed and no workspace configured.
-- **Slack shortcode** — `:name:`, the custom emoji that renders where a workspace holds it. Optional, and paired with the image below — one without the other is broken rather than partial.
-- **Image file** — in the member's own `resources/` subfolder, so a workspace is given the custom emoji from the repository rather than from somebody's downloads.
+- **Unicode character** — required. It is the only field with no dependency on a platform. It is what the member reads as in plain text, an email, a transcript or an export, with nothing installed and no workspace configured.
+- **Slack shortcode** — `:name:`, the custom emoji that renders where a workspace holds it. Optional, and paired with the image below. One without the other is broken rather than partial.
+- **Image file** — in the member's own `resources/` subfolder. A workspace then takes the custom emoji from the repository rather than from somebody's downloads.
 - **Favourites** — optional. The small set that member reaches for: reactions, and text emojis where it uses them.
 
-**Each field is one line, and its value is the first whitespace-delimited token on it.** The line is a list item naming the field in bold, then a colon, then the value. Where the token is wrapped, the first wrapping delimits the value and anything outside the closing wrapper is not part of it. Where it is not wrapped, punctuation at the end of the token, followed by whitespace or the end of the line, is not part of the value. Punctuation between characters is always part of it. The rest of the line is commentary. A field whose value is a set is not read this way. Its own spec states how the set is separated.
+**Each field is one line, and its value is the first whitespace-delimited token on it.** The line is a list item naming the field in bold, then a colon, then the value. Where the value ends, rules:
 
-The image and the Unicode character are one mark in two renderings, so a member reads the same whether it renders or degrades. A shortcode whose image does not match its fallback is a defect, not a variant. This binds members; the human-owner's own entry stands outside it.
+- Where the token is wrapped, the first wrapping delimits the value. Anything outside the closing wrapper is not part of it.
+- Where the token is not wrapped, punctuation ends the value. That is punctuation at the end of the token, followed by whitespace or the end of the line.
+- Punctuation between characters is always part of the value.
+- The rest of the line is commentary.
+- A field whose value is a set is not read this way. Its own spec states how the set is separated.
+
+The image and the Unicode character are one mark in two renderings. A member therefore reads the same whether its mark renders or degrades. A shortcode whose image does not match its fallback is a defect, not a variant. This binds members. The human-owner's own entry stands outside it.
 
 Where the fallback renders, the drawing belongs to the reader's platform — vendors do not draw one character alike. The character is chosen for what it is, never for how it looks in one font.
 
@@ -74,43 +108,47 @@ Where the fallback renders, the drawing belongs to the reader's platform — ven
 
 File set:
 
-- **Acting member** (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*` — the only real, separate folder under `<skillset>/`): `SKILL.md`, `<name>.basic.md`, `<name>.armed.md`, optionally `<name>.shared.md` (see the gated condition below — currently unique to `magic-team`'s own folder, not a routine per-member option), zero-or-more `<name>.<short-name>.routine.md` — each one self-contained, describing one procedure/activity this member owns, never its own folder.
+- **Acting member** — `magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`, the only real, separate folder under `<skillset>/`. It holds:
+  - `SKILL.md`
+  - `<name>.basic.md`
+  - `<name>.armed.md`
+  - optionally `<name>.shared.md`, under the gated condition below. It is not a routine per-member option.
+  - zero or more `<name>.<short-name>.routine.md`. Each one is self-contained, and describes one procedure or activity this member owns, never its own folder.
 
-Every acting member (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) skill folder under `<skillset>/` contains — careful: each of these folders may be (and, currently, every `magic-*` member's is) a symlink into the real source tree, not the canonical location itself, so anyone editing resolves the real path first:
+Every acting member's skill folder under `<skillset>/` contains what follows. Careful: such a folder may be a symlink into the real source tree rather than the canonical location itself. Anyone editing resolves the real path first.
 
-- **`SKILL.md`** — the boot dispatcher only. Claude Code's own skill-discovery mechanism requires this exact filename, so it never gets renamed. Standard skill frontmatter (`description`) plus a short dispatch routine: read `<name>.basic.md` unconditionally first (identity-only), then `<name>.armed.md` directly for genuine active-work-duty. A non-active-duty presence wanting to dig deeper than `<name>.basic.md` reads `<name>.armed.md`'s own Maintainer Notes → Librarian Comments → Reference subsection, not a separate reference file.
-- **`<name>.basic.md`** — identity-only content, unconditionally loaded. Enough to respond in a casual/social context, not enough to actually do the work.
-- **`<name>.armed.md`** — professional-readiness content, the one file real work-duty loads after `.basic.md`. Frontmatter: `maintainers:` only (see "Executors vs. maintainers" below) — no `executors:` field; who invokes/runs it is stated in `Scope`'s `Does`/`Doesn't` and `Local rules` prose instead. Section shape depends on role-family — see "Armed & Routine contracts" below.
-- **`<name>.access.md`, `<name>.reference.md`, `<name>.librarian.md`, `<name>.tooling.md`** — none of these exist as separate files for an acting member. Their content lives inside `<name>.armed.md`, per the section shape above: who/how/limits/decision-making → `Local rules` + `Scope`; per-member reference material → `Domain knowledge`; the tooling op list → `Team-Member's (-specific) tooling`; the `Verbatim-goals`/`Verbatim-tests` pair and the folder's own knowledge index → `Maintainer Notes`.
-- **`<name>.shared.md`** — **only for a folder that hosts genuinely team-wide, broadest-readership content** (this file is the worked example) — named after its own hosting folder, same as every other typed file, not a free-form descriptive title. Hand-authored/librarian-maintained prose, cross-cutting by design — a source other folders' own files may reference directly.
-- **`<owning-member>.<short-name>.routine.md`** — zero or more, one per routine this member owns/executes. Section shape — see "Armed & Routine contracts" below.
-- **`inbox/`** — created lazily, first time something needs to land there. Same personal-inbox model for every member — reflections a team-member writes while running an activity land in *its own* personal inbox and stay there, unless raised to the board as an `inquiry-*` to `magic-coordinator` (`magic-team.process-inbox.routine`'s "reflection-promotion" rule covers the mechanics).
-- **`resources/`** — created lazily, first time a member gets a non-instruction resource file (an identity-mark image, a Slack-app manifest, a config asset). Same filename, one level down from the member's own typed files — never a flat co-location.
+- **`SKILL.md`** — the boot dispatcher only. Claude Code's own skill-discovery mechanism requires this exact filename, so it never gets renamed. It carries standard skill frontmatter (`description`) plus a short dispatch routine. That routine reads `<name>.basic.md` unconditionally first, for identity only. It then reads `<name>.armed.md` directly, for genuine active-work-duty. A non-active-duty presence wanting to dig deeper than `<name>.basic.md` reads `<name>.armed.md`'s own Maintainer Notes → Librarian Comments → Reference subsection. There is no separate reference file.
+- **`<name>.basic.md`** — identity-only content, unconditionally loaded. Enough to respond in a casual or social context, never enough to actually do the work.
+- **`<name>.armed.md`** — professional-readiness content. It is the one file real work-duty loads after `.basic.md`. Frontmatter: `maintainers:` only, and no `executors:` field — see "Executors vs. maintainers" below. Who invokes or runs it is stated in `Scope`'s `Does`/`Doesn't` and `Local rules` prose instead. Section shape depends on role-family — see "Armed & Routine contracts" below.
+- **`<name>.access.md`, `<name>.reference.md`, `<name>.librarian.md`, `<name>.tooling.md`** — none of these exist as separate files for an acting member. Their content lives inside `<name>.armed.md`, per the section shape above:
+  - who, how, limits and decision-making → `Local rules` + `Scope`
+  - per-member reference material → `Domain knowledge`
+  - the tooling op list → `Team-Member's (-specific) tooling`
+  - the `Verbatim-goals`/`Verbatim-tests` pair and the folder's own knowledge index → `Maintainer Notes`
+- **`<name>.shared.md`** — **only for a folder that hosts genuinely team-wide, broadest-readership content**. This file is the worked example. It is named after its own hosting folder, same as every other typed file, never a free-form descriptive title. It is hand-authored, librarian-maintained prose, cross-cutting by design. It is a source other folders' own files may reference directly.
+- **`<owning-member>.<short-name>.routine.md`** — zero or more, one per routine this member owns or executes. Section shape — see "Armed & Routine contracts" below.
+- **`inbox/`** — created lazily, the first time something needs to land there. The same personal-inbox model applies to every member. Reflections a team-member writes while running an activity land in *its own* personal inbox and stay there. The one exception is a reflection raised to the board as an `inquiry-*` to `magic-coordinator`. `magic-team.process-inbox.routine`'s "reflection-promotion" rule covers those mechanics.
+- **`resources/`** — created lazily, the first time a member gets a non-instruction resource file. Examples: an identity-mark image, a messaging-app manifest, a config asset. Same filename, one level down from the member's own typed files, never a flat co-location.
 
 ### A skillset file is not automatically ours
 
-A member's folder lives in whatever repository its own domain lives in, and several sit in a client's or a counterparty's. Resolving the real path is not the whole of it — resolve which repository owns the destination before writing anything into a member's files.
+A member's folder lives in whatever repository its own domain lives in. Several sit in a client's or a counterparty's repository. Resolving the real path is not the whole of it. Resolve which repository owns the destination before writing anything into a member's files.
 
-What is safe to write follows from that. A fact about an organisation, in that organisation's own repository, is already theirs. Our own internal record about them — an assessment of a person, how we intend to handle them, what we have not told them — is ours, and in their repository it is one commit from being handed to them. That content is held in a repository we own, and the member's own file points at it.
+What is safe to write follows from that. A fact about an organisation, in that organisation's own repository, is already theirs. Our own internal record about them is ours — an assessment of a person, how we intend to handle them, what we have not told them. In their repository, such a record is one commit from being handed to them. That content is held in a repository we own, and the member's own file points at it.
 
-**The core rule: every acting member's own source files (`.basic.md`/`.armed.md`, plus every `.routine.md` it owns) must be fully sufficient on their own.**
-- A folder must work correctly purely from its own source files — that's the baseline the source files are held to, not a fallback path.
-- "Sufficient on its own" means readable and actionable following the folder's own stated cross-reference graph, not literally zero pointers elsewhere — a cross-reference is fine when it's explicit and named, and the referencing step stays independently actionable without following it.
+Where a session may edit a member's own skillset files, and what it may not touch beside them: `## The team works in one workspace; the others are clients` below, and its stated exception.
+
+**The core rule: every acting member's own source files must be fully sufficient on their own.** Those files are `.basic.md`/`.armed.md`, plus every `.routine.md` that member owns.
+
+- A folder must work correctly purely from its own source files. That is the baseline the source files are held to, never a fallback path.
+- "Sufficient on its own" means readable and actionable following the folder's own stated cross-reference graph. It does not mean literally zero pointers elsewhere.
+- A cross-reference is fine when it is explicit and named, and the referencing step stays independently actionable without following it.
 - Real work-duty content is loaded by reading `.armed.md` directly, plus whatever it cross-references.
-- A routine's own single `.routine.md` file is independently sufficient the same way, on its own, without needing its owning member's other typed files.
+- A routine's own single `.routine.md` file is independently sufficient the same way, without needing its owning member's other typed files.
 
-### Prose cross-reference versus guaranteed load — open, not settled
+### Every typed file is reached by prose instruction
 
-Every typed file above is reached by prose instruction: `SKILL.md` says to read `<name>.armed.md`, which says to read the shared team files. Nothing loads them automatically, so a member that does not comply never meets the rules they carry, and nothing reports that it did not.
-
-What the host's own documentation settles:
-
-- Only a skill's frontmatter description is always in context. The `SKILL.md` body enters on invocation; a sibling file enters only if the model chooses to read it.
-- An `@import` inside a skill file is not documented as resolved, so it is not an available mechanism there.
-- A `CLAUDE.md` may import an absolute or `~`-rooted path, a skill file included. At user scope such imports load without a prompt; a project-level file importing outside its own tree raises a one-time approval dialog.
-- A `.claude/rules/*.md` file without `paths` frontmatter is loaded at launch, at the same priority as `.claude/CLAUDE.md`.
-
-So a supported guaranteed-load path exists, and the difference between the two is real: a prose cross-reference binds only a member that complies, while an imported or rules-directory file is in context before the member acts. Which the skillset should use is the human-owner's decision, taken on its own terms rather than folded into other work.
+`SKILL.md` says to read `<name>.armed.md`, which says to read the shared team files. Nothing loads them automatically. A member that does not comply therefore never meets the rules they carry, and nothing reports that it did not.
 
 ## Duty content only — tooling internals belong to the package, never the skillset
 
@@ -134,8 +172,45 @@ skill file:
 
 **Can a member perform this step without this sentence?** If yes, it is not duty content — remove it.
 
-Ask it of the sentence, not of the section: a paragraph that is 90% duty content and 10% internals is
-not exempt, it is one edit away from correct.
+Ask it of the sentence, not of the section. A paragraph that is 90% duty content and 10% internals is
+not exempt. It is one edit away from correct.
+
+### A member-facing document citing internal code is invalid on its face
+
+An instance of the test above rather than a separate axis: a member does not need internals in order to
+act, which is why citing them is invalid.
+
+- **A `file:line` into a package's own implementation does not belong in any document a member reads** —
+  a resolver, a scan, a hardcoded list, a config catalogue. It is not weak duty content with a better
+  home somewhere else: a member never needs it and never calls it, so **removal is the fix and
+  relocation is not**.
+- **This reaches the framing, not the citation alone.** How many files define a thing, how many config
+  levels it sits at, which scope a resolver hardcodes — none of it is a member's business. Knowing it
+  invites the reasoning it enables: reading one level and concluding about the estate.
+- **The tell is a document reproducing its author's process.** A count, a line number, an account of how
+  something was measured — each is on the page because it was in the author's context, not because a
+  reader needs it, and each survives review by reading as precision. A writer checks a draft against
+  this; a reader treats it as the signal it is.
+- **No conflict with `Where it goes instead` below**, which routes a fact the *package* needs. A fact
+  the package turns out to need is established from the code by the owning `keeper-*`, never inherited
+  from a document that should not have carried it.
+
+### A count belongs in a report, never in a durable document
+
+A durable document is read as current, so a number in one is read as current and is not. A report is
+dated and about a moment, so a count there is sound. The line is the document's own durability, not the
+number's accuracy when written.
+
+- **State the rule, the shape or the boundary — never the tally.** "Every entry states what it proves",
+  not "nine instruments, three of which". A reader needing the count has the list and can count it.
+- **A tally in the prose makes the prose an edit site.** Adding one entry then forces a sentence change
+  somewhere else in the file, and the sentence that was not found is simply wrong from then on.
+- **Where a count is genuinely load-bearing, give the instrument rather than its output** — how to
+  derive it, so the answer is current whenever it is asked. Establish that it is load-bearing first;
+  usually it is not.
+- **Re-deriving at read time and writing the figure down are the same rule in two directions.** The
+  instruction to re-measure exists because the number does not keep. Writing it down anyway hands the
+  next reader the thing nobody agreed to trust.
 
 ### Where it goes instead
 
@@ -144,8 +219,8 @@ back. Every category above has a real home, and **all of them belong to the pack
 `keeper-*`, not here**:
 
 - **Operation behaviour, arguments, flags** -> the package's own help pair (`Help.<Name>.include` +
-  `Help.<Name>.help.md` under the owning package's `sh-lib/help/`). Help pairing is mandatory and the
-  owning `keeper-*` already maintains it; this is the operation's real manual.
+  `Help.<Name>.help.md` under the owning package's `sh-lib/help/`). Help pairing is mandatory, and the
+  owning `keeper-*` already maintains it. That pair is the operation's real manual.
 - **Package architecture and conventions** -> the package's own `CLAUDE.md`/`README.md`.
 - **Design rationale, interim choices, open questions** -> the owning `keeper-*`'s own `reference/`
   material, or a board item if it needs a decision. Never an operating instruction.
@@ -154,26 +229,27 @@ back. Every category above has a real home, and **all of them belong to the pack
 
 ### A capability gap gets closed in tooling, not reworded in the doc
 
-When a step cannot do something because the tooling cannot yet do it, the fix is to close that gap in the
-tooling — *so that* the skillset never needs detail-awareness of it at all — not to soften how the
-limitation is worded. Fill the gap in the tooling so the skillset need not mention the detail.
+A step sometimes cannot do something because the tooling cannot yet do it. The fix is to close that gap
+in the tooling. The purpose is that the skillset never needs detail-awareness of it at all. The fix is
+never to soften how the limitation is worded. Fill the gap in the tooling, so the skillset need not
+mention the detail.
 
 One carve-out: a gap that needs a real external account or infrastructure action, not just code, is not a
-pure tooling fix. Flag it as its own decision point and stop; never pursue it silently.
+pure tooling fix. Flag it as its own decision point and stop. Never pursue it silently.
 
 ### Why this rule exists
 
 - Documenting internals couples member-owned docs to tooling refactors. Renaming an internal
-  option then costs an edit to every member-owned file that names it, for a change that alters
-  nothing any member does; with internals out of the skillset, the same rename touches no
-  skillset file at all.
+  option then costs an edit to every member-owned file that names it. That change alters nothing
+  any member does. With internals out of the skillset, the same rename touches no skillset file
+  at all.
 - A documented forwarded flag manufactures contradictions that do not exist. A routine step whose
   documented scan scope disagrees with the step's own wording carries a self-flagged, unresolved
-  mismatch — and deleting the internals **dissolves** it rather than resolving it, because there is no
+  mismatch. Deleting the internals **dissolves** that mismatch rather than resolving it. There is no
   real conflict there, only a leaked detail disagreeing with the duty text.
 
-A stated prohibition is also worse than silence when it names the mechanism: *"no caller-facing
-`--state`/`--header` override"* tells a member what it cannot do about something it should not know
+A stated prohibition is also worse than silence when it names the mechanism. Take *"no caller-facing
+`--state`/`--header` override"*. It tells a member what it cannot do about something it should not know
 exists, which invites the question. State the call signature positively instead — what the member
 passes, and what it gets back.
 
@@ -181,7 +257,7 @@ passes, and what it gets back.
 
 Every `.basic.md`/`.armed.md`/`.routine.md` file follows one of the contracts below, by its own kind. Each is complete and self-contained — read the one that matches, never a diff against another.
 
-**Every section a contract names is present, in contract order, even when empty.** Each carries its own mandatory lead-in paragraph; where there is no content, an explicit "none" line follows it (`# Terminology: none` and `# Domain knowledge: none` express the same rule in the heading). An absent heading is indistinguishable from an unfinished file. Fix an existing gap when that file is next touched, not as a standing sweep.
+**Every section a contract names is present, in contract order, even when empty**. Each carries its own mandatory lead-in paragraph. Where there is no content, an explicit "none" line follows that lead-in. `# Terminology: none` and `# Domain knowledge: none` express the same rule in the heading. An absent heading is indistinguishable from an unfinished file. Fix an existing gap when that file is next touched, not as a standing sweep.
 
 ### Basic (`<name>.basic.md`)
 
@@ -200,7 +276,7 @@ Copyable skeleton: `magic-team/templates/basic.contract.format.md`.
 
 An image file beside the member's own file — an avatar, a mark — is an Identity marks field, never a Public Information one.
 
-`magic-team` is the team's own avatar rather than a person: it carries `Description`, `Name`, its own `Contact` as the team's front door, and none of the person fields.
+`magic-team` is the team's own avatar rather than a person. It carries `Description`, `Name`, and its own `Contact` as the team's front door. It carries none of the person fields.
 
 ### Routine (`<owning-member>.<short-name>.routine.md`)
 
@@ -223,7 +299,7 @@ Copyable skeleton: `magic-team/templates/routine.contract.format.md`.
 - `# Steps`
   - Exact instructions, execute in order, literally as written.
   - A step that can't execute as written: escalate, or fail loud.
-  - Exact steps as nested lists; nested lines follow the nested-item grammar below (`goal:`/`rule:`/`step:`).
+  - Exact steps as nested lists. Nested lines follow the nested-item grammar below (`goal:`/`rule:`/`step:`).
   - Every root-level step carries a name, in the established shape: `<N>. **name-of-meaning**: …` — names what the step does, never where it sits. Unique within the file.
   - A step is referred to by its name, not its number alone — inside the file and from any other file. A step with no name can only be pointed at by position, and position is the first thing an edit changes.
   - Applied as each routine file is next touched, not as a sweep.
@@ -232,7 +308,7 @@ Copyable skeleton: `magic-team/templates/routine.contract.format.md`.
   - Runs only after `# Steps`, and everything it extended/dispatched/spawned, have finished.
   - An already-existing closing tail in `# Steps` relocates here verbatim — no invented content.
   - No closing tail of its own: state that plainly, plus a pointer to whatever actually closes it.
-  - Sequencing: `# Steps` (including its own direct synchronous sub-calls) completes in full before any extended/dispatched/spawned run begins; `# Closure steps` runs only after all of that finishes.
+  - Sequencing: `# Steps`, including its own direct synchronous sub-calls, completes in full before any extended, dispatched or spawned run begins. `# Closure steps` runs only after all of that finishes.
   - An async, board-tracked dispatch or hand-off counts as complete for this purpose once tracked.
 - `# Routine's local procedures`
   - Named procedure blocks, `## <local-procedure-name>`, called by name from `# Steps`.
@@ -292,7 +368,7 @@ Copyable skeleton: `magic-team/templates/team-member.contract.format.md`.
     - this member's own limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
-  - Owned routines named here (typically a routines-index subsection), each pointing to its own exact `.routine.md` filename — the only place in this file that filename is spelled out.
+  - Owned routines are named here, typically in a routines-index subsection. Each points to its own exact `.routine.md` filename. That is the only place in this file that filename is spelled out.
 - `# Team-Member's (-specific) tooling`
   - Every `magic-tooling` operation this member uses, full syntax and behavior.
 - `# Maintainer Notes`
@@ -335,14 +411,21 @@ Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
   - `# Terminology: none` when empty.
 - `# Team-Member's (-specific) local procedures`
   - text: "Named procedure blocks. Steps below call them by name. Not separate routines — not visible outside this file."
-  - nested list of procedures, typically including a `daily-idle-task` procedure: select one eligible idle-run routine from this member's own `## Idle-Tasks` section (weighted by `weight`, honoring each entry's `min-interval` cap and `scope`), run that routine's own `<member>.<name>.routine.md` procedure, and log the outcome as a new dated file under `processed/` (the routine's own Closure step). Idle tasks are ordinary `.routine.md` files in the member's own folder, not a separate `idle-tasks/` directory; the `## Idle-Tasks` section — placed at the end of the member's `# Domain knowledge` in its `.armed.md` — is the only thing that designates which routines are idle-run and with what weight/min-interval/scope. This same `## Idle-Tasks`-designates-idle-run model applies to any member type carrying idle-run routines (a `magic-*` team-member, a `partner-*`/`client-*`), not keepers alone; a present-non-reporting member's section additionally states that its routines fire on ad-hoc/grooming dispatch only, never automatic daily fan-out.
+  - nested list of procedures, typically including a `daily-idle-task` procedure, steps:
+    - select one eligible idle-run routine from this member's own `## Idle-Tasks` section, weighted by `weight`, honoring each entry's `min-interval` cap and `scope`
+    - run that routine's own `<member>.<name>.routine.md` procedure
+    - log the outcome as a new dated file under `processed/`, which is the routine's own Closure step
+  - Idle tasks are ordinary `.routine.md` files in the member's own folder, never a separate `idle-tasks/` directory.
+  - The `## Idle-Tasks` section sits at the end of the member's `# Domain knowledge` in its `.armed.md`. It is the only thing designating which routines are idle-run, and with what weight, min-interval and scope.
+  - This same `## Idle-Tasks`-designates-idle-run model applies to any member type carrying idle-run routines, not keepers alone. That covers a `magic-*` team-member and a `partner-*`/`client-*`.
+  - A present-non-reporting member's own section additionally states that its routines fire on ad-hoc or grooming dispatch only, never automatic daily fan-out.
 - `# Team-Member's (-specific) local rules`
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - "`DistroAgentsTools.fn.sh` always executes via the `myx.distro` MCP tool `mcp__myx_distro__execute` (argument `command`, the shell script itself) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
     - "Console-session use: this role-family may open a `--console-start`/`--console-send` session only when its own instructions explicitly require one — this member's own `.armed.md` listing those operations for its domain is that instruction. Otherwise every call goes directly via `mcp__myx_distro__execute`, whatever the command count." Stated to agree with `magic-team.armed.md`'s own keeper exception, which governs.
-    - Decision authority: this member relays between `magic-coordinator` and the task, never deciding design/approach independently unless explicitly granted — cross-references its own `magic-team.authority.<type>.contract.md` (`keeper` or `warden`), never restated in full.
+    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`keeper` or `warden`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
@@ -362,7 +445,9 @@ Relationship shape — the asymmetric external-organisation relationship (`clien
 `partner-*` the opposite), not restated here: see `magic-team.authority.partner.contract.md`/
 `magic-team.authority.client.contract.md`'s own "Relationship shape".
 
-Comms-sweep for any `client-*` member reads via `--client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]` — generic across every `client-*` member, per-member-credentialed, and client-only: a `partner-*` member is not accepted. The member name and the optional cut-off are its only arguments: it reads every baseline source that member holds credentials for, and an item name is not a parameter to it. `magic-coordinator.communication-sweep.routine` is the wrapper around it: every `client-*` member is read in that routine's own pass, alongside the executor's own team-scoped sources, under each member's own credentials.
+Comms-sweep for any `client-*` member reads via `--client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]`. It is generic across every `client-*` member, per-member-credentialed, and client-only. A `partner-*` member is not accepted. The member name and the optional cut-off are its only arguments. It reads every baseline source that member holds credentials for. An item name is not a parameter to it.
+
+`magic-coordinator.communication-sweep.routine` is the wrapper around it. That routine's own pass reads every `client-*` member, alongside the executor's own team-scoped sources, under each member's own credentials.
 
 Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
 
@@ -380,8 +465,8 @@ Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
         organisation's own systems — never asserted generically here, `partner-*` and `client-*` face
         opposite directions: see `magic-team.authority.partner.contract.md`/
         `magic-team.authority.client.contract.md`'s own "Relationship shape".
-      - Communication with the external entity: this member's own dedicated account/email if configured; else routes through `magic-coordinator` — an explicit ask, `magic-coordinator`'s own conscious assessment, escalated to human-owner confirmation when warranted.
-      - Generic role operations run through the shared `magic-tooling` baseline; any external-system tooling specific to this particular partner/client (their own Jira/Slack/Google, etc.) is this member's own addition, documented in its own `Team-Member's (-specific) tooling` section.
+      - Communication with the external entity uses this member's own dedicated account or email, where one is configured. Otherwise it routes through `magic-coordinator` — an explicit ask, `magic-coordinator`'s own conscious assessment, escalated to human-owner confirmation when warranted.
+      - Generic role operations run through the shared `magic-tooling` baseline. Any external-system tooling specific to this particular partner or client — their own issue tracker, messaging or document systems — is this member's own addition. It is documented in its own `Team-Member's (-specific) tooling` section.
 - `# Terminology: <topic>`
   - Pure glossary, `term` → definition.
   - `## Term: <name>` only when a term needs more than one line.
@@ -396,7 +481,7 @@ Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - "`DistroAgentsTools.fn.sh` always executes via the `myx.distro` MCP tool `mcp__myx_distro__execute` (argument `command`, the shell script itself) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
     - `partner-*` only: "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement." Not part of the `client-*` shape — a `client-*` member is a representative, normally with no workspace or console of its own, so it gets no console grant by default. A specific client that genuinely needs one states it explicitly in its own file, which is what the `magic-team.armed.md` console rules require anyway.
-    - Decision authority: this member relays between `magic-coordinator` and the task, never deciding design/approach independently unless explicitly granted — cross-references its own `magic-team.authority.<type>.contract.md` (`partner` or `client`), never restated in full.
+    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`partner` or `client`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
@@ -427,7 +512,7 @@ Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
       - Not a standing team member: a costed, external AI-service resource, spawned into a billed pay-per-time session, brought in to boost/accelerate one specific, complicated task.
       - Domain of expertise: the specific type(s) of work this member is brought in for — not a workspace, a work-type.
       - Remote execution account info: this member's own settings name whatever account/credential the billed remote service is actually reached through.
-      - Spawn trigger, cost/billing tracking, and session lifecycle: not yet defined team-wide — state whatever this specific member's own instructions already settle, flag the rest as open.
+      - Spawn trigger, cost and billing tracking, and session lifecycle are not yet defined team-wide. State whatever this specific member's own instructions already settle, and flag the rest as open.
 - `# Terminology: <topic>`
   - Pure glossary, `term` → definition.
   - `## Term: <name>` only when a term needs more than one line.
@@ -440,7 +525,7 @@ Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - Decision authority: this member relays between `magic-coordinator` and the task, never deciding design/approach independently unless explicitly granted — cross-references its own `magic-team.authority.<type>.contract.md` (`oncall` or `expert`), never restated in full.
+    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`oncall` or `expert`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
@@ -452,7 +537,7 @@ Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
   - `## Librarian Comments`
     - `### Reference`
     - `### Conventions`
-- No live `oncall-*`/`expert-*` member exists yet — roster category reserved, this contract applies once one is created.
+- This contract applies once such a member is created.
 
 ### Human-owner (`human-owner`)
 
@@ -467,8 +552,8 @@ A non-acting identity record that nonetheless carries one real, invocable proced
     - Compact narrative, still detailed.
   - `## Scope`
     - What it does — the reference point other files use for "the human-owner" as a role, plus the invocable procedure for contacting them.
-    - What it deliberately doesn't do — never loaded to generate human-owner speech, replies, or actions; no auto-trigger, no dispatch path, and none should exist; holds no actual contact details.
-    - Authority is *described* here in one line — final say on conflicts, ambiguities, and escalations the team can't settle; approval for anything outside a member's own mandate — immediately followed by the pointer naming `magic-coordinator/TEAM-ORGANIZATION-VISION.md` as its only home. Never re-derived or restated. No `### Authority` subsection: a `Scope` bullet, nothing more.
+    - What it deliberately doesn't do. It is never loaded to generate human-owner speech, replies, or actions. It has no auto-trigger and no dispatch path, and none should exist. It holds no actual contact details.
+    - Authority is *described* here in one line. That line covers two things: final say on conflicts, ambiguities and escalations the team can't settle, and approval for anything outside a member's own mandate. The pointer naming `magic-coordinator/TEAM-ORGANIZATION-VISION.md` as its only home follows immediately. Authority is never re-derived or restated. No `### Authority` subsection: a `Scope` bullet, nothing more.
 - `# Terminology: <topic>` — or `: none`.
 - `# Team-Member's (-specific) local procedures`
   - Named procedure blocks, `## <local-procedure-name>`, called by name.
@@ -479,27 +564,36 @@ A non-acting identity record that nonetheless carries one real, invocable proced
   - flat, present-tense bullets, always including:
     - "Never impersonate the human-owner." No exception, no maintainer carve-out, ever.
     - Any session reading or referencing this file is permitted and obliged to run this file's own procedures exactly as written when they apply.
-    - Carries no member-execution bullet of its own: this record never executes anything itself — its procedures are run by the referencing session, under that session's own `magic-tooling` rules.
+    - Carries no member-execution bullet of its own. This record never executes anything itself. The referencing session runs its procedures, under that session's own `magic-tooling` rules.
 - `# Domain knowledge: <topic>` — or `: none`.
 - `# Team-Member's (-specific) tooling`
   - Every `magic-tooling` operation this record's own procedures invoke, full syntax and behavior. `none` only when no procedure invokes any.
 - `# Maintainer Notes` — same shape as every other contract. The `## Verbatim-goals (intents)`/`## Verbatim-tests (benchmarks)` pair is where the authority-role intent is anchored — not a `Scope` subsection, and never a copy of the vision doc.
-- One member only. Not a family; no second `human-owner`-shaped member exists or is expected.
+- One member only. Not a family. No second `human-owner`-shaped member exists or is expected.
 
 ### Session-context document (`# Session Sweep Report`)
 
 Copyable skeleton: `magic-team/templates/session-context.document.format.md`.
 
-Not a contract — the shape of a **generated** document, produced by tooling and read by a session at its start. Nothing writes it by hand, and no session calls the producing operation directly: each routine/member invokes its own stub, and each stub requests exactly the scopes its own invocation place needs.
+Not a contract — the shape of a **generated** document, produced by tooling and read by a session at its start. Nothing writes it by hand. No session calls the producing operation directly. Each routine or member invokes its own stub, and each stub requests exactly the scopes its own invocation place needs.
 
 - `# Session Sweep Report`
-  - `## Contents & Abstract` — `generated-for`, `generated-at`, the scopes actually requested (named as this document names its own sections, never as tooling option spellings), and the comms cut-off in force (or that none was set).
+  - `## Contents & Abstract` — `generated-for`, `generated-at`, the scopes actually requested, and the comms cut-off in force. Scopes are named as this document names its own sections, never as tooling option spellings. Where no cut-off was set, it says so.
 - `# New Incoming Communications`
   - Carries `**NOTE:** no new incoming communications` only when every requested comms sub-section is empty.
   - `## Incoming IM Updates` (cap 128), `## Incoming Email Updates` (cap 128), `## Incoming Trello Updates` (cap 64).
-- Four inbox sections: `## Active Inbox Inquiry Items` (`inquiry-*`), `## Current Inbox Reflections` (`reflection-*`), `## Current Inbox Notes` (`note-*`), and `## Other Inbox Items` — every inbox item whose prefix is none of those three. All four alike: cap 64 items, oldest first by file modification time, a `scope:` line first, and item bodies per the body-framing rule below. The fourth section exists because without it the other three silently drop everything else an inbox turns out to hold. It carries two different things at once, and they are not read alike: a legitimate `warning-*`, which is an inbox type (`magic-team.armed.md`'s four) but has no section of its own here, and a board-type document — `task-*`, `proposal-*`, `change-*`, `interview-*` and the rest — which does not belong in an inbox at all and is misfiled. Whether this section is kept as is, removed, or repurposed as a misfiling report is an open human-owner decision, not settled here.
-- **The inbox window advances only from oldest toward newest, and an item leaves it by being moved to `processed/`.** No inbox pointer is stored anywhere: the live root's own oldest edge is the pointer, materialised as the difference between what is filed and what has been drained.
-- **Handled means moved, never edited in place.** The sort key is modification time, so any write that leaves an item where it is — an in-place edit, a header change — makes it the newest item in the inbox and buries it behind the far edge, beyond the cap's reach. Draining does not reorder the live root: the drained item leaves it rather than moving within it. The processed copy carries the drain time, so a scope reading `processed/` too sorts recently drained items to the newest edge — the end an oldest-first cap cuts first.
+- Four inbox sections:
+  - `## Active Inbox Inquiry Items` (`inquiry-*`)
+  - `## Current Inbox Reflections` (`reflection-*`)
+  - `## Current Inbox Notes` (`note-*`)
+  - `## Other Inbox Items` — every inbox item whose prefix is none of those three
+- All four alike: cap 64 items, oldest first by file modification time, a `scope:` line first, and item bodies per the body-framing rule below.
+- The fourth section exists because without it the other three silently drop everything else an inbox turns out to hold. It carries two different things at once, and they are not read alike:
+  - a legitimate `warning-*`. That is an inbox type, one of `magic-team.armed.md`'s four, but it has no section of its own here.
+  - a board-type document — `task-*`, `proposal-*`, `change-*`, `interview-*` and the rest. It does not belong in an inbox at all, and it is misfiled.
+- Whether this section is kept as is, removed, or repurposed as a misfiling report is an open human-owner decision, not settled here.
+- **The inbox window advances only from oldest toward newest, and an item leaves it by being moved to `processed/`**. No inbox pointer is stored anywhere. The live root's own oldest edge is the pointer. It is materialised as the difference between what is filed and what has been drained.
+- **Handled means moved, never edited in place**. The sort key is modification time. Any write that leaves an item where it is makes it the newest item in the inbox — an in-place edit, a header change. Such a write buries it behind the far edge, beyond the cap's reach. Draining does not reorder the live root. The drained item leaves the root rather than moving within it. The processed copy carries the drain time. A scope reading `processed/` too therefore sorts recently drained items to the newest edge, the end an oldest-first cap cuts first.
 - `## Board Items` — inserted into this structure keeping the existing `--*-input-scan` per-item shape (`## <state>/<item-filename>` then its frontmatter). Never restructured, and **never capped**: the board is the work list, and silently dropping part of it is the failure this document exists to prevent.
 - **Six requestable scopes feed the inbox and board sections** — two mutually exclusive pairs and two singles. Inbox inquiry items: the active ones, or the active ones plus collected ones. Inbox reflections. Inbox notes. Board items related to the member: the active states, or every state. A pair's two breadths are mutually exclusive — one breadth per run, never both.
 - **Each of those four sections states its own `scope:` as its first line** — before any item block and before any `**NOTE:**`, extending the same per-section metadata convention the comms sub-sections already carry with `identity:`/`instrument:`/`sources-scanned:`. Present whenever the scope was requested, on empty and non-empty sections alike, exactly as `identity:` is. The heading names the section, `scope:` names the run — which is what lets two runs under the same heading tell themselves apart, and is why the heading set stays fixed rather than growing a variant per breadth.
@@ -519,44 +613,44 @@ Not a contract — the shape of a **generated** document, produced by tooling an
   - **Status forms** — `no new X`, `not requested`, `no scan was made`. Mutually exclusive, exactly one, and only ever *instead of* items.
   - **Annotation marks** — `partial`, `truncated`. They accompany items, and may co-occur with each other: a section can be over its cap and missing a source at the same time.
 - Three distinct `**NOTE:**` forms, never interchangeable: *no new X* (looked, found nothing), *not requested* (nobody asked and nobody declined, so nothing looked) and *no scan was made* (asked, could not look). That distinction is the document's own reason to exist: an empty result, an unstated request and an unperformed scan must never read alike.
-- **Form 1 always carries a denominator and its filter** — `no new X -- scanned <N> items, <M> matched <filter>`. It is the only form asserting a fact about the world rather than about the process, so it is the only one that can be wrong while looking right. Without the denominator, a broken filter and an empty tree render identically — an owner-extraction defect matching none of a full board's items reads exactly like a truthful "no board items".
-- A section with plural sources carries `sources-scanned: <N> of <M>`, and when `N < M` also a `**NOTE:** partial -- <source> not scanned, <reason>` beside its items — a populated section must still be able to report that something underneath it failed.
-- The aggregate `no new incoming communications` fires only when every requested comms sub-section is **empty and successfully scanned**; an unscannable sub-section is unknown, not empty, and blocks it.
-- Each comms sub-section states its own `identity:` before its `instrument:` — the account that sub-section was read through, and the member whose config supplied the credentials. Identifiers only (a Slack user id, an email address, a Trello username and id); credential values never appear in the document.
-- Each comms sub-section states its own `instrument:` — the services differ (Slack takes a cut-off and has no unread flag; email and Trello have unread and take no cut-off), so a single global cut-off line cannot describe what was actually used.
+- **Form 1 always carries a denominator and its filter** — `no new X -- scanned <N> items, <M> matched <filter>`. It is the only form asserting a fact about the world rather than about the process, so it is the only one that can be wrong while looking right. Without the denominator, a broken filter and an empty tree render identically. An owner-extraction defect matching none of a full board's items reads exactly like a truthful "no board items".
+- A section with plural sources carries `sources-scanned: <N> of <M>`. Where `N < M` it also carries a `**NOTE:** partial -- <source> not scanned, <reason>` beside its items. A populated section must still be able to report that something underneath it failed.
+- The aggregate `no new incoming communications` fires only when every requested comms sub-section is **empty and successfully scanned**. An unscannable sub-section is unknown, not empty, and blocks it.
+- Each comms sub-section states its own `identity:` before its `instrument:`. `identity:` names the account that sub-section was read through, and the member whose config supplied the credentials. Identifiers only: a Slack user id, an email address, a Trello username and id. Credential values never appear in the document.
+- Each comms sub-section states its own `instrument:`. The services differ. Slack takes a cut-off and has no unread flag. Email and Trello have unread and take no cut-off. A single global cut-off line therefore cannot describe what was actually used.
 - Every item block states its type name and id on its heading line.
-- **Item bodies, inbox sections only, framed by a declared line count and no delimiter.** No delimiter can work: every fence or sentinel is a string a body may legally contain. Each inbox item block runs `## inbox/<filename>`, then its frontmatter `key: value` lines verbatim, then `body-truncated:` where it applies, then `body-final-newline: absent` where it applies, then `body-lines: <N>`, then exactly `N` lines, then one blank line, then the next `##` or EOF.
+- **Item bodies, inbox sections only, framed by a declared line count and no delimiter**. No delimiter can work. Every fence or sentinel is a string a body may legally contain. Each inbox item block runs `## inbox/<filename>` first. Then its frontmatter `key: value` lines, verbatim. Then `body-truncated:` where it applies. Then `body-final-newline: absent` where it applies. Then `body-lines: <N>`. Then exactly `N` lines. Then one blank line, then the next `##` or EOF.
   - `body-lines:` is **the last key before the body** — a reader stops treating lines as headers there. `body-lines: 0` when there is no body.
-  - **An item that is zero bytes still gets a block.** It has no frontmatter and no body, so nothing about it would otherwise be emitted — while the section's `scanned`/`matched` counts still include it, leaving the document asserting an item it never shows. That is the one false-completeness failure a reader cannot detect, because the counts agree with themselves. The block is emitted in that item's own position, and carries exactly: `item-empty: 0 bytes stored -- no frontmatter and no body; an interrupted write leaves exactly this`, then `body-lines: 0`.
-  - `item-empty:` is what distinguishes an empty item from one that legitimately has frontmatter and no body — the two must never read alike. It keeps `body-lines:` rather than omitting it, so every block still ends with the same last key and a reader still consumes `N` lines and expects `##` or EOF; the mark distinguishes without costing the frame its uniformity.
+  - **An item that is zero bytes still gets a block**. It has no frontmatter and no body, so nothing about it would otherwise be emitted. Meanwhile the section's `scanned`/`matched` counts still include it. The document then asserts an item it never shows. That is the one false-completeness failure a reader cannot detect, because the counts agree with themselves. The block is emitted in that item's own position. It carries exactly: `item-empty: 0 bytes stored -- no frontmatter and no body; an interrupted write leaves exactly this`, then `body-lines: 0`.
+  - `item-empty:` is what distinguishes an empty item from one that legitimately has frontmatter and no body. The two must never read alike. It keeps `body-lines:` rather than omitting it. Every block therefore still ends with the same last key, and a reader still consumes `N` lines and expects `##` or EOF. The mark distinguishes without costing the frame its uniformity.
   - `body-lines:` states the lines **actually emitted**, and those lines are byte-identical to the corresponding prefix of storage. Where no body was cut, that prefix is the whole body.
-  - `body-final-newline: absent` appears only when the body was emitted **whole** and storage did not end in a newline, and sits immediately before `body-lines:` so that `body-lines:` stays last. The emitter supplies the missing newline; nothing else is added or removed. A cut body never carries it: a body that did not reach its own last byte says nothing about how storage ended, and asserting it would be a claim the emitter cannot make.
-  - A count rather than a delimiter is what makes the body byte-exact and the framing self-checking: after `N` lines a reader must find `##` or EOF, and if it does not, the document is corrupt and can say so.
+  - `body-final-newline: absent` appears only when the body was emitted **whole** and storage did not end in a newline. It sits immediately before `body-lines:`, so that `body-lines:` stays last. The emitter supplies the missing newline. Nothing else is added or removed. A cut body never carries it. A body that did not reach its own last byte says nothing about how storage ended, and asserting it would be a claim the emitter cannot make.
+  - A count rather than a delimiter is what makes the body byte-exact and the framing self-checking. After `N` lines a reader must find `##` or EOF. Where it does not, the document is corrupt and can say so.
   - The board section keeps frontmatter only, and keeps its no-cap rule. Board bodies are not carried here — `--member-read-board-item` already returns one.
-- **Wherever anything is cut, the document says so at the point it was cut** — a rule of the whole document, not a feature of one section. Two forms, never a fresh one, and each states *what* was cut and *how much*, never merely that something was:
+- **Wherever anything is cut, the document says so at the point it was cut**. That is a rule of the whole document, not a feature of one section. Two forms exist, never a fresh one. Each states *what* was cut and *how much*, never merely that something was:
   - **Section-level mark**, when the item *count* is cut. Base form, for the email and Trello sections, emitted exactly: `**NOTE:** truncated -- <N> items found, capped at <M>`
   - Inbox form, for all four inbox sections, emitted exactly: `**NOTE:** truncated -- <N> items found, capped at <M> -- OLDEST kept, newest not shown`
   - The inbox form names the end it kept, because a count alone does not say which items are out of reach.
   - IM superset, for `## Incoming IM Updates` only: the same counts, then the dropped-conversation list, then that this is a display cap and not an unread source. That clause exists because the IM cap counts conversations, and a dropped conversation is not an unread source.
   - The `**NOTE:** ` prefix is part of every section-level form. A form quoted without it is a different string.
-  - **Per-item mark**, when a *body* is cut at the 8192-byte cap. Emitted exactly, as a header key inside the item's own frame: `body-truncated: <T> bytes stored, capped at 8192 -- <N> of <M> lines emitted` — `<T>` the body's full stored size in bytes, `<N>` the lines emitted (the same number `body-lines:` carries), `<M>` the lines the body has in storage.
-  - It is a key, not a `**NOTE:**`, and it sits before `body-final-newline:`/`body-lines:` — because `body-lines:` must stay the last key before the body. A mark placed after `body-lines:` would be counted as a body line; a `**NOTE:**` placed before it would break the `key: value` grammar the block is parsed with.
-  - **The per-item mark is not stylistic and cannot be omitted.** `body-lines:` is a count a reader consumes literally: a body cut without the mark still yields a count that no longer describes the whole stored body, and a reader that consumes `N` lines and finds neither `##` nor EOF has walked into the next block. A cut without its mark is a corrupt document, not a terse one.
-  - Both marks are required, and they are independent: a section can be over its item cap while one of the items it did carry also had its body cut.
-  - **Where the 8192-byte cut falls**: at the last line boundary at or before 8192 bytes — whole lines only, so no multi-byte character is ever split. Where a single line exceeds the cap on its own, no lines are emitted: `body-lines: 0`, with the mark stating `0 of <M> lines emitted`. That is a truthful empty body and not a silent one; the reader is told the size and goes to the item.
-- **A string this document emits is code: every emitted string uses ASCII `--`, never an em dash.** It governs every `scope:`, `**NOTE:**`, `identity:`, `instrument:` and `sources-scanned:` line quoted here or in the skeleton — reproduce those characters exactly, and do not compose one at the point of use. Contract prose around them is unconstrained and is not touched by this rule.
+  - **Per-item mark**, when a *body* is cut at the 8192-byte cap. Emitted exactly, as a header key inside the item's own frame: `body-truncated: <T> bytes stored, capped at 8192 -- <N> of <M> lines emitted`. `<T>` is the body's full stored size in bytes. `<N>` is the lines emitted, the same number `body-lines:` carries. `<M>` is the lines the body has in storage.
+  - It is a key, not a `**NOTE:**`, and it sits before `body-final-newline:`/`body-lines:`. The reason is that `body-lines:` must stay the last key before the body. A mark placed after `body-lines:` would be counted as a body line. A `**NOTE:**` placed before it would break the `key: value` grammar the block is parsed with.
+  - **The per-item mark is not stylistic and cannot be omitted**. `body-lines:` is a count a reader consumes literally. A body cut without the mark still yields a count that no longer describes the whole stored body. A reader that consumes `N` lines and finds neither `##` nor EOF has walked into the next block. A cut without its mark is a corrupt document, not a terse one.
+  - Both marks are required, and they are independent. A section can be over its item cap while one of the items it did carry also had its body cut.
+  - **Where the 8192-byte cut falls**: at the last line boundary at or before 8192 bytes. Whole lines only, so no multi-byte character is ever split. Where a single line exceeds the cap on its own, no lines are emitted: `body-lines: 0`, with the mark stating `0 of <M> lines emitted`. That is a truthful empty body and not a silent one. The reader is told the size and goes to the item.
+- **A string this document emits is code: every emitted string uses ASCII `--`, never an em dash**. It governs every `scope:`, `**NOTE:**`, `identity:`, `instrument:` and `sources-scanned:` line quoted here or in the skeleton. Reproduce those characters exactly, and do not compose one at the point of use. Contract prose around them is unconstrained and is not touched by this rule.
 - **`## Board Items` carries a `scope:` line whenever it has content**, stating the states walked, the type filter, and the owner filter or that any owner matched. It never carries a cap line and never carries a `truncated` mark, because it is uncapped. A section that walked the board and declared nothing is the failure this rule closes.
 - Shell-readable, human-readable and agent-readable at once: stable headings, one item per block, `key: value` lines, blank line between blocks.
-- The inbox sections carry **every** inbox item: `inquiry-*`, `reflection-*` and `note-*` in their own three sections, and everything else in `## Other Inbox Items`. Reading the inbox whole is a property of this document, not a widening of what an inbox may hold: `magic-team.armed.md`'s restriction stands — a member's own inbox holds `note-*`, `inquiry-*`, `reflection-*` and `warning-*` only, and a board-type document found in one is misfiled. This document reports what is actually in an inbox rather than only what belongs there, which is also what makes `magic-team.process-inbox.routine`'s own non-enumerating job actually reachable from it.
-- Recorded gaps live in the skeleton file, stated rather than solved — `assignee` not existing in the entity model, and the uneven per-service cut-off support that makes lagging pointers the sanctioned mechanism.
+- The inbox sections carry **every** inbox item: `inquiry-*`, `reflection-*` and `note-*` in their own three sections, and everything else in `## Other Inbox Items`. Reading the inbox whole is a property of this document, not a widening of what an inbox may hold. `magic-team.armed.md`'s restriction stands. A member's own inbox holds `note-*`, `inquiry-*`, `reflection-*` and `warning-*` only, and a board-type document found in one is misfiled. This document reports what is actually in an inbox rather than only what belongs there. That is also what makes `magic-team.process-inbox.routine`'s own non-enumerating job actually reachable from it.
+- Recorded gaps live in the skeleton file, stated rather than solved. Two of them: `assignee` not existing in the entity model, and the uneven per-service cut-off support that makes lagging pointers the sanctioned mechanism.
 
 ## Nested-item grammar
 
-How a nested list under an instruction declares what each of its lines *is*. Applies to any nested instruction list in a skillset file — a routine's `# Steps`/`# Closure steps`, and the `Steps:` lists inside any member's or routine's own local-procedures blocks — not only `.routine.md`.
+How a nested list under an instruction declares what each of its lines *is*. It applies to any nested instruction list in a skillset file, not only `.routine.md`. That covers a routine's `# Steps` and `# Closure steps`, and the `Steps:` lists inside any member's or routine's own local-procedures blocks.
 
 ### When conversion is required
 
-A line's own text converts to this grammar the moment it bundles **two or more distinct, separately-executable obligations** in one sentence or run-on clause — "separately-executable" meaning each has its own action verb and its own object/target, such that dropping any one of them still leaves the others meaningful and independently checkable as done/not-done.
+A line's own text converts to this grammar the moment it bundles **two or more distinct, separately-executable obligations** in one sentence or run-on clause. "Separately-executable" means each obligation has its own action verb and its own object or target. It also means that dropping any one of them still leaves the others meaningful, and independently checkable as done or not-done.
 
 Qualifies, any one of:
 - Sequential actions joined by "then"/"before"/"after"/"once …, …", each naming a distinct action (e.g. "check X then process Y").
@@ -564,22 +658,22 @@ Qualifies, any one of:
 - A `goal:`, a `rule:`, and a `step:` folded together into the same sentence instead of stated as separate lines.
 
 Does not qualify — stays flat prose, no nested list required:
-- A single action with a subordinate conditional/qualifying clause attached ("if X, do Y" / "do Y, unless Z") — one obligation, one action verb, one object.
+- A single action with a subordinate conditional or qualifying clause attached, such as "if X, do Y" or "do Y, unless Z". One obligation, one action verb, one object.
 - A single action elaborated with descriptive detail, rationale, or a parenthetical aside that names no separate action verb of its own.
-- A single action naming several parameters/arguments to one call (e.g. "call X with A, B, C") — one obligation, one verb.
-- A second clause that only restates, negates, or states the consequence of the first, naming no new action ("X, not Y" / "X — never Z").
+- A single action naming several parameters or arguments to one call, e.g. "call X with A, B, C". One obligation, one verb.
+- A second clause that only restates, negates, or states the consequence of the first, naming no new action. Examples: "X, not Y", "X — never Z".
 
 **Mechanical test**: count the distinct action verbs in the line's own sentence(s) that each govern their own separate object and are independently completable. Two or more → convert, using the notation below. Exactly one, however many conditions/qualifiers are attached to it → leave as prose.
 
 Three item kinds:
 
-- `goal:` — intent, not an instruction. What this branch is trying to achieve. Goes first; may be several; never executed.
+- `goal:` — intent, not an instruction. What this branch is trying to achieve. It goes first. There may be several. It is never executed.
 - `rule:` — a rule in force **only inside this branch**, only once it is entered. Order-independent.
 - `step:` — an ordered instruction, executed in the order written.
 
 Order within one nested list: goals, then rules, then steps.
 
-**Prefixes are dropped when every line in that list is the same kind** — declare the kind once, on the parent line's own trailing clause, instead: `, goals:` / `, rules:` / `, steps:`. A list mixing kinds prefixes every line.
+**Prefixes are dropped when every line in that list is the same kind**. Declare the kind once instead, on the parent line's own trailing clause: `, goals:` / `, rules:` / `, steps:`. A list mixing kinds prefixes every line.
 
 ```
 1. **name-of-meaning**: some step, condition, then:
@@ -594,13 +688,13 @@ Order within one nested list: goals, then rules, then steps.
 
 Same grammar at any depth. Top-level steps are not prefixed — they keep `<N>. **name-of-meaning**: …`.
 
-Nested steps are normally not named. **Name them when the parent is a named group of meaning whose children need to be addressable one at a time** — in discussion, and in the executor's own orchestration of them (`magic-team.coworking.routine`'s **session-start**/**close-session** groups are the worked example). Then the parent declares the kind once with `, steps:` and each child carries its own `**name**:`. Note what this is *not*: another file referencing that work names the whole section (`magic-team.coworking.routine`'s Steps / Closure Steps), never a child. The names are handles for working inside the file, not cross-file entry points.
+Nested steps are normally not named. **Name them when the parent is a named group of meaning whose children need to be addressable one at a time**. That means in discussion, and in the executor's own orchestration of them. `magic-team.coworking.routine`'s **session-start**/**close-session** groups are the worked example. The parent then declares the kind once with `, steps:`, and each child carries its own `**name**:`. Note what this is *not*. Another file referencing that work names the whole section — `magic-team.coworking.routine`'s Steps / Closure Steps — never a child. The names are handles for working inside the file, not cross-file entry points.
 
 ### Actor phrases
 
-**Every step is the executor's.** A step naming other members is a script for the executor: it orchestrates and commands the work, and announces it in the session transcript so the orchestration is visible. There is no second actor running steps of its own.
+**Every step is the executor's**. A step naming other members is a script for the executor. The executor orchestrates and commands the work. It announces that work in the session transcript, so the orchestration is visible. There is no second actor running steps of its own.
 
-**A send a step instructs is the executor's too, and goes under the executor's own identity** — an opening or closing post, a status update, a reaction. The bot carries it only where that member has no identity of its own; being unable to reach the destination is not that case. A step naming a different actor overrides this, and nothing else does. It governs instructed sends only: what a participant says on its own account, in its own voice, is not a step and is not constrained here.
+**A send a step instructs is the executor's too, and goes under the executor's own identity**. That covers an opening or closing post, a status update, a reaction. The bot carries it only where that member has no identity of its own. Being unable to reach the destination is not that case. A step naming a different actor overrides this, and nothing else does. It governs instructed sends only. What a participant says on its own account, in its own voice, is not a step and is not constrained here.
 
 An actor phrase says *whom the executor commands*, in plain language. Two forms:
 
@@ -613,11 +707,11 @@ An actor phrase says *whom the executor commands*, in plain language. Two forms:
         - step 2
 ```
 
-The prefix line is itself a `step:` — the executor's instruction to orchestrate what is nested under it — so no kind prefix is needed on it or on its children. An actor phrase is not a fourth kind: it modifies a step, it does not replace `goal:`/`rule:`/`step:`.
+The prefix line is itself a `step:`, the executor's instruction to orchestrate what is nested under it. No kind prefix is therefore needed on it or on its children. An actor phrase is not a fourth kind. It modifies a step, and it does not replace `goal:`/`rule:`/`step:`.
 
 A step with no actor phrase is the executor's own work, done directly.
 
-**Joining mid-session is not covered by this notation.** An actor phrase never means "a member who arrives later runs the steps it missed." What a fresh joiner must do is stated as a routine rule, in the routine's own `# Routine's local rules`.
+**Joining mid-session is not covered by this notation**. An actor phrase never means "a member who arrives later runs the steps it missed." What a fresh joiner must do is stated as a routine rule, in the routine's own `# Routine's local rules`.
 
 **A nested `rule:` is not a Local rule.** `# Routine's local rules` are in force for the whole routine, always, all at once. A `rule:` is in force only within its own branch. Moving one up into Local rules widens what it governs — a change of meaning, never a tidy-up. Moving a Local rule down into a branch narrows it, the same error mirrored.
 
@@ -625,13 +719,13 @@ A step with no actor phrase is the executor's own work, done directly.
 
 `.access.md` does not exist as a separate file for an acting member. The who-may-run-this / who-may-change-this / how-it's-invoked / limits / decision-making facts live inside `<name>.armed.md`:
 
-- **Who may run this** — `## Scope`'s `Does`/`Doesn't` (invocation conditions, auto-trigger behavior) and, where relevant, a plain rule bullet in `Local rules` (e.g. a keeper stating it relays to `magic-coordinator` rather than deciding independently). This also governs who may read/write files in this folder, including its `inbox/` (per-item-type, intersected with the posting member's own rules — see `magic-team.process-inbox.routine`'s own Local rules).
+- **Who may run this** — `## Scope`'s `Does`/`Doesn't`, carrying invocation conditions and auto-trigger behavior. Where relevant, a plain rule bullet in `Local rules` carries it too. An example is a keeper stating it relays to `magic-coordinator` rather than deciding independently. This also governs who may read and write files in this folder, its `inbox/` included. That is per-item-type, intersected with the posting member's own rules — see `magic-team.process-inbox.routine`'s own Local rules.
 - **Who may change this** — the `maintainers:` frontmatter field. Always a group, never a single owner (see "Executors vs. maintainers" below).
-- **How it's invoked, limits/restrictions, decision-making** — flat, present-tense bullets in `# Team-Member's (-specific) local rules`. No formal required sub-headings anymore (no dedicated "Who may run this" / "Limits" / "Decision-making" sections) — read the whole section; the relevant rule is wherever it naturally falls.
+- **How it's invoked, limits/restrictions, decision-making** — flat, present-tense bullets in `# Team-Member's (-specific) local rules`. There are no formal required sub-headings any more. No dedicated "Who may run this", "Limits" or "Decision-making" sections exist. Read the whole section. The relevant rule is wherever it naturally falls.
 
 A folder can still declare finer-grained, folder-specific rules (rate limits, cost/resource caveats, special-case permissions) the same way — as additional `Local rules` bullets, not a separate `Constraints` section.
 
-**Format note**: frontmatter/body can carry comments, not just bare key-value fields — use them to annotate/explain a choice inline where it helps a future reader understand *why* a rule is what it is, not just what it is. Don't over-use this to pad the file — reserve it for genuinely non-obvious choices.
+**Format note**: frontmatter and body can carry comments, not just bare key-value fields. Use them to annotate or explain a choice inline, where that helps a future reader understand *why* a rule is what it is rather than only what it is. Don't over-use this to pad the file. Reserve it for genuinely non-obvious choices.
 
 ### Routine access facts (a routine's own frontmatter, not a separate file)
 
@@ -643,14 +737,14 @@ A folder can still declare finer-grained, folder-specific rules (rate limits, co
 ### Executors vs. maintainers, and the maintainer quorum rule
 
 **Two distinct roles, not one "who may run it" field:**
-- **Executors** — who may actually run/execute the routine's own procedure, or the folder's activity, day to day. For most current structured routines this is `magic-coordinator` alone, since they're coordinator-orchestrated. A routine states this as a real `executors:` frontmatter field; an acting member states it in prose (`Scope`/`Local rules`) instead, since `.armed.md` carries no `executors:` field.
-- **Maintainers** — who may change/update the definition itself (a member's `.armed.md`, or a routine's own `.routine.md`, or anything else that defines its behavior) — always a **group**, never a single owner acting unilaterally. Reasonable default group: `magic-coordinator` + `magic-librarian` + `magic-architect` (the same three-perspective shape already used for triage/grooming authority) — adjust per folder/routine when a different group genuinely makes more sense (e.g. one deeply specific to one domain might reasonably add that domain's keeper/partner to its maintainer group), using judgment, not a rigid one-size-fits-all list.
+- **Executors** — who may actually run or execute the routine's own procedure, or the folder's activity, day to day. A routine states this as a real `executors:` frontmatter field. An acting member states it in prose instead, in `Scope`/`Local rules`, since `.armed.md` carries no `executors:` field.
+- **Maintainers** — who may change or update the definition itself. That is a member's `.armed.md`, a routine's own `.routine.md`, or anything else defining its behavior. It is always a **group**, never a single owner acting unilaterally. The reasonable default group is `magic-coordinator` + `magic-librarian` + `magic-architect`. That is the same three-perspective shape already used for triage and grooming authority. Adjust it per folder or routine where a different group genuinely makes more sense. One deeply specific to a single domain might reasonably add that domain's keeper or partner to its maintainer group. Use judgment, never a rigid one-size-fits-all list.
 
-**A quorum change is run as a coworking session, not as a poll.** Spawn `magic-team.coworking.routine` with the quorum group as its participants and the involved specialists as invitees — never dispatch one member to collect approvals from the others one at a time. The agreement is reached in the session, in one visible thread.
+**A quorum change is run as a coworking session, not as a poll**. Spawn `magic-team.coworking.routine` with the quorum group as its participants, and the involved specialists as invitees. Never dispatch one member to collect approvals from the others one at a time. The agreement is reached in the session, in one visible thread.
 
-Maintainer agreement is `quorum-all-agree` unless that definition states otherwise. **It never lands the change by itself** — the human-owner confirms it through the process flow. In a harness session the human-owner's own accept/commit is that confirmation; otherwise ask over IM or the session's own thread and wait for the reply.
+Maintainer agreement is `quorum-all-agree` unless that definition states otherwise. **It never lands the change by itself** — the human-owner confirms it through the process flow. In a harness session the human-owner's own accept or commit is that confirmation. Otherwise ask over IM or the session's own thread, and wait for the reply.
 
-**Maintainers act as a group quorum for change/update — not any single maintainer unilaterally editing the folder's own definition.** `quorum-all-agree` among the maintainer group is required before the definition actually changes — same spirit as the team's existing three-person triage-authority-group pattern (`magic-team.board.md`'s triage process), generalized here to skill-folder-definition changes specifically. This doesn't block *executing* the activity (executors do that freely, per their own role) — it only gates changing what the activity *is*.
+**Maintainers act as a group quorum for change and update, never any single maintainer unilaterally editing the folder's own definition**. `quorum-all-agree` among the maintainer group is required before the definition actually changes. That is the same spirit as the team's existing three-person triage-authority-group pattern, `magic-team.board.md`'s triage process, generalized here to skill-folder-definition changes specifically. This doesn't block *executing* the activity, which executors do freely per their own role. It only gates changing what the activity *is*.
 
 ### Owner-guaranteed rules
 
@@ -661,24 +755,23 @@ A rule is `owner-guaranteed` when it protects the human-owner's own position aga
 ### Invitees (routines only)
 
 **A third role, distinct from executors/maintainers** — who a session under this routine pulls in alongside its executor.
-- Only routines with genuine multi-member sessions (e.g. `magic-team.coworking.routine`) declare it, in that routine's own `.routine.md` frontmatter; acting members (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`) never declare `invitees` — their own `.armed.md` frontmatter carries `maintainers:` only.
+- Only routines with genuine multi-member sessions declare it, in that routine's own `.routine.md` frontmatter. `magic-team.coworking.routine` is one. Acting members never declare `invitees` — their own `.armed.md` frontmatter carries `maintainers:` only.
 - Floor, not a cap — a session may pull in others as needed beyond the declared roster.
 - Concrete roster and specifics live in each routine's own `.routine.md` file — read it directly rather than expecting a central table to summarize it.
 
 ## Doc/disk mismatch repair loop
 
-If the human-owner flags a doc/disk mismatch directly, or a session notices staleness itself, the fix is to correct the real source file directly. Scope: a skillset file's own content disagreeing with what is actually on disk — never the installed/local copy of the tooling, which "Never mention local-cache sync staleness" below puts out of bounds entirely.
+If the human-owner flags a doc/disk mismatch directly, or a session notices staleness itself, the fix is to correct the real source file directly. Scope: a skillset file's own content disagreeing with what is actually on disk. Never the installed or local copy of the tooling. "Never mention local-cache sync staleness" below puts that out of bounds entirely.
 
 ## Two independent dimensions (pointer, not duplicated)
 
-Full write-up lives in `magic-team.board.md`'s "Two independent dimensions: item types vs. routines/activities" section — workflow queue item *types* (`task-`, `inquiry-`, `reflection-`, ...) and team routines/activities (`daily`, `grooming`, `interview`, ...) are orthogonal axes, not one taxonomy. The routine-naming term-family (`<owning-member>.<short-name>.routine`) is this file's territory; item types stay `magic-team.board.md`'s.
+The full write-up lives in `magic-team.board.md`'s "Two independent dimensions: item types vs. routines/activities" section. Workflow queue item *types* and team routines or activities are orthogonal axes, never one taxonomy. Item types are `task-`, `inquiry-`, `reflection-` and the rest. Routines and activities are `daily`, `grooming`, `interview` and the rest. The routine-naming term-family, `<owning-member>.<short-name>.routine`, is this file's territory. Item types stay `magic-team.board.md`'s.
 
 ## Where the roster lives
 
-- There is no roster table in this file.
-- Every routine's own non-default executor/maintainer notes, invitee roster, special-care content, and design rationale live natively inside that specific routine's own `.routine.md` file (frontmatter plus body) — read it directly for its current, authoritative shape rather than expecting a central table to summarize it.
-- A live enumeration of which routines exist: each owning acting member's own `.armed.md` names its owned routines and their exact filenames, typically in a routines-index subsection of its own `Domain knowledge` (e.g. `magic-coordinator/magic-coordinator.armed.md`'s `## Routines (index)`) — the only in-file source of truth for that.
-- On disk: `magic-librarian`'s own `--librarian-list-team-files`, asked of `magic-librarian` by any other member — but per the team's own "trust the cache, don't rediscover" discipline, prefer reading the `.armed.md` sections already surfaced in the skill-discovery listing every session gets.
+- Every routine's own non-default executor and maintainer notes, invitee roster, special-care content, and design rationale live natively inside that specific routine's own `.routine.md` file, frontmatter plus body. Read it directly for its current, authoritative shape, rather than expecting a central table to summarize it.
+- A live enumeration of which routines exist: each owning acting member's own `.armed.md` names its owned routines and their exact filenames. That is typically a routines-index subsection of its own `Domain knowledge`, such as `magic-coordinator/magic-coordinator.armed.md`'s `## Routines (index)`. It is the only in-file source of truth for that.
+- On disk: `magic-librarian`'s own `--librarian-list-team-files`, asked of `magic-librarian` by any other member. The team's own "trust the cache, don't rediscover" discipline applies first. Prefer reading the `.armed.md` sections already surfaced in the skill-discovery listing every session gets.
 
 # Human-owner's standing rules
 
@@ -686,31 +779,33 @@ The human-owner's own standing corrections. Binding on every member, in every se
 
 They are stated here, in full, because the skillset is the only thing that carries them forward — an agent's own private memory does not. Each rule below is stated as present-tense instruction text.
 
-An instruction is approved by being committed, and committed instruction text is verbatim by that fact alone — his words written into a file and the file's own words carry identical authority. Quotation marks around instruction text in a file confer nothing and are not used to claim it. Skillset text is authored rather than quoted, in every file and not only in a rule body: what he said goes to the verbatim stores the entity model provides — the exchange as a `transcript-*` in `audit/`, a standing statement as a `verbatim-*` in `vault/` — and the skillset carries what was made of it.
+An instruction is approved by being committed. Committed instruction text is verbatim by that fact alone. His words written into a file, and the file's own words, carry identical authority. Quotation marks around instruction text in a file confer nothing, and are not used to claim it.
 
-No file carries his words verbatim, a `MAGIC.md` included. Verbatims live in two places, both live working material rather than record: a current active tracking document, and a hand-off. Everywhere else the file carries instructions, rules and gotchas, crafted from what he said. Verbatim collected during a live or iterated conversation, and across process-flow tracking-document iterations, is working material with a limited life. On approval, the approved document becomes the new and only verbatim to use and replaces all of it. The superseded material stops being authoritative: it is not merged, not kept alongside, and not cited, but only can be found in transcripts and historical IM Threads.
+Skillset text is authored rather than quoted, in every file and not only in a rule body. What he said goes to the verbatim stores the entity model provides. The exchange goes as a `transcript-*` in `audit/`. A standing statement goes as a `verbatim-*` in `vault/`. The skillset carries what was made of it.
 
+No file carries his words verbatim, a `MAGIC.md` included. Verbatims live in two places, both live working material rather than record: a current active tracking document, and a hand-off. Everywhere else the file carries instructions, rules and gotchas, crafted from what he said.
 
+Verbatim collected during a live or iterated conversation, and across process-flow tracking-document iterations, is working material with a limited life. On approval, the approved document becomes the new and only verbatim to use, and replaces all of it. The superseded material stops being authoritative. It is not merged, not kept alongside, and not cited. It can be found only in transcripts and historical IM Threads.
 
 ## Recheck before reporting
 
-Before reporting any negative or surprising result, establish that the test itself was valid — environment set, right tree, the code actually under test really loaded. A first run that looks like a defect is frequently a broken harness, and reporting it declares a correct thing broken. State residual caveats explicitly rather than rounding a partial pass up to a clean one.
+Before reporting any negative or surprising result, establish that the test itself was valid. That means environment set, right tree, and the code actually under test really loaded. A first run that looks like a defect is frequently a broken harness. Reporting it declares a correct thing broken. State residual caveats explicitly, rather than rounding a partial pass up to a clean one.
 
 ## Atomic move edits
 
-Moving or regrouping existing content inside a file: one block at a time, each move a single edit that removes it from its old place and inserts it at its new place in the same diff. Never a deletion whose matching insertion is not visible in the same diff — that reads as data loss. A move edit that arrives as a bare deletion is not approved.
+Moving or regrouping existing content inside a file goes one block at a time. Each move is a single edit that removes the block from its old place and inserts it at its new place, in the same diff. Never a deletion whose matching insertion is not visible in the same diff. Such a deletion reads as data loss. A move edit that arrives as a bare deletion is not approved.
 
 ## Never re-touch approved content
 
-Once the human-owner has confirmed a specific piece of code or content as good, it is never touched again as a side effect of unrelated work nearby — not for a different bug, not for a rename, not for a comment cleanup. Incremental change is the right way to work; the failure is the collateral edit. Scope every diff to the lines actually implicated, and if a fix genuinely requires touching approved content, say so before doing it rather than doing it silently.
+Once the human-owner has confirmed a specific piece of code or content as good, it is never touched again as a side effect of unrelated work nearby. Not for a different bug, not for a rename, not for a comment cleanup. Incremental change is the right way to work. The failure is the collateral edit. Scope every diff to the lines actually implicated. Where a fix genuinely requires touching approved content, say so before doing it rather than doing it silently.
 
-Distinct from `magic-team.conversations.md`'s checkpoint loop **replacing-approved-point-needs-approval** (replacing an already-approved *point* needs approval first) and **no-regress**: those govern what is proposed, this one governs what an unrelated edit quietly touches.
+Distinct from two rules in `magic-team.conversations.md`'s checkpoint loop: **replacing-approved-point-needs-approval**, which requires approval first before an already-approved *point* is replaced, and **no-regress**. Those govern what is proposed. This one governs what an unrelated edit quietly touches.
 
 ## No rephrasing for human-owner commands, corrections, clarifications, no annotation without readback and approval
 
 Two rules, given together.
 
-**His own words are used literally.** Restating or confirming an instruction back to him uses his wording, not a summary of it in different words — quote it back verbatim, or ask a direct yes/no question. Every rephrase attempt drifts a little from what was actually said, and the drift has to be walked back afterwards. Relaying his commands, clarifications, comments or decisions onward carries the same wording — what he said, or what was read back to him and approved — never a summary of it.
+**His own words are used literally**. Restating or confirming an instruction back to him uses his wording, never a summary of it in different words. Quote it back verbatim, or ask a direct yes/no question. Every rephrase attempt drifts a little from what was actually said, and the drift has to be walked back afterwards. Relaying his commands, clarifications, comments or decisions onward carries the same wording. That is what he said, or what was read back to him and approved. Never a summary of it.
 
 **A comment or annotation is never written into a file** as part of an edit unless its exact wording was read back to him and approved first. Never bundle an explanatory comment into a substantive change and let acceptance of the change stand as approval of the comment.
 
@@ -724,47 +819,66 @@ This covers new operation/method *syntax*, not only the name. A new mode, flag p
 
 The request shows the sibling names it would join **and** the adjacent sets that are deliberately not the same thing, so the boundary is visible too. A name is only judgeable against the set it joins. Preferred shape: self-describing `--verb-noun` or `--noun-verb`, never a bare single word.
 
-**An operation carries its owner's namespace; a flag does not.** An operation is prefixed by the member or routine owning it — `--member-comms-<platform>-<verb>`, `--magic-<routine>-<verb>`, `--intern-op-<verb>` for internal ones — however long that makes the name. A flag is not an operation: it modifies one, keeps its own shorter prefix (the `--comms-*` scope selectors and cut-off arguments), and an operation-renaming pass leaves it untouched. A pass asked for on operations changes operations only: flags are neither renamed nor removed as part of it.
+**An operation carries its owner's namespace; a flag does not.** An operation is prefixed by the member or routine owning it — `--member-comms-<platform>-<verb>`, `--magic-<routine>-<verb>`, `--intern-op-<verb>` for internal ones — however long that makes the name. A flag is not an operation. It modifies one, and keeps its own shorter prefix — the `--comms-*` scope selectors and cut-off arguments. An operation-renaming pass leaves it untouched. A pass asked for on operations changes operations only. Flags are neither renamed nor removed as part of it.
 
-A major sub-operation is a third thing again, and it is short where an option is compound. It selects which mode of one operation runs — `--check`, `--apply`, `--wizard` — and it is written last, after every option and value the call carries, so nothing follows it and anything that does is an error. The self-describing multi-word form the naming rule asks for binds options (`--set-as-default`) and not these: a sub-operation earns its brevity by its fixed position, and lengthening one is a change to the grammar rather than a tidy-up.
+A major sub-operation is a third thing again, and it is short where an option is compound. It selects which mode of one operation runs: `--check`, `--apply`, `--wizard`. It is written last, after every option and value the call carries. Nothing follows it, and anything that does is an error. The self-describing multi-word form the naming rule asks for binds options such as `--set-as-default`, and not these. A sub-operation earns its brevity by its fixed position. Lengthening one is a change to the grammar rather than a tidy-up.
 
 ## Conflicts and ambiguities go to the human-owner
 
-Any conflict or ambiguity between two instruction files or conventions goes to the human-owner for the decision — real ambiguity about what the rules mean or how they apply, not only literally contradictory text. Dispatching a member to investigate one is fine; that dispatch is never authorization to reconcile it. A member's own review of a conflict never stands in for his decision. Both sides stay intact, unedited, until he rules.
+Any conflict or ambiguity between two instruction files or conventions goes to the human-owner for the decision. That covers real ambiguity about what the rules mean or how they apply, not only literally contradictory text. Dispatching a member to investigate one is fine. That dispatch is never authorization to reconcile it. A member's own review of a conflict never stands in for his decision. Both sides stay intact, unedited, until he rules.
 
 ## Readback-confirm and propose-approve, in any process
 
 Two mechanisms, general to every process the team runs — a deployment, a repository's own domain work, an infrastructure change, a long-running loop, a conversation. Neither is specific to any one kind of work.
 
-**Readback-confirm** is the communications one: the party that received states back what it understood, and the party that sent confirms whether that is what it meant. It is owed before a member asserts anything of its own — accepting a task, a blocking finding, an accident, something unexpected, a contradiction between two things, a change to how the problem is framed, a pause — as distinct from doing what it was already told. It is owed wherever the two parties' pictures are not already backed by a written instruction both can open. The assertion goes back as an assertion, to whoever can check it, before it is stated as settled: the member neither acts on it alone nor goes quiet, in a live session as much as anywhere else. It goes where the exchange already is — in the session, in the thread, in the tracking document that already holds the conversation's questions and data — and needs an artefact of its own only where none of those exists. Kept in some basic form, because a readback too expensive to spend is one that will not be spent.
+**Readback-confirm** is the communications one. The party that received states back what it understood. The party that sent confirms whether that is what it meant.
 
-**Propose-approve** is the process-flow one, for a decision that outlives the exchange it arose in. Initiating it does not stop the work it arose from — unless that work is itself to assess, investigate, research, work out or propose, where initiating the flow is the work rather than a detour beside it. `magic-team.proposal.routine` runs it. Where the exchange it arose in is still live and has the human-owner in it, the approval happens there too; it takes a thread of its own only where the decision must outlive that exchange.
+It is owed before a member asserts anything of its own, as distinct from doing what it was already told. The cases:
+
+- accepting a task
+- a blocking finding
+- an accident
+- something unexpected
+- a contradiction between two things
+- a change to how the problem is framed
+- a pause
+
+It is owed wherever the two parties' pictures are not already backed by a written instruction both can open. The assertion goes back as an assertion, to whoever can check it, before it is stated as settled. The member neither acts on it alone nor goes quiet, in a live session as much as anywhere else.
+
+It goes where the exchange already is — in the session, in the thread, in the tracking document that already holds the conversation's questions and data. It needs an artefact of its own only where none of those exists. It is kept in some basic form, because a readback too expensive to spend is one that will not be spent.
+
+**Propose-approve** is the process-flow one, for a decision that outlives the exchange it arose in. Initiating it does not stop the work it arose from. One exception: work that is itself to assess, investigate, research, work out or propose. There, initiating the flow is the work rather than a detour beside it. `magic-team.proposal.routine` runs it. Where the exchange it arose in is still live and has the human-owner in it, the approval happens there too. It takes a thread of its own only where the decision must outlive that exchange.
 
 Every piece of work is in one of three cases:
 
 - **What its instructions cover.** Act, once acceptance has been read back. Nothing further is owed, and asking anyway is its own failure.
-- **What they cover, where the member sees something better, bolder, or principally different.** Proceed with the task exactly as it says, and in the same moment record the better thing as an `idea-*`, where discussion, coworking and approval may make it the next assignment. Neither suppressed nor acted on.
-- **Nothing covers the case, a group cannot agree, or the member — the coordinator included — cannot confidently choose between the options.** Authority for that choice was never granted, so it is not the member's to make. Deciding it alone is the failure, and so is handing it straight to the human-owner: read back what was found, then read the instruction sources that would cover it and consult the member whose domain it falls in, and only what that leaves unresolved goes to him — as a readback-confirm where a yes or no settles it, as a proposal where one does not. Never skip the consult straight to the ask, and never skip both straight to deciding it alone.
+- **What they cover, where the member sees something better, bolder, or principally different**. Proceed with the task exactly as it says. In the same moment, record the better thing as an `idea-*`. Discussion, coworking and approval may then make it the next assignment. It is neither suppressed nor acted on.
+- **Nothing covers the case, a group cannot agree, or the member cannot confidently choose between the options**. That includes the coordinator. Authority for that choice was never granted, so it is not the member's to make. Deciding it alone is the failure, and so is handing it straight to the human-owner. Read back what was found first. Then read the instruction sources that would cover it, and consult the member whose domain it falls in. Only what that leaves unresolved goes to him. It goes as a readback-confirm where a yes or no settles it, and as a proposal where one does not. Never skip the consult straight to the ask, and never skip both straight to deciding it alone.
 
-Distinct from the rule above: that one governs a conflict or ambiguity between instructions that exist, this one covers work against instructions generally, the absence of one included.
+Distinct from the rule above. That one governs a conflict or ambiguity between instructions that exist. This one covers work against instructions generally, the absence of one included.
 
 ## "later" has two gates
 
-Work he defers to later is released by two gates, and both have to be open: the step currently in hand is finished and released, and he has said explicitly to start this one. Neither gate opens the other, so a released current step is not permission to begin the deferred work, and his continued interest in it is not approval to start.
+Work he defers to later is released by two gates, and both have to be open:
 
-Until both are open the deferred work is recorded and left where it is — not prepared, not partly built, and not raised again as though finishing the current step had settled it.
+- the step currently in hand is finished and released
+- he has said explicitly to start this one
+
+Neither gate opens the other. A released current step is therefore not permission to begin the deferred work. His continued interest in it is not approval to start.
+
+Until both are open the deferred work is recorded and left where it is. It is not prepared, not partly built, and not raised again as though finishing the current step had settled it.
 
 ## Anything needing the human-owner to act reaches him on his own direct channel
 
-A question, a link he has to click, a decision that blocks work — it goes to his own direct channel as it arises, never left in the session and never held back for a later summary. He answers in a live session when he happens to be in one, but he does not go there to look, so a request raised only in a session is not a request he has received. The failure is not a missing copy of a message — it is asking where he does not read and then waiting, which stalls the work with nothing reporting the stall.
+A question, a link he has to click, a decision that blocks work — it goes to his own direct channel as it arises. It is never left in the session, and never held back for a later summary. He answers in a live session when he happens to be in one, but he does not go there to look. A request raised only in a session is therefore not a request he has received. The failure is not a missing copy of a message. It is asking where he does not read and then waiting, which stalls the work with nothing reporting the stall.
 
-The channel is whichever direct one this installation actually has configured, resolved by the acting member at the moment of sending: the best available instant-messaging channel where one is set, the next-best direct channel where none is. A rule naming a transport is wrong the first time the transport changes.
+The channel is whichever direct one this installation actually has configured. The acting member resolves it at the moment of sending: the best available instant-messaging channel where one is set, the next-best direct channel where none is. A rule naming a transport is wrong the first time the transport changes.
 
-Whose ask it is decides who sends it. A question whose answer would bind the team — an approval, a design ruling, a policy decision — goes through `magic-coordinator`, which is the mandated channel for those. A question whose answer only unblocks this member's own assigned work is that member's own and goes out under its own identity. What the answer binds is the test, not what the question blocks — a ruling can block one member and still bind everyone, and that one is the chair's to carry.
+Whose ask it is decides who sends it. A question whose answer would bind the team goes through `magic-coordinator`, the mandated channel for those — an approval, a design ruling, a policy decision. A question whose answer only unblocks this member's own assigned work is that member's own, and goes out under its own identity. What the answer binds is the test, not what the question blocks. A ruling can block one member and still bind everyone, and that one is the chair's to carry.
 
-The condition is a working identity of the member's own on that channel. With one, the send is automatic and needs no permission. Without one the member falls back to a shared identity, which can hold every permission the channel grants and still not reach his own direct conversation — so it states plainly what it needed and hands the ask to `magic-coordinator` to send under an identity that reaches him, rather than swallowing the question or waiting on an answer that cannot arrive.
+The condition is a working identity of the member's own on that channel. With one, the send is automatic and needs no permission. Without one the member falls back to a shared identity. A shared identity can hold every permission the channel grants and still not reach his own direct conversation. The member therefore states plainly what it needed, and hands the ask to `magic-coordinator` to send under an identity that reaches him. It does not swallow the question, and it does not wait on an answer that cannot arrive.
 
-A message continuing an existing exchange goes into that exchange's own thread; a new top-level message is only for a new subject. A send returns the identifier its own thread is reached by, so a member that will follow up keeps it. Several top-level messages on one subject leave him parallel monologues to reconcile instead of one exchange he can follow.
+A message continuing an existing exchange goes into that exchange's own thread. A new top-level message is only for a new subject. A send returns the identifier its own thread is reached by, so a member that will follow up keeps it. Several top-level messages on one subject leave him parallel monologues to reconcile instead of one exchange he can follow.
 
 Send path: `human-owner`'s own `reach-human-owner` procedure.
 
@@ -772,40 +886,44 @@ Send path: `human-owner`'s own `reach-human-owner` procedure.
 
 One message carries one topic. Two unrelated matters in one message is the fault itself, with no test to apply first: they go as two messages.
 
-A message is short, and it opens with what it wants. The decision being asked for is the first thing on the page, stated as the choice it actually is. Status, findings and the history that produced the question are separate from the ask and follow only if he asks for them. A ruling he can reach only by reading through the work that produced it has not been asked for — the finding was work handed to him rather than done for him.
+A message is short, and it opens with what it wants. The decision being asked for is the first thing on the page, stated as the choice it actually is. Status, findings and the history that produced the question are separate from the ask, and follow only if he asks for them. A ruling he can reach only by reading through the work that produced it has not been asked for. That finding was work handed to him rather than done for him.
 
-The length of an ask is a diagnostic on the ask, not a style score. A choice that cannot be stated briefly has not been identified yet, and the work owed is identifying it, never more words spent on the same unresolved thing.
+The length of an ask is a diagnostic on the ask, not a style score. A choice that cannot be stated briefly has not been identified yet. The work owed is identifying it, never more words spent on the same unresolved thing.
 
-An intent given to a member is a thing to act on, not a subject to write about. Producing text about an ask, in place of putting the ask, is the failure this rule catches, and it binds a session relaying someone else's ask exactly as it binds one raising its own.
+An intent given to a member is a thing to act on, not a subject to write about. Producing text about an ask, in place of putting the ask, is the failure this rule catches. It binds a session relaying someone else's ask exactly as it binds one raising its own.
 
-Distinct from "Compact, structured, simple, important first" below, which orders a message's parts and leaves what counts as important to whoever writes it: a session that has just done the work sincerely reads its own findings as the important part and orders them first in good faith. This rule settles that — in a message that wants something, the thing wanted is the important part — and it governs what stays in the message at all, which ordering does not reach.
+Distinct from "Compact, structured, simple, important first" below. That rule orders a message's parts, and leaves what counts as important to whoever writes it. A session that has just done the work sincerely reads its own findings as the important part, and orders them first in good faith. This rule settles that: in a message that wants something, the thing wanted is the important part. It also governs what stays in the message at all, which ordering does not reach.
 
-## Every message is addressed, tagged, and sent to Slack
+## Every message is addressed, tagged, and sent on a real channel
 
-Every message a member writes has an addressee — the human-owner, or the harness. There is no unaddressed message. A message left in a session is a message he has not received: he does not read the session, so neither a chat reply nor a session log reaches him.
+Every message a member writes has an addressee — the human-owner, or the harness. There is no unaddressed message. A message left in a session is a message he has not received. He does not read the session, so neither a chat reply nor a session log reaches him.
 
-Where the current workspace has Slack configured, the message goes to Slack directly, and the sender decides the destination:
+Where the current workspace has a messaging channel configured, the message goes to that channel directly, and the sender decides the destination:
 
-- `magic-coordinator` sends to the human-owner's own Slack DM.
-- Any other member sends to the team channel.
+- `magic-coordinator` sends to the human-owner's own direct conversation.
+- Any other member sends to the team's own shared conversation.
 
-A message addressed to anyone carries a real tag for that addressee in the message as delivered — a mention the platform renders and the addressee is notified by, never the literal characters of one sitting in the text. Check what was actually stored, not the send's own success. A send path that cannot produce a real tag is a defect to report: name who could not be tagged and what the send returned.
+A message addressed to anyone carries a real tag for that addressee in the message as delivered. A real tag is a mention the platform renders and the addressee is notified by. It is never the literal characters of one sitting in the text. Check what was actually stored, not the send's own success. A send path that cannot produce a real tag is a defect to report. Name who could not be tagged, and what the send returned.
 
-Broader than "Anything needing the human-owner to act reaches him on his own direct channel" above, and not a replacement for it: that rule governs where a request that blocks work goes, this one governs every message, a status or a report included.
+Broader than "Anything needing the human-owner to act reaches him on his own direct channel" above, and not a replacement for it. That rule governs where a request that blocks work goes. This one governs every message, a status or a report included.
 
 ## A reply threads onto the message it answers
 
-A Slack post that answers, replies to, or continues a specific prior message targets that message directly, using `<channel>:<ts>` — the parent message's own timestamp — as the target. A bare channel or conversation-id target posts a fresh top-level message and is correct only for a genuinely new subject with no prior message to attach to; it is never used to answer one. Applies to every member's own comms operations, not only `magic-coordinator`'s, and to any conversation — a DM, the team channel, or any other — whoever sent the message being answered.
+A post that answers, replies to, or continues a specific prior message targets that message directly. The target names the parent message itself, in the form that member's own send operation documents. A target naming only the conversation posts a fresh top-level message. That is correct only for a genuinely new subject with no prior message to attach to. It is never used to answer one. This applies to every member's own comms operations, not only `magic-coordinator`'s. It applies to any conversation — a direct one, the team's own, or any other — whoever sent the message being answered.
 
-Generalises "Anything needing the human-owner to act reaches him on his own direct channel" above's own thread clause past its own narrower case — continuing a subject the member itself raised with the human-owner — to any message being answered, from anyone, in any conversation.
+It generalises the thread clause of "Anything needing the human-owner to act reaches him on his own direct channel" above, past that rule's own narrower case. The narrower case is continuing a subject the member itself raised with the human-owner. The general case is any message being answered, from anyone, in any conversation.
 
-Exception, named so it is not wrongly caught here: a message that reports outward rather than answering anything — a status update, a closing summary — is not an answer to any one message either, but it is not a fresh top-level post: it threads onto that session's own already-open thread, per `magic-team.coworking.routine`'s own Thread continuity rule. Only that session's own opening broadcast, which has no prior message of its own to attach to, legitimately posts fresh, top-level — every later post that session makes, closing summary included, threads onto that opening post, never onto whichever message may have prompted the work.
+Exception, named so it is not wrongly caught here. A message that reports outward rather than answering anything — a status update, a closing summary — is not an answer to any one message either. It is still not a fresh top-level post. It threads onto that session's own already-open thread, per `magic-team.coworking.routine`'s own Thread continuity rule. Only that session's own opening broadcast legitimately posts fresh and top-level, because it has no prior message of its own to attach to. Every later post that session makes, closing summary included, threads onto that opening post. It never threads onto whichever message may have prompted the work.
 
-Target syntax: `--member-comms-slack-send-message`'s own Operation Reference.
+Target syntax: the Operation Reference of that member's own send operation for the configured platform.
 
 ## We build software, not fixes for one workspace
 
-The tool family is software with other clients. Any member can be set up in any other workspace, and those workspaces use the features *they* need — including features this one has no use for. Completeness is judged against what the software must offer generally, never against what is exercised here. Having no caller in this tree is not evidence that an operation is unneeded, an obviously incomplete operation family is itself the defect, and an operation's parameters are never narrowed to only what the local caller passes.
+The tool family is software with other clients. Any member can be set up in any other workspace. Those workspaces use the features *they* need, including features this one has no use for. Completeness is judged against what the software must offer generally, never against what is exercised here.
+
+- Having no caller in this tree is not evidence that an operation is unneeded.
+- An obviously incomplete operation family is itself the defect.
+- An operation's parameters are never narrowed to only what the local caller passes.
 
 ## The team works in one workspace; the others are clients
 
@@ -817,13 +935,13 @@ Distinct from "We build software, not fixes for one workspace" above: that one i
 
 In a backlog document, a `CONVENTION`/`INTENT`/`TASK` body is a clean, timeless statement of the rule or the task itself. No investigative facts, no status or progress notes, no dates or temporal framing beyond the one standard assessment line every item already carries. All of that goes in the document's own trailing sections — Context Detail — instead. This holds for every item body, not only those three types.
 
-A convention is a set of statements that stay, to be checked against later; it is not a task. Narrative and facts mixed into its body make that check noisy and date an item that should not age.
+A convention is a set of statements that stay, to be checked against later. It is not a task. Narrative and facts mixed into its body make that check noisy, and date an item that should not age.
 
 ## Say it only if it is relevant to the reader, or genuinely a fun fact
 
-Water, narration, history and detail the reader has no use for bury the part that mattered. Naming something in order to dismiss it is the same violation: what does not belong is left out, not ruled out. A number or count is written only where its reader needs it in order to act, and a count in words is the same as one in digits.
+Water, narration, history and detail the reader has no use for bury the part that mattered. Naming something in order to dismiss it is the same violation. What does not belong is left out, not ruled out. A number or count is written only where its reader needs it in order to act. A count in words is the same as one in digits.
 
-This binds everything written to a reader: a Slack message, a report, a status line, a comment, a line of code, a help entry, a program's own output. Left out of all of them:
+This binds everything written to a reader. That is a message, a report, a status line, a comment, a line of code, a help entry, a program's own output. Left out of all of them:
 
 - how a conclusion was reached, where only the conclusion is needed
 - a restatement of what was just said
@@ -832,43 +950,112 @@ This binds everything written to a reader: a Slack message, a report, a status l
 - an answer to what was not asked
 - a citation, a quotation, or a chain of attribution naming who found a thing, when, and in which session
 
-What a file carries is instructions, rules and gotchas — structured, clean, easy to read, compact, need-to-know. A finding is written as the rule it establishes, never as the incident that produced it. A reference earns its place only by being the anchor a reader follows to reach the thing: a file and line to open is worth keeping, an attribution is not.
+What a file carries is instructions, rules and gotchas — structured, clean, easy to read, compact, need-to-know. A finding is written as the rule it establishes, never as the incident that produced it. A reference earns its place only by being the anchor a reader follows to reach the thing. A file and line to open is worth keeping. An attribution is not.
 
-A number a reader needs is computed where it is emitted, never typed in — a written figure goes stale as the thing it counts changes, every place that stated the old one has to be found, and each one missed asserts a falsehood in the register of a fact.
+A number a reader needs is computed where it is emitted, never typed in. A written figure goes stale as the thing it counts changes. Every place that stated the old one has to be found. Each one missed asserts a falsehood in the register of a fact.
+
+**A rule states what holds, never what currently is**. That is the same failure as a typed-in figure, with a claim in place of a number. Same mechanism, same staleness, same recovery cost of finding every copy, including the one nobody knew about. A present-state claim belongs in a document expected to date — a report, a board item, a status. Never in a rule.
+
+The test: "Nothing measures emitted text" is a claim about the world on one morning, and a single change elsewhere makes it false. "A predicate that has not graduated does not refuse" is a claim about what holds, and it survives every graduation. Same content, no expiry.
+
+This sits at authoring rather than at change time. The truth of a present-state claim has an expiry nobody schedules, so no later step can be relied on to arrive. The author can see they are writing an expiring proposition. Nobody afterwards can, because by then it reads as a true sentence. It is also why searching cannot recover it. A sentence asserting that something does not exist names nothing to search for. It is precisely the sentence that omits the term anyone would look under.
+
+**What this forbids, bounded, because a rule generalised past its intent stops meaning anything.** Three conditions, and the first is the one that matters:
+
+- A rule never rests on a present-state claim. That is the fault — a reader concludes something from a premise, so when the premise expires the conclusion rots silently and nothing shows it.
+- A record of present state is permitted where recording that state is the document's purpose. There the state is the content rather than a premise. It is read as a snapshot and treated as one. When it dates it is merely out of date, which is what a record does.
+- Such a record names who updates it and at what moment, and is marked so a reader knows it dates.
+
+The discriminator is role, not ownership. Owners lapse, and a dangling pointer can have one. Asking who maintains a claim therefore tells you whether it will be repaired, never whether it was safe to write. Ask instead whether the claim is a premise or the subject.
 
 ## Compact, structured, simple, important first
 
-Every message is compact, structured and simple, with the important part first. Two or more distinct points in one text blob become a nested list, by the conversion test in `## Nested-item grammar` above, applied to any message and not only to a skillset file's instruction lists. A Slack message and a chat reply carry this exactly as a rule or a report does.
+Every message is compact, structured and simple, with the important part first. Two or more distinct points in one text blob become a nested list, by the conversion test in `## Nested-item grammar` above. That test applies to any message, not only to a skillset file's instruction lists. A sent message and a chat reply carry this exactly as a rule or a report does.
 
-Register and spelling are checked separately, per text group, by `magic-librarian`.
+Register and spelling are checked separately by `magic-librarian`, against the floor below.
+
+## The output-style floor
+
+What the rule above becomes once it has numbers. It expands that rule and does not replace it.
+
+All emitted text is under this floor. Emitted means anything a member writes that leaves it. That is a message, a report, a board item, a brief, skillset prose, a comment, a program's own output. One floor, stated once, never a rule a member selects into. A job that needs another shape says so.
+
+**The floor measures prose**. A code fence, a JSON payload, frontmatter, a file path, a log excerpt and an identifier are not sentences, and are not measured. That is the scope of the thing, not an exception anyone declares.
+
+**Carried text is recognised by its markup, never declared by an argument**. A quotation is marked as a quotation, and a check skips marked spans exactly as it skips code fences. A payload with no natural markup is marked by the member. No argument routes around the floor, because none exists. The risk that carries is a member failing to mark, not a member missing an exception. An unmarked quotation is measured as the member's own prose, and restyling it would destroy the thing that makes it worth having.
+
+**The floor governs sentences and lists, and completeness governs what must be present**. They were never on the same axis. Two rule sets appeared to compete only because both were written as if they governed documents. A long report is a list, and the floor already permits it.
+
+Two standards compose it. ELI5 gives the reader the thing itself rather than the route to it. ASD-STE100 gives the testable limits. Twelve clauses:
+
+1. One topic per paragraph (STE 6.5).
+2. The thing wanted, or the answer, comes before the material that supports it.
+3. A sentence that instructs: 20 words maximum (STE 5.1). A sentence that describes: 25 (STE 6.3).
+4. One instruction per sentence (STE 5.2). Two actions happening at the same time are that rule's own exception.
+5. Six sentences per paragraph maximum, outside a list (STE 6.6). Per paragraph, as the standard states it. A chat message is one paragraph, so the message case is unchanged. A document is many paragraphs, so it passes without any argument naming what it is.
+6. Two or more distinct, separately-executable points become a `- ` list (STE 4.3). The count and the test stay `## Nested-item grammar` above — two distinct action verbs, each governing its own object. This floor does not loosen that rule.
+7. Active voice (STE 3.6). The passive only where the actor is unknown.
+8. A cause goes in its own sentence, second, straight after the thing it explains. A connecting word joins the two (STE 4.4).
+9. A technical noun is allowed (STE 1.1, 1.5, 1.6). It is the same term every time (STE 1.11), and the short one where there is a choice (STE 1.9).
+10. A term a reader outside the team would look up carries a short gloss in the same text. A text carrying its own terminology section satisfies this through that section. A term is glossed where the reader can reach it. A gloss repeated at every use is not what this asks for.
+11. Nothing is dropped to hit a number (STE 4.2, 4.5). Over the cap means split the sentence, never compress it.
+12. A noun cluster in prose is three words maximum (STE 2.1). An identifier is a technical noun rather than a cluster (STE 1.5, 1.6), so 2.1 does not count its parts. Where its written-out form runs longer than three words, give that form once, then use the identifier as one hyphenated unit (STE 2.2). Judgement applies this clause, never a counter.
+
+Clause 10 is where to expect silence rather than noise. Clause 5 was once written per message, fired on every correct document, and was found within a day. Clause 10 was written the same way, fired on nothing, and could have sat for a year. A rule satisfied vacuously and a rule complied with produce identical evidence. A clean log is not a result.
+
+Four named shapes exist for stating an exception, and only `relay` is a genuine one:
+
+- **message** — a message, a reply, a request.
+- **report** — a finding, a status, a closing summary, a handback.
+- **brief** — the text that commissions work.
+- **relay** — text carrying someone else's words.
+
+They are not four parallel defaults a member chooses between.
+
+Deliberately not taken: STE's restricted verb forms and tenses (3.2, 3.4). Their purpose is to keep a procedure's time unambiguous. A message reporting what happened needs the perfect tenses. Banning them pushes the writer into a longer construction, which loses on both standards at once.
+
+The clause numbers are ASD-STE100 Issue 9 rule numbers, consistent across four independent sources. The standard's own text is not publicly readable, so nothing here is quoted as the standard's own words.
+
+Which clauses a measurement applies and which a reader judges is `magic-librarian`'s own to state, with the reasons, in `magic-librarian/magic-librarian.armed.md`. A clause is measured only where the measurement cannot fire on correct text. Most clauses are reader-judged. A few carry a graduated measurement at the message sites, and which ones is stated there rather than here.
+
+**A measurement of formatting is not a measurement of prose, and clause 5 is where the two are confused**. A sentence counter that joins consecutive non-blank lines into one paragraph fires on a compact status post. Such a post is one fact per line, and the counter reads it as a single long paragraph. The same words with blank lines between them, or set as bullets, produce nothing. One text, three formattings, three different answers. The line-per-fact shape is what clauses 2 and 6 ask for, so a counter built that way refuses the formatting this floor requires. That is a limitation of the instrument, never a strictness setting to turn down. No threshold repairs an instrument that cannot tell a prose paragraph from a line-per-fact block.
+
+**The floor binds all emitted text.** New text conforms. Changed text conforms in what changed. Bringing an existing document to the floor is commissioned work, done in a stated order. A member meeting a not-yet-conforming document does not rewrite it in passing.
 
 ## Generalise a rule, sharpen an instruction
 
-An intent or a rule takes the most generalised form that still covers the intent, and is never a ceiling. A rule written around the mechanisms that exist today silently forbids the ones that come later, and the narrowing is invisible because the text still reads as true.
+An intent or a rule takes the most generalised form that still covers the intent, and is never a ceiling. A rule written around the mechanisms that exist today silently forbids the ones that come later. The narrowing is invisible, because the text still reads as true.
 
-A test or an instruction takes the most exact and precise form that still covers the intended flexibility. "Still covers" bounds both: a rule generalised past its intent stops meaning anything, and an instruction sharpened past its intended flexibility rejects valid cases.
+A test or an instruction takes the most exact and precise form that still covers the intended flexibility. "Still covers" bounds both. A rule generalised past its intent stops meaning anything. An instruction sharpened past its intended flexibility rejects valid cases.
 
 ## Never mention local-cache sync staleness
 
-Never raise whether an installed/local copy of the tooling is stale, or whether a source-to-local sync needs running — not as a flag, a caveat, a note for awareness, or a suggested next step. It is not weighed at all: not checked, and not entertained as a possible cause. It is the human-owner's own separate workflow. A spawned session's own report carrying such a note has it dropped, not forwarded. This is the one kind of staleness "Doc/disk mismatch repair loop" above does not reach.
+Never raise whether an installed or local copy of the tooling is stale. Never raise whether a source-to-local sync needs running. Not as a flag, a caveat, a note for awareness, or a suggested next step. It is not weighed at all: not checked, and not entertained as a possible cause. It is the human-owner's own separate workflow. A spawned session's own report carrying such a note has it dropped, not forwarded. This is the one kind of staleness "Doc/disk mismatch repair loop" above does not reach.
 
 ## Skillset first on a failed or denied operation
 
-When a planned operation fails, errors, or is denied, an assumption about what happened forms naturally — that part is not the failure. The failure is acting on that assumption to build an alternative or workaround before checking the assumption itself against the skillset. A failure is frequently the wrong tool or the wrong method for that context, not a genuine blocker, and the right one is usually already written down.
+When a planned operation fails, errors, or is denied, an assumption about what happened forms naturally — that part is not the failure. The failure is acting on that assumption to build an alternative or workaround before checking the assumption itself against the skillset. A failure is frequently the wrong tool or the wrong method for that context, rather than a genuine blocker. The right one is usually already written down.
 
 ## A rule that was violated is a proven gap
 
 A rule that exists and was broken is proven insufficient as written. The violation is the evidence: the text was in force, it was available to the party that broke it, and it did not hold. Citing it in the report changes nothing about the next occurrence.
 
-Finding the rule already present is therefore where the work starts, not where it ends. The question is what about the way it is written let this happen — what it does not say, where it is written that the acting party had no reason to read, what it asks for that leaves no trace, or which other rule it loses to when both apply. One of those is true, because the text failed.
+Finding the rule already present is therefore where the work starts, not where it ends. The question is what about the way it is written let this happen. Four candidates:
 
-The fix lands in the text, or in what makes the text hold. Where the wording is what failed, the wording changes. Where the wording is sound and nothing made it reachable or checkable at the moment it was needed, the fix is the mechanism that reaches or checks it, and the wording stays.
+- what it does not say
+- where it is written, somewhere the acting party had no reason to read
+- what it asks for that leaves no trace
+- which other rule it loses to when both apply
+
+One of those is true, because the text failed.
+
+The fix lands in the text, or in what makes the text hold. Where the wording is what failed, the wording changes. Where the wording is sound and nothing made it reachable or checkable at the moment it was needed, the fix is the mechanism that reaches or checks it. The wording stays.
 
 ## An unchecked reading is said to be one
 
-What a member tells the human-owner comes from what the team has actually written down, or from a report another session sent it. Anything else it holds is a reading it has not checked, and one told to him in the register of a finding is what he then acts on. Where a reading is all there is, the sentence carrying it says so — never a confident sentence with the caveat beneath it. Where the answer is in neither source, that is what is said, and the check is run or the session that would run it is spawned.
+What a member tells the human-owner comes from what the team has actually written down, or from a report another session sent it. Anything else it holds is a reading it has not checked. One told to him in the register of a finding is what he then acts on. Where a reading is all there is, the sentence carrying it says so — never a confident sentence with the caveat beneath it. Where the answer is in neither source, that is what is said. The check is then run, or the session that would run it is spawned.
 
-This governs everything a member says, not only what it files as work: an answer given in conversation, with no work behind it, is a claim like any other.
+This governs everything a member says, not only what it files as work. An answer given in conversation, with no work behind it, is a claim like any other.
 
 # Maintainer Notes
 
@@ -876,37 +1063,37 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- This file is the durable, cross-cutting model of how the team's skill folders and routines work — every acting member's own skill folder (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`), plus every `.routine.md` procedure hosted inside one of them and the member executing it: the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule.
+- This file is the durable, cross-cutting model of how the team's skill folders and routines work. Its subject is every acting member's own skill folder (`magic-*`/`keeper-*`/`warden-*`/`partner-*`/`client-*`), plus every `.routine.md` procedure hosted inside one of them and the member executing it. It specifies the folder-shape spec, the typed-suffix file-format conventions, and the executors-vs-maintainers quorum rule.
 - This file's own content is binding and obligatory on every team member who reads it, never merely informational or reference material.
-- A routine is a named procedure hosted inside its owning member's own folder, never a skill folder of its own — so the same procedure performed by a different member yields member-appropriate results instead of a second identity.
+- A routine is a named procedure hosted inside its owning member's own folder, never a skill folder of its own. The same procedure performed by a different member therefore yields member-appropriate results, instead of a second identity.
 - The team's general coding style reaches whoever is actually on duty writing the code, never only the member that owns and maintains it.
 - Every acting member's own source files — `.basic.md`/`.armed.md`, plus every `.routine.md` it owns — are fully sufficient on their own.
-- A duty instruction says how to perform the duty; nothing else belongs in a skill file. Tooling internals stay with the package that owns them, so a tooling refactor never forces an edit to a member-owned file.
-- Each file-shape contract stated here is complete and self-contained, so a file's shape is read off the one contract matching its own kind, never reconstructed as a diff against another.
-- Changing what a folder's own definition *is* is a group decision, never one maintainer acting alone; executing the activity that definition describes stays free.
-- The human-owner's own standing corrections are stated here in full, because the skillset is the only thing that carries them forward — an agent's own private memory does not.
-- The human-owner's standing corrections are carried as present-tense instruction text. His own words are quoted in no file, a `MAGIC.md` included; verbatim lives in the verbatim stores and in a current active tracking document or a hand-off, and an approved document becomes the new and only verbatim to use, replacing all working verbatim collected before it.
-- This file carries the durable model, not a live index of what currently exists — a live enumeration is read directly from whatever owns it rather than from a central table summarising it.
-- A rule about reaching the human-owner states what the channel must achieve, never which transport it is — the acting member resolves the transport from what the installation has configured.
-- What an answer would bind decides who sends the question: a member carries its own unblocking ask, and anything binding the team goes through `magic-coordinator`.
-- A message that wants something leads with the thing it wants, stated as the choice it is, and carries the work behind it only when that is asked for — the length of an ask is a diagnostic on whether the choice has been identified, never a style score.
-- A rule that was in force and was broken is treated as proven insufficient, and the response is a change to the text or to what makes it hold — never a citation of the text that failed.
-- What a member tells the human-owner comes from what the team has written down or from a report another session sent it, and a reading that is neither is told to him as a reading — this binds an answer given in conversation exactly as it binds a filed report.
+- A duty instruction says how to perform the duty. Nothing else belongs in a skill file. Tooling internals stay with the package that owns them, so a tooling refactor never forces an edit to a member-owned file.
+- Each file-shape contract stated here is complete and self-contained. A file's shape is read off the one contract matching its own kind, never reconstructed as a diff against another.
+- Changing what a folder's own definition *is* is a group decision, never one maintainer acting alone. Executing the activity that definition describes stays free.
+- The human-owner's own standing corrections are stated here in full. The skillset is the only thing that carries them forward, and an agent's own private memory does not.
+- The human-owner's standing corrections are carried as present-tense instruction text. His own words are quoted in no file, a `MAGIC.md` included. Verbatim lives in the verbatim stores, and in a current active tracking document or a hand-off. An approved document becomes the new and only verbatim to use, replacing all working verbatim collected before it.
+- This file carries the durable model, not a live index of what currently exists. A live enumeration is read directly from whatever owns it, rather than from a central table summarising it.
+- A rule about reaching the human-owner states what the channel must achieve, never which transport it is. The acting member resolves the transport from what the installation has configured.
+- What an answer would bind decides who sends the question. A member carries its own unblocking ask, and anything binding the team goes through `magic-coordinator`.
+- A message that wants something leads with the thing it wants, stated as the choice it is. It carries the work behind it only when that is asked for. The length of an ask is a diagnostic on whether the choice has been identified, never a style score.
+- A rule that was in force and was broken is treated as proven insufficient. The response is a change to the text, or to what makes it hold. It is never a citation of the text that failed.
+- What a member tells the human-owner comes from what the team has written down, or from a report another session sent it. A reading that is neither is told to him as a reading. This binds an answer given in conversation exactly as it binds a filed report.
 
 ## Verbatim-tests (benchmarks)
 
 - A member needs a routine's procedure. It reads that routine's own single `.routine.md` file and executes it without needing its owning member's other typed files.
-- A member is asked to run a routine owned by a different member. It reads the procedure out of the owning member's file and applies its own identity while executing the steps; no separate skill folder appears for that routine.
+- A member is asked to run a routine owned by a different member. It reads the procedure out of the owning member's file, and applies its own identity while executing the steps. No separate skill folder appears for that routine.
 - A member that is not `magic-developer` is about to write an awk program. It reads `magic-developer/reference/code-craft.md` first, and `magic-developer/reference/shell.md` on top of it for shell and awk.
 - An acting member's skill folder is resolved for editing. The real source path is resolved first, because the folder under `<skillset>/` may be a symlink rather than the canonical location.
-- One member's skills are linked into more than one harness folder at once. The folder holding the rules and hooks is the primary one and is what a grant, a permission and a path are stated against; reaching the same files through a second link is the same content under a name nothing was granted to, which is how an action passes one check and fails another for no visible reason.
-- A sentence in a skill file names a flag a stub forwards, an internal operation name, what a tool does beneath its own interface, unsettled design rationale, or a vendor-specific caveat. It is removed from the skill file and filed where it belongs — the package's own help pair, the package's `CLAUDE.md`/`README.md`, the owning `keeper-*`'s reference material or a board item, or the tooling implementation's own source comments.
+- One member's skills are linked into more than one harness folder at once. The folder holding the rules and hooks is the primary one. A grant, a permission and a path are stated against it. Reaching the same files through a second link is the same content under a name nothing was granted to. That is how an action passes one check and fails another for no visible reason.
+- A sentence in a skill file names something that is not duty content. That is a flag a stub forwards, an internal operation name, what a tool does beneath its own interface, unsettled design rationale, or a vendor-specific caveat. It is removed from the skill file and filed where it belongs. The homes: the package's own help pair, the package's `CLAUDE.md`/`README.md`, the owning `keeper-*`'s reference material or a board item, or the tooling implementation's own source comments.
 - A paragraph is 90% duty content and 10% internals. It is not exempt: the "can a member perform this step without this sentence?" test is applied to the sentence, not the section.
 - A step cannot do something because the tooling cannot yet do it. The gap is closed in the tooling so the skillset never needs awareness of it; the doc's wording is not softened instead. A gap needing a real external account or infrastructure action is flagged as its own decision point and pursuit stops there.
 - A contract names a section for which a file has no content. The heading is still present with its lead-in paragraph plus an explicit "none" line — an absent heading is indistinguishable from an unfinished file.
 - An acting member's `.armed.md` is written. Its frontmatter carries `maintainers:` only — no `executors:`, no `invitees:` — and who runs it is stated in `Scope`/`Local rules` prose instead.
 - A rule protects the human-owner's identity, their consent and sole channel, or their credentials boundary. The file stating it carries `human-owner` in its `maintainers:`.
-- A single maintainer proposes a change to a folder's own definition. It is not applied unilaterally: `quorum-all-agree` is reached in one coworking session with the quorum group as participants, never by dispatching one member to collect approvals one at a time, and the human-owner's own confirmation is what lands it.
+- A single maintainer proposes a change to a folder's own definition. It is not applied unilaterally. `quorum-all-agree` is reached in one coworking session, with the quorum group as participants. It is never reached by dispatching one member to collect approvals one at a time. The human-owner's own confirmation is what lands it.
 - A nested instruction list is entirely one kind. The per-line prefixes are dropped and the kind is declared once on the parent line's trailing clause; a list mixing kinds prefixes every line.
 - A `rule:` nested under one step is moved up into `# Routine's local rules`. That is a change of meaning — the rule now governs the whole routine instead of only its own branch — not a tidy-up; the mirrored move narrows a Local rule the same way.
 - A step names other members. It is still the executor's own step: the executor orchestrates and commands that work and announces it in the session transcript. There is no second actor running steps of its own.
@@ -916,7 +1103,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - A generated session-context document's board section is long. It is never capped: silently dropping part of the work list is the failure that document exists to prevent.
 - A first run produces a negative or surprising result. The validity of the test itself is established before the result is reported, and residual caveats are stated rather than rounded up to a clean pass.
 - Existing content is moved or regrouped inside a file. Each block moves as a single edit whose removal and matching insertion are both visible in the same diff — never one large rewrite covering many moves.
-- A member's message asks the human-owner for nothing — a status, a report, finished work product. It still goes to Slack rather than staying in the session: `magic-coordinator` to his DM, any other member to the team channel.
+- A member's message asks the human-owner for nothing — a status, a report, finished work product. It still goes to the configured messaging channel rather than staying in the session: `magic-coordinator` to his own direct conversation, any other member to the team's own shared conversation.
 - A mention is written into a message body and the send reports success. The message is not tagged: what the platform stored is the check, and a send path that cannot produce a real mention is reported as a defect rather than treated as having tagged anyone.
 - An unrelated fix sits next to content the human-owner has already confirmed as good. The diff is scoped to the lines actually implicated; if the fix genuinely requires touching approved content, that is said first rather than done silently.
 - An instruction of the human-owner's is confirmed or relayed. His wording is quoted verbatim, or a direct yes/no question is asked — never a summary in different words.
@@ -931,7 +1118,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - The acting member has no working identity of its own on the resolved channel. It says so plainly, names what it needed, and hands the ask to `magic-coordinator` — rather than swallowing the question, or sending under a shared identity that cannot reach him and treating the send's own success as delivery.
 - No instant-messaging channel is configured in an installation. The ask still goes out on the next-best direct channel that is — the member resolves the channel from what is configured, and no rule names the transport for it.
 - A member sends a second message on a subject it has already raised. It goes into that subject's own thread, reached by the identifier the first send returned — never as a second top-level message beside the first.
-- A member is about to post an answer to a specific Slack message, whoever sent it. It targets that message directly via `<channel>:<ts>`; a bare channel/conversation-id target is used only to start a genuinely new subject, never to answer one. A message that reports outward without answering anything — a session's own opening broadcast, a standalone status or closing summary — is exempt, and posts fresh top-level or continues that session's own already-open thread instead.
+- A member is about to post an answer to a specific message, whoever sent it. It targets that message directly, in the form its own send operation documents. A target naming only the conversation is used solely to start a genuinely new subject, never to answer one. A message that reports outward without answering anything — a session's own opening broadcast, a standalone status or closing summary — is exempt, and posts fresh top-level or continues that session's own already-open thread instead.
 - A session has finished an investigation and needs a ruling on whether one language's code is refactored now. The ask is the message: the question, stated as the choice it is. The status, findings and history that produced it are not sent with it and follow only if he asks — a ruling reachable only by reading a screen of surrounding text has not been asked for.
 - A draft ask cannot be stated briefly. It is not sent longer: the choice is identified and restated, or the ask is held as not yet ready.
 - Two unrelated matters are ready to send at the same moment. They go as two messages; no test is applied first to decide whether bundling them would have been acceptable.
@@ -943,7 +1130,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - An operation family has no caller in this tree. That is not evidence it is unneeded, and its parameters are not narrowed to only what the local caller passes.
 - A board item names files living in another tracked workspace. The boundary is surfaced and the question asked, rather than editing there or requesting a one-off access grant.
 - A `CONVENTION`/`INTENT`/`TASK` body is written in a backlog document. It states the rule or task itself, timelessly; investigative facts, status, progress notes and dates go to that document's own Context Detail section.
-- A report, Slack message, comment or program output is being written. Each line goes in only if it is relevant to its reader or genuinely a fun fact; how the conclusion was reached, a restatement of what was just said, an incident's own history and process padding stay out.
+- A report, message, comment or program output is being written. Each line goes in only if it is relevant to its reader or genuinely a fun fact; how the conclusion was reached, a restatement of what was just said, an incident's own history and process padding stay out.
 - A line would name a reading, a case or a value in order to rule it out. It is left out, not ruled out — the mention costs what stating it would have.
 - A line is about to state how many of something there are. The number is written only where its reader needs it to act, computed where it is emitted rather than typed in, a count spelled in words counting the same as one in digits.
 - A session notices that an installed/local copy of the tooling is stale, or that a source-to-local sync would help. It says nothing — not as a flag, a caveat, a note for awareness, or a suggested next step — and a spawned session's report carrying such a note has it dropped rather than forwarded.

@@ -104,6 +104,7 @@ AgentsToolsCommsSlackMentionUserId(){
 }
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
 
 case "$1" in
 
@@ -789,7 +790,7 @@ case "$1" in
 				set +e ; return 1
 			fi
 
-			local identityAsBot="false" fromStdin="false"
+			local identityAsBot="false" fromStdin="false" textGroup=""
 			local textArgs stdinContent
 			while [ $# -gt 0 ] ; do
 				case "$1" in
@@ -798,6 +799,15 @@ case "$1" in
 					;;
 					--message-from-stdin|--from-stdin)
 						fromStdin="true" ; shift
+					;;
+					## The floor applies with no argument at all. This names the shape
+					## an explicit exception takes, never which default a caller gets.
+					--text-group)
+						if [ $# -lt 2 ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: --text-group value missing -- report, brief or relay, and message is what every edit carries without it" >&2
+							set +e ; return 1
+						fi
+						textGroup="$2" ; shift 2
 					;;
 					--from-file)
 						if [ $# -lt 2 ] ; then
@@ -845,6 +855,16 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: no replacement text given -- chat.update with an empty text field blanks the message, so an empty edit is refused here rather than performed silently. Pass the text as trailing argv, --from-stdin, or --from-file <path>." >&2
 				set +e ; return 1
 			fi
+
+			## The same floor the send carries. An edit that skipped it would be the
+			## way a refused message reaches the channel anyway. This arm resolves no
+			## bot token of its own, so the shared-identity rule cannot be applied
+			## here and an empty token source is passed.
+			## The predicates this site refuses on, and the whole of a graduation:
+			## a name here refuses, a name absent reports beside it. sentence-cap
+			## is absent because it cannot tell a prose paragraph from a block
+			## written one fact per line -- see MAGIC.md.
+			printf '%s' "$sourceText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "" "word-cap semicolon paragraph-gate" || { set +e ; return 1 ; }
 
 			local resolved rc channel threadTs
 			resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
@@ -1610,7 +1630,7 @@ case "$1" in
 			;;
 		esac
 
-		local format="markdown" fromStdin="false" identityAsBot="false"
+		local format="markdown" fromStdin="false" identityAsBot="false" textGroup=""
 		local textArgs stdinContent
 		local bodySourceKind="argv"
 		## The text version of a caller-supplied blocks payload. Not a
@@ -1680,6 +1700,15 @@ case "$1" in
 						set +e ; return 1
 					fi
 					format="$2" ; shift 2
+				;;
+				## The floor applies with no argument at all. This names the shape an
+				## explicit exception takes, never which default a caller gets.
+				--text-group)
+					if [ $# -lt 2 ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --text-group value missing -- report, brief or relay, and message is what every send carries without it" >&2
+						set +e ; return 1
+					fi
+					textGroup="$2" ; shift 2
 				;;
 				--*)
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: unrecognized option: $1 (if you need literal text starting with '--', use --from-stdin/--from-file instead of trailing argv)" >&2
@@ -2081,6 +2110,18 @@ blocks|verbatim|caller|stdin file"
 		if [ -z "$token" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no usable Slack token configured for $memberName (member SLACK_USER_TOKEN, the member's own SLACK_BOT_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)" >&2
 			set +e ; return 1
+		fi
+
+		## The team's plain-language floor, on the body exactly as the caller gave
+		## it -- nothing has altered sourceText since it was read. It sits after
+		## the token because the shared-identity rule needs the account this posts
+		## under, which nothing earlier knows. A blocks payload is JSON, not prose.
+		if [ "$format" != "blocks" ] ; then
+			## The predicates this site refuses on, and the whole of a graduation:
+			## a name here refuses, a name absent reports beside it. sentence-cap
+			## is absent because it cannot tell a prose paragraph from a block
+			## written one fact per line -- see MAGIC.md.
+			printf '%s' "$sourceText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "$botTokenSource" "word-cap semicolon paragraph-gate" || { set +e ; return 1 ; }
 		fi
 
 		## Token on curl's stdin, never argv -- keeps it out of ps. Reassigned

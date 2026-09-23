@@ -69,11 +69,16 @@ case "$1" in
 			;;
 		esac
 		## Craft the dispatch-doc mode this relay needs -- not an agent-facing flag.
-		## Main-loop's stdin/--from-file relay wants NO dispatch document (this was
-		## the board-running dispatch-*-spawn-proxy pile-up); advance's --from-board/
-		## --from-vault/--from-audit relay reuses the named board item as its own
-		## tracking document.
-		local spawnDispatchDoc="none" spawnProxyArg
+		## A stdin/--from-file brief names no tracking item, so one is minted: that
+		## document carries the session id, and it is the only thing ListAgents
+		## reads, TaskOutput resolves and TaskStop acts on. This passed `none` until
+		## 2026-09-23, which left every helper spawned this way unlistable and
+		## unstoppable. The board-running dispatch-*-spawn-proxy pile-up `none` was
+		## answering is closed at the other end instead: the spawn op moves a
+		## dispatch item it created itself out of `running` when the child ends.
+		## advance's --from-board/--from-vault/--from-audit relay reuses the named
+		## item as its own tracking document, unchanged.
+		local spawnDispatchDoc="create" spawnProxyArg
 		for spawnProxyArg in "$@" ; do
 			case "$spawnProxyArg" in
 				--from-board|--from-vault|--from-audit) spawnDispatchDoc="reuse" ; break ;;
@@ -311,6 +316,13 @@ case "$1" in
 			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" )" || { set +e ; return 1 ; }
 		else
 			[ "$contentFromFile" = "true" ] || content="$( cat )"
+			## Reported, never refused, and this one is not a tier choice. The
+			## heartbeat's own state write keeps the loop running, so a refusal
+			## here would stop the loop that would otherwise carry the fix. This
+			## note's own active-project field runs well past the word cap, and it
+			## is rewritten every pass, so no count of it stays true.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+			printf '%s' "$content" | AgentsToolsOutputStyleRefusal "$callingMember" "" "heartbeat state" "" none || :
 		fi
 		## An empty write erases the day-rhythm state, which then reads back
 		## as "first next-iteration today" -- re-running a day's grooming.

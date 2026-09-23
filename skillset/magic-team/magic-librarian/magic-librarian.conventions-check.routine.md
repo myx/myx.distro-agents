@@ -22,10 +22,10 @@ Doesn't do: invent a "convention" that isn't actually demonstrated somewhere in 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
 
 1. **identify-target-and-analog**: identify what's actually being reviewed and its closest existing real analog already in the repo/skill set (an existing sibling op, an existing sibling `.md` file of the same type, etc.) — read that analog directly, don't rely on a recalled description of it. Across a multi-file or multi-finding batch, the analog is resolved per finding, not once per batch.
-2. **compare-against-analog**: compare the proposal against the actual pattern in that analog file — naming, error-message shape, where things are placed, the analog's own shape and verbosity, and any style rules stated in that file's own header/comments — including `magic-librarian`'s own "Two writing modes" standard for skill-folder `.md` files. Shape and verbosity means how much the analog actually carries — the length of its lead-in, the prose around its substance, the number of elements — and a proposal several times more elaborate than its analog fails this step even where every other axis matches.
+2. **compare-against-analog**: compare the proposal against the actual pattern in that analog file — naming, error-message shape, where things are placed, the analog's own shape and verbosity, and any style rules stated in that file's own header/comments — including `magic-librarian`'s own "Two writing modes" standard for skill-folder `.md` files. Emitted text is compared against `magic-team/magic-team.shared.md`'s own "The output-style floor" instead, and against `magic-librarian/magic-librarian.armed.md`'s own "Applying the output-style floor" for which clauses a reader judges. Carried spans are recognised by their markup and are not measured. Shape and verbosity means how much the analog actually carries — the length of its lead-in, the prose around its substance, the number of elements — and a proposal several times more elaborate than its analog fails this step even where every other axis matches.
 3. **structure-the-output**: structure all output from this operation — findings, fixes, comparisons, anything — with clear, labeled sections and before/after where relevant, never blended prose.
 4. **classify-each-finding**: report each finding as one of — genuine violation (blocks, per the blocking-model rule below, unless the invoker is `magic-coordinator`/human-owner), stylistic judgment call worth flagging but not blocking, or clean. A reviewed formulation fails review if it isn't clearly and easily understandable, if a readback of it drops any intent, important detail, or benchmark the original had, or if a better candidate was available but wasn't chosen — any of these is a genuine finding, same blocking model as above.
-5. **cite-real-evidence**: never invent a "convention" that isn't actually demonstrated somewhere in the real files — a finding must cite the actual file/line it's checked against.
+5. **cite-real-evidence**: never invent a "convention" that isn't actually demonstrated somewhere in the real files — a finding must cite the actual file/line it's checked against. An exchange-floor finding cites the clause number and the measured value — the word count, the sentence count, the voice — so the finding is checkable rather than a matter of taste. A clause carrying no number is a judgement call and is classified as one at **classify-each-finding**, never reported as a violation.
 6. **check-substance-not-wording**, steps:
    - check that the reviewed content interacts correctly with related rules elsewhere — no contradiction, no missing connection
    - check for any real behavior or pattern with no actual rule backing it anywhere
@@ -45,7 +45,22 @@ Invoked inline: nothing. Run as its own session: execute `magic-team.coworking.r
 
 Named procedure blocks. Steps above call them by name. Not separate routines - not visible outside this file.
 
-None currently known beyond the Steps above.
+## `override-queue-read` — the bounded sweep over the exchange-floor declarations log
+
+A predicate runs at generation when a member calls it, and at emit in every operation that emits text. Naming a site rather than those two moments dates the rule as the list widens. Where a predicate records or refuses, the entry it writes is a landed change to a real file, so this routine's own change-is-the-only-trigger rule reaches it as written, with no amendment.
+
+Steps:
+1. Read the declarations log through `--member-read-audit-item`, by document name. Never by path — the audit layer is abstracted, and a member holding a resolved path has already left the abstraction.
+2. **This step cannot run today. Three things block it, not one, and all three are recorded.** A gap recorded as one thing when it is three reads as nearly closed.
+   - The type policy: `--member-read-audit-item` "currently permits only transcript-* file names, enforcing the type policy directly from the filename" (its own `--help` entry), so it refuses a `declaration-*` or `refusal-*` name outright.
+   - The folder resolver: it derives the year-month folder from a hyphenated date inside the filename, and matches `transcript-` only. Admitting the new type at the policy alone yields an accessor that permits the name and then cannot find the file.
+   - The date convention: the compact `YYYYMMDD'T'HHmm'Z'` form the team rule requires is not the hyphenated form the resolver reads. That conflict is `magic-librarian`'s to settle and is open.
+   Until all three close, the after-send half of the floor is unenforced. Report it as required and missing; never substitute a path read.
+3. Read declarations in one bounded pass. A declaration is the member's own claim, which the machine cannot verify, so it is logged rather than trusted.
+   - What this queue sees, and what it cannot: with no override flag, a noisy predicate produces no record. It produces a member rewriting correct text into worse text to pass the gate, and the member's own words are the casualty while the log stays clean. So this queue holds claims, never disagreements, and a clean queue is not evidence the predicates are sound.
+4. Run this routine's own Steps against the text each entry carries, at the group that entry declares.
+5. Report a declaration that does not match the text it labelled. A relay declaration on the member's own words, and a report declaration on a message, are the two shapes to look for.
+6. Apply the reader-judged clauses here, per `magic-librarian/magic-librarian.armed.md`'s own "Applying the output-style floor". They carry no predicate deliberately, because a predicate that fires on correct text teaches members to work around it.
 
 # Routine's local rules
 
@@ -58,6 +73,8 @@ All statements apply at the same time, always. These rules override a participan
 - **A change is the only trigger — never a run.** Checking fires on a proposal before it lands, or on a landed change; an instruction already in force has been checked and is not re-checked because something is about to execute. "Verify the instructions before running them" is work with no trigger behind it — don't add such a step to any routine.
 - When a change touches a team-member's own behavior or duties — its rules, instructions, or descriptions — this check assesses the update against the `Verbatim-goals (intents)`/`Verbatim-tests (benchmarks)` pair held in that file's own `# Maintainer Notes` section; otherwise this particular check doesn't execute. If assessment alone can't settle whether the change actually holds, `magic-librarian` formulates a concrete testing request and dispatches `magic-tester` to verify it for real. This check's own assessment exists to confirm improvements are present and no regressions exist compared to the prior version, or its absence.
 - **Blocking model**: a real, concrete finding blocks the reviewed change from landing until addressed — unless the invoker is `magic-coordinator` or the human-owner themselves, in which case the finding is advisory only (surfaced, not enforced): both already hold final say regardless of this operation's output. A cosmetic/minor finding never blocks — let the normal daily self-sufficiency audit pick it up later. Unsure whether a finding is a real gap or minor: default to surfacing it.
+- **A specification written against imagined bad text refuses the good text it exists to produce, so it is tested against the good text first.** Binds any check, predicate, gate or rule this team authors, not this floor alone. Run the candidate against text that must pass before running it against text that must fail. A check that cannot pass is the same class of defect as one that cannot fail, and it is the more expensive of the two: it refuses correct work, so the people it governs learn to route around it, and the gate is then empty rather than wrong.
+- **A predicate is shown able to pass before it enters the machine.** A condition, not advice: run it against the target style, and it must pass. This is the same idea as the rule above, one level down — that one governs a specification, this one governs a predicate about to gate real work. One run per predicate is the whole cost.
 - Every call works on a context and on specific document types. Two calls that read alike are not the same operation — check what each actually touches before treating them as duplicates.
 - Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal.
 - **Duty-content check, on every skill-file change**: apply `magic-team/magic-team.shared.md`'s "Duty content only — tooling internals belong to the package, never the skillset" rule and its test — *can a member perform this step without this sentence?* Applied per sentence, not per section. A leaked flag, internal op name, under-the-surface tool behaviour, or unsettled design rationale is a real, blocking finding, and the fix is to move it to the destination that rule names, not to reword it in place. See there for the full statement.
@@ -67,7 +84,11 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Full syntax and behavior here. Steps use its name only.
 
-None — this routine uses no `DistroAgentsTools` operations directly; it reads/compares real files and reports findings.
+`override-queue-read` uses one operation. Every other step reads and compares real files and reports findings, using none.
+
+- `--member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]` — read-only accessor for one audit document by logical identity, never by path. It resolves the document's location itself and fails loud if the document is missing or ambiguous. It currently permits only `transcript-*` names, so it cannot yet read the declarations log — see `override-queue-read` step 2.
+
+A member is not authorised to use this operation unless its own `.armed.md` or the current routine's rules allow it. This section is that grant for a member running `override-queue-read` inline.
 
 # Maintainer Notes
 

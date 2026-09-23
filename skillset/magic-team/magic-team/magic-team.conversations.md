@@ -84,7 +84,9 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
      three options across four properties — is a table.
    - A construct these rules do not name may not render: check what the send path documents its bodies
      can carry, since anything else arrives as literal text.
-   - Register and spelling are checked separately, per text group, by `magic-librarian`.
+   - Register and spelling are checked separately by `magic-librarian`, against
+     `magic-team/magic-team.shared.md`'s own "The output-style floor" — the numbered form of this
+     rule, binding all emitted text.
    - The principle is stated in `magic-team/magic-team.shared.md`'s own human-owner standing rules; the
      delivery mechanics above are this file's.
 

@@ -8,6 +8,8 @@
 ## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+
 case "$1" in
 
 	--intern-op-inbox-to-processed)
@@ -181,6 +183,10 @@ case "$1" in
 			esac
 		elif [ "$bodyMode" = "stdin" ] ; then
 			body="$( cat )"
+			## Measured, never refused. Only this branch carries the caller's own
+			## new text: script and patch derive a body from content somebody else
+			## wrote, and a plain move rewrites the file unchanged.
+			printf '%s' "$body" | AgentsToolsOutputStyleRefusal "$inboxMember" "" "$itemName" "" none || :
 		elif [ "$bodyMode" = "patch" ] ; then
 			local patchJson existingContent
 			patchJson="$( cat )"

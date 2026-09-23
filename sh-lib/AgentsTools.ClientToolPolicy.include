@@ -45,6 +45,15 @@ AgentsToolsClientToolPolicyEmitRecord(){
 				echo "⛔ ERROR: AgentsToolsClientToolPolicyEmitRecord: a field of the record for '$policySubject' carries a tab or a newline, which this record format cannot represent" >&2
 				return 1
 			;;
+			## A generated hook wraps its whole JSON answer in one single-quoted
+			## bash literal, which an apostrophe anywhere inside ends -- taking the
+			## rest of that hook with it. Every field here already happens to meet
+			## this, and nothing said so, so it is said at the point a new value
+			## arrives. Write the prose to need no escape rather than escaping it.
+			*\'*)
+				echo "⛔ ERROR: AgentsToolsClientToolPolicyEmitRecord: a field of the record for '$policySubject' carries an apostrophe, which ends the single-quoted literal the generated hook is written as -- reword it to avoid one" >&2
+				return 1
+			;;
 		esac
 		if [ -z "$policySubject" ] || [ -z "$policyDecision" ] || [ -z "$policyRedirect" ] ; then
 			echo "⛔ ERROR: AgentsToolsClientToolPolicyEmitRecord: subject, decision and redirect are each required, got: '$policySubject' '$policyDecision' '$policyRedirect'" >&2
@@ -57,11 +66,35 @@ AgentsToolsClientToolPolicyEmitRecord(){
 
 ## The client tool policies themselves, one record each. Subject is the hook
 ## matcher the policy governs, decision and redirect are the verbatim values
-## the installed hook returns.
+## the installed hook returns. A redirect names the MCP and the method, because
+## a refusal naming neither sends the caller nowhere and it retries the same
+## call: these hooks are routers toward working tooling, not prohibitions.
 AgentsToolsClientToolPolicy(){
 	AgentsToolsClientToolPolicyEmitRecord \
 		"Read" "deny" "" "read workspace, repository and project MAGIC.md" \
-		"Bash" "deny" "" "always use myx.distro MCP TOOLING to properly execute shell commands"
+		"Bash" "deny" "" "use the myx.distro MCP instead, method mcp__myx_distro__execute -- it runs a shell script with the workspace context already established"
+}
+
+## The deny-reroute keys, one per line: the subset of the keys below whose hook
+## exists to route a *-native client toward this estate's own MCP tooling, and
+## which therefore must not apply inside our own universal harness -- there the
+## destination is already what is running. The class is declared here and never
+## read out of hooks.PreToolUse, because a *-native client reads that same array
+## and an entry cannot carry a marker only one of its two readers honours.
+## An empty result is the legitimate "no policy is deny-reroute" and is not an
+## error; a non-zero return is, and a consumer must tell the two apart.
+AgentsToolsClientToolPolicyRerouteHookKeys(){
+	local policyRerouteKeys="" policyRerouteKey
+	for policyRerouteKey in ".claude/hooks/deny-bash-tool.sh" ; do
+		case "$policyRerouteKey" in
+			""|*$'\t'*|*$'\n'*)
+				echo "⛔ ERROR: AgentsToolsClientToolPolicyRerouteHookKeys: a hook key is empty or carries a tab or a newline, so a consumer would read a class this never declared" >&2
+				return 1
+			;;
+		esac
+		policyRerouteKeys="${policyRerouteKeys}${policyRerouteKey}"$'\n'
+	done
+	printf '%s' "$policyRerouteKeys"
 }
 
 ## The dedupe keys, one per line -- the plain substring each installed hook

@@ -53,6 +53,7 @@ Steps:
 # Team-Member's (-specific) local rules
 
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
+- **Everything this member emits is under the team output-style floor by default.** A job that needs another shape says so. The floor, its scope and its twelve clauses: `magic-team/magic-team.shared.md`'s own "The output-style floor".
 - `magic-architect` is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-architect` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - Never write full or diff-ready code. May offer one short `architect-sketch` for an important logical piece or critical requirement — labeled, never a diff, never complete, illustrating only the one point it's for. Otherwise never discuss implementation-level details, and stay at the component/service/module level or above.

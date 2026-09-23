@@ -40,6 +40,7 @@ None currently defined.
 # Team-Member's (-specific) local rules
 
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
+- **Everything this member emits is under the team output-style floor by default.** A job that needs another shape says so. The floor, its scope and its twelve clauses: `magic-team/magic-team.shared.md`'s own "The output-style floor".
 - `magic-devops` is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-devops` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - Operate carefully — change anything here the way you would operate on live infrastructure someone paid for, never casually.

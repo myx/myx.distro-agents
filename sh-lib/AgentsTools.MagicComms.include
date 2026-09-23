@@ -569,6 +569,9 @@ case "$1" in
 		case "$bodyMode" in
 			stdin)
 				bodyText="$( cat )"
+				## Measured, never refused: this posts to a counterparty's board.
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+				printf '%s' "$bodyText" | AgentsToolsOutputStyleRefusal "$callingMember" "" "trello comment" "" none || :
 			;;
 			file)
 				bodyText="$( cat "$fromFilePath" )"

@@ -65,6 +65,11 @@ case "$1" in
 			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" )" || { set +e ; return 1 ; }
 		else
 			[ "$contentFromFile" = "true" ] || content="$( cat )"
+			## Reported, never refused, and this one is not a tier choice: the
+			## roster is read by the team's own tooling, so a refusal here would
+			## stop the members who would carry the fix.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+			printf '%s' "$content" | AgentsToolsOutputStyleRefusal "$callingMember" "" "team roster" "" none || :
 		fi
 		if [ -z "$content" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-upsert: empty content -- refusing to erase the stored team roster" >&2

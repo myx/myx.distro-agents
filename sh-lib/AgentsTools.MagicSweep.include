@@ -311,6 +311,10 @@ case "$1" in
 			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" )" || { set +e ; return 1 ; }
 		else
 			[ "$contentFromFile" = "true" ] || content="$( cat )"
+			## Reported, never refused, and this one is not a tier choice: a
+			## refusal here would stop the sweep that would carry the fix.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+			printf '%s' "$content" | AgentsToolsOutputStyleRefusal "$callingMember" "" "sweep state" "" none || :
 		fi
 		if [ -z "$content" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: empty content -- refusing to erase the stored sweep state" >&2

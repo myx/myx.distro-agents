@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.OutputStyle.include -- the send-side gate for the team's
+## plain-language output floor. Sourced by the comms includes that carry a
+## member-authored body; it dispatches no operation of its own.
+##
+## Two records, two readers, two files. A declaration is read routinely and is
+## a judgement the machine could not make, so it carries the text the judgement
+## is about. A refusal is read when someone asks whether the floor is mis-set,
+## and a refusal log that grows fast is that question answering itself. Both
+## names take the team's own audit-item shape, <type>-<date>-<matter>.md.
+##
+
+## Refuses a send whose text is below the floor. Text on stdin, and it must be
+## the body exactly as the caller gave it. 0 proceeds, 1 refuses, and every
+## refusal names its own reason on stderr.
+##
+## The token source is the caller's own, passed through rather than compared at
+## the call site: only "shared-bot-token" means the post goes out under the
+## shared magic-team account. That text is written by a member holding no
+## account of its own, so the floor attaches to the identity and a declared
+## group is refused rather than honoured. A caller that resolves no token
+## source passes an empty string.
+## The fifth argument names the predicates this caller refuses on, space
+## separated, and `none` where it refuses on nothing. The tier is the caller's
+## own property rather than the checker's, and it is per predicate rather than
+## per site: a predicate graduates to refusing once it has run a corpus without
+## a false refusal, and the others keep reporting beside it at the same site.
+## Adding a name here is the whole of a graduation, and removing one undoes it.
+AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, token source, gating predicates
+	local styleMember="$1" styleGroup="$2" styleTarget="$3" sharedIdentity="$4" gatingPredicates="$5"
+
+	if [ "$sharedIdentity" = "shared-bot-token" ] && [ -n "$styleGroup" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD: --text-group is REFUSED under the shared magic-team identity, and nothing was sent. Text posted under that account is written by a member holding no account of its own, so the floor attaches to the identity rather than to the author and the message group always applies. Drop --text-group, or send under the member's own identity." >&2
+		return 1
+	fi
+
+	## Held rather than piped straight through: a declaration has to carry the
+	## text its reader judges, so the same bytes are measured and recorded.
+	local styleText styleFaults styleRc=0
+	styleText="$( cat )"
+	styleFaults="$( printf '%s' "$styleText" | LC_ALL=C awk -v textGroup="${styleGroup:-message}" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsOutputStyleCheck.awk" )" || styleRc=$?
+
+	## Measured before recorded, so a refused send leaves a refusal and not a
+	## declaration: the text never left, and the member resends after rewriting.
+	if [ "$styleRc" != "0" ] ; then
+		## Which of the predicates that fired are ones this caller refuses on. A
+		## member must be told that clearing only the advisory ones changes
+		## nothing, so the two sets are named apart rather than run together.
+		local gatingHit=""
+		if [ "$styleRc" = "1" ] ; then
+			gatingHit="$( printf '%s\n' "$styleFaults" | LC_ALL=C awk -F'\t' -v gating=" $gatingPredicates " '
+				NF && index( gating, " " $1 " " ) > 0 && !( $1 in seen ) { seen[$1] = 1 ; printf "%s%s", sep, $1 ; sep = " " ; }
+			' )"
+		fi
+		if [ "$styleRc" = "1" ] && [ -z "$gatingHit" ] ; then
+			echo "# $MDSC_CMD: this text is below the team's plain-language floor. IT WAS WRITTEN ANYWAY: nothing that fired is a predicate this operation refuses on. Each line below names the predicate that fired and the sentence it fired on. Run the checker with textGroup=help for what it does and does not measure." >&2
+		elif [ "$styleRc" = "1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD: NOTHING WAS SENT. These predicates refuse here and fired: $gatingHit. Each line below names the predicate that fired and the sentence it fired on, and a line naming any OTHER predicate is advisory -- clearing those alone will not let this through. Rewrite the text; do not reach for another send path, because the edit and email operations carry this same floor. Run the checker with textGroup=help for what it does and does not measure." >&2
+		else
+			echo "⛔ ERROR: $MDSC_CMD: the output-style checker could not measure this text (rc=$styleRc), so NOTHING WAS SENT. This is NOT a clean result and NOT a style refusal: nothing is known from this call about whether the text meets the floor. An rc of 2 means --text-group named no group this checker knows." >&2
+		fi
+		printf '%s\n' "$styleFaults" >&2
+
+		## Which predicate fired, and on what. A count would say the floor was
+		## hit and not whether it was right to hit it, and a predicate holding
+		## most of these rows is the next one to come out of the machine.
+		if [ -d "$MDAT_DATA_ROOT/audit" ] ; then
+			local refusalLog="$MDAT_DATA_ROOT/audit/refusal-$( date -u +%Y%m%dT0000Z )-output-style.md"
+			[ -f "$refusalLog" ] || printf '%s\n' '---' 'type: refusal' 'topic: output-style refusals, per predicate' '---' '' '# Refusals: text the floor stopped' '' 'date-time	kind	member	group	destination	predicate	detail' >> "$refusalLog"
+			## The kind separates what was stopped from what was only reported.
+			## Promotion asks whether a predicate has produced a false REFUSAL, so
+			## the two must never be counted together.
+			local rowKind=report
+			[ -z "$gatingHit" ] || rowKind=refusal
+			printf '%s\n' "$styleFaults" | LC_ALL=C awk -v stamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )" \
+				-v who="$styleMember" -v declared="${styleGroup:-message}" -v dest="$styleTarget" \
+				-v rowKind="$rowKind" '
+				NF { printf "%s\t%s\t%s\t%s\t%s\t%s\n", stamp, rowKind, who, declared, dest, $0 ; }
+			' >> "$refusalLog" || echo "# $MDSC_CMD: the measurement could not be recorded, so nothing counts whether this floor is mis-set." >&2
+		fi
+		## rc 2 means the checker could not measure at all, which is never a pass.
+		[ "$styleRc" = "1" ] && [ -z "$gatingHit" ] || return 1
+		return 0
+	fi
+
+	## A declaration is a member's own claim the machine cannot verify, so it is
+	## recorded for a reader to judge. What decides that is where the group came
+	## from, never which tier is measuring: a group a caller passed is a claim
+	## whether or not this call refuses on it, and a site that fixes its own
+	## group passes none and reaches nothing here.
+	if [ -n "$styleGroup" ] && [ "$styleGroup" != "message" ] ; then
+		if [ ! -d "$MDAT_DATA_ROOT/audit" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD: --text-group $styleGroup declares this text as not message group, and every such declaration is recorded. The audit store is not present at the resolved location, so the record could not be written and NOTHING WAS SENT. A declaration that leaves no trace is the silent off switch this design refuses. Report this rather than dropping the flag." >&2
+			return 1
+		fi
+		local declarationLog="$MDAT_DATA_ROOT/audit/declaration-$( date -u +%Y%m%dT0000Z )-output-style.md"
+		## Not derived from anything already decided, and not ratified. It bounds
+		## the declaration queue alone, so a full queue stops a declared send and
+		## never an ordinary one.
+		if [ "$( LC_ALL=C awk 'END { print NR ; }' "$declarationLog" 2>/dev/null || echo 0 )" -ge 1000 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD: THE DECLARATION QUEUE IS FULL at 1000 entries, so this declared send was refused and NOTHING WAS SENT. This is NOT a style refusal and the text passed the floor. magic-librarian drains the queue; until it does, a --text-group send cannot be recorded, and recording it is what makes the declaration real. An ordinary message-group send is unaffected." >&2
+			return 1
+		fi
+		[ -f "$declarationLog" ] || printf '%s\n' '---' 'type: declaration' 'topic: output-style text-group declarations' '---' '' '# Declarations: text sent as not message group' '' 'date-time	kind	member	group	destination	text' >> "$declarationLog"
+		## The text goes in whole: the reader judges whether the declared group
+		## matches what was actually written, and a prefix cannot answer that.
+		## Its newlines and tabs collapse so one declaration stays one row.
+		printf '%s' "$styleText" | LC_ALL=C awk -v stamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )" \
+			-v who="$styleMember" -v declared="$styleGroup" -v dest="$styleTarget" '
+			{ held = held sep $0 ; sep = " " ; }
+			END {
+				gsub( /\t/, " ", held ) ;
+				printf "%s\tdeclaration\t%s\t%s\t%s\t%s\n", stamp, who, declared, dest, held ;
+			}
+		' >> "$declarationLog" || {
+			echo "⛔ ERROR: $MDSC_CMD: the --text-group $styleGroup declaration could not be appended to the audit store, so NOTHING WAS SENT. A declaration that leaves no trace is the silent off switch this design refuses." >&2
+			return 1
+		}
+	fi
+
+	return 0
+}

@@ -182,7 +182,7 @@ Argument form: `chat.delete`, `chat.update`, `conversations.history`, `conversat
 (a bot token answers `not_allowed_token_type`), and its scope `rtm:stream` is therefore required on
 the user identity alone.
 
-### Required scopes (16) — needed on BOTH identities
+### Required scopes — needed on BOTH identities
 
 `chat:write`, `users:read`, `channels:read`, `channels:history`, `channels:join`, `groups:read`,
 `groups:history`, `im:read`, `im:history`, `im:write`, `mpim:read`, `mpim:history`, `mpim:write`,

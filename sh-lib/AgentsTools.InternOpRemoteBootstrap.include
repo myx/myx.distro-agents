@@ -116,6 +116,10 @@ case "$1" in
 			## never installs an EXIT trap that would replace its caller's.
 			local taskFromStdinBody
 			taskFromStdinBody="$( cat )"
+			## Measured, never refused. This op is not told who called it, so the
+			## acting member is left empty rather than guessed.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+			printf '%s' "$taskFromStdinBody" | AgentsToolsOutputStyleRefusal "" "" "remote task via $opContext" "" none || :
 			if [ -z "$taskFromStdinBody" ] ; then
 				echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: --task-from-stdin: empty task ($opContext)" >&2
 				set +e ; return 1

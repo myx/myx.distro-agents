@@ -7,6 +7,11 @@
 ## is the same `hooks.PreToolUse` array of the workspace's own .claude/settings.json
 ## that claude itself reads, the hook gets the same payload on stdin, and it answers
 ## with the same hookSpecificOutput.permissionDecision document.
+## THE RULE SET IS NOT THE SAME SET, AND THAT IS THE SECOND DELIBERATE DIVERGENCE:
+## the array carries two classes of hook, and the class filter below drops the
+## deny-reroute ones. What that changes is which rules apply here, never how a
+## rule that applies is judged -- every entry the filter keeps goes through the
+## whole of the fail-closed path below, unweakened.
 ## IT FAILS CLOSED, WHICH IS A DELIBERATE DIVERGENCE: claude treats a non-zero hook
 ## as non-blocking and runs the tool anyway. Here anything short of an explicit allow
 ## -- an unreadable configuration, a hook that will not run, a non-zero exit, an
@@ -21,8 +26,33 @@ harnessHooksList=""
 ## Set instead of the list where the configuration cannot be trusted; every call is
 ## then refused naming this, because a guard that cannot read its rules permits nothing.
 harnessHooksFault=""
+## Entries the class filter below left out, so a narrower set is never silent.
+harnessHooksSkipped=0
 
-if [ -n "${MMDAPP:-}" ] && [ -e "$MMDAPP/.claude/settings.json" ] ; then
+## Two classes share that one array, because a *-native client reads it natively
+## and our harness reads it here. A deny-reroute hook routes a native client at
+## this estate's own MCP tooling, which is already what is running here, so it is
+## left out; a memory-deny hook applies everywhere and stays. The class comes from
+## AgentsTools.ClientToolPolicy.include, the one place the policy is stated, and
+## never from a hook's own name. Absent, this refuses to start on the same rule
+## the access-root mechanism follows: a class that cannot be resolved is not a
+## class, and guessing it either way is the fault this split exists to remove.
+harnessHooksPolicyFile="$harnessHere/AgentsTools.ClientToolPolicy.include"
+if [ ! -f "$harnessHooksPolicyFile" ] ; then
+	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the client tool policy is missing from this package, so no hook class can be resolved: $harnessHooksPolicyFile" >&2
+	exit 1
+fi
+. "$harnessHooksPolicyFile"
+## An empty list is the legitimate "nothing is deny-reroute" and leaves every
+## entry in force; only a non-zero return is a fault, and it refuses every call.
+harnessHooksRerouteKeys=()
+harnessHooksRerouteList="$( AgentsToolsClientToolPolicyRerouteHookKeys )" || harnessHooksFault="the client tool policy could not state which hooks are *-native only"
+while IFS= read -r harnessHooksRerouteKey ; do
+	[ -n "$harnessHooksRerouteKey" ] || continue
+	harnessHooksRerouteKeys+=( "$harnessHooksRerouteKey" )
+done <<< "$harnessHooksRerouteList"
+
+if [ -z "$harnessHooksFault" ] && [ -n "${MMDAPP:-}" ] && [ -e "$MMDAPP/.claude/settings.json" ] ; then
 	if [ ! -f "$MMDAPP/.claude/settings.json" ] || [ ! -r "$MMDAPP/.claude/settings.json" ] ; then
 		harnessHooksFault="$MMDAPP/.claude/settings.json exists but is not a readable file"
 	else
@@ -54,6 +84,21 @@ if [ -n "${MMDAPP:-}" ] && [ -e "$MMDAPP/.claude/settings.json" ] ; then
 						harnessHooksFault="hooks.PreToolUse[$harnessHooksEntry].hooks[$harnessHooksInner] is not a runnable command hook"
 						break
 					fi
+					## The class filter, and it sits here rather than in the decision
+					## path so a skipped entry never reaches one. Matched as a plain
+					## substring of the command, the same way the installed hooks are
+					## already recognised, and by builtins alone.
+					harnessHooksReroute=""
+					for harnessHooksRerouteKey in "${harnessHooksRerouteKeys[@]}" ; do
+						case "$harnessHooksCommand" in
+							*"$harnessHooksRerouteKey"*) harnessHooksReroute=1 ; break ;;
+						esac
+					done
+					if [ -n "$harnessHooksReroute" ] ; then
+						harnessHooksSkipped=$(( harnessHooksSkipped + 1 ))
+						harnessHooksInner=$(( harnessHooksInner + 1 ))
+						continue
+					fi
 					case "$harnessHooksMatcher$harnessHooksCommand" in
 						*$'\t'*|*$'\n'*)
 							harnessHooksFault="hooks.PreToolUse[$harnessHooksEntry] carries a tab or newline this cannot represent"
@@ -75,6 +120,9 @@ if [ -n "$harnessHooksFault" ] ; then
 elif [ -n "$harnessHooksList" ] ; then
 	printf '%s\n' "🪝 ${harnessDim}PreToolUse hooks from${harnessOff} ${harnessValue}$MMDAPP/.claude/settings.json${harnessOff}" >&2
 fi
+## Said on its own line and on either path above: a set narrowed by the class
+## filter otherwise reads exactly like a workspace that configured fewer hooks.
+[ "$harnessHooksSkipped" = "0" ] || printf '%s\n' "🪝 ${harnessDim}skipped${harnessOff} ${harnessValue}$harnessHooksSkipped${harnessOff} ${harnessDim}deny-reroute hook(s): those route a *-native client to the myx.distro MCP, and this harness already is that destination${harnessOff}" >&2
 
 ## Prints the refusal a hook decided on, and nothing at all where the call may run.
 ## The caller uses emptiness as the verdict, so every path that cannot reach a
@@ -106,6 +154,12 @@ AgentsHarnessHooksRefusal(){
 		Glob)      hookInputJson='{"path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		Grep)      hookInputJson='{"path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		Bash)      hookInputJson='{"command":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" command )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		## Monitor runs a shell command, so it is shaped in Bash's own spelling: a hook
+		## written to guard `tool_input.command` must decide on this call exactly as it
+		## decides on that one, and a command that escaped the guard by arriving under a
+		## different field name would be a hole in it. The handle rides along, so a hook
+		## can tell a start from a read of one already running.
+		Monitor)   hookInputJson='{"command":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" command )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'","cwd":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" cwd )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'","handle":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" handle )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		WebSearch) hookInputJson='{"query":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" query )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		WebFetch)  hookInputJson='{"url":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" url )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		SendMessage) hookInputJson='{"to":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" to )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'","message":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" message )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;

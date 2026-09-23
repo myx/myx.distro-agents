@@ -10,6 +10,8 @@
 ## $1/$@/$MDSC_CMD.
 ##
 
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+
 case "$1" in
 
 	--intern-op-member-inbox-upsert)
@@ -90,6 +92,11 @@ case "$1" in
 			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemPatchApply.py" )" || { set +e ; return 1 ; }
 		else
 			[ "$contentFromFile" = "true" ] || content="$( cat )"
+			## Measured, never refused: this tier reports and the write proceeds.
+			## Only this branch carries the caller's own new text -- a patch merges
+			## into content somebody else wrote, and measuring that would report
+			## against the wrong author.
+			printf '%s' "$content" | AgentsToolsOutputStyleRefusal "$memberName" "" "$itemName" "" none || :
 		fi
 		if [ -z "$content" ] ; then
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: empty content -- refusing to write an empty inbox item" >&2

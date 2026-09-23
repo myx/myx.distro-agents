@@ -10,6 +10,8 @@
 ## $1/$@/$MDSC_CMD.
 ##
 
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+
 case "$1" in
 
 	--intern-op-board-upsert-move-edit)
@@ -224,6 +226,12 @@ case "$1" in
 			esac
 		elif [ "$bodyMode" = "stdin" ] ; then
 			body="$( cat )"
+			## Measured, never refused. Only this branch carries the caller's own
+			## new text: script and patch derive a body from content somebody else
+			## wrote, and a plain move rewrites the file unchanged. This op is not
+			## told who called it, so the acting member is left empty rather than
+			## guessed, and the row carries the calling operation instead.
+			printf '%s' "$body" | AgentsToolsOutputStyleRefusal "" "" "$itemName via $opContext" "" none || :
 		elif [ "$bodyMode" = "patch" ] ; then
 			local patchJson existingContent
 			patchJson="$( cat )"
