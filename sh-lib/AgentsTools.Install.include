@@ -839,7 +839,7 @@ case "$1" in
 		## One cut per scope kind: each scope's selector has its own vocabulary,
 		## and only `project` uses the estate's four-form resolver. That resolver
 		## is --unroll-filter-and-cut (SystemContext.include), the same mechanism
-		## ndci-common-hook already goes through -- never a matcher written here.
+		## mdci-common-hook already goes through -- never a matcher written here.
 		if [ -n "$selectedProjects" ] ; then
 			declaredNamespace="$( MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:namespace' )" || declaredStatus=$?
 			declaredWorkspace="$( MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:workspace' )" || declaredStatus=$?
