@@ -9,9 +9,24 @@
 ## VSCodeTasksFragment is sourced from inside its "tasks" array. Every line
 ## emitted here therefore needs its own trailing comma.
 ##
+## Same mechanism and same all-or-nothing emission as that sibling: the fragment
+## is a REAL FILE in sh-lib/vscode-fragments/ at zero indentation, and the two
+## tabs it sits at in the generated file are added here.
+##
 
 {
-	echo '		"chat.agentSkillsLocations": {'
-	printf '\t\t\t"%s": true\n' "$MMDAPP/.agents/skills"
-	echo '		},'
+	local fragmentLibDir="${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
+	local agentsSkillsDir="$MMDAPP/.agents/skills"
+
+	if [ ! -f "$fragmentLibDir/AgentsBodyFile.include" ] ; then
+		echo "⛔ ERROR: AgentsTools.Make.VSCodeSettingsFragment: the body-file mechanism is missing from the package: $fragmentLibDir/AgentsBodyFile.include -- no settings fragment was emitted" >&2
+		return 1
+	fi
+	. "$fragmentLibDir/AgentsBodyFile.include"
+
+	AgentsBodyFileEmit \
+		"$fragmentLibDir/vscode-fragments/vscode-settings.agent-skills-locations.json" \
+		"$( printf '\t\t' )" \
+		agentsSkillsDir \
+	|| return 1
 }

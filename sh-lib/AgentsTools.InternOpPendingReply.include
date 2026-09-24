@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpPendingReply.include -- the pending-reply store.
+##
+## A question asked of a person is the commonest reason a session is waiting on
+## something, and AskUserQuestion -- a Slack send plus a wait -- is where nearly all
+## of them come from. Only some of those ever become board items. So the store is its
+## own: one record per question asked, written when the question is posted and closed
+## when the answer arrives or the wait ends. `pending-replies.registry` is a cache
+## over this store and over the board items that did become items.
+##
+## A record is kept after it closes rather than deleted: a saved reply is what lets a
+## session resume, and an unanswered question is what a re-ask is posted from. Purging
+## is not this op's business.
+##
+## THE DISTINCTION THIS STORE EXISTS TO HOLD: a question that was never posted is not
+## a question nobody answered. AskUserQuestion says so in its own words, and it is why
+## nothing is recorded until the send has succeeded, and why a wait that could not be
+## performed leaves the record open rather than closing it as unanswered.
+##
+
+case "$1" in
+
+	--intern-op-pending-reply-open)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-open"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local pendingOwner="$1"
+		shift || true
+		local pendingTo="" pendingSession="" pendingBlockedOn=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--to)
+					pendingTo="${2:-}"
+					[ -n "$pendingTo" ] || { echo "$MDSC_CMD: ⛔ ERROR: --to requires <conversation-id>" >&2 ; set +e ; return 1 ; }
+					shift 2
+				;;
+				--session-id)
+					pendingSession="${2:-}"
+					shift 2
+				;;
+				--blocked-on)
+					pendingBlockedOn="${2:-}"
+					shift 2
+				;;
+				--context)
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$pendingOwner" ] || [ -z "$pendingTo" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> --to <conversation-id> [--session-id <id>] [--blocked-on <what>] -- the question text is read from stdin" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$pendingOwner" "<team-member>" pending-reply-open || { set +e ; return 1 ; }
+		local pendingId
+		pendingId="$( uuidgen 2>/dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
+		if [ -z "$pendingId" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: no id could be generated, so nothing was recorded" >&2
+			set +e ; return 1
+		fi
+		local pendingRoot="$MMDAPP/.local/agents/pending"
+		mkdir -p "$pendingRoot" || {
+			echo "$MDSC_CMD: ⛔ ERROR: can't create the pending-reply store: $pendingRoot" >&2
+			set +e ; return 1
+		}
+		[ -n "$pendingBlockedOn" ] || pendingBlockedOn="reply from $pendingTo"
+		{
+			printf '%s\n' "---"
+			printf 'status: %s\n' "reply-pending"
+			printf 'owner: %s\n' "$pendingOwner"
+			## The machine this was asked from, for the same reason a spawn record
+			## carries one: the tree is synced, so a record found here was not
+			## necessarily written here.
+			printf 'host: %s\n' "$( hostname -s 2>/dev/null || echo unknown )"
+			## Both are the entity model's own fields, with its own shapes -- the
+			## channel id is `<service>:<rest>`, and `blocked-on` is what the
+			## spawn convention already calls this.
+			printf 'communication-channel-id: slack:%s\n' "$pendingTo"
+			printf 'blocked-on: %s\n' "$pendingBlockedOn"
+			[ -z "$pendingSession" ] || printf 'session-id: %s\n' "$pendingSession"
+			printf 'asked-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+			printf '%s\n' "---"
+			printf '\n# Question asked\n\n'
+			cat
+		} > "$pendingRoot/$pendingId.md" || {
+			echo "$MDSC_CMD: ⛔ ERROR: can't write the pending-reply record: $pendingRoot/$pendingId.md" >&2
+			set +e ; return 1
+		}
+		## The id on stdout, because the caller closes this record by it and has no
+		## other way to learn it.
+		printf '%s\n' "$pendingId"
+		return 0
+	;;
+
+	--intern-op-pending-reply-close)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-close"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local pendingId="$1"
+		shift || true
+		local pendingStatus=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--status)
+					pendingStatus="${2:-}"
+					shift 2
+				;;
+				--context)
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$pendingId" ] || [ -z "$pendingStatus" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-reply-id> --status <reply-received|reply-timeout|reply-unknown>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$pendingId" "<pending-reply-id>" pending-reply-close || { set +e ; return 1 ; }
+		case "$pendingStatus" in
+			reply-received|reply-timeout|reply-unknown) ;;
+			*)
+				## Enumerated rather than free text, because these three direct
+				## different next steps: a received reply resumes the work, a timeout
+				## is re-asked, and an unknown is neither until someone looks.
+				echo "$MDSC_CMD: ⛔ ERROR: --status must be reply-received|reply-timeout|reply-unknown: $pendingStatus" >&2
+				set +e ; return 1
+			;;
+		esac
+		local pendingFile="$MMDAPP/.local/agents/pending/$pendingId.md"
+		if [ ! -f "$pendingFile" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record: $pendingFile" >&2
+			set +e ; return 1
+		fi
+		## Applied by this package's own header writer, so no second frontmatter
+		## parser exists and a failure leaves the record exactly as it was -- an open
+		## record is recoverable by a rescan, a truncated one is not.
+		local pendingOps pendingBody
+		pendingOps="$MMDAPP/.local/temp/mdat-pending-reply-ops.$$"
+		mkdir -p "$MMDAPP/.local/temp" || { set +e ; return 1 ; }
+		{
+			printf 'upsert\tstatus\t%s\n' "$pendingStatus"
+			printf 'upsert\tresolved-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+		} > "$pendingOps" || { set +e ; return 1 ; }
+		pendingBody="$( LC_ALL=C awk -v opsFile="$pendingOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$pendingFile" )" || pendingBody=""
+		rm -f "$pendingOps"
+		if [ -z "$pendingBody" ] ; then
+			echo "$MDSC_CMD: ⚠️ WARNING: the record was left unchanged: $pendingFile" >&2
+			set +e ; return 1
+		fi
+		printf '%s\n' "$pendingBody" > "$pendingFile" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid operation: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

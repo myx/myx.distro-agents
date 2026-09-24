@@ -113,10 +113,17 @@ AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
 	sandboxOps="$MMDAPP/.local/temp/mdat-session-header-ops.$$"
 	mkdir -p "$MMDAPP/.local/temp" || return 0
 	{
+		## `status` carries the outcome, and `outcome` itself is deliberately absent:
+		## the entity model defines that name with a closed set of values for what an
+		## advance pass did to a running board item, so a spawn's exit result written
+		## there would be an undefined value in a defined set. `resolved-at` is the
+		## model's own conclusion stamp, and is used rather than a second spelling of
+		## it. `exit-code` has no counterpart in the model at all, which is not a
+		## re-mint: this file is the session's own record, not team data, so nothing
+		## defines that concept for it.
 		printf 'upsert\tstatus\tspawn-%s\n' "$sandboxOutcome"
-		printf 'upsert\toutcome\t%s\n' "$sandboxOutcome"
 		printf 'upsert\texit-code\t%s\n' "$sandboxExit"
-		printf 'upsert\tcompleted-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+		printf 'upsert\tresolved-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 	} > "$sandboxOps" || return 0
 	sandboxBody="$( LC_ALL=C awk -v opsFile="$sandboxOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$sandboxFile" )" || sandboxBody=""
 	rm -f "$sandboxOps"
@@ -150,6 +157,12 @@ case "$1" in
 		## source (stdin vs --from-board no longer determines it). Each stub passes
 		## exactly what its call needs; no default -- required below.
 		local dispatchDocMode=""
+		## The tracking name: identified BEFORE any tracking document exists, which is
+		## why it is a caller-facing value and not derived from one. An existing spawn,
+		## effort or interview is continued by passing its own name here, and a new one
+		## is named by leaving this empty -- the session uuid is then the name, because
+		## the uuid IS the tracking name, the session name and the spawn id.
+		local trackingName=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-file)
@@ -247,6 +260,17 @@ case "$1" in
 					spawnCliService="$2"
 					shift 2
 				;;
+				--tracking-name)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --tracking-name requires <tracking-name>" >&2
+						set +e ; return 1
+					fi
+					## Names a directory, so the shared bare-name gate decides it here
+					## rather than after a path has already been composed from it.
+					AgentsToolsAssertBareName "$2" "<tracking-name>" agent-spawn-proxy || { set +e ; return 1 ; }
+					trackingName="$2"
+					shift 2
+				;;
 				--wait)
 					waitMode="true"
 					shift
@@ -265,7 +289,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$callerName" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--wait]" >&2
 			set +e ; return 1
 		fi
 		local sourceCount=0
@@ -497,16 +521,22 @@ case "$1" in
 			esac
 		fi
 
-		## This spawn's own sandbox. Named by the tracking id, which is this spawn's
-		## primary key everywhere: a tracking document's name supplies it where one
-		## exists, and the receipt id is it where none does. Only a format suffix is
-		## stripped, so a dotted name keeps its dots. The shared bare-name gate runs
-		## first and is not widened for the suffix rule.
-		local sandboxName="$trackedItemName"
-		[ -n "$sandboxName" ] || sandboxName="$receiptId"
-		sandboxName="${sandboxName%.md}"
-		AgentsToolsAssertBareName "$sandboxName" "<tracking-name>" agent-spawn-proxy || { set +e ; return 1 ; }
+		## This spawn's own sandbox, named by the tracking name -- which is the session
+		## uuid unless the caller named an existing spawn, effort or interview to
+		## continue. One identity under three words, and the primary key everywhere,
+		## so naming the folder is not a second decision after identifying the spawn.
+		## A tracking document's name is deliberately NOT consulted: the name is
+		## identified before any such document exists, and a spawn may have none.
+		local sandboxName="$trackingName"
+		[ -n "$sandboxName" ] || sandboxName="$MDAT_SPAWN_SESSION_ID"
 		local sandboxRoot="$MMDAPP/.local/agents/spawned/$sandboxName"
+		## An existing sandbox is joined, never refused -- continuing an existing
+		## effort is what a caller-supplied tracking name is for. Said out loud,
+		## because joining means this spawn shares one `output/` with whatever ran
+		## under that name before it.
+		if [ -d "$sandboxRoot" ] ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: joining the existing sandbox of $sandboxName" >&2
+		fi
 		## Created even when nothing fills them: the directory's own presence is this
 		## spawn's registry entry, so an empty sandbox is a listed session rather than
 		## a missing one.
@@ -525,20 +555,40 @@ case "$1" in
 		## rescan rebuild the registry by reading headers rather than bodies. Not team
 		## data: this is the session's own record, so no board rule reaches it and
 		## team-data retention never sweeps it.
-		local sandboxTracking="$sandboxRoot/session.md"
+		## Named by the session uuid, not by a fixed filename: a joined sandbox holds
+		## one record per spawn that ran under that tracking name, and a fixed name
+		## would have the second spawn overwrite the first one's record.
+		local sandboxTracking="$sandboxRoot/$MDAT_SPAWN_SESSION_ID.md"
 		{
 			printf '%s\n' "---"
-			printf 'id: %s\n' "$sandboxName"
+			## Field names are the entity model's own, never spellings minted here --
+			## `session-id` already means the spawned session's own identifier, and
+			## `execution-receipt` already carries its timestamp inside its value
+			## rather than in a date field of its own. `outcome` is deliberately NOT
+			## used: its values are defined for what an advance pass did to a running
+			## board item, so a spawn's exit result would be an undefined value in a
+			## defined set.
 			printf 'session-id: %s\n' "$MDAT_SPAWN_SESSION_ID"
+			printf 'tracking-name: %s\n' "$sandboxName"
+			## The machine this spawn ran on, because a sandbox tree is synced between
+			## machines and a record found here did not necessarily run here. Without
+			## it, a reader cannot tell a session that ended from one that belongs to
+			## another host, and those two must never read alike. `hostname -s` is the
+			## estate's own machine identity -- the same value a team-member declare's
+			## host glob is matched against.
+			printf 'host: %s\n' "$( hostname -s 2>/dev/null || echo unknown )"
 			printf 'owner: %s\n' "$callerName"
 			printf 'status: %s\n' "spawn-started"
 			printf 'started-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
-			printf 'receipt-id: %s\n' "$receiptId"
+			printf 'execution-receipt: %s\n' "$receiptId"
 			[ -z "$outputFile" ] || printf 'output-file: %s\n' "$outputFile"
-			[ -z "$dispatchItemName" ] || printf 'board-item: %s\n' "$dispatchItemName"
-			[ -z "$trackedItemName" ] || printf 'tracking-item: %s\n' "$trackedItemName"
+			## Typed relation fields, chosen for the direction each one really has:
+			## this spawn created the dispatch item, and it was spawned from the
+			## tracked item it was pointed at.
+			[ -z "$dispatchItemName" ] || printf 'spawns: %s\n' "${dispatchItemName%.md}"
+			[ -z "$trackedItemName" ] || printf 'spawned-by: %s\n' "${trackedItemName%.md}"
 			printf '%s\n' "---"
-			printf '\n# Spawn session: %s\n' "$sandboxName"
+			printf '\n# Spawn session: %s\n' "$MDAT_SPAWN_SESSION_ID"
 		} > "$sandboxTracking" || {
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't write the session tracking file: $sandboxTracking" >&2
 			set +e ; return 1

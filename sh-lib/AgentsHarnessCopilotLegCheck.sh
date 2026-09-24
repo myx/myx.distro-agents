@@ -23,49 +23,22 @@ rigTmp="$( mktemp -d -t "AgentsHarnessCopilotLegCheck-XXXXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 mkdir -p "$rigTmp/bin"
-cat > "$rigTmp/bin/curl" <<'RIGFAKECURL'
-#!/usr/bin/env bash
-## Records this round's argv, stdin and request body, and replays this round's canned
-## stream. It opens no socket, and being first on PATH is the whole of this check's
-## offline guarantee -- against a leaf whose own endpoint is the live one.
-set -u
-## Outside a scenario there is nothing to record into and nothing canned to replay, so a
-## fake curl that somehow ran there dies rather than proxying the request onward.
-[ -n "${RIG_SCENARIO:-}" ] && [ -d "$RIG_SCENARIO" ] || { printf 'rig: curl ran outside a scenario\n' >&2 ; exit 1 ; }
-## The three renameable declarations, taken from the environment the leaf exported into
-## this process: the core execs the leaf and assigns no HARNESS_* name of its own, so
-## these ARE the leaf's. The endpoint, the host and the credential name are not here --
-## the check pins those, so reading them would assert nothing.
-printf '%s' "${HARNESS_PROVIDER_NAME:-}" > "$RIG_DECL_DIR/decl.provider"
-printf '%s' "${HARNESS_MODEL_MAIN:-}" > "$RIG_DECL_DIR/decl.modelMain"
-printf '%s' "${HARNESS_MODEL_LIGHT:-}" > "$RIG_DECL_DIR/decl.modelLight"
-rigRound=$(( $( cat "$RIG_SCENARIO/round" ) + 1 ))
-printf '%s' "$rigRound" > "$RIG_SCENARIO/round"
-printf '%s\n' "$@" > "$RIG_SCENARIO/argv.$rigRound"
-cat > "$RIG_SCENARIO/stdin.$rigRound"
-while [ $# -gt 0 ] ; do
-	case "$1" in
-		-d) printf '%s' "${2:-}" > "$RIG_SCENARIO/req.$rigRound" ; shift 2 ;;
-		*)  shift ;;
-	esac
-done
-[ -f "$RIG_SCENARIO/res.$rigRound" ] || { printf 'rig: no canned stream for round %s\n' "$rigRound" >&2 ; exit 1 ; }
-cat "$RIG_SCENARIO/res.$rigRound"
-RIGFAKECURL
-chmod +x "$rigTmp/bin/curl"
+## The fake binaries this rig puts on PATH are REAL FILES under sh-lib/check-fixtures
+## and are copied, never carried here in a heredoc: a delimiter lost inside a body
+## that is itself shell takes the rest of this check with it, and a check that stops
+## checking still prints its PASS lines. A missing fixture refuses instead.
+rigFixtures="$rigHere/check-fixtures"
+rigInstallFixture(){
+	cp "$rigFixtures/$1" "$2" || rigRefuse "a fixture is missing from the package: $rigFixtures/$1"
+	chmod +x "$2"
+}
+rigInstallFixture harness-copilot-leg-check.curl.sh "$rigTmp/bin/curl"
 
 ## Denies exactly when the payload carries the rig's argument marker. Silence and exit 0
-## is the allow every hook in this estate uses.
-cat > "$rigTmp/bin/rigdeny" <<'RIGDENYHOOK'
-#!/usr/bin/env bash
-set -u
-case "$( cat )" in
-	*RIG-ARG-MARKER*)
-		printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"RIG-HOOK-DENIED"}}'
-	;;
-esac
-RIGDENYHOOK
-chmod +x "$rigTmp/bin/rigdeny"
+## is the allow every hook in this estate uses. Shared with AgentsHarnessMcpCheck.sh,
+## which asserts the same thing about the same marker -- one fixture, because the two
+## bodies were byte-identical copies.
+rigInstallFixture pre-tool-use-deny-on-marker.sh "$rigTmp/bin/rigdeny"
 
 PATH="$rigTmp/bin:$PATH"
 export PATH

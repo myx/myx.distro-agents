@@ -2997,25 +2997,34 @@
 			`AgentsMcpServerJsonUpsert.awk` use; no jq dependency): every
 			entry already present that this op did not itself add is kept,
 			at both the JSON level and the file level.
-			Writes two hook scripts into `<workspace>/.claude/hooks/`
-			(mode 0755, regenerated idempotently every run --
-			tmp+`cmp`+`mv`, a no-op run touches nothing):
-			`deny-memory-md-read.sh` (denies `Read` on the memory-system's
-			`MEMORY.md` index file, any workspace/project) and
-			`deny-bash-tool.sh` (denies every `Bash` tool call outright --
-			this also fully covers `python3`/`rm`/`mv`/anything else run
-			through Bash, since nothing reaches a shell any other way).
-			The decision each script returns, and the text it returns
-			alongside it, are not stated here: both are generated from
-			`sh-lib/AgentsTools.ClientToolPolicy.include`, the one place a
-			client tool policy is written down, so this manual names that
-			source instead of carrying a second copy of a value that would
-			then drift from it. Neither writes nor touches
+			Installs two hook scripts into `<workspace>/.claude/hooks/`
+			(mode 0755, copied idempotently every run --
+			tmp+`cmp`+`mv`, a no-op run touches nothing). They are copies
+			of real, runnable scripts in `sh-lib/client-hooks/`, not
+			generated or templated, so what each refuses and the exact text
+			it answers with is readable in the script itself:
+			`deny-native-tool-reroute.sh` (denies a native tool call and
+			names the `myx.distro` MCP method to use instead -- one script
+			for every rerouted tool, told which tool it is deciding by a
+			trailing argument on its own `hooks.PreToolUse` command line)
+			and `deny-memory-md-read.sh` (denies `Read` on the
+			memory-system's `MEMORY.md` index file, any workspace/project,
+			and allows every other `Read`). The reroute set is stated once,
+			in `sh-lib/AgentsTools.ClientToolPolicy.include`; the wording
+			lives in the reroute script. A tool name reaching that script
+			with no case for it is denied, loudly, rather than falling
+			through: a hook emitting no decision reads as allow. A hook
+			source missing or empty in the package refuses the whole op.
+			An earlier install's per-tool `deny-bash-tool.sh` and
+			`deny-ask-user-question-tool.sh` are removed, since their whole
+			content is now a case in the reroute script.
+			Neither writes nor touches
 			`protect-memory-md.sh` (the already-verified `Edit`/`Write`
 			MEMORY.md guard) -- that hook, and its own `hooks.PreToolUse`
 			entry, are left exactly as found.
-			Wires both new scripts into `hooks.PreToolUse` (matcher `Read`
-			and matcher `Bash` respectively) and adds
+			Wires one `hooks.PreToolUse` entry per rerouted tool, each with
+			that tool as its own matcher, plus the matcher `Read` entry for
+			the memory guard, and adds
 			`"Bash"`, `"Bash(mv *)"`, `"Bash(python3*)"`, `"Bash(rm *)"` to
 			`permissions.deny`. The bare `"Bash"` entry (same shape as
 			`--install-claude-permissions`' own bare `"mcp__claude_ai_Slack"`

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsBodyFile.include -- emits a body file that lives in this package, with
+## the shell's own expansion applied to it. A body file holds text that would
+## otherwise be carried in a heredoc or a stack of printf calls: it starts and
+## ends at ZERO indentation, and any indentation it needs in the generated
+## artefact is added here, by the caller, never written into the body.
+##
+## A body is expanded exactly as an unquoted here-document body is: `$name` and
+## `${name}` are substituted, and a literal `$` is written `\$`. The value of a
+## substitution is never re-parsed -- the shell expands it after quote removal --
+## so a value carrying `"`, `$(`, a backtick or a backslash lands byte-exact and
+## runs nothing. Only the body file's own literal text is parsed, and body files
+## are this package's own.
+##
+## Refuses, emitting nothing at all, on a missing or empty body file, on a named
+## value that is unset or empty, and on an expansion that fails. An artefact
+## written with a substitution missing is the failure this exists to prevent: a
+## hook that emits no decision reads as allow.
+##
+
+##   $1 = body file path
+##   $2 = indent prefix added to every emitted line, "" for none
+##   $3.. = names of the values this body expands, each required non-empty
+AgentsBodyFileEmit(){
+	local bodyPath="$1" bodyIndent="$2" ; shift 2
+	local bodyName bodyText bodyOut
+
+	if [ ! -f "$bodyPath" ] ; then
+		echo "⛔ ERROR: AgentsBodyFileEmit: body file missing from the package: $bodyPath -- nothing was emitted" >&2
+		return 1
+	fi
+
+	for bodyName in "$@" ; do
+		if [ -z "${!bodyName:-}" ] ; then
+			echo "⛔ ERROR: AgentsBodyFileEmit: $bodyPath expands \$$bodyName, which is unset or empty -- refusing rather than emitting a body with it missing" >&2
+			return 1
+		fi
+	done
+
+	## Only `"` is escaped, which is what lets the whole body reach `eval` as one
+	## double-quoted string; every other character is literal inside it.
+	bodyText="$( LC_ALL=C sed 's/"/\\"/g' "$bodyPath" )" || bodyText=""
+	if [ -z "$bodyText" ] ; then
+		echo "⛔ ERROR: AgentsBodyFileEmit: $bodyPath is empty or could not be read -- nothing was emitted" >&2
+		return 1
+	fi
+
+	## `set -u` in the subshell: a name this body expands and nobody set is a hard
+	## failure here rather than a silent empty in the generated artefact.
+	## The capture strips trailing newlines and a body file ends in exactly one,
+	## so the printf restores it rather than adding one.
+	bodyOut="$( set -u ; eval "printf '%s\n' \"$bodyText\"" )" || {
+		echo "⛔ ERROR: AgentsBodyFileEmit: expanding $bodyPath failed -- nothing was emitted" >&2
+		return 1
+	}
+	if [ -z "$bodyOut" ] ; then
+		echo "⛔ ERROR: AgentsBodyFileEmit: $bodyPath expanded to nothing -- nothing was emitted" >&2
+		return 1
+	fi
+
+	if [ -n "$bodyIndent" ] ; then
+		printf '%s\n' "$bodyOut" | LC_ALL=C sed "s/^/$bodyIndent/"
+	else
+		printf '%s\n' "$bodyOut"
+	fi
+}

@@ -42,21 +42,13 @@ mkdir -p "$rigTmp/bin" "$rigTmp/.claude" "$rigTmp/FRAGMENT-ONLY-ROOT" "$rigTmp/s
 ## this, which is what makes one line of fixture a real discriminator.
 printf 'own\t%s\n' "$rigTmp/FRAGMENT-ONLY-ROOT" > "$rigTmp/.claude/copilot-add-dir.fragment"
 
-cat > "$rigTmp/bin/curl" <<'RIGFAKECURL'
-#!/usr/bin/env bash
-## Records the request body and replays one canned stop stream. It opens no socket, and
-## being first on PATH is the whole of this check's offline guarantee.
-set -u
-cat > /dev/null
-while [ $# -gt 0 ] ; do
-	case "$1" in
-		-d) printf '%s' "${2:-}" > "$RIG_SCENARIO/req" ; shift 2 ;;
-		*)  shift ;;
-	esac
-done
-printf 'data: {"choices":[{"index":0,"delta":{"content":"RIG-ANSWER"},"finish_reason":"stop"}],"usage":{"total_tokens":1}}\n'
-printf 'data: [DONE]\n'
-RIGFAKECURL
+## The fake binaries this rig puts on PATH are REAL FILES under sh-lib/check-fixtures
+## and are copied, never carried here in a heredoc: a delimiter lost inside a body
+## that is itself shell takes the rest of this check with it, and a check that stops
+## checking still prints its PASS lines. A missing fixture refuses instead.
+rigFixtures="$rigHere/check-fixtures"
+cp "$rigFixtures/harness-access-roots-check.curl.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-access-roots-check.curl.sh"
 chmod +x "$rigTmp/bin/curl"
 
 PATH="$rigTmp/bin:$PATH"

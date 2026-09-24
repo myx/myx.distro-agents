@@ -2,90 +2,82 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.ClientToolPolicy.include -- the single source of the client
-## tool-policy set: one place each policy's subject, decision, reason and
-## redirect is stated, for every expression generated from it.
-##
-## Output contract: raw tab-separated records, one per line, in the fixed
-## field order the format version names, with NO JSON and no quoting --
-## nothing needs escaping because no field may carry the delimiter, and the
-## producers below refuse a record that does.
+## AgentsTools.ClientToolPolicy.include -- the single source of WHICH client tools
+## are rerouted, and of the keys each installed hook is recognised by. It is NOT
+## the source of what a refusal says: that wording lives in the hook script that
+## says it, sh-lib/client-hooks/deny-native-tool-reroute.sh, where a person opening
+## the hook can read it. Two different facts, one home each.
 ##
 ## Dot-sourced. Nothing here is an operation, so there is no flag and no
 ## help pair; a consumer calls these functions directly.
 ##
 
-## The canonicalization format version, one token on one line. The token IS
-## the field set and its order, so neither can move without moving it too.
-## A consequence of the fingerprint design rather than a property of this
-## file: the version is hashed once per fingerprint, so a bump moves every
-## host's fingerprint at the same moment -- while the version is hashed in
-## and the spawn check is fail-closed, a field reorder is a fleet-wide
-## re-install rather than a local edit.
+## The canonicalization format version, one token on one line.
+## NO READER ON THIS TREE, and the four-field subject-decision-reason-redirect
+## record format it versions has been removed -- the wording those records carried
+## is now written out in the hook script itself. Left in place rather than deleted,
+## because an unread thing is as often an unimplemented intent as it is residue,
+## and that is the human-owner's call. Whoever rules on it: the token below names a
+## record format that no longer exists.
 AgentsToolsClientToolPolicyFormatVersion(){
 	printf '%s\n' "subject-decision-reason-redirect"
 }
 
-## One tab-separated record per four arguments, in that field order. Every
-## field of every record is checked before anything reaches stdout, so a
-## refused record leaves the stream empty rather than half-written.
-## The reason field may be empty and the other three may not: a refusal here
-## is the instruction on what to use instead, never a place for explanation.
-AgentsToolsClientToolPolicyEmitRecord(){
-	local policyRecords="" policySubject policyDecision policyReason policyRedirect
-	if [ "$#" -lt 4 ] || [ "$(( $# % 4 ))" != "0" ] ; then
-		echo "⛔ ERROR: AgentsToolsClientToolPolicyEmitRecord: a record is four fields -- subject, decision, reason, redirect -- and the arguments do not divide into whole records: $#" >&2
-		return 1
-	fi
-	while [ "$#" -ge 4 ] ; do
-		policySubject="$1" ; policyDecision="$2" ; policyReason="$3" ; policyRedirect="$4"
-		shift 4
-		case "$policySubject$policyDecision$policyReason$policyRedirect" in
-			*$'\t'*|*$'\n'*)
-				echo "⛔ ERROR: AgentsToolsClientToolPolicyEmitRecord: a field of the record for '$policySubject' carries a tab or a newline, which this record format cannot represent" >&2
-				return 1
-			;;
-			## A generated hook wraps its whole JSON answer in one single-quoted
-			## bash literal, which an apostrophe anywhere inside ends -- taking the
-			## rest of that hook with it. Every field here already happens to meet
-			## this, and nothing said so, so it is said at the point a new value
-			## arrives. Write the prose to need no escape rather than escaping it.
-			*\'*)
-				echo "⛔ ERROR: AgentsToolsClientToolPolicyEmitRecord: a field of the record for '$policySubject' carries an apostrophe, which ends the single-quoted literal the generated hook is written as -- reword it to avoid one" >&2
+## The native tools that are rerouted, one per line. THE SINGLE SOURCE OF THE SET:
+## the installer writes one PreToolUse entry per name here, and the hook keys below
+## are derived from the same names, so no consumer states the set a second time.
+## The refusal each one answers with is in the hook script, keyed by these same
+## names. A name here with no case there denies loudly rather than falling through,
+## because a hook emitting no decision reads as ALLOW.
+##
+## The set is the overlap between the harness tool floor this estate's MCP serves
+## and the tools a *-native client offers, less the tools a reroute would break:
+## anything addressing state owned by the process that created it (an agent
+## registry, a caller to hand back to, a job handle) cannot work from a tools/call,
+## which runs in a fresh process -- and anything answering about the client's own
+## context answers about the harness instead, which is a different answer rather
+## than the same job done elsewhere. NotebookEdit is native with no served
+## counterpart at all, so there is nothing to route it to.
+##
+## An empty list would install no reroute while still succeeding, so it is refused.
+AgentsToolsClientToolPolicyRerouteToolNames(){
+	local policyToolNames="" policyToolName
+	for policyToolName in Bash AskUserQuestion Read Write Edit Glob Grep WebFetch WebSearch ; do
+		case "$policyToolName" in
+			""|*[!A-Za-z]*)
+				echo "⛔ ERROR: AgentsToolsClientToolPolicyRerouteToolNames: '$policyToolName' is not a bare tool name, and a PreToolUse matcher is written from it verbatim" >&2
 				return 1
 			;;
 		esac
-		if [ -z "$policySubject" ] || [ -z "$policyDecision" ] || [ -z "$policyRedirect" ] ; then
-			echo "⛔ ERROR: AgentsToolsClientToolPolicyEmitRecord: subject, decision and redirect are each required, got: '$policySubject' '$policyDecision' '$policyRedirect'" >&2
-			return 1
-		fi
-		policyRecords="${policyRecords}${policySubject}"$'\t'"${policyDecision}"$'\t'"${policyReason}"$'\t'"${policyRedirect}"$'\n'
+		policyToolNames="${policyToolNames}${policyToolName}"$'\n'
 	done
-	printf '%s' "$policyRecords"
+	if [ -z "$policyToolNames" ] ; then
+		echo "⛔ ERROR: AgentsToolsClientToolPolicyRerouteToolNames: no tool names -- an empty set installs no reroute at all while still reporting success" >&2
+		return 1
+	fi
+	printf '%s' "$policyToolNames"
 }
 
-## The client tool policies themselves, one record each. Subject is the hook
-## matcher the policy governs, decision and redirect are the verbatim values
-## the installed hook returns. A redirect names the MCP and the method, because
-## a refusal naming neither sends the caller nowhere and it retries the same
-## call: these hooks are routers toward working tooling, not prohibitions.
-AgentsToolsClientToolPolicy(){
-	AgentsToolsClientToolPolicyEmitRecord \
-		"Read" "deny" "" "read workspace, repository and project MAGIC.md" \
-		"Bash" "deny" "" "use the myx.distro MCP instead, method mcp__myx_distro__execute -- it runs a shell script with the workspace context already established"
+## The script every reroute entry runs, as one path relative to the workspace root.
+## Named once because the installer copies it, the entries call it, and the class
+## filter below recognises it.
+AgentsToolsClientToolPolicyRerouteHookPath(){
+	printf '%s\n' ".claude/hooks/deny-native-tool-reroute.sh"
 }
 
-## The deny-reroute keys, one per line: the subset of the keys below whose hook
-## exists to route a *-native client toward this estate's own MCP tooling, and
-## which therefore must not apply inside our own universal harness -- there the
-## destination is already what is running. The class is declared here and never
-## read out of hooks.PreToolUse, because a *-native client reads that same array
-## and an entry cannot carry a marker only one of its two readers honours.
+## The deny-reroute keys, one per line: the hooks that exist to route a *-native
+## client toward this estate's own MCP tooling, and which therefore must not apply
+## inside our own universal harness -- there the destination is already what is
+## running. The class is declared here and never read out of hooks.PreToolUse,
+## because a *-native client reads that same array and an entry cannot carry a
+## marker only one of its two readers honours.
+## One key covers every reroute entry, because they all run the one script: the
+## class question is which script an entry runs, not which tool it governs.
 ## An empty result is the legitimate "no policy is deny-reroute" and is not an
 ## error; a non-zero return is, and a consumer must tell the two apart.
 AgentsToolsClientToolPolicyRerouteHookKeys(){
 	local policyRerouteKeys="" policyRerouteKey
-	for policyRerouteKey in ".claude/hooks/deny-bash-tool.sh" ; do
+	for policyRerouteKey in "$( AgentsToolsClientToolPolicyRerouteHookPath )" ; do
 		case "$policyRerouteKey" in
 			""|*$'\t'*|*$'\n'*)
 				echo "⛔ ERROR: AgentsToolsClientToolPolicyRerouteHookKeys: a hook key is empty or carries a tab or a newline, so a consumer would read a class this never declared" >&2
@@ -103,9 +95,22 @@ AgentsToolsClientToolPolicyRerouteHookKeys(){
 ## as MYX_CLAUDEVERIFY_HOOK_KEYS. An empty element there reports OK against
 ## any non-empty PreToolUse, and an empty list asserts nothing at all while
 ## still succeeding, so both are refused here rather than emitted.
+## ONE KEY PER REROUTED TOOL, not one for the shared script: the verifier's job is
+## to catch an entry the settings merge failed to add, and every reroute entry runs
+## the same script, so a key naming the script alone would report OK with eight of
+## the nine missing.
 AgentsToolsClientToolPolicyHookKeys(){
-	local policyHookKeys="" policyHookKey
-	for policyHookKey in ".claude/hooks/deny-memory-md-read.sh" ".claude/hooks/deny-bash-tool.sh" ; do
+	local policyHookKeys="" policyHookKey policyHookTool policyHookScript
+	policyHookScript="$( AgentsToolsClientToolPolicyRerouteHookPath )" || return 1
+	while IFS= read -r policyHookTool ; do
+		[ -n "$policyHookTool" ] || continue
+		policyHookKeys="${policyHookKeys}${policyHookScript} ${policyHookTool}"$'\n'
+	done <<< "$( AgentsToolsClientToolPolicyRerouteToolNames )"
+	if [ -z "$policyHookKeys" ] ; then
+		echo "⛔ ERROR: AgentsToolsClientToolPolicyHookKeys: the reroute tool set yielded no keys, so the verifier would assert nothing about the reroute hooks" >&2
+		return 1
+	fi
+	for policyHookKey in ".claude/hooks/deny-memory-md-read.sh" ; do
 		case "$policyHookKey" in
 			""|*$'\t'*|*$'\n'*)
 				echo "⛔ ERROR: AgentsToolsClientToolPolicyHookKeys: a hook key is empty or carries a tab or a newline, which the verifier reads as an assertion it never made" >&2

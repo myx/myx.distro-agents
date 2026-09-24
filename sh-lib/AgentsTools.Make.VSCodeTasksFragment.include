@@ -1,14 +1,32 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-cat <<CODEWORKSPACE
-			{
-				"label": "🤖 Start Agents Console...",
-				"type": "shell",
-				"command": "bash '$MMDAPP/DistroAgentsConsole.sh'",
-				"group": {
-					"kind": "build",
-					"isDefault": true
-				}
-			},
-CODEWORKSPACE
+##
+## AgentsTools.Make.VSCodeTasksFragment.include -- the `.code-workspace` "tasks"
+## array entry contributed by myx.distro-agents. Sourced by myx.distro-source's
+## SourceTools.Make.BuildCodeWorkspaceData.include from inside that array, so the
+## entry carries its own trailing comma.
+##
+## The entry is a REAL FILE in sh-lib/vscode-fragments/, at zero indentation, and
+## is copied rather than carried here. Its one substitution is the console path,
+## expanded by the shell itself through AgentsBodyFile.include, which also adds
+## the three tabs this entry sits at in the generated file. Emitted whole or not
+## at all, because half an entry reads as a valid one.
+##
+
+{
+	local fragmentLibDir="${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
+	local agentsConsolePath="$MMDAPP/DistroAgentsConsole.sh"
+
+	if [ ! -f "$fragmentLibDir/AgentsBodyFile.include" ] ; then
+		echo "⛔ ERROR: AgentsTools.Make.VSCodeTasksFragment: the body-file mechanism is missing from the package: $fragmentLibDir/AgentsBodyFile.include -- no tasks entry was emitted" >&2
+		return 1
+	fi
+	. "$fragmentLibDir/AgentsBodyFile.include"
+
+	AgentsBodyFileEmit \
+		"$fragmentLibDir/vscode-fragments/vscode-tasks.agents-console.json" \
+		"$( printf '\t\t\t' )" \
+		agentsConsolePath \
+	|| return 1
+}

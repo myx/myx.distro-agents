@@ -137,49 +137,6 @@ AgentsToolsInstallReportIcon(){
 	esac
 }
 
-## The lines a generated deny hook echoes for one client tool policy, taken
-## from the single policy source instead of written a second time here: $1 is
-## the subject that picks the record, and that record's decision and redirect
-## are the verbatim values the installed hook returns. $2 is the indent, which
-## is the caller's because one hook echoes at the top level of its own script
-## and the other from inside a guard. A subject no policy states is refused
-## rather than written as an empty decision. Needs
-## AgentsTools.ClientToolPolicy.include sourced by the caller.
-AgentsToolsInstallClientToolPolicyHookEcho(){
-	local policyWantSubject="$1" policyIndent="$2"
-	local policyRecord policyRest policySubject policyDecision policyRedirect
-	local policyFound=""
-	## Whole lines, split by expansion: a tab is an IFS whitespace character,
-	## so `IFS=$'\t' read` folds the empty reason field away and hands the
-	## redirect back as the reason -- measured on bash 3.2, not assumed.
-	while IFS= read -r policyRecord ; do
-		policySubject="${policyRecord%%$'\t'*}"
-		[ "$policySubject" = "$policyWantSubject" ] || continue
-		policyRest="${policyRecord#*$'\t'}"
-		policyDecision="${policyRest%%$'\t'*}"
-		policyRest="${policyRest#*$'\t'}"
-		policyRedirect="${policyRest#*$'\t'}"
-		policyFound="$policySubject"
-		break
-	done <<< "$( AgentsToolsClientToolPolicy )"
-	if [ -z "$policyFound" ] ; then
-		echo "⛔ ERROR: AgentsToolsInstallClientToolPolicyHookEcho: no client tool policy is stated for subject '$policyWantSubject', so the hook that would carry it cannot be written" >&2
-		return 1
-	fi
-	## Both values land inside a JSON string, so the two characters that can
-	## end one early are escaped here. A tab or a newline cannot arrive: the
-	## record format refuses both where the record is produced.
-	policyDecision="${policyDecision//\\/\\\\}" ; policyDecision="${policyDecision//\"/\\\"}"
-	policyRedirect="${policyRedirect//\\/\\\\}" ; policyRedirect="${policyRedirect//\"/\\\"}"
-	printf "%secho '{\n" "$policyIndent"
-	printf '%s\t"hookSpecificOutput": {\n' "$policyIndent"
-	printf '%s\t\t"hookEventName": "PreToolUse",\n' "$policyIndent"
-	printf '%s\t\t"permissionDecision": "%s",\n' "$policyIndent" "$policyDecision"
-	printf '%s\t\t"permissionDecisionReason": "%s"\n' "$policyIndent" "$policyRedirect"
-	printf '%s\t}\n' "$policyIndent"
-	printf "%s}'\n" "$policyIndent"
-}
-
 case "$1" in
 
 	--install-skillset-symlinks)
@@ -1216,76 +1173,57 @@ case "$1" in
 		## no value it holds is written down a second time in this file.
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientToolPolicy.include"
 
-		local readHookFile="$hooksDir/deny-memory-md-read.sh"
-		local readHookTmp="$readHookFile.tmp.$$"
-		## A subshell, not a group: the generator's own failure has to end the
-		## script body without a line of it missing, and an `exit` in a group
-		## here would end the process that sourced this file.
-		(
-		cat <<'HOOKEOF'
-#!/bin/bash
-# Denies Read on the memory-system's MEMORY.md index file, with a reason,
-# since the plain permissions.deny array cannot carry a custom denial
-# message. Sibling to protect-memory-md.sh (Edit/Write) -- kept as its own
-# file rather than merged into it, so that already-verified script is never
-# touched by an unrelated change.
-# Builtins only, nothing read from PATH: an absent jq or cat left the path
-# empty, matched nothing and exited 0, which Claude Code reads as allow --
-# so the guard silently stopped guarding on any host without them.
-IFS= read -r -d '' hookInput
+		## Each hook is ONE REAL SCRIPT in sh-lib/client-hooks/, INSTALLED BY COPYING.
+		## Nothing is generated, substituted or templated: what the hook refuses and
+		## what it answers with is written out in that script, so a person opening it
+		## reads the policy rather than a `${...}` standing in for it.
+		## Two scripts, because there are two kinds. The reroute hook is unconditional
+		## and payload-blind, one script for every rerouted tool, told which tool it is
+		## deciding by an argument on its own PreToolUse command line. The memory-MD
+		## Read guard is conditional and reads the payload, so it stays separate.
+		## A missing source is a hard refusal: a hook that is absent, or present and
+		## emitting no decision, reads as ALLOW to a *-native client.
+		local hookSrcDir="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client-hooks"
+		local hookRerouteScript hookInstallName hookSrcFile hookDstFile hookDstTmp
+		hookRerouteScript="$( AgentsToolsClientToolPolicyRerouteHookPath )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the client tool policy does not name the reroute hook script, so no hook was written" >&2
+			set +e ; return 1
+		}
+		hookRerouteScript="${hookRerouteScript##*/}"
 
-# The closing quote anchors the end of the JSON string value, so a path that
-# merely starts with it (MEMORY.md.bak) is not matched.
-if [[ "$hookInput" == *'/.claude/projects/'*'/memory/MEMORY.md"'* ]]; then
-HOOKEOF
-		AgentsToolsInstallClientToolPolicyHookEcho "Read" $'\t' || exit 1
-		cat <<'HOOKEOF'
-	exit 0
-fi
+		for hookInstallName in "$hookRerouteScript" "deny-memory-md-read.sh" ; do
+			hookSrcFile="$hookSrcDir/$hookInstallName"
+			hookDstFile="$hooksDir/$hookInstallName"
+			hookDstTmp="$hookDstFile.tmp.$$"
+			if [ ! -s "$hookSrcFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the hook script is missing or empty in this package: $hookSrcFile -- refusing rather than installing a hook that emits no decision, which a client reads as allow" >&2
+				hooksFailed=1 ; continue
+			fi
+			if ! cp -- "$hookSrcFile" "$hookDstTmp" || ! chmod 0755 "$hookDstTmp" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not write $hookDstFile" >&2
+				rm -f "$hookDstTmp"
+				hooksFailed=1 ; continue
+			fi
+			if cmp -s "$hookDstTmp" "$hookDstFile" 2>/dev/null ; then
+				rm -f "$hookDstTmp"
+			elif ! mv -f "$hookDstTmp" "$hookDstFile" ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $hookDstFile" >&2
+				rm -f "$hookDstTmp"
+				hooksFailed=1
+			fi
+		done
 
-exit 0
-HOOKEOF
-		) > "$readHookTmp"
-		if [ "$?" != "0" ] || ! chmod 0755 "$readHookTmp" ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not write $readHookFile" >&2
-			rm -f "$readHookTmp"
-			hooksFailed=1
-		elif cmp -s "$readHookTmp" "$readHookFile" 2>/dev/null ; then
-			rm -f "$readHookTmp"
-		elif ! mv -f "$readHookTmp" "$readHookFile" ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $readHookFile" >&2
-			rm -f "$readHookTmp"
-			hooksFailed=1
-		fi
-
-		local bashHookFile="$hooksDir/deny-bash-tool.sh"
-		local bashHookTmp="$bashHookFile.tmp.$$"
-		## Same subshell reason as the read hook above.
-		(
-		cat <<'HOOKEOF'
-#!/bin/bash
-# Denies all Bash tool usage wholesale -- git, rm, mv, python3, every command
-# -- with a reason, since the plain permissions.deny array cannot carry a
-# custom denial message. Workspace-wide: no file-path scoping, every Bash
-# call is denied regardless of what it would run.
-cat >/dev/null
-HOOKEOF
-		AgentsToolsInstallClientToolPolicyHookEcho "Bash" "" || exit 1
-		cat <<'HOOKEOF'
-exit 0
-HOOKEOF
-		) > "$bashHookTmp"
-		if [ "$?" != "0" ] || ! chmod 0755 "$bashHookTmp" ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not write $bashHookFile" >&2
-			rm -f "$bashHookTmp"
-			hooksFailed=1
-		elif cmp -s "$bashHookTmp" "$bashHookFile" 2>/dev/null ; then
-			rm -f "$bashHookTmp"
-		elif ! mv -f "$bashHookTmp" "$bashHookFile" ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not install $bashHookFile" >&2
-			rm -f "$bashHookTmp"
-			hooksFailed=1
-		fi
+		## The generated hooks of earlier installs. Each was one tool's own script and
+		## its whole content is now a case in the reroute hook, so leaving them behind
+		## keeps a second, stale copy of the policy in the workspace.
+		local hookRetired
+		for hookRetired in "deny-bash-tool.sh" "deny-ask-user-question-tool.sh" ; do
+			[ -f "$hooksDir/$hookRetired" ] || continue
+			rm -f "$hooksDir/$hookRetired" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not remove the retired hook $hooksDir/$hookRetired" >&2
+				hooksFailed=1
+			}
+		done
 
 		## Each namespace folder the generated `.code-workspace` lists is a project
 		## root of its own, and an editor session takes the FIRST folder as its
@@ -1371,6 +1309,17 @@ HOOKEOF
 			END { printf "]"; }
 		' )"
 
+		## Resolved in THIS shell, not the subshell below, so a policy that cannot
+		## state its reroute set stops the op instead of writing a settings file with
+		## the reroute entries quietly missing.
+		local hooksRerouteScriptPath hooksRerouteToolNames
+		hooksRerouteScriptPath="$( AgentsToolsClientToolPolicyRerouteHookPath )" || hooksRerouteScriptPath=""
+		hooksRerouteToolNames="$( AgentsToolsClientToolPolicyRerouteToolNames )" || hooksRerouteToolNames=""
+		if [ -z "$hooksRerouteScriptPath" ] || [ -z "$hooksRerouteToolNames" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the client tool policy could not state which tools are rerouted, so $settingsFile is left untouched -- a missing reroute entry reads as allow" >&2
+			set +e ; return 1
+		fi
+
 		## The hooks description is the merge .awk's own MYX_WSRESTRICT_HOOKS_FILE
 		## input and has to be a real path. It lives inside this subshell, so its
 		## trap is the subshell's own and can never disarm the caller's, and it is
@@ -1383,9 +1332,21 @@ HOOKEOF
 				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: cannot create $MMDAPP/.local/temp" >&2
 				exit 1
 			}
+			## One entry per rerouted tool, every one running the same script and
+			## told which tool it is deciding by a trailing argument. The command is
+			## a shell command line -- it already depends on $CLAUDE_PROJECT_DIR
+			## being expanded and its quotes removed -- so the name arrives as $1.
+			## The dedupe key carries the tool too, so the verifier at the end of
+			## this op asserts each entry rather than just the shared script.
 			{
 				printf '%s\t%s\n' ".claude/hooks/deny-memory-md-read.sh" '{"matcher": "Read", "hooks": [{"type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/deny-memory-md-read.sh"}]}'
-				printf '%s\t%s\n' ".claude/hooks/deny-bash-tool.sh" '{"matcher": "Bash", "hooks": [{"type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/deny-bash-tool.sh"}]}'
+				while IFS= read -r hooksRerouteTool ; do
+					[ -n "$hooksRerouteTool" ] || continue
+					printf '%s %s\t{"matcher": "%s", "hooks": [{"type": "command", "command": "\\"$CLAUDE_PROJECT_DIR\\"/%s %s"}]}\n' \
+						"$hooksRerouteScriptPath" "$hooksRerouteTool" \
+						"$hooksRerouteTool" \
+						"$hooksRerouteScriptPath" "$hooksRerouteTool"
+				done <<< "$hooksRerouteToolNames"
 			} > "$hooksDescFile" || exit 1
 			MYX_WSRESTRICT_DENY_ADD_JSON="$denyAddJson" \
 				MYX_WSRESTRICT_HOOKS_FILE="$hooksDescFile" \

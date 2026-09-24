@@ -159,7 +159,18 @@ case "$1" in
 			--no-board-related \
 			"${advanceInboxAlso[@]+"${advanceInboxAlso[@]}"}" \
 			--context --magic-advance-input-scan
-		return $?
+		local advanceScanRc=$?
+		## All three registries ride in this scan's output because the pass that reads
+		## the board also needs to know who can be spawned, what is actually running
+		## and what is waiting on an answer. The rescan is what keeps each one a cache
+		## rather than a record anyone maintains by hand. The instruction to poll these
+		## and compare them with the board's own running items lives in
+		## magic-coordinator.advance.routine, not here -- this emits the facts that
+		## instruction is carried out against.
+		printf '\n'
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+		AgentsToolsRegistryRenderAll || :
+		return $advanceScanRc
 	;;
 
 	--magic-advance-to-running)

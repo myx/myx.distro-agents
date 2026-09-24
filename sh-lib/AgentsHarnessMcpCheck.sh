@@ -22,24 +22,16 @@ rigTmp="$( mktemp -d -t AgentsHarnessMcpCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 mkdir -p "$rigTmp/bin"
-cat > "$rigTmp/bin/curl" <<'RIGFAKECURL'
-#!/usr/bin/env bash
-## Records this round's request body and replays this round's canned stream. It opens
-## no socket, and being first on PATH is the whole of this check's offline guarantee.
-set -u
-rigRound=$(( $( cat "$RIG_SCENARIO/round" ) + 1 ))
-printf '%s' "$rigRound" > "$RIG_SCENARIO/round"
-cat > /dev/null
-while [ $# -gt 0 ] ; do
-	case "$1" in
-		-d) printf '%s' "${2:-}" > "$RIG_SCENARIO/req.$rigRound" ; shift 2 ;;
-		*)  shift ;;
-	esac
-done
-[ -f "$RIG_SCENARIO/res.$rigRound" ] || { printf 'rig: no canned stream for round %s\n' "$rigRound" >&2 ; exit 1 ; }
-cat "$RIG_SCENARIO/res.$rigRound"
-RIGFAKECURL
-chmod +x "$rigTmp/bin/curl"
+## The fake binaries this rig puts on PATH are REAL FILES under sh-lib/check-fixtures
+## and are copied, never carried here in a heredoc: a delimiter lost inside a body
+## that is itself shell takes the rest of this check with it, and a check that stops
+## checking still prints its PASS lines. A missing fixture refuses instead.
+rigFixtures="$rigHere/check-fixtures"
+rigInstallFixture(){
+	cp "$rigFixtures/$1" "$2" || rigRefuse "a fixture is missing from the package: $rigFixtures/$1"
+	chmod +x "$2"
+}
+rigInstallFixture harness-mcp-check.curl.sh "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"
 
@@ -47,46 +39,14 @@ PATH="$rigTmp/bin:$PATH"
 ## line-per-object stdio transport over the same three requests. It records what it was
 ## asked for, so the rig can assert that enumeration happened ONCE for the whole run,
 ## across a summarise-and-restart, and that a refused call never reached it at all.
-cat > "$rigTmp/bin/rigmcp" <<'RIGFAKEMCP'
-#!/usr/bin/env bash
-set -u
-[ ! -f "$RIG_SCENARIO/mcp.dead" ] || exit 1
-while IFS= read -r rigLine ; do
-	case "$rigLine" in
-		*'"method":"initialize"'*)
-			printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{},"serverInfo":{"name":"rigmcp","version":"1"}}}'
-		;;
-		*'"method":"tools/list"'*)
-			printf 'list\n' >> "$RIG_SCENARIO/mcp.calls"
-			printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"ping","description":"RIG-DESC-MARKER","inputSchema":{"type":"object","properties":{"word":{"type":"string","description":"RIG-SCHEMA-MARKER"}},"required":["word"]}}]}}'
-			## This server dies after handing over its tools, which is what makes the
-			## mid-run death a real one rather than a name that never resolved.
-			[ -z "${RIG_MCP_DIE_AFTER_LIST:-}" ] || : > "$RIG_SCENARIO/mcp.dead"
-		;;
-		*'"method":"tools/call"'*)
-			printf 'call\n' >> "$RIG_SCENARIO/mcp.calls"
-			rigWord="${rigLine##*\"word\":\"}"
-			rigWord="${rigWord%%\"*}"
-			printf '{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"RIG-MCPRESULT:%s"}]}}\n' "$rigWord"
-		;;
-	esac
-done
-RIGFAKEMCP
-chmod +x "$rigTmp/bin/rigmcp"
+rigInstallFixture harness-mcp-check.mcp-server.sh "$rigTmp/bin/rigmcp"
 
 ## Denies exactly when the payload carries the rig's argument marker, which reaches a
 ## hook only through `tool_input`. Silence and exit 0 is the allow every hook in this
 ## estate uses, so an emptied `tool_input` makes this same hook permit the call.
-cat > "$rigTmp/bin/rigdeny" <<'RIGDENYHOOK'
-#!/usr/bin/env bash
-set -u
-case "$( cat )" in
-	*RIG-ARG-MARKER*)
-		printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"RIG-HOOK-DENIED"}}'
-	;;
-esac
-RIGDENYHOOK
-chmod +x "$rigTmp/bin/rigdeny"
+## Shared with AgentsHarnessCopilotLegCheck.sh, which asserts the same thing about the
+## same marker -- one fixture, because the two bodies were byte-identical copies.
+rigInstallFixture pre-tool-use-deny-on-marker.sh "$rigTmp/bin/rigdeny"
 
 ## A provider stub's job, done here instead: the core refuses to start without these.
 ## The host is a reserved .invalid name that can never resolve and the token is a

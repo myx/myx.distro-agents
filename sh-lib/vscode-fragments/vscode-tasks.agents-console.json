@@ -1,0 +1,9 @@
+{
+	"label": "🤖 Start Agents Console...",
+	"type": "shell",
+	"command": "bash '${agentsConsolePath}'",
+	"group": {
+		"kind": "build",
+		"isDefault": true
+	}
+},

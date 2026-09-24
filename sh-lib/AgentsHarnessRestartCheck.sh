@@ -22,23 +22,13 @@ rigTmp="$( mktemp -d -t AgentsHarnessRestartCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 mkdir -p "$rigTmp/bin"
-cat > "$rigTmp/bin/curl" <<'RIGFAKECURL'
-#!/usr/bin/env bash
-## Records this round's request body and replays this round's canned stream. It opens
-## no socket, and being first on PATH is the whole of this check's offline guarantee.
-set -u
-rigRound=$(( $( cat "$RIG_SCENARIO/round" ) + 1 ))
-printf '%s' "$rigRound" > "$RIG_SCENARIO/round"
-cat > "$RIG_SCENARIO/stdin.$rigRound"
-while [ $# -gt 0 ] ; do
-	case "$1" in
-		-d) printf '%s' "${2:-}" > "$RIG_SCENARIO/req.$rigRound" ; shift 2 ;;
-		*)  shift ;;
-	esac
-done
-[ -f "$RIG_SCENARIO/res.$rigRound" ] || { printf 'rig: no canned stream for round %s\n' "$rigRound" >&2 ; exit 1 ; }
-cat "$RIG_SCENARIO/res.$rigRound"
-RIGFAKECURL
+## The fake binaries this rig puts on PATH are REAL FILES under sh-lib/check-fixtures
+## and are copied, never carried here in a heredoc: a delimiter lost inside a body
+## that is itself shell takes the rest of this check with it, and a check that stops
+## checking still prints its PASS lines. A missing fixture refuses instead.
+rigFixtures="$rigHere/check-fixtures"
+cp "$rigFixtures/harness-restart-check.curl.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-restart-check.curl.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"

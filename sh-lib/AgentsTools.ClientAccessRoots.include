@@ -89,13 +89,34 @@ AgentsToolsClientAccessReferenceRoots(){
 		printf '%s\n' "$workspace/.local/temp/member/$memberName" "$workspace/.local/temp/task/$memberName"
 		return 0
 	fi
-	[ -z "${MDLT_ORIGIN:-}" ] || printf '%s\n' "$MDLT_ORIGIN/myx/myx.distro-agents/skillset"
-	printf '%s\n' "$HOME/.claude/skills"
-	[ -s "$workspace/.local/.agents/magic-team.agent.env" ] || return 0
-	local configuredRoots
-	configuredRoots="$( MMDAPP="$workspace" ; DistroAgentsTools --agents-config-option magic-team --select CLIENT_ACCESS_ROOTS_EXTRA || : )"
-	[ -n "$configuredRoots" ] || return 0
-	printf '%s\n' "$configuredRoots" | LC_ALL=C awk -F: '{ for ( rootIndex = 1 ; rootIndex <= NF ; rootIndex++ ) if ( $rootIndex ~ /^\// ) print $rootIndex ; }'
+	## Collected first and printed at the end, in the same order as before: this is
+	## the one mechanism deciding what a spawned agent may read, so a config that
+	## cannot be read has to yield NOTHING rather than a short list the caller
+	## cannot tell from a complete one.
+	local readRoots=""
+	[ -z "${MDLT_ORIGIN:-}" ] || readRoots="$MDLT_ORIGIN/myx/myx.distro-agents/skillset"$'\n'
+	readRoots="$readRoots$HOME/.claude/skills"
+	if [ -s "$workspace/.local/.agents/magic-team.agent.env" ] ; then
+		## The config store is reached through this NAME, and a harness that calls
+		## the tool by path has no such name -- so `|| :` here reported the defaults
+		## as the whole answer, at rc 0, whenever it was absent. Refused instead.
+		if ! type DistroAgentsTools >/dev/null 2>&1 ; then
+			echo "⛔ ERROR: AgentsToolsClientAccessReferenceRoots: DistroAgentsTools is not callable by name in this shell, so CLIENT_ACCESS_ROOTS_EXTRA in $workspace/.local/.agents/magic-team.agent.env cannot be read. Refusing: the defaults alone would be indistinguishable from the full set. Define DistroAgentsTools() before sourcing this include, as AgentsConsoleShellScript.template.sh does." >&2
+			return 1
+		fi
+		local configuredRoots configuredRc=0
+		configuredRoots="$( MMDAPP="$workspace" ; DistroAgentsTools --agents-config-option magic-team --select CLIENT_ACCESS_ROOTS_EXTRA )" || configuredRc=$?
+		if [ "$configuredRc" -ne 0 ] ; then
+			echo "⛔ ERROR: AgentsToolsClientAccessReferenceRoots: reading CLIENT_ACCESS_ROOTS_EXTRA from $workspace/.local/.agents/magic-team.agent.env failed (--agents-config-option returned $configuredRc). Refusing rather than reporting the default roots as the whole set." >&2
+			return 1
+		fi
+		if [ -n "$configuredRoots" ] ; then
+			configuredRoots="$( printf '%s\n' "$configuredRoots" | LC_ALL=C awk -F: '{ for ( rootIndex = 1 ; rootIndex <= NF ; rootIndex++ ) if ( $rootIndex ~ /^\// ) print $rootIndex ; }' )"
+			[ -z "$configuredRoots" ] || readRoots="$readRoots"$'\n'"$configuredRoots"
+		fi
+	fi
+	printf '%s\n' "$readRoots"
+	return 0
 }
 
 ## Declared allow-write grants, each widened to the narrowest directory that

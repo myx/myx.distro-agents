@@ -1794,9 +1794,44 @@ AgentsHarnessToolArtifact(){
 ## nobody answered. Both call sites capture rather than stream, which is safe because
 ## each of those functions already redirects its own child to a file: nothing the send
 ## or the wait forks holds this capture pipe open.
+## The pending-reply store is the tooling's, reached the way this harness reaches all
+## tooling: through an intern op, never by writing that store's files from here. One
+## place records a posted question for every path that can ask one -- this harness's own
+## AskUserQuestion, its stub in the myx.distro MCP, and a claude-native AskUserQuestion
+## the hook reroutes into it -- because they all arrive at this function.
+##
+## Neither helper can fail this tool. A question that was genuinely asked must be
+## reported as asked even where recording it did not work, so a failure here degrades
+## to no record and a warning, never to a wrong outcome line.
+AgentsHarnessPendingReplyOpen(){ ## conversation id, question body
+	local openTools="${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" openId=""
+	[ -x "$openTools" ] || return 0
+	[ -n "$harnessAgent" ] || return 0
+	openId="$( printf '%s' "$2" | "$openTools" --intern-op-pending-reply-open "$harnessAgent" \
+		--to "$1" \
+		${MDAT_SPAWN_SESSION_ID:+--session-id "$MDAT_SPAWN_SESSION_ID"} \
+		--context AskUserQuestion 2>"$harnessScratch/pending-open.err" )" || openId=""
+	if [ -z "$openId" ] ; then
+		printf 'WARNING: AskUserQuestion: the question was posted but NOT recorded as a pending reply, so nothing will resume or re-ask it later. What the operation reported follows:\n' >&2
+		cat "$harnessScratch/pending-open.err" >&2 2>/dev/null || :
+		return 0
+	fi
+	printf '%s\n' "$openId"
+}
+
+AgentsHarnessPendingReplyClose(){ ## pending reply id, status
+	local closeTools="${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh"
+	[ -n "$1" ] || return 0
+	[ -x "$closeTools" ] || return 0
+	"$closeTools" --intern-op-pending-reply-close "$1" --status "$2" --context AskUserQuestion >/dev/null 2>&1 || {
+		printf 'WARNING: AskUserQuestion: pending reply %s could not be closed as %s, so it still reads as waiting.\n' "$1" "$2" >&2
+	}
+	return 0
+}
+
 AgentsHarnessToolAskUserQuestion(){
 	local toolTo="$1" toolQuestion="$2" toolOptions="$3" toolContext="$4" toolWait="$5" toolTimeout="$6" toolSource="$7" toolAsBot="$8"
-	local askBody askSent askSince askWaitOut askFirst askOutcome
+	local askBody askSent askSince askWaitOut askFirst askOutcome askPendingId=""
 	if [ -z "$toolTo" ] ; then
 		printf 'ERROR: AskUserQuestion: to is required and was empty, so there is nobody to ask. Nothing was sent.\n' ; return 0
 	fi
@@ -1819,9 +1854,16 @@ AgentsHarnessToolAskUserQuestion(){
 			return 0
 		;;
 	esac
+	## The question is posted, so from here it is a pending reply and is recorded as
+	## one. Recorded only now, never before the send: a question that was never posted
+	## is not a question nobody answered, and this tool's whole contract rests on those
+	## two never reading alike. The record is what lets a reply resume the work, or an
+	## unanswered question be re-asked, after this session is gone -- so it is written
+	## whether or not anybody waits here.
+	askPendingId="$( AgentsHarnessPendingReplyOpen "$toolTo" "$askBody" )"
 	case "$toolWait" in
 		false|0|no)
-			printf 'ASK-RESULT: POSTED\nThe question is posted to %s and no wait was asked for, so no answer was collected here. It stands and stays answerable, and can be picked up later. What the send reported follows:\n%s\n' "$toolTo" "$askSent"
+			printf 'ASK-RESULT: POSTED\nThe question is posted to %s and no wait was asked for, so no answer was collected here. It stands and stays answerable, and can be picked up later%s. What the send reported follows:\n%s\n' "$toolTo" "${askPendingId:+ -- recorded as pending reply $askPendingId}" "$askSent"
 			return 0
 		;;
 	esac
@@ -1846,7 +1888,16 @@ AgentsHarnessToolAskUserQuestion(){
 		*ERROR*)    askOutcome="ERROR" ;;
 		*)          askOutcome="UNCLASSIFIED" ;;
 	esac
-	printf 'ASK-RESULT: %s\nThe question was posted to %s. What the wait returned follows verbatim.\n%s\n' "$askOutcome" "$toolTo" "$askWaitOut"
+	## Two of the four close the record and two deliberately leave it open. A received
+	## answer is done with; a timeout is a question still standing, so it closes as
+	## timed-out and stays in the store for the re-ask. An ERROR or an UNCLASSIFIED
+	## wait means nothing whatever is known about whether anybody answered, and
+	## recording either as unanswered would assert exactly what was not learned.
+	case "$askOutcome" in
+		RECEIVED) AgentsHarnessPendingReplyClose "$askPendingId" reply-received ;;
+		TIMEOUT)  AgentsHarnessPendingReplyClose "$askPendingId" reply-timeout ;;
+	esac
+	printf 'ASK-RESULT: %s\nThe question was posted to %s%s. What the wait returned follows verbatim.\n%s\n' "$askOutcome" "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId}" "$askWaitOut"
 }
 
 ## The three MCP resource tools reach the same servers this run already enumerated,

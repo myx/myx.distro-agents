@@ -37,33 +37,14 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 ## else -- a Slack read above all -- is recorded and refused. The log is what turns
 ## "offline" from an intention into an assertion: the scenarios below check it is
 ## empty, and the closing one checks nothing in it ever named Slack.
+## The fake binaries this rig puts on PATH are REAL FILES under sh-lib/check-fixtures
+## and are copied, never carried here in a heredoc: a delimiter lost inside a body
+## that is itself shell takes the rest of this check with it, and a check that stops
+## checking still prints its PASS lines. A missing fixture refuses instead.
 mkdir -p "$rigTmp/bin"
-cat > "$rigTmp/bin/curl" <<'RIGFAKECURL'
-#!/usr/bin/env bash
-set -u
-## The DESTINATION, one line per call, never the argv: a request body carries the
-## word `slack` in the Wait tool's own description, so a log of argv would report a
-## Slack request on every model round and the offline assertion would be noise.
-rigUrl="no-url"
-for rigArg in "$@" ; do
-	case "$rigArg" in
-		http://*|https://*) rigUrl="$rigArg" ;;
-	esac
-done
-printf '%s\n' "$rigUrl" >> "$RIG_CURL_LOG"
-[ -n "${RIG_SCENARIO:-}" ] || exit 1
-rigRound=$(( $( cat "$RIG_SCENARIO/round" ) + 1 ))
-printf '%s' "$rigRound" > "$RIG_SCENARIO/round"
-cat > /dev/null
-while [ $# -gt 0 ] ; do
-	case "$1" in
-		-d) printf '%s' "${2:-}" > "$RIG_SCENARIO/req.$rigRound" ; shift 2 ;;
-		*)  shift ;;
-	esac
-done
-[ -f "$RIG_SCENARIO/res.$rigRound" ] || { printf 'rig: no canned stream for round %s\n' "$rigRound" >&2 ; exit 1 ; }
-cat "$RIG_SCENARIO/res.$rigRound"
-RIGFAKECURL
+rigFixtures="$rigHere/check-fixtures"
+cp "$rigFixtures/harness-wait-check.curl.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-wait-check.curl.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 export PATH

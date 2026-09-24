@@ -240,6 +240,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--intern-op-pending-reply-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPendingReply.include"
+			return $?
+		;;
+
 		--intern-op-remote-bootstrap-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpRemoteBootstrap.include"
 			return $?

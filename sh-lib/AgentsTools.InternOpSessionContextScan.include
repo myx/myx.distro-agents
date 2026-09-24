@@ -405,9 +405,7 @@ case "$1" in
 				[ -n "$boardFile" ] || continue
 				matchedFiles+=( "$boardFile" )
 				matchedStates+=( "$boardState" )
-			done <<- BOARDEOF
-			$boardSorted
-			BOARDEOF
+			done <<< "$boardSorted"
 		fi
 
 		local sessionContextEngaged="false"
@@ -626,9 +624,7 @@ case "$1" in
 					[ "$rosterHandle" != "-" ] && [ -n "$rosterHandle" ] || rosterHandle="$rosterParty"
 					slackSourceSpecs+=( "$rosterIdentity|$rosterConv|$rosterKind:$rosterHandle@${rosterPersona:-$rosterAuth}|$rosterAuth-$rosterConv" )
 					rosterDmCount=$(( rosterDmCount + 1 ))
-				done <<- EOF
-				$dmRosterOutput
-				EOF
+				done <<< "$dmRosterOutput"
 				export COMMS_USER_HANDLES
 
 				## ALL MENTIONS FOR EVERY USER_TOKEN PERSONA -- the channel-side half of
@@ -691,9 +687,7 @@ case "$1" in
 									[ -n "$mentionChannel" ] && [ -n "$mentionTs" ] || continue
 									threadTargets+=( "$mentionChannel:$mentionTs" )
 									mentionCount=$(( mentionCount + 1 ))
-								done <<- MENTIONEOF
-								$mentionHits
-								MENTIONEOF
+								done <<< "$mentionHits"
 								## ONE page is read on purpose -- the query carries `in:`
 								## and `after:`, so exceeding 100 matches should be rare.
 								## Slack's own `messages.paging.pages` says how many pages
@@ -931,9 +925,7 @@ case "$1" in
 					while IFS= read -r dt ; do
 						[ -n "$dt" ] || continue
 						threadTargets+=( "$dt" )
-					done <<- EOF
-					$discovered
-					EOF
+					done <<< "$discovered"
 				done
 
 				if [ "$commsMemberScopeOnly" != "true" ] && [ ${#matchedFiles[@]} -gt 0 ] ; then
@@ -958,9 +950,7 @@ case "$1" in
 					while IFS= read -r dt ; do
 						[ -n "$dt" ] || continue
 						threadTargets+=( "$dt" )
-					done <<- EOF
-					$boardThreads
-					EOF
+					done <<< "$boardThreads"
 				fi
 
 				local threadFetchWorkDir
@@ -1038,9 +1028,7 @@ case "$1" in
 						sleep 0.2
 					done
 					AgentsSessionContextThreadFetchOne "$actingMember" "$dt" "$cutoffEpoch" "$sessionContextThreadContextBefore" "$commsItemsAwk" "$threadTrimAwkFile" "$threadFetchWorkDir" "$commsMemberScopeOnly" "$dmIdentityMapFile" &
-				done <<- EOF
-				$uniqueThreads
-				EOF
+				done <<< "$uniqueThreads"
 				wait
 
 				## Merge after `wait`, same sorted order as before -- no
@@ -1063,9 +1051,7 @@ case "$1" in
 							imAnySourceFailed="true"
 						;;
 					esac
-				done <<- EOF
-				$uniqueThreads
-				EOF
+				done <<< "$uniqueThreads"
 
 				rm -rf "$threadFetchWorkDir"
 				rm -f "$dmIdentityMapFile"
@@ -1146,9 +1132,7 @@ case "$1" in
 							continue
 						fi
 						emailBlocks="$emailBlocks$emailBlock"$'\n'$'\n'
-					done <<- EOF
-					$emailUids
-					EOF
+					done <<< "$emailUids"
 					rm -f "$emailWorkFile"
 				fi
 			fi
