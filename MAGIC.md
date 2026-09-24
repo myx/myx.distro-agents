@@ -137,6 +137,29 @@ Team-owned notes for the magic-* team.
 - Fails closed: any error exits 1 with a one-word reason on stderr and zero bytes on stdout, so a failed run cannot be installed.
 - It is the writer for every entry this package registers, `myx.common` and `myx.distro` alike — the key set is data it writes, never a hardcoded single key.
 
+## Generated content is a zero-indentation body file, or a `printf`
+
+- **Two shapes, and there is no third.** Content a script emits into a generated artefact either lives in
+  its own file, beginning and ending at ZERO indentation, with whatever indentation the artefact needs
+  added by the emitting caller — or it is small enough that one `printf` says the same thing, and it is
+  that `printf`. A heredoc is neither shape.
+- **Zero indentation is what makes a body file safe, not being a separate file.** A body carrying leading
+  whitespace of its own is a rendition of the artefact rather than the artefact, and the indentation it
+  happens to sit at is the caller's to decide at each use site.
+- **A body emitted as a stack of `printf` calls, one per line, is the same violation in the other shape.**
+  The test is whether one `printf` says it. Where it does, that single `printf` is what the rule asks for;
+  where it does not, the content belongs in a file.
+- **A body that is `eval`-expanded is not the artefact.** Expansion forces every literal `$` in the file
+  to be written `\$`, so the file reads as an escaped rendition of what it produces, and a `#!/bin/bash`
+  at the top of it is a claim the file cannot keep. Where the artefact is a runnable script, it is a real
+  runnable script in the package, installed by copying, with nothing substituted into it.
+- **Where the only per-instance difference is a message, there is nothing to generate.** A template
+  emitting near-identical files around one varying string is machinery around a constant. Write the one
+  real file — concrete in its content, general in its mechanism — and install it by copying.
+- **A refusal message belongs in the file that says it.** Lifting the wording into a shared policy include
+  leaves the script's own source meaningless to whoever opens it to find out what it refuses. Which
+  subjects a policy covers, and what each one answers with, are two facts with one home each.
+
 ## Installing a generated config over its target
 
 - The writer emits, the caller installs: a temp created beside the target, then renamed over it. Same directory, so the rename is a same-filesystem `rename(2)` and therefore atomic. That much is invariant across the family; nothing below it is.
@@ -312,10 +335,10 @@ Team-owned notes for the magic-* team.
   question is asked.** THE TEST WHEN A NEW TOOL LANDS: a tool that takes a command, or that hands back a
   handle only its own process can resolve, belongs on that list.
 - **`Bash` is unserved because arbitrary command execution is `myx.common`'s own MCP method**, and because
-  the `*-native` leg denies `Bash` wholesale through `.claude/hooks/deny-bash-tool.sh` and reroutes the
-  caller to this server's own `execute`. That hook denies whatever its matcher names. **A tool taking a
-  `command` under a different name is therefore an unguarded second path around it**, which is what makes
-  this a containment boundary rather than a tidiness rule.
+  the `*-native` leg denies `Bash` wholesale through `.claude/hooks/deny-native-tool-reroute.sh`, under its
+  own `Bash` matcher, and reroutes the caller to this server's own `execute`. That hook denies whatever
+  its matcher names. **A tool taking a `command` under a different name is therefore an unguarded
+  second path around it**, which is what makes this a containment boundary rather than a tidiness rule.
 - **`Monitor` is unserved for a second, independent reason: it cannot work over this wire at all.** A
   `tools/call` runs one tool in a FRESH `--intern-tool` process, so the scratch directory holding a job's
   log and handle is created and removed inside the one call. Measured: a start returned `job-1`, no
@@ -974,14 +997,20 @@ Consequence for this package: the members installed at the workspace root cannot
 - `--install-skillset-symlinks` fans one member set into `.agents/skills`, `.github/skills` and `.claude/skills`, and the three are not equals: `.claude` is the primary.
 - Rules and hooks live under `.claude`. The other two carry the member set and nothing besides it.
 
-## Hooks are generated here and wired by the user
+## Hooks are real scripts here, installed by copying and wired by the user
 
 - **A hook binds every agent on the machine, not only team members.** Wiring one is therefore the user's own manual decision.
-- We generate hooks. We never register them. **An op that silently wires a hook is a defect**, whatever the hook does.
+- **Each hook is one real script under `sh-lib/client-hooks/`, installed by copying.** Nothing is generated, substituted or templated into it, so a person opening the installed file reads the policy itself rather than a `${...}` standing where the policy should be. We never register one behind the user's back: **an op that silently wires a hook is a defect**, whatever the hook does.
 - `--install-workspace-integrations` passes an empty hooks list, and `--install-workspace-restrictions` is not called. That is the settled state, not a gap to close.
 - **A deny hook keeps every external binary out of its decision path.** The binary's absence turns the decision into allow: empty stdout and exit 0 read as permitted, so a hook that shells out to a parser denies nothing on any machine lacking it. Decide from shell builtins alone, and fail closed on anything unparsed.
-- **The `PreToolUse` hooks this estate wires are ROUTERS, and the denial is the redirect.** Each one refuses with a reason naming where that work belongs instead: `Bash` wholesale, whatever the command would have run, saying to use the myx.distro MCP tooling; a `MEMORY.md` read, saying to read the workspace, repository and project `MAGIC.md`; a `MEMORY.md` edit, saying to call `magic-librarian`. Reading them as a security boundary is how a reader ends up hardening something that was never a wall — the `Bash` hook denies every command alike, discarding the payload without reading it, which is what a router does and what a boundary would not. **What they route is a claude/copilot-native session**, which has to be sent to the MCP tooling; this harness is not one and reaches that tooling directly, so the absence of a route here is not the absence of a guard.
-- **A tool nothing routes receives no routing, which is coverage the router does not yet have rather than a guard that failed.** `Skill` is currently such a tool, in both halves of the mechanism: no configured matcher names it, the matchers being `Read`, `Bash` and `Edit|Write`; and `AgentsHarnessHooksRefusal` shapes a `tool_input` per tool, so a tool with no arm of its own falls to `*)` and is handed its own parameter names — `Skill` presents `name`/`file`/`list` and no `file_path`, so a matcher naming it tomorrow and reading `.tool_input.file_path`, the shape these hooks use, would still find nothing to route on. Routing a newly added tool therefore takes both: a matcher naming it, and an arm emitting the field the routing reads. Whether `Skill` should be routed at all is a design question and is not settled here.
+- **Two kinds of hook, and folding them together breaks both.** A REROUTE is unconditional and payload-blind: it drains stdin without reading it, denies whatever arguments the tool was called with, and has no allow path at all. A CONDITIONAL guard reads the payload, matches one thing in it, and allows everything else. Payload parsing in a script with no business with payloads, and an allow path in a script whose whole point is that it never allows, are each the other kind leaking in.
+- **A reroute applies to `*-native` clients only; a conditional guard applies everywhere.** Inside our own universal harness the reroute destination is already what is running, so a route there would send a caller to itself. A guard's subject is unaffected by which client asked, so it binds our own harness too. One tool is legitimately matched by both, and the two entries are not duplicates.
+- **A conditional guard carries its own wording, and it is not a reroute message.** The memory-index Read guard answers with what to read instead — the workspace, repository and project `MAGIC.md` — which names a destination rather than a method, and would be wrong in a reroute's mouth.
+- **The `PreToolUse` hooks this estate wires are ROUTERS, and the denial is the redirect.** A reroute refuses with a reason naming the MCP method to use instead; a refusal naming none sends the caller nowhere and it retries the same call. Reading them as a security boundary is how a reader ends up hardening something that was never a wall — a reroute denies every invocation alike, discarding the payload without reading it, which is what a router does and what a boundary would not. **What they route is a claude/copilot-native session**, which has to be sent to the MCP tooling; this harness is not one and reaches that tooling directly, so the absence of a route here is not the absence of a guard.
+- **Which tools are rerouted is stated once, and the refusal wording lives where it is said.** `sh-lib/AgentsTools.ClientToolPolicy.include` is the single source of the set, the installed hook path and the keys each entry is recognised by; the reason each tool answers with is in the hook script itself. Two facts, one home each. A name in the set with no arm in the script is the two disagreeing, and the script's last arm denies loudly rather than falling through, because a hook emitting no decision reads as ALLOW.
+- **A tool nothing routes receives no routing, which is coverage the router does not yet have rather than a guard that failed.** `Skill` is currently such a tool, in both halves of the mechanism: no configured matcher names it — the matcher set is the reroute set the policy include states, plus the one the memory-index guard takes — and `AgentsHarnessHooksRefusal` shapes a `tool_input` per tool, so a tool with no arm of its own falls to `*)` and is handed its own parameter names. `Skill` presents `name`/`file`/`list` and no `file_path`, so a matcher naming it tomorrow and reading `.tool_input.file_path`, the shape these hooks use, would still find nothing to route on. Routing a newly added tool therefore takes both: a matcher naming it, and an arm emitting the field the routing reads. Whether `Skill` should be routed at all is a design question and is not settled here.
+- **Retiring a hook takes both halves: the installed FILE, and its `PreToolUse` ENTRY.** A test proving the file is gone proves nothing about the entry, and an entry invoking a file that is not there emits no decision, which reads as ALLOW. Only the file half is implemented: the settings merge is add-if-missing throughout with no removal path, and the verifier asserts that every named key is present and never that an unnamed one is absent. Removing an entry is therefore still a manual act.
+- **`AgentsToolsClientToolPolicyFormatVersion` has no reader in this tree and versions a record format that no longer exists.** The four-field subject-decision-reason-redirect record it names was removed when the wording moved into the hook script. It is left in place rather than deleted, because an unread thing is as often an unimplemented intent as it is residue: which of the two it is awaits the human-owner's word, and nothing acts on it until he gives one.
 
 ## `--install-skillset-symlinks`: what a failed discovery is, and what an empty one is
 
