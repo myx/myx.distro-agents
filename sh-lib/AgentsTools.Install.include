@@ -1861,7 +1861,11 @@ case "$1" in
 				fi
 			done
 
-			local distroServerScript="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			## The workspace's own installed location, never $MDLT_ORIGIN: this path is
+			## written into client config files that outlive the session, so it must not
+			## carry whichever origin the console happened to run from. Same form as the
+			## myx.common registration above and as every sibling's workspace entry point.
+			local distroServerScript="$MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 			local distroUpsert="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.awk"
 			if [ "$workspace" != "$MMDAPP" ] ; then
 				distroSkipped=" -- WITHOUT the myx.distro MCP server, which registers only when run from its own workspace, so $workspace has none"
