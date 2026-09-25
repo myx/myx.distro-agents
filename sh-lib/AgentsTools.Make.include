@@ -11,6 +11,17 @@ case "$1" in
 
 		DistroAgentsTools --make-console-command "$@" || { set +e ; return 1 ; }
 		DistroAgentsTools --install-workspace-integrations "$@" || { set +e ; return 1 ; }
+		## The restrictions -- the hooks that route a client's tool calls to this
+		## workspace's own myx.distro tooling -- are part of what an integrated
+		## workspace IS, so making the integrations installs them, every run and
+		## with nothing asked first: the op writes its own named hook set over
+		## whatever it finds, so reinstalling is how they stay current and there
+		## is no second state saying whether they are there.
+		## Given no "$@": what this op forwards is --quiet and --scope, which
+		## that op does not take, and the workspace it works on is the $MMDAPP
+		## default it resolves for itself -- the same one --make-console-command
+		## above writes its console into.
+		DistroAgentsTools --install-workspace-restrictions || { set +e ; return 1 ; }
 		return 0
 	;;
 	--make-console-command)

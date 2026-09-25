@@ -1693,11 +1693,14 @@ case "$1" in
 					setupRc=1
 				done
 
+				## Whether claude answered that it authenticates here. Read after the
+				## loop, by the declaration the two rendered blocks are built from.
+				local setupAuthSatisfied=""
 				while IFS= read -r setupRoot ; do
 					[ -n "$setupRoot" ] || continue
 					setupLabel="${setupRoot##*/}"
 					setupBlockers="" ; setupWillRun="" ; setupSetupSteps=""
-					setupNeedsApply="" ; setupApplyDefault=""
+					setupNeedsApply="" ; setupApplyDefault="" ; setupAuthSatisfied=""
 
 					if [ "$setupOperation" = "--check" ] || [ -n "$setupAllWorkspaces" ] ; then
 						echo ""
@@ -1896,6 +1899,10 @@ case "$1" in
 						*'"loggedIn": true'*)
 							[ "$setupOperation" != "--check" ] || echo "SPAWN_CLI_AUTHENTICATED: OK"
 							AgentsToolsOwnerSetupRow "Claude authentication" "authenticated"
+							## The credential question is answered here, by the only answer
+							## worth anything -- and it is answered whichever of the two did
+							## it, or an interactive login that stored neither.
+							setupAuthSatisfied="yes"
 						;;
 						*'"loggedIn": false'*)
 							[ "$setupOperation" != "--check" ] || {
@@ -2086,6 +2093,31 @@ case "$1" in
 
 					AgentsToolsOwnerSetupBlock1Verdict "$setupDomain"
 				done <<< "$setupTargets"
+
+				## Block 2 renders every option still declared, as one command, so a
+				## declaration naming both credentials writes a command asking for
+				## both -- and these two are alternatives, one of which is enough.
+				## Where the arm above got its answer from claude itself, neither is
+				## a value this reader is waiting to supply, so neither is rendered.
+				## Taken off what is RENDERED only, never off what --apply accepts:
+				## that call reads its own copy of the declaration, built before any
+				## of these checks run, so supplying either one by hand is unchanged.
+				## One workspace only -- --all-workspaces prints no command at all,
+				## and the answer above is the last workspace's.
+				if [ -n "$setupAuthSatisfied" ] && [ -z "$setupAllWorkspaces" ] ; then
+					local setupDeclareKept=() setupDeclareIdx=0
+					while [ "$setupDeclareIdx" -lt "${#setupDeclareArgs[@]}" ] ; do
+						case "${setupDeclareArgs[$setupDeclareIdx]}=${setupDeclareArgs[$(( setupDeclareIdx + 1 ))]:-}" in
+							--allow=ANTHROPIC_API_KEY|--allow=CLAUDE_CODE_OAUTH_TOKEN)
+								setupDeclareIdx=$(( setupDeclareIdx + 2 ))
+								continue
+							;;
+						esac
+						setupDeclareKept+=( "${setupDeclareArgs[$setupDeclareIdx]}" )
+						setupDeclareIdx=$(( setupDeclareIdx + 1 ))
+					done
+					setupDeclareArgs=( ${setupDeclareKept[@]+"${setupDeclareKept[@]}"} )
+				fi
 
 				## Nothing diagnosed is not a pass: every workspace unreachable, or a
 				## registry naming none that resolve, otherwise exits 0 having checked

@@ -296,6 +296,21 @@ case "$1" in
 		## Apply. A required option must end up with a value -- supplied now or
 		## already configured -- and a missing one stops the run before any write,
 		## never half-applied.
+		## Taking one back out is that same hole reached from the other side: a
+		## set removes a setting by naming it with no value, and the walk below
+		## reads a supplied KEY= as supplied, so an unchecked delete of a required
+		## option would leave the domain unable to start and say nothing.
+		while IFS= read -r setupLine ; do
+			[ -n "$setupLine" ] || continue
+			[ -z "${setupLine#*=}" ] || continue
+			setupKey="${setupLine%%=*}"
+			case " $setupRequired " in
+				*" $setupKey "*)
+					echo "$MDSC_CMD: owner-setup: ⛔ ERROR: $setupDomain requires $setupKey, and a value-less $setupKey= removes it -- supply a value instead" >&2
+					set +e ; return 1
+				;;
+			esac
+		done <<< "$setupValues"
 		for setupKey in $setupMissingRequired ; do
 			case "$setupValues" in
 				*"$setupKey="*) ;;
@@ -320,9 +335,15 @@ case "$1" in
 				if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
 					setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupGroupKey" || : )"
 				fi
-				case "$setupValues" in
-					*"$setupGroupKey="*) setupCurrent="supplied" ;;
-				esac
+				## What this call does to the key decides, over what is stored: a
+				## supplied value makes it present, and a value-less KEY= removes
+				## it, so deleting one half of a pair is caught here rather than
+				## leaving the pair half-configured.
+				while IFS= read -r setupLine ; do
+					[ -n "$setupLine" ] || continue
+					[ "${setupLine%%=*}" = "$setupGroupKey" ] || continue
+					if [ -n "${setupLine#*=}" ] ; then setupCurrent="supplied" ; else setupCurrent="" ; fi
+				done <<< "$setupValues"
 				if [ -n "$setupCurrent" ] ; then
 					setupGroupHave="$setupGroupHave $setupGroupKey"
 				else
@@ -361,6 +382,24 @@ case "$1" in
 			setupCurrent=""
 			if [ -f "$setupWorkspace/.local/.agents/$setupScope.agent.env" ] ; then
 				setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupKey" || : )"
+			fi
+			## A set removes a setting by naming it with no value: KEY= is the one
+			## way a stored value is taken back out, and --upsert-from-stdin
+			## refuses empty stdin by design, so the same config layer's own
+			## delete verb carries it. Read first, because an empty supplied value
+			## compares equal to an unset key and would otherwise report a key
+			## that is not set as already set.
+			if [ -z "${setupLine#*=}" ] ; then
+				if [ -z "$setupCurrent" ] ; then
+					echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupKey is not set"
+					continue
+				fi
+				( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --delete "$setupKey" ) || {
+					echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not remove $setupKey from the $setupScope scope of $setupWorkspace" >&2
+					set +e ; return 1
+				}
+				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupKey removed from $setupWorkspace"
+				continue
 			fi
 			if [ "$setupCurrent" = "${setupLine#*=}" ] ; then
 				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupKey already set"
