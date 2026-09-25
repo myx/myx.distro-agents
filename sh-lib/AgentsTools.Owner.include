@@ -2034,7 +2034,7 @@ case "$1" in
 								setupGrantReal="$( cd "$setupGrant" 2>/dev/null && pwd -P || : )"
 								[ -n "$setupGrantReal" ] || continue
 								case "$setupMemberReal/" in "$setupGrantReal"/*) setupCovered="yes" ;; esac
-							done < "$setupFragment"
+							done < <( LC_ALL=C awk -F'\t' '{ print ( NF >= 2 ? $2 : $0 ) ; }' "$setupFragment" )
 							[ -n "$setupCovered" ] || setupUncovered="${setupUncovered}$setupMemberSlot|$setupMemberReal "
 						done
 						if [ "$setupMemberCount" -eq 0 ] ; then
