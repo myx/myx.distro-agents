@@ -317,13 +317,17 @@ case " $DAGC_SELECTABLE_CLIS " in
 esac
 ## A leg has no interactive shape at all -- there is no real binary and no
 ## REPL, only a harness that runs one request/response tool-calling cycle to
-## completion and exits -- so an explicit interactive request for one is
-## refused here, with a stated reason, rather than falling through to a
-## plain `exec <name>` that the shell itself would reject as "not found"
-## for a reason this console never explains.
+## completion and exits -- so an interactive launch cannot reach for one, and
+## must not fall through to a plain `exec <name>` that the shell itself would
+## reject as "not found" for a reason this console never explains.
+## It is said and not refused: a console whose whole purpose is to open must
+## open. The same bash console this file already falls back to below is what
+## an interactive launch gets here, which is also exactly what the source,
+## deploy and .local consoles do unconditionally. The reason is still stated,
+## so --non-interactive remains discoverable from the one place it matters.
 if DagcCliIsLeg "$DAGC_CLI" && [ "$1" != "--non-interactive" ] ; then
-	echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' is a harness leg and has no interactive shape -- it runs one request/response tool-calling cycle and exits; use --non-interactive." >&2
-	exit 1
+	echo "🙋 WARNING: DistroAgentsConsole: '$DAGC_CLI' is a harness leg and has no interactive shape -- it runs one request/response tool-calling cycle and exits; use --non-interactive." >&2
+	exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
 fi
 if [ "$1" == "--non-interactive" ] ; then
 	## The leg test comes first, and is not covered by the set above: that set
