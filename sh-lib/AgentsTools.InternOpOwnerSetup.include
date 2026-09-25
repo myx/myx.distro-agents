@@ -206,7 +206,7 @@ case "$1" in
 			esac
 		done <<< "$setupValues"
 
-		local setupCommand="  $setupWorkspace/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-$setupDomain"
+		local setupCommand="  DistroAgentsTools.fn.sh --owner-setup-$setupDomain"
 		local setupHelp="" setupSecretPart="" setupAnyMissing="" setupMissingRequired="" setupMissingAll=""
 		for setupKey in $setupAllowed ; do
 			setupSpec="$( AgentsToolsOwnerSetupOptionSpec "$setupKey" )"
