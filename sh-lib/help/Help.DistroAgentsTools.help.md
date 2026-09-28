@@ -2793,7 +2793,7 @@
 		--owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]
 			Reports, and for a domain that supports it carries out, the setup
 			of one macro part of a working installation. `<domain>` is open and
-			grows; `claude`, `copilot`, `slack`, `storage` and `scaleway` exist today, and a
+			grows; `claude`, `copilot`, `grok`, `slack`, `storage` and `scaleway` exist today, and a
 			domain with no defined check set says so rather than inventing one.
 
 			Options and their values come first, then at most one sub-operation
@@ -2859,6 +2859,16 @@
 			Exit status is non-zero when a check fails, so it is usable as a
 			readiness gate. A setting is judged by its value where that value is
 			used, never by a config file existing.
+
+			`claude`, `claude-native` and `copilot` each diagnose a workspace
+			with the same per-workspace rows, and `WORKSPACE_HOOK_SCRIPTS`
+			(readable row `Workspace hooks`) is one of them. It fails when a
+			command hook that workspace's `.claude/settings.json` registers
+			runs a `"$CLAUDE_PROJECT_DIR"/.claude/hooks/<script>` that is
+			missing or not executable, naming each such entry. Its `fix:` is
+			`--make-workspace-integrations`, which removes an entry for a hook
+			this package retired. An entry left after that is not this
+			package's hook: restore its script or remove the entry.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -2980,7 +2990,7 @@
 			that this ecosystem's agents need plain read access to. These
 			come from `<workspace>`'s own `CLIENT_ACCESS_ROOTS_EXTRA`
 			(magic-team scope, colon-separated absolute paths, set by
-			`--owner-setup-claude`/`--owner-setup-copilot`/`--owner-setup-scaleway`): which
+			`--owner-setup-claude`/`--owner-setup-copilot`/`--owner-setup-grok`/`--owner-setup-scaleway`): which
 			directories exist is a property of the machine, so this op names
 			none of its own. Unset -- the normal case -- adds no grant. Each
 			entry is added if missing and left alone if already present --
@@ -3014,7 +3024,8 @@
 			`AgentsClaudeSettingsPermissionsUpsert.awk`/
 			`AgentsMcpServerJsonUpsert.awk` use; no jq dependency): every
 			entry already present that this op did not itself add is kept,
-			at both the JSON level and the file level.
+			at both the JSON level and the file level. The one exception is
+			a retired hook, below.
 			Installs two hook scripts into `<workspace>/.claude/hooks/`
 			(mode 0755, copied idempotently every run --
 			tmp+`cmp`+`mv`, a no-op run touches nothing). They are copies
@@ -3034,8 +3045,13 @@
 			through: a hook emitting no decision reads as allow. A hook
 			source missing or empty in the package refuses the whole op.
 			An earlier install's per-tool `deny-bash-tool.sh` and
-			`deny-ask-user-question-tool.sh` are removed, since their whole
-			content is now a case in the reroute script.
+			`deny-ask-user-question-tool.sh` are retired, since their whole
+			content is now a case in the reroute script. Both halves go: every
+			`hooks.PreToolUse` entry running one is removed from
+			`settings.json`, and only after that file is rewritten are the
+			scripts deleted, so a failed run never leaves an entry running a
+			script it removed. The retired names are stated once, in
+			`sh-lib/AgentsTools.ClientToolPolicy.include`.
 			Neither writes nor touches
 			`protect-memory-md.sh` (the already-verified `Edit`/`Write`
 			MEMORY.md guard) -- that hook, and its own `hooks.PreToolUse`
@@ -3083,6 +3099,14 @@
 			source names. Each is reported `OK` or `MISSING` by name, and
 			a `MISSING` one fails the run (exit 1), so a merge that
 			dropped a hook is never reported as an install.
+			Then checks every command hook `settings.json` registers, under
+			any event, whose command runs
+			`"$CLAUDE_PROJECT_DIR"/.claude/hooks/<script>`: that script has
+			to exist and be executable, whether this op installed it or
+			not. A missing one exits 127 when run, and the harness refuses
+			every call that hook matches. Each one failing is named in its
+			own `⛔ ERROR` line, with its entry and the missing path, and the
+			run fails (exit 1).
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -3729,8 +3753,10 @@
 			SLACK_CHANNEL_EVENT_TRACK, SLACK_CHANNEL_EVENT_ALERT,
 			SLACK_CHANNEL_MAGIC_TEAM, SLACK_CHANNEL_HUMAN_OWNER,
 			EMAIL_IMAP_HOST, EMAIL_USER, EMAIL_APP_PASSWORD, TRELLO_KEY,
-			TRELLO_TOKEN. Five are required:
-			TEAM_DATA_DIRECTORY and the four SLACK_CHANNEL_* keys -- any of
+			TRELLO_TOKEN. TEAM_DATA_DIRECTORY is optional and never SKIP:
+			unset, it reads OK and names the workspace's own
+			.local/agents/team-data-root it defaults to. Required: the four
+			SLACK_CHANNEL_* keys -- any of
 			them missing also prints a
 			`⛔ ERROR ... set it first: DistroAgentsTools.fn.sh
 			--agents-config-option magic-coordinator --upsert <KEY> <value>`

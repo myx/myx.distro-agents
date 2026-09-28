@@ -65,6 +65,14 @@ AgentsToolsClientToolPolicyRerouteHookPath(){
 	printf '%s\n' ".claude/hooks/deny-native-tool-reroute.sh"
 }
 
+## The hook scripts earlier installs wrote and this one retires, one per line,
+## as file names under .claude/hooks. Each was one tool's own script and is now
+## a case in the reroute hook. The installer removes both halves from this one
+## list: the PreToolUse entry running it first, then the file.
+AgentsToolsClientToolPolicyRetiredHookNames(){
+	printf '%s\n' "deny-bash-tool.sh" "deny-ask-user-question-tool.sh"
+}
+
 ## The deny-reroute keys, one per line: the hooks that exist to route a *-native
 ## client toward this estate's own MCP tooling, and which therefore must not apply
 ## inside our own universal harness -- there the destination is already what is

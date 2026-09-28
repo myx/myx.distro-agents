@@ -21,13 +21,13 @@ AgentsToolsOwnerSetupOptionSpec(){
 		## No '|' inside a field: it is this line's own separator, so one in a
 		## placeholder splits the entry and every later field arrives shifted.
 		SPAWN_CLI_SERVICE)
-			printf '%s\n' 'magic-team|<cli-name>|plain|the agent CLI this workspace starts -- copilot, claude, claude-native, grok or scaleway. A spawned agent runs non-interactively, where the console accepts only copilot, claude, claude-native and scaleway.'
+			printf '%s\n' 'magic-team|<cli-name>|plain|the agent CLI this workspace starts -- copilot, claude, claude-native, grok, grok-native or scaleway. A spawned agent runs non-interactively, where the console accepts only copilot, claude, claude-native, grok and scaleway.'
 		;;
 		CLIENT_ACCESS_ROOTS_EXTRA)
 			printf '%s\n' 'magic-team|<abs-path>[:<abs-path>...]|plain|extra directories a spawned agent may read and write, beyond the member and source roots the installer already grants. Absolute paths, colon-separated.'
 		;;
 		TEAM_DATA_DIRECTORY)
-			printf '%s\n' 'magic-coordinator|<abs-path>|plain|the directory holding the board and the inboxes. Any path this account can write to; it is created on first use.'
+			printf '%s\n' 'magic-coordinator|<abs-path>|plain|the directory holding the board and the inboxes. Left unset it is .local/agents/team-data-root inside this workspace; set it only to share team data between workspaces. Any path this account can write to; it is created on first use.'
 		;;
 		TEAM_DATA_GIT_REMOTE)
 			printf '%s\n' 'magic-team|<git-remote-url>|plain|the clone URL of a repository you own, which the team data is pushed to. An empty repository is fine.'
@@ -64,6 +64,9 @@ AgentsToolsOwnerSetupOptionSpec(){
 		;;
 		SCALEWAY_GEMMA)
 			printf '%s\n' 'magic-team|<key>|secret|AgentsScalewayHarness.sh reads this name itself, preferred for the light tier (gemma-4-26b-a4b-it). console.scaleway.com, IAM, API Keys -- a Project-scoped key carrying the GenerativeApisFullAccess policy.'
+		;;
+		XAI_API_KEY)
+			printf '%s\n' 'magic-team|<xai-...>|secret|AgentsGrokHarness.sh reads this name itself, for every tier. console.x.ai, API Keys, Create API Key.'
 		;;
 		SLACK_BOT_TOKEN)
 			printf '%s\n' 'magic-team|<xoxb-token>|secret|api.slack.com/apps, your app, OAuth and Permissions, Bot User OAuth Token.'

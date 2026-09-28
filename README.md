@@ -54,12 +54,12 @@ what is still missing and names the command that closes it:
 - `--print-apply-command` writes the command an `--apply` would run, and changes
   nothing — use it when a credential has to be supplied.
 
-The CLI domains are `claude`, `claude-native`, `copilot` and `scaleway`:
+The CLI domains are `claude`, `claude-native`, `copilot`, `grok` and `scaleway`:
 
 - `claude-native` runs the vendor `claude` already installed and signed in on
   this machine. It stores no credential here — sign in once with
   `claude auth login`, and every workspace on the machine uses that sign-in.
-- `claude`, `copilot` and `scaleway` each store their own credential in this
+- `claude`, `copilot`, `grok` and `scaleway` each store their own credential in this
   workspace, so a workspace can run under an account of its own.
 
 ## Adding your own team members
@@ -106,7 +106,7 @@ See exactly which operations one member is allowed to run:
 
 ## Running the agents console
 
-	DistroAgentsConsole.sh [--cli copilot|claude|claude-native|grok|scaleway] [--cli-auto] [--non-interactive] [args...]
+	DistroAgentsConsole.sh [--cli copilot|claude|claude-native|grok|grok-native|scaleway] [--cli-auto] [--non-interactive] [args...]
 
 	./DistroAgentsConsole.sh
 	./DistroAgentsConsole.sh --cli claude
@@ -114,10 +114,13 @@ See exactly which operations one member is allowed to run:
 	./DistroAgentsConsole.sh --non-interactive "list the projects that changed today"
 	echo "list the projects that changed today" | ./DistroAgentsConsole.sh --non-interactive
 
-- Known CLIs, in preference order: `copilot`, `claude`, `claude-native`, `grok`, `scaleway`. That
+- Known CLIs, in preference order: `copilot`, `claude`, `claude-native`, `grok`, `grok-native`, `scaleway`. That
   order is the fallback, used when no CLI is configured.
 - `claude-native` runs the `claude` CLI already installed and signed in on this machine, using that
   existing login rather than any credential configured here.
+- `grok` runs this package's own harness against xAI's API, and the vendor `grok` CLI is reached as
+  `grok-native`. Configure it once with `DistroAgentsTools.fn.sh --owner-setup-grok`. It is one-shot
+  only, like `scaleway` below.
 - `scaleway` needs no vendor CLI installed at all — it works against Scaleway's own API, so it runs
   on a machine where nothing else is set up. Configure it once with
   `DistroAgentsTools.fn.sh --owner-setup-scaleway`. It is one-shot only: always pass
@@ -129,7 +132,7 @@ See exactly which operations one member is allowed to run:
   the order above, else an interactive bash session. A configured CLI missing from `PATH` is an
   error, the same as naming it with `--cli`.
 - `--non-interactive` — one-shot, no attached terminal.
-	- Supported for `copilot`, `claude`, `claude-native` and `scaleway`.
+	- Supported for `copilot`, `claude`, `claude-native`, `grok` and `scaleway`.
 	- Remaining arguments are joined into one prompt.
 	- With no arguments, the prompt is read from stdin.
 	- Exits with an error rather than falling back to bash when no CLI is available.

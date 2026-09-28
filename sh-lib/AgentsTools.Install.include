@@ -1214,18 +1214,6 @@ case "$1" in
 			fi
 		done
 
-		## The generated hooks of earlier installs. Each was one tool's own script and
-		## its whole content is now a case in the reroute hook, so leaving them behind
-		## keeps a second, stale copy of the policy in the workspace.
-		local hookRetired
-		for hookRetired in "deny-bash-tool.sh" "deny-ask-user-question-tool.sh" ; do
-			[ -f "$hooksDir/$hookRetired" ] || continue
-			rm -f "$hooksDir/$hookRetired" || {
-				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not remove the retired hook $hooksDir/$hookRetired" >&2
-				hooksFailed=1
-			}
-		done
-
 		## Each namespace folder the generated `.code-workspace` lists is a project
 		## root of its own, and an editor session takes the FIRST folder as its
 		## root -- so a workspace `.claude` no folder carries never loads, and the
@@ -1320,6 +1308,10 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the client tool policy could not state which tools are rerouted, so $settingsFile is left untouched -- a missing reroute entry reads as allow" >&2
 			set +e ; return 1
 		fi
+		## The hooks earlier installs wrote and this one retires. The merge drops
+		## their entries, and only after settings.json is rewritten are the files
+		## deleted, so no run leaves an entry running a script it removed.
+		local hooksRetiredNames="$( AgentsToolsClientToolPolicyRetiredHookNames )"
 
 		## The hooks description is the merge .awk's own MYX_WSRESTRICT_HOOKS_FILE
 		## input and has to be a real path. It lives inside this subshell, so its
@@ -1351,6 +1343,7 @@ case "$1" in
 			} > "$hooksDescFile" || exit 1
 			MYX_WSRESTRICT_DENY_ADD_JSON="$denyAddJson" \
 				MYX_WSRESTRICT_HOOKS_FILE="$hooksDescFile" \
+				MYX_WSRESTRICT_RETIRED_HOOKS="$hooksRetiredNames" \
 				MYX_WSRESTRICT_ALLOW_SOURCE_ROOT="$sourceRoot" \
 				MYX_WSRESTRICT_ALLOW_AGENTS_ROOT="$workspace/.claude/skills" \
 				MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON="$allowExtraRootsJson" \
@@ -1373,6 +1366,15 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		local hookRetired
+		while IFS= read -r hookRetired ; do
+			[ -n "$hookRetired" ] && [ -f "$hooksDir/$hookRetired" ] || continue
+			rm -f "$hooksDir/$hookRetired" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not remove the retired hook $hooksDir/$hookRetired" >&2
+				set +e ; return 1
+			}
+		done <<< "$hooksRetiredNames"
+
 		## Read the settings file back before reporting an install: the merge
 		## is a text transform over a file this op did not write alone, so a
 		## hook it failed to add reads from here exactly like a run that added
@@ -1393,6 +1395,27 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $settingsFile does not carry every hook the client tool policy names -- the MISSING line above names which" >&2
 			set +e ; return 1
 		}
+
+		## Every command hook settings.json runs out of .claude/hooks has to exist
+		## and be executable, this package's or not: a missing one exits 127, and
+		## the harness refuses every call that hook matches.
+		local hookScriptList hookScriptEntry hookScriptPath
+		hookScriptList="$( MYX_CLAUDEVERIFY_LIST_HOOK_SCRIPTS=1 \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeSettingsVerify.awk" \
+			< "$settingsFile" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: could not list the hooks $settingsFile registers, so no hook script was checked" >&2
+			set +e ; return 1
+		}
+		while IFS=$'\t' read -r hookScriptEntry hookScriptPath ; do
+			[ -n "$hookScriptPath" ] || continue
+			if [ ! -f "$workspace/$hookScriptPath" ] || [ ! -x "$workspace/$hookScriptPath" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $settingsFile $hookScriptEntry runs $workspace/$hookScriptPath, which is missing or not executable" >&2
+				hooksFailed=1
+			fi
+		done <<< "$hookScriptList"
+		if [ "$hooksFailed" != "0" ] ; then
+			set +e ; return 1
+		fi
 
 		echo "✅ workspace restrictions $restrictionsState: $settingsFile" >&2
 		return 0

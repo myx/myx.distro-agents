@@ -36,6 +36,14 @@
 #                                        than a settings.json, which is why the
 #                                        pair names its object explicitly instead
 #                                        of assuming this package wrote it.
+#   MYX_CLAUDEVERIFY_LIST_HOOK_SCRIPTS -- non-empty lists every command hook,
+#                                        under every `hooks` event, that runs
+#                                        `"$CLAUDE_PROJECT_DIR"/.claude/hooks/<script>`:
+#                                        one `<entry>\t.claude/hooks/<script>`
+#                                        line each, `<entry>` reading
+#                                        `hooks.<Event>[<index>] matcher "<m>"`.
+#                                        The caller tests each script, since
+#                                        awk cannot see an executable bit.
 #
 # Params arrive through ENVIRON, never `-v`: `-v` backslash-decodes its value,
 # which corrupts a path, and a project key IS a path.
@@ -311,6 +319,69 @@ END {
 			}
 			printf "projects %s: %s\n", wantTrue[i], (seenTrue ? "OK" : "MISSING")
 			if (!seenTrue) missingTotal++
+		}
+	}
+
+	## The walk leans on findKeyInObjectAt(rootStart, ...) above having parsed
+	## the whole root, so every array below ends in `]` and every object in `}`.
+	if (ENVIRON["MYX_CLAUDEVERIFY_LIST_HOOK_SCRIPTS"] != "") {
+		if (!findKeyInObjectAt(rootStart, "hooks")) fail("unparsable")
+		eventAt = FOUND ? VALUE_START : 0
+		if (eventAt && substr(s, eventAt, 1) != "{") fail("hooks-not-an-object")
+		p = eventAt + 1
+		skipws()
+		while (eventAt && substr(s, p, 1) != "}") {
+			eventNameAt = p
+			skipString()
+			eventName = substr(s, eventNameAt + 1, p - eventNameAt - 2)
+			skipws()
+			p++
+			skipws()
+			if (substr(s, p, 1) != "[") fail("hooks-event-not-an-array")
+			p++
+			skipws()
+			entryIndex = 0
+			while (substr(s, p, 1) != "]") {
+				entryAt = p
+				if (substr(s, entryAt, 1) != "{") fail("hooks-entry-not-an-object")
+				if (!findKeyInObjectAt(entryAt, "matcher")) fail("unparsable")
+				entryEnd = p
+				entryMatcher = (FOUND && substr(s, VALUE_START, 1) == "\"") ? substr(s, VALUE_START + 1, VALUE_END - VALUE_START - 2) : ""
+				if (!findKeyInObjectAt(entryAt, "hooks")) fail("unparsable")
+				if (FOUND) {
+					if (substr(s, VALUE_START, 1) != "[") fail("hooks-entry-hooks-not-an-array")
+					p = VALUE_START + 1
+					skipws()
+					while (substr(s, p, 1) != "]") {
+						commandAt = p
+						if (substr(s, commandAt, 1) != "{") fail("hooks-hook-not-an-object")
+						if (!findKeyInObjectAt(commandAt, "type")) fail("unparsable")
+						commandEnd = p
+						commandType = FOUND ? substr(s, VALUE_START, VALUE_END - VALUE_START) : ""
+						if (!findKeyInObjectAt(commandAt, "command")) fail("unparsable")
+						if (commandType == "\"command\"" && FOUND && substr(s, VALUE_START, 1) == "\"") {
+							hookCommand = substr(s, VALUE_START + 1, VALUE_END - VALUE_START - 2)
+							gsub(/\\"/, "\"", hookCommand)
+							scriptAt = index(hookCommand, "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/")
+							if (scriptAt > 0) {
+								hookScript = substr(hookCommand, scriptAt + length("\"$CLAUDE_PROJECT_DIR\"/"))
+								sub(/[ \t"].*$/, "", hookScript)
+								printf "hooks.%s[%d] matcher \"%s\"\t%s\n", eventName, entryIndex, entryMatcher, hookScript
+							}
+						}
+						p = commandEnd
+						skipws()
+						if (substr(s, p, 1) == ",") { p++; skipws() ; }
+					}
+				}
+				p = entryEnd
+				entryIndex++
+				skipws()
+				if (substr(s, p, 1) == ",") { p++; skipws() ; }
+			}
+			p++
+			skipws()
+			if (substr(s, p, 1) == ",") { p++; skipws() ; }
 		}
 	}
 

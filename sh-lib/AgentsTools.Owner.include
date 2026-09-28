@@ -28,6 +28,55 @@ AgentsToolsOwnerConsoleDrifted(){
 	return 0
 }
 
+## The WORKSPACE_HOOK_SCRIPTS row, for every domain that renders workspace rows:
+## each command hook <workspace>/.claude/settings.json runs out of .claude/hooks
+## has to exist and be executable, this package's or not. A missing one exits
+## 127, which the harness reads as refusing every call that hook matches. Same
+## dynamic scoping as AgentsToolsOwnerSetupBlock1Verdict below: writes
+## setupNeedsApply, setupBlockers and setupRc back into the caller's scope.
+AgentsToolsOwnerSetupHookScriptsRow(){
+	local hookRowList="" hookRowEntry hookRowScript hookRowMissing=""
+	if [ -f "$1/.claude/settings.json" ] && ! hookRowList="$( MYX_CLAUDEVERIFY_LIST_HOOK_SCRIPTS=1 \
+		LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeSettingsVerify.awk" \
+		< "$1/.claude/settings.json" 2>/dev/null )" ; then
+		[ "$setupOperation" != "--check" ] || {
+			echo "WORKSPACE_HOOK_SCRIPTS: FAIL"
+			echo "  warn: settings.json did not parse, so no hook it registers could be checked"
+			echo "  path: $1/.claude/settings.json"
+			echo "  fix:  repair the JSON in the file above, then re-run this check"
+		}
+		AgentsToolsOwnerSetupRow "Workspace hooks" "UNREADABLE"
+		setupBlockers="$setupBlockers WORKSPACE_HOOK_SCRIPTS"
+		setupRc=1
+		return 0
+	fi
+	while IFS=$'\t' read -r hookRowEntry hookRowScript ; do
+		[ -n "$hookRowScript" ] || continue
+		if [ ! -f "$1/$hookRowScript" ] || [ ! -x "$1/$hookRowScript" ] ; then
+			hookRowMissing="${hookRowMissing}        $hookRowEntry runs $1/$hookRowScript"$'\n'
+		fi
+	done <<< "$hookRowList"
+	if [ -z "$hookRowMissing" ] ; then
+		[ "$setupOperation" != "--check" ] || echo "WORKSPACE_HOOK_SCRIPTS: OK"
+		AgentsToolsOwnerSetupRow "Workspace hooks" "current"
+		return 0
+	fi
+	[ "$setupOperation" != "--check" ] || {
+		echo "WORKSPACE_HOOK_SCRIPTS: FAIL"
+		echo "  warn: a hook settings.json registers runs a script that is missing or not"
+		echo "        executable, so the harness refuses every call that hook matches:"
+		printf '%s' "$hookRowMissing"
+		echo "  path: $1/.claude/settings.json"
+		echo "  fix:  $2 --make-workspace-integrations"
+		echo "  then: an entry that leaves in place is not this package's hook -- restore"
+		echo "        its script, or remove the entry from the file above"
+	}
+	AgentsToolsOwnerSetupRow "Workspace hooks" "MISSING SCRIPT"
+	setupNeedsApply="yes"
+	setupBlockers="$setupBlockers WORKSPACE_HOOK_SCRIPTS"
+	setupRc=1
+}
+
 ## Block 1's own status narrative, for a domain with real, hand-diagnosed
 ## preconditions (claude/copilot): what --apply would still need to close, or
 ## that nothing here is waiting on it. Block 2, printed once for every domain
@@ -356,8 +405,9 @@ case "$1" in
 				## underscores -- mechanical, so no option name is known here. The
 				## engine holds the catalogue and refuses a name this domain has
 				## not declared, which is where a typo is caught.
+				## An empty value is KEY=, which removes the setting, as a stdin set does.
 				--*)
-					if [ -z "${2:-}" ] ; then
+					if [ $# -lt 2 ] ; then
 						echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: $1: a value is required -- options first, then one of --check, --apply, --print-apply-command or --wizard last" >&2
 						set +e ; return 1
 					fi
@@ -424,7 +474,7 @@ case "$1" in
 		## a change to the engine. A domain's subject is its own name.
 		local setupDeclareArgs=()
 		case "$setupDomain" in
-			claude|claude-native|copilot|copilot-native|scaleway)
+			claude|claude-native|copilot|copilot-native|grok|scaleway)
 				## Both of these belong to the WORKSPACE rather than to this domain:
 				## which CLI the workspace starts, and what every spawned agent may
 				## reach. Declared shared, so an --apply here still takes them and
@@ -480,6 +530,7 @@ case "$1" in
 					claude-native) ;;
 					copilot)  setupDeclareArgs+=( --allow COPILOT_GITHUB_TOKEN ) ;;
 					copilot-native) ;;
+					grok)     setupDeclareArgs+=( --allow XAI_API_KEY ) ;;
 					scaleway) setupDeclareArgs+=( --allow SCALEWAY_DEEPSEEK --allow SCALEWAY_GEMMA ) ;;
 				esac
 			;;
@@ -499,8 +550,10 @@ case "$1" in
 				)
 			;;
 			storage)
+				## TEAM_DATA_DIRECTORY is optional: unset, the team data is the
+				## workspace's own .local/agents/team-data-root.
 				setupDeclareArgs=(
-					--require TEAM_DATA_DIRECTORY
+					--allow TEAM_DATA_DIRECTORY
 					--allow TEAM_DATA_GIT_REMOTE
 					--allow TEAM_DATA_BRANCH
 				)
@@ -691,13 +744,53 @@ case "$1" in
 					--context "--owner-setup-slack:$setupCtxTag" || true
 			;;
 			storage)
-				DistroAgentsTools --intern-op-check-configs magic-coordinator \
-					--required "TEAM_DATA_DIRECTORY:<path>" \
-					--expect-path-exists "TEAM_DATA_DIRECTORY:${MDAT_DATA_ROOT:-}" \
-					--context "--owner-setup-storage:$setupCtxTag" || setupRc=$?
+				if [ -n "$( DistroAgentsTools --agents-config-option magic-coordinator --select TEAM_DATA_DIRECTORY 2>/dev/null )" ] ; then
+					DistroAgentsTools --intern-op-check-configs magic-coordinator \
+						--optional "TEAM_DATA_DIRECTORY:<path>" \
+						--expect-path-exists "TEAM_DATA_DIRECTORY:${MDAT_DATA_ROOT:-}" \
+						--context "--owner-setup-storage:$setupCtxTag" || setupRc=$?
+				elif [ "$setupOperation" = "--check" ] ; then
+					echo "TEAM_DATA_DIRECTORY: OK"
+					echo "  note: not set, so the team data is this workspace's own store"
+					echo "  path: $MDAT_DATA_ROOT"
+				fi
 				DistroAgentsTools --intern-op-check-configs magic-team \
 					--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \
 					--context "--owner-setup-storage:$setupCtxTag" || true
+			;;
+			## The scaleway arm's presence and credential halves. The harness check
+			## pass stays in that arm alone, which already runs this leg's own check.
+			grok)
+				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
+				local setupToolPath="$setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsGrokHarness.sh" ] ; then
+					[ "$setupOperation" != "--check" ] || echo "GROK_HARNESS_INSTALLED: OK"
+					AgentsToolsOwnerSetupRow "Grok harness" "installed"
+				else
+					[ "$setupOperation" != "--check" ] || {
+						echo "GROK_HARNESS_INSTALLED: FAIL"
+						echo "  warn: sh-lib/AgentsGrokHarness.sh is missing -- this release has not"
+						echo "        reached this workspace yet"
+						echo "  fix:  re-run this workspace's own myx.distro release/deploy step"
+					}
+					AgentsToolsOwnerSetupRow "Grok harness" "NOT INSTALLED"
+					setupRc=1
+				fi
+				DistroAgentsTools --intern-op-check-configs magic-team \
+					--optional "XAI_API_KEY:<key>" --expect-secret XAI_API_KEY \
+					--context "--owner-setup-grok:$setupCtxTag" || true
+				if [ -z "$( DistroAgentsTools --agents-config-option magic-team --select XAI_API_KEY 2>/dev/null )" ] ; then
+					[ "$setupOperation" != "--check" ] || {
+						echo "GROK_CREDENTIAL: FAIL"
+						echo "  warn: XAI_API_KEY is not set, and it is required"
+						echo "  fix:  $setupToolPath --owner-setup-grok --apply"
+					}
+					AgentsToolsOwnerSetupRow "Grok credential" "NOT CONFIGURED"
+					setupRc=1
+				else
+					[ "$setupOperation" != "--check" ] || echo "GROK_CREDENTIAL: OK"
+					AgentsToolsOwnerSetupRow "Grok credential" "configured"
+				fi
 			;;
 			scaleway)
 				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
@@ -956,6 +1049,20 @@ case "$1" in
 						setupRc=1
 					fi
 
+					## The GROK LEG, on the same terms as the Copilot leg check above.
+					local setupGrokLegOut="" setupGrokLegRc=0
+					setupGrokLegOut="$( bash "$setupLibDir/AgentsHarnessGrokLegCheck.test.sh" 2>&1 )" || setupGrokLegRc=$?
+					printf '%s\n' "$setupGrokLegOut"
+					if [ "$setupGrokLegRc" != "0" ] ; then
+						echo "  warn: the Grok leg no longer carries its own declarations to the"
+						echo "        wire, or the core no longer behaves under them -- each failed"
+						echo "        assertion above names what it wanted and what it got instead"
+						echo "  fix:  repair the leg in sh-lib/AgentsGrokHarness.sh, or the"
+						echo "        behaviour in sh-lib/AgentsUniversalHarness.sh -- never the"
+						echo "        assertion"
+						setupRc=1
+					fi
+
 					## The claude leg's own wire, which every check above leaves alone: they
 					## all drive the chat-completions adapter.
 					local setupAnthropicWireOut="" setupAnthropicWireRc=0
@@ -1013,6 +1120,21 @@ case "$1" in
 						setupRc=1
 					fi
 
+					## WHETHER the team skill files are inside the set, by path and by the
+					## Skill tool in both name forms, and that a set that cannot be computed
+					## is refused with its reason. Offline through --intern-tool.
+					local setupSkillReadOut="" setupSkillReadRc=0
+					setupSkillReadOut="$( bash "$setupLibDir/AgentsHarnessSkillReadCheck.test.sh" 2>&1 )" || setupSkillReadRc=$?
+					printf '%s\n' "$setupSkillReadOut"
+					if [ "$setupSkillReadRc" != "0" ] ; then
+						echo "  warn: a team skill file is not readable through the MCP-served"
+						echo "        tools, or an uncomputable access-root set was used silently"
+						echo "  fix:  repair sh-lib/AgentsTools.ClientAccessRoots.include or the"
+						echo "        Read/Skill tools in sh-lib/AgentsUniversalHarness.sh --"
+						echo "        never the assertion"
+						setupRc=1
+					fi
+
 					## WHICH tools the MCP server actually serves, which no check above asks
 					## either: a harness tool joins that floor by default, and the served set
 					## is a subtraction somebody has to remember. The mirror renders the whole
@@ -1032,6 +1154,24 @@ case "$1" in
 						echo "  fix:  repair the served set in"
 						echo "        sh-lib/AgentsTools.InternMcpServer.include, saying there why"
 						echo "        each name is on it -- never the assertion"
+						setupRc=1
+					fi
+
+					## The --owner-setup-* settings themselves: an empty flag removes a
+					## setting as a stdin KEY= does, a required key is still refused, and
+					## unset TEAM_DATA_DIRECTORY resolves to the workspace's own store.
+					## Offline, against a scenario workspace of its own.
+					local setupOwnerSetupOut="" setupOwnerSetupRc=0
+					setupOwnerSetupOut="$( bash "$setupLibDir/AgentsOwnerSetupCheck.test.sh" 2>&1 )" || setupOwnerSetupRc=$?
+					printf '%s\n' "$setupOwnerSetupOut"
+					if [ "$setupOwnerSetupRc" != "0" ] ; then
+						echo "  warn: an --owner-setup-* setting is no longer stored, removed or"
+						echo "        refused the way its own form says, or team data no longer"
+						echo "        defaults to the workspace's own store"
+						echo "  fix:  repair sh-lib/AgentsTools.Owner.include, the engine in"
+						echo "        sh-lib/AgentsTools.InternOpOwnerSetup.include, or the resolver"
+						echo "        in sh-lib/AgentsContext.UseAgentsTools.include -- never the"
+						echo "        assertion"
 						setupRc=1
 					fi
 				fi
@@ -1290,6 +1430,8 @@ case "$1" in
 					fi
 				fi
 
+				AgentsToolsOwnerSetupHookScriptsRow "$setupHere" "$setupToolPath"
+
 				AgentsToolsOwnerSetupBlock1Verdict "$setupDomain"
 			;;
 			copilot)
@@ -1536,6 +1678,8 @@ case "$1" in
 					fi
 				fi
 
+				AgentsToolsOwnerSetupHookScriptsRow "$setupHere" "$setupToolPath"
+
 				AgentsToolsOwnerSetupBlock1Verdict "$setupDomain"
 			;;
 			claude)
@@ -1551,8 +1695,8 @@ case "$1" in
 				## run. Both sets are interim: which CLI gets selected is meant to
 				## come from config options that are not settled yet.
 				## Must equal DAGC_KNOWN_CLIS/DAGC_NONINTERACTIVE_CLIS in AgentsConsoleShellScript.template.sh.
-				local setupKnownClis="copilot copilot-native claude claude-native grok scaleway"
-				local setupSpawnClis="copilot copilot-native claude claude-native scaleway"
+				local setupKnownClis="copilot copilot-native claude claude-native grok grok-native scaleway"
+				local setupSpawnClis="copilot copilot-native claude claude-native grok scaleway"
 				## A harness leg has no real binary at all -- `command -v scaleway` can
 				## never succeed on any machine -- so its presence here is the leg file
 				## shipping with the release, the same substitution the console's own
@@ -1570,6 +1714,7 @@ case "$1" in
 						## spelling, so these two can never reach it.
 						claude-native) command -v claude >/dev/null 2>&1 ; return $? ;;
 						copilot-native) command -v copilot >/dev/null 2>&1 ; return $? ;;
+						grok-native) command -v grok >/dev/null 2>&1 ; return $? ;;
 					esac
 					presentHead="$( printf '%s' "$1" | cut -c1 | LC_ALL=C tr 'abcdefghijklmnopqrstuvwxyz' 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' )"
 					presentFile="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/Agents$presentHead$( printf '%s' "$1" | cut -c2- )Harness.sh"
@@ -2091,6 +2236,8 @@ case "$1" in
 							setupRc=1
 						fi
 					fi
+
+					AgentsToolsOwnerSetupHookScriptsRow "$setupRoot" "$setupToolPath"
 
 					if [ -n "$setupBlockers" ] ; then
 						setupVerdict="${setupVerdict}$( printf '  %-28s runs %-8s -- blocked by:%s' "$setupLabel" "$setupWillRun" "$setupBlockers" )"$'\n'

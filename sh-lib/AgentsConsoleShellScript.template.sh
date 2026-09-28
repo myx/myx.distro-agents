@@ -53,7 +53,7 @@ fi
 cd "$MMDAPP"
 export MMDAPP
 
-DAGC_KNOWN_CLIS="copilot copilot-native claude claude-native grok scaleway"
+DAGC_KNOWN_CLIS="copilot copilot-native claude claude-native grok grok-native scaleway"
 ## claude-native is the VENDOR claude CLI under its own name. It is listed
 ## after claude deliberately: this string is also the --cli-auto scan order,
 ## and the scan takes the first PRESENT one, so a machine carrying the vendor
@@ -65,10 +65,10 @@ DAGC_KNOWN_CLIS="copilot copilot-native claude claude-native grok scaleway"
 ## speculatively. It has no interactive shape at all (no real binary, no
 ## REPL; the harness runs one request/response tool-calling cycle and
 ## exits), which is exactly why it belongs in this list and nowhere else:
-## grok is the opposite case (a real interactive binary, not yet proven
+## grok-native is the opposite case (a real interactive binary, not yet proven
 ## non-interactive), scaleway is proven non-interactive and categorically
 ## cannot be the other thing. See MAGIC.md.
-DAGC_NONINTERACTIVE_CLIS="copilot copilot-native claude claude-native scaleway"
+DAGC_NONINTERACTIVE_CLIS="copilot copilot-native claude claude-native grok scaleway"
 DAGC_CLI="copilot"
 DAGC_CLI_GIVEN="false"
 DAGC_CLI_AUTO="false"
@@ -84,11 +84,11 @@ DAGC_CLI_CONFIGURED="false"
 ## core only reads that variable, so the same glob that finds every leg leaves
 ## the core out by a property of the file rather than by its name.
 ##
-## The leg's filename IS its selection name: `claude`, `copilot` and `scaleway`
+## The leg's filename IS its selection name: `claude`, `copilot`, `grok` and `scaleway`
 ## each select this package's own harness leg for that service. DAGC_VENDOR_CLIS
 ## is the complement -- the names that mean the vendor's own CLI, which is what
 ## `-native` says. It wins over leg resolution, so a leg can never shadow a
-## vendor name, and none of the six names in this file needs an arm of its own
+## vendor name, and none of the seven names in this file needs an arm of its own
 ## anywhere below.
 ##
 ## MDAT_<NAME>_HARNESS, per leg, points that one leg at a different file: one
@@ -117,7 +117,7 @@ DAGC_CLI_CONFIGURED="false"
 ## silent -- as that leg reported absent by DagcCliPresent() and quietly
 ## skipped by --cli-auto, which is indistinguishable from it simply not being
 ## installed. An unset variable reaches none of this.
-DAGC_VENDOR_CLIS="copilot-native claude-native grok"
+DAGC_VENDOR_CLIS="copilot-native claude-native grok-native"
 DAGC_LEG_DIR="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 ## Leg name, then its resolved file, one per line. Resolved ONCE here, so every
 ## later site -- presence, exec, access flag, credential names, prompt shape --
@@ -240,6 +240,7 @@ DagcCliPresent(){
 		## silently, indistinguishable from it really being missing.
 		claude-native) command -v claude >/dev/null 2>&1 ;;
 		copilot-native) command -v copilot >/dev/null 2>&1 ;;
+		grok-native) command -v grok >/dev/null 2>&1 ;;
 		*) command -v "$1" >/dev/null 2>&1 ;;
 	esac
 }
@@ -284,7 +285,7 @@ if [ "$DAGC_CLI_AUTO" = "true" ] || [ "$DAGC_CLI_GIVEN" != "true" ] ; then
 		## workspace that has chosen NOTHING yet, so naming a single flag steers
 		## that choice by whichever name an error string happened to carry --
 		## a policy nobody decided, expressed as an example. The reader picks.
-		echo "⛔ ERROR: DistroAgentsConsole: SPAWN_CLI_SERVICE is not configured in this workspace, so no external agent CLI is selected here. rc=5 means exactly this -- nothing was chosen to start, which is distinct from rc=1 (something was chosen and could not be started). Spawn an internal agent instead, or choose one of the spawn services and select it with --apply: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-claude --apply (this package's own Claude harness), or --owner-setup-claude-native (the vendor claude CLI as installed on this machine), or --owner-setup-copilot, or --owner-setup-copilot-native (the vendor copilot CLI as installed on this machine), or --owner-setup-scaleway." >&2
+		echo "⛔ ERROR: DistroAgentsConsole: SPAWN_CLI_SERVICE is not configured in this workspace, so no external agent CLI is selected here. rc=5 means exactly this -- nothing was chosen to start, which is distinct from rc=1 (something was chosen and could not be started). Spawn an internal agent instead, or choose one of the spawn services and select it with --apply: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-claude --apply (this package's own Claude harness), or --owner-setup-claude-native (the vendor claude CLI as installed on this machine), or --owner-setup-copilot, or --owner-setup-copilot-native (the vendor copilot CLI as installed on this machine), or --owner-setup-grok (this package's own xAI Grok harness), or --owner-setup-scaleway." >&2
 		exit 5
 	else
 		for DAGC_AUTO_CLI in $DAGC_SELECTABLE_CLIS ; do
@@ -379,7 +380,7 @@ elif ! DagcCliPresent "$DAGC_CLI" ; then
 fi
 
 ## The actual argv[0] `exec` below reaches for. A vendor CLI's own name IS the
-## binary; a leg's is not -- `claude`, `copilot` and `scaleway` name files, not
+## binary; a leg's is not -- `claude`, `copilot`, `grok` and `scaleway` name files, not
 ## PATH -- so the leg branch is the one substitution point where the harness
 ## script stands in for the name. `$DAGC_CLI` itself stays the logical name
 ## everywhere else in this file (DISTRO_CONSOLE_EXEC=, the credential/flag
@@ -397,6 +398,7 @@ else
 		## what stops the exec below reaching for a `claude-native` that is on no PATH.
 		claude-native) DAGC_CLI_EXEC="claude" ;;
 		copilot-native) DAGC_CLI_EXEC="copilot" ;;
+		grok-native) DAGC_CLI_EXEC="grok" ;;
 		*)             DAGC_CLI_EXEC="$DAGC_CLI" ;;
 	esac
 fi
@@ -469,9 +471,15 @@ if [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
 	## Reads stay the full union, which is what every console generated before this
 	## already passed. Writes narrow to what may actually be written: the work
 	## directories, plus the roots a declared Edit grant names.
+	## Captured with its status and stderr, so a failed producer refuses the spawn with
+	## its reason: read through the herestring directly, a short set passes as whole.
+	if ! DAGC_ACCESS_ROOTS="$( AgentsToolsClientAccessRoots "$MMDAPP" "$MDAT_SPAWN_AGENT" 2>&1 )" ; then
+		echo "⛔ ERROR: DistroAgentsConsole: the access-root set could not be computed, refusing rather than starting $DAGC_CLI on a partial set: $DAGC_ACCESS_ROOTS" >&2
+		exit 1
+	fi
 	while IFS= read -r DAGC_ACCESS_LINE ; do
 		case "$DAGC_ACCESS_LINE" in /*) DagcAccessAppend "$DAGC_ACCESS_FLAG" "$DAGC_ACCESS_LINE" ;; esac
-	done <<< "$( AgentsToolsClientAccessRoots "$MMDAPP" "$MDAT_SPAWN_AGENT" )"
+	done <<< "$DAGC_ACCESS_ROOTS"
 	while IFS= read -r DAGC_ACCESS_LINE ; do
 		case "$DAGC_ACCESS_LINE" in /*) DagcAccessAppend "$DAGC_ACCESS_WRITE_FLAG" "$DAGC_ACCESS_LINE" ;; esac
 	done <<< "$( { AgentsToolsClientAccessReferenceRoots write "$MMDAPP" "$MDAT_SPAWN_AGENT" ; AgentsToolsClientAccessGrantRoots ; } | LC_ALL=C sort -u )"
@@ -575,7 +583,7 @@ if DagcCliIsLeg "$DAGC_CLI" ; then
 else
 	## Every remaining name here is a vendor CLI, and none of them takes a
 	## credential from us: a -native CLI runs on the machine's own sign-in, and
-	## grok has no credential of ours either. The arms that once named
+	## grok-native has no credential of ours either. The arms that once named
 	## ANTHROPIC_API_KEY and COPILOT_GITHUB_TOKEN for `claude` and `copilot`
 	## are gone with those names: both are harness legs now, and each declares
 	## its own credential names in the branch above.

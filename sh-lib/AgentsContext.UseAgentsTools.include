@@ -80,6 +80,10 @@ if [ "$1" != "--agents-config-option" ] ; then
 				;;
 			esac
 			export MDAT_DATA_ROOT
+		else
+			## Unset is the normal case: the workspace's own hidden store. The
+			## setting is an override, for workspaces that share team data.
+			export MDAT_DATA_ROOT="$MMDAPP/.local/agents/team-data-root"
 		fi
 	fi
 fi

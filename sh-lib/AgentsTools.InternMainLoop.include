@@ -48,7 +48,7 @@ case "$1" in
 		## PROBES presence here (every key --optional); the readiness report owns
 		## the floor policy -- which items gate, and how Basic comms is satisfied
 		## by any one transport -- and its own exit (PIPESTATUS[1]) is the gate.
-		## The floor is TEAM_DATA_DIRECTORY + Basic comms + SPAWN_CLI_SERVICE,
+		## The floor is the team data root + Basic comms + SPAWN_CLI_SERVICE,
 		## which is magic-team's and needs the second probe; the event-track and
 		## event-alert channels are probed for the report but never gate.
 		## The report goes to STDERR, like the per-iteration lines below: this
@@ -58,8 +58,10 @@ case "$1" in
 		## the machine-readable half, and PIPESTATUS[1] survives the redirect:
 		## the group is one pipeline stage, so the awk is still stage 1.
 		{
+			## Team data is never unset: without TEAM_DATA_DIRECTORY the resolver
+			## gives the workspace's own store, so the floor reads that answer.
+			[ -z "${MDAT_DATA_ROOT:-}" ] || echo "TEAM_DATA_DIRECTORY: OK"
 			DistroAgentsTools --intern-op-check-configs magic-coordinator \
-				--optional "TEAM_DATA_DIRECTORY:<path>" \
 				--optional "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
 				--optional "SLACK_CHANNEL_HUMAN_OWNER:<user-id>" \
 				--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
@@ -185,16 +187,27 @@ case "$1" in
 		## file rather than logged and forgotten.
 		AgentsToolsMainLoopSyncTeamData() {
 			[ -n "$mainLoopDataRemote" ] || { mainLoopTeamData="skipped" ; return 0 ; }
-			if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/clonePull.Common" ] ; then
+			if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/clonePull.Common" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
 				mainLoopTeamData="skipped"
-				echo "# $MDSC_CMD --intern-main-loop: team-data sync skipped -- myx.common git/clonePull unreachable" >&2
+				echo "# $MDSC_CMD --intern-main-loop: team-data sync skipped -- myx.common git/clonePull or git/cloneSync unreachable" >&2
 				return 0
 			fi
-			if ( "$MYXROOT/bin/git/clonePull.Common" "$MDAT_DATA_ROOT" "$mainLoopDataRemote" "$mainLoopDataBranch" >&2 ) ; then
+			## A store holding content and not yet a clone -- the default store, used
+			## before a remote was set -- is adopted by cloneSync, which commits it and
+			## pushes it into an EMPTY remote; clonePull refuses a non-empty directory.
+			## The branch travels as init.defaultBranch so that first commit is on the
+			## branch clonePull later tracks: any other makes it delete the checkout.
+			local syncCommand="clonePull"
+			if [ -d "$MDAT_DATA_ROOT" ] && [ ! -d "$MDAT_DATA_ROOT/.git" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
+				syncCommand="cloneSync"
+			fi
+			if ( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$mainLoopDataBranch" \
+				"$MYXROOT/bin/git/$syncCommand.Common" "$MDAT_DATA_ROOT" "$mainLoopDataRemote" "$mainLoopDataBranch" >&2 ) ; then
 				mainLoopTeamData="ok" ; mainLoopTeamDataFailures=0
 			else
 				mainLoopTeamData="stale" ; mainLoopTeamDataFailures=$(( mainLoopTeamDataFailures + 1 ))
 				echo "# $MDSC_CMD --intern-main-loop: team-data sync failed ($mainLoopTeamDataFailures in a row), continuing on the local copy" >&2
+				[ "$syncCommand" != "cloneSync" ] || echo "# $MDSC_CMD --intern-main-loop: $MDAT_DATA_ROOT holds local content and is not a clone: it is adopted only into an empty remote, so merge it with $mainLoopDataRemote by hand" >&2
 			fi
 			return 0
 		}

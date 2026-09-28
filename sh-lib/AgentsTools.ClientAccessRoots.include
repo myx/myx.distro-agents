@@ -38,7 +38,9 @@
 ##               identity record, and nobody may be spawned as it.
 ##   readable -- includes it. The escalation path every session must be able to
 ##               read lives inside one, so a read grant that skipped it would
-##               make the mandated route unreadable.
+##               make the mandated route unreadable. Also walks $HOME/.claude/skills,
+##               the read root the Skill tool serves: its members are symlinks, and
+##               a resolved path never falls under that directory itself.
 ## Required, never defaulted: a purpose guessed wrong is a silently wrong grant.
 ##   $1 = acting | readable
 AgentsToolsClientAccessRootsMembers(){
@@ -50,10 +52,11 @@ AgentsToolsClientAccessRootsMembers(){
 			return 1
 		;;
 	esac
-	local skillsRoot="$MDAT_SKILLSET_ROOT"
-	[ -d "$skillsRoot" ] || return 0
+	set --
+	[ -z "${MDAT_SKILLSET_ROOT:-}" ] || [ ! -d "$MDAT_SKILLSET_ROOT" ] || set -- "$MDAT_SKILLSET_ROOT"/*/
+	[ "$memberPurpose" = "acting" ] || [ ! -d "$HOME/.claude/skills" ] || set -- "$@" "$HOME/.claude/skills"/*/
 	local memberEntry memberName memberReal
-	for memberEntry in "$skillsRoot"/*/ ; do
+	for memberEntry in "$@" ; do
 		[ -d "${memberEntry%/}" ] || continue
 		memberName="$( basename "${memberEntry%/}" )"
 		[ "$memberName" != "trash" ] || continue
@@ -205,18 +208,17 @@ AgentsToolsClientAccessRootTag(){
 ## as one union -- the vendor CLIs' own limit, not this model's; a client that
 ## can be told a verb asks the two producers above for the half it means.
 ## The board is absent by design; the CALLER rejects an empty set.
+## A producer that fails fails the whole set, rc 1 with its own message on stderr:
+## a short set at rc 0 is indistinguishable from a complete one.
 ##   $1 = workspace root, $2 = member name, for its own scratchpads
 AgentsToolsClientAccessRoots(){
-	local workspace="$1" memberName="$2"
+	local workspace="$1" memberName="$2" accessRoots
+	accessRoots="$( AgentsToolsClientAccessRootsMembers readable )" || return 1
+	[ -z "$workspace" ] || accessRoots="$accessRoots"$'\n'"$workspace/source"
+	accessRoots="$accessRoots"$'\n'"$( AgentsToolsClientAccessReferenceRoots read "$workspace" )" || return 1
+	accessRoots="$accessRoots"$'\n'"$( AgentsToolsClientAccessReferenceRoots write "$workspace" "$memberName" )" || return 1
+	accessRoots="$accessRoots"$'\n'"$( AgentsToolsClientAccessGrantRoots )" || return 1
 	## Sorted-unique: the declared grants re-derive roots the functions above
 	## already yield, and a repeated root is a duplicate `--add-dir`.
-	{
-		AgentsToolsClientAccessRootsMembers readable
-		if [ -n "$workspace" ] ; then
-			printf '%s\n' "$workspace/source"
-		fi
-		AgentsToolsClientAccessReferenceRoots read "$workspace"
-		AgentsToolsClientAccessReferenceRoots write "$workspace" "$memberName"
-		AgentsToolsClientAccessGrantRoots
-	} | LC_ALL=C sort -u
+	printf '%s\n' "$accessRoots" | LC_ALL=C sort -u | LC_ALL=C awk 'NF'
 }

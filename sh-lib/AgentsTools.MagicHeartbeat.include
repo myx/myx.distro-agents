@@ -95,7 +95,6 @@ case "$1" in
 			set +e ; return 1
 		fi
 		DistroAgentsTools --intern-op-check-configs magic-coordinator \
-			--required "TEAM_DATA_DIRECTORY:<path>" \
 			--required "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
 			--required "SLACK_CHANNEL_HUMAN_OWNER:<user-id>" \
 			--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
@@ -109,12 +108,23 @@ case "$1" in
 			--expect-id-kind SLACK_CHANNEL_EVENT_ALERT:channel \
 			--expect-id-kind SLACK_CHANNEL_MAGIC_TEAM:channel \
 			--expect-id-kind SLACK_CHANNEL_HUMAN_OWNER:user \
-			--expect-path-exists "TEAM_DATA_DIRECTORY:${MDAT_DATA_ROOT:-}" \
 			--expect-secret EMAIL_APP_PASSWORD \
 			--expect-secret TRELLO_KEY \
 			--expect-secret TRELLO_TOKEN \
 			--context --magic-heartbeat-config-check
 		local configRc=$?
+		## Unset, the team data is the workspace's own store, which the resolver
+		## already answered; a setting is an override and is checked as one.
+		if [ -n "$( DistroAgentsTools --agents-config-option magic-coordinator --select TEAM_DATA_DIRECTORY 2>/dev/null )" ] ; then
+			DistroAgentsTools --intern-op-check-configs magic-coordinator \
+				--optional "TEAM_DATA_DIRECTORY:<path>" \
+				--expect-path-exists "TEAM_DATA_DIRECTORY:${MDAT_DATA_ROOT:-}" \
+				--context --magic-heartbeat-config-check || configRc=1
+		else
+			echo "TEAM_DATA_DIRECTORY: OK"
+			echo "  note: not set, so the team data is this workspace's own store"
+			echo "  path: $MDAT_DATA_ROOT"
+		fi
 		DistroAgentsTools --intern-op-check-configs magic-team \
 			--optional "SLACK_BOT_TOKEN:<token>" \
 			--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \

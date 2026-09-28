@@ -7,8 +7,10 @@
 # (AgentsTools.Install.include) is the only caller.
 #
 # Every entry already present that this script did not itself add is kept, in
-# its original position -- this only ever appends missing entries. Prints the
-# new document on stdout; never opens the target itself.
+# its original position. The one removal is a hooks.PreToolUse entry running a
+# retired hook script (MYX_WSRESTRICT_RETIRED_HOOKS); everything else only
+# appends missing entries. Prints the new document on stdout; never opens the
+# target itself.
 #
 # Same structural JSON-walker core as AgentsClaudeSettingsPermissionsUpsert.awk
 # / AgentsMcpServerJsonUpsert.awk (skipString/skipValue/skipObject/skipArray/
@@ -74,6 +76,12 @@
 #                                        written to, a reference root is not.
 #                                        Optional -- unset is an empty list, so
 #                                        a caller predating it is unaffected.
+#   MYX_WSRESTRICT_RETIRED_HOOKS      -- retired hook script names, one per
+#                                        line. A hooks.PreToolUse entry whose
+#                                        raw text runs `.claude/hooks/<name>`
+#                                        is removed, and the entries around it
+#                                        keep their text. Optional -- unset
+#                                        removes nothing.
 
 function skipws(   c) {
 	while (p <= n) {
@@ -333,6 +341,7 @@ BEGIN {
 	if (!validJson(denyAddRaw, "[")) fail("deny-add-not-a-json-array")
 	if (!validJson(allowExtraRootsRaw, "[")) fail("allow-extra-roots-not-a-json-array")
 	if (!validJson(allowWriteRootsRaw, "[")) fail("allow-write-roots-not-a-json-array")
+	retiredCount = split(ENVIRON["MYX_WSRESTRICT_RETIRED_HOOKS"], retiredHook, "\n")
 
 	s = denyAddRaw; n = length(s); p = 1; skipws()
 	denyAddCount = stringArrayAt(p)
@@ -482,6 +491,38 @@ END {
 	hooksStart = VALUE_START
 	if (!findKeyInObjectAt(hooksStart, "PreToolUse") || !FOUND) fail("unparsable")
 	if (substr(s, VALUE_START, 1) != "[") fail("pretooluse-not-an-array")
+
+	## Entries running a retired hook script go before anything is appended.
+	## A kept entry carries the gap before it, comma included, except the
+	## first kept one, which takes the gap after `[`.
+	preToolUseStart = VALUE_START
+	p = preToolUseStart + 1
+	skipws()
+	elemCount = 0
+	while (substr(s, p, 1) != "]") {
+		elemStart[elemCount] = p
+		if (!skipValue()) fail("pretooluse-malformed")
+		elemEnd[elemCount++] = p
+		skipws()
+		if (substr(s, p, 1) == ",") { p++; skipws() ; }
+	}
+	keptText = ""
+	keptCount = 0
+	for (i = 0; i < elemCount; i++) {
+		elemText = substr(s, elemStart[i], elemEnd[i] - elemStart[i])
+		elemRetired = 0
+		for (j = 1; j <= retiredCount; j++) {
+			if (retiredHook[j] == "") continue
+			## The name ends where the JSON string does, or where an argument starts.
+			if (index(elemText, ".claude/hooks/" retiredHook[j] "\"") > 0 || index(elemText, ".claude/hooks/" retiredHook[j] "\\\"") > 0 || index(elemText, ".claude/hooks/" retiredHook[j] " ") > 0) elemRetired = 1
+		}
+		if (elemRetired) continue
+		if (keptCount > 0) keptText = keptText substr(s, elemEnd[i - 1], elemStart[i] - elemEnd[i - 1])
+		keptText = keptText elemText
+		keptCount++
+	}
+	if (keptCount == 0 && elemCount > 0) s = substr(s, 1, preToolUseStart) substr(s, p)
+	else if (keptCount < elemCount) s = substr(s, 1, elemStart[0] - 1) keptText substr(s, elemEnd[elemCount - 1])
 
 	for (i = 0; i < hooksCount; i++) {
 		## re-locate fresh every iteration: an earlier append shifts every

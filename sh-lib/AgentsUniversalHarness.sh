@@ -426,11 +426,20 @@ if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 		DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
 	fi
 	. "$harnessRootsInclude"
+	## Captured on its own line so a failed producer refuses the run: read through the
+	## herestring directly, its status is lost and a short set passes as the whole one.
+	## stderr is captured with it, so the reason travels with the refusal; the loop
+	## below keeps absolute paths only. Under --intern-tool stdout is all a caller sees.
+	if ! harnessOwnRoots="$( AgentsToolsClientAccessRoots "${MMDAPP:-}" "$harnessAgent" 2>&1 )" ; then
+		[ -z "$harnessToolOnly" ] || printf 'ERROR: the access-root set could not be computed, so nothing was done: %s\n' "$harnessOwnRoots"
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the access-root set could not be computed, refusing rather than running on a partial set: $harnessOwnRoots" >&2
+		exit 1
+	fi
 	while IFS= read -r harnessOwnRoot ; do
 		case "$harnessOwnRoot" in
 			/*) harnessAccessRoots+=( "$harnessOwnRoot" ) ;;
 		esac
-	done <<< "$( AgentsToolsClientAccessRoots "${MMDAPP:-}" "$harnessAgent" )"
+	done <<< "$harnessOwnRoots"
 	## Said because a partial set is otherwise silent: the member roots drop out when the
 	## skillset root is unresolved, and a narrower grant then looks exactly like a full one.
 	printf '%s\n' "🔐 ${harnessDim}access roots${harnessOff} ${harnessValue}${#harnessAccessRoots[@]}${harnessOff} ${harnessDim}from this package's own access-root mechanism${harnessOff}" >&2
@@ -441,6 +450,7 @@ for harnessRoot in "${harnessAccessRoots[@]}" ; do
 	harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessRoot" )"$'\n'
 done
 if [ -z "$harnessRoots" ] ; then
+	[ -z "$harnessToolOnly" ] || printf 'ERROR: no access roots resolved, so nothing was done -- sh-lib/AgentsTools.ClientAccessRoots.include yielded an empty set; check MDAT_SKILLSET_ROOT, HOME and MMDAPP in the MCP server environment\n'
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no access roots resolved -- refusing to run a tool-calling agent with nowhere it may touch. Pass --access-write-root for a root it may both read and write, or --access-read-root for one it may only read. With no flag at all the set comes from sh-lib/AgentsTools.ClientAccessRoots.include, so an empty set means that mechanism yielded nothing -- check MDAT_SKILLSET_ROOT and MMDAPP." >&2
 	exit 1
 fi
@@ -610,6 +620,29 @@ AgentsHarnessWholeNumber(){
 	done
 }
 
+## A line range is the only way past the byte cap, so it states what it showed. Read and
+## Skill both take one.
+AgentsHarnessReadRange(){ ## path, offset, limit
+	local rangeOffset="${2:-1}" rangeLimit="$3"
+	if ! AgentsHarnessWholeNumber "$rangeOffset" || [ "$rangeOffset" -lt 1 ] ; then
+		printf 'ERROR: offset must be a whole line number counting from 1, got: %s\n' "$rangeOffset" ; return 0
+	fi
+	if [ -n "$rangeLimit" ] && { ! AgentsHarnessWholeNumber "$rangeLimit" || [ "$rangeLimit" -lt 1 ] ; } ; then
+		printf 'ERROR: limit must be a whole number of lines, at least 1, got: %s\n' "$rangeLimit" ; return 0
+	fi
+	## Digits by the checks above, so there is nothing here for -v to backslash-decode.
+	LC_ALL=C awk -v fromLine="$rangeOffset" -v lineLimit="${rangeLimit:-0}" -v byteCap=200000 '
+		NR >= fromLine && ( lineLimit == 0 || NR < fromLine + lineLimit ) {
+			rangeBytes = rangeBytes + length($0) + 1
+			if ( rangeBytes <= byteCap ) { print ; shownCount = shownCount + 1 ; shownBytes = rangeBytes ; }
+		}
+		END {
+			if ( rangeBytes > byteCap ) printf "... TRUNCATED: showed %d of %d bytes in the requested range ...\n", shownBytes, rangeBytes
+			printf "... read %d line(s) from line %d; the file has %d lines ...\n", shownCount, fromLine, NR
+		}
+	' "$1"
+}
+
 AgentsHarnessToolRead(){
 	local toolPath="$1" toolOffset="$2" toolLimit="$3" toolBytes
 	if ! AgentsHarnessPathAllowed "$toolPath" ; then
@@ -624,26 +657,8 @@ AgentsHarnessToolRead(){
 	if [ ! -r "$toolPath" ] ; then
 		printf 'ERROR: not readable (permission denied): %s\n' "$toolPath" ; return 0
 	fi
-	## A line range is the only way past the byte cap below, so it states what it showed.
 	if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] ; then
-		[ -n "$toolOffset" ] || toolOffset=1
-		if ! AgentsHarnessWholeNumber "$toolOffset" || [ "$toolOffset" -lt 1 ] ; then
-			printf 'ERROR: offset must be a whole line number counting from 1, got: %s\n' "$toolOffset" ; return 0
-		fi
-		if [ -n "$toolLimit" ] && { ! AgentsHarnessWholeNumber "$toolLimit" || [ "$toolLimit" -lt 1 ] ; } ; then
-			printf 'ERROR: limit must be a whole number of lines, at least 1, got: %s\n' "$toolLimit" ; return 0
-		fi
-		## Digits by the checks above, so there is nothing here for -v to backslash-decode.
-		LC_ALL=C awk -v fromLine="$toolOffset" -v lineLimit="${toolLimit:-0}" -v byteCap=200000 '
-			NR >= fromLine && ( lineLimit == 0 || NR < fromLine + lineLimit ) {
-				rangeBytes = rangeBytes + length($0) + 1
-				if ( rangeBytes <= byteCap ) { print ; shownCount = shownCount + 1 ; shownBytes = rangeBytes ; }
-			}
-			END {
-				if ( rangeBytes > byteCap ) printf "... TRUNCATED: showed %d of %d bytes in the requested range ...\n", shownBytes, rangeBytes
-				printf "... read %d line(s) from line %d; the file has %d lines ...\n", shownCount, fromLine, NR
-			}
-		' "$toolPath"
+		AgentsHarnessReadRange "$toolPath" "$toolOffset" "$toolLimit"
 		return 0
 	fi
 	## Capped and said so, never silently: an unbounded read risks the request itself.
@@ -2249,15 +2264,21 @@ AgentsHarnessSkillSegmentOk(){ ## one path segment
 ## under the root, whatever that root later resolves to.
 AgentsHarnessToolSkill(){ ## name, file, list
 	local toolName="$1" toolFile="$2" toolList="$3"
-	local skillRoot skillDir skillPath skillRest skillSeg skillBytes
-	skillRoot="${MDAT_SKILLSET_ROOT:-}"
-	if [ -z "$skillRoot" ] ; then
-		printf 'ERROR: Skill: MDAT_SKILLSET_ROOT is not set in this process, so there is no skillset to read from. Nothing was read, and no skill is implied to be absent.\n' ; return 0
-	fi
+	local skillDir skillPath skillRest skillSeg skillBytes
+	## `<member>/<file>` in name is the same call as name plus file.
+	case "$toolName" in
+		*/*)
+			[ -n "$toolFile" ] || toolFile="${toolName#*/}"
+			toolName="${toolName%%/*}"
+		;;
+	esac
 	if ! AgentsHarnessSkillSegmentOk "$toolName" ; then
 		printf 'ERROR: Skill: name is not a bare skill folder name -- letters, digits, underscore, dot and hyphen only, and never . or .. : %s\n' "${toolName:-<none>}" ; return 0
 	fi
-	skillDir="$skillRoot/$toolName"
+	## $HOME/.claude/skills is where every member is linked, whichever skillset this
+	## process resolved: a workspace-scoped one carries only some of them.
+	skillDir="${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}/$toolName"
+	[ -d "$skillDir" ] || skillDir="$HOME/.claude/skills/$toolName"
 	if [ ! -d "$skillDir" ] ; then
 		printf 'ERROR: Skill: no such skill folder: %s\n' "$skillDir" ; return 0
 	fi
