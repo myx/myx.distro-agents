@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the WAIT class -- `--member-wait-for-input` and the `Wait`
-## harness tool that drives it. AgentsHarnessSelfCheck.awk beside it proves `Wait`
+## harness tool that drives it. AgentsHarnessSelfCheck.test.awk beside it proves `Wait`
 ## occupies its four structural sites and nothing whatever about a wait returning:
 ## a build where TIMEOUT returned 1, or where an unknown source kind timed out
 ## instead of erroring, leaves that report byte-identical to a clean one. This one
@@ -43,8 +43,8 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 ## checking still prints its PASS lines. A missing fixture refuses instead.
 mkdir -p "$rigTmp/bin"
 rigFixtures="$rigHere/check-fixtures"
-cp "$rigFixtures/harness-wait-check.curl.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-wait-check.curl.sh"
+cp "$rigFixtures/harness-wait-check.curl.test.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-wait-check.curl.test.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 export PATH
@@ -57,7 +57,7 @@ export RIG_CURL_LOG
 ## The host is a reserved .invalid name that can never resolve and the token is a
 ## literal, so nothing in this rig can reach a service or spend a credential.
 export HARNESS_PROVIDER_NAME="wait-check rig"
-export HARNESS_SELF_NAME="AgentsHarnessWaitCheck.sh"
+export HARNESS_SELF_NAME="AgentsHarnessWaitCheck.test.sh"
 export HARNESS_ENDPOINT="https://harness-wait-check.invalid/v1/chat/completions"
 export HARNESS_HOST="harness-wait-check.invalid"
 export HARNESS_WIRE="OpenAiChat"

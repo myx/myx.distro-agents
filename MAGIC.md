@@ -352,7 +352,7 @@ Team-owned notes for the magic-* team.
 - **Unserved is ABSENT from `tools/list`, not present-and-refusing**: a tool that exists and refuses reads
   as a broken server. `tools/call` still names what to use instead for each unserved tool, because a
   caller who names one anyway needs somewhere to go.
-- **`sh-lib/AgentsHarnessServedFloorCheck.sh` now holds this, so the subtraction is no longer a list
+- **`sh-lib/AgentsHarnessServedFloorCheck.test.sh` now holds this, so the subtraction is no longer a list
   somebody has to remember.** It reads the served set off the real server's own `tools/list` answer rather
   than re-applying the subtraction, and holds it in both forms below.
 - **The rule's scope is the harness tool floor, not everything served, and writing it the wider way makes
@@ -1639,7 +1639,7 @@ because they would hold the same way against any provider.
 
 ## The harness tool set
 
-The harness declares twenty tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`, `WebSearch`, `WebFetch`, `SendMessage`, `ListAgents`, `Wait`, `SubagentHandback`, `ReportFindings`, `PushNotification`, `Artifact`, `AskUserQuestion`, `ListMcpResourcesTool`, `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `Skill`. Each occupies four structural sites -- the `harnessToolsJson` literal in `sh-lib/AgentsOpenAiChatWire.sh`, and the announce arm, the dispatch arm and the tool function in `sh-lib/AgentsUniversalHarness.sh` -- and `sh-lib/AgentsHarnessSelfCheck.awk` proves all four for every one of them. MCP tools are added separately under `mcp__<server>__<tool>` and are not part of this set.
+The harness declares twenty tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`, `WebSearch`, `WebFetch`, `SendMessage`, `ListAgents`, `Wait`, `SubagentHandback`, `ReportFindings`, `PushNotification`, `Artifact`, `AskUserQuestion`, `ListMcpResourcesTool`, `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `Skill`. Each occupies four structural sites -- the `harnessToolsJson` literal in `sh-lib/AgentsOpenAiChatWire.sh`, and the announce arm, the dispatch arm and the tool function in `sh-lib/AgentsUniversalHarness.sh` -- and `sh-lib/AgentsHarnessSelfCheck.test.awk` proves all four for every one of them. MCP tools are added separately under `mcp__<server>__<tool>` and are not part of this set.
 
 `SendMessage` posts through `--member-comms-slack-send-message`, under the member identity `--agent` named; a harness started without `--agent` refuses to send rather than choosing one. The message text goes in on `--from-stdin`, so no shell parses it, and no credential ever reaches argv. Its `to` parameter is required because nothing hands the harness a thread of its own -- the full spawn-time environment is `MDAT_SPAWN_AGENT`, `MDAT_SPAWN_LAUNCH_MARKER` and `MDAT_SPAWN_SESSION_ID`.
 
@@ -1651,34 +1651,34 @@ The harness declares twenty tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bas
 
 **Its reach is therefore the skillset root and everything reached through it, deliberately outside the access roots. That reach is the design, and following a member folder's own symlink is how the tool works rather than a hole in it.** A member folder under `$MDAT_SKILLSET_ROOT` IS a symlink into whichever source tree owns it, so the material the tool exists to serve lives outside the root it is named by. Containment is held lexically for that reason -- gated character set, no `..` segment, no leading slash, decided before any resolution -- and that gate is sound on its own terms: it refused all 23 lexical attacks put to it, covering percent- and double-percent-encoded traversal, a fullwidth solidus, invalid-UTF-8 dot bytes, backslash separators, an embedded newline, an empty segment and absolute paths in both arguments. Reaching shared material, and reaching it through the member folder's own symlink, are intended and are not to be "fixed".
 
-**One narrow case falls outside that reach and is accepted: a symlink PLANTED inside a member tree or in the skillset root, pointing somewhere outside the skillset tree entirely, is followed.** `-f`, `-r` and `cat` all follow symlinks, so the comment on the function is true about the STRING and false about the READ: the gate constrains what the argument may name, not where the named path resolves to. Six inputs carrying no `..` and no slash read files outside the skillset tree that way, `/etc/passwd` among them. **`/etc/passwd` is not a skillset file, so this case falls outside the intent above rather than inside it, and the two stand side by side without being reconciled here:** the intent is read-only over any skillset file, and this is a measured read of something that is not one. `list` is the same case and belongs to it: `find -L` follows such a link too, printing the outside file under an in-folder path, and a read by that advertised name then succeeds. What makes this acceptable is measured with a positive control -- zero symlinks of any kind inside the 20 real member trees, so none pointing outside them -- and the precondition that rests on is one `ln -s` planted in a member tree or in the skillset root, in ordinary source trees that humans and agents both write to. **The condition that reverses this is the first symlink pointing OUTSIDE the skillset tree appearing in a member tree or in the skillset root** -- never a symlink as such, since those are the architecture. Nobody polls for it and no watcher exists; it is written here so that whoever notices one knows what it means. **`Skill` is the one reader outside this harness's own resolved path handling, which is why the case exists here and nowhere else in the tool set:** `Read`, `Write`, `Edit`, `Glob`, `Grep` and `Bash` all go through `AgentsHarnessPathAllowed`, whose symlink behaviour is held in BOTH polarities by `AgentsHarnessContainmentCheck.sh` -- a symlinked access root is admitted, a `..` escape refused -- and `Skill` deliberately does not. The guard that matches this, recorded so it is not re-derived: resolve after the lexical gate and require the candidate under the resolved MEMBER folder, which admits all 20 real member trees. A resolved-skillset-root prefix does NOT work and is what the lexical gate exists to avoid -- measured, it admits 1 member folder and refuses 19. Where shared material is ever linked into several members, its own resolved target joins the admitted set: the bound is the union of the roots the skillset intentionally publishes, never a single prefix.
+**One narrow case falls outside that reach and is accepted: a symlink PLANTED inside a member tree or in the skillset root, pointing somewhere outside the skillset tree entirely, is followed.** `-f`, `-r` and `cat` all follow symlinks, so the comment on the function is true about the STRING and false about the READ: the gate constrains what the argument may name, not where the named path resolves to. Six inputs carrying no `..` and no slash read files outside the skillset tree that way, `/etc/passwd` among them. **`/etc/passwd` is not a skillset file, so this case falls outside the intent above rather than inside it, and the two stand side by side without being reconciled here:** the intent is read-only over any skillset file, and this is a measured read of something that is not one. `list` is the same case and belongs to it: `find -L` follows such a link too, printing the outside file under an in-folder path, and a read by that advertised name then succeeds. What makes this acceptable is measured with a positive control -- zero symlinks of any kind inside the 20 real member trees, so none pointing outside them -- and the precondition that rests on is one `ln -s` planted in a member tree or in the skillset root, in ordinary source trees that humans and agents both write to. **The condition that reverses this is the first symlink pointing OUTSIDE the skillset tree appearing in a member tree or in the skillset root** -- never a symlink as such, since those are the architecture. Nobody polls for it and no watcher exists; it is written here so that whoever notices one knows what it means. **`Skill` is the one reader outside this harness's own resolved path handling, which is why the case exists here and nowhere else in the tool set:** `Read`, `Write`, `Edit`, `Glob`, `Grep` and `Bash` all go through `AgentsHarnessPathAllowed`, whose symlink behaviour is held in BOTH polarities by `AgentsHarnessContainmentCheck.test.sh` -- a symlinked access root is admitted, a `..` escape refused -- and `Skill` deliberately does not. The guard that matches this, recorded so it is not re-derived: resolve after the lexical gate and require the candidate under the resolved MEMBER folder, which admits all 20 real member trees. A resolved-skillset-root prefix does NOT work and is what the lexical gate exists to avoid -- measured, it admits 1 member folder and refuses 19. Where shared material is ever linked into several members, its own resolved target joins the admitted set: the bound is the union of the roots the skillset intentionally publishes, never a single prefix.
 
-**A tool description is shell code before it is prose.** The whole tools JSON is one bash single-quoted literal, so an ordinary English possessive -- `harness's`, `team's` -- closes it and the harness dies before its first request. Rewrite the possessive rather than escape it: `the team's own X` becomes `the X this team owns`. `AgentsHarnessSelfCheck.awk` matches text and does not parse, so it reports OK over a file in this state; `HARNESS_PARSES` is the check that sees it.
+**A tool description is shell code before it is prose.** The whole tools JSON is one bash single-quoted literal, so an ordinary English possessive -- `harness's`, `team's` -- closes it and the harness dies before its first request. Rewrite the possessive rather than escape it: `the team's own X` becomes `the X this team owns`. `AgentsHarnessSelfCheck.test.awk` matches text and does not parse, so it reports OK over a file in this state; `HARNESS_PARSES` is the check that sees it.
 
-**The literal carries a SECOND hazard, and it is the mirror of that one -- neither check above reaches it.** A break INSIDE the JSON, a missing comma between two declarations being the ordinary case, leaves `bash -n` clean precisely because the literal is single-quoted and the shell never parses its contents, while `AgentsHarnessSelfCheck.awk` matches the envelope as text and reports `OK (N tools, four sites each)` over the same file. Measured, both of them, on a fixture. The defect then surfaces only as a 400 from the live endpoint, which the harness prints as a refused request -- so it reads as an API or credential fault rather than as a local edit. `HARNESS_TOOLS_JSON` is the check that sees it, and the two counts it compares are the whole mechanism: a merge leaves the TEXT count (what the site check sees) unchanged while the PARSED count (what the endpoint sees) drops. **A change that adds or rewrites a declaration is not checked until that assertion has run over it.**
+**The literal carries a SECOND hazard, and it is the mirror of that one -- neither check above reaches it.** A break INSIDE the JSON, a missing comma between two declarations being the ordinary case, leaves `bash -n` clean precisely because the literal is single-quoted and the shell never parses its contents, while `AgentsHarnessSelfCheck.test.awk` matches the envelope as text and reports `OK (N tools, four sites each)` over the same file. Measured, both of them, on a fixture. The defect then surfaces only as a 400 from the live endpoint, which the harness prints as a refused request -- so it reads as an API or credential fault rather than as a local edit. `HARNESS_TOOLS_JSON` is the check that sees it, and the two counts it compares are the whole mechanism: a merge leaves the TEXT count (what the site check sees) unchanged while the PARSED count (what the endpoint sees) drops. **A change that adds or rewrites a declaration is not checked until that assertion has run over it.**
 
 ## MCP enumeration -- `--mcp-server` spawns a named server once, at startup
 
 **Enumeration runs once, at source time, before the first round.** `sh-lib/AgentsHarnessMcpClient.sh` builds a catalogue of what a named server offers, writes it to stderr and to `$harnessMcpCatalogue`, and renders one declaration record per tool from it. Declaring those tools to the model and calling one are the same file's own work on top of that catalogue, and are the section below. A run naming no server puts no `mcp__` name on the wire; measured, with the request body captured from a fake `curl`: the built-in tools, and zero occurrences of `mcp__`.
 
-- **No server is granted by default.** A server is spawned only because `--mcp-server <name>` named it. The flag is repeatable, and the name is resolved against `$MMDAPP/.mcp.json` under the `mcpServers` key -- the file this estate already keeps. There is no second config format and no path in any skillset file.
-- **A spawn naming none leaves the file inert**, which is also what keeps the offline checks offline: `AgentsHarnessRestartCheck.sh` drives the real core with no `--mcp-server`, so it opens no file and starts no process. Enumerating unconditionally at startup would destroy that check, so the guard on `${#harnessMcpServers[@]}` is load-bearing rather than defensive.
+- **A spawn naming no server gets the workspace's own set.** `--mcp-server <name>` names one, is repeatable, and naming any replaces the default outright. With none named, the core takes the keys of `$MMDAPP/.local/agents/mcp.servers.json` minus `myx.distro` -- the same set a served resource-tool call already took, by the same code -- because this harness is the `myx.distro` destination and enumerating itself is how a walk recurses. There is no second config format and no path in any skillset file.
+- **A run holding no server leaves the file inert**, which is also what keeps the offline checks offline: `AgentsHarnessRestartCheck.test.sh` drives the real core with `MMDAPP` pointed at a scenario carrying no `mcp.servers.json`, so it opens no file and starts no process. Enumerating unconditionally at startup would destroy that check, so the guard on `${#harnessMcpServers[@]}` is load-bearing rather than defensive.
 - **`MMDAPP` unset or `.mcp.json` absent is not an error.** With no server named, nothing is printed at all, exactly as the hooks behave. With a server named it is a loud degrade instead of silence -- the operator asked for something they did not get -- and the run continues on the built-in tools.
 - **One process per enumeration, never a persistent connection.** The whole conversation is written before the server starts -- `initialize`, `notifications/initialized`, `tools/list` -- and the server reads three lines, answers, and reaches EOF, which is what ends it. bash 3.2 has no way to hold a bidirectional stdio session open without `mkfifo` plus statically allocated descriptors.
 - **The answers are read FROM A FILE, never through `$( )`.** A capture returns when the pipe has no writers left, not when the process exits, so one child a server leaves behind would hang the spawn for that child's whole lifetime. Measured against a fake server that backgrounds a `sleep` and never answers: the leg ends on its own bound, not on the orphan's.
 - **Every server interaction is bounded, the way `AgentsHarnessToolBash` bounds a command** -- `timeout` or `gtimeout` where one exists, the same background-plus-watchdog shape where neither does. Expiry is stated, never waited out silently. Enumeration and a tool call carry different bounds because they are different waits: enumeration happens at spawn time, before the member works, and is held to `MDAT_HARNESS_MCP_ENUM_TIMEOUT` -- 30 seconds by default, a chosen policy value rather than a guess, since a healthy stdio server answers `initialize` in milliseconds. A deliberate tool call keeps the run bound, `MDAT_HARNESS_RUN_TIMEOUT`, 900 seconds by default. Both are validated as whole seconds by explicit digit enumeration, never a bracket range.
-- **A name is gated by explicit character enumeration, never a bracket range** -- `[a-z]` is collation-dependent and has matched `A` on this estate. A server key or tool name outside `[A-Za-z0-9_.-]` is DROPPED saying so, and an `env` key outside `[A-Za-z0-9_]` likewise; nothing is quietly rewritten to fit. The declared name is `mcp__<server>__<tool>`, so an ungateable component cannot reach it.
+- **A name is gated by explicit character enumeration, never a bracket range** -- `[a-z]` is collation-dependent and has matched `A` on this estate. A server key or tool name outside `[A-Za-z0-9_.-]` is DROPPED saying so, and an `env` key outside `[A-Za-z0-9_]` likewise; nothing is quietly rewritten to fit. The declared name is `mcp__<server>__<tool>`, so an ungateable component cannot reach it, with every `.` written as `_`: the wire takes `^[a-zA-Z0-9_-]{1,128}$` and answers a dotted name with a 400, measured against `mcp__myx.common__help`, which this leg reports only as a disconnected stream.
 - **Credentials reach the child through its environment and never through argv.** `.mcp.json`'s own `env` object is passed as `NAME=value` tokens to `env`, which is also why `command` must be an absolute path: the leading `/` is what guarantees it can never be read as one of those assignments.
 - **The catalogue is the shape `harnessHooksList` carries** -- newline-delimited, TAB-separated `server<TAB>toolName<TAB>declaredName<TAB>schemaFile` -- so the per-call path stays builtins-only. The schema file holds that tool's own `inputSchema` as raw bytes, in the harness's own scratch directory, and goes with it on EXIT.
 - **A degrade names its reason once and says it twice**: a loud stderr line for the operator, and the same reason built into `$harnessMcpUnavailableNote`, the sentence the model is owed. Publishing it is this file's job; the core is what places it, appending it to `$harnessSystemText` before `AgentsWireInitMessages` builds the first request -- that server's tools are absent from the declarations, and nothing else in the run says why.
-- **No production caller passes `--mcp-server`.** No spawn proxy, console CLI or skillset operation names a server, so the flag is reached by hand and by `sh-lib/AgentsHarnessMcpCheck.sh`, which drives it against its own fake server.
+- **No production caller passes `--mcp-server`.** No spawn proxy, console CLI or skillset operation names a server, so every production spawn runs on the workspace set above, and the flag is reached by hand and by `sh-lib/AgentsHarnessMcpCheck.test.sh`, which drives it against its own fake server.
 
 ## An MCP tool on the wire -- declared per tool, dispatched last, frozen for the run
 
 **Each enumerated tool is declared to the model individually, as `mcp__<server>__<tool>`, in the same `tools` array as the built-in set.** There is no umbrella "call this server" tool: the model picks an MCP tool by name the way it picks `Read`. `AgentsWireToolDeclaration` in `sh-lib/AgentsOpenAiChatWire.sh` renders one such record and is the only wire-shaped piece of MCP -- the `{"type":"function",...}` envelope is that endpoint's shape, so it lives with the wire rather than beside the catalogue it describes. The server's own `inputSchema` is passed through as the bytes it sent; only the description is escaped.
 
 - **The tool set is frozen before the first round and is byte-identical on every one of them, a summarise-and-restart included.** `$harnessMcpToolsJson` is built during enumeration and never changes afterwards, and `AgentsWireRequestBody` splices it into the wire's own literal set in one fixed place, by stripping the closing `]` and appending. A fresh leg reuses it rather than enumerating again. Neither half of the reason is cosmetic: `tools` sits inside the cached byte prefix, so a rebuild in a different key order stays valid JSON and silently loses the whole prompt cache, and on the Anthropic wire the declaration binds to the thinking blocks, where changing it mid-session is a 400 at replay.
-- **One `mcp__*` prefix arm in the dispatch `case` and one in the announce `case`, each placed after every static arm** and before the unknown-tool fallback -- a prefix arm reached earlier could displace a built-in. The announce line shows the whole argument object, since only the server knows its own shape. `AgentsHarnessMcpCall` is deliberately outside the `AgentsHarnessTool*` family: that family is the static tool class `AgentsHarnessSelfCheck.awk` matches site by site, and a runtime-built tool has no site in the sources for it to match.
+- **One `mcp__*` prefix arm in the dispatch `case` and one in the announce `case`, each placed after every static arm** and before the unknown-tool fallback -- a prefix arm reached earlier could displace a built-in. The announce line shows the whole argument object, since only the server knows its own shape. `AgentsHarnessMcpCall` is deliberately outside the `AgentsHarnessTool*` family: that family is the static tool class `AgentsHarnessSelfCheck.test.awk` matches site by site, and a runtime-built tool has no site in the sources for it to match.
 - **The per-call path always prints a tool result.** A server that cannot be run, dies mid-run, refuses the call, sets `result.isError`, or answers in a shape this harness cannot read each becomes an `ERROR: ...` line the model reads, and the round carries on -- never a silent restart and never an exit. A declared name no catalogue row matches is refused the same way, saying that no MCP server this run enumerated declares it. Arguments are validated as one JSON object before anything is sent, and their newlines become spaces, since a JSON-RPC request is one line and a newline inside a string literal is not legal JSON anyway.
 - **A deny hook can actually deny an MCP call, because it is handed the call's real arguments.** The `*)` arm of `AgentsHarnessHooksRefusal` passes them through verbatim under `tool_input` -- an MCP tool's arguments already ARE the object a hook reads fields out of, and an empty object there would let a hook written to deny read nothing, match nothing and exit 0, which is an allow: fail-open inside a mechanism whose whole point is failing closed. They are validated as one JSON object first, and only an unparseable payload falls back to `{}`.
 
@@ -1710,7 +1710,7 @@ nothing.** The access roots refuse `$TMPDIR` and `/tmp`, so a rig building fixtu
 and starting work there is testing the subject in a place the subject cannot read or write. The failure
 arrives as a refusal the rig then stubs past, and every assertion downstream of that stub is void rather
 than green. The discriminator is not where the fixture sits — it is whether the gate was satisfied or
-moved. `AgentsHarnessAccessRootsCheck.sh` and `AgentsHarnessContainmentCheck.sh` both build under
+moved. `AgentsHarnessAccessRootsCheck.test.sh` and `AgentsHarnessContainmentCheck.test.sh` both build under
 `mktemp -d -t` and are sound, because each **relocates the root under test onto its own fixture**: the
 first exports `MMDAPP="$rigTmp"` so the mechanism's own roots resolve inside it, the second passes
 `$rigTmp/real` as the allowed root and `$rigTmp/outside` as the refused one. A rig that instead replaces
@@ -1724,22 +1724,22 @@ check, and is gated on `--check` for the work rather than only for the output: t
 awk processes and run several legs of the harness, and `--apply` must neither pay that nor start
 returning non-zero on a diagnostic finding.
 
-- **`sh-lib/AgentsHarnessAccessRootsCheck.sh` — where the no-flag access-root set comes from.**
+- **`sh-lib/AgentsHarnessAccessRootsCheck.test.sh` — where the no-flag access-root set comes from.**
   - Proves: with no `--access-root` passed, the set is taken from `sh-lib/AgentsTools.ClientAccessRoots.include`, the one place it is defined. It is not taken from a client's published launch fragment. The discriminator is a root only such a fragment names. Our own mechanism cannot yield it, so its presence on the wire says the fragment was read. A root the mechanism always yields, `$workspace/source`, is asserted present too, so an empty or truncated body cannot pass.
   - Why it exists: that path had no instrument at all. A path with no instrument is one where a false green is the default. An earlier ad-hoc probe of it could not fail. The core exits at its own `HARNESS_*` provider gate before the resolution runs, so merely starting the harness measures the gate and reports on nothing.
   - How a gated path is reached, which is the part worth keeping. Set the dummy `HARNESS_*` a provider stub sets, and put a fake `curl` first on `PATH`. Those are a provider name, a `.invalid` endpoint and host, a wire name, a credential name, and a token that is not one. The core then runs as far as the wire. The resolved roots travel inside the system prompt, so the recorded request body is the observation. The behaviour checks below use the same technique.
   - Refuses rather than reporting where the wire was never reached. Measured with the core made to exit early: zero PASS lines, an explicit refusal, exit 1. That property is what the void probe it replaces did not have.
   - Red recipe: point the no-flag resolution back at the fragment. Both assertions fail. The planted core still parses, which is why no syntax or text check reaches this class and a behavioural one must.
   - Self-contained in its fixtures, not in its inputs. Every fixture is built in its own `mktemp -d`, and the scenario's own `MMDAPP` is that directory, so no file of the real workspace is read. The harness under test and the fake `curl` fixture both come from `MDLT_ORIGIN`, so a run whose origin does not carry this package fails before it measures anything.
-  - Does not prove: whether a path is inside the roots once resolved. That is `AgentsHarnessContainmentCheck.sh`'s, and neither answers the other.
-- **`sh-lib/AgentsHarnessWriteSplitCheck.sh` — which of the two sets a path is inside.**
+  - Does not prove: whether a path is inside the roots once resolved. That is `AgentsHarnessContainmentCheck.test.sh`'s, and neither answers the other.
+- **`sh-lib/AgentsHarnessWriteSplitCheck.test.sh` — which of the two sets a path is inside.**
   - Proves: where a write root is given, writes narrow to it while reads stay wider, and a root on the read side only is refused for writing **and still readable**. Where no write root is given at all, writes stay exactly as wide as reads, which is what every console generated before the split passes.
   - Why it exists: the two root flags do opposite things to the set they join and neither name says so. A root flag replaces the default set; a write flag narrows writes. So a caller passing one write root in order to grant one directory takes every other write away in the same call, and the call reports success.
   - The controls, and why each is there. A write into a granted-for-writing root must succeed, or the refusal above passes on a core that refuses every write. The read-only root must be **readable**, or it passes on a core that dropped the grant entirely. And a root granted on neither side must be unreadable, or that readability control passes on a core that reads anything at all. `Write` refuses an ungranted path and a read-only path with the same message, because it tests the write set first and never reaches the other, so the refusal text cannot tell those apart and readability is what does.
   - Offline and unmetered: `--intern-tool` reaches no endpoint and needs no credential, so the tool gate itself is the observation. No wire, no stub `curl`, no recorded request body.
   - Red recipe: drop the guard on the write set's fallback so it always takes the read set. The readable-but-not-writable assertion then reports a write where it must report a refusal.
   - Does not prove: where the set came from, or whether a path is inside it at all. Those are the two checks beside it, and none of the three answers another.
-- **`sh-lib/AgentsHarnessSelfCheck.awk` — every tool occupies all four of its structural sites.**
+- **`sh-lib/AgentsHarnessSelfCheck.test.awk` — every tool occupies all four of its structural sites.**
   - Proves: each tool has its declaration (in the wire adapter), its announce arm, its dispatch arm and
     its tool function (those three in the core), and no `AgentsHarnessTool*` function survives with no
     tool behind it. An empty tool population reports FAIL rather than passing, so an extraction that
@@ -1749,7 +1749,7 @@ returning non-zero on a diagnostic finding.
     the source, so a further tool appended to `harnessToolsJson` goes on the wire unexamined while the
     report stays `OK (N tools, four sites each)`, byte-identical to a clean run. Written as a source
     literal instead, that same tool is caught: FAIL naming its three missing sites. Both measured. The
-    dynamic class is `AgentsHarnessMcpCheck.sh`'s, below.
+    dynamic class is `AgentsHarnessMcpCheck.test.sh`'s, below.
   - What it proves of `Wait` is the four sites and nothing else. Whether a wait ever returns is outside
     it entirely: a `Wait` that never came back, or that dressed a TIMEOUT as an ERROR, passes exactly as
     any other tool does. That behaviour is shown by the operation's own offline demonstrations against
@@ -1757,19 +1757,19 @@ returning non-zero on a diagnostic finding.
     0; a file appearing mid-wait returns `WAIT-RESULT: RECEIVED` carrying what that source now holds; an
     unknown source kind returns `WAIT-RESULT: ERROR` at exit 1 inside the same second, naming the kinds
     that exist; and a probe that cannot run is named in the body while the wait carries on over the rest.
-    All four measured, and all four are now held by `AgentsHarnessWaitCheck.sh` below, which runs at the
+    All four measured, and all four are now held by `AgentsHarnessWaitCheck.test.sh` below, which runs at the
     same call site. The wait class is this checker's blind spot, not the package's.
   - Does not parse either. It matches text, so a bash syntax error in the sources it reads leaves its
     report clean. Measured: an ordinary English possessive in a tool description closes the
     single-quoted `harnessToolsJson` literal, `bash -n` rejects the file, and this still reports
     `OK (N tools, four sites each)`. `HARNESS_PARSES` is the check that sees it.
   - Invoked: `cat sh-lib/AgentsUniversalHarness.sh sh-lib/AgentsOpenAiChatWire.sh | LC_ALL=C awk -f
-    sh-lib/AgentsHarnessSelfCheck.awk`. The two files are concatenated because the sites span both;
+    sh-lib/AgentsHarnessSelfCheck.test.awk`. The two files are concatenated because the sites span both;
     pointed at either alone it sees a half-populated set, which it correctly reports as FAIL.
   - Its red: drop one tool's declaration line from a copy of the wire adapter. Measured —
     `WebSearch: declared site missing`, exit 1.
 
-- **`sh-lib/AgentsHarnessToolsJsonCheck.sh` — the tools declaration literal is valid JSON, reached by a parser and not by a text match.**
+- **`sh-lib/AgentsHarnessToolsJsonCheck.test.sh` — the tools declaration literal is valid JSON, reached by a parser and not by a text match.**
   - Proves: that every declaration in `harnessToolsJson` is reachable by the parser, that each carries a
     `function.name`, and that the PARSED count equals the TEXT count of declaration envelopes. That last
     comparison is the whole instrument: a missing comma merges two objects, leaving the text count
@@ -1780,14 +1780,14 @@ returning non-zero on a diagnostic finding.
     responses through: a literal validated by the same code that consumes it proves only that the two agree.
   - An extraction matching nothing is a FAIL rather than a pass, the same rule the site check holds
     itself to, and a literal that parses but declares nothing likewise.
-  - Invoked: `./sh-lib/AgentsHarnessToolsJsonCheck.sh [<wire adapter>]`, defaulting to the adapter beside
+  - Invoked: `./sh-lib/AgentsHarnessToolsJsonCheck.test.sh [<wire adapter>]`, defaulting to the adapter beside
     it. Wired into the same `--owner-setup-scaleway --check` pass, immediately after `HARNESS_PARSES`.
   - Its red: drop the trailing comma from one declaration in a copy of the wire adapter. Measured —
     `bash -n` CLEAN and `HARNESS_TOOL_SITES: OK (N tools, four sites each)` over that same broken file,
     while this reports `HARNESS_TOOLS_JSON: FAIL ... NOT VALID JSON`, exit 1. That contrast is the reason
     it exists, and all three halves of it were measured in one invocation.
 
-- **`sh-lib/AgentsHarnessServedFloorCheck.sh` — which tools the MCP server actually serves.**
+- **`sh-lib/AgentsHarnessServedFloorCheck.test.sh` — which tools the MCP server actually serves.**
   - Proves: that no harness tool on the served floor declares a `command` argument, and — independently of
     any argument name — that no tool whose own function in the core runs a caller-supplied string as a
     shell command is served. The served set is read off the real server's own `tools/list` answer, so the
@@ -1812,34 +1812,34 @@ returning non-zero on a diagnostic finding.
     check does not locate itself: a planted copy that is merely executed reads the origin the caller
     carries, so its own modification is never measured and the run passes. A red run therefore requires
     naming the planted tree as `MDLT_ORIGIN`.
-  - Invoked: `./sh-lib/AgentsHarnessServedFloorCheck.sh`. Wired into the same
+  - Invoked: `./sh-lib/AgentsHarnessServedFloorCheck.test.sh`. Wired into the same
     `--owner-setup-scaleway --check` pass, after `HARNESS_ACCESS_ROOTS`.
 
-- **`sh-lib/AgentsHarnessContainmentCheck.sh` — access-root containment, in both polarities.**
+- **`sh-lib/AgentsHarnessContainmentCheck.test.sh` — access-root containment, in both polarities.**
   - Proves: `AgentsHarnessResolveDir` and `AgentsHarnessPathAllowed` as a pair, behaviourally, against a
     real symlink fixture — must-allow cases where a refusal locks an agent out of its own grant, and
     must-refuse cases where an allow is an escape. The pair, because the defect it was written for lived
     in their composition rather than in either one.
   - Does not prove: that any tool honours the verdict. It calls the two functions directly, so a tool
     that ignored `harnessResolvedPath` would pass this untouched.
-  - Invoked: `./sh-lib/AgentsHarnessContainmentCheck.sh`. **It is wired into nothing** — the setup arm
+  - Invoked: `./sh-lib/AgentsHarnessContainmentCheck.test.sh`. **It is wired into nothing** — the setup arm
     above runs every other instrument and not this one, so it is reached only by hand.
   - Its red: stop canonicalising the roots in a copy's `AgentsHarnessResolveDir`. Measured — every
     must-allow case turns REFUSE while every must-refuse case still passes, which is what makes carrying
     both polarities load-bearing rather than decorative.
 
-- **`sh-lib/AgentsHarnessAwkAxiom.awk` — no statement shares a line with its closing brace without a `;`.**
+- **`sh-lib/AgentsHarnessAwkAxiom.test.awk` — no statement shares a line with its closing brace without a `;`.**
   - Proves: that one hazard, across whichever awk sources it is given. The awks that reject the form are
     the ones not on a dev box, so a clean run under the local awk proves nothing and the axiom is held by
     an instrument instead of by anyone remembering it.
   - Does not prove: that an awk source parses, loads or does what it says. Own-line braces and a brace
     inside a quoted payload are skipped as documented false positives.
-  - Invoked: `LC_ALL=C awk -f sh-lib/AgentsHarnessAwkAxiom.awk <awk source>...` — silent and exit 0 when
+  - Invoked: `LC_ALL=C awk -f sh-lib/AgentsHarnessAwkAxiom.test.awk <awk source>...` — silent and exit 0 when
     clean, one `<file>:<line>: <text>` line per hit otherwise. The wired call passes it the awks this leg
     loads.
   - Its red: a file carrying `{ nestDepth = 2 }`. Measured — one hit line, exit 1.
 
-- **`sh-lib/AgentsHarnessRestartCheck.sh` — summarise-and-restart, run rather than read.**
+- **`sh-lib/AgentsHarnessRestartCheck.test.sh` — summarise-and-restart, run rather than read.**
   - Proves: behaviour, over summarise-and-restart and the restart budget that bounds it. A fake `curl`
     first on PATH records each request body and replays a canned stream per round, while the real core
     and the real wire drive the scenarios: the threshold fires and the leg restarts onto the original
@@ -1852,7 +1852,7 @@ returning non-zero on a diagnostic finding.
   - Offline by construction: it refuses to run at all unless the fake `curl` is first on PATH, that fake
     opens no socket, the token is a literal and the host a reserved `.invalid` name that cannot resolve,
     and an EXIT trap takes the whole fixture with it.
-  - Invoked: `bash sh-lib/AgentsHarnessRestartCheck.sh`. Through its interpreter, the way the two awk
+  - Invoked: `bash sh-lib/AgentsHarnessRestartCheck.test.sh`. Through its interpreter, the way the two awk
     instruments at that call site are invoked, so a lost execute bit cannot turn a behaviour check into a
     fault.
   - Its red: copy `sh-lib`, remove `harnessSummariseRound=1` from the copied core so the leg is told to
@@ -1863,7 +1863,7 @@ returning non-zero on a diagnostic finding.
     questions of the same canned rounds and requires the opposite answers, so an instrument that had
     stopped measuring would have to fail one of the two.
 
-- **`sh-lib/AgentsHarnessMcpCheck.sh` — the dynamic tool class, run rather than read.**
+- **`sh-lib/AgentsHarnessMcpCheck.test.sh` — the dynamic tool class, run rather than read.**
   - Proves: that an enumerated MCP tool reaches all four of its sites, behaviourally — the rendered
     declaration on the wire carrying the server's own description and input schema, the announce arm, the
     dispatch arm, and the round trip to the server — while a built-in is still declared beside it. That
@@ -1881,7 +1881,7 @@ returning non-zero on a diagnostic finding.
     read from, the token is a literal and the host a reserved `.invalid` name that cannot resolve, an EXIT
     trap takes the whole fixture with it, and a scenario in which the harness issued no request at all
     stops the run instead of reaching a PASS line.
-  - Invoked: `bash sh-lib/AgentsHarnessMcpCheck.sh`, through its interpreter on the same terms as the
+  - Invoked: `bash sh-lib/AgentsHarnessMcpCheck.test.sh`, through its interpreter on the same terms as the
     behaviour check above. Green is `HARNESS_MCP: OK (4 scenarios, 35 assertions, offline)`.
   - Its red: copy `sh-lib`, and in the copy's `AgentsHarnessHooks.sh` make the `*)` arm hand the hook `{}`
     instead of the call's own arguments. Measured — the other three scenarios still pass, the hook
@@ -1891,7 +1891,7 @@ returning non-zero on a diagnostic finding.
     nothing spawned and the call refused as unknown, so an instrument that had stopped measuring would
     have to fail one of the two.
 
-- **`sh-lib/AgentsHarnessWaitCheck.sh` — the wait class, run rather than read.**
+- **`sh-lib/AgentsHarnessWaitCheck.test.sh` — the wait class, run rather than read.**
   - Proves: behaviour, over `--member-wait-for-input` and the `Wait` tool that drives it. Seven scenarios
     take the operation alone — an arrival mid-wait returns on the arrival rather than the bound, naming
     the source that fired and what it now holds; the bound expiring with nothing new is
@@ -1922,7 +1922,7 @@ returning non-zero on a diagnostic finding.
     all stops the run instead of reaching a PASS line. The fake logs the destination and never the argv,
     because the `Wait` tool's own description carries the word `slack` and a log of argv would report a
     Slack request on every model round.
-  - Invoked: `bash sh-lib/AgentsHarnessWaitCheck.sh`, through its interpreter on the same terms as the two
+  - Invoked: `bash sh-lib/AgentsHarnessWaitCheck.test.sh`, through its interpreter on the same terms as the two
     behaviour checks above. `MMDAPP` must be set, since the operation places its own working directory
     under it. Green is `HARNESS_WAIT: OK (10 scenarios, 98 assertions, offline)`.
   - Its red, both measured against a copy of the package with `MDLT_ORIGIN` pointed at it, breaking the
@@ -1939,7 +1939,7 @@ returning non-zero on a diagnostic finding.
     runs the flag and its omission over one unchanging file, so each leg is the other's control; and the
     listing scenario requires a kind nothing defines, `pigeon`, to be absent from what it offers.
 
-- **`sh-lib/AgentsHarnessCopilotLegCheck.sh` — the Copilot leg, run rather than read.**
+- **`sh-lib/AgentsHarnessCopilotLegCheck.test.sh` — the Copilot leg, run rather than read.**
   - Proves: that `sh-lib/AgentsCopilotHarness.sh`'s own declarations reach the wire and that the core
     behaves under them — the endpoint in argv; the provider name in the diagnostics and in what the model
     is told; the tier-to-model mapping both ways; the bearer alone on curl's stdin as one line and
@@ -1969,7 +1969,7 @@ returning non-zero on a diagnostic finding.
     It alone cannot ALSO sit behind a `.invalid` host, the leaf's real endpoint being the subject, so
     `COPILOT_GITHUB_TOKEN` is forced to a literal before the leaf is invoked — which is what stops a
     machine holding the real token from ever having it enter the process.
-  - Invoked: `bash sh-lib/AgentsHarnessCopilotLegCheck.sh`, on the same terms as the three behaviour
+  - Invoked: `bash sh-lib/AgentsHarnessCopilotLegCheck.test.sh`, on the same terms as the three behaviour
     checks above. Green is `HARNESS_COPILOT_LEG: OK (7 scenarios, 57 assertions, offline)`.
   - Its red, all measured against a changed copy of `sh-lib`, the package untouched:
     - The leaf repointed at a wrong endpoint and host. Scenario A 15 of 16, the error-body one 4 of 5,

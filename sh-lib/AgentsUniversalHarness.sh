@@ -5,7 +5,7 @@ set -e
 ## logic, none of the provider specifics. Never invoked directly: a provider stub
 ## sets the HARNESS_* variables and execs this file, so the core becomes that
 ## process. Endpoint-shaped code lives in the wire adapter named by HARNESS_WIRE.
-## AgentsHarnessSelfCheck.awk and AgentsHarnessContainmentCheck.sh locate code here
+## AgentsHarnessSelfCheck.test.awk and AgentsHarnessContainmentCheck.test.sh locate code here
 ## by exact spellings, so renaming anything is a coordinated change to both.
 ## DESIGN DECISION 1 -- a mid-stream disconnect discards partial state and retries
 ## the whole round; there is no resume primitive here. DESIGN DECISION 2 -- such a
@@ -279,7 +279,7 @@ while [ $# -gt 0 ] ; do
 			shift 2
 		;;
 		--mcp-server)
-			## No server is granted by default, so a spawn names each one it wants;
+			## Naming any replaces the workspace default set below with exactly these;
 			## AgentsHarnessMcpClient.sh resolves the name against .local/agents/mcp.servers.json.
 			if [ -z "${2:-}" ] ; then
 				echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: --mcp-server: value required" >&2
@@ -420,6 +420,10 @@ if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 	if [ ! -f "$harnessRootsInclude" ] ; then
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the access-root mechanism is missing from this package: $harnessRootsInclude" >&2
 		exit 1
+	fi
+	## The include reaches the config store through this name, as it does in the console.
+	if ! type DistroAgentsTools >/dev/null 2>&1 ; then
+		DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
 	fi
 	. "$harnessRootsInclude"
 	while IFS= read -r harnessOwnRoot ; do
@@ -1160,7 +1164,7 @@ AgentsHarnessToolWait(){
 }
 
 ## Helpers behind Agent, TaskStop and TaskOutput. Deliberately NOT named
-## AgentsHarnessTool*: that family is the static tool class AgentsHarnessSelfCheck.awk
+## AgentsHarnessTool*: that family is the static tool class AgentsHarnessSelfCheck.test.awk
 ## matches site by site, and a helper with no tool behind it is an orphan there.
 
 ## A value reaching a command line, gated by explicit character enumeration rather than
@@ -1707,7 +1711,7 @@ AgentsHarnessFormalField(){ ## label, value
 ## check, the identity rule and the send itself are written once rather than four
 ## times, and each stub owns only its own field validation and body. Deliberately NOT
 ## named AgentsHarnessTool*: that family is the static tool class
-## AgentsHarnessSelfCheck.awk matches site by site, and a helper with no tool behind it
+## AgentsHarnessSelfCheck.test.awk matches site by site, and a helper with no tool behind it
 ## is reported there as an orphan.
 AgentsHarnessFormalSend(){ ## tool name, target, as_bot, body text
 	local formalName="$1" formalTo="$2" formalAsBot="$3" formalBody="$4"
@@ -2078,7 +2082,7 @@ AgentsHarnessToolListMcpResourcesTool(){ ## server (optional)
 	case "$listServerRc" in
 		0) ;;
 		1)
-			printf 'ERROR: ListMcpResourcesTool: this run enumerated no MCP server at all, so there is nothing to list. A server is reachable only because this harness was started naming it, and nothing here can add one.\n' ; return 0
+			printf 'ERROR: ListMcpResourcesTool: this run enumerated no MCP server at all, so there is nothing to list. A server is reachable only because this harness was started naming it or, with none named, because this workspace registers it in .local/agents/mcp.servers.json, and nothing here can add one.\n' ; return 0
 		;;
 		*)
 			printf 'ERROR: ListMcpResourcesTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
@@ -2130,7 +2134,7 @@ AgentsHarnessToolReadMcpResourceTool(){ ## server, uri
 	case "$readServerRc" in
 		0) ;;
 		1)
-			printf 'ERROR: ReadMcpResourceTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it, and nothing here can add one.\n' ; return 0
+			printf 'ERROR: ReadMcpResourceTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it or, with none named, because this workspace registers it in .local/agents/mcp.servers.json, and nothing here can add one.\n' ; return 0
 		;;
 		*)
 			printf 'ERROR: ReadMcpResourceTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
@@ -2163,7 +2167,7 @@ AgentsHarnessToolReadMcpResourceDirTool(){ ## server, uri_prefix, limit
 	case "$dirServerRc" in
 		0) ;;
 		1)
-			printf 'ERROR: ReadMcpResourceDirTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it, and nothing here can add one.\n' ; return 0
+			printf 'ERROR: ReadMcpResourceDirTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it or, with none named, because this workspace registers it in .local/agents/mcp.servers.json, and nothing here can add one.\n' ; return 0
 		;;
 		*)
 			printf 'ERROR: ReadMcpResourceDirTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
@@ -2516,7 +2520,7 @@ AgentsHarnessAnnounceTool(){
 }
 
 ## One dispatch, two callers: the model loop below and the --intern-tool arm
-## above it. The arms keep their own spelling because AgentsHarnessSelfCheck.awk
+## above it. The arms keep their own spelling because AgentsHarnessSelfCheck.test.awk
 ## locates them by it, and harnessResult stays global so the loop reads the
 ## result exactly where it always did.
 AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
@@ -2631,23 +2635,27 @@ fi
 ## terminates only if every participant excludes itself, so the marker below travels
 ## to every child as well -- a copy of us reached through a foreign server sees it and
 ## declines. Named after the caller has parsed argv, and before the client is sourced,
-## because that file enumerates as it loads.
+## because that file enumerates as it loads. A model run that named no --mcp-server
+## takes the same set, the empty name being that run: this harness is the myx.distro
+## destination for it too. No mcp.servers.json means no set, and nothing is printed.
 if [ -n "$harnessToolOnly" ] ; then
 	export MDAT_MCP_SERVED_MARKER=1
-	case "$harnessToolOnlyName" in
-		ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool)
+fi
+case "$harnessToolOnlyName" in
+	ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|'')
+		if [ "${#harnessMcpServers[@]}" -eq 0 ] && [ -f "${MMDAPP:-}/.local/agents/mcp.servers.json" ] ; then
 			while IFS= read -r harnessToolPeer ; do
 				[ -n "$harnessToolPeer" ] || continue
 				[ "myx.distro" != "$harnessToolPeer" ] || continue
 				harnessMcpServers+=( "$harnessToolPeer" )
-			done <<< "$( LC_ALL=C awk -v path=mcpServers -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" < "${MMDAPP:-}/.local/agents/mcp.servers.json" 2>/dev/null )"
-		;;
-	esac
-fi
+			done <<< "$( LC_ALL=C awk -v path=mcpServers -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" < "$MMDAPP/.local/agents/mcp.servers.json" 2>/dev/null )"
+		fi
+	;;
+esac
 
 ## Sourced on the same terms, and after the hooks so a server this enumerates is
-## already subject to them. It enumerates only what --mcp-server named, so a spawn
-## naming none reads no file and starts no process.
+## already subject to them. It enumerates only what harnessMcpServers holds by now,
+## so a run holding none reads no file and starts no process.
 harnessMcpFile="$harnessHere/AgentsHarnessMcpClient.sh"
 if [ ! -f "$harnessMcpFile" ] ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the MCP client support is missing from this package: $harnessMcpFile" >&2

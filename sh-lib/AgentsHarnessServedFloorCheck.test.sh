@@ -115,7 +115,7 @@ done
 ## off the core. Attribution is by the enclosing function header and a closing brace in
 ## column one -- never by brace depth, which mis-attributes a top-level line to whichever
 ## function it merely sits after. The AgentsHarnessTool<Name> naming this relies on is held
-## independently by AgentsHarnessSelfCheck.awk.
+## independently by AgentsHarnessSelfCheck.test.awk.
 LC_ALL=C awk '
 	/^AgentsHarnessTool[A-Za-z]+\(\)/ {
 		toolName = $0

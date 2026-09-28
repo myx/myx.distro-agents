@@ -670,7 +670,7 @@ if [ -n "$MDAT_SPAWN_AGENT" ] ; then
 	fi
 fi
 
-## claude only: piping its own JSON-lines stream through the awk formatter is
+## The vendor claude binary only: piping its own JSON-lines stream through the awk formatter is
 ## what makes -p's silent batch mode show live progress. exec'ing a pipeline
 ## would break the spawn proxy's PID-based timeout kill, so claude runs
 ## backgrounded with its real PID captured, and TERM/INT are forwarded to it.
@@ -733,15 +733,17 @@ if [ "$1" == "--non-interactive" ] ; then
 	fi
 	## The launch signal, on its own channel: the stdout line below shares a stream with the agent's own output.
 	[ -z "$MDAT_SPAWN_LAUNCH_MARKER" ] || printf '%s\n' "$DAGC_CLI" > "$MDAT_SPAWN_LAUNCH_MARKER"
+	## Gated on the vendor binary, never on the name: `claude` is a harness leg, and a
+	## leg reads the streaming flags as its prompt, dropping every flag after them.
 	if [ $# -gt 0 ] ; then
 		echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-		if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] ; then
+		if [ "$DAGC_CLI_EXEC" = "claude" ] ; then
 			DagcRunClaudeStreaming "$*"
 		fi
 		exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$*"
 	fi
 	echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-	if [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] ; then
+	if [ "$DAGC_CLI_EXEC" = "claude" ] ; then
 		DagcRunClaudeStreaming "$( cat )"
 	fi
 	exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$( cat )"

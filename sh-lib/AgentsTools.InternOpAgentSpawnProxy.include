@@ -91,6 +91,10 @@ AgentsToolsSpawnProxyCloseDispatch(){
 		"exit-code: $childExit" \
 		"output-file: $childOutputFile" \
 		"completed-at: $( date -u +%Y-%m-%dT%H:%M:%SZ )" )"
+	mkdir -p "$MDAT_DATA_ROOT/board/$itemTargetState" || {
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: can't create board state directory $MDAT_DATA_ROOT/board/$itemTargetState, so dispatch item $itemName was not closed" >&2
+		return 0
+	}
 	printf '%s\n' "$resultBody" | DistroAgentsTools --intern-op-board-upsert-move-edit "$itemTargetState" "$itemName" \
 		--from-state:"$itemState" \
 		--header:upsert:status:dispatch-"$outcome" \

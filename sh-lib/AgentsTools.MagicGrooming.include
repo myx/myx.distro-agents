@@ -52,6 +52,10 @@ case "$1" in
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/backlog" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: can't create board state directory: $MDAT_DATA_ROOT/board/backlog" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit backlog "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -105,6 +109,10 @@ case "$1" in
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/pending" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: can't create board state directory: $MDAT_DATA_ROOT/board/pending" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit pending "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -159,6 +167,10 @@ case "$1" in
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/processed" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: can't create board state directory: $MDAT_DATA_ROOT/board/processed" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -213,6 +225,10 @@ case "$1" in
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/parked" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: can't create board state directory: $MDAT_DATA_ROOT/board/parked" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -278,6 +294,10 @@ case "$1" in
 			local blockedAt ; blockedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 			passthrough+=( "--header:upsert:execution-receipt:blocked:$blockedAt" )
 		fi
+		mkdir -p "$MDAT_DATA_ROOT/board/blocked" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: can't create board state directory: $MDAT_DATA_ROOT/board/blocked" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit blocked "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -331,6 +351,10 @@ case "$1" in
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/running" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -384,6 +408,10 @@ case "$1" in
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/archived" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: can't create board state directory: $MDAT_DATA_ROOT/board/archived" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit archived "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -439,6 +467,10 @@ case "$1" in
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/retained" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: can't create board state directory: $MDAT_DATA_ROOT/board/retained" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit retained "$itemName" \
 			"$fromStateArg" \
 			--header:upsert:owner:"$owner" \
@@ -501,6 +533,10 @@ case "$1" in
 			set +e ; return 1
 		fi
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/$createState" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-create-backlog: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
 			--header:upsert:owner:"$owner" \
@@ -562,6 +598,10 @@ case "$1" in
 		fi
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/$createState" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-create-processed: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
 			--header:upsert:owner:"$owner" \
@@ -623,6 +663,10 @@ case "$1" in
 			set +e ; return 1
 		fi
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/$createState" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-create-pending: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
 			--header:upsert:owner:"$owner" \
@@ -683,6 +727,10 @@ case "$1" in
 			set +e ; return 1
 		fi
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/$createState" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-create-blocked: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
 			--header:upsert:owner:"$owner" \
@@ -743,6 +791,10 @@ case "$1" in
 			set +e ; return 1
 		fi
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		mkdir -p "$MDAT_DATA_ROOT/board/$createState" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-create-running: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
 			--header:upsert:owner:"$owner" \

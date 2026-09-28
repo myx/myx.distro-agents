@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -e
 
-## AgentsHarnessToolsJsonCheck.sh -- the tools declaration literal is valid JSON,
+## AgentsHarnessToolsJsonCheck.test.sh -- the tools declaration literal is valid JSON,
 ## and every declaration in it is reachable BY THE PARSER rather than only by a
 ## text match. Issues no request and touches no host.
 ##
 ## WHY THIS EXISTS, measured rather than supposed: a missing comma between two
 ## declarations in `harnessToolsJson` passes the ENTIRE existing check pass.
 ## `bash -n` is clean, because the literal is bash single-quoted and the shell
-## never parses its contents. `AgentsHarnessSelfCheck.awk` reports
+## never parses its contents. `AgentsHarnessSelfCheck.test.awk` reports
 ## `OK (N tools, four sites each)` and exits 0, because it matches the envelope as
 ## TEXT and does not parse. The defect then surfaces only as a 400 from the live
 ## endpoint, which the harness prints as a refused request -- so it reads as an API
@@ -25,7 +25,7 @@ set -e
 ##    missing-comma fixture actually fires, every time.
 ##
 ## 2. THE COUNT COMPARISON catches something else entirely, and the direction
-##    that fires is PARSED > TEXT, never the reverse. `AgentsHarnessSelfCheck.awk`
+##    that fires is PARSED > TEXT, never the reverse. `AgentsHarnessSelfCheck.test.awk`
 ##    finds a declaration by the literal text `{"type":"function","function":{"name":"`
 ##    and by nothing else, so a declaration written with its keys in another order
 ##    is VALID JSON that the endpoint accepts and the model sees, while that check
@@ -128,7 +128,7 @@ done
 
 if [ "$checkIndex" = "0" ] ; then
 	## An empty population cannot fail, so it is a FAIL rather than a pass --
-	## the same rule AgentsHarnessSelfCheck.awk holds itself to.
+	## the same rule AgentsHarnessSelfCheck.test.awk holds itself to.
 	echo "HARNESS_TOOLS_JSON: FAIL"
 	echo "  warn: the literal parsed but declares no tools at all"
 	echo "  fix:  check that the array still holds one object per tool"
@@ -151,7 +151,7 @@ fi
 if [ "$checkIndex" -gt "$checkTextCount" ] ; then
 	echo "HARNESS_TOOLS_JSON: FAIL"
 	echo "  warn: $checkIndex declaration(s) parse, but only $checkTextCount carry the exact envelope"
-	echo "        AgentsHarnessSelfCheck.awk matches. That check finds a declaration by the"
+	echo "        AgentsHarnessSelfCheck.test.awk matches. That check finds a declaration by the"
 	echo "        literal text {\"type\":\"function\",\"function\":{\"name\":\" and nothing else, so a"
 	echo "        declaration written with its keys in another order is VALID JSON that goes"
 	echo "        on the wire while being INVISIBLE to the site check -- and a NEW tool added"

@@ -37,6 +37,10 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-pending: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
+		mkdir -p "$MDAT_DATA_ROOT/board/pending" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-pending: can't create board state directory: $MDAT_DATA_ROOT/board/pending" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit pending "$itemName" \
 			"$fromStateArg" \
 			--context --magic-board-to-pending \
@@ -86,6 +90,10 @@ case "$1" in
 			local blockedAt ; blockedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 			passthrough+=( "--header:upsert:execution-receipt:blocked:$blockedAt" )
 		fi
+		mkdir -p "$MDAT_DATA_ROOT/board/blocked" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-blocked: can't create board state directory: $MDAT_DATA_ROOT/board/blocked" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit blocked "$itemName" \
 			"$fromStateArg" \
 			--context --magic-board-to-blocked \
@@ -121,6 +129,10 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-backlog: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
+		mkdir -p "$MDAT_DATA_ROOT/board/backlog" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-backlog: can't create board state directory: $MDAT_DATA_ROOT/board/backlog" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit backlog "$itemName" \
 			"$fromStateArg" \
 			--context --magic-board-to-backlog \
@@ -158,6 +170,10 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-parked: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
+		mkdir -p "$MDAT_DATA_ROOT/board/parked" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-parked: can't create board state directory: $MDAT_DATA_ROOT/board/parked" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
 			"$fromStateArg" \
 			--context --magic-board-to-parked \
@@ -212,6 +228,10 @@ case "$1" in
 			moveStamps=( "--header:upsert:processed-at:$processedAt" )
 		fi
 		## moveStamps stays before passthrough -- header ops are last-wins, so this order is the whole caller-override contract.
+		mkdir -p "$MDAT_DATA_ROOT/board/processed" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: can't create board state directory: $MDAT_DATA_ROOT/board/processed" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
 			"$fromStateArg" \
 			"${moveStamps[@]}" \
@@ -255,6 +275,10 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-board-create-running: one body-input mode is required on create (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) -- a created board-item has no existing body to carry forward" >&2
 			set +e ; return 1
 		fi
+		mkdir -p "$MDAT_DATA_ROOT/board/running" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-board-create-running: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
+			set +e ; return 1
+		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
 			--create \
 			--context --magic-board-create-running \

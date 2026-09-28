@@ -755,7 +755,7 @@ case "$1" in
 					local setupStubFile="$setupLibDir/AgentsScalewayHarness.sh"
 					local setupSitesOut="" setupSitesRc=0 setupHelperBad=""
 					local setupParseBad="" setupParseFile
-					setupSitesOut="$( cat "$setupHarnessFile" "$setupWireFile" 2>/dev/null | LC_ALL=C awk -f "$setupLibDir/AgentsHarnessSelfCheck.awk" 2>&1 )" || setupSitesRc=$?
+					setupSitesOut="$( cat "$setupHarnessFile" "$setupWireFile" 2>/dev/null | LC_ALL=C awk -f "$setupLibDir/AgentsHarnessSelfCheck.test.awk" 2>&1 )" || setupSitesRc=$?
 					printf '%s\n' "$setupSitesOut"
 					if [ "$setupSitesRc" != "0" ] ; then
 						echo "  fix:  restore the missing site in sh-lib/AgentsUniversalHarness.sh or sh-lib/AgentsOpenAiChatWire.sh"
@@ -773,7 +773,7 @@ case "$1" in
 					## file nobody checked.
 					for setupParseFile in "$setupHarnessFile" "$setupWireFile" "$setupStubFile" \
 						"$setupLibDir/AgentsHarnessHooks.sh" "$setupLibDir/AgentsHarnessMcpClient.sh" \
-						"$setupLibDir/AgentsHarnessToolsJsonCheck.sh" ; do
+						"$setupLibDir/AgentsHarnessToolsJsonCheck.test.sh" ; do
 						bash -n "$setupParseFile" 2>/dev/null || setupParseBad="$setupParseBad ${setupParseFile##*/}"
 					done
 					if [ -z "$setupParseBad" ] ; then
@@ -798,7 +798,7 @@ case "$1" in
 					## the harness runs its own responses through, since a literal
 					## checked by its own consumer proves only that the two agree.
 					local setupToolsJsonOut="" setupToolsJsonRc=0
-					setupToolsJsonOut="$( bash "$setupLibDir/AgentsHarnessToolsJsonCheck.sh" "$setupWireFile" 2>&1 )" || setupToolsJsonRc=$?
+					setupToolsJsonOut="$( bash "$setupLibDir/AgentsHarnessToolsJsonCheck.test.sh" "$setupWireFile" 2>&1 )" || setupToolsJsonRc=$?
 					printf '%s\n' "$setupToolsJsonOut"
 					if [ "$setupToolsJsonRc" != "0" ] ; then
 						setupRc=1
@@ -855,13 +855,13 @@ case "$1" in
 					## this box, so the hazard passes every check above and fails where
 					## the servers are.
 					local setupAxiomOut="" setupAxiomRc=0
-					setupAxiomOut="$( LC_ALL=C awk -f "$setupLibDir/AgentsHarnessAwkAxiom.awk" \
+					setupAxiomOut="$( LC_ALL=C awk -f "$setupLibDir/AgentsHarnessAwkAxiom.test.awk" \
 						"$setupLibDir/AgentsProgressLineSafe.awk" \
 						"$setupLibDir/AgentsHarnessJsonField.awk" \
 						"$setupLibDir/AgentsHarnessJsonSlice.awk" \
 						"$setupLibDir/AgentsMcpJsonEscape.awk" \
-						"$setupLibDir/AgentsHarnessSelfCheck.awk" \
-						"$setupLibDir/AgentsHarnessAwkAxiom.awk" 2>&1 )" || setupAxiomRc=$?
+						"$setupLibDir/AgentsHarnessSelfCheck.test.awk" \
+						"$setupLibDir/AgentsHarnessAwkAxiom.test.awk" 2>&1 )" || setupAxiomRc=$?
 					if [ "$setupAxiomRc" = "0" ] ; then
 						echo "HARNESS_AWK_AXIOM: OK (every awk this leg loads)"
 					else
@@ -884,7 +884,7 @@ case "$1" in
 					## Invoked through its interpreter, as the two awk instruments above
 					## are, so a lost execute bit cannot turn a behaviour check into a fault.
 					local setupRestartOut="" setupRestartRc=0
-					setupRestartOut="$( bash "$setupLibDir/AgentsHarnessRestartCheck.sh" 2>&1 )" || setupRestartRc=$?
+					setupRestartOut="$( bash "$setupLibDir/AgentsHarnessRestartCheck.test.sh" 2>&1 )" || setupRestartRc=$?
 					printf '%s\n' "$setupRestartOut"
 					if [ "$setupRestartRc" != "0" ] ; then
 						echo "  warn: the harness no longer behaves the way summarise-and-restart"
@@ -904,7 +904,7 @@ case "$1" in
 					## control. Offline and invoked through its interpreter on the same terms as
 					## the behaviour check above.
 					local setupMcpOut="" setupMcpRc=0
-					setupMcpOut="$( bash "$setupLibDir/AgentsHarnessMcpCheck.sh" 2>&1 )" || setupMcpRc=$?
+					setupMcpOut="$( bash "$setupLibDir/AgentsHarnessMcpCheck.test.sh" 2>&1 )" || setupMcpRc=$?
 					printf '%s\n' "$setupMcpOut"
 					if [ "$setupMcpRc" != "0" ] ; then
 						echo "  warn: an MCP tool no longer reaches the model, the dispatch, the hooks"
@@ -927,7 +927,7 @@ case "$1" in
 					## negative controls. Offline and invoked through its interpreter on the
 					## same terms as the two behaviour checks above.
 					local setupWaitOut="" setupWaitRc=0
-					setupWaitOut="$( bash "$setupLibDir/AgentsHarnessWaitCheck.sh" 2>&1 )" || setupWaitRc=$?
+					setupWaitOut="$( bash "$setupLibDir/AgentsHarnessWaitCheck.test.sh" 2>&1 )" || setupWaitRc=$?
 					printf '%s\n' "$setupWaitOut"
 					if [ "$setupWaitRc" != "0" ] ; then
 						echo "  warn: a wait no longer comes back the way a caller has to be able"
@@ -944,7 +944,7 @@ case "$1" in
 					## endpoint. It is offline on one guarantee rather than two, so its fake
 					## curl is load-bearing rather than defensive -- MAGIC.md carries the rest.
 					local setupCopilotLegOut="" setupCopilotLegRc=0
-					setupCopilotLegOut="$( bash "$setupLibDir/AgentsHarnessCopilotLegCheck.sh" 2>&1 )" || setupCopilotLegRc=$?
+					setupCopilotLegOut="$( bash "$setupLibDir/AgentsHarnessCopilotLegCheck.test.sh" 2>&1 )" || setupCopilotLegRc=$?
 					printf '%s\n' "$setupCopilotLegOut"
 					if [ "$setupCopilotLegRc" != "0" ] ; then
 						echo "  warn: the Copilot leg no longer carries its own declarations to the"
@@ -963,7 +963,7 @@ case "$1" in
 					## measures the gate. This one gets past it the way the checks above do,
 					## then reads the roots back off the request body its fake curl recorded.
 					local setupAccessRootsOut="" setupAccessRootsRc=0
-					setupAccessRootsOut="$( bash "$setupLibDir/AgentsHarnessAccessRootsCheck.sh" 2>&1 )" || setupAccessRootsRc=$?
+					setupAccessRootsOut="$( bash "$setupLibDir/AgentsHarnessAccessRootsCheck.test.sh" 2>&1 )" || setupAccessRootsRc=$?
 					printf '%s\n' "$setupAccessRootsOut"
 					if [ "$setupAccessRootsRc" != "0" ] ; then
 						echo "  warn: the no-flag access-root set is no longer taken from this"
@@ -985,7 +985,7 @@ case "$1" in
 					## reports success. Offline through --intern-tool, which reaches no
 					## endpoint, so this one needs neither a stub wire nor a credential.
 					local setupWriteSplitOut="" setupWriteSplitRc=0
-					setupWriteSplitOut="$( bash "$setupLibDir/AgentsHarnessWriteSplitCheck.sh" 2>&1 )" || setupWriteSplitRc=$?
+					setupWriteSplitOut="$( bash "$setupLibDir/AgentsHarnessWriteSplitCheck.test.sh" 2>&1 )" || setupWriteSplitRc=$?
 					printf '%s\n' "$setupWriteSplitOut"
 					if [ "$setupWriteSplitRc" != "0" ] ; then
 						echo "  warn: the write-root set no longer narrows writes the way the"
@@ -1009,7 +1009,7 @@ case "$1" in
 					## which is the form a renamed argument cannot evade. Offline, and its own
 					## MMDAPP is its fixture, on the same terms as the checks above.
 					local setupServedFloorOut="" setupServedFloorRc=0
-					setupServedFloorOut="$( bash "$setupLibDir/AgentsHarnessServedFloorCheck.sh" 2>&1 )" || setupServedFloorRc=$?
+					setupServedFloorOut="$( bash "$setupLibDir/AgentsHarnessServedFloorCheck.test.sh" 2>&1 )" || setupServedFloorRc=$?
 					printf '%s\n' "$setupServedFloorOut"
 					if [ "$setupServedFloorRc" != "0" ] ; then
 						echo "  warn: a tool that runs arbitrary code is served over MCP, around"

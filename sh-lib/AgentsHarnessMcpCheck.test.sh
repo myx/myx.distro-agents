@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the DYNAMIC tool class -- the MCP tools a run enumerates at
-## startup. AgentsHarnessSelfCheck.awk beside it cannot see one: it matches declaration,
+## startup. AgentsHarnessSelfCheck.test.awk beside it cannot see one: it matches declaration,
 ## announce and dispatch sites in the SOURCES, and a tool built at runtime has none, so
 ## a ninth tool reaching the wire leaves its report byte-identical to a clean one. This
 ## proves the four sites by RUNNING them -- rendered declaration, announce arm, dispatch
@@ -32,7 +32,7 @@ rigInstallFixture(){
 	cp "$rigFixtures/$1" "$2" || rigRefuse "a fixture is missing from the package: $rigFixtures/$1"
 	chmod +x "$2"
 }
-rigInstallFixture harness-mcp-check.curl.sh "$rigTmp/bin/curl"
+rigInstallFixture harness-mcp-check.curl.test.sh "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"
 
@@ -40,20 +40,20 @@ PATH="$rigTmp/bin:$PATH"
 ## line-per-object stdio transport over the same three requests. It records what it was
 ## asked for, so the rig can assert that enumeration happened ONCE for the whole run,
 ## across a summarise-and-restart, and that a refused call never reached it at all.
-rigInstallFixture harness-mcp-check.mcp-server.sh "$rigTmp/bin/rigmcp"
+rigInstallFixture harness-mcp-check.mcp-server.test.sh "$rigTmp/bin/rigmcp"
 
 ## Denies exactly when the payload carries the rig's argument marker, which reaches a
 ## hook only through `tool_input`. Silence and exit 0 is the allow every hook in this
 ## estate uses, so an emptied `tool_input` makes this same hook permit the call.
-## Shared with AgentsHarnessCopilotLegCheck.sh, which asserts the same thing about the
+## Shared with AgentsHarnessCopilotLegCheck.test.sh, which asserts the same thing about the
 ## same marker -- one fixture, because the two bodies were byte-identical copies.
-rigInstallFixture pre-tool-use-deny-on-marker.sh "$rigTmp/bin/rigdeny"
+rigInstallFixture pre-tool-use-deny-on-marker.test.sh "$rigTmp/bin/rigdeny"
 
 ## A provider stub's job, done here instead: the core refuses to start without these.
 ## The host is a reserved .invalid name that can never resolve and the token is a
 ## literal, so nothing in this rig can reach a service or spend a credential.
 export HARNESS_PROVIDER_NAME="mcp-check rig"
-export HARNESS_SELF_NAME="AgentsHarnessMcpCheck.sh"
+export HARNESS_SELF_NAME="AgentsHarnessMcpCheck.test.sh"
 export HARNESS_ENDPOINT="https://harness-mcp-check.invalid/v1/chat/completions"
 export HARNESS_HOST="harness-mcp-check.invalid"
 export HARNESS_WIRE="OpenAiChat"
@@ -166,8 +166,10 @@ rigAssert "the fresh leg's own answer is the result"        "$( cat "$rigScenari
 rigVerdict "declaration, announce, dispatch and round-trip -- frozen across a restart"
 
 ## The negative control, and the reason a green run above cannot be a vacuous one: the
-## same canned rounds with no server named, where every probe answers the other way.
+## same canned rounds with no server named and no mcp.servers.json to default to, where
+## every probe answers the other way.
 rigStart no-server-named
+rm -f "$rigScenarioDir/.local/agents/mcp.servers.json"
 rigMcpStream "$rigScenarioDir/res.1" 20
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
 rigRun 0
@@ -179,7 +181,7 @@ rigAssert "nothing was enumerated"                    "$( rigHolds "$rigScenario
 rigAssert "no server process was started at all"      "$( rigServerSaw list )" 0
 rigAssert "the call is refused as an unknown tool"    "$( rigHolds "$rigScenarioDir/req.2" 'no MCP server this run enumerated declares it' )" yes
 rigAssert "the answer still comes back"               "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
-rigVerdict "no server named -- nothing declared, nothing spawned, the call refused"
+rigVerdict "no server named, none configured -- nothing declared, nothing spawned, the call refused"
 
 ## A server that hands over its tools and then dies: the call becomes an ERROR the model
 ## reads, and the round carries on rather than the leg restarting or exiting.

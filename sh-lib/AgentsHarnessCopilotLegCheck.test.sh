@@ -33,13 +33,13 @@ rigInstallFixture(){
 	cp "$rigFixtures/$1" "$2" || rigRefuse "a fixture is missing from the package: $rigFixtures/$1"
 	chmod +x "$2"
 }
-rigInstallFixture harness-copilot-leg-check.curl.sh "$rigTmp/bin/curl"
+rigInstallFixture harness-copilot-leg-check.curl.test.sh "$rigTmp/bin/curl"
 
 ## Denies exactly when the payload carries the rig's argument marker. Silence and exit 0
-## is the allow every hook in this estate uses. Shared with AgentsHarnessMcpCheck.sh,
+## is the allow every hook in this estate uses. Shared with AgentsHarnessMcpCheck.test.sh,
 ## which asserts the same thing about the same marker -- one fixture, because the two
 ## bodies were byte-identical copies.
-rigInstallFixture pre-tool-use-deny-on-marker.sh "$rigTmp/bin/rigdeny"
+rigInstallFixture pre-tool-use-deny-on-marker.test.sh "$rigTmp/bin/rigdeny"
 
 PATH="$rigTmp/bin:$PATH"
 export PATH

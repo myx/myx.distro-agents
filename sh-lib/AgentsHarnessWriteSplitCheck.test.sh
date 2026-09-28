@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the READ/WRITE split of the access-root set.
-## AgentsHarnessAccessRootsCheck.sh beside this asks where the set comes from, and
-## AgentsHarnessContainmentCheck.sh asks whether a path is inside it. Neither asks
+## AgentsHarnessAccessRootsCheck.test.sh beside this asks where the set comes from, and
+## AgentsHarnessContainmentCheck.test.sh asks whether a path is inside it. Neither asks
 ## which of the two sets a path is inside, which is this file's question.
 ##
 ## Why it exists. The two root flags do opposite things to the set they join, and
@@ -51,7 +51,7 @@ printf 'rig-seed\n' > "$rigTmp/OUTSIDE/seed.txt"
 ## What a provider stub sets. A tool call is not metered, so the token exists only
 ## to keep this file the same shape as its siblings; nothing here reads one.
 export HARNESS_PROVIDER_NAME="write-split check rig"
-export HARNESS_SELF_NAME="AgentsHarnessWriteSplitCheck.sh"
+export HARNESS_SELF_NAME="AgentsHarnessWriteSplitCheck.test.sh"
 export HARNESS_ENDPOINT="https://harness-write-split-check.invalid/v1/chat/completions"
 export HARNESS_HOST="harness-write-split-check.invalid"
 export HARNESS_WIRE="OpenAiChat"

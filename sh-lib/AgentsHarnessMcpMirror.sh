@@ -103,7 +103,7 @@ done
 
 if [ 0 -eq "$mirrorIndex" ] ; then
 	## An empty population cannot fail, so it is a FAIL rather than a pass -- the same
-	## rule AgentsHarnessSelfCheck.awk holds itself to.
+	## rule AgentsHarnessSelfCheck.test.awk holds itself to.
 	printf '%s\n' "AgentsHarnessMcpMirror: ⛔ ERROR: the literal parsed but declares no tools at all, so the mirror would advertise an empty floor" >&2
 	printf '%s\n' "  fix:  check that the array still holds one object per tool" >&2
 	exit 1

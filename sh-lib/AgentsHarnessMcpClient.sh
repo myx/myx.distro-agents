@@ -9,9 +9,10 @@
 ## restart reuses it rather than re-enumerating, because `tools` must stay byte-
 ## identical for the prompt cache and, on the Anthropic wire, binds to the thinking
 ## blocks such that changing it mid-session is a 400 at replay.
-## NO SERVER IS GRANTED BY DEFAULT -- a server is spawned only because --mcp-server
-## named it, so a spawn naming none starts no process, opens no file and leaves this
-## file inert, which is also what keeps the offline checks offline.
+## A SERVER IS SPAWNED ONLY BECAUSE harnessMcpServers HOLDS IT -- named by --mcp-server,
+## or else the workspace's own mcp.servers.json minus myx.distro, settled by the core.
+## A run holding none starts no process, opens no file and leaves this file inert,
+## which is also what keeps the offline checks offline.
 
 ## The same newline-delimited, TAB-separated shape harnessHooksList carries, so the
 ## per-call lookup stays builtins-only: server, tool, declared name, and the file
@@ -204,7 +205,7 @@ AgentsHarnessMcpHandshake(){
 ## server that dies mid-run, refuses, or answers unreadably becomes an `ERROR: ...`
 ## the model reads and the round carries on -- never a silent restart and never an
 ## exit. Named outside the AgentsHarnessTool* family on purpose: that family is the
-## STATIC tool class AgentsHarnessSelfCheck.awk matches site by site, and a runtime
+## STATIC tool class AgentsHarnessSelfCheck.test.awk matches site by site, and a runtime
 ## tool has no declaration in the sources for it to match against.
 AgentsHarnessMcpCall(){ ## declared name, raw arguments JSON
 	local callName="$1" callArgs="$2" callServer="" callTool="" callRow callRc=0 callCount callIndex callType callText callOut=""
@@ -377,9 +378,12 @@ if [ "${#harnessMcpServers[@]}" -gt 0 ] ; then
 				continue
 			fi
 			harnessMcpDesc="$( AgentsHarnessMcpField "$harnessMcpToolPath.description" < "$harnessScratch/mcp.reply" )" || harnessMcpDesc=""
-			harnessMcpCatalogue="${harnessMcpCatalogue}${harnessMcpName}"$'\t'"${harnessMcpTool}"$'\t'"mcp__${harnessMcpName}__${harnessMcpTool}"$'\t'"${harnessMcpSchemaFile}"$'\n'
-			harnessMcpToolsJson="${harnessMcpToolsJson},$( AgentsWireToolDeclaration "mcp__${harnessMcpName}__${harnessMcpTool}" "$harnessMcpDesc" "$( cat "$harnessMcpSchemaFile" )" )"
-			printf '%s\n' "   ${harnessDim}·${harnessOff} ${harnessTool}mcp__${harnessMcpName}__${harnessMcpTool}${harnessOff} ${harnessDim}declared${harnessOff}" >&2
+			## A dot is a legal name here and a 400 on the wire, whose names are [A-Za-z0-9_-]:
+			## it becomes `_`, the spelling mcp__myx_distro__execute already has everywhere.
+			harnessMcpDeclared="mcp__${harnessMcpName//./_}__${harnessMcpTool//./_}"
+			harnessMcpCatalogue="${harnessMcpCatalogue}${harnessMcpName}"$'\t'"${harnessMcpTool}"$'\t'"${harnessMcpDeclared}"$'\t'"${harnessMcpSchemaFile}"$'\n'
+			harnessMcpToolsJson="${harnessMcpToolsJson},$( AgentsWireToolDeclaration "$harnessMcpDeclared" "$harnessMcpDesc" "$( cat "$harnessMcpSchemaFile" )" )"
+			printf '%s\n' "   ${harnessDim}·${harnessOff} ${harnessTool}${harnessMcpDeclared}${harnessOff} ${harnessDim}declared${harnessOff}" >&2
 		done
 	done
 fi

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on WHERE the access-root set comes from when no --access-root flag
-## was passed. AgentsHarnessContainmentCheck.sh beside this asks the other question --
+## was passed. AgentsHarnessContainmentCheck.test.sh beside this asks the other question --
 ## whether a path is inside the roots -- and neither answers this one.
 ##
 ## This path had no instrument at all, which is how it acquired a void control: the core
@@ -48,8 +48,8 @@ printf 'own\t%s\n' "$rigTmp/FRAGMENT-ONLY-ROOT" > "$rigTmp/.claude/copilot-add-d
 ## that is itself shell takes the rest of this check with it, and a check that stops
 ## checking still prints its PASS lines. A missing fixture refuses instead.
 rigFixtures="$rigHere/check-fixtures"
-cp "$rigFixtures/harness-access-roots-check.curl.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-access-roots-check.curl.sh"
+cp "$rigFixtures/harness-access-roots-check.curl.test.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-access-roots-check.curl.test.sh"
 chmod +x "$rigTmp/bin/curl"
 
 PATH="$rigTmp/bin:$PATH"
@@ -58,7 +58,7 @@ PATH="$rigTmp/bin:$PATH"
 ## What a provider stub sets. The host is .invalid and the credential is not one: both
 ## exist only to get past the gate that guards the code under test.
 export HARNESS_PROVIDER_NAME="access-roots check rig"
-export HARNESS_SELF_NAME="AgentsHarnessAccessRootsCheck.sh"
+export HARNESS_SELF_NAME="AgentsHarnessAccessRootsCheck.test.sh"
 export HARNESS_ENDPOINT="https://harness-access-roots-check.invalid/v1/chat/completions"
 export HARNESS_HOST="harness-access-roots-check.invalid"
 export HARNESS_WIRE="OpenAiChat"

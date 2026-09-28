@@ -2910,33 +2910,33 @@
 			  matched EXACTLY (never as a substring), `.` is the declaring
 			  project, and `*`/`**` are its dependency-sequence expansions.
 			  Carries a glob.
-			Resolves `$MDAT_DATA_ROOT/board` (already resolved by
-			`DistroAgentsTools()` at entry from the `TEAM_DATA_DIRECTORY`
-			config key, never re-derived here) and upserts
-			`Edit(<board>/**)`/`Write(<board>/**)` into `allow` -- any
-			prior board grant (any root) is dropped first, so a moved
-			board path replaces rather than accumulates alongside the new
-			one. Also upserts the fixed static grants
-			`mcp__myx_distro`, `Agent`, `Task`, plus one
-			`Edit(<path>/**)`/`Write(<path>/**)` pair per acting team
-			member's real skillset directory -- enumerated fresh every run
+			Upserts into `allow` the fixed static grants
+			`mcp__myx_common`, `mcp__myx_distro`, `Agent`, `Task` and
+			`SendMessage`, plus one `Edit(<path>/**)` grant per acting team
+			member's real skillset directory -- `Edit` only, never
+			`Write`: a `Write` rule is not matched by file permission
+			checks and warns at startup, while an `Edit` rule covers every
+			file-editing tool. Every board grant (`Edit` or `Write`, any
+			root) and every `Write` grant a member held is dropped, and no
+			board grant is written. Member directories are enumerated fresh every run
 			from `$MDAT_SKILLSET_ROOT` (symlink or real directory, real
 			path resolved via `cd` + `pwd -P`), skipping `trash` and
 			skipping any member whose `SKILL.md` marks it
 			`status: reference-only` (the human-owner's own non-acting
 			record), so a member added or removed there is picked up
-			automatically, never hand-maintained. Upserts the native Slack
-			MCP server (`mcp__claude_ai_Slack`) into `deny`, unconditionally
-			-- a different, separate path from the team's own sanctioned
-			`--member-comms-slack-*` Bash ops, which this cannot reach.
-			Both generated arrays are written fully sorted (not
+			automatically, never hand-maintained. Upserts `Bash` into
+			`deny`, so `mcp__myx_distro__execute` is the only shell path,
+			and the native Slack MCP server (`mcp__claude_ai_Slack`),
+			unconditionally -- a different, separate path from the team's
+			own sanctioned `--member-comms-slack-*` ops, which this cannot
+			reach. Sets `enabledMcpjsonServers` to `myx.common` and
+			`myx.distro`. Both generated arrays are written fully sorted (not
 			merge-order) for reviewability.
 			Deliberately `$HOME`-scoped, not workspace-scoped: the Slack
 			deny must hold in every workspace/session, which only the
 			user-global settings file provides.
-			Fails loud and leaves the target file untouched if
-			`$MDAT_DATA_ROOT` cannot be resolved (`TEAM_DATA_DIRECTORY` not
-			configured) or the merge itself fails. A run that changes
+			Fails loud and leaves the target file untouched if it does
+			not exist or the merge itself fails. A run that changes
 			nothing (already current) is reported as such, not silently
 			treated the same as a write.
 

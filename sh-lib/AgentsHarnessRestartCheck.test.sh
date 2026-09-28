@@ -28,8 +28,8 @@ mkdir -p "$rigTmp/bin"
 ## that is itself shell takes the rest of this check with it, and a check that stops
 ## checking still prints its PASS lines. A missing fixture refuses instead.
 rigFixtures="$rigHere/check-fixtures"
-cp "$rigFixtures/harness-restart-check.curl.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-restart-check.curl.sh"
+cp "$rigFixtures/harness-restart-check.curl.test.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-restart-check.curl.test.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"
@@ -38,7 +38,7 @@ PATH="$rigTmp/bin:$PATH"
 ## The host is a reserved .invalid name that can never resolve and the token is a
 ## literal, so nothing in this rig can reach a service or spend a credential.
 export HARNESS_PROVIDER_NAME="restart-check rig"
-export HARNESS_SELF_NAME="AgentsHarnessRestartCheck.sh"
+export HARNESS_SELF_NAME="AgentsHarnessRestartCheck.test.sh"
 export HARNESS_ENDPOINT="https://harness-restart-check.invalid/v1/chat/completions"
 export HARNESS_HOST="harness-restart-check.invalid"
 export HARNESS_WIRE="OpenAiChat"
