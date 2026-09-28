@@ -8,9 +8,10 @@
 ## PATH or named by absolute path in the rig's own mcp.servers.json. Offline by construction:
 ## no socket is opened, no credential is read, and nothing outlives the EXIT trap.
 set -u
-rigHere="$( cd "$( dirname -- "$0" )" && pwd )"
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
+rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
-[ -f "$rigHarness" ] || { echo "⛔ ERROR: harness not found beside this check: $rigHarness" >&2 ; exit 1 ; }
+[ -f "$rigHarness" ] || { echo "⛔ ERROR: harness not found at the origin this workspace resolves: $rigHarness" >&2 ; exit 1 ; }
 
 ## Refusing to report is this function's whole job: a rig that could not reach its
 ## subject must never reach its PASS lines, which read exactly like a result.

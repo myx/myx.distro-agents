@@ -364,7 +364,6 @@ Copyable skeleton: `magic-team/templates/team-member.contract.format.md`.
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - "`DistroAgentsTools.fn.sh` always executes via the `myx.distro` MCP tool `mcp__myx_distro__execute` (argument `command`, the shell script itself) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
     - this member's own limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.
@@ -423,7 +422,6 @@ Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - "`DistroAgentsTools.fn.sh` always executes via the `myx.distro` MCP tool `mcp__myx_distro__execute` (argument `command`, the shell script itself) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
     - "Console-session use: this role-family may open a `--console-start`/`--console-send` session only when its own instructions explicitly require one — this member's own `.armed.md` listing those operations for its domain is that instruction. Otherwise every call goes directly via `mcp__myx_distro__execute`, whatever the command count." Stated to agree with `magic-team.armed.md`'s own keeper exception, which governs.
     - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`keeper` or `warden`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
@@ -479,7 +477,6 @@ Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - "`DistroAgentsTools.fn.sh` always executes via the `myx.distro` MCP tool `mcp__myx_distro__execute` (argument `command`, the shell script itself) — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly. Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way." The MCP tool name is stated literally, not abstracted, so a member drifting onto a wrong tool name is detectable by comparison.
     - `partner-*` only: "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement." Not part of the `client-*` shape — a `client-*` member is a representative, normally with no workspace or console of its own, so it gets no console grant by default. A specific client that genuinely needs one states it explicitly in its own file, which is what the `magic-team.armed.md` console rules require anyway.
     - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`partner` or `client`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
@@ -801,6 +798,14 @@ Once the human-owner has confirmed a specific piece of code or content as good, 
 
 Distinct from two rules in `magic-team.conversations.md`'s checkpoint loop: **replacing-approved-point-needs-approval**, which requires approval first before an already-approved *point* is replaced, and **no-regress**. Those govern what is proposed. This one governs what an unrelated edit quietly touches.
 
+## Corrections go forward, never by reverting
+
+A correction lands as the next edit. It is never applied by undoing an earlier one, and a revert is not offered as an option.
+
+This holds however clean the undo looks. A working change is not removed to satisfy a later "remove X", and content the human-owner has called correct is not re-edited to reach an earlier state. Where an earlier state is the right one, it is written forward as a new edit that states it.
+
+An undo also destroys the record of what was tried. The next reader meets a tree that never shows the attempt, and repeats it.
+
 ## No rephrasing for human-owner commands, corrections, clarifications, no annotation without readback and approval
 
 Two rules, given together.
@@ -1028,6 +1033,8 @@ An intent or a rule takes the most generalised form that still covers the intent
 
 A test or an instruction takes the most exact and precise form that still covers the intended flexibility. "Still covers" bounds both. A rule generalised past its intent stops meaning anything. An instruction sharpened past its intended flexibility rejects valid cases.
 
+**A ceiling nobody asked for is the fault, wherever it appears.** A cap, a limit, a threshold, a maximum, a closed list — none of them enters a rule, a piece of code, a report or a restatement unless it was asked for. Restating a criterion already given as universal is where this lands most often. The restatement quietly bounds it, and reads as faithful. What was given as a floor stays a floor. Only an explicit ceiling from the human-owner creates one — a hard number, or an explicit "no more than X".
+
 ## Never mention local-cache sync staleness
 
 Never raise whether an installed or local copy of the tooling is stale. Never raise whether a source-to-local sync needs running. Not as a flag, a caveat, a note for awareness, or a suggested next step. It is not weighed at all: not checked, and not entertained as a possible cause. It is the human-owner's own separate workflow. A spawned session's own report carrying such a note has it dropped, not forwarded. This is the one kind of staleness "Doc/disk mismatch repair loop" above does not reach.
@@ -1050,6 +1057,16 @@ Finding the rule already present is therefore where the work starts, not where i
 One of those is true, because the text failed.
 
 The fix lands in the text, or in what makes the text hold. Where the wording is what failed, the wording changes. Where the wording is sound and nothing made it reachable or checkable at the moment it was needed, the fix is the mechanism that reaches or checks it. The wording stays.
+
+## The outcome is the whole measure
+
+A process is judged by what actually reached its destination. Nothing else counts as a result.
+
+A question that went unanswered is a total failure of the process that carried it, not a partial success. Every component reporting itself correct changes nothing, because the components were never the deliverable. Where a send is refused, the content is reworked and sent again until it lands. An unanswered question stays open rather than counting as dispatched.
+
+**A component that succeeds by staying silent is the shape this takes.** Three forms of it: a refusal that nothing resends, a decision surface that emits nothing and is read as consent, and a wait that reports having received what never arrived. Each reports success at its own boundary while the outcome is absent. So a step's own report is never the evidence that the step's effect happened. The effect is confirmed where it was supposed to land.
+
+Distinct from `magic-team.armed.md`'s "Finished means user-visible effect only", which governs whether a change is done. This governs whether a process meant to carry something actually carried it.
 
 ## An unchecked reading is said to be one
 

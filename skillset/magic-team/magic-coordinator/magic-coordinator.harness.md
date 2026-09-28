@@ -20,9 +20,8 @@ The MCP-routing rule below applies from the very first action after invocation. 
 **This "before mode selection" scope binds the MCP-routing rule only.** It does not extend to the separate ChatUI Edit/Write-permission mechanism further down. That mechanism carries its own, narrower scope statement, and it is never available during this unconditional bootstrap phase.
 
 Explicit MCP use:
-- `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute` — never Bash, a Python/notebook execution tool, or any other tool that runs a process directly — whether or not a Keep-Alive Console Session is open.
+- `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute`, whether or not a Keep-Alive Console Session is open — that channel is what establishes the workspace environment the call needs. Full mechanics: `magic-team/magic-team.armed.md`'s "Execution mechanisms" section.
 - `DistroAgentsTools.fn.sh` lives at `$MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh` (sibling `myx.distro-*` packages live alongside it under `$MMDAPP/.local/myx/`); if `$MMDAPP` is unset/empty in a session's environment, it resolves to the VSCode/harness workspace root directory — not a value that needs pre-exporting fresh each session.
-- Any non-mutating, read-only shell command also executes via `mcp__myx_distro__execute` the same way — never Bash, Python, or any other direct-execution tool — whether or not a Keep-Alive Console Session is open.
 
 In the ChatUI interface, live tool-permission is the confirm/refuse channel. It is interface-specific, not tied to any one operating mode among those actually licensed to hold it.
 
@@ -47,10 +46,9 @@ decision (a multiple-choice on one question) are not "several distinct asks" and
 This is a property of the live-turn-taking channel itself, not any one operating mode or activity type.
 
 The "attempt directly, harness confirms" model above covers `Edit` calls: approval. A `Write` succeeding is
-allowed, but does not itself indicate a fact of final approval. It does not
-extend to shell commands: every shell/read-only command still always routes through
-`mcp__myx_distro__execute`, unconditionally, in every mode including
-team-fix-session's own direct-action model — that MCP-routing rule is separate from, and not overridden by,
+allowed, but does not itself indicate a fact of final approval. It does not extend to a tooling call: a
+`DistroAgentsTools.fn.sh` call still routes through `mcp__myx_distro__execute` in every mode, including
+team-fix-session's own direct-action model — that routing rule is separate from, and not overridden by,
 permission to act on files without a prose pre-ask.
 
 ## Mode selection (unless this is genuinely just casual/social talk)

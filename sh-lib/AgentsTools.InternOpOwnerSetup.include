@@ -89,13 +89,6 @@ AgentsToolsOwnerSetupOptionSpec(){
 	esac
 }
 
-## The command-line flag an option is reached by: its key, lowercased, with
-## underscores as dashes. Mechanical in both directions, so no flag is coined
-## per option and none can drift from the key it writes.
-AgentsToolsOwnerSetupOptionFlag(){
-	printf -- '--%s' "$( printf '%s' "$1" | tr 'A-Z_' 'a-z-' )"
-}
-
 case "$1" in
 
 	--intern-op-owner-setup)
@@ -258,7 +251,7 @@ case "$1" in
 				## Trailing continuation: the pipe below is the same command line.
 				setupSecretPart="${setupSecretPart}  $setupKey='$setupHint' \\"$'\n'
 			else
-				setupCommand="$setupCommand $( AgentsToolsOwnerSetupOptionFlag "$setupKey" ) '$setupHint'"
+				setupCommand="$setupCommand --$( printf '%s' "$setupKey" | tr 'A-Z_' 'a-z-' ) '$setupHint'"
 			fi
 			setupHelp="${setupHelp}    $setupKey -- $setupHowTo"$'\n'
 		done

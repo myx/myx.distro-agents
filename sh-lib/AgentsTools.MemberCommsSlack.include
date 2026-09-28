@@ -1939,6 +1939,12 @@ blocks|verbatim|caller|stdin file"
 
 		## Who the message is for.
 		local addressedText="" addressedElems=""
+		## Every addressee that resolved to a real Slack account, which is the value a
+		## wait qualifies an answer against. A roster alias with no account of its own
+		## adds nothing here: it can be addressed, and it cannot be recognised as an
+		## author, so a caller is told the list is empty rather than given a name that
+		## would never match.
+		local addressedIds=""
 		local addrWho addrMarks addrMark addrAlias addrUserId addrHandleText addrHandleElems
 		for addrWho in $addressToList ; do
 			if [ -n "$addressedText" ] ; then
@@ -1950,6 +1956,7 @@ blocks|verbatim|caller|stdin file"
 					## A real Slack account: the structured element in blocks,
 					## the escape form in text. Different forms, same field.
 					addressedText="$addressedText<@$addrWho>"
+					addressedIds="$addressedIds$addrWho "
 					addressedElems="$addressedElems{\"type\":\"user\",\"user_id\":\"$addrWho\"},"
 				;;
 				C[A-Z0-9][A-Z0-9]*|D[A-Z0-9][A-Z0-9]*|G[A-Z0-9][A-Z0-9]*)
@@ -1976,6 +1983,7 @@ blocks|verbatim|caller|stdin file"
 					addrUserId="$( AgentsToolsCommsSlackMentionUserId "$addrWho" )" || addrUserId=""
 					if [ -n "$addrUserId" ] ; then
 						addrHandleText="<@$addrUserId>"
+						addressedIds="$addressedIds$addrUserId "
 						addrHandleElems="{\"type\":\"text\",\"text\":\" \"},{\"type\":\"user\",\"user_id\":\"$addrUserId\"},"
 					else
 						addrHandleText="@$addrAlias"
@@ -2223,6 +2231,38 @@ blocks|verbatim|caller|stdin file"
 					set +e ; return 1
 				fi
 			fi
+			## WHAT WAS POSTED, AND TO WHOM, as named fields a caller reads rather than a
+			## response body it has to parse. The pair this feeds is a question and its
+			## answer: the answer arrives in the thread of THIS message, after THIS ts,
+			## from the party named here -- so all three are reported by the side that
+			## already resolved them, and the wait reads the same values instead of
+			## resolving them a second time and possibly differently.
+			##
+			## On stderr, beside the other diagnostic fields this operation family emits:
+			## stdout stays the response body byte for byte, which is what every existing
+			## caller already reads.
+			local sentTs="" sentChannel="" sentThreadTs="" sentTsRc=0 sentChannelRc=0
+			sentChannel="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=channel -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || sentChannelRc=$?
+			sentTs="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=message.ts -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || sentTsRc=$?
+			## A message posted into a thread carries that thread ts, and a message that
+			## starts one carries none -- in which case it is the thread itself. Absent is
+			## the documented shape here and not a failure, so this rc is not read.
+			sentThreadTs="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=message.thread_ts -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || sentThreadTs=""
+			[ -n "$sentThreadTs" ] || sentThreadTs="$sentTs"
+			if [ "$sentChannelRc" = "0" ] && [ "$sentTsRc" = "0" ] && [ -n "$sentChannel" ] && [ -n "$sentTs" ] ; then
+				echo "SENT_MESSAGE_CHANNEL=$sentChannel" >&2
+				echo "SENT_MESSAGE_TS=$sentTs" >&2
+				echo "SENT_MESSAGE_THREAD_TS=$sentThreadTs" >&2
+			else
+				echo "SENT_MESSAGE_CHANNEL=" >&2
+				echo "SENT_MESSAGE_TS=" >&2
+				echo "SENT_MESSAGE_THREAD_TS=" >&2
+				echo "# $MDSC_CMD --member-comms-slack-send-message: THIS WAS POSTED, and the response carries no readable channel with message.ts beside it (channel reader rc=$sentChannelRc, ts reader rc=$sentTsRc), so THE THREAD OF THIS MESSAGE IS NOT KNOWN. A caller waiting on a reply to it must not fall back to the whole conversation: nothing there would be known to be a reply to this." >&2
+			fi
+			## Empty when the message named nobody, or named only accounts with no Slack id
+			## of their own. Empty is a stated value: a wait cannot qualify an answer
+			## without it, and must say so rather than accept whatever arrives.
+			echo "SENT_MESSAGE_ADDRESSEES=${addressedIds% }" >&2
 			printf '%s\n' "$response"
 			return 0
 		fi

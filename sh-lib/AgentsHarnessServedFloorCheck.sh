@@ -36,18 +36,18 @@
 ## rather than by re-applying the subtraction here: a check that recomputes what it is
 ## checking reports the two agree and nothing more.
 ##
-## Offline and self-contained. The root under test is MMDAPP, and it is relocated onto this
-## check's own fixture -- the server's scratch and every file it reads are inside there, so
-## no file of the real workspace is touched and no gate is stubbed. MDLT_ORIGIN is the tree
-## this check sits in, so a planted copy tests itself, which is what makes a red run possible.
+## Offline, and self-contained in its scratch. The root under test is MMDAPP, and it is
+## relocated onto this check's own fixture, so the server's scratch stays inside there and
+## nothing is written outside it, with no gate stubbed. The tree under test is whatever
+## MDLT_ORIGIN names, so a red run needs the planted tree named there, not merely executed.
 set -u
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
-rigHere="$( cd "$( dirname -- "$0" )" && pwd )"
+rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigCore="$rigHere/AgentsUniversalHarness.sh"
 rigSlice="$rigHere/AgentsHarnessJsonSlice.awk"
 rigMirror="$rigHere/AgentsHarnessMcpMirror.sh"
-rigOrigin="$( cd "$rigHere/../../.." && pwd )"
-rigTool="$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
 ## Refusing to report is this block's whole job: a run that exercised nothing must never
 ## print a pass, and an empty extraction is a fault here rather than a clean floor.
@@ -56,7 +56,7 @@ rigRefuse(){
 }
 
 for rigFile in "$rigCore" "$rigSlice" "$rigMirror" "$rigTool" ; do
-	[ -f "$rigFile" ] || rigRefuse "not found in the tree this check sits in: $rigFile"
+	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
 rigTmp="$( mktemp -d -t "AgentsHarnessServedFloorCheck-XXXXXXXX" )" || exit 1
@@ -68,7 +68,7 @@ mkdir -p "$rigTmp/.local"
 {
 	printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
 	printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-} | MMDAPP="$rigTmp" MDLT_ORIGIN="$rigOrigin" \
+} | MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	bash "$rigTool" --intern-mcp-server --run > "$rigTmp/wire" 2> "$rigTmp/err" || :
 
 ## The one line carrying the catalogue, selected by its own id rather than by position.

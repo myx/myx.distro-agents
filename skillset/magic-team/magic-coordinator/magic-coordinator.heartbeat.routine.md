@@ -44,7 +44,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **On success**: continue.
    - **An anomaly here (an undocumented lock state, an unexpected owner/meta) is assess→investigate work**: governed by `magic-coordinator.harness.md`'s `harness-session-rules`, not restated here.
 3. **use-direct-tooling-calls**: no console session — this `next-iteration`'s own execution model, per `magic-team/magic-team.armed.md`'s process-flow rule: no Keep-Alive Console Session opens, none is assumed.
-   - Every command from here on (`DistroAgentsTools.fn.sh` or any other shell check) goes through `mcp__myx_distro__execute` — never Bash, Python, or any other tool that runs a process directly.
+   - Every `DistroAgentsTools.fn.sh` call from here on goes through `mcp__myx_distro__execute`, which is what puts the workspace environment the call needs in place.
    - Every `heartbeat-state-note` update goes through `--magic-heartbeat-state-upsert` via `mcp__myx_distro__execute` — never the Edit/Write tools, never a raw shell redirect, never a raw Bash call.
    - That record is rewritten every `next-iteration`; a permission prompt on it halts this whole unattended loop until a human clicks it.
 4. **open-event-track-thread**: start a Slack thread in `slack-event-track` — `--member-comms-slack-send-message` operation, literal target argument `event-track` (no `slack-` prefix), a short opening line for this `next-iteration`.

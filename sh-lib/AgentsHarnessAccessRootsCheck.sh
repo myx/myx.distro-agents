@@ -16,11 +16,12 @@
 ## present, so an empty or truncated body cannot read as a pass.
 ##
 ## Offline by construction: the fake curl is first on PATH and that is asserted, not
-## assumed. No host, no network, no credential. Every fixture is built here, so nothing
-## outside this file has to exist for it to run.
+## assumed. No host, no network, no credential. Every fixture is built here, but the
+## harness and the curl fixture come from the origin, which has to carry this package.
 set -u
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
-rigHere="$( cd "$( dirname -- "$0" )" && pwd )"
+rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
 
 ## Refusing to report is this block's whole job: a run that exercised nothing must never
@@ -29,7 +30,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 
-[ -f "$rigHarness" ] || rigRefuse "harness not found beside this check: $rigHarness"
+[ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
 
 rigTmp="$( mktemp -d -t AgentsHarnessAccessRootsCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT

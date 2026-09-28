@@ -563,6 +563,24 @@
 			itself, so a table reaches the `text` field and the notification
 			as written, pipes and all.
 
+			**Prints SENT_MESSAGE_CHANNEL, SENT_MESSAGE_TS,
+			SENT_MESSAGE_THREAD_TS and SENT_MESSAGE_ADDRESSEES to stderr**,
+			beside the other diagnostic fields this operation family emits.
+			Stdout stays the response body byte for byte, which is what every
+			existing caller already reads. `SENT_MESSAGE_THREAD_TS` is the
+			thread a reply to this message belongs in — the thread's own ts
+			where the message was posted into one, and this message's own ts
+			where it started one. The first three are printed empty, with a
+			`#` line beside them saying the thread of this message is not
+			known, where the response carries no readable channel with a ts
+			beside it: the message was still posted, and a caller waiting on
+			a reply to it must not fall back to the whole conversation, since
+			nothing there would be known to be a reply.
+			`SENT_MESSAGE_ADDRESSEES` is always printed and carries the Slack
+			ids `--address-to` resolved to, empty where the message named
+			nobody or named only accounts with no Slack id of their own. Empty
+			is a stated value: a wait cannot qualify an answer without it.
+
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-contact-digest-send <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>

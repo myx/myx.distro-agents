@@ -22,7 +22,7 @@ set -e
 ## loud, because an extraction that matched nothing must never read as a floor that
 ## declares no tools.
 
-mirrorHere="$( cd "$( dirname -- "$0" )" && pwd )"
+mirrorHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 mirrorWire="${1:-$mirrorHere/AgentsOpenAiChatWire.sh}"
 mirrorSliceAwk="$mirrorHere/AgentsHarnessJsonSlice.awk"
 

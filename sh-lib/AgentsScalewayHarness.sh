@@ -8,8 +8,6 @@ set -e
 ## resolve `scaleway` to exactly this path. It is not a preset and must not grow
 ## into a selector. See MAGIC.md for the split and the full tier evidence.
 
-harnessHere="$( cd "$( dirname -- "$0" )" && pwd )"
-
 ## --- Scaleway's identity, as it appears in diagnostics -------------------
 HARNESS_PROVIDER_NAME="Scaleway"
 HARNESS_SELF_NAME="AgentsScalewayHarness.sh"
@@ -54,6 +52,6 @@ export HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_ENDPOINT HARNESS_HOST
 export HARNESS_WIRE HARNESS_CREDENTIAL_NAMES
 export HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_LIGHT HARNESS_TOKEN_MAIN
 
-## exec, not source: the core becomes this process, so $0 resolves to the core's
-## own directory for its helper lookups and the console keeps one invoker.
-exec "$harnessHere/AgentsUniversalHarness.sh" "$@"
+## exec, not source: the core becomes this process, so the console keeps one
+## invoker. The core resolves its own helper lookups from the origin, not from $0.
+exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" "$@"

@@ -399,7 +399,9 @@ case "$0" in
 
 		set -e
 
-		. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsContext.include"
+		if [ -z "$MDLT_ORIGIN" ] || ! type DistroAgentsContext >/dev/null 2>&1 ; then
+			. "${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsContext.include"
+		fi
 		DistroAgentsContext --run-from-detect
 		DistroAgentsContext --distro-path-auto
 

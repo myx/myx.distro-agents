@@ -31,12 +31,13 @@
 		release, so there is nothing on PATH for it to install. Installing
 		the vendor binary belongs to `--owner-setup-claude-native`.
 
-		1. Obtain an Anthropic API key and supply it as
-		   --anthropic-api-key. The leg reads ANTHROPIC_API_KEY out of the
-		   environment the console exports it into, and refuses by that
-		   name when it is not set. Nothing else authenticates it: there
-		   is no interactive sign-in for a harness leg, which is the part
-		   that differs most from claude-native.
+		1. Obtain an Anthropic credential and supply it as
+		   --anthropic-api-key or --claude-code-oauth-token. The leg reads
+		   ANTHROPIC_API_KEY out of the environment the console exports it
+		   into and falls back to CLAUDE_CODE_OAUTH_TOKEN, and refuses by
+		   both names when neither is set. Nothing else authenticates it:
+		   there is no interactive sign-in for a harness leg, which is the
+		   part that differs most from claude-native.
 
 		2. Give claude a way to authenticate. Either of these is enough,
 		   and this is the one step no `--apply` can perform for you:

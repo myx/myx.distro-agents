@@ -6,9 +6,9 @@
 ## the defect lived in their composition -- against a real symlink fixture,
 ## offline: no host, no network, no credential.
 set -u
-rigHere="$( cd "$( dirname -- "$0" )" && pwd )"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
-[ -f "$rigHarness" ] || { echo "⛔ ERROR: harness not found beside this check: $rigHarness" >&2 ; exit 1 ; }
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
+rigHarness="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh"
+[ -f "$rigHarness" ] || { echo "⛔ ERROR: harness not found at the origin this workspace resolves: $rigHarness" >&2 ; exit 1 ; }
 
 rigExtract(){
 	LC_ALL=C awk -v fnName="$1" '

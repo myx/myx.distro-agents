@@ -20,23 +20,29 @@ MDLC_INMODE="${MDLT_CONSOLE_ORIGIN#$MMDAPP/}"
 case "$MDLC_INMODE" in
 	.local)
 		export MDLT_ORIGIN="$MMDAPP/.local"
+		export MDLT_OPTION="--run-from-.local"
 	;;
 	source)
 		if [ -f "$MMDAPP/source/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
 			export MDLT_ORIGIN="$MMDAPP/$MDLC_INMODE"
+			export MDLT_OPTION="--run-from-source"
 		else
 			export MDLT_ORIGIN="$MMDAPP/.local"
+			export MDLT_OPTION="--run-from-.local"
 		fi
 	;;
 	/*)
 		if [ -f "$MDLC_INMODE/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
 			export MDLT_ORIGIN="$MDLC_INMODE"
+			export MDLT_OPTION="--run-from-path $MDLT_ORIGIN"
 		else
 			export MDLT_ORIGIN="$MMDAPP/.local"
+			export MDLT_OPTION="--run-from-.local"
 		fi
 	;;
 	*)
 		export MDLT_ORIGIN="$MMDAPP/.local"
+		export MDLT_OPTION="--run-from-.local"
 	;;
 esac
 if [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] ; then
@@ -320,13 +326,11 @@ esac
 ## completion and exits -- so an interactive launch cannot reach for one, and
 ## must not fall through to a plain `exec <name>` that the shell itself would
 ## reject as "not found" for a reason this console never explains.
-## It is said and not refused: a console whose whole purpose is to open must
+## It is neither said nor refused: a console whose whole purpose is to open must
 ## open. The same bash console this file already falls back to below is what
 ## an interactive launch gets here, which is also exactly what the source,
-## deploy and .local consoles do unconditionally. The reason is still stated,
-## so --non-interactive remains discoverable from the one place it matters.
+## deploy and .local consoles do unconditionally.
 if DagcCliIsLeg "$DAGC_CLI" && [ "$1" != "--non-interactive" ] ; then
-	echo "🙋 WARNING: DistroAgentsConsole: '$DAGC_CLI' is a harness leg and has no interactive shape -- it runs one request/response tool-calling cycle and exits; use --non-interactive." >&2
 	exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
 fi
 if [ "$1" == "--non-interactive" ] ; then

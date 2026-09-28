@@ -6,6 +6,30 @@ properties of the evidence itself, independent of any one domain, language, or
 test framework. Companion to `live-side-effect-verification.md`, which covers
 managing blast radius when the run itself has real consequences.
 
+## The governing question: what result would have falsified this
+
+Ask it of any measurement before trusting it. Where there is no such result,
+nothing has been measured.
+
+Every section below is one form of that question. A check that cannot fail, a
+probe answering its own predicate, an instrument returning the same answer for
+every subject, a census whose buckets are drawn from the rule under test — each
+is a measurement with no disconfirming outcome available to it, and each reads
+exactly like a result.
+
+Worked evidence: five premises held as fact and falsified the same day, each by
+a single read:
+
+- that the garbage collector retires inbox items;
+- that a stalled lock protected anything;
+- that the lock was held at all;
+- that the `archive:` escape did not run;
+- that deletion was permanent.
+
+None of the five was checked, and one read overturned each. **A premise
+load-bearing enough to act on is cheap enough to check.** The five are reported
+rather than measured here; the rule stands independently of the count.
+
 ## Establish the failing case before the passing one
 
 Reinforces `magic-team/magic-team.armed.md`'s "Engineering & operating
@@ -25,6 +49,14 @@ come out dirty.** Where the defect predates the session, the failing case alread
 exists: check out or reconstruct the prior state and run against that. This is
 the highest-value single step in a verification round; spend the time there
 before spending it anywhere else.
+
+**A planted positive is verified as planted before the sweep's result is read.**
+A decoy built to be found is a control only once it is present where the
+instrument actually looks. A marker meant to identify a process, which never
+reached any argument list, leaves the scan hunting something that was never
+there — and the clean answer that follows is about the decoy rather than about
+the subject. Confirm the plant is visible to the instrument, through the
+instrument, before the negative counts.
 
 ## Verify what stores, not what sends
 
@@ -132,6 +164,25 @@ before the sweep's result is offered as a result.
 its Principles, for recursive searches whose empty output looks the same either
 way.
 
+**A census whose categories are drawn from the rule under test can only confirm
+it.** A proposal that a quotation closes a sentence where a capital follows was
+tested by counting every quotation site in the canon, bucketed by whether a
+capital followed; six lowercase-follows sites then read as defects. The table
+was the hypothesis restated with counts beside it. Reading the instances refuted
+it three ways: a quotation followed by a code span leaves a lowercase word and
+is a boundary, one followed by a parenthetical gloss opens with a bracket and is
+a boundary, and an ellipsis quotation followed by a proper noun is not one.
+Neither outcome was a bucket, so neither could appear. Draw the categories from
+the subject before the rule exists, or read the instances themselves. A count is
+evidence only where a disconfirming bucket was available to it.
+
+**A measurement's scope and the claim's scope are one sentence, or the number is
+wrong.** A count taken inside one package and reported as a property of the
+family is not an approximation of the family's number. It is a different
+measurement wearing the claim's words. Name the population the instrument
+actually covered, in the sentence stating the result, and widen the run rather
+than the wording.
+
 ## A system's enforcement path and its reporting path are different surfaces
 
 Neither one's silence describes the other. Reading the code that enforces a rule
@@ -148,6 +199,14 @@ what a reader plans around.
 So name the surface that was actually read, in the sentence stating the result,
 and check the reporting surfaces before generalising to the system. Where a
 pre-flight check does exist, it is usually cheaper than the failure it prevents.
+
+A second worked case, same shape. A resolver's hardcoded scope name says what
+that resolver uses; it says nothing about what the estate defines. A session read
+one scope, found no channel key under it, concluded the channel role was missing,
+and the proposal built on that reading was refused. The read was correct about
+the resolver and wrong about every other surface that holds configuration. Name
+the scope actually read in the sentence stating the result, and check the other
+definition sites before generalising to the estate.
 
 ## A refusal for want of privilege reads exactly like an empty result
 
@@ -316,6 +375,13 @@ the roster, the tracking document it was told to write, a direct ping. Never tre
 "I have not heard back" as "it is still running", and never report progress that
 rests on it. This is the reporting-surface rule applied to sessions — the channel
 that would have carried the news is not the channel that holds the state.
+
+**Presence of output is not evidence of liveness either.** A log tail shows what
+was written, never that anything is still writing. The last lines of a finished
+session and of a working one are identical, and a tail re-read a moment later is
+identical again whenever the session ended between the two reads. So liveness is
+established by something that answers — the roster, a direct ping, the document
+the session was told to update — never by output already on disk.
 
 ## A working-tree probe is evidence only in a checkout the task owns
 

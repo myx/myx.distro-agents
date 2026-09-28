@@ -13,7 +13,7 @@ set -e
 ## is met by summarise-and-restart, bounded, never by eviction. MAGIC.md carries the
 ## reasoning.
 
-harnessHere="$( cd "$( dirname -- "$0" )" && pwd )"
+harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 
 ## Set before the HARNESS_* validation below, whose own messages use these.
 harnessDim=""
@@ -1037,21 +1037,22 @@ AgentsHarnessToolWebFetch(){
 ## on stdin, where no shell quoting can reach it -- a single apostrophe in a composed
 ## send emptied one live message in this estate.
 AgentsHarnessToolSendMessage(){
-	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" sendRc=0
+	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" sendRc=0
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to send under, and one is never guessed here. Nothing was sent. Report this rather than working around it.\n' ; return 0
 	fi
 	if [ -z "$toolTarget" ] || [ -z "$toolMessage" ] ; then
 		printf 'ERROR: both to and message are required, and one of them was empty. Nothing was sent.\n' ; return 0
 	fi
-	if [ ! -x "${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
-		printf 'ERROR: the team tooling is not present beside this harness at %s, and no other send path exists here. Nothing was sent.\n' "${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
+	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
+		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s, and no other send path exists here. Nothing was sent.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
 	fi
 	## Built as argv so the optional flag is one token rather than a quoted fragment.
-	set -- "${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" --member-comms-slack-send-message "$harnessAgent" "$toolTarget"
+	set -- "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-comms-slack-send-message "$harnessAgent" "$toolTarget"
 	case "$toolAsBot" in
 		true|1|yes) set -- "$@" --identity-bot ;;
 	esac
+	[ -z "$toolAddressTo" ] || set -- "$@" --address-to "$toolAddressTo"
 	## Output to a file rather than a capture: the operation forks curl, and a capture
 	## returns on pipe EOF rather than on the command it ran.
 	printf '%s' "$toolMessage" | "$@" --from-stdin >"$harnessScratch/send.out" 2>&1 || sendRc=$?
@@ -1110,12 +1111,12 @@ AgentsHarnessToolListAgents(){
 ## the operation's own WAIT-RESULT line is passed through untouched, so the model
 ## reads TIMEOUT and ERROR as the different things they are.
 AgentsHarnessToolWait(){
-	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" waitRc=0 waitSource
+	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" waitRc=0 waitSource
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to wait as, and one is never guessed here. Nothing was waited on.\n' ; return 0
 	fi
-	if [ ! -x "${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
-		printf 'ERROR: the team tooling is not present beside this harness at %s, and no other wait path exists here. Nothing was waited on.\n' "${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
+	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
+		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s, and no other wait path exists here. Nothing was waited on.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
 	fi
 	## Per-call override of the harness-wide ceiling, validated the way Bash validates
 	## its own, and cut down to that ceiling rather than refused: a bound that is too
@@ -1131,18 +1132,24 @@ AgentsHarnessToolWait(){
 	if [ -n "$toolPoll" ] && ! AgentsHarnessWholeNumber "$toolPoll" ; then
 		printf 'ERROR: poll_interval must be a whole number of seconds, got: %s\n' "$toolPoll" ; return 0
 	fi
-	if [ -n "$toolSince" ] && ! AgentsHarnessWholeNumber "$toolSince" ; then
-		printf 'ERROR: since_utime must be a whole number of epoch seconds, got: %s\n' "$toolSince" ; return 0
+	if [ -n "$toolSince" ] ; then
+		if ! AgentsHarnessWholeNumber "${toolSince%%.*}" ; then
+			printf 'ERROR: since_utime must be epoch seconds, or a Slack message ts written <epoch>.<micros>, got: %s\n' "$toolSince" ; return 0
+		fi
+		if [ "$toolSince" != "${toolSince#*.}" ] && ! AgentsHarnessWholeNumber "${toolSince#*.}" ; then
+			printf 'ERROR: since_utime must be epoch seconds, or a Slack message ts written <epoch>.<micros>, got: %s\n' "$toolSince" ; return 0
+		fi
 	fi
 	## Built as argv, so a source naming a thread stays one token rather than a
 	## quoted fragment, and an empty sources string adds no flag at all.
-	set -- "${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" --member-wait-for-input "$harnessAgent"
+	set -- "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-wait-for-input "$harnessAgent"
 	for waitSource in $toolSources ; do
 		set -- "$@" --wait-source "$waitSource"
 	done
 	set -- "$@" --wait-timeout "$toolTimeout"
 	[ -z "$toolPoll" ] || set -- "$@" --wait-poll-interval "$toolPoll"
 	[ -z "$toolSince" ] || set -- "$@" --wait-since-utime "$toolSince"
+	[ -z "$toolAddressee" ] || set -- "$@" --wait-addressee "$toolAddressee"
 	"$@" >"$harnessScratch/wait.out" 2>"$harnessScratch/wait.err" || waitRc=$?
 	if [ "$waitRc" != "0" ] ; then
 		printf 'ERROR: the wait could not be performed (rc=%s), so NOTHING is known about those sources -- this is not a wait that found nothing, and their silence must not be read as quiet. What the operation reported follows:\n' "$waitRc"
@@ -1295,10 +1302,10 @@ AgentsHarnessToolAgent(){ ## agent name, prompt, cli service
 	if [ -n "$toolCliService" ] && ! AgentsHarnessBareName "$toolCliService" ; then
 		printf 'ERROR: cli_service must be a bare service name, got: %s. Nothing was spawned.\n' "$toolCliService" ; return 0
 	fi
-	if [ ! -x "${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
-		printf 'ERROR: the team tooling is not present beside this harness at %s, and no other spawn path exists here. Nothing was spawned.\n' "${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
+	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
+		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s, and no other spawn path exists here. Nothing was spawned.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
 	fi
-	set -- "${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-agent-spawn-proxy "$toolAgentName" \
+	set -- "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-agent-spawn-proxy "$toolAgentName" \
 		--from-stdin --dispatch-doc:create --context Agent
 	[ -z "$toolCliService" ] || set -- "$@" --spawn-cli-service "$toolCliService"
 	printf '%s' "$toolPrompt" | "$@" >"$harnessScratch/spawn.out" 2>&1 || spawnRc=$?
@@ -1804,7 +1811,7 @@ AgentsHarnessToolArtifact(){
 ## reported as asked even where recording it did not work, so a failure here degrades
 ## to no record and a warning, never to a wrong outcome line.
 AgentsHarnessPendingReplyOpen(){ ## conversation id, question body
-	local openTools="${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh" openId=""
+	local openTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" openId=""
 	[ -x "$openTools" ] || return 0
 	[ -n "$harnessAgent" ] || return 0
 	openId="$( printf '%s' "$2" | "$openTools" --intern-op-pending-reply-open "$harnessAgent" \
@@ -1820,7 +1827,7 @@ AgentsHarnessPendingReplyOpen(){ ## conversation id, question body
 }
 
 AgentsHarnessPendingReplyClose(){ ## pending reply id, status
-	local closeTools="${harnessHere%/*}/sh-scripts/DistroAgentsTools.fn.sh"
+	local closeTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	[ -n "$1" ] || return 0
 	[ -x "$closeTools" ] || return 0
 	"$closeTools" --intern-op-pending-reply-close "$1" --status "$2" --context AskUserQuestion >/dev/null 2>&1 || {
@@ -1830,27 +1837,75 @@ AgentsHarnessPendingReplyClose(){ ## pending reply id, status
 }
 
 AgentsHarnessToolAskUserQuestion(){
-	local toolTo="$1" toolQuestion="$2" toolOptions="$3" toolContext="$4" toolWait="$5" toolTimeout="$6" toolSource="$7" toolAsBot="$8"
-	local askBody askSent askSince askWaitOut askFirst askOutcome askPendingId=""
+	local toolTo="$1" toolQuestion="$2" toolOptions="$3" toolContext="$4" toolWait="$5" toolTimeout="$6" toolSource="$7" toolAsBot="$8" toolAddressTo="$9"
+	local askBody askSent askWaitOut askFirst askOutcome askPendingId=""
+	local askChannel="" askTs="" askThreadTs="" askAddressees=""
+	local askRounds=0
+	local askAsk="" askOpen="" askOpenTs=""
 	if [ -z "$toolTo" ] ; then
 		printf 'ERROR: AskUserQuestion: to is required and was empty, so there is nobody to ask. Nothing was sent.\n' ; return 0
 	fi
 	if [ -z "$toolQuestion" ] ; then
 		printf 'ERROR: AskUserQuestion: question is required and was empty. Nothing was sent.\n' ; return 0
 	fi
-	askBody="$( {
-		printf 'Question\n\n%s\n\n' "$toolQuestion"
-		AgentsHarnessFormalField 'Options:' "$toolOptions"
-		AgentsHarnessFormalField 'Context:' "$toolContext"
-	} )"
-	## Taken BEFORE the send, so an answer arriving while the send is still in flight
-	## counts as an arrival rather than as scenery the wait then sits through.
-	askSince="$( date +%s 2>/dev/null )" || askSince=""
-	AgentsHarnessWholeNumber "$askSince" || askSince=""
-	askSent="$( AgentsHarnessToolSendMessage "$toolTo" "$askBody" "$toolAsBot" )"
+	askBody="$(
+		printf '# ❓ Question\n\n%s\n\n' "$toolQuestion"
+		if [ -n "$toolOptions" ] ; then
+			printf '**📋 Options**\n'
+			printf '%s\n' "$toolOptions" | while IFS= read -r bodyOption ; do
+				[ -n "$bodyOption" ] || continue
+				case "$bodyOption" in
+					-\ *)
+						printf '%s\n' "$bodyOption"
+					;;
+					*)
+						printf -- '- %s\n' "$bodyOption"
+					;;
+				esac
+			done
+			printf '\n'
+		fi
+		AgentsHarnessFormalField '**⚙ Context**' "$toolContext"
+		printf '**✅ How to answer**\n'
+		printf -- '- react on this message with any emoji, which is the fastest answer\n'
+		printf -- '- or reply in this thread\n'
+	)"
+	if [ -z "$toolAddressTo" ] ; then
+		case "$toolTo" in
+			*:*)
+			;;
+			*)
+				toolAddressTo="$toolTo"
+			;;
+		esac
+	fi
+	if [ -z "$toolAddressTo" ] ; then
+		printf 'ERROR: AskUserQuestion: `to` names one message (%s) rather than a party, so address_to is required and was empty. An answer is recognised by who wrote it, so a question addressed to nobody could be answered by anybody. Nothing was sent.\n' "$toolTo" ; return 0
+	fi
+	askAsk="$toolTo"
+	case "$toolTo" in
+		*:*)
+		;;
+		*)
+			askOpen="$( AgentsHarnessToolSendMessage "$toolTo" "A question follows in this thread." "$toolAsBot" "$toolAddressTo" )"
+			case "$askOpen" in
+				ERROR:*)
+					printf 'ERROR: AskUserQuestion: the thread this question needed could not be opened, so the question was never posted and nobody was asked. THE QUESTION DOES NOT EXIST. What the send reported follows:\n%s\n' "$askOpen"
+					return 0
+				;;
+			esac
+			askOpenTs="$( printf '%s\n' "$askOpen" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+			if [ -z "$askOpenTs" ] ; then
+				printf 'ERROR: AskUserQuestion: the opener was posted to %s and the send could not name its ts, so there is no thread to put the question in and the question was NOT posted. Nobody was asked. What the send reported follows:\n%s\n' "$toolTo" "$askOpen"
+				return 0
+			fi
+			askAsk="$toolTo:$askOpenTs"
+		;;
+	esac
+	askSent="$( AgentsHarnessToolSendMessage "$askAsk" "$askBody" "$toolAsBot" "$toolAddressTo" )"
 	case "$askSent" in
 		ERROR:*)
-			printf 'ERROR: AskUserQuestion: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. This is not a question that went unanswered. What the send reported follows:\n%s\n' "$askSent"
+			printf 'ERROR: AskUserQuestion: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. THE QUESTION DOES NOT EXIST: this is not a question that went unanswered, and it will not be answered later. A refusal naming an output-style predicate means the text sits below the plain-language floor this team holds, which is written out in %s/magic-team/magic-team.shared.md -- rewrite the question to that standard and ask it again. What the send reported follows:\n%s\n' "${MDAT_SKILLSET_ROOT:-}" "$askSent"
 			return 0
 		;;
 	esac
@@ -1867,10 +1922,35 @@ AgentsHarnessToolAskUserQuestion(){
 			return 0
 		;;
 	esac
-	## The conversation the question went to is where an answer arrives, so the source is
-	## derived from `to` rather than asked for twice; an explicit one still wins.
-	[ -n "$toolSource" ] || toolSource="slack:$toolTo"
-	askWaitOut="$( AgentsHarnessToolWait "$toolSource" "$toolTimeout" "" "$askSince" )"
+	askChannel="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
+	askTs="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+	askThreadTs="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
+	askAddressees="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
+	if [ -z "$toolSource" ] ; then
+		if [ -z "$askChannel" ] || [ -z "$askThreadTs" ] || [ -z "$askTs" ] ; then
+			printf 'ASK-RESULT: POSTED\nThe question is posted to %s%s and NO WAIT WAS PERFORMED. The send could not name the thread it landed in, so there is no one thread to watch. Widening to the whole conversation is refused here: anything found there would not be known to answer this. Nothing is known about whether it was answered. What the send reported follows:\n%s\n' "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId}" "$askSent"
+			return 0
+		fi
+		if [ -z "$askAddressees" ] ; then
+			printf 'ASK-RESULT: POSTED\nThe question is posted to %s%s and NO WAIT WAS PERFORMED. Nobody resolved as its addressee, so no arrival could be told apart from an unrelated message, or from our own next post. Nothing is known about whether it was answered. Ask again naming address_to. What the send reported follows:\n%s\n' "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId}" "$askSent"
+			return 0
+		fi
+		toolSource="slack:$askChannel:$askThreadTs"
+	fi
+	if AgentsHarnessWholeNumber "$toolTimeout" && [ "$toolTimeout" -lt 1 ] ; then
+		toolTimeout="$harnessWaitTimeout"
+	fi
+	while : ; do
+		askRounds=$(( askRounds + 1 ))
+		askWaitOut="$( AgentsHarnessToolWait "$toolSource" "$toolTimeout" "" "$askTs" "$askAddressees" )"
+		case "${askWaitOut%%$'\n'*}" in
+			*TIMEOUT*)
+			;;
+			*)
+				break
+			;;
+		esac
+	done
 	case "$askWaitOut" in
 		ERROR:*)
 			printf 'ERROR: AskUserQuestion: the question WAS posted to %s, and then the wait for an answer could not be performed -- so the question stands and NOTHING is known about whether it was answered. Its silence must not be read as quiet. What the wait reported follows:\n%s\n' "$toolTo" "$askWaitOut"
@@ -1897,7 +1977,7 @@ AgentsHarnessToolAskUserQuestion(){
 		RECEIVED) AgentsHarnessPendingReplyClose "$askPendingId" reply-received ;;
 		TIMEOUT)  AgentsHarnessPendingReplyClose "$askPendingId" reply-timeout ;;
 	esac
-	printf 'ASK-RESULT: %s\nThe question was posted to %s%s. What the wait returned follows verbatim.\n%s\n' "$askOutcome" "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId}" "$askWaitOut"
+	printf 'ASK-RESULT: %s\nThe question was posted to %s%s, and its own thread was watched over %s wait round(s). What the wait returned follows verbatim.\n%s\n' "$askOutcome" "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId}" "$askRounds" "$askWaitOut"
 }
 
 ## The three MCP resource tools reach the same servers this run already enumerated,
@@ -2452,12 +2532,12 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" )" ;;
 		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" message )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		ListAgents) harnessResult="$( AgentsHarnessToolListAgents )" ;;
-		Wait)      harnessResult="$( AgentsHarnessToolWait "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" sources )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" poll_interval )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" since_utime )" )" ;;
+		Wait)      harnessResult="$( AgentsHarnessToolWait "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" sources )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" poll_interval )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" since_utime )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" addressee )" )" ;;
 		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" outcome )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" unfinished )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" subject )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" evidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" confidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" severity )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" headline )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" detail )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" action_required )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		Artifact)  harnessResult="$( AgentsHarnessToolArtifact "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" title )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" kind )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" summary )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-		AskUserQuestion) harnessResult="$( AgentsHarnessToolAskUserQuestion "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" question )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" options )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait_source )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
+		AskUserQuestion) harnessResult="$( AgentsHarnessToolAskUserQuestion "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" question )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" options )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait_source )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" address_to )" )" ;;
 		ListMcpResourcesTool) harnessResult="$( AgentsHarnessToolListMcpResourcesTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" )" ;;
 		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri )" )" ;;
 		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri_prefix )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;

@@ -12,10 +12,11 @@
 ## check's own canned model rounds, every source used is a `file:` source under
 ## this check's own temp tree, and nothing outlives the EXIT trap.
 set -u
-rigHere="$( cd "$( dirname -- "$0" )" && pwd )"
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
+rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
 rigInclude="$rigHere/AgentsTools.MemberWait.include"
-rigTool="${rigHere%/*}/sh-scripts/DistroAgentsTools.fn.sh"
+rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
 ## Refusing to report is this function's whole job: a rig that could not reach its
@@ -24,10 +25,9 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 
-[ -f "$rigHarness" ] || rigRefuse "harness not found beside this check: $rigHarness"
-[ -f "$rigInclude" ] || rigRefuse "the wait operation is not beside this check: $rigInclude"
+[ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
+[ -f "$rigInclude" ] || rigRefuse "the wait operation is not at the origin this workspace resolves: $rigInclude"
 [ -x "$rigTool" ] || rigRefuse "the team tooling is not on the path the Wait tool itself resolves: $rigTool"
-[ -n "${MMDAPP:-}" ] || rigRefuse "MMDAPP is not set, so the operation has no workspace to place its own working directory under"
 
 rigTmp="$( mktemp -d -t AgentsHarnessWaitCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT

@@ -25,9 +25,9 @@
 ## so it always assigns. The readable-but-not-writable assertion then reports OK
 ## where it must report a refusal, and this check fails.
 set -u
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
-rigHere="$( cd "$( dirname -- "$0" )" && pwd )"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh"
 
 ## Refusing to report is this block's whole job: a run that exercised nothing must
 ## never print a pass.
@@ -35,7 +35,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 
-[ -f "$rigHarness" ] || rigRefuse "harness not found beside this check: $rigHarness"
+[ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
 
 rigTmp="$( mktemp -d -t AgentsHarnessWriteSplitCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT

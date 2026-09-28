@@ -202,15 +202,13 @@ case "$1" in
 			## and reported the remainder as "nothing new": against the live NDM
 			## workspace that hid all ten of its messages. Each member resolves its
 			## OWN stored position instead, inside --client-sweep-input-scan.
-			MagicSweepOneClientMember(){
-				local memberStatus=0
-				DistroAgentsTools --client-sweep-input-scan "$1" \
-					> "$clientSweepDir/$1.document" || memberStatus=$?
-				printf '%s\n' "$memberStatus" > "$clientSweepDir/$1.status"
-			}
-
 			for clientMember in $clientMembers ; do printf '%s\n' "$clientMember" ; done \
-			| while IFS= read -r clientMember ; do MagicSweepOneClientMember "$clientMember" ; done
+			| while IFS= read -r clientMember ; do
+				memberStatus=0
+				DistroAgentsTools --client-sweep-input-scan "$clientMember" \
+					> "$clientSweepDir/$clientMember.document" || memberStatus=$?
+				printf '%s\n' "$memberStatus" > "$clientSweepDir/$clientMember.status"
+			done
 
 			## A member that recorded no coverage of its own is a member nothing was read
 			## for, never one with nothing new, and it is said in that member's own place:

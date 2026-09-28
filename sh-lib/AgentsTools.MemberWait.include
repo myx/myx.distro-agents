@@ -32,7 +32,7 @@
 ##
 ## The adapter contract is deliberately narrow:
 ##
-##     AgentsWaitProbe<Kind> <team-member> <target> <since-epoch> <render-file>
+##     AgentsWaitProbe<Kind> <team-member> <target> <since-epoch> <render-file> <addressee>
 ##         rc 0 -- <render-file> now holds this source's current state for
 ##                 <target>. An empty rendering is a legitimate state.
 ##         rc 2 -- the probe could not run. <render-file> is not a rendering
@@ -49,6 +49,20 @@
 ## nothing changed. An adapter that cannot narrow ignores it and renders the lot;
 ## the baseline comparison above is unaffected either way.
 ##
+## The fifth argument is WHOSE ANSWER COUNTS -- the Slack accounts of the party a
+## question was addressed to, exactly as the send operation resolved and reported
+## them, so the send and the wait read one value rather than each deciding for
+## itself. An adapter that cannot tell one author from another ignores it. The slack
+## adapter does not ignore it: on a thread it is what makes a reply an answer,
+## together with our own message being the floor it must come after.
+##
+## ONE THREAD PER WAIT. A thread source must be the only source of its wait, and it
+## must carry both of those values. A question and its answer are one thread, and a
+## wait fanned out over a conversation is the shape that returned the sending
+## session its own post. A wait over conversations keeps its wider shape, because
+## watching what anybody says to a member is a different job from waiting on an
+## answer, and the default sources below are exactly that job.
+##
 
 ## The kinds this build carries. One word per adapter, in the order they are
 ## offered to a caller that asks.
@@ -56,16 +70,31 @@ agentsWaitSourceKinds="slack file"
 
 ## Slack. Through the team's own sanctioned read operation and no other path:
 ## the credential stays inside that operation and never reaches argv here.
-## A target carrying a `:` names one message, so its thread is rendered whole;
-## a bare conversation is rendered from the cut-off forward, which is Slack
-## doing the narrowing server-side rather than this operation pulling history
-## it would only throw away.
+##
+## A target carrying a `:` names ONE THREAD, and a thread is where a question put
+## to somebody is answered, so that case renders THE ANSWERS IN IT and nothing
+## else. Three existing pieces and no fourth way: the read operation returns the
+## whole thread, AgentsSlackMessagesFormat.awk renders it in its own ts order, and
+## AgentsSlackThreadAnswers.awk keeps only what came after our own message -- a reply
+## from the party the question was addressed to, or a reaction on our own message.
+## No message text decides any of it.
+##
+## <since-epoch> is our own message's ts for a thread, which is what a caller
+## already passes it for, and <addressee> carries the accounts whose answer counts.
+## Because nothing our own side wrote survives that rendering, a wait over a thread
+## CANNOT be satisfied by the session's own post -- which is what it did before,
+## on its first poll, in zero seconds, every time.
+##
+## A bare conversation is rendered from the cut-off forward, which is Slack doing
+## the narrowing server-side rather than this operation pulling history it would
+## only throw away.
 AgentsWaitProbeSlack(){
-	local probeMember="$1" probeTarget="$2" probeSince="$3" probeOut="$4" probeRc=0
-	local probeArgs
+	local probeMember="$1" probeTarget="$2" probeSince="$3" probeOut="$4" probeAddressee="$5" probeRc=0
+	local probeArgs probeThread="false"
 	probeArgs=( "$probeMember" )
 	case "$probeTarget" in
 		*:*)
+			probeThread="true"
 			probeArgs=( "${probeArgs[@]}" "$probeTarget" --thread )
 		;;
 		*)
@@ -76,12 +105,30 @@ AgentsWaitProbeSlack(){
 	## Output to a file, never a capture: the read operation forks curl, and a
 	## capture returns on pipe EOF rather than on the process that holds it.
 	DistroAgentsTools --member-comms-slack-read "${probeArgs[@]}" \
-		> "$probeOut" 2> "$probeOut.err" || probeRc=$?
+		> "$probeOut.read" 2> "$probeOut.err" || probeRc=$?
 	if [ "$probeRc" != "0" ] ; then
 		## Actually onto stderr: the TIMEOUT text tells the caller a failed probe's
 		## diagnostics are there, and without this the file is written, read by
 		## nothing, and removed with the working directory -- a claim that reads as
 		## verified while the reason is discarded.
+		[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
+		return 2
+	fi
+	if [ "$probeThread" = "false" ] ; then
+		mv -f "$probeOut.read" "$probeOut" || return 2
+		return 0
+	fi
+	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessagesFormat.awk" \
+		< "$probeOut.read" > "$probeOut.rendered" 2>> "$probeOut.err" || probeRc=$?
+	if [ "$probeRc" = "0" ] ; then
+		LC_ALL=C awk -v rootTs="$probeSince" -v fromUsers="$probeAddressee" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackThreadAnswers.awk" \
+			< "$probeOut.rendered" > "$probeOut" 2>> "$probeOut.err" || probeRc=$?
+	fi
+	## A rendering step that could not run is an UNREADABLE SOURCE and is reported as
+	## one -- never as a thread that holds no answer. The filter refuses a rendering
+	## that does not carry our own message for exactly that reason.
+	if [ "$probeRc" != "0" ] ; then
 		[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
 		return 2
 	fi
@@ -146,7 +193,7 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		local waitSources="" waitTimeout="" waitPoll="" waitSince="" waitListOnly="false"
+		local waitSources="" waitTimeout="" waitPoll="" waitSince="" waitListOnly="false" waitAddressee=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--wait-source)
@@ -183,6 +230,18 @@ case "$1" in
 						set +e ; return 1
 					fi
 					waitSince="$2"
+					shift 2
+				;;
+				--wait-addressee)
+					if [ -z "${2:-}" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-addressee: value required (the Slack account id the question was addressed to)" >&2
+						set +e ; return 1
+					fi
+					## Resolved ids only, never a name: the send resolves a name once and reports
+					## what it resolved, and a second resolution here could disagree with the
+					## party the message was actually addressed to.
+					waitAddressee="$waitAddressee$2 "
 					shift 2
 				;;
 				--wait-list-sources)
@@ -239,9 +298,12 @@ case "$1" in
 		fi
 		if [ -n "$waitSince" ] ; then
 			case "$waitSince" in
-				''|*[!0-9]*)
+				## A Slack message ts is epoch seconds with microseconds, and is the value a
+				## caller passes when it is waiting on what follows a message it posted -- the
+				## same <epoch>[.<micros>] shape --oldest already takes on the read side.
+				''|.*|*.|*[!0-9.]*|*.*.*)
 					echo "WAIT-RESULT: ERROR"
-					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-since-utime: not epoch seconds: $waitSince" >&2
+					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-since-utime: not epoch seconds, and not a Slack message ts either -- pass <epoch>[.<micros>]: $waitSince" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -267,6 +329,40 @@ case "$1" in
 			fi
 		done
 
+		## ONE THREAD PER WAIT, settled before the wait starts and not discovered in
+		## its result. A thread source is a question waiting on its own answer, and an
+		## answer is qualified by the message it came after and the party it came from.
+		## A thread source missing either of those, or sharing its wait with another
+		## source, is refused here rather than waited on.
+		local checkThreads=0 checkCount=0
+		for checkSource in $waitSources ; do
+			checkCount=$(( checkCount + 1 ))
+			case "$checkSource" in
+				slack:*:*)
+					checkThreads=$(( checkThreads + 1 ))
+				;;
+			esac
+		done
+		if [ "$checkThreads" -gt 0 ] && [ "$checkCount" -gt 1 ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a thread source must be the ONLY source of its wait, and this wait names $checkCount. A question and its answer are one thread, and a wait spread over more than that is the shape that came back holding the sending session's own post. Nothing was waited on: name the one thread." >&2
+			set +e ; return 1
+		fi
+		if [ "$checkThreads" -gt 0 ] && [ -z "$waitSince" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a thread source needs --wait-since-utime carrying the ts of our own message in that thread, because an answer is what arrives AFTER it. Without that floor every message already in the thread would count as an answer, our own included. Nothing was waited on." >&2
+			set +e ; return 1
+		fi
+		if [ "$checkThreads" -gt 0 ] && [ -z "$waitAddressee" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a thread source needs --wait-addressee carrying the Slack account the question was addressed to, because an answer is what that party wrote. Without it an unrelated message in the same thread would count as the answer, and so would our own next post. Nothing was waited on." >&2
+			set +e ; return 1
+		fi
+		if [ "$checkThreads" = "0" ] && [ -n "$waitAddressee" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-addressee qualifies an answer inside the thread the question was posted in, and this wait names no thread source. Over a whole conversation there is no message for an answer to come after. Nothing was waited on: name the thread as slack:<channel>:<ts>." >&2
+			set +e ; return 1
+		fi
 		## mktemp, never `$$`: this operation is a shell function inside a long-lived
 		## process, so every call in that process shares one PID. Two concurrent waits
 		## by one member then share a directory, and the first to finish removes the
@@ -321,7 +417,7 @@ case "$1" in
 				roundFn="$( AgentsWaitProbeFunctionName "$roundKind" )"
 
 				roundRc=0
-				"$roundFn" "$memberName" "$roundTarget" "$waitReadFloor" "$waitDir/now.$roundIndex" || roundRc=$?
+				"$roundFn" "$memberName" "$roundTarget" "$waitReadFloor" "$waitDir/now.$roundIndex" "${waitAddressee% }" || roundRc=$?
 				if [ "$roundRc" != "0" ] ; then
 					## A probe that cannot run is reported, and the wait carries on
 					## over the sources that can: one unreachable source must not
@@ -370,6 +466,7 @@ case "$1" in
 		echo "WAIT-RESULT: $waitOutcome"
 		echo "# member: $memberName"
 		echo "# sources: ${waitSources% }"
+		[ -z "$waitAddressee" ] || echo "# answers counted only from: ${waitAddressee% }"
 		echo "# waited: ${waitElapsed}s of ${waitTimeout}s bound, ${waitRound} poll round(s) at ${waitPoll}s, baseline: $waitBaselineMode"
 		[ -z "$waitProbeFailures" ] || echo "# probes that could not run this wait (their diagnostics are on stderr): ${waitProbeFailures% }"
 

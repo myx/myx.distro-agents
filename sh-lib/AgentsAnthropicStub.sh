@@ -10,7 +10,7 @@ set -e
 ## neighbouring parser was refused as a shortcut. Honest and non-working beats
 ## plausible and wrong. Running it prints the gaps and exits non-zero.
 
-harnessHere="$( cd "$( dirname -- "$0" )" && pwd )"
+harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 
 ## --- identity: ours to choose, no external source needed -----------------
 HARNESS_PROVIDER_NAME="Anthropic"

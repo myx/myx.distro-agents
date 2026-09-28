@@ -14,8 +14,6 @@ set -e
 ## only thing they share. HARNESS_PROVIDER_NAME below names the provider, Anthropic;
 ## the selection name and the provider name are deliberately not the same string.
 
-harnessHere="$( cd "$( dirname -- "$0" )" && pwd )"
-
 ## --- Anthropic's identity, as it appears in diagnostics -------------------
 HARNESS_PROVIDER_NAME="Anthropic"
 HARNESS_SELF_NAME="AgentsClaudeHarness.sh"
@@ -74,13 +72,8 @@ HARNESS_WIRE="OpenAiChat"
 ## copy of a shared wire is a worse defect than the one it patches.
 ## ####################################################################
 
-## --- the credential name, which the core reports but never chooses -------
-## Not a gap and not a new convention: this name is already carried in this
-## package independently of this file -- AgentsTools.Owner.include's claude arm
-## declares it and AgentsConsoleShellScript.template.sh names it. The core reads
-## it out of its own process environment, exactly as claude does. No value is
-## stored here, and none ever should be.
-HARNESS_CREDENTIAL_NAMES="ANTHROPIC_API_KEY"
+## --- the credential names, which the core reports but never chooses ------
+HARNESS_CREDENTIAL_NAMES="ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN"
 
 ## --- tier -> model, and tier -> credential -------------------------------
 ## THESE MODEL IDS ARE REFERENCE-DERIVED AND HAVE NOT BEEN OBSERVED ON THE WIRE.
@@ -120,17 +113,13 @@ HARNESS_MODEL_CONTEXT_TOKENS="180000"
 : "${MDAT_HARNESS_CONTEXT_TOKENS:=$HARNESS_MODEL_CONTEXT_TOKENS}"
 export MDAT_HARNESS_CONTEXT_TOKENS
 
-## One credential reaches both models -- Anthropic scopes a key by workspace and
-## policy, not by model -- so both tiers read the same name and neither falls
-## back to anything. An absent key is the core's own refusal, naming
-## HARNESS_CREDENTIAL_NAMES, rather than a refusal invented here.
-HARNESS_TOKEN_LIGHT="${ANTHROPIC_API_KEY:-}"
-HARNESS_TOKEN_MAIN="${ANTHROPIC_API_KEY:-}"
+HARNESS_TOKEN_LIGHT="${ANTHROPIC_API_KEY:-${CLAUDE_CODE_OAUTH_TOKEN:-}}"
+HARNESS_TOKEN_MAIN="${ANTHROPIC_API_KEY:-${CLAUDE_CODE_OAUTH_TOKEN:-}}"
 
 export HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_ENDPOINT HARNESS_HOST
 export HARNESS_WIRE HARNESS_CREDENTIAL_NAMES
 export HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_LIGHT HARNESS_TOKEN_MAIN
 
-## exec, not source: the core becomes this process, so $0 resolves to the core's
-## own directory for its helper lookups and the console keeps one invoker.
-exec "$harnessHere/AgentsUniversalHarness.sh" "$@"
+## exec, not source: the core becomes this process, so the console keeps one
+## invoker. The core resolves its own helper lookups from the origin, not from $0.
+exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" "$@"

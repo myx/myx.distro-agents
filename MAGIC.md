@@ -1730,7 +1730,7 @@ returning non-zero on a diagnostic finding.
   - How a gated path is reached, which is the part worth keeping. Set the dummy `HARNESS_*` a provider stub sets, and put a fake `curl` first on `PATH`. Those are a provider name, a `.invalid` endpoint and host, a wire name, a credential name, and a token that is not one. The core then runs as far as the wire. The resolved roots travel inside the system prompt, so the recorded request body is the observation. The behaviour checks below use the same technique.
   - Refuses rather than reporting where the wire was never reached. Measured with the core made to exit early: zero PASS lines, an explicit refusal, exit 1. That property is what the void probe it replaces did not have.
   - Red recipe: point the no-flag resolution back at the fragment. Both assertions fail. The planted core still parses, which is why no syntax or text check reaches this class and a behavioural one must.
-  - Self-contained. Every fixture is built in its own `mktemp -d`, and the scenario's own `MMDAPP` is that directory, so no file of the real workspace is read. Measured from `/` under `env -i`, with neither `MMDAPP`, `MDAT_*` nor `MDLT_ORIGIN` set: it passes.
+  - Self-contained in its fixtures, not in its inputs. Every fixture is built in its own `mktemp -d`, and the scenario's own `MMDAPP` is that directory, so no file of the real workspace is read. The harness under test and the fake `curl` fixture both come from `MDLT_ORIGIN`, so a run whose origin does not carry this package fails before it measures anything.
   - Does not prove: whether a path is inside the roots once resolved. That is `AgentsHarnessContainmentCheck.sh`'s, and neither answers the other.
 - **`sh-lib/AgentsHarnessWriteSplitCheck.sh` — which of the two sets a path is inside.**
   - Proves: where a write root is given, writes narrow to it while reads stay wider, and a root on the read side only is refused for writing **and still readable**. Where no write root is given at all, writes stay exactly as wide as reads, which is what every console generated before the split passes.
@@ -1800,14 +1800,18 @@ returning non-zero on a diagnostic finding.
   - Does not prove: that any served tool works, or that an unserved one is unservable for the right
     reason. The process-local-handle half of the documented test is outside it entirely — see the section
     above for why no source scan reaches it.
-  - Its reds, measured in a planted copy rather than reasoned. Drop `Monitor` from
+  - Its reds, measured in a planted copy rather than reasoned. Plant the copy and name it as
+    `MDLT_ORIGIN`, which is what selects the tree under test. Drop `Monitor` from
     `mcpUnservedToolNames`: the `command` assertion fails and so does `Monitor`'s own. Do that *and*
     rename `Monitor`'s `command` parameter to `script` in its declaration alone: the `command` assertion
     passes while the behavioural one still fails, which is the whole reason the behavioural form is
     carried rather than the name alone.
-  - Self-contained and offline. `MMDAPP` — the root under test for the server's own scratch and every file
-    it reads — is relocated onto its own `mktemp -d` fixture, and `MDLT_ORIGIN` is the tree the check sits
-    in, so a planted copy tests itself. No socket, no credential, no file of the real workspace.
+  - Offline, and self-contained in its scratch only. `MMDAPP` — the root under test for the server's own
+    scratch and every file it reads — is relocated onto its own `mktemp -d` fixture, so nothing is written
+    outside it. No socket, no credential. The tree under test is whatever `MDLT_ORIGIN` names, and the
+    check does not locate itself: a planted copy that is merely executed reads the origin the caller
+    carries, so its own modification is never measured and the run passes. A red run therefore requires
+    naming the planted tree as `MDLT_ORIGIN`.
   - Invoked: `./sh-lib/AgentsHarnessServedFloorCheck.sh`. Wired into the same
     `--owner-setup-scaleway --check` pass, after `HARNESS_ACCESS_ROOTS`.
 

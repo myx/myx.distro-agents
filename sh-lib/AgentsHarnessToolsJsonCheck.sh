@@ -47,7 +47,7 @@ set -e
 ## runs its own responses through -- a literal validated by the same code that
 ## consumes it proves only that the two agree.
 
-checkHere="$( cd "$( dirname -- "$0" )" && pwd )"
+checkHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 checkWire="${1:-$checkHere/AgentsOpenAiChatWire.sh}"
 checkSliceAwk="$checkHere/AgentsHarnessJsonSlice.awk"
 

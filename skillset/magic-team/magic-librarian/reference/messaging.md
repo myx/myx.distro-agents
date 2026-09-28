@@ -92,6 +92,12 @@ rule that survives is "platforms impose limits and may truncate silently".
   paragraphs collapses into one unreadable run. Bullet lists and pipe tables become real list and
   table blocks; they are the only tools in the markdown path that carry visible structure, and a
   message that needs structure is written with them from the start.
+- **An emoji reaches a message body as a real character, and a shortcode is not converted there.**
+  `:name:` written into body text is delivered as those literal characters, and the send still
+  reports success, so the fault is visible only to the reader. A reaction is the opposite case, and
+  is why this gets confused: that call names the emoji by shortcode, because a name is what its own
+  parameter takes. A shortcode in a reaction argument is correct and the same shortcode in a body is
+  a defect. Neither is fixed by changing the other.
 - **A markdown send parses CommonMark, not the platform's own native markup.** One delimiter is
   italic and two is bold, which inverts the convention on a platform whose native form makes a single
   delimiter bold — writing the native form there produces visibly wrong output that the send still

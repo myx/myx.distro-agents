@@ -6,8 +6,6 @@ set -e
 ## universal harness, which holds the logic. It is not a preset and must not grow into a
 ## selector. See MAGIC.md for the split.
 
-harnessHere="$( cd "$( dirname -- "$0" )" && pwd )"
-
 HARNESS_PROVIDER_NAME="GitHub Copilot"
 HARNESS_SELF_NAME="AgentsCopilotHarness.sh"
 
@@ -48,6 +46,6 @@ export HARNESS_WIRE HARNESS_CREDENTIAL_NAMES
 export HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_LIGHT HARNESS_TOKEN_MAIN
 export HARNESS_TOKEN_EXCHANGE HARNESS_EXTRA_HEADERS
 
-## exec, not source: the core becomes this process, so $0 resolves to the core's
-## own directory for its helper lookups and the console keeps one invoker.
-exec "$harnessHere/AgentsUniversalHarness.sh" "$@"
+## exec, not source: the core becomes this process, so the console keeps one
+## invoker. The core resolves its own helper lookups from the origin, not from $0.
+exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" "$@"

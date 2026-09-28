@@ -8,7 +8,8 @@
 ## and COPILOT_GITHUB_TOKEN is forced to a literal so a machine holding a real token
 ## never has it enter the process. A rig that cannot reach its subject refuses instead.
 set -u
-rigHere="$( cd "$( dirname -- "$0" )" && pwd )"
+: "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
+rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigLeaf="$rigHere/AgentsCopilotHarness.sh"
 
 ## Refusing to report is this function's whole job: a rig that could not reach its
@@ -17,7 +18,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 
-[ -f "$rigLeaf" ] || rigRefuse "the Copilot leaf is not beside this check: $rigLeaf"
+[ -f "$rigLeaf" ] || rigRefuse "the Copilot leaf is not at the origin this workspace resolves: $rigLeaf"
 
 rigTmp="$( mktemp -d -t "AgentsHarnessCopilotLegCheck-XXXXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
