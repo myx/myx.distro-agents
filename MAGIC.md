@@ -1987,3 +1987,9 @@ returning non-zero on a diagnostic finding.
     model in the copied wire adapter fails 3 of 57. Two of the 57 are standing guards rather than
     results, and say so in their own assertion text — both require that no bearer exchange ran, and
     nothing in this package declares one, so neither can fail until a leaf does.
+
+- **`sh-lib/AgentsHarnessAnthropicWireCheck.test.sh` — the Anthropic Messages wire, run rather than read.**
+  - Proves: that `sh-lib/AgentsAnthropicMessagesWire.sh`, the `claude` leg's wire, keeps the replay contract `AgentsAnthropicStub.sh` records under GAP-2 — the second request begins with the first byte for byte; the assistant turn goes back with its thinking block exactly as streamed, text, trailing newline and signature, ahead of its text and its tool call in stream order; the tool result answers that exact call id; the request asks for prompt caching with a top-level `cache_control`; `system` is top-level and tools carry `input_schema`; the cache written and read are reported per round; and a refusal body with no trailing newline, the shape the API sends, is reported by type and message rather than read as a disconnect.
+  - Does not prove: anything about the live endpoint — the canned streams are Messages-shaped by construction, so the adapter is proven against itself.
+  - Invoked: `bash sh-lib/AgentsHarnessAnthropicWireCheck.test.sh`. Green is `HARNESS_ANTHROPIC_WIRE: OK (2 scenarios, 19 assertions, offline)`.
+  - Its red, measured against a changed copy of `sh-lib`: the assistant turn rebuilt from the calls the core assembles instead of replayed — 2 of 19, exit 1, the thinking block and the stream order both gone.

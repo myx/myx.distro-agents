@@ -14,11 +14,13 @@
 ## The floor is not a second list. AgentsHarnessMcpMirror.sh derives
 ## {"name","description","inputSchema"} from AgentsOpenAiChatWire.sh's own literal, and
 ## this wire's envelope differs from that only in the schema key's spelling.
+## The rename is sed, not ${var//}: bash 3.2 substitutes over a string this long slowly
+## enough to stall the start by minutes.
 agentsWireToolsJson="$( bash "$harnessHere/AgentsHarnessMcpMirror.sh" )" || {
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the tool floor did not render for the Anthropic Messages wire -- the mirror's own error is above" >&2
 	exit 1
 }
-agentsWireToolsJson="${agentsWireToolsJson//\"inputSchema\":/\"input_schema\":}"
+agentsWireToolsJson="$( printf '%s\n' "$agentsWireToolsJson" | sed 's/"inputSchema":/"input_schema":/g' )"
 agentsWireSystemJson=""
 
 ## JSON string body for any text, trailing newlines kept: the escaper is awk, which
@@ -122,7 +124,9 @@ AgentsWireStreamConsume(){
 	local streamLine streamPayload eventType blockIndex blockType deltaType deltaText blockSeen
 	local usageInput="" usageWrite="" usageRead="" usageOutput="" usagePrompt
 	: > "$harnessScratch/stream.content"
-	while IFS= read -r streamLine ; do
+	## A refusal body ends without a newline, and a bare `read` drops that last line --
+	## the refusal then reads as a stream that disconnected, three times over.
+	while IFS= read -r streamLine || [ -n "$streamLine" ] ; do
 		streamLine="${streamLine%$'\r'}"
 		case "$streamLine" in
 			""|:*|event:*|id:*|retry:*)

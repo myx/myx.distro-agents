@@ -956,6 +956,20 @@ case "$1" in
 						setupRc=1
 					fi
 
+					## The claude leg's own wire, which every check above leaves alone: they
+					## all drive the chat-completions adapter.
+					local setupAnthropicWireOut="" setupAnthropicWireRc=0
+					setupAnthropicWireOut="$( bash "$setupLibDir/AgentsHarnessAnthropicWireCheck.test.sh" 2>&1 )" || setupAnthropicWireRc=$?
+					printf '%s\n' "$setupAnthropicWireOut"
+					if [ "$setupAnthropicWireRc" != "0" ] ; then
+						echo "  warn: the Anthropic Messages wire no longer replays what it was sent,"
+						echo "        or no longer reports a refusal -- each failed assertion above"
+						echo "        names what it wanted and what it got instead"
+						echo "  fix:  repair sh-lib/AgentsAnthropicMessagesWire.sh -- never the"
+						echo "        assertion"
+						setupRc=1
+					fi
+
 					## WHERE the access-root set comes from when no --access-root was passed,
 					## which no check above asks. It is the one gated path here that had no
 					## instrument at all: the core exits at its own HARNESS_* provider gate

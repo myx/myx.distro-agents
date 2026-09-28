@@ -151,8 +151,9 @@ rigAssert "round 2 reports the cache it read"                 "$( rigHolds "$rig
 rigVerdict "thinking plus a tool call, then an answer -- prefix held, block replayed, cache reported"
 
 ## The negative control: a refusal body is reported as a refusal, never read as a round.
+## It ends with no newline, the way the API sends it.
 rigStart refusal-is-reported
-printf '%s\n' '{"type":"error","error":{"type":"invalid_request_error","message":"RIG-REFUSAL-MARKER"},"request_id":"req_rig"}' > "$rigScenarioDir/res.1"
+printf '%s' '{"type":"error","error":{"type":"invalid_request_error","message":"RIG-REFUSAL-MARKER"},"request_id":"req_rig"}' > "$rigScenarioDir/res.1"
 rigRun
 rigAssert "the run fails"                                     "$rigRunStatus" 1
 rigAssert "one round was requested"                           "$rigRoundCount" 1
