@@ -470,6 +470,11 @@ case "$1" in
 				"## Brief" \
 				"" \
 				"$spawnContext" )"
+			## The team data directory is created on first use, and the move primitive refuses a missing state directory.
+			mkdir -p "$MDAT_DATA_ROOT/board/running" || {
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
+				set +e ; return 1
+			}
 			printf '%s\n' "$dispatchBriefBody" | DistroAgentsTools --intern-op-board-upsert-move-edit running "$dispatchItemName" \
 				--create \
 				--context "$opContext" \
