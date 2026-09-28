@@ -117,7 +117,7 @@ File set:
 
 Every acting member's skill folder under `<skillset>/` contains what follows. Careful: such a folder may be a symlink into the real source tree rather than the canonical location itself. Anyone editing resolves the real path first.
 
-- **`SKILL.md`** — the boot dispatcher only. Claude Code's own skill-discovery mechanism requires this exact filename, so it never gets renamed. It carries standard skill frontmatter (`description`) plus a short dispatch routine. That routine reads `<name>.basic.md` unconditionally first, for identity only. It then reads `<name>.armed.md` directly, for genuine active-work-duty. A non-active-duty presence wanting to dig deeper than `<name>.basic.md` reads `<name>.armed.md`'s own Maintainer Notes → Librarian Comments → Reference subsection. There is no separate reference file.
+- **`SKILL.md`** — the boot dispatcher only. Claude Code's own skill-discovery mechanism requires this exact filename, so it never gets renamed. It carries standard skill frontmatter (`description`) plus a short dispatch routine. That routine reads `<name>.basic.md` unconditionally first, for identity only. Whenever the member does any work, it then reads `<name>.armed.md` with the skillset reader, carefully and in full, before acting, and obeys it. A non-active-duty presence wanting to dig deeper than `<name>.basic.md` reads `<name>.armed.md`'s own Maintainer Notes → Librarian Comments → Reference subsection. There is no separate reference file.
 - **`<name>.basic.md`** — identity-only content, unconditionally loaded. Enough to respond in a casual or social context, never enough to actually do the work.
 - **`<name>.armed.md`** — professional-readiness content. It is the one file real work-duty loads after `.basic.md`. Frontmatter: `maintainers:` only, and no `executors:` field — see "Executors vs. maintainers" below. Who invokes or runs it is stated in `Scope`'s `Does`/`Doesn't` and `Local rules` prose instead. Section shape depends on role-family — see "Armed & Routine contracts" below.
 - **`<name>.access.md`, `<name>.reference.md`, `<name>.librarian.md`, `<name>.tooling.md`** — none of these exist as separate files for an acting member. Their content lives inside `<name>.armed.md`, per the section shape above:
@@ -143,10 +143,12 @@ Where a session may edit a member's own skillset files, and what it may not touc
 - A folder must work correctly purely from its own source files. That is the baseline the source files are held to, never a fallback path.
 - "Sufficient on its own" means readable and actionable following the folder's own stated cross-reference graph. It does not mean literally zero pointers elsewhere.
 - A cross-reference is fine when it is explicit and named, and the referencing step stays independently actionable without following it.
-- Real work-duty content is loaded by reading `.armed.md` directly, plus whatever it cross-references.
+- Real work-duty content is loaded by reading `.armed.md` with the skillset reader, plus whatever it cross-references.
 - A routine's own single `.routine.md` file is independently sufficient the same way, without needing its owning member's other typed files.
 
 ### Every typed file is reached by prose instruction
+
+A member's skill is its `SKILL.md` plus its typed files — `.basic.md`, `.armed.md`, the `.routine.md` a task uses, and the `magic-team/` shared files they name. It is one skill split across files, and none of those files is optional. A working session has not loaded the skill until it has read them carefully and obeys them.
 
 `SKILL.md` says to read `<name>.armed.md`, which says to read the shared team files. Nothing loads them automatically. A member that does not comply therefore never meets the rules they carry, and nothing reports that it did not.
 
@@ -768,7 +770,7 @@ The full write-up lives in `magic-team.board.md`'s "Two independent dimensions: 
 
 - Every routine's own non-default executor and maintainer notes, invitee roster, special-care content, and design rationale live natively inside that specific routine's own `.routine.md` file, frontmatter plus body. Read it directly for its current, authoritative shape, rather than expecting a central table to summarize it.
 - A live enumeration of which routines exist: each owning acting member's own `.armed.md` names its owned routines and their exact filenames. That is typically a routines-index subsection of its own `Domain knowledge`, such as `magic-coordinator/magic-coordinator.armed.md`'s `## Routines (index)`. It is the only in-file source of truth for that.
-- On disk: `magic-librarian`'s own `--librarian-list-team-files`, asked of `magic-librarian` by any other member. The team's own "trust the cache, don't rediscover" discipline applies first. Prefer reading the `.armed.md` sections already surfaced in the skill-discovery listing every session gets.
+- On disk: the skillset reader's own `list`, per member folder, open to any member. The team's own "trust the cache, don't rediscover" discipline applies first. Prefer reading the `.armed.md` sections already surfaced in the skill-discovery listing every session gets.
 
 # Human-owner's standing rules
 

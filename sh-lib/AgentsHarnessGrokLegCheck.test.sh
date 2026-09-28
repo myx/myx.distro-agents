@@ -208,6 +208,8 @@ rigAssert "the request went to the pinned endpoint"    "$( rigHolds "$rigScenari
 rigAssert "the diagnostics name the leaf's provider"   "$( rigHolds "$rigScenarioDir/err" "$( rigDecl provider )" )" yes
 rigAssert "THE MODEL IS TOLD THE LEAF'S PROVIDER"      "$( rigHolds "$rigScenarioDir/req.1" "bespoke $( rigDecl provider ) harness" )" yes
 rigAssert "the normal tier carries the main model"     "$( rigHolds "$rigScenarioDir/req.1" "\"model\":\"$( rigDecl modelMain )\"" )" yes
+## xAI publishes no output maximum and measured none, so none is sent and the model's own applies.
+rigAssert "no max_tokens caps the model's own output"  "$( rigHolds "$rigScenarioDir/req.1" '"max_tokens"' )" no
 rigAssert "the bearer is on stdin, and is all of it"   "$( cat "$rigScenarioDir/stdin.1" )" "Authorization: Bearer rig-not-a-credential"
 rigAssert "stdin carries one header and no extra"      "$( rigLineCount "$rigScenarioDir/stdin.1" )" 1
 rigAssert "the bearer is nowhere in argv"              "$( rigHolds "$rigScenarioDir/argv.1" 'rig-not-a-credential' )" no
@@ -303,6 +305,18 @@ rigAssert "and the code the endpoint returned"         "$( rigHolds "$rigScenari
 rigAssert "GUARD, no exchange declared: no re-exchange" "$( rigHolds "$rigScenarioDir/err" 're-exchanging' )" no
 rigVerdict "a complete error body costs one request, and the refusal names the host and the code"
 
+## xAI's own refusal, in the shape and ending measured live on 2026-09-28: flat, the type
+## in `code` and the message in `error`, and no final newline. A read loop that drops an
+## unterminated last line reads this as a stream that disconnected, three times over.
+rigStart d-xai-refusal-unterminated
+printf '%s' '{"code":"not-found","error":"RIG-REFUSAL-MARKER"}' > "$rigScenarioDir/res.1"
+rigRun --access-write-root "$rigScenarioDir"
+rigAssert "exactly one request was made"               "$rigRoundCount" 1
+rigAssert "the run fails"                              "$rigRunStatus" 1
+rigAssert "the refusal names its type and message"     "$( rigHolds "$rigScenarioDir/err" 'api.x.ai refused the request -- not-found -- RIG-REFUSAL-MARKER' )" yes
+rigAssert "it is never read as a disconnect"           "$( rigHolds "$rigScenarioDir/err" 'disconnected mid-stream' )" no
+rigVerdict "xAI's unterminated refusal is reported by its type, never retried as a disconnect"
+
 ## ---------------------------------------------------------------------------
 ## E. A PreToolUse hook refusal reaching the model, and the same rounds without it.
 ## ---------------------------------------------------------------------------
@@ -332,21 +346,27 @@ rigAssert "control: the tool ran and the file exists"  "$( rigExists "$rigScenar
 rigVerdict "a PreToolUse hook denies a write -- and without it that same write lands"
 
 ## ---------------------------------------------------------------------------
-## F. The absent context budget. This leaf sets no context-token value of its own, so
-##    the core's own floor is what governs -- two legs either side of it. It says
-##    nothing about whether that floor SUITS these models, which stays open.
+## F. The context budget is each tier model's own window, as xAI lists it: 500000 for
+##    the main model, 1000000 for the light one -- never the core's 400000 fallback.
 ## ---------------------------------------------------------------------------
-rigStart f-under-floor
+rigStart f-over-core-fallback
 printf 'RIG-TOOLRESULT-MARKER\n' > "$rigScenarioDir/read.txt"
-rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 399999
+rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 499999
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
 rigRun --access-write-root "$rigScenarioDir"
-rigAssert "a round just under it does not trip"        "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
+rigAssert "the core fallback no longer governs"        "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
 rigAssert "so the leg ran straight to its answer"      "$rigRoundCount" 2
 
-rigStart f-at-floor
+rigStart f-light-window
 printf 'RIG-TOOLRESULT-MARKER\n' > "$rigScenarioDir/read.txt"
-rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 400000
+rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 999999
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+rigRun --tier light --access-write-root "$rigScenarioDir"
+rigAssert "the light tier has its own larger window"   "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
+
+rigStart f-at-main-window
+printf 'RIG-TOOLRESULT-MARKER\n' > "$rigScenarioDir/read.txt"
+rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 500000
 rigTextStream "$rigScenarioDir/res.2" RIG-SUMMARY-MARKER 20
 rigTextStream "$rigScenarioDir/res.3" RIG-FINAL-MARKER 20
 rigRun --access-write-root "$rigScenarioDir"
@@ -354,7 +374,7 @@ rigAssert "a round at it trips the threshold"          "$( rigHolds "$rigScenari
 rigAssert "and the leg restarted onto its summary"     "$( rigHolds "$rigScenarioDir/err" 'original task verbatim plus the summary above' )" yes
 rigAssert "three rounds were requested"                "$rigRoundCount" 3
 rigAssert "the fresh leg's own answer is the result"   "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
-rigVerdict "the core's own context floor governs a leaf that declares none"
+rigVerdict "each tier's own model window governs, not the core's fallback"
 
 ## ---------------------------------------------------------------------------
 ## G. The offline claim, asserted rather than stated, and last so the whole run is in

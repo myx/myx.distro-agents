@@ -29,6 +29,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 6. **check-substance-not-wording**, steps:
    - check that the reviewed content interacts correctly with related rules elsewhere — no contradiction, no missing connection
    - check for any real behavior or pattern with no actual rule backing it anywhere
+   - check that each rule is stated at the step where it must fire, or pointed to from it; a rule the executor meets only in another section is a missing connection
    - report a missing or incomplete rule as its own finding, same blocking model as a wording problem
 7. **recheck-the-fix**: once a blocking finding is addressed, re-run this same check on the fix before it lands — a fix isn't clean just because someone says it's fixed. **Capped at 3 rounds on the same fix**: the same fix failing this check 3 times in a row is a stop-and-escalate signal, not a puzzle to keep iterating on solo — flag it for `magic-coordinator`/human-owner review instead of running a 4th round.
 8. **find-best-replacement-wording**: runs only on a formulation whose own wording is the finding — **classify-each-finding**'s formulation clause fired (unclear, a readback drops an intent/detail/benchmark, or a better candidate is suspected). A substance-only finding, or a clean one, skips this step. For each such finding, steps:
@@ -104,6 +105,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - A reviewed formulation fails review if a readback of it drops any intent, important detail, or benchmark the original had, even if it reads cleanly on its own.
 - Once a blocking finding is addressed, this same check re-runs on the fix before it lands — a fix isn't clean just because someone says it's fixed.
 - A proposed section is modelled on one in another file and carries several times its lead-in, prose and element count. It fails **compare-against-analog** on shape and verbosity alone, even where naming, placement and header style all match.
+- A rule applies at a step, but the file states it only in a different section scoped to another direction or case. The check reports a missing connection, even though the rule text exists.
 - A new element is added to a file. It is measured against the siblings it joins at its own level — a section against that file's other sections, a list item against the list it enters — never against the file as a whole.
 
 ## Librarian Comments

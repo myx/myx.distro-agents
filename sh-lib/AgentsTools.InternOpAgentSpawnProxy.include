@@ -617,8 +617,10 @@ case "$1" in
 		if [ "$waitMode" = "true" ] ; then
 			local exitCode spawnPid watchPid timedOut waitTimeoutSeconds
 			set +e
-			waitTimeoutSeconds="$( DistroAgentsTools --agents-config-option magic-team --select-default SPAWN_WAIT_TIMEOUT_SECONDS 900 )"
-			case "$waitTimeoutSeconds" in *[!0123456789]*|'') waitTimeoutSeconds=900 ;; esac
+			## 0, the default, is no bound: the wait lasts as long as the spawn does. A hung
+			## one stays visible to ListAgents and TaskOutput, and Ctrl-C still reaches it.
+			waitTimeoutSeconds="$( DistroAgentsTools --agents-config-option magic-team --select-default SPAWN_WAIT_TIMEOUT_SECONDS 0 )"
+			case "$waitTimeoutSeconds" in *[!0123456789]*|'') waitTimeoutSeconds=0 ;; esac
 			if [ -n "$outputFile" ] ; then
 				env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 &
 			else
@@ -633,12 +635,13 @@ case "$1" in
 			## Cleared once this call's own waiting is done, so it never lingers
 			## past this op's own scope.
 			trap 'kill -TERM "$spawnPid" 2>/dev/null' INT TERM
-			## The bound. A CLI that cannot arm does not exit, it sleeps, so an unbounded
-			## wait holds the caller forever. TERM first so the CLI reaps its own
-			## children; KILL after a grace period for one that ignores TERM. The
-			## watcher's own exit status is how the foreground learns it fired -- a
+			## The bound, where SPAWN_WAIT_TIMEOUT_SECONDS sets one. TERM first so the CLI
+			## reaps its own children; KILL after a grace period for one that ignores TERM.
+			## The watcher's own exit status is how the foreground learns it fired -- a
 			## subshell's status is the one value that escapes it, so nothing is named.
+			## Unbounded, the watcher ends at once and reports that nothing fired.
 			(
+				[ "$waitTimeoutSeconds" != 0 ] || exit 0
 				waitedSeconds=0
 				while [ "$waitedSeconds" -lt "$waitTimeoutSeconds" ] ; do
 					kill -0 "$spawnPid" 2>/dev/null || exit 0

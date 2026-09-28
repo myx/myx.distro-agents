@@ -55,11 +55,11 @@ case "$1" in
 					shift 2
 				;;
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: invalid option: $1 -- syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.shared.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: invalid option: $1 -- syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-team/magic-team.shared.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE $MDAT_SKILLSET_ROOT/magic-team/magic-team.shared.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-team/magic-team.shared.md" >&2
 					set +e ; return 1
 				;;
 			esac

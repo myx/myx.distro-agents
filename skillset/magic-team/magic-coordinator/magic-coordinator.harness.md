@@ -55,7 +55,9 @@ permission to act on files without a prose pre-ask.
 
 On load: unless the exchange is genuinely just casual/social talk with nothing else attached — same
 "casual/social context" carve-out `magic-coordinator.basic.md` already uses for identity-only replies, not a
-new one invented here — assess the situation, choose a named operating mode, proceed under that mode:
+new one invented here — assess the situation, choose a named operating mode, proceed under that mode.
+The mode is chosen after arming: for any work, `magic-coordinator.armed.md` is read and obeyed whichever
+mode follows, and no mode makes that read conditional. The named modes:
 
 - **`armed-mode`** — normal default, no loop. Participates per whatever activity/session it's in.
 - **`main-loop-mode`** — entered only on explicit instruction ("start main loop"/"do main loop"), never
@@ -188,7 +190,7 @@ After emitting a message and going idle, schedules a wakeup to re-check and cont
 every 2 minutes — a tighter cadence than the general idle-tick default, since a live interview-like
 exchange benefits from a short check-in interval.
 - Trigger: explicit human-owner instruction to halt normal flow and act inline now — e.g. "stop all machinery/process flow, do this now, inline, not as usual."
-- Arms from the distributed typed files (`magic-coordinator.armed.md`) — reads the authoritative source directly.
+- Arms from the distributed typed files (`magic-coordinator.armed.md`) — reads the authoritative source through the skillset reader.
 - Stated `session-rules` override any conflicting standing rule (this file, any file in this member's own folder — `SKILL.md`, `.armed.md`, its `.routine.md` files — any team-convention file, standing per-session memory) for the session's duration.
 - Never silent: on an actual conflict, stop, name the standing rule and the session-rule, get explicit per-instance go-ahead. A general "yes, session-rules apply" at session start doesn't satisfy this — confirmation is required at each distinct conflict, naming the concrete rule. Absent that, the standing rule holds and the conflict is reported, not resolved.
 - Reaches even the three `owner-guaranteed` rules (sole-mandated-channel, no-agent-consent, credential-store boundary) — those need the confirmation most.
@@ -302,6 +304,8 @@ Coordinating is the whole of the root's work. It holds the conversation with the
 
 **Whatever it spawns, it reads the result back to the human-owner and waits for his reply.** The read-back goes to his own direct channel — his Slack DM where one is configured — and carries the result, not an account of the session that produced it. His reply is an approval or a further round of corrections; until one arrives the work is not done, and the root neither closes it nor starts the next round on its own judgement.
 
+**Every message crossing between the human-owner and a spawned session carries a caption naming the session it came from or is going to — both directions, every message.** Outbound: "Relaying to <session>:". Inbound: "From <session>, for you:". The session's report follows the caption verbatim. A root remark is allowed only as a separate, labelled annotation per `magic-team/magic-team.conversations.md`'s **labeled-annotation-not-rephrasing**. A root turn that relays nothing carries no caption, so an uncaptioned message is always the root's own words.
+
 ### Harness-Mode Message-addressing prefix scheme
 
 How the root decides who a human-owner message is for, and how literally it travels into the spawned tree
@@ -329,8 +333,8 @@ license to fold its content into the relaying session's own record and context.
   treatment as `Main:`/`Root:` but fanned out to the whole tree).
 - **No prefix** — treat as `Chat:` only. Do not relay. If relay is intended, require an explicit
   relay prefix: `Main:`/`Root:`/`Relay:`/`Relay All:`/`All:`.
-- **State the direction of every relay explicitly** (e.g. "Relaying to main-loop:" / "From main-loop, for
-  you:") — never paste content alone and leave the reader to infer which way it's going.
+- **Caption every relay, both directions** — the caption rule in "What the root does instead" above applies to
+  every relay this scheme sends, and to every report carried back.
 
 **Every relay under this scheme is paired with a loggable anchor, made at the moment of relay** — a
 board note, a session-transcript entry, or a real Slack timestamp recording that the relay happened. A relay
@@ -403,4 +407,5 @@ Used to check this file's own definitions against its own goals when it is updat
 - The root needs a small note kept for its own use and writes it to a file itself. That is a job it did: the note is content, and content is written in a spawned session whatever the file is for.
 - A spawned session finishes and the root holds its result. The result goes to the human-owner's own direct channel and the root waits; a further round starts only on his reply.
 - The root is asked something that neither the team's written record nor a spawned session's report answers. It says which of the two is missing, rather than supplying a reading that fits.
+- A spawned session reports and the root carries it to the human-owner. The message opens "From <session>, for you:" and carries the report verbatim. An uncaptioned or paraphrased read-back fails, however accurate.
 

@@ -79,6 +79,13 @@ rigMcpStream(){ ## canned-stream file, this round's total_tokens
 	printf 'data: [DONE]\n' >> "$1"
 }
 
+## A round answering with one ListMcpResourcesTool call naming the rig server.
+rigResourceListStream(){ ## canned-stream file
+	printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-res-call","type":"function","function":{"name":"ListMcpResourcesTool","arguments":"{\\"server\\":\\"rigmcp\\"}"}}]}}]}\n' > "$1"
+	printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\n' >> "$1"
+	printf 'data: [DONE]\n' >> "$1"
+}
+
 ## A round answering with plain text and no tool call.
 rigTextStream(){ ## canned-stream file, content, this round's total_tokens
 	printf 'data: {"choices":[{"index":0,"delta":{"content":"%s"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":%s}}\n' "$2" "$3" > "$1"
@@ -199,6 +206,53 @@ rigAssert "the ERROR names what went wrong"            "$( rigHolds "$rigScenari
 rigAssert "the dead server produced no result"         "$( rigHolds "$rigScenarioDir/req.2" 'RIG-MCPRESULT' )" no
 rigAssert "the round carried on to an answer"          "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
 rigVerdict "the server dies mid-run -- ERROR as the tool result, the round continues"
+
+## A server that answers a call from a background job, as myx.common's lib_execShStdin
+## does: the answer lands after the request line, so stdin must stay open until it has.
+rigStart server-answers-late
+rigMcpStream "$rigScenarioDir/res.1" 20
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+export RIG_MCP_ANSWER_LATE=1
+rigRun 0 --mcp-server rigmcp
+unset RIG_MCP_ANSWER_LATE
+rigAssert "the run ends normally"                      "$rigRunStatus" 0
+rigAssert "the server was called once"                 "$( rigServerSaw call )" 1
+rigAssert "its late answer is the tool result"         "$( rigHolds "$rigScenarioDir/req.2" 'RIG-MCPRESULT:RIG-ARG-MARKER' )" yes
+rigAssert "it is never reported as no answer"          "$( rigHolds "$rigScenarioDir/req.2" 'returned no answer to this call' )" no
+rigVerdict "a server answering after the request line -- its answer is waited for, not dropped"
+
+## The resource tools wait on their own ids. The bound is set only so a regression that
+## waits for the wrong id fails in seconds rather than hanging this check.
+rigStart resources-listed
+rigResourceListStream "$rigScenarioDir/res.1"
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+export MDAT_HARNESS_RUN_TIMEOUT=5
+rigRun 0 --mcp-server rigmcp
+unset MDAT_HARNESS_RUN_TIMEOUT
+rigAssert "the run ends normally"                      "$rigRunStatus" 0
+rigAssert "the server's resource is the tool result"   "$( rigHolds "$rigScenarioDir/req.2" 'RIG-RESOURCE-MARKER' )" yes
+rigAssert "the list was not refused"                   "$( rigHolds "$rigScenarioDir/req.2" 'could not be asked for its resources' )" no
+rigVerdict "ListMcpResourcesTool -- its answer is awaited by its own id"
+
+## No run bound unless one is set: the late answer above, now two seconds against none.
+rigStart run-bound-unset
+rigMcpStream "$rigScenarioDir/res.1" 20
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+export RIG_MCP_ANSWER_LATE=1
+rigRun 0 --mcp-server rigmcp
+rigAssert "the late answer is the tool result"         "$( rigHolds "$rigScenarioDir/req.2" 'RIG-MCPRESULT:RIG-ARG-MARKER' )" yes
+rigAssert "nothing was killed for time"                "$( rigHolds "$rigScenarioDir/req.2" 'did not answer within' )" no
+
+## And a set bound still bounds: one second against the same two-second answer.
+rigStart run-bound-set
+rigMcpStream "$rigScenarioDir/res.1" 20
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+export MDAT_HARNESS_RUN_TIMEOUT=1
+rigRun 0 --mcp-server rigmcp
+unset MDAT_HARNESS_RUN_TIMEOUT RIG_MCP_ANSWER_LATE
+rigAssert "the call was killed at the set bound"       "$( rigHolds "$rigScenarioDir/req.2" 'did not answer within 1 seconds' )" yes
+rigAssert "and produced no result"                     "$( rigHolds "$rigScenarioDir/req.2" 'RIG-MCPRESULT' )" no
+rigVerdict "MDAT_HARNESS_RUN_TIMEOUT -- no bound unset, a set one still kills"
 
 ## The payload, which is the whole reason a deny hook can decide anything about an MCP
 ## call: the hook denies on a value that reaches it ONLY through `tool_input`.

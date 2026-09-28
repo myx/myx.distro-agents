@@ -710,22 +710,16 @@
 			target is refused**, not silently accepted with the `<ts>`
 			dropped: a `<ts>` names one exact message and this op searches a
 			whole conversation over a time window. Read one message or one
-			thread with --member-comms-slack-read instead. There is deliberately no
-			free-text query form; the query is built from the target, so
-			every op in this family is addressed the same way.
+			thread with --member-comms-slack-read instead. There is no
+			free-text query form: the target is the whole address.
 
 			A cut-off is **required** -- `--comms-since-date-time
 			<YYYY-MM-DD...>` or `--comms-since-utime <epoch-seconds>`,
 			mutually exclusive, neither repeatable, the same pair
-			--magic-sweep-input-scan takes. Without one, the search would
-			walk the conversation's entire history a page at a time.
-			The cut-off is applied to each message's own timestamp at full
-			precision. The window actually requested of Slack starts one day
-			earlier than the cut-off on purpose -- Slack's own date filtering
-			is whole-day and exclusive -- so results are asked for widely and
-			then narrowed here. The `after=` value in the summary line
-			reports that widened start date; the `cutoff=` value is the real
-			boundary, and nothing older than it is ever printed.
+			--magic-sweep-input-scan takes. It is applied to each message's
+			own timestamp at full precision. In the summary line, `after=`
+			is one day before the cut-off and `cutoff=` is the real
+			boundary. Nothing older than the cut-off is ever printed.
 
 			**`--identity-bot` is REFUSED by this operation**, and this is
 			the one op in the family where that flag cannot work. Slack's
@@ -1727,12 +1721,9 @@
 			editable only by identities it is shared with.
 
 			**`<n>` is the version this caller already read** — from
-			page-read's own stderr diagnostic — and is NEVER re-read here:
-			this operation computes `<n>+1` and submits it. Re-fetching the
-			freshest version internally right before the write would
-			silently turn Confluence's own optimistic lock into
-			last-write-wins, defeating the one guarantee a caller relying on
-			`--version` has.
+			page-read's own stderr diagnostic. This operation submits
+			`<n>+1`, so a page changed since that read is refused rather
+			than overwritten.
 
 			**This is a FULL-RESOURCE REPLACE, not a patch.** `--title` and
 			`--status` (commonly `current`) are required on every call and
@@ -2781,9 +2772,9 @@
 
 		--owner-workspace-current
 			Registers this tool's own workspace root ($MMDAPP) into the
-			tracked workspace list (delegates to --owner-workspace-upsert
-			internally, so the same idempotent/no-error-on-already-tracked
-			behavior applies), then prints that path to stdout. Takes no
+			tracked workspace list, exactly as --owner-workspace-upsert
+			does (an already-tracked path is not an error), then prints
+			that path to stdout. Takes no
 			arguments. Convenience op for a caller that wants "track my
 			current workspace and tell me its path" in one call instead of
 			spelling out $MMDAPP itself for --owner-workspace-upsert.
@@ -3134,9 +3125,7 @@
 			<host-glob>` in its own `project.inf` (matched against this
 			host's `hostname -s`/`hostname`) gets `<name>` symlinked at
 			`target/<name>`, pointing at that project's own
-			`skillset/<name>` directory — real, live code path
-			(`AgentsTools.Install.include`'s declared-team-member loop),
-			not dead/reserved. This is the actual mechanism behind
+			`skillset/<name>` directory. This is how
 			`keeper-ndm`, `keeper-ae3`, `keeper-mel`, `partner-ndm-camunda`,
 			and any other `keeper-*`/`warden-*`/`partner-*`/`client-*`/
 			`oncall-*`/`expert-*` member whose owning project declares it —
@@ -3203,7 +3192,7 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
-			Composed integration op: runs
+			Runs
 			`--install-vscode-integrations` first, then
 			`--install-skillset-symlinks` against the same workspace, then
 			`--install-claude-permissions` (this last step takes no
@@ -3226,7 +3215,11 @@
 		--make-workspace-integrations [--quiet]
 			Runs all relevant `--make-*` commands (--make-console-command),
 			then --install-workspace-integrations against the same workspace,
-			thus (re-)creating all agents workspace integration files and exits.
+			then --install-workspace-restrictions last, with no arguments, so
+			against the $MMDAPP workspace and without --quiet, thus
+			(re-)creating all agents workspace integration files and exits.
+			A step that fails ends the run with a non-zero exit, and the steps
+			after it do not run.
 
 			Won't output helpful information on files created and how to use
 			those files, when `--quiet` option specified.
@@ -3640,11 +3633,8 @@
 
 		--member-wait-for-input <team-member> [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>]
 		--member-wait-for-input <team-member> --wait-list-sources
-			One bounded long poll over a list of input sources,
-			returning the moment any of them changes. The waiting
-			happens inside this one call, down in the shell, so a
-			caller that would otherwise spend a round trip per check
-			spends one call and one result instead.
+			Waits on a list of input sources and returns as soon as
+			any of them changes, or when the timeout expires.
 
 			stdout ALWAYS opens with exactly one marker line:
 			`WAIT-RESULT: RECEIVED` -- something arrived, and what
@@ -4342,7 +4332,9 @@
 			both on the --wait path: SETUP_STATUS=cli-not-configured when
 			the console reports rc 5 because this workspace selects no
 			external CLI, and TIMEOUT_SECONDS=<seconds> when the wait
-			bound fired and the spawn was killed. SETUP_STATUS also prints
+			bound fired and the spawn was killed. The wait is unbounded
+			unless magic-team's SPAWN_WAIT_TIMEOUT_SECONDS sets a bound;
+			0, the default, is none. SETUP_STATUS also prints
 			as console-stale, on either path, when the deployed console is
 			too old to start a configured spawn or to signal its launch --
 			that one is refused before anything is spawned. No

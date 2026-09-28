@@ -74,12 +74,12 @@ AgentsHarnessMcpDegrade(){ ## server name, reason
 ## $harnessScratch/mcp.out. One process per exchange, and its whole conversation is
 ## written before it starts: bash 3.2 has no way to hold a bidirectional stdio session
 ## open without mkfifo plus statically allocated descriptors. The server reads, answers
-## and reaches EOF, which is what ends it. Non-zero sets $harnessMcpFault to the reason.
-## The bound comes from the caller rather than from one global: enumeration happens at
-## spawn time before the member works and is held to seconds, while a tool call is a
-## deliberate operation and keeps the run bound.
-AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds
-	local runName="$1" runBound="$2" runCommand runArgCount runArgIndex runArgValue runEnvKeys runEnvKey runEnvValue runRc=0 runPid runWatchPid
+## the awaited id, and then reaches EOF, which is what ends it. Non-zero sets
+## $harnessMcpFault to the reason. The bound comes from the caller rather than from one
+## global: enumeration happens at spawn time before the member works and is held to
+## seconds, while a tool call is a deliberate operation and keeps the run bound.
+AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaited request id
+	local runName="$1" runBound="$2" runWant="$3" runCommand runArgCount runArgIndex runArgValue runEnvKeys runEnvKey runEnvValue runRc=0 runPid runWatchPid
 	local runArgs=() runEnv=()
 	harnessMcpFault=""
 	harnessMcpStatus=0
@@ -149,28 +149,46 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds
 	## Answers go to a file, never through `$( )`: a capture returns on pipe-EOF rather
 	## than on process exit, so one child the server leaves behind would hang this leg
 	## for that child's whole lifetime.
+	## stdin stays open until the awaited answer is in, or the server has gone: EOF is a
+	## stdio server's signal to shut down, and one answering a call from a background
+	## job -- myx.common's lib_execShStdin does -- exits on it with that answer unwritten.
 	: > "$harnessScratch/mcp.out"
 	: > "$harnessScratch/mcp.err"
-	rm -f "$harnessScratch/mcp.timedout"
-	if [ -n "$harnessTimeoutCmd" ] ; then
-		env "${runEnv[@]}" "$harnessTimeoutCmd" "$runBound" "$runCommand" "${runArgs[@]}" \
-			< "$harnessScratch/mcp.req" > "$harnessScratch/mcp.out" 2>"$harnessScratch/mcp.err" || harnessMcpStatus=$?
-		[ "$harnessMcpStatus" != 124 ] || : > "$harnessScratch/mcp.timedout"
-	else
-		## Watchdog where no `timeout` exists, the shape AgentsHarnessToolBash uses.
-		{
+	rm -f "$harnessScratch/mcp.timedout" "$harnessScratch/mcp.exited"
+	{
+		cat "$harnessScratch/mcp.req"
+		while [ ! -f "$harnessScratch/mcp.exited" ] && ! AgentsHarnessMcpReply "$runWant" ; do
+			sleep 1
+		done
+	} | {
+		runRc=0
+		## A bound of 0 is none, as it is for Bash.
+		if [ "$runBound" = 0 ] ; then
 			env "${runEnv[@]}" "$runCommand" "${runArgs[@]}" \
-				< "$harnessScratch/mcp.req" > "$harnessScratch/mcp.out" 2>"$harnessScratch/mcp.err" &
-			runPid=$!
-			## The >/dev/null is load-bearing: without it the orphaned `sleep` holds
-			## this block's own pipe open for the whole bound.
-			( sleep "$runBound" ; kill -TERM "$runPid" 2>/dev/null && : > "$harnessScratch/mcp.timedout" ) >/dev/null &
-			runWatchPid=$!
-			wait "$runPid" || harnessMcpStatus=$?
-			kill -TERM "$runWatchPid" 2>/dev/null || :
-			wait "$runWatchPid" 2>/dev/null || :
-		} 2>/dev/null
-	fi
+				> "$harnessScratch/mcp.out" 2>"$harnessScratch/mcp.err" || runRc=$?
+		elif [ -n "$harnessTimeoutCmd" ] ; then
+			env "${runEnv[@]}" "$harnessTimeoutCmd" "$runBound" "$runCommand" "${runArgs[@]}" \
+				> "$harnessScratch/mcp.out" 2>"$harnessScratch/mcp.err" || runRc=$?
+			[ "$runRc" != 124 ] || : > "$harnessScratch/mcp.timedout"
+		else
+			## Watchdog where no `timeout` exists, the shape AgentsHarnessToolBash uses.
+			## `<&0` is load-bearing: a background job's stdin is otherwise /dev/null.
+			{
+				env "${runEnv[@]}" "$runCommand" "${runArgs[@]}" \
+					<&0 > "$harnessScratch/mcp.out" 2>"$harnessScratch/mcp.err" &
+				runPid=$!
+				## The >/dev/null is load-bearing: without it the orphaned `sleep` holds
+				## this block's own pipe open for the whole bound.
+				( sleep "$runBound" ; kill -TERM "$runPid" 2>/dev/null && : > "$harnessScratch/mcp.timedout" ) >/dev/null &
+				runWatchPid=$!
+				wait "$runPid" || runRc=$?
+				kill -TERM "$runWatchPid" 2>/dev/null || :
+				wait "$runWatchPid" 2>/dev/null || :
+			} 2>/dev/null
+		fi
+		printf '%s' "$runRc" > "$harnessScratch/mcp.exited"
+	}
+	read -r harnessMcpStatus < "$harnessScratch/mcp.exited" || :
 
 	[ ! -s "$harnessScratch/mcp.err" ] || harnessMcpDiag="$( LC_ALL=C awk -v progressLineCap=200 -f "$harnessHere/AgentsProgressLineSafe.awk" < "$harnessScratch/mcp.err" )"
 
@@ -243,7 +261,7 @@ AgentsHarnessMcpCall(){ ## declared name, raw arguments JSON
 		AgentsHarnessMcpHandshake
 		printf '%s\n' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"'"$callTool"'","arguments":'"$callArgs"'}}'
 	} > "$harnessScratch/mcp.req"
-	if ! AgentsHarnessMcpRun "$callServer" "$harnessRunTimeout" ; then
+	if ! AgentsHarnessMcpRun "$callServer" "$harnessRunTimeout" 3 ; then
 		printf 'ERROR: %s: the MCP server `%s` could not be run: %s\n' "$callName" "$callServer" "$harnessMcpFault"
 		return 0
 	fi
@@ -333,7 +351,7 @@ if [ "${#harnessMcpServers[@]}" -gt 0 ] ; then
 			AgentsHarnessMcpHandshake
 			printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 		} > "$harnessScratch/mcp.req"
-		if ! AgentsHarnessMcpRun "$harnessMcpName" "$harnessMcpEnumTimeout" ; then
+		if ! AgentsHarnessMcpRun "$harnessMcpName" "$harnessMcpEnumTimeout" 2 ; then
 			AgentsHarnessMcpDegrade "$harnessMcpName" "$harnessMcpFault"
 			continue
 		fi

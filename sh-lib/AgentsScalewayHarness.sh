@@ -34,23 +34,19 @@ HARNESS_CREDENTIAL_NAMES="SCALEWAY_DEEPSEEK or SCALEWAY_GEMMA"
 HARNESS_MODEL_LIGHT="gemma-4-26b-a4b-it"
 HARNESS_MODEL_MAIN="deepseek-v4-flash-0731"
 
-## Context budget belongs here, beside the models it describes -- the core cannot know
-## it, and its own fallback is a floor for a provider that sets nothing. Scaleway's
-## /v1/models publishes no context length (id, object, created, owned_by only), so
-## this is a chosen working value, not a measured model limit: raise or lower it here
-## when the real window is known, and nothing else has to change. Set deliberately
-## above this team's own instruction set -- the five files a heartbeat next-iteration
-## reads before it acts total roughly 122k tokens, so a smaller budget restarts the
-## pass before it performs a single step.
-HARNESS_MODEL_CONTEXT_TOKENS="900000"
-: "${MDAT_HARNESS_CONTEXT_TOKENS:=$HARNESS_MODEL_CONTEXT_TOKENS}"
-export MDAT_HARNESS_CONTEXT_TOKENS
+## Each model's own window. Scaleway's /v1/models publishes none, so this is its
+## supported-models page on 2026-09-28, which gives both as "256k" and no exact figure.
+## No output maximum is declared: that page gives "32k" for both, with no exact figure,
+## so the provider applies the model's own.
+HARNESS_CONTEXT_TOKENS_LIGHT="256000"
+HARNESS_CONTEXT_TOKENS_MAIN="256000"
 HARNESS_TOKEN_LIGHT="${SCALEWAY_GEMMA:-${SCALEWAY_DEEPSEEK:-}}"
 HARNESS_TOKEN_MAIN="${SCALEWAY_DEEPSEEK:-${SCALEWAY_GEMMA:-}}"
 
 export HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_ENDPOINT HARNESS_HOST
 export HARNESS_WIRE HARNESS_CREDENTIAL_NAMES
 export HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_LIGHT HARNESS_TOKEN_MAIN
+export HARNESS_CONTEXT_TOKENS_LIGHT HARNESS_CONTEXT_TOKENS_MAIN
 
 ## exec, not source: the core becomes this process, so the console keeps one
 ## invoker. The core resolves its own helper lookups from the origin, not from $0.

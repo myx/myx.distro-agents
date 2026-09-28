@@ -28,9 +28,15 @@ HARNESS_MODEL_MAIN="grok-4.7"
 HARNESS_TOKEN_LIGHT="${XAI_API_KEY:-}"
 HARNESS_TOKEN_MAIN="${XAI_API_KEY:-}"
 
+## Each model's own window, `context_length` in GET /v1/models/<id> on 2026-09-28. No
+## output maximum is declared: that answer carries none, and one of 100000000 was accepted.
+HARNESS_CONTEXT_TOKENS_LIGHT="1000000"
+HARNESS_CONTEXT_TOKENS_MAIN="500000"
+
 export HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_ENDPOINT HARNESS_HOST
 export HARNESS_WIRE HARNESS_CREDENTIAL_NAMES
 export HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_LIGHT HARNESS_TOKEN_MAIN
+export HARNESS_CONTEXT_TOKENS_LIGHT HARNESS_CONTEXT_TOKENS_MAIN
 
 ## exec, not source: the core becomes this process, so the console keeps one
 ## invoker. The core resolves its own helper lookups from the origin, not from $0.

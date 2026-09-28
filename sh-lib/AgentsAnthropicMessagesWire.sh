@@ -71,12 +71,17 @@ AgentsWireToolResultRecord(){
 
 ## Appends in a fixed order, for the prompt cache. The top-level cache_control caches
 ## the whole prefix up to the last message and moves with it, round after round.
-## max_tokens is the chat wire's own value. An empty $harnessReasoningEffort omits
-## output_config entirely, and an empty $harnessToolChoice is `auto`.
+## max_tokens is required on this wire, so a stub declaring none is refused rather than
+## given a number nobody chose. An empty $harnessReasoningEffort omits output_config
+## entirely, and an empty $harnessToolChoice is `auto`.
 AgentsWireRequestBody(){
 	local bodyMessagesJson bodyOut
+	if [ -z "$harnessOutputTokens" ] ; then
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: this wire requires max_tokens, and the stub declares no HARNESS_OUTPUT_TOKENS_* for the $harnessTier tier -- set it to $harnessModel's own maximum output" >&2
+		exit 1
+	fi
 	bodyMessagesJson="$( IFS=, ; echo "[${harnessMessages[*]}]" )"
-	bodyOut='{"model":"'"$harnessModel"'","max_tokens":8192,"stream":true,"cache_control":{"type":"ephemeral"},"system":"'"$agentsWireSystemJson"'","tools":'"${agentsWireToolsJson%]}${harnessMcpToolsJson:-}"'],"tool_choice":{"type":"'"${harnessToolChoice:-auto}"'"},"messages":'"$bodyMessagesJson"
+	bodyOut='{"model":"'"$harnessModel"'","max_tokens":'"$harnessOutputTokens"',"stream":true,"cache_control":{"type":"ephemeral"},"system":"'"$agentsWireSystemJson"'","tools":'"${agentsWireToolsJson%]}${harnessMcpToolsJson:-}"'],"tool_choice":{"type":"'"${harnessToolChoice:-auto}"'"},"messages":'"$bodyMessagesJson"
 	[ -z "$harnessReasoningEffort" ] || bodyOut="$bodyOut"',"output_config":{"effort":"'"$harnessReasoningEffort"'"}'
 	printf '%s' "$bodyOut}"
 }

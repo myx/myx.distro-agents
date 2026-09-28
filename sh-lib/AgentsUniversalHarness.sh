@@ -10,7 +10,7 @@ set -e
 ## DESIGN DECISION 1 -- a mid-stream disconnect discards partial state and retries
 ## the whole round; there is no resume primitive here. DESIGN DECISION 2 -- such a
 ## retry never consumes a round against the cap. DESIGN DECISION 3 -- a full context
-## is met by summarise-and-restart, bounded, never by eviction. MAGIC.md carries the
+## is met by summarise-and-restart, never by eviction. MAGIC.md carries the
 ## reasoning.
 
 harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
@@ -370,20 +370,28 @@ if [ -z "$harnessToolOnly" ] ; then
 fi
 
 ## The stub decides which model and which key; the core owns only the mapping's shape.
+## A model's own limits travel with it: output tokens empty leaves the wire to send none
+## where it may, and a context window empty leaves the core's own floor below in place.
 harnessReasoningEffort=""
 case "$harnessTier" in
 	light)
 		harnessModel="$HARNESS_MODEL_LIGHT"
 		harnessToken="${HARNESS_TOKEN_LIGHT:-}"
+		harnessOutputTokens="${HARNESS_OUTPUT_TOKENS_LIGHT:-}"
+		harnessContextTokens="${MDAT_HARNESS_CONTEXT_TOKENS:-${HARNESS_CONTEXT_TOKENS_LIGHT:-400000}}"
 	;;
 	normal)
 		harnessModel="$HARNESS_MODEL_MAIN"
 		harnessToken="${HARNESS_TOKEN_MAIN:-}"
+		harnessOutputTokens="${HARNESS_OUTPUT_TOKENS_MAIN:-}"
+		harnessContextTokens="${MDAT_HARNESS_CONTEXT_TOKENS:-${HARNESS_CONTEXT_TOKENS_MAIN:-400000}}"
 	;;
 	heavy)
 		harnessModel="$HARNESS_MODEL_MAIN"
 		harnessReasoningEffort="high"
 		harnessToken="${HARNESS_TOKEN_MAIN:-}"
+		harnessOutputTokens="${HARNESS_OUTPUT_TOKENS_MAIN:-}"
+		harnessContextTokens="${MDAT_HARNESS_CONTEXT_TOKENS:-${HARNESS_CONTEXT_TOKENS_MAIN:-400000}}"
 	;;
 esac
 
@@ -521,9 +529,9 @@ if [ -n "${MDAT_HARNESS_STATUS_LINE:-}" ] && [ -n "$harnessTitleActive" ] ; then
 	[ -z "$harnessStatusRows" ] || printf '\n\n\033[1;%dr\033[%d;1H' "$(( harnessStatusRows - 1 ))" "$(( harnessStatusRows - 1 ))" >&2
 fi
 
-## Wall-clock bound on Bash. The 900 is the human-owner's chosen value, so a
-## later reader tuning it is changing a policy decision, not an implementation guess.
-harnessRunTimeout="${MDAT_HARNESS_RUN_TIMEOUT:-900}"
+## Wall-clock bound on Bash and on an MCP call. 0, the default, is no bound: a hung
+## command stays visible in its own announce line and Ctrl-C still reaches it.
+harnessRunTimeout="${MDAT_HARNESS_RUN_TIMEOUT:-0}"
 ## Whole seconds, by explicit enumeration rather than a collation-dependent range.
 harnessRunTimeoutRest="$harnessRunTimeout"
 while [ -n "$harnessRunTimeoutRest" ] ; do
@@ -2028,7 +2036,7 @@ AgentsHarnessMcpResourceList(){ ## server name
 		AgentsHarnessMcpHandshake
 		printf '%s\n' '{"jsonrpc":"2.0","id":4,"method":"resources/list","params":{}}'
 	} > "$harnessScratch/mcp.req"
-	AgentsHarnessMcpRun "$listServer" "$harnessRunTimeout" || return 1
+	AgentsHarnessMcpRun "$listServer" "$harnessRunTimeout" 4 || return 1
 	AgentsHarnessMcpReply 4 || { harnessMcpFault="it returned no answer to resources/list (exit status $harnessMcpStatus)${harnessMcpDiag:+ -- it said: $harnessMcpDiag}" ; return 1 ; }
 	printf '%s\n' "$harnessMcpReply" > "$harnessScratch/mcp.result"
 }
@@ -2045,7 +2053,7 @@ AgentsHarnessMcpResourceRead(){ ## server name, uri
 		AgentsHarnessMcpHandshake
 		printf '%s\n' '{"jsonrpc":"2.0","id":5,"method":"resources/read","params":{"uri":"'"$readUriEsc"'"}}'
 	} > "$harnessScratch/mcp.req"
-	AgentsHarnessMcpRun "$readServer" "$harnessRunTimeout" || return 1
+	AgentsHarnessMcpRun "$readServer" "$harnessRunTimeout" 5 || return 1
 	AgentsHarnessMcpReply 5 || { harnessMcpFault="it returned no answer to resources/read (exit status $harnessMcpStatus)${harnessMcpDiag:+ -- it said: $harnessMcpDiag}" ; return 1 ; }
 	printf '%s\n' "$harnessMcpReply" > "$harnessScratch/mcp.result"
 }
@@ -2262,8 +2270,8 @@ AgentsHarnessSkillSegmentOk(){ ## one path segment
 ## before any resolution: a relative name carrying no `..` segment, no leading slash and
 ## nothing outside the gated character set cannot name anything the join does not place
 ## under the root, whatever that root later resolves to.
-AgentsHarnessToolSkill(){ ## name, file, list
-	local toolName="$1" toolFile="$2" toolList="$3"
+AgentsHarnessToolSkill(){ ## name, file, list, offset, limit
+	local toolName="$1" toolFile="$2" toolList="$3" toolOffset="$4" toolLimit="$5"
 	local skillDir skillPath skillRest skillSeg skillBytes
 	## `<member>/<file>` in name is the same call as name plus file.
 	case "$toolName" in
@@ -2287,7 +2295,8 @@ AgentsHarnessToolSkill(){ ## name, file, list
 			## -L because a member folder under the skillset root is a symlink into the
 			## tree that owns it, and without it the walk lists that entry without ever
 			## entering it -- printing a clean empty result for a folder full of files.
-			find -L "$skillDir/" -type f > "$harnessScratch/skill.out" 2>&1 || :
+			## Names relative to the folder, so each line is a valid `file` argument.
+			( cd "$skillDir" && find -L . -type f | sed -e 's|^\./||' ) > "$harnessScratch/skill.out" 2>&1 || :
 			skillBytes="$( wc -c < "$harnessScratch/skill.out" | tr -d ' ' )"
 			if [ "$skillBytes" -gt 100000 ] ; then
 				head -c 100000 "$harnessScratch/skill.out"
@@ -2323,6 +2332,10 @@ AgentsHarnessToolSkill(){ ## name, file, list
 	## size test below compares an empty value and emits shell noise, not an answer.
 	if [ ! -r "$skillPath" ] ; then
 		printf 'ERROR: Skill: not readable (permission denied): %s\n' "$skillPath" ; return 0
+	fi
+	if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] ; then
+		AgentsHarnessReadRange "$skillPath" "$toolOffset" "$toolLimit"
+		return 0
 	fi
 	## Capped and said so, exactly as Read states its own cap.
 	skillBytes="$( wc -c < "$skillPath" | tr -d ' ' )"
@@ -2566,7 +2579,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		ListMcpResourcesTool) harnessResult="$( AgentsHarnessToolListMcpResourcesTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" )" ;;
 		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri )" )" ;;
 		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri_prefix )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
-		Skill)     harnessResult="$( AgentsHarnessToolSkill "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" name )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" list )" )" ;;
+		Skill)     harnessResult="$( AgentsHarnessToolSkill "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" name )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" list )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
 		Agent)     harnessResult="$( AgentsHarnessToolAgent "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" agent )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" prompt )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cli_service )" )" ;;
 		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" force )" )" ;;
 		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_file )" )" ;;
@@ -2720,11 +2733,11 @@ $harnessWriteNote
 Use the given tools to accomplish the request, then reply with a final plain-text message once done. Nobody is reading this terminal, so a question written into your own answer reaches no one: where you genuinely need a decision only a person can make, AskUserQuestion is the one way to ask for one. Otherwise make the most reasonable choice and state what you did."
 
 ## --agent given: the member's own identity replaces the generic opener entirely.
-## Read below is a tool name in prose, which no structural check can see.
+## Skill below is a tool name in prose, which no structural check can see.
 if [ -n "$harnessAgent" ] ; then
 	harnessSystemText="$harnessAgentBasicText
 
-If this task needs duty-level detail beyond the above, Read your own $harnessAgentRealDir/$harnessAgent.armed.md yourself -- it is not included here.
+If this task needs duty-level detail beyond the above, read your own $harnessAgent.armed.md yourself with the Skill tool, name $harnessAgent and file $harnessAgent.armed.md -- it is not included here. Every skillset file is read with Skill, which works even where Read is denied.
 
 You are running through a bespoke $harnessProviderName harness$harnessSystemTail"
 else
@@ -2760,24 +2773,21 @@ done
 ## At this many tokens in one round the leg asks the model to summarise its own work
 ## and restarts from that summary plus the original task, so nothing is dropped by age
 ## or by eviction -- the model judges what is worth carrying. 0 turns it off entirely.
-## The 64000 is a policy value sized from this file's own caps rather than from any
-## model's published window: one Read result caps at 200000 bytes and max_tokens is
-## 8192, so the largest round that can follow a trip still has somewhere to land.
-## Fallback only, for a provider stub that sets nothing -- the stub knows its models
-## and this file does not. Not 64000: that predates the current model generation and
-## is below this team's own instruction set, so a pass summarised and restarted before
-## executing a single step. A provider whose window is genuinely smaller sets its own.
-harnessContextTokens="${MDAT_HARNESS_CONTEXT_TOKENS:-400000}"
-## Bounded because an unbounded summarise-restart cycle is worse than the failure it
-## replaces: a task that keeps refilling the window is not converging, and the run
-## must end saying so rather than paying for the same window again.
-harnessMaxRestarts="${MDAT_HARNESS_MAX_RESTARTS:-3}"
+## $harnessContextTokens is resolved with the tier above: the stub's own window for that
+## model, and the core's 400000 only for a stub that declares none.
+## No restart bound by default, as there is no round cap: MDAT_HARNESS_MAX_RESTARTS sets
+## one where a caller wants it. Every restart is announced, so a cycle stays visible.
+harnessMaxRestarts="${MDAT_HARNESS_MAX_RESTARTS:-}"
 if ! AgentsHarnessWholeNumber "$harnessContextTokens" ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: MDAT_HARNESS_CONTEXT_TOKENS must be a whole number of tokens, got: $harnessContextTokens" >&2
 	exit 1
 fi
-if ! AgentsHarnessWholeNumber "$harnessMaxRestarts" ; then
+if [ -n "$harnessMaxRestarts" ] && ! AgentsHarnessWholeNumber "$harnessMaxRestarts" ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: MDAT_HARNESS_MAX_RESTARTS must be a whole number of restarts, got: $harnessMaxRestarts" >&2
+	exit 1
+fi
+if [ -n "$harnessOutputTokens" ] && ! AgentsHarnessWholeNumber "$harnessOutputTokens" ; then
+	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: HARNESS_OUTPUT_TOKENS_* for the $harnessTier tier must be a whole number of tokens, got: $harnessOutputTokens" >&2
 	exit 1
 fi
 harnessRestartCount=0
@@ -2802,7 +2812,7 @@ while : ; do
 	## round while one round's prompt plus completion is what actually sat in the
 	## window. A restart zeroes it, so the summarise round's own total cannot re-trip it.
 	elif [ "$harnessContextTokens" != 0 ] && [ "${harnessRoundTotal:-0}" -ge "$harnessContextTokens" ] ; then
-		if [ "$harnessRestartCount" -ge "$harnessMaxRestarts" ] ; then
+		if [ -n "$harnessMaxRestarts" ] && [ "$harnessRestartCount" -ge "$harnessMaxRestarts" ] ; then
 			harnessMessages+=( "$( AgentsWireUserRecord "Your context is full and your restart budget is spent, so no further tool call can run. Reply now, in plain text, with what you did, what you found, and what is left unfinished." )" )
 			harnessToolChoice="none"
 			harnessClosingRound=1
@@ -2811,7 +2821,7 @@ while : ; do
 			harnessMessages+=( "$( AgentsWireUserRecord "Your context is nearly full and this leg is about to be restarted, so no further tool call can run in it. Write the handover a fresh leg needs: it will be given the original task again word for word, and nothing else from this conversation. State what you have already done, what you found -- exact paths, names, values and commands, not a description of them -- what is still to do, and what must not be repeated. Write it as notes to yourself, in plain text, with no preamble." )" )
 			harnessToolChoice="none"
 			harnessSummariseRound=1
-			printf '%s\n' "${harnessWarn}♻️  context threshold reached${harnessOff} ${harnessDim}-- $harnessRoundTotal tokens last round, at or over $harnessContextTokens; summarising for restart $(( harnessRestartCount + 1 )) of $harnessMaxRestarts${harnessOff}" >&2
+			printf '%s\n' "${harnessWarn}♻️  context threshold reached${harnessOff} ${harnessDim}-- $harnessRoundTotal tokens last round, at or over $harnessContextTokens; summarising for restart $(( harnessRestartCount + 1 ))${harnessMaxRestarts:+ of $harnessMaxRestarts}${harnessOff}" >&2
 		fi
 	fi
 
@@ -2953,7 +2963,7 @@ $harnessSummary" )" )
 		harnessRestartCount=$(( harnessRestartCount + 1 ))
 		## The signal describes a conversation that has just been replaced.
 		harnessRoundTotal=0
-		printf '%s\n' "${harnessValue}♻️  restarted${harnessOff} ${harnessDim}-- original task verbatim plus the summary above; restart $harnessRestartCount of $harnessMaxRestarts${harnessOff}" >&2
+		printf '%s\n' "${harnessValue}♻️  restarted${harnessOff} ${harnessDim}-- original task verbatim plus the summary above; restart $harnessRestartCount${harnessMaxRestarts:+ of $harnessMaxRestarts}${harnessOff}" >&2
 		continue
 	fi
 

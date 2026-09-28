@@ -60,21 +60,13 @@ HARNESS_CREDENTIAL_NAMES="ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN"
 HARNESS_MODEL_LIGHT="claude-haiku-4-5"
 HARNESS_MODEL_MAIN="claude-opus-5"
 
-## Context budget, beside the models it describes, as on the Scaleway stub. This
-## one number cannot describe both tiers -- the reference puts the main model's
-## window at 1M and the light model's at 200K -- and the stub is read once,
-## before the core resolves a tier, so the smaller window is the binding one.
-## Set as a floor under the LIGHT tier rather than the ceiling of the main one:
-## over-budgeting cannot be recovered from (the run walks into the model's own
-## limit and reads exactly like a managed restart), while under-budgeting only
-## summarises and restarts sooner than it had to. Still set well above this
-## team's own instruction set -- the five files a heartbeat next-iteration reads
-## total roughly 122k tokens -- so a pass is not restarted before it acts.
-## Raise it once the tiers are confirmed, or once the light tier moves to a model
-## with the larger window; nothing else has to change.
-HARNESS_MODEL_CONTEXT_TOKENS="180000"
-: "${MDAT_HARNESS_CONTEXT_TOKENS:=$HARNESS_MODEL_CONTEXT_TOKENS}"
-export MDAT_HARNESS_CONTEXT_TOKENS
+## Each model's own limits, per tier, as GET /v1/models/<id> returns them on
+## 2026-09-28: max_input_tokens is the context window, max_tokens the output maximum.
+## A model moved to another tier takes its own two numbers with it.
+HARNESS_CONTEXT_TOKENS_LIGHT="200000"
+HARNESS_OUTPUT_TOKENS_LIGHT="64000"
+HARNESS_CONTEXT_TOKENS_MAIN="1000000"
+HARNESS_OUTPUT_TOKENS_MAIN="128000"
 
 HARNESS_TOKEN_LIGHT="${ANTHROPIC_API_KEY:-${CLAUDE_CODE_OAUTH_TOKEN:-}}"
 HARNESS_TOKEN_MAIN="${ANTHROPIC_API_KEY:-${CLAUDE_CODE_OAUTH_TOKEN:-}}"
@@ -82,6 +74,7 @@ HARNESS_TOKEN_MAIN="${ANTHROPIC_API_KEY:-${CLAUDE_CODE_OAUTH_TOKEN:-}}"
 export HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_ENDPOINT HARNESS_HOST
 export HARNESS_WIRE HARNESS_CREDENTIAL_NAMES HARNESS_EXTRA_HEADERS
 export HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_LIGHT HARNESS_TOKEN_MAIN
+export HARNESS_CONTEXT_TOKENS_LIGHT HARNESS_OUTPUT_TOKENS_LIGHT HARNESS_CONTEXT_TOKENS_MAIN HARNESS_OUTPUT_TOKENS_MAIN
 
 ## exec, not source: the core becomes this process, so the console keeps one
 ## invoker. The core resolves its own helper lookups from the origin, not from $0.

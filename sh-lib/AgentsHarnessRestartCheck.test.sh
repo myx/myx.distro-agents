@@ -182,6 +182,47 @@ rigAssert "the closing round withdrew the tools"     "$( rigHolds "$rigScenarioD
 rigAssert "the closing round's answer is the result" "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
 rigVerdict "the restart bound is spent -- closing round, exit 3"
 
+## No bound set, so no bound: four restarts, one more than any cap this leg once carried.
+rigStart restart-unbounded
+for rigLeg in 1 3 5 7 ; do
+	rigToolStream "$rigScenarioDir/res.$rigLeg" 5000
+	rigTextStream "$rigScenarioDir/res.$(( rigLeg + 1 ))" RIG-SUMMARY-MARKER stop 20
+done
+rigTextStream "$rigScenarioDir/res.9" RIG-FINAL-MARKER stop 20
+rigRun 1000 ""
+rigAssert "the run ends normally"                    "$rigRunStatus" 0
+rigAssert "nine rounds were requested"               "$rigRoundCount" 9
+rigAssert "the fourth restart was announced"         "$( rigHolds "$rigScenarioDir/err" 'summarising for restart 4' )" yes
+rigAssert "no restart was counted against a bound"   "$( rigHolds "$rigScenarioDir/err" 'summarising for restart 1 of' )" no
+rigAssert "no budget was announced as spent"         "$( rigHolds "$rigScenarioDir/err" 'with no restart left' )" no
+rigAssert "the fresh leg's own answer is the result" "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
+rigVerdict "no restart bound unless one is set"
+
+## The Scaleway leaf's own declared window, 256000, reached through the real leaf: the fake
+## curl first on PATH is what keeps its real endpoint unreached, and both credential names
+## are literals so a real key in this environment never enters the process.
+rigScalewayRun(){ ## this round's total_tokens
+	rigToolStream "$rigScenarioDir/res.1" "$1"
+	rigTextStream "$rigScenarioDir/res.2" RIG-SUMMARY-MARKER stop 20
+	rigTextStream "$rigScenarioDir/res.3" RIG-FINAL-MARKER stop 20
+	rigRunStatus=0
+	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" MDAT_HARNESS_CONTEXT_TOKENS="" \
+		SCALEWAY_DEEPSEEK="rig-not-a-credential" SCALEWAY_GEMMA="rig-not-a-credential" \
+		"$rigHere/AgentsScalewayHarness.sh" --access-root "$rigScenarioDir" RIG-TASK-MARKER \
+		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?
+	rigRoundCount="$( cat "$rigScenarioDir/round" )"
+	[ "$rigRoundCount" != 0 ] || rigRefuse "the Scaleway leaf issued no request at all, so this scenario exercised nothing"
+}
+rigStart scaleway-under-window
+rigScalewayRun 255999
+rigAssert "a round just under 256000 does not trip"  "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
+rigAssert "the Scaleway leaf is the one that ran"    "$( rigHolds "$rigScenarioDir/err" 'Scaleway' )" yes
+rigStart scaleway-at-window
+rigScalewayRun 256000
+rigAssert "a round at 256000 trips the threshold"    "$( rigHolds "$rigScenarioDir/err" 'at or over 256000' )" yes
+rigAssert "and the leg restarted onto its summary"   "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
+rigVerdict "the Scaleway leaf's own 256000 window governs, not a chosen 900000"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ RESTART CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

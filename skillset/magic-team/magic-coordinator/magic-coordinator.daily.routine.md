@@ -50,7 +50,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Skip silently on a same-day re-run of `magic-coordinator.daily.routine` — once per workday, same first-today gating as **run-check-process-board**'s grooming counterpart.
    - **Hold the lock across this wait**: call `--magic-daily-lock-refresh` while waiting — waiting is not itself holding the lock, and a spawn-and-wait this long outlives a single acquire.
    - **Bounded wait, not indefinite**: sub-session hasn't reported back within roughly 30 minutes → flag it once (a `slack-magic-team` note plus a line in this session's own close-out report) and continue into **reload-active-duty-context** anyway — this meeting proceeds without morning-review's benefit rather than blocking the whole standup indefinitely.
-3. **reload-active-duty-context**: (re-)load this routine's own active-duty context now, in full — reading the distributed typed files directly.
+3. **reload-active-duty-context**: (re-)load this routine's own active-duty context now, in full — reading the distributed typed files with the skillset reader.
    - Deliberately *after* **spawn-morning-review**'s spawn-and-wait, so this session picks up anything the morning-review session may have changed in this member's own instruction files or inbox state.
    - Skip only if this exact session has already loaded it earlier in the same continuous run.
 4. **session-start**:

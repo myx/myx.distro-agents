@@ -37,6 +37,8 @@ export HARNESS_MODEL_LIGHT="rig-light"
 export HARNESS_MODEL_MAIN="rig-main"
 export HARNESS_TOKEN_LIGHT="rig-not-a-credential"
 export HARNESS_TOKEN_MAIN="rig-not-a-credential"
+export HARNESS_OUTPUT_TOKENS_LIGHT="4101"
+export HARNESS_OUTPUT_TOKENS_MAIN="4202"
 
 rigScenarioDir=""
 rigStart(){ ## scenario directory name
@@ -134,6 +136,7 @@ rigAssert "system is a top-level field"                       "$( rigHolds "$rig
 rigAssert "tools carry input_schema"                          "$( rigHolds "$rigScenarioDir/req.1" '"name":"Glob","description":' )" yes
 rigAssert "no chat-completions envelope reaches this wire"    "$( rigHolds "$rigScenarioDir/req.1" '"type":"function"' )" no
 rigAssert "the request streams"                               "$( rigHolds "$rigScenarioDir/req.1" '"stream":true' )" yes
+rigAssert "max_tokens is the tier's declared maximum"         "$( rigHolds "$rigScenarioDir/req.1" '"max_tokens":4202,' )" yes
 ## The prefix: request 2 is request 1 with its closing `]}` removed, then more.
 rigPrefix="$( cat "$rigScenarioDir/req.1" )"
 rigPrefix="${rigPrefix%]\}}"
@@ -160,6 +163,18 @@ rigAssert "one round was requested"                           "$rigRoundCount" 1
 rigAssert "the refusal is named, type and message"            "$( rigHolds "$rigScenarioDir/err" 'invalid_request_error -- RIG-REFUSAL-MARKER' )" yes
 rigAssert "nothing was printed as an answer"                  "$( cat "$rigScenarioDir/out" )" ""
 rigVerdict "a refusal body -- reported loudly, never read as an empty round"
+
+## This wire requires max_tokens, so a tier declaring none is refused before any request.
+rigStart output-tokens-undeclared
+rigTextStream "$rigScenarioDir/res.1" RIG-FINAL-MARKER
+rigRunStatus=0
+RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" HARNESS_OUTPUT_TOKENS_MAIN="" \
+	"$rigHarness" --access-root "$rigScenarioDir" RIG-TASK-MARKER \
+	> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?
+rigAssert "the run fails"                                     "$rigRunStatus" 1
+rigAssert "nothing was sent"                                  "$( cat "$rigScenarioDir/round" )" 0
+rigAssert "the refusal names the missing declaration"         "$( rigHolds "$rigScenarioDir/err" 'declares no HARNESS_OUTPUT_TOKENS_* for the normal tier' )" yes
+rigVerdict "no declared output maximum -- refused, never a number nobody chose"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ANTHROPIC WIRE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

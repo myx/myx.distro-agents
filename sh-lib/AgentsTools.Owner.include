@@ -1135,6 +1135,19 @@ case "$1" in
 						setupRc=1
 					fi
 
+					## WHETHER Skill reaches all of a long skillset file by line range, and
+					## lists names its own file argument takes back. Offline through --intern-tool.
+					local setupSkillRangeOut="" setupSkillRangeRc=0
+					setupSkillRangeOut="$( bash "$setupLibDir/AgentsHarnessSkillRangeCheck.test.sh" 2>&1 )" || setupSkillRangeRc=$?
+					printf '%s\n' "$setupSkillRangeOut"
+					if [ "$setupSkillRangeRc" != "0" ] ; then
+						echo "  warn: the Skill tool cannot reach all of a skillset file, or lists"
+						echo "        names its own file argument refuses"
+						echo "  fix:  repair AgentsHarnessToolSkill in sh-lib/AgentsUniversalHarness.sh"
+						echo "        -- never the assertion"
+						setupRc=1
+					fi
+
 					## WHICH tools the MCP server actually serves, which no check above asks
 					## either: a harness tool joins that floor by default, and the served set
 					## is a subtraction somebody has to remember. The mirror renders the whole

@@ -13,11 +13,20 @@ while IFS= read -r rigLine ; do
 			## mid-run death a real one rather than a name that never resolved.
 			[ -z "${RIG_MCP_DIE_AFTER_LIST:-}" ] || : > "$RIG_SCENARIO/mcp.dead"
 		;;
+		*'"method":"resources/list"'*)
+			printf '%s\n' '{"jsonrpc":"2.0","id":4,"result":{"resources":[{"uri":"rig://RIG-RESOURCE-MARKER","name":"rig-resource"}]}}'
+		;;
 		*'"method":"tools/call"'*)
 			printf 'call\n' >> "$RIG_SCENARIO/mcp.calls"
 			rigWord="${rigLine##*\"word\":\"}"
 			rigWord="${rigWord%%\"*}"
-			printf '{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"RIG-MCPRESULT:%s"}]}}\n' "$rigWord"
+			## The myx.common server's shape: the call runs in the background and its answer
+			## lands later, so a client that closes stdin first reads no answer at all.
+			if [ -n "${RIG_MCP_ANSWER_LATE:-}" ] ; then
+				( sleep 2 ; printf '{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"RIG-MCPRESULT:%s"}]}}\n' "$rigWord" ) &
+			else
+				printf '{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"RIG-MCPRESULT:%s"}]}}\n' "$rigWord"
+			fi
 		;;
 	esac
 done
