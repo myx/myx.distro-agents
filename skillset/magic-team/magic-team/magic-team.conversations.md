@@ -101,13 +101,11 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    naming a transport is wrong the first time the transport changes. Whose ask it is decides who sends
    it: a question whose answer would bind the team — an approval, a design ruling, a policy decision —
    goes through `magic-coordinator`; a question whose answer only unblocks this member's own assigned
-   work is that member's own. What the answer binds is the test, not what the question blocks. The
-   condition is a working identity
-   of the member's own on that channel: with one, the send is automatic and needs no permission; without
-   one the member falls back to a shared identity, which can hold every permission the channel grants
-   and still not reach his own direct conversation, so it states plainly what it needed and hands the
-   ask to `magic-coordinator` to send under an identity that reaches him, rather than swallowing the
-   question or waiting on an answer that cannot arrive. The failure is not a missing copy of a message —
+   work is that member's own. What the answer binds is the test, not what the question blocks. Every
+   session asks with `AskUserQuestion`, which sends under its own team identity to his direct channel
+   and waits for the answer; the send is automatic and needs no permission. Where the ask itself fails,
+   the member states plainly what it needed and hands the ask to `magic-coordinator`, rather than
+   swallowing the question or waiting on an answer that cannot arrive. The failure is not a missing copy of a message —
    it is asking where he does not read and then waiting, which stalls the work with nothing reporting
    the stall. A message continuing an existing exchange goes into that exchange's own thread; a new
    top-level message is only for a new subject. A send returns the identifier its own thread is reached
@@ -301,20 +299,23 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    trigger, whether or not the session felt it was "suspicious," and it must stop that sub-decision rather than
    pick one and continue`.
 
-25. **background-dispatch-ask-means-flag**: For a dispatched/background session with no live reply channel, "ask" means stop-and-flag, not wait.
-   **readback-on-suspected-assumption-gap**/**judgment-gap-propose-and-confirm** and the checkpoint loop's "wait for explicit approval" describe a live-interactive channel where
-   a reply can actually arrive mid-task. A dispatched background session (e.g. an Agent-tool sub-dispatch) has
-   no such channel — it cannot literally pause execution for a human-owner reply the way a live root session
-   can. For that context, "ask" means: stop advancing that specific sub-decision, state the fork and the
-   reasonable readings plainly as UNRESOLVED in the final report, and do not proceed past it on a guess. Work
-   not gated by that sub-decision may continue; the sub-decision itself is never silently resolved by picking
-   one reading and presenting the result as if it were already settled. This is not an exemption from
-   **readback-on-suspected-assumption-gap**/**judgment-gap-propose-and-confirm**/**objective-ambiguity-is-stop-condition** — it is the same obligation translated to a channel that cannot literally block.
-   verbatim-intent: `a background dispatch cannot wait, so it stops and flags the sub-decision instead of
-   guessing`.
-   verbatim-benchmark: `a background dispatch mid-task hits a design choice the instructions never specified,
-   with no live human-owner to ask — it does not pick one and present the result as settled; it stops that
-   sub-decision, marks it unresolved in its report, and continues only the parts of the task not gated by it`.
+25. **background-dispatch-ask-means-flag**: A dispatched/background session asks with `AskUserQuestion` and waits; it stops and flags only when the ask itself fails.
+   **readback-on-suspected-assumption-gap**/**judgment-gap-propose-and-confirm** and the checkpoint loop's "wait for explicit approval" bind a
+   dispatched background session (e.g. an Agent-tool sub-dispatch) as they bind a live root session. It asks with
+   `AskUserQuestion` — `mcp__myx_distro__AskUserQuestion` in a native client — which sends under the session's
+   own team identity to the human-owner's direct channel and waits for the answer. A question binding the team
+   still goes through `magic-coordinator`. Only where the ask itself fails does "ask" mean: stop advancing that
+   specific sub-decision, state the fork and the reasonable readings plainly as UNRESOLVED in the final report,
+   and do not proceed past it on a guess. Work not gated by that sub-decision may continue; the sub-decision
+   itself is never silently resolved by picking one reading and presenting the result as if it were already
+   settled. This is not an exemption from
+   **readback-on-suspected-assumption-gap**/**judgment-gap-propose-and-confirm**/**objective-ambiguity-is-stop-condition** — it is the same obligation, with stop-and-flag kept for an ask that fails.
+   verbatim-intent: `a background dispatch asks with AskUserQuestion and waits; it stops and flags the
+   sub-decision only when the ask fails, never guessing`.
+   verbatim-benchmark: `a background dispatch mid-task hits a design choice the instructions never specified —
+   it asks with AskUserQuestion and waits for the answer; if the ask fails, it does not pick one and present
+   the result as settled; it stops that sub-decision, marks it unresolved in its report, and continues only the
+   parts of the task not gated by it`.
 
 26. **clarification-stall-single-hypothesis**: When clarification stalls, switch to single-hypothesis closed-form questions.
    Keep one falsifiable guess per round (`is it X?`), retire exactly one guess each round, never bundle gaps.
@@ -764,7 +765,7 @@ Checkpoint mode is required when any of these are true:
 5. **high-stakes-command-about-to-execute**: An explicit, live human-owner command is about to execute a high-stakes action.
 6. **solo-fork-meets-ambiguity-trigger**: A solo task-execution step — live or background-dispatched — is about to proceed past a fork meeting
    **objective-ambiguity-is-stop-condition**'s trigger condition (two or more reasonable interpretations, material effect on outcome). See
-   **background-dispatch-ask-means-flag** for what "checkpoint" means when the session has no live reply channel to wait on.
+   **background-dispatch-ask-means-flag** for how a background session asks and waits, and what it does when the ask fails.
 
 ### When this mode is optional
 
@@ -775,9 +776,9 @@ explicitly specified parameter (e.g. a required participant/quorum list).
 ### Checkpoint loop (operational form)
 
 1. **readback-approval-next-step**: Readback -> approval -> next step.
-   Before action, send a short readback of the immediate next step and wait for explicit approval. For a
-   dispatched/background session with no live reply channel, "wait for explicit approval" means what **background-dispatch-ask-means-flag**
-   says instead: stop that sub-decision, flag it unresolved in the report, do not guess past it.
+   Before action, send a short readback of the immediate next step and wait for explicit approval. A
+   dispatched/background session sends it with `AskUserQuestion` and waits, per **background-dispatch-ask-means-flag**;
+   only if that ask fails does it stop that sub-decision, flag it unresolved in the report, and not guess past it.
 
 2. **readback-current-scope-present-tense**: Read back current scope in present tense.
    Keep readback on current decision only (not a broad plan). Phrase in present tense and current scope.

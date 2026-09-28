@@ -143,8 +143,17 @@ case "$1" in
 			fi
 		fi
 
+		## Team identity for served calls: a spawned session's MDAT_SPAWN_AGENT, else the root
+		## session's magic-coordinator. Dropped when not in the skillset, since the harness
+		## refuses to start under it and would take every other tool down too.
+		mcpAgent="${MDAT_SPAWN_AGENT:-magic-coordinator}"
+		if [ ! -f "${MDAT_SKILLSET_ROOT:-}/$mcpAgent/$mcpAgent.basic.md" ] ; then
+			printf '%s\n' "$MDSC_CMD: mcp-server: ⛔ ERROR: no team identity for served calls -- ${MDAT_SKILLSET_ROOT:-<MDAT_SKILLSET_ROOT unset>}/$mcpAgent/$mcpAgent.basic.md is not there, so SendMessage, Wait, Agent and AskUserQuestion refuse. Every other tool is served." >&2
+			mcpAgent=''
+		fi
+
 		## Check-init witness; stderr only.
-		printf '%s\n' "# myx.distro agentMcp: pid=$$ origin=$MDLT_ORIGIN mode=${MDLC_INMODE:-?} spec=${MDLT_OPTION:-?} root=$MMDAPP scratch=$MMDAPP/.local/temp/agent-mcp.$$ served=$( set -- $mcpServedToolNames ; echo $# ) harness tools plus execute" >&2
+		printf '%s\n' "# myx.distro agentMcp: pid=$$ origin=$MDLT_ORIGIN mode=${MDLC_INMODE:-?} spec=${MDLT_OPTION:-?} root=$MMDAPP scratch=$MMDAPP/.local/temp/agent-mcp.$$ agent=${mcpAgent:-<none>} served=$( set -- $mcpServedToolNames ; echo $# ) harness tools plus execute" >&2
 
 		## `|| [ -n ... ]` keeps a final line that has no trailing newline.
 		while IFS= read -r mcpLine || [ -n "$mcpLine" ] ; do
@@ -240,7 +249,7 @@ case "$1" in
 							## wedged call cannot hold that handler for the process's whole life.
 							mcpExitCode=0
 							set -m
-							( printf '%s\n' "$mcpToolArgs" | "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$mcpToolName" ) > "$mcpOutFile" &
+							( printf '%s\n' "$mcpToolArgs" | "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$mcpToolName" ${mcpAgent:+--agent "$mcpAgent"} ) > "$mcpOutFile" &
 							mcpCmdPid=$!
 							(
 								sleep 3600

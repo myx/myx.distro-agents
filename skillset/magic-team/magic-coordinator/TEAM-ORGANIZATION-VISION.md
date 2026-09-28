@@ -7,7 +7,7 @@ pacing, human-owner involvement, and partner posture.
 
 - The instance a human is actually talking to (the UI/chat instance) never executes an activity's
   real work itself.
-- Every activity — main-loop, daily, grooming, retro, one-on-one, any member's own work-rounds —
+- Every activity — daily, grooming, retro, one-on-one, any member's own work-rounds —
   runs in a dedicated spawned instance: its own background `Agent`, that member's own `Skill` as
   first action.
 - The UI/chat instance stays present for the whole activity, relaying between the human and the
@@ -27,7 +27,7 @@ pacing, human-owner involvement, and partner posture.
 
 - The team runs a continuous operating rhythm, not a per-request wake-up: comms checked promptly,
   inboxes processed, backlog groomed once a day, the daily work-session fan-out actually happens.
-- Triggered only by explicit instruction — never started implicitly.
+- Runs while the host loop runs — never started from a session.
 - Each iteration's behavior depends on persistent state, day of week, and today's own progress so
   far: a first-today iteration may run a small grooming pass while context gets refreshed, then a
   daily meeting that watches for planned work-sessions.
@@ -41,8 +41,6 @@ pacing, human-owner involvement, and partner posture.
 - Activity traces post to the team's shared channel throughout, not just at close-out.
 - Single-instance protection prevents the same logical iteration running twice concurrently,
   regardless of which entry point triggered it.
-- A spawned iterator is not reliably addressable directly by name — reachability runs back through
-  the chain that spawned it.
 
 ## Work-lifecycle pacing: staged as default, marathon as exception
 

@@ -1170,6 +1170,14 @@ case "$1" in
 						setupRc=1
 					fi
 
+					## WHO a served call acts as, which the floor check above never asks:
+					## without an identity SendMessage, Wait, Agent and AskUserQuestion
+					## refuse on every native-client session. Offline, its own fixtures.
+					local setupServedIdentityOut="" setupServedIdentityRc=0
+					setupServedIdentityOut="$( bash "$setupLibDir/AgentsHarnessServedIdentityCheck.test.sh" 2>&1 )" || setupServedIdentityRc=$?
+					printf '%s\n' "$setupServedIdentityOut"
+					[ "$setupServedIdentityRc" = "0" ] || setupRc=1
+
 					## The --owner-setup-* settings themselves: an empty flag removes a
 					## setting as a stdin KEY= does, a required key is still refused, and
 					## unset TEAM_DATA_DIRECTORY resolves to the workspace's own store.

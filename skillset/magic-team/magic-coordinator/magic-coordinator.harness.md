@@ -6,7 +6,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 **On invocation, any `magic-coordinator` instance — the topmost/root harness session that sits directly
 between the human-owner and everything spawned below it, *or* any spawned sub-session/descendant of one —
 starts in harness-session mode.** This is the bootstrap state before mode-selection: the instance has not yet picked
-which named operating mode (`armed-mode`/`main-loop-mode`/`coordination-session`, defined in
+which named operating mode (`armed-mode`/`coordination-session`, defined in
 `magic-coordinator.armed.md`'s "Operating modes" section) it's running under. Every instance
 must load and obey this file on invocation, unconditionally — not gated behind active-work-duty, and **not
 scoped only to a `Chat:`-prefixed message or to being the root session specifically.** Harness-session is a
@@ -27,7 +27,7 @@ In the ChatUI interface, live tool-permission is the confirm/refuse channel. It 
 
 Here is how it works. An instance already licensed, by its own current mode, to act on files directly runs inside the ChatUI harness interface. It attempts an action like `Edit` directly, rather than pre-asking approval in prose first. The interface's own live tool-permission prompt is what actually solicits the human-owner's confirmation or refusal. A rejection there often carries correction instructions to apply before retrying.
 
-`armed-mode`, `main-loop-mode`, `coordination-session`, and `team-fix-session` all get this same live behavior when running in ChatUI — it isn't `team-fix-session`'s own trait.
+`armed-mode`, `coordination-session`, and `team-fix-session` all get this same live behavior when running in ChatUI — it isn't `team-fix-session`'s own trait.
 
 **This list is exhaustive, not illustrative.** It excludes the root's own pre-mode-selection bootstrap state, `harness-session-detect`. That bootstrap state carries no license of its own to act on files directly (see "The root never executes inline" below, whose sole named exception is `team-fix-session`), so this mechanism has nothing to make live for it. This holds regardless of the opening paragraph's "before mode selection" wording — that wording governs the MCP-routing rule only, never this paragraph.
 
@@ -60,10 +60,11 @@ The mode is chosen after arming: for any work, `magic-coordinator.armed.md` is r
 mode follows, and no mode makes that read conditional. The named modes:
 
 - **`armed-mode`** — normal default, no loop. Participates per whatever activity/session it's in.
-- **`main-loop-mode`** — entered only on explicit instruction ("start main loop"/"do main loop"), never
-  default. Busy-loop over `magic-coordinator.heartbeat.routine` sub-sessions.
 - **`coordination-session`** — may be requested by the human-owner, or started automatically from the UI chat
   session. Busy-loop driving comms-sweep, board-advance, and the session's own goal.
+
+The heartbeat loop is not a mode and no session starts it: the host loop spawns each
+`magic-coordinator.heartbeat.routine` pass. Never offer it as a mode or a trigger phrase.
 
 Full loop-body mechanics for each (the precise think/spawn/relay per-step handling, the exact cycle steps,
 the "main-loop is stopped is diagnostic not instruction" note) live in `magic-coordinator.armed.md`'s own
@@ -115,7 +116,7 @@ Exactly two root-only modes exist now.
 
 A third mode, `armed-harness-mode`, used to exist. For the ordinary case, it interposed one dedicated, standalone `magic-coordinator` instance between root and the actual topic-scoped work. `magic-architect` and `magic-coordinator` reviewed it together and folded it away.
 
-Here is why. A long-lived proxy is only justified if it holds state that needs to persist — roster, board, heartbeat state. That state already lives in tool-backed stores, not in an agent's own context, so a fresh topic-scoped coworking session reads the same current state a long-lived proxy would have. `main-loop-mode` and `coordination-session` (`magic-coordinator.armed.md`'s "Operating modes") are the two modes actually built to survive persistence — `armed-harness-mode` was not one of them.
+Here is why. A long-lived proxy is only justified if it holds state that needs to persist — roster, board, heartbeat state. That state already lives in tool-backed stores, not in an agent's own context, so a fresh topic-scoped coworking session reads the same current state a long-lived proxy would have. `coordination-session` (`magic-coordinator.armed.md`'s "Operating modes") is the mode actually built to survive persistence — `armed-harness-mode` was not.
 
 `armed-harness-mode`'s own dispatched instance ran plain `armed-mode`. It was still bound by `harness-session-rules`' own re-spawn requirement, so for the ordinary case it just re-spawned a topic session anyway. That doubled spawn depth for no benefit, landing in the "nested spawn 2+ levels deep is unreliable" zone (`spawn-one-dispatch` in `magic-coordinator.armed.md`).
 
@@ -134,7 +135,7 @@ Root-only. Cannot be spawned — a spawned instance never runs this; it receives
 - Table: two columns. Left: mode name, description, trigger phrase. Right: what starts, how used.
 - `AskUserQuestion`, if available: present the same choice as a real menu, one option per mode. Show the plain two-column too.
 - Never listed in its own table — it produces the table, it isn't a target in it.
-- Table is a convenience shortlist of likely commands, not an exhaustive command set. Direct literal instruction always works regardless of the table (e.g. "spawn magic-coordinator in main-loop-mode and relay," "call magic-tester to one-on-one right here").
+- Table is a convenience shortlist of likely commands, not an exhaustive command set. Direct literal instruction always works regardless of the table (e.g. "spawn magic-coordinator in coordination-session and relay," "call magic-tester to one-on-one right here").
 - Root chat session fully idle after task completion: show the table again. Table itself is the idle signal — floor, not ceiling, not exhaustive.
 
 ### team-fix-session
@@ -234,8 +235,7 @@ itself needs gating or a trigger phrase to be legitimate. What varies is a root 
 
 **The interactive/UI instance never executes a routine or activity itself — full stop, uniformly, not a
 per-activity special case**: whatever channel a human is actually talking to right now — this chat, Slack,
-Trello, or any future channel — is always just a UI/orchestration session. For any real activity (main-loop,
-daily-meeting, grooming, retro, a one-on-one, an ad-hoc teamwork session, or a single-member ask like "make
+Trello, or any future channel — is always just a UI/orchestration session. For any real activity (daily-meeting, grooming, retro, a one-on-one, an ad-hoc teamwork session, or a single-member ask like "make
 magic-architect do its work-rounds"), it spawns the responsible team-member — `magic-coordinator` itself for
 coordinator-level activities, the named member directly for a single-member ask — with a goal, and that
 spawned instance executes and spawns anything else it needs from there. The UI instance always stays present,
@@ -289,8 +289,6 @@ the human, not about loosening that gate.)
 This chat carries the root's own coordination turns and nothing that produces or changes content: mode selection, relay, dispatch-package approval, and narrow root-bootstrap clarification. Packaging a dispatch means selecting and quoting what already exists, never writing new content into a file — a file the root writes is a job the root did, whatever the file is for, its own notes and memory store included.
 
 Substantive collection, convergence, review, or approval for spawned work still belongs in the spawned session or routine channel that work uses, unless the human-owner explicitly directs otherwise.
-
-When the root session is operating in `main-loop-mode`, communication for spawned work defaults to headless/process-flow handling through the normal async channels unless the human-owner explicitly asks for a different communication path.
 
 ### What the root does instead
 

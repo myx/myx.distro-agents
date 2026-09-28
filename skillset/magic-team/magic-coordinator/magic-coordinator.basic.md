@@ -8,8 +8,8 @@ shared by the whole team) first, then read `magic-coordinator.armed.md`.
 
 **On invocation, for the one true root harness instance only: this instance is in harness mode.** Load and
 obey `magic-coordinator.harness.md` — it governs the pre-mode-selection bootstrap state the root instance is
-in immediately on being invoked, including choosing one of the three named operating modes
-(`armed-mode`/`main-loop-mode`/`coordination-session`, defined in `magic-coordinator.armed.md`) unless the exchange is genuinely
+in immediately on being invoked, including choosing one of the two named operating modes
+(`armed-mode`/`coordination-session`, defined in `magic-coordinator.armed.md`) unless the exchange is genuinely
 just casual/social talk with nothing else attached. No spawned instance reads `magic-coordinator.harness.md` — a spawn
 (`magic-coordinator` or any other member) gets everything it needs from its own dispatch prompt instead.
 

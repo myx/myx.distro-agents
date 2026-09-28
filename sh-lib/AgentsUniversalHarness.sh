@@ -1881,11 +1881,12 @@ AgentsHarnessToolAskUserQuestion(){
 			printf '**📋 Options**\n'
 			printf '%s\n' "$toolOptions" | while IFS= read -r bodyOption ; do
 				[ -n "$bodyOption" ] || continue
+				## Parenthesised patterns keep bash 3.2 from closing this substitution early.
 				case "$bodyOption" in
-					-\ *)
+					(-\ *)
 						printf '%s\n' "$bodyOption"
 					;;
-					*)
+					(*)
 						printf -- '- %s\n' "$bodyOption"
 					;;
 				esac
@@ -1914,10 +1915,10 @@ AgentsHarnessToolAskUserQuestion(){
 		*:*)
 		;;
 		*)
-			askOpen="$( AgentsHarnessToolSendMessage "$toolTo" "A question follows in this thread." "$toolAsBot" "$toolAddressTo" )"
+			askOpen="$( AgentsHarnessToolSendMessage "$toolTo" "❓ $toolQuestion"$'\n\n'"The full question and how to answer it are in this thread." "$toolAsBot" "$toolAddressTo" )"
 			case "$askOpen" in
 				ERROR:*)
-					printf 'ERROR: AskUserQuestion: the thread this question needed could not be opened, so the question was never posted and nobody was asked. THE QUESTION DOES NOT EXIST. What the send reported follows:\n%s\n' "$askOpen"
+					printf 'ERROR: AskUserQuestion: the thread this question needed could not be opened, so the question was never posted and nobody was asked. THE QUESTION DOES NOT EXIST. The opener repeats the question, so a refusal naming an output-style predicate means the question sits below the plain-language floor this team holds, which is written out in %s/magic-team/magic-team.shared.md -- rewrite the question to that standard and ask it again. What the send reported follows:\n%s\n' "${MDAT_SKILLSET_ROOT:-}" "$askOpen"
 					return 0
 				;;
 			esac
