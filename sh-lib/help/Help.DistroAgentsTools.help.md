@@ -2917,7 +2917,7 @@
 			prior board grant (any root) is dropped first, so a moved
 			board path replaces rather than accumulates alongside the new
 			one. Also upserts the fixed static grants
-			`mcp__myx_distro__execute`, `Agent`, `Task`, plus one
+			`mcp__myx_distro`, `Agent`, `Task`, plus one
 			`Edit(<path>/**)`/`Write(<path>/**)` pair per acting team
 			member's real skillset directory -- enumerated fresh every run
 			from `$MDAT_SKILLSET_ROOT` (symlink or real directory, real
