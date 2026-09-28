@@ -54,7 +54,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - After each sub-step: post a short progress report into the thread opened at **open-event-track-thread**.
    - Between each sub-step: check for messages from sub-spawned sessions. For each one found, assess what it needs, dispatch any real work to a sub-session, and record the outcome in this pass's own output and the **open-event-track-thread** thread — this pass has no live human to relay to.
    - Sub-steps, in order:
-     - **Heartbeat iteration input** (first, every `next-iteration`): call the `--magic-heartbeat-input-scan` operation to load this routine's own prepared input for this pass — every sub-step below works from what it returns.
+     - **Heartbeat iteration input** (first, every `next-iteration`): call the `--magic-heartbeat-input-scan` operation to load this routine's own prepared input for this pass — every sub-step below works from what it returns. It returns no board items, so the **Test email report** reads them from the scan named there.
      - **Inbox processing**:
        - Run `magic-team.process-inbox.routine magic-coordinator` — inline execution, own identity. This loop is that routine's regular caller, not its only invocation path (see `magic-team.process-inbox.routine` for standalone/ad hoc invocation and the morning self-review).
        - Items owned by a non-acting owner (human-owner, external contacts): run `magic-coordinator.external-inbox-handle-loop.routine` — their content lives inside `magic-coordinator`'s own inbox too, since they have no skill folder of their own.
@@ -76,7 +76,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - Independent of the day-rhythm state machine's own checks — the two never get coupled; this step runs (or doesn't, per the hourly check) regardless of which of the weekend/first-today/later-today branches this `next-iteration` is in.
        - Content: the plain-text placeholder must be a real, readable, multi-section structure, not one line:
          - **Board statistics** — one line per board state (`board-backlog`, `board-pending`, `board-running`, `board-blocked`, `board-parked`, `board-processed`, `board-archived`, `board-retained`) with its count, computed live at send time via `magic-tooling` (`find`/`wc` per `board-<state>` folder) — never cached or persisted as standing state.
-         - **Active processes** — one line per active/blocked item naming it and its state (in-work/blocked/etc.), not just a number.
+         - **Active processes** — one line per active/blocked item naming it and its state (in-work/blocked/etc.), not just a number. The lines come from the `--magic-advance-input-scan` operation's board rows, each labelled `<state>/<item-filename>`.
          - Shape: an iteration/timestamp header line, then the Board statistics section, then the Active processes section.
        - Full HTML/multipart layout redesign stays deferred (the text-vs-HTML question is still open) — this is a content/structure floor, not the eventual full design.
        - Sent via the `--member-comms-email-send` magic-tooling operation — never a session's own personal mail connector.
@@ -259,6 +259,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (**Test email report** sub-step: send the hourly test email report)
 - `--magic-heartbeat-config-check` (**check-required-config**: check magic-coordinator config upfront, before anything else runs)
 - `--magic-heartbeat-input-scan <team-member>` (**run-one-bounded-substep**: load heartbeat iteration input)
+- `--magic-advance-input-scan <team-member>` (**Test email report** sub-step: read the active and blocked board items)
 - `--magic-heartbeat-lock-acquire <team-member> <owner-label>` (**acquire-lock**: acquire the single-instance lock)
 - `--magic-heartbeat-lock-refresh <team-member>` (refresh the lock during a long-running `next-iteration`)
 - `--magic-heartbeat-close-state-and-unlock <team-member>` (Closure steps: release the lock)
@@ -286,7 +287,11 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-heartbeat-input-scan` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>` — read-only: this routine's own board scan (the name deliberately doesn't echo this routine's own name). Gives a broad "pulse of the whole active board" reading — every open board item, with its frontmatter. `<team-member>` is the only argument: the scan reads every baseline item this routine needs, and an item name is not a parameter to it.
+`DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>` — read-only: this routine's own prepared input (the name deliberately doesn't echo this routine's own name). Returns this routine's own state-and-lock note, then `<team-member>`'s own inbox reflections, each with its body. It returns no board items. `<team-member>` is the only argument: the scan reads every baseline item this routine needs, and an item name is not a parameter to it.
+
+## `--magic-advance-input-scan` operation reference
+
+`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — read-only: `magic-coordinator.advance.routine`'s own board scan. Each board row is labelled `<state>/<item-filename>`. This routine's **Test email report** takes its Active processes lines from those rows. `<team-member>` is the only argument.
 
 ## `--magic-heartbeat-lock-acquire` / `--magic-heartbeat-lock-refresh` / `--magic-heartbeat-close-state-and-unlock` / `--magic-heartbeat-lock-status` operation reference
 

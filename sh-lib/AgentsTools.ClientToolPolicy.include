@@ -7,6 +7,7 @@
 ## the source of what a refusal says: that wording lives in the hook script that
 ## says it, sh-lib/client-hooks/deny-native-tool-reroute.sh, where a person opening
 ## the hook can read it. Two different facts, one home each.
+## Also the single source of the fixed claude permission grants: allow, deny and MCP servers.
 ##
 ## Dot-sourced. Nothing here is an operation, so there is no flag and no
 ## help pair; a consumer calls these functions directly.
@@ -21,6 +22,27 @@
 ## record format that no longer exists.
 AgentsToolsClientToolPolicyFormatVersion(){
 	printf '%s\n' "subject-decision-reason-redirect"
+}
+
+## The fixed permissions.allow grants, one JSON array.
+## SendMessage sits alongside Agent/Task for the same reason those two do:
+## a dispatched member has to be able to reach the session that dispatched
+## it, and a spawn it made, without a prompt interrupting an unattended run.
+AgentsToolsClientToolPolicyClaudeAllowJson(){
+	printf '%s\n' '["mcp__myx_common", "mcp__myx_distro", "Agent", "Task", "SendMessage"]'
+}
+
+## The fixed permissions.deny additions, one JSON array.
+## Bash: removed outright, so mcp__myx_distro__execute is the only shell
+## path. Native Slack MCP tool, hard-blocked -- separate path from the
+## team's own sanctioned --member-comms-slack-* ops, which this cannot reach.
+AgentsToolsClientToolPolicyClaudeDenyJson(){
+	printf '%s\n' '["Bash", "mcp__claude_ai_Slack"]'
+}
+
+## The enabledMcpjsonServers entries, one JSON array.
+AgentsToolsClientToolPolicyClaudeMcpServersJson(){
+	printf '%s\n' '["myx.distro", "myx.common"]'
 }
 
 ## The native tools that are rerouted, one per line. THE SINGLE SOURCE OF THE SET:

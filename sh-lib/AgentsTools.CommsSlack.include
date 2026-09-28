@@ -295,19 +295,19 @@ DistroAgentsToolsResolveTarget(){
 	local channel threadTs
 	case "$target" in
 		event-track|event-track:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_TRACK )"
+			channel="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		event-alert|event-alert:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_ALERT )"
+			channel="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_ALERT )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		magic-team|magic-team:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_MAGIC_TEAM )"
+			channel="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_MAGIC_TEAM )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		human-owner|human-owner:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_HUMAN_OWNER )"
+			channel="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		*:*)
@@ -893,19 +893,28 @@ case "$1" in
 				## Everything but that last -w line is the response body.
 				response="$( printf '%s\n' "$uploadOut" | sed '$d' )"
 			elif [ -n "$jsonBody" ] ; then
-				response="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/$apiMethod" \
+				## The body travels in a file, never argv, which a long one outgrows; stdin is the header's.
+				response="$( mkdir -p "$MMDAPP/.local/temp" && bodyFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-call.XXXXXX" )" || exit 1
+					trap 'rm -f "$bodyFile"' EXIT
+					printf '%s' "$jsonBody" > "$bodyFile" || exit 1
+					curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/$apiMethod" \
 					-H @- \
 					-H "Content-type: application/json" \
-					-d "$jsonBody" <<< "$authHeader" 2>&1 )" || {
+					--data-binary "@$bodyFile" <<< "$authHeader" 2>&1 )" || {
 					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
 					break
 				}
 			else
-				local curlArgs=( -sS --connect-timeout 10 --max-time 120 "https://slack.com/api/$apiMethod" -H @- ) formPair
-				for formPair in "${formArgs[@]}" ; do
-					curlArgs+=( --data-urlencode "$formPair" )
-				done
-				response="$( curl "${curlArgs[@]}" <<< "$authHeader" 2>&1 )" || {
+				## Each value travels in its own file, never argv, which a long message outgrows.
+				## Named by the argument count at that point, which no two pairs share.
+				response="$( mkdir -p "$MMDAPP/.local/temp" && formDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-slack-call.XXXXXX" )" || exit 1
+					trap 'rm -rf "$formDir"' EXIT
+					curlArgs=( -sS --connect-timeout 10 --max-time 120 "https://slack.com/api/$apiMethod" -H @- )
+					for formPair in "${formArgs[@]}" ; do
+						printf '%s' "${formPair#*=}" > "$formDir/${#curlArgs[@]}" || exit 1
+						curlArgs+=( --data-urlencode "${formPair%%=*}@$formDir/${#curlArgs[@]}" )
+					done
+					curl "${curlArgs[@]}" <<< "$authHeader" 2>&1 )" || {
 					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
 					break
 				}

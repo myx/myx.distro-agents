@@ -90,8 +90,8 @@ AgentsWireToolResultRecord(){
 ## omits the key entirely: this wire rejects an empty string where it accepts absence.
 ## An empty $harnessToolChoice is this wire's own default, and the key never moves.
 ## An empty $harnessOutputTokens omits max_tokens, so the provider applies the model's own.
-## $harnessMcpToolsJson is frozen before the first round, so `tools` is byte-identical
-## on every one of them, a summarise-and-restart included.
+## $harnessMcpToolsJson is enumerated again before every round, so `tools` is
+## byte-identical from one round to the next exactly while that set is unchanged.
 AgentsWireRequestBody(){
 	local bodyMessagesJson bodyOut
 	bodyMessagesJson="$( IFS=, ; echo "[${harnessMessages[*]}]" )"
@@ -225,7 +225,7 @@ AgentsWireThinkingClose(){ ## buffer-variable name is this wire's own $thinkingB
 ## $harnessScratch for AgentsWireSynthesizeResponse below. That state lives in files
 ## because `curl | while read` runs the loop in a subshell, which bash 3.2 cannot avoid.
 AgentsWireStreamConsume(){
-	local streamLine streamPayload deltaContent deltaReasoning thinkingOpen deltaToolCount tcIdx tcIndexField tcId tcName tcArgsFrag finishReason tcSeen
+	local streamLine streamPayload streamError deltaContent deltaReasoning thinkingOpen deltaToolCount tcIdx tcIndexField tcId tcName tcArgsFrag finishReason tcSeen
 	local thinkingBuf="" thinkingEmit="" thinkingSafe=""
 	local usagePrompt usageCompletion usageTotal
 	: > "$harnessScratch/stream.content"
@@ -251,6 +251,18 @@ AgentsWireStreamConsume(){
 					AgentsWireThinkingClose
 					continue
 				fi
+
+				## An error object on a data line is the round's whole answer, kept as a
+				## non-streaming error body is, so the core reports it once and never retries.
+				case "$streamPayload" in
+					*'"error":'*)
+						streamError="$( printf '%s\n' "$streamPayload" | LC_ALL=C awk -v path=error -v mode=raw -f "$harnessHere/AgentsHarnessJsonSlice.awk" 2>/dev/null )" || streamError=""
+						if [ -n "$streamError" ] && [ "$streamError" != null ] ; then
+							printf '%s\n' "$streamPayload" >> "$harnessScratch/stream.rawother"
+							continue
+						fi
+					;;
+				esac
 
 				## Gated on the object, not the key: every delta chunk carries a null usage, and the last real one wins.
 				case "$streamPayload" in
@@ -378,6 +390,7 @@ AgentsWireErrorCode(){
 			errRc=0
 			errCode="$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path=error.type -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null )" || errRc=$?
 		fi
+		[ "$errRc" != "0" ] || errCode="$errCode -- $( AgentsHarnessArgValue "$harnessResponse" error.message )"
 	fi
 	printf '%s' "$errCode"
 	return "$errRc"

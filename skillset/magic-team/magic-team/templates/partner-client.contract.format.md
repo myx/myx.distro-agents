@@ -3,7 +3,7 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>, h
 ---
 # <name>.armed.md — example skeleton (`partner-*`/`client-*`)
 
-Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contracts" → Partner / Client. This file is a derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins.
+Normative contract: this file's own `# Contract` section, at its end. Where it and the skeleton disagree, `# Contract` wins. `# Contract` is not part of the skeleton and is not copied.
 
 # Summary
 
@@ -66,7 +66,7 @@ All statements apply at the same time, always. These rules override a magic-team
 
 # Team-Member's (-specific) tooling
 
-Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only.
+Every `magic-tooling` operation this team-member uses. Behaviour is read with `--member-help`. Steps use its name only.
 
 ## DistroAgentsTools magic-tooling operations
 
@@ -77,7 +77,7 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 
 ## `--operation-name` Operation Reference
 
-[Syntax again, plus every exact description/comment needed to run it correctly.]
+[Only what the operation's own help, read with `--member-help`, does not carry. Omit this subsection where the help carries it all.]
 
 # Maintainer Notes
 
@@ -100,3 +100,52 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Conventions
 
 - [...]
+
+# Contract
+
+Relationship shape — the asymmetric external-organisation relationship (`client-*` faces one direction,
+`partner-*` the opposite), not restated here: see `magic-team.authority.partner.contract.md`/
+`magic-team.authority.client.contract.md`'s own "Relationship shape".
+
+- Frontmatter: `maintainers:` only.
+- `# Summary`
+  - One short sentence, names the team-member.
+  - `## Goals`
+    - Compact narrative, still detailed.
+  - `## Scope`
+    - What it does.
+    - What it deliberately doesn't do.
+    - Invocation conditions and auto-trigger behavior stated here.
+    - `### External representation` — present even if N/A.
+      - Which direction this member represents, and whether it holds our credentials into the external
+        organisation's own systems — never asserted generically here, `partner-*` and `client-*` face
+        opposite directions: see `magic-team.authority.partner.contract.md`/
+        `magic-team.authority.client.contract.md`'s own "Relationship shape".
+      - Communication with the external entity uses this member's own dedicated account or email, where one is configured. Otherwise it routes through `magic-coordinator` — an explicit ask, `magic-coordinator`'s own conscious assessment, escalated to human-owner confirmation when warranted.
+      - Generic role operations run through the shared `magic-tooling` baseline. Any external-system tooling specific to this particular partner or client — their own issue tracker, messaging or document systems — is this member's own addition. It is documented in its own `Team-Member's (-specific) tooling` section.
+- `# Terminology: <topic>`
+  - Pure glossary, `term` → definition.
+  - `## Term: <name>` only when a term needs more than one line.
+  - `# Terminology: none` when empty.
+- `# Team-Member's (-specific) local procedures`
+  - Named procedure blocks, `## <local-procedure-name>`, called by name.
+  - Not separate routines.
+  - Not visible outside this file.
+- `# Team-Member's (-specific) local rules`
+  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
+  - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
+    - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
+    - `partner-*` only: "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement." Not part of the `client-*` shape — a `client-*` member is a representative, normally with no workspace or console of its own, so it gets no console grant by default. A specific client that genuinely needs one states it explicitly in its own file, which is what the `magic-team.armed.md` console rules require anyway.
+    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`partner` or `client`), never restated in full.
+    - this member's own further limits, restrictions, decision-making guidance.
+- `# Domain knowledge: <topic>`
+  - This member's own reference material, or `: none`.
+- `# Team-Member's (-specific) tooling`
+  - Every `magic-tooling` operation this member uses, listed with its syntax. Behaviour is read with `--member-help`; an Operation Reference carries only what that help does not.
+- `# Maintainer Notes`
+  - `## Verbatim-goals (intents)`
+  - `## Verbatim-tests (benchmarks)`
+  - `## Librarian Comments`
+    - `### Reference`
+    - `### Conventions`
+- Instances of this shape live under the owning `partner-*`/`client-*` members' own folders.

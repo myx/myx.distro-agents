@@ -49,7 +49,7 @@ case "$1" in
 		## the floor policy -- which items gate, and how Basic comms is satisfied
 		## by any one transport -- and its own exit (PIPESTATUS[1]) is the gate.
 		## The floor is the team data root + Basic comms + SPAWN_CLI_SERVICE,
-		## which is magic-team's and needs the second probe; the event-track and
+		## the last two both magic-team's and read in one probe; the event-track and
 		## event-alert channels are probed for the report but never gate.
 		## The report goes to STDERR, like the per-iteration lines below: this
 		## operation is a daemon loop whose whole life is watched on stderr, so
@@ -61,13 +61,11 @@ case "$1" in
 			## Team data is never unset: without TEAM_DATA_DIRECTORY the resolver
 			## gives the workspace's own store, so the floor reads that answer.
 			[ -z "${MDAT_DATA_ROOT:-}" ] || echo "TEAM_DATA_DIRECTORY: OK"
-			DistroAgentsTools --intern-op-check-configs magic-coordinator \
+			DistroAgentsTools --intern-op-check-configs magic-team \
 				--optional "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
 				--optional "SLACK_CHANNEL_HUMAN_OWNER:<user-id>" \
 				--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
 				--optional "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
-				--context --intern-main-loop 2>&1
-			DistroAgentsTools --intern-op-check-configs magic-team \
 				--optional "SPAWN_CLI_SERVICE:<cli-name>" \
 				--context --intern-main-loop 2>&1
 			## Sign-in state of the selected CLI, as one more verdict line into the

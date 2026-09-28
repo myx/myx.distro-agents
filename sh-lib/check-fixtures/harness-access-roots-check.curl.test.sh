@@ -5,7 +5,7 @@ set -u
 cat > /dev/null
 while [ $# -gt 0 ] ; do
 	case "$1" in
-		-d) printf '%s' "${2:-}" > "$RIG_SCENARIO/req" ; shift 2 ;;
+		--data-binary) cp "${2#@}" "$RIG_SCENARIO/req" ; shift 2 ;;
 		*)  shift ;;
 	esac
 done

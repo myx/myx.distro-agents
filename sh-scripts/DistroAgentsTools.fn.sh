@@ -263,6 +263,12 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## One request of that server, in a process of its own: started by the server only.
+		--intern-mcp-request)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternMcpRequest.include"
+			return $?
+		;;
+
 		--intern-main-loop)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternMainLoop.include"
 			return $?

@@ -7,7 +7,7 @@ printf '%s' "$rigRound" > "$RIG_SCENARIO/round"
 cat > "$RIG_SCENARIO/stdin.$rigRound"
 while [ $# -gt 0 ] ; do
 	case "$1" in
-		-d) printf '%s' "${2:-}" > "$RIG_SCENARIO/req.$rigRound" ; shift 2 ;;
+		--data-binary) cp "${2#@}" "$RIG_SCENARIO/req.$rigRound" ; shift 2 ;;
 		*)  shift ;;
 	esac
 done

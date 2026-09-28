@@ -83,7 +83,7 @@ case "$1" in
 		## cannot be it -- it forces the user identity by design -- so this
 		## route names his account and lets --identity-bot open the bot DM.
 		local ownerUserId
-		ownerUserId="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_CHANNEL_HUMAN_OWNER )" || ownerUserId=""
+		ownerUserId="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER )" || ownerUserId=""
 		if [ -z "$ownerUserId" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD $opContext: --resolved: no SLACK_CHANNEL_HUMAN_OWNER configured -- the bot's own conversation with him cannot be addressed without his account id" >&2
 			set +e ; return 1

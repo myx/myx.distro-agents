@@ -138,6 +138,40 @@ echo "-- no write root is given, so writes stay exactly as wide as reads --"
 rigAssert "with no write root, a read root accepts a write" \
 	"$( rigVerdict "$( rigWrite "$rigTmp/READABLE/y.txt" "${rigNoWriteFlag[@]}" )" )" "wrote"
 
+echo "-- the Claude Code session's own tool-results folder is readable and never writable --"
+## Claude Code saves a tool result too large to return there and tells the agent to read
+## it from there. HOME is the fixture's, so no real session folder is involved.
+mkdir -p "$rigTmp/home/.claude/projects/rig-project/rig-session/tool-results" "$rigTmp/home/.claude/projects/rig-project/rig-other/tool-results"
+printf 'rig-seed\n' > "$rigTmp/home/.claude/projects/rig-project/rig-session/tool-results/big.txt"
+printf 'rig-seed\n' > "$rigTmp/home/.claude/projects/rig-project/rig-other/tool-results/big.txt"
+rigAssert "this session's tool result is readable" \
+	"$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID=rig-session rigRead "$rigTmp/home/.claude/projects/rig-project/rig-session/tool-results/big.txt" "${rigNoWriteFlag[@]}" )" "read"
+rigAssert "and refuses a write, with no write root given at all" \
+	"$( rigVerdict "$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID=rig-session rigWrite "$rigTmp/home/.claude/projects/rig-project/rig-session/tool-results/x.txt" "${rigNoWriteFlag[@]}" )" )" "refused-not-writable"
+## The controls that can return zero: another session's folder, and no session at all.
+rigAssert "another session's tool result is not readable" \
+	"$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID=rig-session rigRead "$rigTmp/home/.claude/projects/rig-project/rig-other/tool-results/big.txt" "${rigNoWriteFlag[@]}" )" "refused-not-granted"
+rigAssert "with no session, no tool-results folder is readable" \
+	"$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID="" rigRead "$rigTmp/home/.claude/projects/rig-project/rig-session/tool-results/big.txt" "${rigNoWriteFlag[@]}" )" "refused-not-granted"
+
+echo "-- no root flag at all, as the MCP server calls it: writes narrow the way the console's do --"
+## HOME is the fixture's, so its skills root and permissions registry are this rig's own.
+## One declared Edit grant names GRANTED; nothing names the skills root or the source tree.
+mkdir -p "$rigTmp/home/.claude/skills/rig-member" "$rigTmp/source" "$rigTmp/.local/temp/team" "$rigTmp/GRANTED"
+printf 'rig-seed\n' > "$rigTmp/home/.claude/skills/rig-member/seed.txt"
+printf 'rig:rig:rig:Edit(%s/**)\n' "$rigTmp/GRANTED" > "$rigTmp/home/.claude/skills/.linked.magic-team.permissions.txt"
+rigAssert "the skills root stays readable" \
+	"$( HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="" CLAUDE_CODE_SESSION_ID="" rigRead "$rigTmp/home/.claude/skills/rig-member/seed.txt" )" "read"
+rigAssert "and refuses a write" \
+	"$( rigVerdict "$( HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="" CLAUDE_CODE_SESSION_ID="" rigWrite "$rigTmp/home/.claude/skills/rig-member/x.txt" )" )" "refused-not-writable"
+rigAssert "the workspace source tree refuses a write no grant declares" \
+	"$( rigVerdict "$( HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="" CLAUDE_CODE_SESSION_ID="" rigWrite "$rigTmp/source/x.txt" )" )" "refused-not-writable"
+## The controls that can return zero: both halves of the console's write set still write.
+rigAssert "the team scratchpad accepts a write" \
+	"$( rigVerdict "$( HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="" CLAUDE_CODE_SESSION_ID="" rigWrite "$rigTmp/.local/temp/team/x.txt" )" )" "wrote"
+rigAssert "a declared Edit grant accepts a write" \
+	"$( rigVerdict "$( HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="" CLAUDE_CODE_SESSION_ID="" rigWrite "$rigTmp/GRANTED/x.txt" )" )" "wrote"
+
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ WRITE SPLIT CHECK FAILED: $rigFails assertion(s)" >&2
 	echo "  warn: the write-root set no longer narrows writes the way the flag says," >&2
@@ -148,4 +182,4 @@ if [ "$rigFails" -ne 0 ] ; then
 	echo "        never the assertion, and never by widening a caller's grant to suit it" >&2
 	exit 1
 fi
-echo "HARNESS_WRITE_SPLIT: OK (5 assertions, both polarities, offline)"
+echo "HARNESS_WRITE_SPLIT: OK (14 assertions, both polarities, offline)"

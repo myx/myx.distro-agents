@@ -335,7 +335,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-heartbeat-state-upsert` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]` — writes (creates or overwrites) `magic-coordinator.heartbeat.routine`'s own day-rhythm state record, plus `magic-coordinator.communication-sweep.routine`'s per-platform mechanical sweep state. Content via stdin by default, or `--from-file <path>`. Always a whole-record overwrite, never an append; empty content is refused rather than written — so a write-back of individual fields supplies the whole record, not just the changed pair.
+`DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]` — writes (creates or overwrites) `magic-coordinator.heartbeat.routine`'s own day-rhythm state record. Content via stdin by default, or `--from-file <path>`. Always a whole-record overwrite, never an append; empty content is refused rather than written — so a write-back of individual fields supplies the whole record, not just the changed pair.
 
 ## `--member-comms-slack-send-message` operation reference
 

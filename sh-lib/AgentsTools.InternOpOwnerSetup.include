@@ -78,16 +78,16 @@ AgentsToolsOwnerSetupOptionSpec(){
 			printf '%s\n' 'magic-team|<name>.slack.com|plain|the workspace subdomain as it appears in its own Slack URL.'
 		;;
 		SLACK_CHANNEL_MAGIC_TEAM)
-			printf '%s\n' 'magic-coordinator|<channel-id>|plain|the team channel id: open the channel, View channel details, the id sits at the bottom and starts with C.'
+			printf '%s\n' 'magic-team|<channel-id>|plain|the team channel id: open the channel, View channel details, the id sits at the bottom and starts with C.'
 		;;
 		SLACK_CHANNEL_HUMAN_OWNER)
-			printf '%s\n' 'magic-coordinator|<user-id>|plain|your own member id: your profile, More, Copy member ID. It starts with U.'
+			printf '%s\n' 'magic-team|<user-id>|plain|your own member id: your profile, More, Copy member ID. It starts with U.'
 		;;
 		SLACK_CHANNEL_EVENT_TRACK)
-			printf '%s\n' 'magic-coordinator|<channel-id>|plain|the activity-log channel id, read like the team channel. Left unset this traffic goes to the team channel instead.'
+			printf '%s\n' 'magic-team|<channel-id>|plain|the activity-log channel id, read like the team channel. Left unset this traffic goes to the team channel instead.'
 		;;
 		SLACK_CHANNEL_EVENT_ALERT)
-			printf '%s\n' 'magic-coordinator|<channel-id>|plain|the alert channel id, read like the team channel. Left unset this traffic goes to the team channel instead.'
+			printf '%s\n' 'magic-team|<channel-id>|plain|the alert channel id, read like the team channel. Left unset this traffic goes to the team channel instead.'
 		;;
 	esac
 }

@@ -173,7 +173,6 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-sleep-run
 📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge
 📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --help-setup-<domain>
@@ -311,9 +310,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... [text...]
-		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]
-		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]
+		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--text-group report|brief|relay]
 			Posts a message, attributed to <team-member>, to one of:
 			magic-team, human-owner, event-track, event-alert, a bare
 			<conversation-id> (posted as a NEW TOP-LEVEL message in that
@@ -328,8 +325,22 @@
 			and nothing is sent anywhere. Content comes from
 			trailing text args, --from-stdin, or --from-file <path> —
 			exactly one. --message-from-stdin is accepted as an alias of
-			--from-stdin. --identity-bot posts as the team bot instead of
-			this member's own identity.
+			--from-stdin. --identity-bot posts as the team bot. Without it,
+			the member's own identity is used when it has one, and the team
+			bot when it does not, except for a send to human-owner, which
+			always goes under a user identity: this member's own
+			SLACK_USER_TOKEN, or, for a member with none,
+			magic-coordinator's, with the member named in the message
+			header and a warning on stderr. If neither token is configured
+			the send fails.
+
+			<team-member> must already exist as a real member skill
+			directory, or the send is refused. A name prefixed `routine-*`
+			is a routine acting as sender: it skips that check and sends as
+			the team bot, apart from the human-owner exception above.
+			An unrecognised `--`-prefixed argument is refused rather than
+			taken as message text; literal text starting with `--` goes
+			through --from-stdin or --from-file.
 
 			**Trailing text args are shell argv, not a safe string
 			channel — a bare apostrophe (or other shell-meaningful
@@ -396,6 +407,36 @@
 			the operation returns failure — the email is a notification, never
 			a delivery, and the exit status always reports whether the message
 			reached Slack.
+
+			**The team's plain-language floor can refuse the send.** A
+			`markdown` body is measured before anything is posted, and a
+			`blocks` body is not. Three findings refuse it:
+			- a sentence over 25 words
+			- a semicolon
+			- a paragraph over 150 words that carries no list
+
+			A refused send posts nothing and fails. Its error names each
+			finding and the sentence it fired on. Rewrite the text and send
+			again. Any other finding is reported on stderr and does not stop
+			the send. Code fences, code spans and `>` quoted lines are not
+			measured, so mark a long quoted sentence as a quote.
+
+			`--text-group report|brief|relay` declares that a `markdown` body
+			is not an ordinary message, and a `blocks` send ignores it.
+			Without it the body is measured as a message.
+			- `report` and `brief` drop the paragraph finding and keep the
+			  other two.
+			- `relay` carries someone else's words and is not measured at
+			  all.
+
+			Every declaration is recorded with its text, for magic-librarian
+			to review. The send is refused, with nothing posted, in three
+			cases:
+			- the declaration cannot be recorded
+			- the post goes under the shared magic-team bot account, where
+			  the message floor always applies and any `--text-group` is
+			  refused
+			- the value names no group
 
 			`--message-text <text>` and
 			`--message-text-from-file <path>` supply the text version of a
@@ -626,9 +667,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>]
-		--member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>]
-		--member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>]
+		--member-comms-email-send <team-member> <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>) [--in-reply-to <message-id>] [--text-group report|brief|relay]
 			`<team-member>` is the member this send acts as, and it comes
 			first, ahead of the recipients. It is required, and it is strict:
 			the credentials the send authenticates with are that member's own,
@@ -655,6 +694,38 @@
 			together is an error (`⛔ ERROR: ... given alongside ... -- use one
 			or the other, not both`), not silently resolved one way or the
 			other -- exactly one body source is required.
+
+			Also refused before anything is sent: a <team-member> that is not
+			a real member skill directory (a `routine-*` name is exempt), no
+			recipient, an empty subject, a missing --from-file, and an
+			unrecognised `--`-prefixed first body argument -- literal body
+			text starting with `--` goes through --from-stdin or --from-file.
+
+			**The team's plain-language floor can refuse the send.** The
+			subject and the body are each measured before anything is sent.
+			Three findings refuse it:
+			- a sentence over 25 words
+			- a semicolon
+			- a paragraph over 150 words that carries no list
+
+			A refused send sends nothing and fails. Its error names each
+			finding and the sentence it fired on. Rewrite the text and send
+			again. Any other finding is reported on stderr and does not stop
+			the send. Code fences, code spans and `>` quoted lines are not
+			measured, so mark a long quoted sentence as a quote.
+
+			`--text-group report|brief|relay` declares that the subject and
+			body are not an ordinary message. Without it they are measured
+			as a message.
+			- `report` and `brief` drop the paragraph finding and keep the
+			  other two.
+			- `relay` carries someone else's words and is not measured at
+			  all.
+
+			Every declaration is recorded with its text, for magic-librarian
+			to review. The send is refused, with nothing sent, when the
+			declaration cannot be recorded, and when the value names no
+			group.
 
 			`--in-reply-to <message-id>`: use this when the send is a reply to
 			an earlier message, so the recipient's own mail client threads it
@@ -925,7 +996,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] [text...|--from-stdin|--from-file <path>]
+		--member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] [text...|--from-stdin|--from-file <path>] [--text-group report|brief|relay]
 			<team-member> is the acting identity, and as on
 			--member-comms-slack-delete-message it decides whether the call can
 			succeed at all -- Slack permits editing only what that identity
@@ -945,6 +1016,12 @@
 			than applied, since that would blank the message. Re-running the
 			same edit is safe -- it leaves the message as the first run left
 			it.
+
+			**The replacement text is measured against the same
+			plain-language floor as --member-comms-slack-send-message, and
+			takes the same `--text-group` values.** A refused edit changes
+			nothing and fails, naming each finding and the sentence it fired
+			on.
 
 			**Slack permits editing only a message the acting identity
 			itself authored**, exactly as for --member-comms-slack-delete-message above:
@@ -2416,9 +2493,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-comms-trello-post-comment <team-member> <card-id> [text...]
-		--magic-comms-trello-post-comment <team-member> <card-id> --from-stdin
-		--magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>
+		--magic-comms-trello-post-comment <team-member> <card-id> (text...|--from-stdin|--from-file <path>)
 			`<team-member>` is the member this write acts as, and it comes
 			first, ahead of the card. It is required: a comment is authored by
 			one identity, so the acting member decides which Trello
@@ -2431,6 +2506,15 @@
 			that member's configured Trello credentials. Exactly one
 			content source: trailing text args, --from-stdin, or --from-file.
 			Returns Trello API response JSON on success.
+
+			Refused before any call: a <team-member> that is not a real
+			member skill directory (a `routine-*` name is exempt); a
+			<card-id> that is not letters and digits only -- the
+			24-character hex id or the short link from the card URL; empty
+			comment text; any argument after --from-stdin or
+			--from-file <path>; a missing --from-file; TRELLO_KEY or
+			TRELLO_TOKEN not set in that member's own scope. A post Trello
+			does not accept returns non-zero, and the comment is not posted.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -2564,8 +2648,11 @@
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
-			Writes (creates or overwrites) a note into your own personal
-			inbox. <member> must already exist as a real
+			Writes (creates or overwrites) a note into <member>'s own
+			inbox. The operation takes no caller identity and checks nothing
+			about who is writing: whose inbox a member may write into is a
+			team rule, not something this operation enforces. <member> must
+			already exist as a real
 			skill directory; <item-filename> must be a bare filename. The
 			inbox/ directory is created lazily if it doesn't exist yet (a
 			missing inbox/ is not an error, unlike a missing board-state
@@ -2860,6 +2947,20 @@
 			`--make-workspace-integrations`, which removes an entry for a hook
 			this package retired. An entry left after that is not this
 			package's hook: restore its script or remove the entry.
+
+			`claude` and `claude-native` also carry two rows `copilot` does
+			not. `MCP_REGISTRATION` (readable row `MCP servers`) fails when the
+			workspace's `.mcp.json` lacks the myx.common or myx.distro entry,
+			when `$HOME/.claude/settings.json` does not enable both in
+			`enabledMcpjsonServers`, or when `$HOME/.claude.json` has no
+			myx.common in that workspace's project `mcpServers`.
+			`CLAUDE_PERMISSIONS` (readable row `Claude permissions`) fails when
+			`$HOME/.claude/settings.json` lacks any of the fixed grants in
+			`permissions.allow` or `permissions.deny`. Both name
+			`--make-workspace-integrations` as their `fix:`. A settings file
+			that does not parse fails its row with `fix: repair the JSON`; an
+			unparseable or absent `$HOME/.claude.json`, or an empty MYXROOT,
+			leaves `MCP_REGISTRATION` undetermined, a warning.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -3194,7 +3295,9 @@
 		--install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
 			Runs
 			`--install-vscode-integrations` first, then
-			`--install-skillset-symlinks` against the same workspace, then
+			`--install-skillset-symlinks` against the same workspace,
+			then records claude's workspace trust for the `--workspace` path
+			in `$HOME/.claude.json`, then
 			`--install-claude-permissions` (this last step takes no
 			arguments and is unaffected by `--scope`/`--workspace`, since
 			it merges into the user-global `$HOME/.claude/settings.json`,
@@ -3683,14 +3786,18 @@
 			Read-only: one member's own current work-session input --
 			personal, not routine-dictated (every armed member runs this
 			against its own name as it becomes armed, regardless of which
-			routine triggered the arming). Scans backlog/pending/running/
-			blocked/parked, restricted to the items owned by <team-member>,
-			every board-item type, every frontmatter field. <team-member>
-			is the only argument -- no --state/--header override. Appends
-			that same member's own
-			inbox/ contents as a second, identically shaped section
-			(`## inbox/<item-filename>` + frontmatter) -- a not-yet-created
-			inbox/ prints an empty section, not an error.
+			routine triggered the arming). Returns that same member's own
+			inbox first, as two sections: its reflections, then its notes
+			(`## inbox/<item-filename>`, frontmatter and body; top-level
+			items only, processed/ excluded, at most 64 each). A section with
+			nothing in it, a not-yet-created inbox/ included, prints a note
+			saying so, not an error. Inquiries and
+			other inbox items are not returned. Then its board items:
+			pending/running/blocked, restricted to the items owned by
+			<team-member>, every board-item type, every frontmatter field,
+			no body; where it owns none, this part prints nothing.
+			<team-member> must be a real member skill directory,
+			and is the only argument -- no --state/--header override.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -3719,12 +3826,13 @@
 			routine-heartbeat's own state-and-lock note content first, so a
 			pass can continue from what the previous one recorded; a note
 			that does not exist yet reports as having nothing to report and
-			is not an error. That is the lock note, not the heartbeat state
-			record read by --magic-heartbeat-state-read. Returns content
-			only -- it never evaluates the lock. Then an index of running/
-			blocked only, every board-item type, carrying the `status`
-			field alone -- the Test-email-report sub-step's own
-			active-processes list, not a whole-board digest. <team-member>
+			is not an error. It is the same document
+			--magic-heartbeat-state-read prints. Returns content
+			only -- it never evaluates the lock. Then, under a
+			`## board digest` heading, <team-member>'s own inbox
+			reflections: top-level items only, processed/ excluded, at most
+			64, each with its frontmatter and body. No board items are
+			returned. <team-member>
 			is the only argument -- no --state/--header override.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
@@ -3732,9 +3840,10 @@
 		--magic-heartbeat-config-check
 			Read-only, no arguments -- routine-heartbeat's step-0 upfront
 			config gate. Checks two scopes: magic-coordinator's own config
-			for the keys below, and magic-team's for SLACK_BOT_TOKEN and
-			TEAM_DATA_GIT_REMOTE, which are the team's own credential/config
-			rather than any one member's.
+			for TEAM_DATA_DIRECTORY and the EMAIL_*/TRELLO_* keys below, and
+			magic-team's for the four SLACK_CHANNEL_* keys, SLACK_BOT_TOKEN
+			and TEAM_DATA_GIT_REMOTE, which are the team's own
+			credential/config rather than any one member's.
 			Prints one `<KEY>: OK`/`<KEY>: WARN`/`<KEY>: FAIL`/`<KEY>: SKIP`
 			line per key checked (name
 			only, never the value). OK is set; WARN is set but suspect;
@@ -3749,7 +3858,7 @@
 			SLACK_CHANNEL_* keys -- any of
 			them missing also prints a
 			`⛔ ERROR ... set it first: DistroAgentsTools.fn.sh
-			--agents-config-option magic-coordinator --upsert <KEY> <value>`
+			--agents-config-option magic-team --upsert <KEY> <value>`
 			line and returns 1. The other five, and SLACK_BOT_TOKEN and
 			TEAM_DATA_GIT_REMOTE (checked under magic-team, fix command
 			`DistroAgentsTools.fn.sh --agents-config-option magic-team
@@ -4048,7 +4157,11 @@
 
 		--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item into board/blocked/, in one call, and/or
-			patches its frontmatter. No auto-stamp. --from-state:<state> is
+			patches its frontmatter. One auto-stamp: execution-receipt
+			defaults to blocked:<timestamp>, unless the caller supplies its
+			own through --header:upsert:execution-receipt:* or
+			--header:append:execution-receipt:*, in which case the caller's
+			value stands. --from-state:<state> is
 			required. --header:* applies upsert/append/remove field
 			operations on top of the resolved body, in the order given.
 			--upsert-from-stdin takes stdin verbatim as the new body;
@@ -4357,6 +4470,24 @@
 			DISTRO_CONSOLE_EXEC= line still prints and still serves the
 			owner health checks; it is no longer what decides success.
 
+			Every spawn also opens one tooling-maintained thread in the
+			event-track channel, posted under the bot identity, when
+			magic-team's SLACK_CHANNEL_EVENT_TRACK is set and a bot
+			token resolves; with either missing it is skipped silently and
+			the spawn is unaffected. The opening message carries the
+			session id, the parent session id, the tracking name, host,
+			RECEIPT_ID, context, wait mode, dispatch document, requested
+			CLI, output file and start time. One threaded reply closes it
+			when the child exits: status, exit code, LAUNCHED, the CLI
+			actually executed, the timeout and cli-not-configured facts
+			where they apply, and -- only when OUTPUT_FILE exists -- a
+			bounded replay of the lines the spawned process itself printed
+			there (session, model, round, refusals, retries, errors,
+			console warnings, and a count of failed tool results where the log shows a claude session start). A field the
+			CLI never printed is never posted. Nothing of this reaches
+			stdout; a failed post is one stderr warning and never fails the
+			spawn.
+
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
 		--magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
@@ -4408,12 +4539,6 @@
 			Reads back the whole record written by --magic-heartbeat-state-upsert,
 			verbatim. Outputs `NO_STATE` if nothing is stored yet.
 			Read-only.
-
-			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
-
-		--magic-heartbeat-sleep-run
-			Read-only, no arguments -- a fixed-duration pacing operation in
-			routine-heartbeat's operation group.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

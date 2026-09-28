@@ -3,7 +3,7 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>, h
 ---
 # <name>.armed.md — example skeleton (`oncall-*`/`expert-*`)
 
-Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contracts" → Oncall / Expert. This file is a derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins. No live `oncall-*`/`expert-*` member exists yet — roster category reserved.
+Normative contract: this file's own `# Contract` section, at its end. Where it and the skeleton disagree, `# Contract` wins. `# Contract` is not part of the skeleton and is not copied. No live `oncall-*`/`expert-*` member exists yet — roster category reserved.
 
 # Summary
 
@@ -58,7 +58,7 @@ All statements apply at the same time, always. These rules override a magic-team
 
 # Team-Member's (-specific) tooling
 
-Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only.
+Every `magic-tooling` operation this team-member uses. Behaviour is read with `--member-help`. Steps use its name only.
 
 ## DistroAgentsTools magic-tooling operations
 
@@ -66,7 +66,7 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 
 ## `--operation-name` Operation Reference
 
-[Syntax again, plus every exact description/comment needed to run it correctly.]
+[Only what the operation's own help, read with `--member-help`, does not carry. Omit this subsection where the help carries it all.]
 
 # Maintainer Notes
 
@@ -89,3 +89,45 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Conventions
 
 - [...]
+
+# Contract
+
+- Frontmatter: `maintainers:` only.
+- `# Summary`
+  - One short sentence, names the team-member.
+  - `## Goals`
+    - Compact narrative, still detailed.
+  - `## Scope`
+    - What it does.
+    - What it deliberately doesn't do.
+    - Invocation conditions and auto-trigger behavior stated here.
+    - `### Engagement shape` — present even if N/A.
+      - Not a standing team member: a costed, external AI-service resource, spawned into a billed pay-per-time session, brought in to boost/accelerate one specific, complicated task.
+      - Domain of expertise: the specific type(s) of work this member is brought in for — not a workspace, a work-type.
+      - Remote execution account info: this member's own settings name whatever account/credential the billed remote service is actually reached through.
+      - Spawn trigger, cost and billing tracking, and session lifecycle are not yet defined team-wide. State whatever this specific member's own instructions already settle, and flag the rest as open.
+- `# Terminology: <topic>`
+  - Pure glossary, `term` → definition.
+  - `## Term: <name>` only when a term needs more than one line.
+  - `# Terminology: none` when empty.
+- `# Team-Member's (-specific) local procedures`
+  - Named procedure blocks, `## <local-procedure-name>`, called by name.
+  - Not separate routines.
+  - Not visible outside this file.
+- `# Team-Member's (-specific) local rules`
+  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
+  - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
+    - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
+    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`oncall` or `expert`), never restated in full.
+    - this member's own further limits, restrictions, decision-making guidance.
+- `# Domain knowledge: <topic>`
+  - This member's own reference material, or `: none`.
+- `# Team-Member's (-specific) tooling`
+  - Every `magic-tooling` operation this member uses, listed with its syntax. Behaviour is read with `--member-help`; an Operation Reference carries only what that help does not.
+- `# Maintainer Notes`
+  - `## Verbatim-goals (intents)`
+  - `## Verbatim-tests (benchmarks)`
+  - `## Librarian Comments`
+    - `### Reference`
+    - `### Conventions`
+- This contract applies once such a member is created.

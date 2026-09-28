@@ -9,7 +9,7 @@
 ##
 ## THE RULE, in two forms, because the first is evadable and the second is not:
 ##   1. No HARNESS TOOL on the served floor declares a `command` argument. That is the rule
-##      as written in AgentsTools.InternMcpServer.include and in MAGIC.md, and it is
+##      as written in AgentsTools.InternMcpRequest.include and in MAGIC.md, and it is
 ##      NAME-BASED: a tool running arbitrary code under `script`, `cmd` or `shell` passes it
 ##      untouched.
 ##   2. No harness tool on the served floor is one whose own function in the core executes a
@@ -180,7 +180,7 @@ if [ "$rigFails" -ne 0 ] ; then
 	echo "        server, around the deny hook that covers Bash on the *-native leg --" >&2
 	echo "        or a tool the served set needs was not served at all" >&2
 	echo "  fix:  add it to mcpUnservedToolNames in" >&2
-	echo "        sh-lib/AgentsTools.InternMcpServer.include, and say there why --" >&2
+	echo "        sh-lib/AgentsTools.InternMcpRequest.include, and say there why --" >&2
 	echo "        never the assertion" >&2
 	exit 1
 fi

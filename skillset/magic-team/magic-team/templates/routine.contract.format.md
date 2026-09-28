@@ -5,7 +5,7 @@ invitees: <only if this routine has genuine multi-member sessions>
 ---
 # <owning-member>.<short-name>.routine — the actual procedure
 
-Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contracts" → Routine. This file is a derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins.
+Normative contract: this file's own `# Contract` section, at its end. Where it and the skeleton disagree, `# Contract` wins. `# Contract` is not part of the skeleton and is not copied.
 
 # Summary
 
@@ -63,7 +63,7 @@ All statements apply at the same time, always. These rules override a participan
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Full syntax and behavior here. Steps use its name only.
+Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
 ## DistroAgentsTools magic-tooling operations
 
@@ -71,7 +71,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--operation-name` Operation Reference
 
-[Syntax again, plus every exact description/comment needed to run it correctly.]
+[Only what the operation's own help, read with `--member-help`, does not carry. Omit this subsection where the help carries it all.]
 
 # Maintainer Notes
 
@@ -94,3 +94,60 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Conventions
 
 - [...]
+
+# Contract
+
+- Frontmatter: `executors:`, `maintainers:`, `invitees:`.
+- No `SKILL.md`.
+- No `.basic.md`/`.armed.md` split.
+- No separate `.access.md`/`.reference.md`/`.librarian.md`.
+- `# <owning-member>.<short-name>.routine — the actual procedure`
+  - The file's own title line, before `# Summary` — every existing routine file carries one.
+  - The title is the file's own name minus `.md`: a routine is named by its file, never by an identity of its own.
+- `# Summary`
+  - One short sentence, names the routine.
+  - `## Goals`
+    - Compact narrative, still detailed.
+  - `## Scope`
+    - What it does.
+    - What it deliberately doesn't do.
+- `# Steps`
+  - Exact instructions, execute in order, literally as written.
+  - A step that can't execute as written: escalate, or fail loud.
+  - Exact steps as nested lists. Nested lines follow `magic-team/magic-team.shared.md`'s nested-item grammar (`goal:`/`rule:`/`step:`).
+  - Every root-level step carries a name, in the established shape: `<N>. **name-of-meaning**: …` — names what the step does, never where it sits. Unique within the file.
+  - A step is referred to by its name, not its number alone — inside the file and from any other file. A step with no name can only be pointed at by position, and position is the first thing an edit changes.
+  - Applied as each routine file is next touched, not as a sweep.
+- `# Closure steps`
+  - Same shape/discipline as `# Steps`.
+  - Runs only after `# Steps`, and everything it extended/dispatched/spawned, have finished.
+  - An already-existing closing tail in `# Steps` relocates here verbatim — no invented content.
+  - No closing tail of its own: state that plainly, plus a pointer to whatever actually closes it.
+  - Sequencing: `magic-team/magic-team.shared.md`'s own "Routine" entry.
+- `# Routine's local procedures`
+  - Named procedure blocks, `## <local-procedure-name>`, called by name from `# Steps`.
+  - Not separate routines.
+  - Not visible outside this file.
+- `# Routine's local rules`
+  - All statements apply simultaneously.
+  - Override a participant's own general `.armed.md` rules while this routine is active.
+  - Executor is permitted/obliged to execute every step as written.
+  - Participants obey this routine's own rules over their normal ones.
+  - Any other rules, exceptions, overrides.
+- `# Routine-specific tooling`
+  - Every `magic-tooling` operation this routine uses — not more, not less.
+  - `## DistroAgentsTools magic-tooling operations`
+    - List, with argument syntax.
+  - `## <--operation-name> Operation Reference`
+    - Only what that operation's own help, read with `--member-help`, does not carry. Absent where the help carries it all.
+- `# Maintainer Notes`
+  - Not part of a participant's own instructions.
+  - `## Verbatim-goals (intents)`
+    - Abstract goal statements, for conflict testing.
+  - `## Verbatim-tests (benchmarks)`
+    - Concrete edge-case tests.
+  - `## Librarian Comments`
+    - `### Reference`
+      - Pointers, folded in from any `.reference.md`.
+    - `### Conventions`
+      - This file's own conventions.

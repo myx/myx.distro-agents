@@ -1810,11 +1810,11 @@ blocks|verbatim|caller|stdin file"
 			sendIdentity="user"
 		fi
 
-		## human-owner: bot identity is the shared team DM, never single-party -- own token, or relay via magic-coordinator.
+		## human-owner under the member's own identity: own token, or relay via magic-coordinator. --identity-bot always sends as the bot.
 		local relayedForMember="false"
-		case "$target" in
-			human-owner|human-owner:*)
-				if [ "$identityAsBot" = "true" ] || [ -z "$memberUserToken" ] ; then
+		case "$identityAsBot:$target" in
+			false:human-owner|false:human-owner:*)
+				if [ -z "$memberUserToken" ] ; then
 					if [ "$memberName" != "magic-coordinator" ] ; then
 						memberUserToken="$( DistroAgentsTools --member-config-option magic-coordinator --select SLACK_USER_TOKEN 2>/dev/null || true )"
 						relayedForMember="true"
@@ -1823,6 +1823,7 @@ blocks|verbatim|caller|stdin file"
 						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no native SLACK_USER_TOKEN for '$memberName', and magic-coordinator (the relay target for a token-less member) has none configured either -- there is no path to human-owner that isn't the team-private shared bot DM. Configure one of the two before this send can succeed." >&2
 						set +e ; return 1
 					fi
+					[ "$relayedForMember" != "true" ] || echo "🙋 WARNING: $MDSC_CMD --member-comms-slack-send-message: '$memberName' has no SLACK_USER_TOKEN of its own, so this human-owner send goes out under magic-coordinator's user account, with '$memberName' named in the message header -- pass --identity-bot to send as the team bot instead" >&2
 				fi
 				sendIdentity="user"
 			;;
@@ -2151,10 +2152,14 @@ blocks|verbatim|caller|stdin file"
 
 		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false" identitySwapped="false" permanentVerdict=""
 		while [ "$attempt" -le "$maxAttempts" ] ; do
-			response="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/chat.postMessage" \
+			## The body travels in a file, never argv, which a long message outgrows; stdin is the header's.
+			response="$( mkdir -p "$MMDAPP/.local/temp" && bodyFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-send.XXXXXX" )" || exit 1
+				trap 'rm -f "$bodyFile"' EXIT
+				printf '%s' "$payload" > "$bodyFile" || exit 1
+				curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/chat.postMessage" \
 				-H @- \
 				-H "Content-type: application/json" \
-				-d "$payload" <<< "$authHeader" 2>&1 )"
+				--data-binary "@$bodyFile" <<< "$authHeader" 2>&1 )"
 			if printf '%s' "$response" | grep -q '"ok":true' ; then
 				sent="true"
 				break

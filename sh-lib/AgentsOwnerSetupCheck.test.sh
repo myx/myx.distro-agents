@@ -86,11 +86,11 @@ rigRun --owner-setup-slack --slack-channel-magic-team C00000000 --slack-channel-
 rigExpect "slack: an optional key is removed" \
 	"$( rigRun --owner-setup-slack --slack-channel-event-track "" --apply )" "SLACK_CHANNEL_EVENT_TRACK removed from"
 rigExpect "and it is gone from the stored scope" \
-	"$( grep -c '^SLACK_CHANNEL_EVENT_TRACK=' "$rigWs/.local/.agents/magic-coordinator.agent.env" )" "0"
+	"$( grep -c '^SLACK_CHANNEL_EVENT_TRACK=' "$rigWs/.local/.agents/magic-team.agent.env" )" "0"
 rigExpect "slack: a required key is still refused" \
 	"$( rigRun --owner-setup-slack --slack-channel-magic-team "" --apply )" "a value-less SLACK_CHANNEL_MAGIC_TEAM= removes it"
 rigExpect "and it is still stored" \
-	"$( grep -c '^SLACK_CHANNEL_MAGIC_TEAM=C00000000$' "$rigWs/.local/.agents/magic-coordinator.agent.env" )" "1"
+	"$( grep -c '^SLACK_CHANNEL_MAGIC_TEAM=C00000000$' "$rigWs/.local/.agents/magic-team.agent.env" )" "1"
 rigExpect "a flag with no value at all is still refused" \
 	"$( rigRun --owner-setup-storage --team-data-git-remote )" "a value is required"
 

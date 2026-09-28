@@ -29,13 +29,18 @@
 #                                        to decide a hook is already installed.
 #   MYX_CLAUDEVERIFY_PROJECT_PATH     -- one key of the root `projects` object,
 #                                        i.e. a workspace root, asserted against
-#                                        together with the param below
+#                                        together with either param below
 #   MYX_CLAUDEVERIFY_PROJECT_TRUE     -- newline-separated member names required
 #                                        to be literally `true` on that project
 #                                        entry. This reads ~/.claude.json rather
 #                                        than a settings.json, which is why the
 #                                        pair names its object explicitly instead
 #                                        of assuming this package wrote it.
+#   MYX_CLAUDEVERIFY_PROJECT_MCP_SERVERS -- newline-separated server names each
+#                                        required as a key of that project
+#                                        entry's `mcpServers` object, one
+#                                        `projects mcpServers <name>: OK|MISSING`
+#                                        line each.
 #   MYX_CLAUDEVERIFY_LIST_HOOK_SCRIPTS -- non-empty lists every command hook,
 #                                        under every `hooks` event, that runs
 #                                        `"$CLAUDE_PROJECT_DIR"/.claude/hooks/<script>`:
@@ -296,7 +301,8 @@ END {
 
 	projectPath = ENVIRON["MYX_CLAUDEVERIFY_PROJECT_PATH"]
 	wantTrueCount = split(ENVIRON["MYX_CLAUDEVERIFY_PROJECT_TRUE"], wantTrue, "\n")
-	if (projectPath != "" && wantTrueCount > 0) {
+	wantProjectMcpCount = split(ENVIRON["MYX_CLAUDEVERIFY_PROJECT_MCP_SERVERS"], wantProjectMcp, "\n")
+	if (projectPath != "" && (wantTrueCount > 0 || wantProjectMcpCount > 0)) {
 		projectFound = 0
 		if (!findKeyInObjectAt(rootStart, "projects")) fail("unparsable")
 		if (FOUND) {
@@ -319,6 +325,24 @@ END {
 			}
 			printf "projects %s: %s\n", wantTrue[i], (seenTrue ? "OK" : "MISSING")
 			if (!seenTrue) missingTotal++
+		}
+		mcpServersFound = 0
+		if (projectFound && wantProjectMcpCount > 0) {
+			if (!findKeyInObjectAt(projectStart, "mcpServers")) fail("unparsable")
+			if (FOUND) {
+				mcpServersStart = VALUE_START
+				if (substr(s, mcpServersStart, 1) != "{") fail("project-mcpServers-not-an-object")
+				mcpServersFound = 1
+			}
+		}
+		for (i = 1; i <= wantProjectMcpCount; i++) {
+			seenMcp = 0
+			if (mcpServersFound) {
+				if (!findKeyInObjectAt(mcpServersStart, wantProjectMcp[i])) fail("unparsable")
+				seenMcp = FOUND
+			}
+			printf "projects mcpServers %s: %s\n", wantProjectMcp[i], (seenMcp ? "OK" : "MISSING")
+			if (!seenMcp) missingTotal++
 		}
 	}
 

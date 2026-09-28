@@ -62,21 +62,11 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
      or attachment, never bloats the top-level post.
 
 5. **relevant-or-fun-fact-only**: Say it only if it is relevant to the reader, or genuinely a fun fact.
-   Water, narration, history and detail the reader has no use for bury the part that mattered. Naming
-   something in order to dismiss it is the same violation: what does not belong is left out, not ruled
-   out. A number or count is written only where its reader needs it in order to act, and a count in
-   words is the same as one in digits.
-   - Excluded from every message and report: recounting how a conclusion was reached where only the
-     conclusion is needed, restating what was just said, carrying an incident's own history into a
-     report that needs its outcome, padding a status with the process that produced it, and explaining
-     what was not asked.
-   - Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
+   Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
 
 6. **compact-structured-important-first**: Compact, structured, simple, important first.
-   Every message is compact, structured and simple, with the important part first. Two or more distinct
-   points in one text blob become a nested list, by the conversion test in `magic-team/magic-team.shared.md`'s
-   own `## Nested-item grammar`, applied to any message and not only to a skillset file's instruction
-   lists. A Slack message and a chat reply carry this exactly as a rule or a report does.
+   The principle is stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules, with its numbered
+   form, "The output-style floor". The delivery mechanics below are this file's:
    - Format richly; formatting helps reading.
    - A list is written with `- ` items, one point per line. A `•` glyph, or points run together in a
      paragraph, delivers as one unreadable block whatever the source looked like.
@@ -84,33 +74,9 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
      three options across four properties — is a table.
    - A construct these rules do not name may not render: check what the send path documents its bodies
      can carry, since anything else arrives as literal text.
-   - Register and spelling are checked separately by `magic-librarian`, against
-     `magic-team/magic-team.shared.md`'s own "The output-style floor" — the numbered form of this
-     rule, binding all emitted text.
-   - The principle is stated in `magic-team/magic-team.shared.md`'s own human-owner standing rules; the
-     delivery mechanics above are this file's.
 
 7. **human-owner-action-to-slack-dm**: Anything needing the human-owner to act reaches him on his own
    direct channel.
-   A question, a link he has to click, a decision that blocks work — it goes to his own direct channel
-   as it arises, never left in the session and never held back for a later summary. He answers in a live
-   session when he happens to be in one, but he does not go there to look, so a request raised only in a
-   session is not a request he has received. The channel is whichever direct one this installation
-   actually has configured, resolved by the acting member at the moment of sending: the best available
-   instant-messaging channel where one is set, the next-best direct channel where none is — a rule
-   naming a transport is wrong the first time the transport changes. Whose ask it is decides who sends
-   it: a question whose answer would bind the team — an approval, a design ruling, a policy decision —
-   goes through `magic-coordinator`; a question whose answer only unblocks this member's own assigned
-   work is that member's own. What the answer binds is the test, not what the question blocks. Every
-   session asks with `AskUserQuestion`, which sends under its own team identity to his direct channel
-   and waits for the answer; the send is automatic and needs no permission. Where the ask itself fails,
-   the member states plainly what it needed and hands the ask to `magic-coordinator`, rather than
-   swallowing the question or waiting on an answer that cannot arrive. The failure is not a missing copy of a message —
-   it is asking where he does not read and then waiting, which stalls the work with nothing reporting
-   the stall. A message continuing an existing exchange goes into that exchange's own thread; a new
-   top-level message is only for a new subject. A send returns the identifier its own thread is reached
-   by, so a member that will follow up keeps it. Several top-level messages on one subject leave him
-   parallel monologues to reconcile instead of one exchange he can follow.
    - Send path: `human-owner`'s own `reach-human-owner` procedure.
    - Stated in full in `magic-team/magic-team.shared.md`'s own human-owner standing rules.
 
@@ -158,7 +124,7 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
 
 16. **address-messages-clearly**: Address your messages clearly.
    Every message has an addressee — see `magic-team/magic-team.shared.md`'s "Every message is addressed,
-   tagged, and sent to Slack". Establish who this one is for, then check each of these in turn:
+   tagged, and sent on a real channel". Establish who this one is for, then check each of these in turn:
    - A general thought, command, readback, confirmation, status update, or anything else whose addressee
      is the conversation as a whole rather than a named party: state that plainly in the first line,
      before the text block — set apart from the text itself where possible, e.g. as a labeled comment or
@@ -275,10 +241,6 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    (replacing an approved point): this is about stretching an already-decided point's reach, not filling a gap or contradicting it.
 
 24. **objective-ambiguity-is-stop-condition**: Concrete trigger: two-or-more-reasonable-interpretations with a material effect on outcome — an objective condition, not a feeling to notice.
-
-   Why this exists:
-   **readback-on-suspected-assumption-gap**'s "probable assumption gap is suspected" is too easy to reason
-   past under task-completion pressure — "suspected" leaves room to simply not suspect it.
 
    The trigger, precisely: before proceeding past a sub-decision where both hold —
    - two or more reasonable interpretations or approaches exist, and
@@ -572,9 +534,8 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
       built from
 
     Why:
-    a session ends and takes everything said in it with it. The next person to open the work reads the
-    document, not the conversation, so a ruling the document does not carry is a ruling that reader has no
-    way to know was ever made. Two things then go wrong, and the second one needs no person at all:
+    the next reader reads the document, not the conversation. A ruling the document does not carry fails
+    two ways, and the second needs no person at all:
     - the document still shows the question as open, so the next reader asks it again
     - the document holds nothing that contradicts the wording the ruling removed, so a later rewrite puts
       that wording back
@@ -612,20 +573,12 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
     silently narrowed to a smaller, session- or actor-scoped version of itself is not an ordinary case of
     scope-narrowing — it is a distinct, more dangerous failure shape.
 
-    Why this differs from ordinary narrowing:
-    ordinary narrowing tends to surface — a missing file gets noticed, or the gap is a one-time, bounded
-    shortfall. This kind is different because the narrowing itself, by definition, permanently excludes an
-    entire, open-ended population of qualifying work from ever being seen — anything produced by another
-    concurrent actor, or by an earlier instance of the same actor before a restart — while the task still
-    reports as completed.
-
-    Why it compounds:
-    with many concurrent, independently-restarting actors sharing the same time window, that excluded
-    population is not small or incidental; it is most of what should have been covered, and it regenerates
-    every cycle. Because nothing about the narrowed run looks wrong from the inside, the shortfall does not
-    announce itself once and get caught — it repeats silently, cycle after cycle, compounding toward a
-    real, accumulating, eventually unrecoverable gap between what was supposed to be checked and what
-    actually was.
+    Why it is more dangerous than ordinary narrowing:
+    the narrowing permanently excludes an open-ended population of qualifying work — anything produced by
+    another concurrent actor, or by an earlier instance of the same actor before a restart — while the
+    task still reports as completed. With many concurrent, independently-restarting actors that population
+    is most of what should have been covered, it regenerates every cycle, and nothing about the narrowed run
+    looks wrong from the inside.
 
     The trigger:
     restating a plain, correctly time-scoped instruction and quietly reintroducing a narrower actor- or
@@ -654,9 +607,7 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
     The actual source varies by situation; the obligation to check it first does not.
 
     Why skipping the check matters:
-    it makes an asked question, or a taken action, worthless — independent of which direction the miss
-    runs, narrowing something that should stay broad or asking about something already answered. This
-    re-check discipline is the difference between having real judgment and having none.
+    it makes an asked question, or a taken action, worthless — whichever direction the miss runs.
     verbatim-intent: `before asking a clarifying question or acting, always re-read and reassess whatever
     is already known and available — the original task's literal text, prior answers already given, prior
     corrections already made, or other context that changed — rather than defaulting to treating something
@@ -671,20 +622,11 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
     file, all workspaces, any session — carries that universal word through into the restatement
     unreplaced and unqualified, never narrowed to one concrete instance of itself.
 
-    The pattern:
-    the failure recurs across a run of readbacks of the same task — a universal criterion given once gets
-    restated several separate times, each restatement substituting one particular narrower thing for the
-    general word it replaced: a single session in place of any session, one workspace path in place of all
-    workspaces, files tracked by one specific tool in place of every file.
-
     Why it slips through:
-    each substitution reads as locally reasonable in isolation — a session is a sensible unit, a workspace
-    path is a real place, a version-control tool is a normal way to enumerate files — which is exactly what
-    lets it pass as a paraphrase instead of being caught as a change. Naming the general shape stops
-    treating each occurrence as its own one-off imprecision and exposes it as the same failure recurring in
-    a new disguise each time; even an added qualifier that happens to restate a true and relevant fact
-    (e.g. an actor-independence note) is still this failure if it was not in the criterion being restated —
-    the problem is the unrequested edit, not whether the inserted content happens to be correct.
+    each substitution reads as locally reasonable in isolation — a single session in place of any session,
+    one workspace path in place of all workspaces, files tracked by one tool in place of every file — which is
+    what lets it pass as a paraphrase. An added qualifier is this failure even when it states a true and
+    relevant fact, if it was not in the criterion being restated.
 
     The mechanical detection:
     when restating an all/every/any criterion, compare the restatement word-for-word against the original

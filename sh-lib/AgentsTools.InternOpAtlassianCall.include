@@ -112,16 +112,20 @@ AgentsToolsAtlassianCall() {
 	esac
 
 	local curlArgs=( -sS --connect-timeout 10 --max-time 120 -X "$methodName" "https://$siteHost$pathText" -H @- -H 'Accept: application/json' -w '\n%{http_code}' )
-	if [ -n "$jsonBody" ] ; then
-		curlArgs+=( -H 'Content-Type: application/json' --data-binary "$jsonBody" )
-	fi
 
-	## The header goes in on curl's stdin, so the token never reaches argv and no
-	## file is created. `tr -d` because base64 line-wraps on some platforms and
-	## the flag that would stop it is not portable; a wrapped header is not one.
-	## curl's own stderr passes through untouched, keeping stdout the body alone.
+	## The header goes in on curl's stdin, so the token never reaches argv or a
+	## file. `tr -d` because base64 line-wraps on some platforms and the flag that
+	## would stop it is not portable; a wrapped header is not one. A JSON body
+	## travels in a file, never argv, which a long one outgrows. curl's own
+	## stderr passes through untouched, keeping stdout the body alone.
 	local curlOut curlRc=0
-	curlOut="$( printf '%s\n' "Authorization: Basic $( printf '%s' "$userEmail:$apiToken" | base64 | tr -d '\n' )" | curl "${curlArgs[@]}" )" || curlRc=$?
+	curlOut="$( if [ -n "$jsonBody" ] ; then
+			mkdir -p "$MMDAPP/.local/temp" && bodyFile="$( mktemp "$MMDAPP/.local/temp/mdat-atlassian-call.XXXXXX" )" || exit 1
+			trap 'rm -f "$bodyFile"' EXIT
+			printf '%s' "$jsonBody" > "$bodyFile" || exit 1
+			curlArgs+=( -H 'Content-Type: application/json' --data-binary "@$bodyFile" )
+		fi
+		printf '%s\n' "Authorization: Basic $( printf '%s' "$userEmail:$apiToken" | base64 | tr -d '\n' )" | curl "${curlArgs[@]}" )" || curlRc=$?
 	if [ "$curlRc" -ne 0 ] ; then
 		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: curl exit $curlRc" >&2
 		return 3

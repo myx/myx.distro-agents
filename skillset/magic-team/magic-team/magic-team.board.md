@@ -229,5 +229,5 @@ This board has exactly one writer, so there's no multi-writer race to solve here
 
 Two kinds of state deliberately live outside it, and are not exceptions to that rule so much as different things entirely — neither is board status:
 
-- Per-platform mechanical comms-sweep state lives as structured fields in the `heartbeat-state-note` (`last_swept_ts`/`known_comms_gaps`). The operations that read and rewrite that record are `magic-coordinator`'s own, executed by the coordinator instance present in the session — same rule as this file's opening "A routine is not a second authority" statement.
+- Per-platform mechanical comms-sweep state lives as structured fields in each member's own sweep-state record (`last_swept_ts`/`known_comms_gaps`), not in the `heartbeat-state-note`. The operations that read and rewrite that record are `magic-coordinator`'s own, executed by the coordinator instance present in the session — same rule as this file's opening "A routine is not a second authority" statement.
 - Open-thread status lives on the owning `board-item`s directly (`communication-channel-id`) — `magic-coordinator.communication-sweep.routine` reads/writes those, not this file.

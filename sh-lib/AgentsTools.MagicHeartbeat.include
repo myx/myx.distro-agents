@@ -95,24 +95,26 @@ case "$1" in
 			set +e ; return 1
 		fi
 		DistroAgentsTools --intern-op-check-configs magic-coordinator \
-			--required "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
-			--required "SLACK_CHANNEL_HUMAN_OWNER:<user-id>" \
-			--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
-			--optional "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
 			--optional "EMAIL_IMAP_HOST:<host>" \
 			--optional "EMAIL_USER:<email-address>" \
 			--optional "EMAIL_APP_PASSWORD:<app-password>" \
 			--optional "TRELLO_KEY:<key>" \
 			--optional "TRELLO_TOKEN:<token>" \
-			--expect-id-kind SLACK_CHANNEL_EVENT_TRACK:channel \
-			--expect-id-kind SLACK_CHANNEL_EVENT_ALERT:channel \
-			--expect-id-kind SLACK_CHANNEL_MAGIC_TEAM:channel \
-			--expect-id-kind SLACK_CHANNEL_HUMAN_OWNER:user \
 			--expect-secret EMAIL_APP_PASSWORD \
 			--expect-secret TRELLO_KEY \
 			--expect-secret TRELLO_TOKEN \
 			--context --magic-heartbeat-config-check
 		local configRc=$?
+		DistroAgentsTools --intern-op-check-configs magic-team \
+			--required "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
+			--required "SLACK_CHANNEL_HUMAN_OWNER:<user-id>" \
+			--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
+			--optional "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
+			--expect-id-kind SLACK_CHANNEL_EVENT_TRACK:channel \
+			--expect-id-kind SLACK_CHANNEL_EVENT_ALERT:channel \
+			--expect-id-kind SLACK_CHANNEL_MAGIC_TEAM:channel \
+			--expect-id-kind SLACK_CHANNEL_HUMAN_OWNER:user \
+			--context --magic-heartbeat-config-check || configRc=1
 		## Unset, the team data is the workspace's own store, which the resolver
 		## already answered; a setting is an override and is checked as one.
 		if [ -n "$( DistroAgentsTools --agents-config-option magic-coordinator --select TEAM_DATA_DIRECTORY 2>/dev/null )" ] ; then
@@ -478,23 +480,6 @@ case "$1" in
 		else
 			echo "NO_STATE"
 		fi
-		return 0
-	;;
-
-	## Fixed 19-loop countdown-then-continue signal. No options.
-	--magic-heartbeat-sleep-run)
-		shift
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-sleep-run: takes no arguments" >&2
-			set +e ; return 1
-		fi
-		local remaining=59
-		while [ "$remaining" -gt 0 ] ; do
-			echo "$remaining"
-			sleep 1
-			remaining=$(( remaining - 1 ))
-		done
-		printf 'All Done.\nPLEASE CONTINUE!\n'
 		return 0
 	;;
 

@@ -12,9 +12,13 @@ set -e
 ## declaration's own raw JSON through untouched -- a description already escaped for
 ## the wire is already escaped for MCP, and re-escaping it would corrupt it.
 ##
-## Parsed through AgentsHarnessJsonSlice.awk, which is not the reader the harness runs
-## its own responses through: a literal rendered by the same code that consumes it
+## Parsed in one pass by AgentsHarnessMcpMirror.awk, which is not the reader the harness
+## runs its own responses through: a literal rendered by the same code that consumes it
 ## proves only that the two agree.
+##
+## Usage: AgentsHarnessMcpMirror.sh [wire-adapter-path] [excluded-names]. An empty first
+## argument takes the default wire; the second is a space-separated list of tool names
+## left out of the array.
 ##
 ## Issues no request and touches no host. The array goes to stdout and every diagnostic
 ## to stderr; the whole array is buffered and printed at the end, so a run that fails
@@ -24,15 +28,15 @@ set -e
 
 mirrorHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 mirrorWire="${1:-$mirrorHere/AgentsOpenAiChatWire.sh}"
-mirrorSliceAwk="$mirrorHere/AgentsHarnessJsonSlice.awk"
+mirrorAwk="$mirrorHere/AgentsHarnessMcpMirror.awk"
 
 if [ ! -f "$mirrorWire" ] ; then
 	printf '%s\n' "AgentsHarnessMcpMirror: ⛔ ERROR: no wire adapter to read at $mirrorWire" >&2
 	printf '%s\n' "  fix:  pass the wire adapter path, or run this from the package sh-lib" >&2
 	exit 1
 fi
-if [ ! -f "$mirrorSliceAwk" ] ; then
-	printf '%s\n' "AgentsHarnessMcpMirror: ⛔ ERROR: the JSON slice reader is missing from this package: $mirrorSliceAwk" >&2
+if [ ! -f "$mirrorAwk" ] ; then
+	printf '%s\n' "AgentsHarnessMcpMirror: ⛔ ERROR: the mirror renderer is missing from this package: $mirrorAwk" >&2
 	printf '%s\n' "  fix:  re-run this workspace's own release step to restore sh-lib" >&2
 	exit 1
 fi
@@ -55,59 +59,6 @@ if [ -z "$mirrorToolsJson" ] ; then
 	exit 1
 fi
 
-## The slice reader takes an object at top level, so the array is given one.
-mirrorDoc="{\"tools\":$mirrorToolsJson}"
-
-mirrorIndex=0
-mirrorOut=""
-while : ; do
-	mirrorRc=0
-	printf '%s' "$mirrorDoc" | LC_ALL=C awk -v path="tools.$mirrorIndex.function" -v mode=keys -f "$mirrorSliceAwk" >/dev/null 2>&1 || mirrorRc=$?
-	case "$mirrorRc" in
-		0) ;;
-		3) break ;;
-		*)
-			printf '%s\n' "AgentsHarnessMcpMirror: ⛔ ERROR: the harnessToolsJson literal in ${mirrorWire##*/} is NOT VALID JSON -- the parser refused it (rc=$mirrorRc) while reading element $mirrorIndex" >&2
-			printf '%s\n' "  fix:  repair the JSON -- most often a missing comma between two declarations" >&2
-			exit 1
-		;;
-	esac
-
-	mirrorName="$( printf '%s' "$mirrorDoc" | LC_ALL=C awk -v path="tools.$mirrorIndex.function.name" -v mode=raw -f "$mirrorSliceAwk" 2>/dev/null )" || mirrorName=""
-	mirrorDescription="$( printf '%s' "$mirrorDoc" | LC_ALL=C awk -v path="tools.$mirrorIndex.function.description" -v mode=raw -f "$mirrorSliceAwk" 2>/dev/null )" || mirrorDescription=""
-	mirrorSchema="$( printf '%s' "$mirrorDoc" | LC_ALL=C awk -v path="tools.$mirrorIndex.function.parameters" -v mode=raw -f "$mirrorSliceAwk" 2>/dev/null )" || mirrorSchema=""
-
-	## A mirrored tool the caller cannot name, cannot read, or cannot call is worse
-	## than an absent one: it reaches a native console as a tool that exists and
-	## refuses, which reads as a broken server rather than as a local edit.
-	if [ -z "$mirrorName" ] ; then
-		printf '%s\n' "AgentsHarnessMcpMirror: ⛔ ERROR: declaration $mirrorIndex parses but carries no function.name, so no refusal could name the method a caller should use instead" >&2
-		printf '%s\n' "  fix:  give that declaration its own \"name\"" >&2
-		exit 1
-	fi
-	if [ -z "$mirrorDescription" ] ; then
-		printf '%s\n' "AgentsHarnessMcpMirror: ⛔ ERROR: declaration $mirrorIndex ($mirrorName) carries no function.description, so a caller is offered a tool with nothing saying what it does" >&2
-		printf '%s\n' "  fix:  give that declaration its own \"description\"" >&2
-		exit 1
-	fi
-	if [ -z "$mirrorSchema" ] ; then
-		printf '%s\n' "AgentsHarnessMcpMirror: ⛔ ERROR: declaration $mirrorIndex ($mirrorName) carries no function.parameters, and MCP has no default for a missing inputSchema" >&2
-		printf '%s\n' "  fix:  give that declaration its own \"parameters\" object" >&2
-		exit 1
-	fi
-
-	[ 0 -eq "$mirrorIndex" ] || mirrorOut="$mirrorOut,"
-	mirrorOut="$mirrorOut{\"name\":$mirrorName,\"description\":$mirrorDescription,\"inputSchema\":$mirrorSchema}"
-	mirrorIndex=$(( mirrorIndex + 1 ))
-done
-
-if [ 0 -eq "$mirrorIndex" ] ; then
-	## An empty population cannot fail, so it is a FAIL rather than a pass -- the same
-	## rule AgentsHarnessSelfCheck.test.awk holds itself to.
-	printf '%s\n' "AgentsHarnessMcpMirror: ⛔ ERROR: the literal parsed but declares no tools at all, so the mirror would advertise an empty floor" >&2
-	printf '%s\n' "  fix:  check that the array still holds one object per tool" >&2
-	exit 1
-fi
-
-printf '[%s]\n' "$mirrorOut"
-exit 0
+## One pass renders the whole array, and every refusal is the awk's own: nothing on
+## stdout and a nonzero status, which set -e hands on as this script's.
+printf '%s\n' "$mirrorToolsJson" | LC_ALL=C awk -v exclude="${2:-}" -f "$mirrorAwk"

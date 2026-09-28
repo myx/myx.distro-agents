@@ -77,6 +77,166 @@ AgentsToolsOwnerSetupHookScriptsRow(){
 	setupRc=1
 }
 
+## The MCP_REGISTRATION row, for the claude domains: the myx.common and myx.distro
+## entries of <workspace>/.mcp.json, both servers enabled in ~/.claude/settings.json,
+## and myx.common in ~/.claude.json's own entry for the workspace. Same dynamic
+## scoping as AgentsToolsOwnerSetupHookScriptsRow above.
+AgentsToolsOwnerSetupMcpRegistrationRow(){
+	local mcpRowOut mcpRowRc mcpRowLine mcpRowMissing="" mcpRowUnreadable="" mcpRowUnknown=""
+	if [ -z "$MYXROOT" ] ; then
+		mcpRowUnknown="        MYXROOT is empty, so the entries $1/.mcp.json should carry cannot be computed"$'\n'
+	elif [ ! -f "$1/.mcp.json" ] ; then
+		mcpRowMissing="        $1/.mcp.json is absent"$'\n'
+	else
+		mcpRowOut="$( MYX_MCPVERIFY_TOPKEY="mcpServers" MYX_MCPVERIFY_COMMAND="$MYXROOT/bin/lib/agentMcpServer.Common" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonVerify.awk" "$1/.mcp.json" 2>&1 )" || :
+		case "$mcpRowOut" in
+			OK)
+			;;
+			not-a-json-object|unparsable)
+				mcpRowUnreadable="${mcpRowUnreadable}  path: $1/.mcp.json"$'\n'
+			;;
+			*)
+				mcpRowMissing="${mcpRowMissing}        $1/.mcp.json myx.common: $mcpRowOut"$'\n'
+			;;
+		esac
+		## Verified the way the installer verifies it: an upsert that changes nothing.
+		if [ -z "$mcpRowUnreadable" ] && ! MYX_MCPUPSERT_TOPKEY="mcpServers" \
+			MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
+			MYX_MCPUPSERT_COMMAND="$1/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
+			MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
+			MYX_MCPUPSERT_ENV="{\"MMDAPP\":\"$( printf '%s' "$1" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )\"}" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.awk" "$1/.mcp.json" 2>/dev/null \
+			| cmp -s - "$1/.mcp.json" ; then
+			mcpRowMissing="${mcpRowMissing}        $1/.mcp.json myx.distro: absent, or not the entry this workspace needs"$'\n'
+		fi
+	fi
+	if [ ! -f "$HOME/.claude/settings.json" ] ; then
+		mcpRowMissing="${mcpRowMissing}        $HOME/.claude/settings.json is absent"$'\n'
+	else
+		mcpRowRc=0
+		mcpRowOut="$( MYX_CLAUDEVERIFY_MCP_SERVERS_JSON="$( AgentsToolsClientToolPolicyClaudeMcpServersJson )" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeSettingsVerify.awk" \
+			< "$HOME/.claude/settings.json" 2>&1 )" || mcpRowRc=$?
+		case "$mcpRowOut" in
+			*": MISSING"*)
+				while IFS= read -r mcpRowLine ; do
+					case "$mcpRowLine" in
+						*": MISSING") mcpRowMissing="${mcpRowMissing}        $HOME/.claude/settings.json $mcpRowLine"$'\n' ;;
+					esac
+				done <<< "$mcpRowOut"
+			;;
+			*)
+				[ "$mcpRowRc" = "0" ] || mcpRowUnreadable="${mcpRowUnreadable}  path: $HOME/.claude/settings.json"$'\n'
+			;;
+		esac
+	fi
+	if [ ! -f "$HOME/.claude.json" ] ; then
+		mcpRowUnknown="${mcpRowUnknown}        $HOME/.claude.json is absent, so its entry for this workspace is neither confirmed nor denied"$'\n'
+	else
+		mcpRowRc=0
+		mcpRowOut="$( MYX_CLAUDEVERIFY_PROJECT_PATH="$1" MYX_CLAUDEVERIFY_PROJECT_MCP_SERVERS="myx.common" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeSettingsVerify.awk" \
+			< "$HOME/.claude.json" 2>&1 )" || mcpRowRc=$?
+		case "$mcpRowOut" in
+			*": MISSING"*)
+				mcpRowMissing="${mcpRowMissing}        $HOME/.claude.json projects[$1] mcpServers myx.common: MISSING"$'\n'
+			;;
+			*)
+				[ "$mcpRowRc" = "0" ] || mcpRowUnknown="${mcpRowUnknown}        $HOME/.claude.json could not be parsed ($mcpRowOut), so its entry for this workspace is neither confirmed nor denied"$'\n'
+			;;
+		esac
+	fi
+	if [ -n "$mcpRowUnreadable" ] ; then
+		[ "$setupOperation" != "--check" ] || {
+			echo "MCP_REGISTRATION: FAIL"
+			echo "  warn: a file below did not parse, so the MCP registration it holds could not be checked"
+			printf '%s' "$mcpRowUnreadable"
+			echo "  fix:  repair the JSON in the file above, then re-run this check"
+		}
+		AgentsToolsOwnerSetupRow "MCP servers" "UNREADABLE"
+		setupBlockers="$setupBlockers MCP_REGISTRATION"
+		setupRc=1
+		return 0
+	fi
+	if [ -n "$mcpRowMissing" ] ; then
+		[ "$setupOperation" != "--check" ] || {
+			echo "MCP_REGISTRATION: FAIL"
+			echo "  warn: the myx.common and myx.distro MCP servers are not fully registered for"
+			echo "        this workspace, so claude does not start the ones below:"
+			printf '%s' "$mcpRowMissing"
+			printf '%s' "$mcpRowUnknown"
+			echo "  fix:  $2 --make-workspace-integrations"
+		}
+		AgentsToolsOwnerSetupRow "MCP servers" "MISSING"
+		setupNeedsApply="yes"
+		setupBlockers="$setupBlockers MCP_REGISTRATION"
+		setupRc=1
+		return 0
+	fi
+	if [ -n "$mcpRowUnknown" ] ; then
+		[ "$setupOperation" != "--check" ] || {
+			echo "MCP_REGISTRATION: WARN"
+			echo "  warn: undetermined:"
+			printf '%s' "$mcpRowUnknown"
+		}
+		AgentsToolsOwnerSetupRow "MCP servers" "unknown"
+		return 0
+	fi
+	[ "$setupOperation" != "--check" ] || echo "MCP_REGISTRATION: OK"
+	AgentsToolsOwnerSetupRow "MCP servers" "registered"
+}
+
+## The CLAUDE_PERMISSIONS row, for the claude domains: the fixed grants
+## --install-claude-permissions merges into ~/.claude/settings.json. Grants
+## projected from the permissions registry are not checked here. Same dynamic
+## scoping as AgentsToolsOwnerSetupHookScriptsRow above.
+AgentsToolsOwnerSetupClaudePermissionsRow(){
+	local permRowOut permRowRc=0 permRowLine permRowMissing=""
+	if [ ! -f "$HOME/.claude/settings.json" ] ; then
+		permRowMissing="        $HOME/.claude/settings.json is absent"$'\n'
+	else
+		permRowOut="$( MYX_CLAUDEVERIFY_ALLOW_JSON="$( AgentsToolsClientToolPolicyClaudeAllowJson )" \
+			MYX_CLAUDEVERIFY_DENY_JSON="$( AgentsToolsClientToolPolicyClaudeDenyJson )" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeSettingsVerify.awk" \
+			< "$HOME/.claude/settings.json" 2>&1 )" || permRowRc=$?
+		while IFS= read -r permRowLine ; do
+			case "$permRowLine" in
+				*": MISSING") permRowMissing="${permRowMissing}        $permRowLine"$'\n' ;;
+			esac
+		done <<< "$permRowOut"
+		if [ -z "$permRowMissing" ] && [ "$permRowRc" != "0" ] ; then
+			[ "$setupOperation" != "--check" ] || {
+				echo "CLAUDE_PERMISSIONS: FAIL"
+				echo "  warn: settings.json did not parse, so no grant it holds could be checked"
+				echo "  path: $HOME/.claude/settings.json"
+				echo "  fix:  repair the JSON in the file above, then re-run this check"
+			}
+			AgentsToolsOwnerSetupRow "Claude permissions" "UNREADABLE"
+			setupBlockers="$setupBlockers CLAUDE_PERMISSIONS"
+			setupRc=1
+			return 0
+		fi
+	fi
+	if [ -z "$permRowMissing" ] ; then
+		[ "$setupOperation" != "--check" ] || echo "CLAUDE_PERMISSIONS: OK"
+		AgentsToolsOwnerSetupRow "Claude permissions" "current"
+		return 0
+	fi
+	[ "$setupOperation" != "--check" ] || {
+		echo "CLAUDE_PERMISSIONS: FAIL"
+		echo "  warn: the fixed grants are not all in place, so claude prompts for, or"
+		echo "        allows, what this package decides for it:"
+		printf '%s' "$permRowMissing"
+		echo "  path: $HOME/.claude/settings.json"
+		echo "  fix:  $2 --make-workspace-integrations"
+	}
+	AgentsToolsOwnerSetupRow "Claude permissions" "MISSING"
+	setupNeedsApply="yes"
+	setupBlockers="$setupBlockers CLAUDE_PERMISSIONS"
+	setupRc=1
+}
+
 ## Block 1's own status narrative, for a domain with real, hand-diagnosed
 ## preconditions (claude/copilot): what --apply would still need to close, or
 ## that nothing here is waiting on it. Block 2, printed once for every domain
@@ -581,60 +741,7 @@ case "$1" in
 				## declaring it. --print-apply-command changes nothing and so is out.
 				## claude-native is the same binary and discards the same permissions.allow while untrusted.
 				if { [ "$setupDomain" = "claude" ] || [ "$setupDomain" = "claude-native" ] ; } && [ "$setupOperation" = "--apply" ] ; then
-					local setupTrustRoot="${setupWorkspaceRoot:-${MMDAPP%/}}"
-					if [ -L "$HOME/.claude.json" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: $HOME/.claude.json is a symlink, and recording trust replaces that file -- which would leave a regular file where you put a link" >&2
-						set +e ; return 1
-					fi
-					if [ ! -f "$HOME/.claude.json" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: claude's own state file is absent, and this writes into that file rather than standing a replacement in its place -- start claude once so it writes $HOME/.claude.json, then re-run" >&2
-						set +e ; return 1
-					fi
-					local setupTrustLine="$( MYX_CLAUDEVERIFY_PROJECT_PATH="$setupTrustRoot" \
-						MYX_CLAUDEVERIFY_PROJECT_TRUE="hasTrustDialogAccepted" \
-						LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeSettingsVerify.awk" \
-						< "$HOME/.claude.json" 2>/dev/null || : )"
-					case "$setupTrustLine" in
-						*": OK")
-							echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupTrustRoot is already trusted"
-						;;
-						*)
-							## The mode is carried onto the replacement rather than
-							## asserted: this file is claude's, and an apply is not the
-							## place to decide what it should be. A mode that cannot be
-							## read stops the run, since the alternative is a file left at
-							## whatever the ambient umask gave.
-							local setupTrustMode="$( stat -f '%Lp' "$HOME/.claude.json" 2>/dev/null || stat -c '%a' "$HOME/.claude.json" 2>/dev/null )"
-							if [ -z "$setupTrustMode" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: could not read the mode of $HOME/.claude.json, so a replacement could not be given the same one -- nothing was changed" >&2
-								set +e ; return 1
-							fi
-							local setupTrustRc=0
-							(
-								## umask first, so the replacement is never briefly wider than
-								## the file it replaces; the chmod below then matches it exactly.
-								umask 077
-								trustTempFile="$HOME/.claude.json.$$"
-								trap 'rm -f -- "$trustTempFile"' EXIT
-								: > "$trustTempFile"
-								chmod "$setupTrustMode" "$trustTempFile"
-								## Explicitly tested, never left to set -e: the caller below
-								## tests this subshell, which suspends set -e within it, and an
-								## untested failure here would install the writer's own zero
-								## bytes over claude's state file.
-								MYX_CLAUDETRUST_PROJECT_PATH="$setupTrustRoot" \
-									MYX_CLAUDETRUST_PROJECT_TRUE="hasTrustDialogAccepted" \
-									LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeProjectTrustUpsert.awk" \
-									< "$HOME/.claude.json" >>"$trustTempFile" || exit 1
-								mv "$trustTempFile" "$HOME/.claude.json" || exit 1
-							) || setupTrustRc=$?
-							if [ "$setupTrustRc" != "0" ] ; then
-								echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain --apply: could not record trust for $setupTrustRoot in $HOME/.claude.json, which is unchanged -- the reason above is the writer's own" >&2
-								set +e ; return 1
-							fi
-							echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: trust recorded for $setupTrustRoot"
-						;;
-					esac
+					DistroAgentsTools --install-claude-workspace-trust --workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" || { set +e ; return 1 ; }
 				fi
 
 				local setupApplyRc=0
@@ -728,7 +835,7 @@ case "$1" in
 				## Activity-log and alert channels never gate: with neither set the
 				## traffic they carry falls back to the team channel, so an absent
 				## one costs routing, not a working installation.
-				DistroAgentsTools --intern-op-check-configs magic-coordinator \
+				DistroAgentsTools --intern-op-check-configs magic-team \
 					--optional "SLACK_CHANNEL_EVENT_TRACK:<channel-id>" \
 					--optional "SLACK_CHANNEL_EVENT_ALERT:<channel-id>" \
 					--required "SLACK_CHANNEL_MAGIC_TEAM:<channel-id>" \
@@ -1165,7 +1272,7 @@ case "$1" in
 						echo "        the hook that denies Bash on the *-native leg -- or a tool"
 						echo "        the floor needs was not served at all"
 						echo "  fix:  repair the served set in"
-						echo "        sh-lib/AgentsTools.InternMcpServer.include, saying there why"
+						echo "        sh-lib/AgentsTools.InternMcpRequest.include, saying there why"
 						echo "        each name is on it -- never the assertion"
 						setupRc=1
 					fi
@@ -1451,6 +1558,9 @@ case "$1" in
 					fi
 				fi
 
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientToolPolicy.include"
+				AgentsToolsOwnerSetupMcpRegistrationRow "$setupHere" "$setupToolPath"
+				AgentsToolsOwnerSetupClaudePermissionsRow "$setupHere" "$setupToolPath"
 				AgentsToolsOwnerSetupHookScriptsRow "$setupHere" "$setupToolPath"
 
 				AgentsToolsOwnerSetupBlock1Verdict "$setupDomain"
@@ -2258,6 +2368,9 @@ case "$1" in
 						fi
 					fi
 
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientToolPolicy.include"
+					AgentsToolsOwnerSetupMcpRegistrationRow "$setupRoot" "$setupToolPath"
+					AgentsToolsOwnerSetupClaudePermissionsRow "$setupRoot" "$setupToolPath"
 					AgentsToolsOwnerSetupHookScriptsRow "$setupRoot" "$setupToolPath"
 
 					if [ -n "$setupBlockers" ] ; then

@@ -38,8 +38,8 @@ PATH="$rigTmp/bin:$PATH"
 
 ## A real MCP server, in the only sense that matters here: it speaks the same
 ## line-per-object stdio transport over the same three requests. It records what it was
-## asked for, so the rig can assert that enumeration happened ONCE for the whole run,
-## across a summarise-and-restart, and that a refused call never reached it at all.
+## asked for, so the rig can assert that enumeration happened once per round, across a
+## summarise-and-restart, and that a refused call never reached it at all.
 rigInstallFixture harness-mcp-check.mcp-server.test.sh "$rigTmp/bin/rigmcp"
 
 ## Denies exactly when the payload carries the rig's argument marker, which reaches a
@@ -167,10 +167,55 @@ rigAssert "the announce arm stated this call's arguments"   "$( rigHolds "$rigSc
 rigAssert "the dispatch arm did not fall through"           "$( rigHolds "$rigScenarioDir/req.2" 'unknown tool' )" no
 rigAssert "the server answered, and got the arguments"      "$( rigHolds "$rigScenarioDir/req.2" 'RIG-MCPRESULT:RIG-ARG-MARKER' )" yes
 rigAssert "the fresh leg re-offers the same declaration"    "$( rigHolds "$rigScenarioDir/req.3" '"name":"mcp__rigmcp__ping"' )" yes
-rigAssert "the server was enumerated once for the whole run" "$( rigServerSaw list )" 1
+rigAssert "the server was enumerated once per round"        "$( rigServerSaw list )" 3
+rigAssert "an unchanged set is reported as no change"       "$( rigHolds "$rigScenarioDir/err" 'MCP tool set changed' )" no
+## The `tools` array alone: the wire writes it after `messages` and right before
+## `tool_choice`, so it is the last `"tools":[` ahead of the first `],"tool_choice":`
+## -- message text may carry the same key, escaped, earlier in the body.
+rigToolsOf(){ ## request file
+	LC_ALL=C awk '
+		{ body = body $0 }
+		END {
+			endPos = index( body, "],\"tool_choice\":" )
+			if ( !endPos ) exit
+			head = substr( body, 1, endPos )
+			startPos = 0
+			while ( ( foundPos = index( substr( head, startPos + 1 ), "\"tools\":[" ) ) > 0 ) startPos = startPos + foundPos
+			if ( startPos ) print substr( head, startPos )
+		}
+	' "$1" 2>/dev/null
+}
+rigAssert "an unchanged set sends the same tools bytes"      "$( [ -n "$( rigToolsOf "$rigScenarioDir/req.1" )" ] && [ "$( rigToolsOf "$rigScenarioDir/req.1" )" = "$( rigToolsOf "$rigScenarioDir/req.3" )" ] && printf same || printf differ )" same
 rigAssert "the server was called once"                      "$( rigServerSaw call )" 1
 rigAssert "the fresh leg's own answer is the result"        "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
-rigVerdict "declaration, announce, dispatch and round-trip -- frozen across a restart"
+rigVerdict "declaration, announce, dispatch and round-trip -- enumerated per round, across a restart"
+
+## The tool set is dynamic: a registration removed between rounds is gone from the next
+## request, and one added between rounds is declared in it. No --mcp-server is named, so
+## the set is the workspace's own mcp.servers.json, read again before every round.
+rigStart unregistered-mid-run
+rigMcpStream "$rigScenarioDir/res.1" 20
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+RIG_AFTER_ROUND_1="rm -f '$rigScenarioDir/.local/agents/mcp.servers.json'" rigRun 0
+rigAssert "the run ends normally"                           "$rigRunStatus" 0
+rigAssert "two rounds were requested"                       "$rigRoundCount" 2
+## Read by the declaration's own description: the round-1 call record carries the
+## tool's name into every later request, so the name alone cannot tell them apart.
+rigAssert "the first round declares the registered server"  "$( rigHolds "$rigScenarioDir/req.1" 'RIG-DESC-MARKER' )" yes
+rigAssert "the next round no longer declares it"            "$( rigHolds "$rigScenarioDir/req.2" 'RIG-DESC-MARKER' )" no
+rigAssert "the change was reported"                         "$( rigHolds "$rigScenarioDir/err" 'MCP tool set changed' )" yes
+rigVerdict "a registration removed mid-run -- gone from the next round"
+
+rigStart registered-mid-run
+mv "$rigScenarioDir/.local/agents/mcp.servers.json" "$rigScenarioDir/mcp.servers.json.later"
+rigMcpStream "$rigScenarioDir/res.1" 20
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+RIG_AFTER_ROUND_1="mv '$rigScenarioDir/mcp.servers.json.later' '$rigScenarioDir/.local/agents/mcp.servers.json'" rigRun 0
+rigAssert "the run ends normally"                           "$rigRunStatus" 0
+rigAssert "two rounds were requested"                       "$rigRoundCount" 2
+rigAssert "the first round declares no MCP tool"            "$( rigHolds "$rigScenarioDir/req.1" 'mcp__rigmcp__ping' )" no
+rigAssert "the next round declares the new registration"    "$( rigHolds "$rigScenarioDir/req.2" 'RIG-DESC-MARKER' )" yes
+rigVerdict "a registration added mid-run -- declared from the next round"
 
 ## The negative control, and the reason a green run above cannot be a vacuous one: the
 ## same canned rounds with no server named and no mcp.servers.json to default to, where

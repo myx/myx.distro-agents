@@ -136,6 +136,68 @@ AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
 	return 0
 }
 
+## One threaded reply closing the event-track thread this spawn opened. Silent when
+## none was opened. Replays only lines already present in the spawn output file,
+## matched by the prefixes their producers print -- nothing here is derived or
+## guessed, so a field a CLI never prints is never posted. Never on stdout, and
+## never fails the spawn: one stderr warning at most.
+AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, marker, output file, timed out, timeout seconds
+	local closeThread="$1" closeMember="$2" closeOutcome="$3" closeExit="$4" closeMarker="$5" closeLog="$6" closeTimedOut="$7" closeTimeout="$8"
+	[ -n "$closeThread" ] || return 0
+	{
+		printf '%s\n' "Spawn finished: $closeOutcome" '```'
+		printf 'exit-code: %s\n' "$closeExit"
+		printf 'launched: %s\n' "$( AgentsToolsSpawnProxySawSentinel "$closeMarker" && echo true || echo false )"
+		printf 'cli-executed: %s\n' "$( AgentsToolsSpawnProxyExecutedCli "$closeMarker" )"
+		[ "$closeTimedOut" = "0" ] || printf 'timed-out-after-seconds: %s\n' "$closeTimeout"
+		[ "$closeExit" != "5" ] || printf 'setup-status: cli-not-configured\n'
+		printf 'resolved-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+		[ -z "$closeLog" ] || [ ! -f "$closeLog" ] || LC_ALL=C awk '
+			function clip( text,    cutAt ) {
+				gsub( /[[:cntrl:]]/, " ", text ) ;
+				gsub( /`/, "", text ) ;
+				if ( length( text ) <= 200 ) { return text ; }
+				cutAt = 200 ;
+				while ( cutAt > 0 && substr( text, cutAt + 1, 1 ) >= "\200" && substr( text, cutAt + 1, 1 ) < "\300" ) { cutAt-- ; }
+				return substr( text, 1, cutAt ) "..." ;
+			}
+			BEGIN {
+				classTotal = split( "⛔ ERROR:|🚫 refused:|🔁 RETRY:|🙋 WARNING: DistroAgentsConsole:|⚠️  round cap reached|⚠️  context threshold reached|♻️  context threshold reached|⚠️  no token usage", classList, "|" ) ;
+			}
+			{ line = $0 ; sub( /^[[:space:]]+/, "", line ) ; }
+			index( line, "🔗 session " ) == 1 && sessionLine == "" { sessionLine = clip( line ) ; }
+			index( line, "🤖 " ) == 1 && modelLine == "" { modelLine = clip( line ) ; }
+			index( line, "DISTRO_CONSOLE_EXEC=" ) == 1 && execLine == "" { execLine = clip( line ) ; }
+			line == "session started" { startedLine = line ; }
+			index( line, "── round " ) == 1 { roundLine = clip( line ) ; }
+			index( line, "<- tool result (error)" ) == 1 { toolErrors++ ; }
+			{
+				for ( classIndex = 1 ; classIndex <= classTotal ; classIndex++ ) {
+					## The harness prints its errors at column 1 only, so that class is
+					## matched on the raw line and every other class on the stripped one.
+					matchText = ( classIndex == 1 ) ? $0 : line ;
+					if ( index( matchText, classList[classIndex] ) == 1 && ++classCount[classIndex] <= 3 ) { kept[++keptTotal] = clip( line ) ; }
+				}
+			}
+			END {
+				if ( sessionLine != "" ) { print sessionLine ; }
+				if ( modelLine != "" ) { print modelLine ; }
+				if ( execLine != "" ) { print execLine ; }
+				if ( startedLine != "" ) { print startedLine ; }
+				if ( roundLine != "" ) { print "last " roundLine ; }
+				for ( keptIndex = 1 ; keptIndex <= keptTotal ; keptIndex++ ) { print kept[keptIndex] ; }
+				for ( classIndex = 1 ; classIndex <= classTotal ; classIndex++ ) {
+					if ( classCount[classIndex] > 3 ) { print classList[classIndex] " total " classCount[classIndex] ; }
+				}
+				if ( startedLine != "" ) { print "tool-result-errors: " ( toolErrors + 0 ) ; }
+			}' < "$closeLog"
+		printf '%s\n' '```'
+	} | DistroAgentsTools --member-comms-slack-send-message "$closeMember" "$closeThread" --identity-bot --from-stdin 2>&1 > /dev/null \
+	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track close not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
+	  || :
+	return 0
+}
+
 case "$1" in
 
 	--intern-op-agent-spawn-proxy)
@@ -424,6 +486,11 @@ case "$1" in
 		timestamp="$( date +%Y%m%dT%H%M%S )"
 		receiptId="spawn-proxy-$timestamp-$$"
 
+		## The session this spawn was started from, read before the export below
+		## replaces it: a spawning session inherited its own id from its console.
+		## Empty when the caller is no spawned session. Used by the event-track thread only.
+		local parentSessionId="${MDAT_SPAWN_SESSION_ID:-}"
+
 		## The session the agent will actually run under, minted HERE so the same
 		## value reaches both the CLI and the dispatch record below -- that shared
 		## value is the whole join, since a hook reports the agent's own session_id
@@ -614,6 +681,34 @@ case "$1" in
 			"Read-only input: $sandboxRoot/input" \
 			"Writable output, for deliverables and working files: $sandboxRoot/output" )"
 
+		## The event-track thread: one tooling-maintained Slack thread per spawn,
+		## opened here and closed by AgentsToolsSpawnProxyEventTrackClose. Only when
+		## SLACK_CHANNEL_EVENT_TRACK is set and a bot token resolves -- otherwise
+		## skipped silently, and the spawn is unaffected either way. Nothing reaches
+		## this op's stdout: callers parse it. Holds `<channel>:<ts>`, or is empty.
+		local eventTrackThread=""
+		eventTrackThread="$(
+			[ -n "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null )" ] || exit 0
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
+			AgentsToolsResolveSlackBotToken "$callerName" > /dev/null 2>&1 || exit 0
+			printf '%s\n' "Spawn started for $callerName" '```' \
+				"session-id: $MDAT_SPAWN_SESSION_ID" "parent-session-id: ${parentSessionId:-none}" \
+				"tracking-name: $sandboxName" "host: $( hostname -s 2>/dev/null || echo unknown )" \
+				"execution-receipt: $receiptId" "context: $opContext" "wait: $waitMode" \
+				"dispatch-doc: $dispatchDocMode${dispatchItemName:+ $dispatchItemName}${trackedItemName:+ $trackedItemName}" \
+				"cli-requested: ${spawnCliService:-configured}" "output-file: ${outputFile:-none}" \
+				"started-at: $( date +"%Y-%m-%d %H:%M %z" )" '```' \
+			| DistroAgentsTools --member-comms-slack-send-message "$callerName" event-track --identity-bot --from-stdin 2>&1 > /dev/null \
+			| LC_ALL=C awk -F= '
+				$1 == "SENT_MESSAGE_CHANNEL" { sentChannel = $2 ; }
+				$1 == "SENT_MESSAGE_TS" { sentTs = $2 ; }
+				index( $0, "⛔" ) == 1 && sendError == "" { sendError = $0 ; }
+				END {
+					if ( sentChannel != "" && sentTs != "" ) { print sentChannel ":" sentTs ; }
+					else { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track thread not opened " sendError > "/dev/stderr" ; }
+				}'
+		)" || eventTrackThread=""
+
 		if [ "$waitMode" = "true" ] ; then
 			local exitCode spawnPid watchPid timedOut waitTimeoutSeconds
 			set +e
@@ -667,6 +762,7 @@ case "$1" in
 			local spawnOutcome
 			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )"
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
+			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$spawnOutcome" "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" "$timedOut" "$waitTimeoutSeconds"
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$spawnOutcome" "$exitCode"
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running pending
@@ -705,6 +801,7 @@ case "$1" in
 			bgExitCode=$?
 			set -e
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
+			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0
 			## Nothing bounds this branch, so nothing timed out: 0 is the fact, not a placeholder.
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )" "$bgExitCode"
 			if [ "$dispatchDocMode" = "create" ] ; then

@@ -1,0 +1,463 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## One `myx.distro` MCP request, in a process of its own. Sourced from
+## DistroAgentsTools.fn.sh's `--intern-mcp-request` arm, which the server in
+## AgentsTools.InternMcpServer.include starts once per message it reads.
+## The message is on stdin; the JSON-RPC wire is fd 3, and stdout is stderr,
+## so nothing but a response frame ever reaches the wire.
+## Everything this answers with is read HERE, on every request -- the tool floor,
+## the identity, the access roots, the workspace context -- so an edit applies on
+## the next call and nothing depends on when the server started.
+## Scratch lives under the SERVER's $MMDAPP/.local/temp/agent-mcp.<server pid>/,
+## written out in full at each use. set -e rules and design notes: see MAGIC.md.
+##
+
+## Bounded, and never reclaims: the holder writes to a pipe the MCP host may stop
+## draining, so a timeout cannot mean it is gone. The caller drops its response.
+AgentsMcpWireLockAcquire(){
+	local mcpLockSpin=0 mcpLockWaited=0
+	while ! mkdir "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/wire.lock" 2>/dev/null ; do
+		mcpLockSpin=$(( mcpLockSpin + 1 ))
+		[ 500 -le "$mcpLockSpin" ] || continue
+		sleep 1
+		mcpLockSpin=0
+		mcpLockWaited=$(( mcpLockWaited + 1 ))
+		[ 30 -le "$mcpLockWaited" ] || continue
+		return 1
+	done
+	return 0
+}
+
+AgentsMcpSendResult(){
+	[ -n "$1" ] || return 0
+	if ! AgentsMcpWireLockAcquire ; then
+		printf '%s\n' "$MDSC_CMD: mcp-request: ⛔ ERROR: wire lock not acquired after 30s -- DROPPING the response for request id $1. Another handler holds the wire and its write to the MCP host has not completed; the lock is never taken from it." >&2
+		return 0
+	fi
+	printf '{"jsonrpc":"2.0","id":%s,"result":%s}\n' "$1" "$2" >&3
+	rmdir "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/wire.lock" 2>/dev/null
+	return 0
+}
+
+## mcpErrText is held: escaping forks awk, which must stay outside the lock.
+AgentsMcpSendError(){
+	local mcpErrText=''
+	[ -n "$1" ] || return 0
+	mcpErrText="$( printf '%s' "$3" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" || mcpErrText=''
+	if ! AgentsMcpWireLockAcquire ; then
+		printf '%s\n' "$MDSC_CMD: mcp-request: ⛔ ERROR: wire lock not acquired after 30s -- DROPPING the error response for request id $1 (code $2). Another handler holds the wire and its write to the MCP host has not completed; the lock is never taken from it." >&2
+		return 0
+	fi
+	printf '{"jsonrpc":"2.0","id":%s,"error":{"code":%s,"message":"%s"}}\n' "$1" "$2" "$mcpErrText" >&3
+	rmdir "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/wire.lock" 2>/dev/null
+	return 0
+}
+
+## A notification carries no id and is never answered, so it has a sender of its own.
+AgentsMcpSendNotification(){
+	if ! AgentsMcpWireLockAcquire ; then
+		printf '%s\n' "$MDSC_CMD: mcp-request: ⛔ ERROR: wire lock not acquired after 30s -- DROPPING the notification $1." >&2
+		return 0
+	fi
+	printf '{"jsonrpc":"2.0","method":"%s"}\n' "$1" >&3
+	rmdir "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/wire.lock" 2>/dev/null
+	return 0
+}
+
+case "$1" in
+
+	--intern-mcp-request)
+		shift
+
+		## Started by the server, never by hand: the server's pid names the scratch
+		## root and the wire lock, and the sequence number names this request's files.
+		if [ 2 -ne $# ] ; then
+			printf '%s\n' "$MDSC_CMD: mcp-request: ⛔ ERROR: takes exactly <server pid> <sequence>, started by --intern-mcp-server --run only: $*" >&2
+			set +e ; return 1
+		fi
+		## Each tested on its own, by enumerated digits: a bracket range is collation-dependent.
+		for mcpNumberArg in "$1" "$2" ; do
+			case "$mcpNumberArg" in
+				''|*[!0123456789]*)
+					printf '%s\n' "$MDSC_CMD: mcp-request: ⛔ ERROR: <server pid> and <sequence> are both numbers: '$1' '$2'" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		mcpServerPid="$1"
+		AGENTS_MCP_REQ_SEQ="$2"
+		shift 2
+
+		set +e
+
+		if [ ! -d "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid" ] ; then
+			printf '%s\n' "$MDSC_CMD: mcp-request: ⛔ ERROR: no server scratch root at $MMDAPP/.local/temp/agent-mcp.$mcpServerPid -- this request has no server to answer through" >&2
+			return 1
+		fi
+		## Its own request directory: requests are parsed in parallel now, so one shared
+		## req/ would hand this request the next one's fields.
+		if ! mkdir -p "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ" ; then
+			printf '%s\n' "$MDSC_CMD: mcp-request: ⛔ ERROR: cannot create request scratch directory, skipping one message" >&2
+			return 1
+		fi
+
+		mcpLine="$( cat )"
+		printf '%s\n' "$mcpLine" | LC_ALL=C awk -v outDir="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonParseRequest.awk"
+
+		mcpMethod='' ; mcpId='' ; mcpToolName=''
+		[ ! -f "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/method" ] || IFS= read -r mcpMethod < "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/method" || true
+		[ ! -f "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/tool_name" ] || IFS= read -r mcpToolName < "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/tool_name" || true
+		[ ! -f "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/has_id" ] || IFS= read -r mcpId < "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/id" || true
+		## $(cat) not read: a script spans lines.
+		mcpScript="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_command" 2>/dev/null || true )"
+		## Optional per-call workspace override; empty means "this server's own MMDAPP", unchanged.
+		mcpWorkspace="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_workspace" 2>/dev/null || true )"
+		mcpTimeout="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_timeout" 2>/dev/null || true )"
+		mcpBackground="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_background" 2>/dev/null || true )"
+		mcpJob="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_job" 2>/dev/null || true )"
+		mcpAction="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_action" 2>/dev/null || true )"
+		rm -rf "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ"
+
+		## The harness tool floor, rendered for THIS request from the same wire declarations
+		## the model is offered, so a tool added, changed or removed there is served on the
+		## next call. Only the two methods that use it pay for it. Nothing here is a second
+		## list: AgentsHarnessMcpMirror.sh derives it, and a render that fails leaves this
+		## request served by `execute` alone rather than by a floor nobody rendered.
+		## Two tools are ABSENT rather than present-and-refusing: a tool that exists and
+		## refuses reads as a broken server. Bash, because arbitrary command execution is
+		## myx.common's own method. Monitor, because it starts a background job whose
+		## handle exists only inside the harness process that started it, and a tools/call
+		## runs one tool in a FRESH process -- measured, the handle is dead before the call
+		## returns and the job is left running with its log already removed. tools/call
+		## still names what to use instead, for Bash.
+		## THE TEST WHEN A NEW HARNESS TOOL LANDS: a tool that takes a command, or that
+		## hands back a handle only its own process can resolve, belongs on this list.
+		## Nothing else applies it, so MAGIC.md's own `A harness tool joins the served MCP
+		## floor by default` states it where a reader adding a tool will actually meet it.
+		## A marker inherited from an outer copy of this server means we were reached
+		## through another server: we then serve `execute` only, so enumeration cannot
+		## descend through us a second time.
+		mcpUnservedToolNames="Bash Monitor"
+		mcpServedToolsJson=''
+		case "$mcpMethod" in
+			tools/list|tools/call)
+				if [ -n "${MDAT_MCP_SERVED_MARKER:-}" ] ; then
+					[ "tools/list" != "$mcpMethod" ] || printf '%s\n' "$MDSC_CMD: mcp-request: reached through another MCP server (MDAT_MCP_SERVED_MARKER is set) -- serving 'execute' only, and declining every harness tool, so enumeration cannot recurse through this server." >&2
+				else
+					mcpServedToolsJson="$( bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessMcpMirror.sh" "" "$mcpUnservedToolNames" )" || mcpServedToolsJson=''
+					case "$mcpServedToolsJson" in
+						'['*']')
+							## The array's own brackets go: the entries are spliced ahead of `execute`.
+							mcpServedToolsJson="${mcpServedToolsJson#\[}"
+							mcpServedToolsJson="${mcpServedToolsJson%\]},"
+						;;
+						*)
+							printf '%s\n' "$MDSC_CMD: mcp-request: ⛔ ERROR: the harness tool floor did not render, so ONLY 'execute' is served to this request. The mirror's own error is above; repair the declaration it names in sh-lib/AgentsOpenAiChatWire.sh." >&2
+							mcpServedToolsJson=''
+						;;
+					esac
+				fi
+			;;
+		esac
+
+		## The floor a host last listed is remembered by checksum only, so a call made
+		## after the floor changed tells the host to list again (`listChanged`, declared
+		## in `initialize`). The request that notices is still answered from the floor
+		## as it is now.
+		if [ -n "$mcpServedToolsJson" ] || [ "tools/list" = "$mcpMethod" ] ; then
+			mcpFloorSum="$( printf '%s' "$mcpServedToolsJson" | cksum )"
+			case "$mcpMethod" in
+				tools/list)
+					printf '%s\n' "$mcpFloorSum" > "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/floor.sum"
+				;;
+				tools/call)
+					mcpListedSum="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/floor.sum" 2>/dev/null || true )"
+					if [ -n "$mcpListedSum" ] && [ "$mcpListedSum" != "$mcpFloorSum" ] ; then
+						printf '%s\n' "$mcpFloorSum" > "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/floor.sum"
+						AgentsMcpSendNotification "notifications/tools/list_changed"
+					fi
+				;;
+			esac
+		fi
+
+		case "$mcpMethod" in
+			initialize)
+				AgentsMcpSendResult "$mcpId" '{"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":true}},"serverInfo":{"name":"myx.distro","version":"1.0.0"}}'
+			;;
+			notifications/*)
+				## No response ever; cancelled is a no-op while nothing is tracked.
+				:
+			;;
+			ping)
+				AgentsMcpSendResult "$mcpId" '{}'
+			;;
+			tools/list)
+				AgentsMcpSendResult "$mcpId" '{"tools":['"$mcpServedToolsJson"'{"name":"execute","description":"Run a shell script with the myx.distro workspace environment already set up, and return its combined stdout and stderr and its exit status. MMDAPP is the workspace root and MDLT_ORIGIN the tooling tree, which may differ. DistroAgentsTools, DistroAgentsContext, Agents, Require, Distro, Action and DistroSystemContext are defined, and variables you already set are kept. No input tier is selected, so a script that reads a distro index selects one itself. Load a tool with Require before calling it through Distro. For example: DistroSystemContext --distro-from-source ; Require ListDistroProjects ; Distro ListDistroProjects --select-all.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"The shell script to run. May span multiple lines. Leave it out, and give job, to poll a background job."},"workspace":{"type":"string","description":"Optional. Absolute path of another myx.distro workspace, one with its own .local, to run this one call against. MMDAPP moves to it and MDLT_ORIGIN stays unchanged. Default: the workspace this server runs for."},"timeout":{"type":"integer","description":"Optional, foreground calls only. Seconds before the script is killed. Default 600, maximum 3600. On timeout the error names the file holding the partial output."},"background":{"type":"boolean","description":"Optional. true starts the script and returns at once with a job id. Use it for anything long, such as a build, deploy or sync. A background job has no timeout. Poll it with job and no command."},"job":{"type":"integer","description":"Optional. The id of a background job this server started. Give it without command to read the output since your last poll, and whether the job is still running or its exit code."},"action":{"type":"string","description":"Optional, only with job. kill stops the job. Leave it out to poll."}},"required":[]}}]}'
+			;;
+			tools/call)
+				mcpJobsDir="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/jobs"
+
+				## Membership in the floor rendered above, and only for a name that is
+				## actually there. The name is matched as a whole quoted JSON value in the
+				## entry's own `{"name":` envelope, and quoted in the pattern, so no
+				## character a caller puts in it acts as a glob. The name arrives decoded,
+				## so one carrying a quote or a backslash could end inside a later field
+				## of an entry; such a name is never a tool and is never matched.
+				mcpIsHarnessTool=''
+				case "$mcpToolName" in
+					''|*'"'*|*'\'*) ;;
+					*)
+						case "$mcpServedToolsJson" in
+							*"{\"name\":\"$mcpToolName\","*) mcpIsHarnessTool=1 ;;
+						esac
+					;;
+				esac
+
+				## Bash is absent from tools/list rather than present-and-refusing, so a
+				## caller only reaches this by naming it anyway; it is told where
+				## arbitrary command execution actually lives instead of being refused
+				## with nothing to go on. myx.common is not modified by this.
+				if [ "Bash" = "$mcpToolName" ] ; then
+					AgentsMcpSendError "$mcpId" -32602 "Bash is not served by this server. Arbitrary command execution is myx.common's own MCP method -- call that server's lib_execShStdin instead. This server's own 'execute' is a different thing: it evaluates a shell script with the myx.distro workspace context already established."
+
+				## Any other tool the floor rendered: run exactly that one tool in the
+				## harness and return its output. The harness may leave a background
+				## child, and a $( ) capture waits on the pipe's writers rather than on
+				## the process -- so the output goes to a file and the pid is waited on,
+				## the same shape the execute path below already uses for the same reason.
+				elif [ -n "$mcpIsHarnessTool" ] ; then
+					## Lifted RAW out of the request and handed over unchanged: these
+					## bytes are already escaped for JSON, and escaping them again
+					## corrupts every value that carried an escape.
+					mcpToolArgs="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params.arguments" -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonSlice.awk" 2>/dev/null )" || mcpToolArgs=''
+					[ -n "$mcpToolArgs" ] || mcpToolArgs='{}'
+
+					mcpOutFile="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/tool.$AGENTS_MCP_REQ_SEQ"
+					mcpKillFile="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/toolkilled.$AGENTS_MCP_REQ_SEQ"
+					rm -f "$mcpKillFile"
+
+					## STDOUT ONLY is the result. The harness announces the call and
+					## names its hook source on stderr, and folding that in would put
+					## those lines inside the file a Read returned. A refusal is already
+					## on stdout, as `ERROR: ...`, so nothing a caller needs is lost.
+					## The bound is this server's cap rather than its default, and no
+					## caller argument sets it: `timeout` belongs to Wait and to
+					## AskUserQuestion themselves. Both block by design and carry their
+					## own inner bound, every other tool is quick, and each request
+					## already runs in its own job -- so a long call holds its own
+					## handler and never this server. The watchdog exists only so a
+					## wedged call cannot hold that handler for the process's whole life.
+					mcpExitCode=0
+					set -m
+					( printf '%s\n' "$mcpToolArgs" | "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$mcpToolName" ) > "$mcpOutFile" 3>&- &
+					mcpCmdPid=$!
+					(
+						sleep 3600
+						kill -0 "$mcpCmdPid" 2>/dev/null || exit 0
+						: > "$mcpKillFile"
+						kill -TERM -- "-$mcpCmdPid" 2>/dev/null
+						sleep 5
+						kill -KILL -- "-$mcpCmdPid" 2>/dev/null
+					) 3>&- &
+					mcpWatchPid=$!
+					set +m
+
+					wait "$mcpCmdPid" || mcpExitCode=$?
+					kill -TERM -- "-$mcpWatchPid" 2>/dev/null
+					wait "$mcpWatchPid" 2>/dev/null
+					set +e
+
+					mcpOutput="$( < "$mcpOutFile" )"
+					mcpIsError='false'
+					if [ -f "$mcpKillFile" ] ; then
+						mcpIsError='true'
+						mcpOutput="$mcpOutput"$'\n'"[$mcpToolName timed out after 3600s and was killed; partial output above is kept at: $mcpOutFile]"
+						rm -f "$mcpKillFile"
+					elif [ 0 -ne "$mcpExitCode" ] ; then
+						## The harness exits non-zero on its own ERROR result, which is
+						## already the text above -- so this marks it rather than
+						## restating it, and names a crash where there is no text at all.
+						mcpIsError='true'
+						[ -n "$mcpOutput" ] || mcpOutput="[$mcpToolName produced no output and exited $mcpExitCode -- the harness's own diagnostics are on this server's stderr]"
+						rm -f "$mcpOutFile"
+					else
+						rm -f "$mcpOutFile"
+					fi
+					[ -n "$mcpOutput" ] || mcpOutput='(no output)'
+
+					AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":%s}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" "$mcpIsError" )"
+
+				## Reached through another server: say which bound refused this, because
+				## the same name works on the server the host registered directly, and
+				## `unknown tool` would send a caller looking for a fault that is not there.
+				elif [ -n "${MDAT_MCP_SERVED_MARKER:-}" ] && [ "execute" != "$mcpToolName" ] ; then
+					AgentsMcpSendError "$mcpId" -32602 "This server was reached through another MCP server, so it serves 'execute' only and declines every harness tool -- otherwise an enumeration could descend through copies of this server without end. Call '$mcpToolName' on the myx.distro server your host registered directly."
+
+				elif [ "execute" != "$mcpToolName" ] ; then
+					AgentsMcpSendError "$mcpId" -32602 "Unknown tool: $mcpToolName"
+
+				## A job named, no command: poll or kill a script already running.
+				elif [ -n "$mcpJob" ] ; then
+					case "$mcpJob" in
+						*[!0-9]*) AgentsMcpSendError "$mcpId" -32602 "job must be the numeric id returned by a background start: $mcpJob" ;;
+						*)
+							if [ ! -d "$mcpJobsDir/$mcpJob" ] ; then
+								AgentsMcpSendError "$mcpId" -32602 "no such job in this server: $mcpJob"
+							else
+								mcpJobPid="$( cat "$mcpJobsDir/$mcpJob/pid" 2>/dev/null || true )"
+								if [ "kill" = "$mcpAction" ] ; then
+									## Signals the job's whole process group: the pid is its leader, so
+									## the script and everything it forked go together. TERM to the pid
+									## alone kills the wrapper and leaves the real work running.
+									if [ -n "$mcpJobPid" ] && kill -0 "$mcpJobPid" 2>/dev/null ; then
+										kill -TERM -- "-$mcpJobPid" 2>/dev/null
+										mcpOutput="[job $mcpJob: TERM sent to process group $mcpJobPid]"
+									else
+										mcpOutput="[job $mcpJob: already finished, nothing to kill]"
+									fi
+									AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":false}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" )"
+								else
+									## Only what is NEW since the last poll, so polling a long build does
+									## not re-deliver everything each time.
+									mcpCursor="$( cat "$mcpJobsDir/$mcpJob/cursor" 2>/dev/null || true )"
+									case "$mcpCursor" in ''|*[!0-9]*) mcpCursor=0 ;; esac
+									mcpOutput="$( tail -c "+$(( mcpCursor + 1 ))" "$mcpJobsDir/$mcpJob/out" 2>/dev/null || true )"
+									wc -c < "$mcpJobsDir/$mcpJob/out" 2>/dev/null | tr -d ' ' > "$mcpJobsDir/$mcpJob/cursor"
+
+									## rc is written by the job itself, so its absence on a job no longer
+									## running is a real distinction and never reported as an exit code.
+									if [ -n "$mcpJobPid" ] && kill -0 "$mcpJobPid" 2>/dev/null ; then
+										mcpOutput="$mcpOutput"$'\n'"[job $mcpJob: still running, pid $mcpJobPid -- poll again for more]"
+									elif [ -f "$mcpJobsDir/$mcpJob/rc" ] ; then
+										mcpOutput="$mcpOutput"$'\n'"[job $mcpJob: finished, exit code $( cat "$mcpJobsDir/$mcpJob/rc" )]"
+									else
+										mcpOutput="$mcpOutput"$'\n'"[job $mcpJob: stopped before it could finish -- killed, or died without recording an exit code]"
+									fi
+									[ -n "$mcpOutput" ] || mcpOutput='(no new output)'
+									AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":false}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" )"
+								fi
+							fi
+						;;
+					esac
+
+				elif [ -z "$mcpScript" ] ; then
+					AgentsMcpSendError "$mcpId" -32602 "execute requires a non-empty 'command' argument, or a 'job' id to poll or kill"
+				elif [ -n "$mcpWorkspace" ] && [ ! -d "$mcpWorkspace/.local" ] ; then
+					AgentsMcpSendError "$mcpId" -32602 "workspace has no .local, not a set-up myx.distro workspace: $mcpWorkspace"
+				## Starts and returns at once, with a job id to poll and to kill by.
+				## No timeout is imposed: a bound is what a foreground call needs,
+				## because nothing can watch it, and a job the caller can see needs none.
+				elif [ "true" = "$mcpBackground" ] ; then
+					mcpJobId="$AGENTS_MCP_REQ_SEQ"
+					mkdir -p "$mcpJobsDir/$mcpJobId"
+					: > "$mcpJobsDir/$mcpJobId/out"
+					printf '0\n' > "$mcpJobsDir/$mcpJobId/cursor"
+
+					## set -m puts the job in a process group of its own, so the recorded
+					## $! is its leader and one signal reaches everything the script forked.
+					## The whole pipeline goes inside the subshell for that: with a bare
+					## pipeline, $! is its LAST process and the group id is its first.
+					set -m
+					if [ -n "$mcpWorkspace" ] ; then
+						(
+							mcpJobRc=0
+							printf '%s\n' "$mcpScript" | ( exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) >> "$mcpJobsDir/$mcpJobId/out" 2>&1 || mcpJobRc=$?
+							printf '%s\n' "$mcpJobRc" > "$mcpJobsDir/$mcpJobId/rc"
+						) 3>&- &
+					else
+						(
+							mcpJobRc=0
+							printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute >> "$mcpJobsDir/$mcpJobId/out" 2>&1 || mcpJobRc=$?
+							printf '%s\n' "$mcpJobRc" > "$mcpJobsDir/$mcpJobId/rc"
+						) 3>&- &
+					fi
+					printf '%s\n' "$!" > "$mcpJobsDir/$mcpJobId/pid"
+					set +m
+
+					mcpOutput="[job $mcpJobId started, pid $( cat "$mcpJobsDir/$mcpJobId/pid" )]"$'\n'"[poll it:  execute with job=$mcpJobId]"$'\n'"[stop it:  execute with job=$mcpJobId action=kill]"$'\n'"[log file: $mcpJobsDir/$mcpJobId/out]"
+					AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":false}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" )"
+
+				else
+					## Seconds. A non-numeric or absent value takes the default rather than
+					## failing the call, so a caller that never knew this argument exists
+					## keeps working; the cap stops one call holding the server for an hour.
+					case "$mcpTimeout" in
+						''|*[!0-9]*) mcpTimeout=600 ;;
+						*) [ "$mcpTimeout" -ge 1 ] 2>/dev/null || mcpTimeout=600 ;;
+					esac
+					[ "$mcpTimeout" -le 3600 ] || mcpTimeout=3600
+
+					mcpOutFile="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/out.$AGENTS_MCP_REQ_SEQ"
+					mcpKillFile="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/killed.$AGENTS_MCP_REQ_SEQ"
+					rm -f "$mcpKillFile"
+
+					## Both forks run under set -m, each in a process group of its own, so
+					## one signal reaches the whole tree and the watchdog's own sleep dies
+					## with it. Pipeline inside the subshell so $! is the group leader.
+					mcpExitCode=0
+					set -m
+					if [ -n "$mcpWorkspace" ] ; then
+						( printf '%s\n' "$mcpScript" | ( exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) ) > "$mcpOutFile" 2>&1 3>&- &
+					else
+						( printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute ) > "$mcpOutFile" 2>&1 3>&- &
+					fi
+					mcpCmdPid=$!
+
+					## Marks the kill before sending it, so the wait below tells a timeout
+					## from the script's own non-zero exit; TERM first for a script with
+					## traps of its own, KILL after a grace period for one that ignores it.
+					(
+						sleep "$mcpTimeout"
+						kill -0 "$mcpCmdPid" 2>/dev/null || exit 0
+						: > "$mcpKillFile"
+						kill -TERM -- "-$mcpCmdPid" 2>/dev/null
+						sleep 5
+						kill -KILL -- "-$mcpCmdPid" 2>/dev/null
+					) 3>&- &
+					mcpWatchPid=$!
+					set +m
+
+					wait "$mcpCmdPid" || mcpExitCode=$?
+					kill -TERM -- "-$mcpWatchPid" 2>/dev/null
+					wait "$mcpWatchPid" 2>/dev/null
+					set +e
+
+					mcpOutput="$( < "$mcpOutFile" )"
+
+					mcpIsError='false'
+					if [ -f "$mcpKillFile" ] ; then
+						## The partial output is kept and its path named: a timeout is when
+						## the caller most needs to see how far the command got.
+						mcpIsError='true'
+						mcpOutput="$mcpOutput"$'\n'"[timed out after ${mcpTimeout}s and was killed; partial output above is kept at: $mcpOutFile]"
+						rm -f "$mcpKillFile"
+					elif [ 0 -ne "$mcpExitCode" ] ; then
+						mcpIsError='true'
+						mcpOutput="$mcpOutput"$'\n'"[exit code: $mcpExitCode]"
+						rm -f "$mcpOutFile"
+					else
+						rm -f "$mcpOutFile"
+					fi
+					[ -n "$mcpOutput" ] || mcpOutput='(no output)'
+
+					AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":%s}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" "$mcpIsError" )"
+				fi
+			;;
+			'')
+				AgentsMcpSendError "$mcpId" -32700 "Parse error"
+			;;
+			*)
+				AgentsMcpSendError "$mcpId" -32601 "Method not found: $mcpMethod"
+			;;
+		esac
+		return 0
+	;;
+
+	*)
+		printf '%s\n' "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

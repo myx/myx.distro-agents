@@ -333,6 +333,33 @@ while [ $# -gt 0 ] ; do
 	esac
 done
 
+## A served call names no --agent: its identity is resolved HERE, on every call, so the
+## MCP server that launched it carries none and nothing depends on when it started.
+## A spawned session's MDAT_SPAWN_AGENT, else the root session's magic-coordinator,
+## and only when that member is in the skillset -- otherwise it stays empty, the four
+## tools that send refuse, and every other tool is still served.
+if [ -n "$harnessToolOnly" ] && [ -z "$harnessAgent" ] ; then
+	harnessAgent="${MDAT_SPAWN_AGENT:-magic-coordinator}"
+	## The same bare-name gate --agent applies, by explicit enumeration: a bracket range
+	## is collation-dependent.
+	case "$harnessAgent" in
+		.|..) harnessAgent="" ;;
+	esac
+	harnessAgentCheckRest="$harnessAgent"
+	while [ -n "$harnessAgentCheckRest" ] ; do
+		harnessAgentCheckChar="${harnessAgentCheckRest%"${harnessAgentCheckRest#?}"}"
+		harnessAgentCheckRest="${harnessAgentCheckRest#?}"
+		case "$harnessAgentCheckChar" in
+			a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+			A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+			0|1|2|3|4|5|6|7|8|9) ;;
+			-|_|.) ;;
+			*) harnessAgent="" ; harnessAgentCheckRest="" ;;
+		esac
+	done
+	[ -n "$harnessAgent" ] && [ -r "${MDAT_SKILLSET_ROOT:-}/$harnessAgent/$harnessAgent.basic.md" ] || harnessAgent=""
+fi
+
 ## This leg has no external hook observer, so this line is the only session join.
 if [ -n "$harnessSessionId" ] ; then
 	printf '%s\n' "🔗 ${harnessDim}session${harnessOff} ${harnessValue}$harnessSessionId${harnessOff}" >&2
@@ -372,26 +399,27 @@ fi
 ## The stub decides which model and which key; the core owns only the mapping's shape.
 ## A model's own limits travel with it: output tokens empty leaves the wire to send none
 ## where it may, and a context window empty leaves the core's own floor below in place.
+## The threshold is the window less the output maximum, so a round leaves room for the reply.
 harnessReasoningEffort=""
 case "$harnessTier" in
 	light)
 		harnessModel="$HARNESS_MODEL_LIGHT"
 		harnessToken="${HARNESS_TOKEN_LIGHT:-}"
 		harnessOutputTokens="${HARNESS_OUTPUT_TOKENS_LIGHT:-}"
-		harnessContextTokens="${MDAT_HARNESS_CONTEXT_TOKENS:-${HARNESS_CONTEXT_TOKENS_LIGHT:-400000}}"
+		harnessContextTokens="${MDAT_HARNESS_CONTEXT_TOKENS:-$(( ${HARNESS_CONTEXT_TOKENS_LIGHT:-400000} - ${HARNESS_OUTPUT_TOKENS_LIGHT:-0} ))}"
 	;;
 	normal)
 		harnessModel="$HARNESS_MODEL_MAIN"
 		harnessToken="${HARNESS_TOKEN_MAIN:-}"
 		harnessOutputTokens="${HARNESS_OUTPUT_TOKENS_MAIN:-}"
-		harnessContextTokens="${MDAT_HARNESS_CONTEXT_TOKENS:-${HARNESS_CONTEXT_TOKENS_MAIN:-400000}}"
+		harnessContextTokens="${MDAT_HARNESS_CONTEXT_TOKENS:-$(( ${HARNESS_CONTEXT_TOKENS_MAIN:-400000} - ${HARNESS_OUTPUT_TOKENS_MAIN:-0} ))}"
 	;;
 	heavy)
 		harnessModel="$HARNESS_MODEL_MAIN"
 		harnessReasoningEffort="high"
 		harnessToken="${HARNESS_TOKEN_MAIN:-}"
 		harnessOutputTokens="${HARNESS_OUTPUT_TOKENS_MAIN:-}"
-		harnessContextTokens="${MDAT_HARNESS_CONTEXT_TOKENS:-${HARNESS_CONTEXT_TOKENS_MAIN:-400000}}"
+		harnessContextTokens="${MDAT_HARNESS_CONTEXT_TOKENS:-$(( ${HARNESS_CONTEXT_TOKENS_MAIN:-400000} - ${HARNESS_OUTPUT_TOKENS_MAIN:-0} ))}"
 	;;
 esac
 
@@ -448,6 +476,25 @@ if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 			/*) harnessAccessRoots+=( "$harnessOwnRoot" ) ;;
 		esac
 	done <<< "$harnessOwnRoots"
+	## Writes narrow the way the console narrows them: the write reference roots plus the
+	## declared Edit grants, never the whole read set, so the skills root stays read-only.
+	if [ "${#harnessWriteAccessRoots[@]}" -eq 0 ] ; then
+		if ! harnessOwnRoots="$( { AgentsToolsClientAccessReferenceRoots write "${MMDAPP:-}" "$harnessAgent" && AgentsToolsClientAccessGrantRoots ; } 2>&1 )" ; then
+			[ -z "$harnessToolOnly" ] || printf 'ERROR: the write-root set could not be computed, so nothing was done: %s\n' "$harnessOwnRoots"
+			echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the write-root set could not be computed, refusing rather than writing wherever reads reach: $harnessOwnRoots" >&2
+			exit 1
+		fi
+		while IFS= read -r harnessOwnRoot ; do
+			case "$harnessOwnRoot" in
+				/*) harnessWriteAccessRoots+=( "$harnessOwnRoot" ) ;;
+			esac
+		done <<< "$harnessOwnRoots"
+		if [ "${#harnessWriteAccessRoots[@]}" -eq 0 ] ; then
+			[ -z "$harnessToolOnly" ] || printf 'ERROR: no write roots resolved, so nothing was done -- check MMDAPP in the MCP server environment\n'
+			echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no write roots resolved, refusing rather than writing wherever reads reach -- check MMDAPP" >&2
+			exit 1
+		fi
+	fi
 	## Said because a partial set is otherwise silent: the member roots drop out when the
 	## skillset root is unresolved, and a narrower grant then looks exactly like a full one.
 	printf '%s\n' "🔐 ${harnessDim}access roots${harnessOff} ${harnessValue}${#harnessAccessRoots[@]}${harnessOff} ${harnessDim}from this package's own access-root mechanism${harnessOff}" >&2
@@ -463,8 +510,8 @@ if [ -z "$harnessRoots" ] ; then
 	exit 1
 fi
 
-## Reads keep the generous set above. Writes narrow to their own where one is given;
-## with none, they stay exactly as wide as reads, which is what every console
+## Reads keep the generous set above. Writes narrow to their own where one is given, or
+## where no root flag was given at all; with read flags only, they stay exactly as wide as reads, which is what every console
 ## generated before this flag passes, so no existing spawn loses a write.
 harnessWriteRoots=""
 if [ "${#harnessWriteAccessRoots[@]}" -gt 0 ] ; then
@@ -475,6 +522,12 @@ if [ "${#harnessWriteAccessRoots[@]}" -gt 0 ] ; then
 	[ -z "$harnessAgentRealDir" ] || harnessWriteRoots="${harnessWriteRoots}$harnessAgentRealDir"$'\n'
 fi
 [ -n "$harnessWriteRoots" ] || harnessWriteRoots="$harnessRoots"
+
+## Claude Code saves a tool result too large to return under its own session folder and
+## tells the agent to read it there, so that folder joins the read set only, after writes.
+[ -z "${CLAUDE_CODE_SESSION_ID:-}" ] || for harnessSessionResults in "$HOME/.claude/projects"/*/"$CLAUDE_CODE_SESSION_ID"/tool-results ; do
+	[ ! -d "$harnessSessionResults" ] || harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessSessionResults" )"$'\n'
+done
 
 harnessScratch="$( mktemp -d -t "AgentsUniversalHarness-XXXXXXXX" )" || {
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: could not create a scratch directory" >&2
@@ -2673,20 +2726,29 @@ fi
 ## because that file enumerates as it loads. A model run that named no --mcp-server
 ## takes the same set, the empty name being that run: this harness is the myx.distro
 ## destination for it too. No mcp.servers.json means no set, and nothing is printed.
+## A set named on argv is the run's own and stays. With none named, the set is read
+## from mcp.servers.json again on every enumeration -- the client enumerates on load
+## and again before every round -- so a server registered or removed there reaches the
+## next round rather than the next run.
 if [ -n "$harnessToolOnly" ] ; then
 	export MDAT_MCP_SERVED_MARKER=1
 fi
-case "$harnessToolOnlyName" in
-	ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|'')
-		if [ "${#harnessMcpServers[@]}" -eq 0 ] && [ -f "${MMDAPP:-}/.local/agents/mcp.servers.json" ] ; then
-			while IFS= read -r harnessToolPeer ; do
-				[ -n "$harnessToolPeer" ] || continue
-				[ "myx.distro" != "$harnessToolPeer" ] || continue
-				harnessMcpServers+=( "$harnessToolPeer" )
-			done <<< "$( LC_ALL=C awk -v path=mcpServers -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" < "$MMDAPP/.local/agents/mcp.servers.json" 2>/dev/null )"
-		fi
-	;;
-esac
+harnessMcpServersNamed="${#harnessMcpServers[@]}"
+AgentsHarnessMcpServerSet(){
+	[ "$harnessMcpServersNamed" -eq 0 ] || return 0
+	harnessMcpServers=()
+	case "$harnessToolOnlyName" in
+		ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|'')
+			if [ -f "${MMDAPP:-}/.local/agents/mcp.servers.json" ] ; then
+				while IFS= read -r harnessToolPeer ; do
+					[ -n "$harnessToolPeer" ] || continue
+					[ "myx.distro" != "$harnessToolPeer" ] || continue
+					harnessMcpServers+=( "$harnessToolPeer" )
+				done <<< "$( LC_ALL=C awk -v path=mcpServers -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" < "$MMDAPP/.local/agents/mcp.servers.json" 2>/dev/null )"
+			fi
+		;;
+	esac
+}
 
 ## Sourced on the same terms, and after the hooks so a server this enumerates is
 ## already subject to them. It enumerates only what harnessMcpServers holds by now,
@@ -2775,7 +2837,7 @@ done
 ## and restarts from that summary plus the original task, so nothing is dropped by age
 ## or by eviction -- the model judges what is worth carrying. 0 turns it off entirely.
 ## $harnessContextTokens is resolved with the tier above: the stub's own window for that
-## model, and the core's 400000 only for a stub that declares none.
+## model less its output maximum, and the core's 400000 only for a stub that declares none.
 ## No restart bound by default, as there is no round cap: MDAT_HARNESS_MAX_RESTARTS sets
 ## one where a caller wants it. Every restart is announced, so a cycle stays visible.
 harnessMaxRestarts="${MDAT_HARNESS_MAX_RESTARTS:-}"
@@ -2839,7 +2901,21 @@ while : ; do
 	harnessMonitorPending="$( AgentsHarnessMonitorSpool )"
 	[ -z "$harnessMonitorPending" ] || harnessMessages+=( "$( AgentsWireUserRecord "$harnessMonitorPending" )" )
 
-	harnessBody="$( AgentsWireRequestBody )"
+	## The MCP tool set is enumerated again for every round after the first, so a server
+	## registered, removed or changed since reaches this request. Its report is shown only
+	## when the declarations it produced differ from the last round's.
+	if [ "$harnessRound" -gt 1 ] ; then
+		harnessMcpToolsJsonWas="$harnessMcpToolsJson"
+		AgentsHarnessMcpEnumerate 2> "$harnessScratch/mcp.enum.err"
+		if [ "$harnessMcpToolsJson" != "$harnessMcpToolsJsonWas" ] ; then
+			printf '%s\n' "${harnessWarn}🔌 MCP tool set changed${harnessOff} ${harnessDim}-- this round declares the set enumerated now${harnessOff}" >&2
+			cat "$harnessScratch/mcp.enum.err" >&2
+		fi
+	fi
+
+	## To a file, never argv: a long conversation outgrows the OS argument limit, and
+	## stdin is already the header channel.
+	AgentsWireRequestBody > "$harnessScratch/request.json"
 
 	## Every attempt starts from a clean accumulator, and a retry here never touches
 	## $harnessRound above.
@@ -2864,7 +2940,7 @@ while : ; do
 		curl -N -sS --connect-timeout 10 --speed-limit 1 --speed-time 45 -X POST "$harnessEndpoint" \
 			-H @- \
 			-H "Content-type: application/json" \
-			-d "$harnessBody" <<< "$harnessAuthHeader" 2>"$harnessScratch/stream.curlerr" \
+			--data-binary "@$harnessScratch/request.json" <<< "$harnessAuthHeader" 2>"$harnessScratch/stream.curlerr" \
 			| AgentsWireStreamConsume
 		harnessCurlRc="${PIPESTATUS[0]}"
 		set -e

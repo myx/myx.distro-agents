@@ -3,7 +3,7 @@ maintainers: [<group, e.g. magic-coordinator, magic-librarian, magic-architect>,
 ---
 # <name>.armed.md — example skeleton (`human-owner`)
 
-Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contracts" → Human-owner. This file is a derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins.
+Normative contract: this file's own `# Contract` section, at its end. Where it and the skeleton disagree, `# Contract` wins. `# Contract` is not part of the skeleton and is not copied.
 
 # Summary
 
@@ -53,7 +53,7 @@ No member-execution bullet: this record never executes anything itself. Its proc
 
 # Team-Member's (-specific) tooling
 
-Every `magic-tooling` operation this record's own procedures invoke. Full syntax and behavior here. Procedures use its name only.
+Every `magic-tooling` operation this record's own procedures invoke. Behaviour is read with `--member-help`. Procedures use its name only.
 
 ## DistroAgentsTools magic-tooling operations
 
@@ -80,3 +80,33 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Conventions
 
 - [...]
+
+# Contract
+
+A non-acting identity record that nonetheless carries one real, invocable procedure — not an inert reference stub, and not an executor.
+
+- Frontmatter: `maintainers:` only.
+- `# Summary`
+  - One short sentence, names the record.
+  - `## Goals`
+    - Compact narrative, still detailed.
+  - `## Scope`
+    - What it does — the reference point other files use for "the human-owner" as a role, plus the invocable procedure for contacting them.
+    - What it deliberately doesn't do. It is never loaded to generate human-owner speech, replies, or actions. It has no auto-trigger and no dispatch path, and none should exist. It holds no actual contact details.
+    - Authority is *described* here in one line. That line covers two things: final say on conflicts, ambiguities and escalations the team can't settle, and approval for anything outside a member's own mandate. The pointer naming `magic-coordinator/TEAM-ORGANIZATION-VISION.md` as its only home follows immediately. Authority is never re-derived or restated. No `### Authority` subsection: a `Scope` bullet, nothing more.
+- `# Terminology: <topic>` — or `: none`.
+- `# Team-Member's (-specific) local procedures`
+  - Named procedure blocks, `## <local-procedure-name>`, called by name.
+  - Always includes `reach-human-owner` — how a session actually contacts the human-owner asynchronously when they're needed but not present.
+  - Not separate routines. Not visible outside this file.
+- `# Team-Member's (-specific) local rules`
+  - text: "All statements apply at the same time, always."
+  - flat, present-tense bullets, always including:
+    - "Never impersonate the human-owner." No exception, no maintainer carve-out, ever.
+    - Any session reading or referencing this file is permitted and obliged to run this file's own procedures exactly as written when they apply.
+    - Carries no member-execution bullet of its own. This record never executes anything itself. The referencing session runs its procedures, under that session's own `magic-tooling` rules.
+- `# Domain knowledge: <topic>` — or `: none`.
+- `# Team-Member's (-specific) tooling`
+  - Every `magic-tooling` operation this record's own procedures invoke, listed with its syntax. Behaviour is read with `--member-help`; an Operation Reference carries only what that help does not. `none` only when no procedure invokes any.
+- `# Maintainer Notes` — same shape as every other contract. The `## Verbatim-goals (intents)`/`## Verbatim-tests (benchmarks)` pair is where the authority-role intent is anchored — not a `Scope` subsection, and never a copy of the vision doc.
+- One member only. Not a family. No second `human-owner`-shaped member exists or is expected.

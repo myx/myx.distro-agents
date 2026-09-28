@@ -48,10 +48,11 @@ rigStart(){ ## scenario directory name
 }
 
 ## A round answering with thinking, a line of text and one Glob call, the input split
-## across two fragments the way the stream sends it.
-rigToolStream(){ ## canned-stream file
+## across two fragments the way the stream sends it. The round's total is input_tokens
+## plus 5040.
+rigToolStream(){ ## canned-stream file, input_tokens (default 100)
 	{
-		printf 'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_rig1","type":"message","role":"assistant","content":[],"usage":{"input_tokens":100,"cache_creation_input_tokens":5000,"cache_read_input_tokens":0,"output_tokens":1}}}\n\n'
+		printf 'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_rig1","type":"message","role":"assistant","content":[],"usage":{"input_tokens":%s,"cache_creation_input_tokens":5000,"cache_read_input_tokens":0,"output_tokens":1}}}\n\n' "${2:-100}"
 		printf 'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}\n\n'
 		printf 'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"RIG-THINK-MARKER, then \\"quoted\\"\\n"}}\n\n'
 		printf 'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"RIG-SIGNATURE-MARKER"}}\n\n'
@@ -164,6 +165,38 @@ rigAssert "the refusal is named, type and message"            "$( rigHolds "$rig
 rigAssert "nothing was printed as an answer"                  "$( cat "$rigScenarioDir/out" )" ""
 rigVerdict "a refusal body -- reported loudly, never read as an empty round"
 
+## A refusal arriving INSIDE the stream: an `event: error` frame after text has started,
+## with no message_stop behind it. The fixture is the whole of what the fake curl emits.
+rigPartialStream(){ ## canned-stream file
+	{
+		printf 'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_rig3","type":"message","role":"assistant","content":[],"usage":{"input_tokens":60,"output_tokens":1}}}\n\n'
+		printf 'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n'
+		printf 'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"RIG-PARTIAL-MARKER"}}\n\n'
+	} > "$1"
+}
+rigStart midstream-error-frame
+rigPartialStream "$rigScenarioDir/res.1"
+printf 'event: error\ndata: {"type":"error","error":{"type":"permission_error","message":"RIG-CREDITS-MARKER used all available credits"}}\n\n' >> "$rigScenarioDir/res.1"
+rigRun
+rigAssert "the run fails"                                     "$rigRunStatus" 1
+rigAssert "one round was requested, no retry"                 "$rigRoundCount" 1
+rigAssert "the refusal is named, type and message"            "$( rigHolds "$rigScenarioDir/err" 'permission_error -- RIG-CREDITS-MARKER used all available credits' )" yes
+rigAssert "it is never read as a disconnect"                  "$( rigHolds "$rigScenarioDir/err" 'disconnected mid-stream' )" no
+rigAssert "nothing was printed as an answer"                  "$( cat "$rigScenarioDir/out" )" ""
+
+## The control: the same partial stream cut short with no error frame is a real disconnect.
+rigStart midstream-cut
+rigPartialStream "$rigScenarioDir/res.1"
+cp "$rigScenarioDir/res.1" "$rigScenarioDir/res.2"
+cp "$rigScenarioDir/res.1" "$rigScenarioDir/res.3"
+rigRun
+rigAssert "control: the run fails"                            "$rigRunStatus" 1
+rigAssert "control: every attempt was made"                   "$rigRoundCount" 3
+rigAssert "control: it reads as a disconnect"                 "$( rigHolds "$rigScenarioDir/err" 'disconnected mid-stream' )" yes
+rigAssert "control: and is given up on"                       "$( rigHolds "$rigScenarioDir/err" 'gave up after 3 stream attempts' )" yes
+rigAssert "control: no refusal is invented"                   "$( rigHolds "$rigScenarioDir/err" 'refused the request' )" no
+rigVerdict "an error frame inside the stream is one refusal, and a bare cut is still a disconnect"
+
 ## This wire requires max_tokens, so a tier declaring none is refused before any request.
 rigStart output-tokens-undeclared
 rigTextStream "$rigScenarioDir/res.1" RIG-FINAL-MARKER
@@ -175,6 +208,30 @@ rigAssert "the run fails"                                     "$rigRunStatus" 1
 rigAssert "nothing was sent"                                  "$( cat "$rigScenarioDir/round" )" 0
 rigAssert "the refusal names the missing declaration"         "$( rigHolds "$rigScenarioDir/err" 'declares no HARNESS_OUTPUT_TOKENS_* for the normal tier' )" yes
 rigVerdict "no declared output maximum -- refused, never a number nobody chose"
+
+## The claude leaf's own normal tier, 1000000 window less 128000 max_tokens, reached
+## through the real leaf: the fake curl first on PATH keeps its real endpoint unreached,
+## and the credential is a literal so a real key in this environment never enters.
+rigClaudeRun(){ ## round 1 input_tokens
+	rigToolStream "$rigScenarioDir/res.1" "$1"
+	rigTextStream "$rigScenarioDir/res.2" RIG-SUMMARY-MARKER
+	rigTextStream "$rigScenarioDir/res.3" RIG-FINAL-MARKER
+	rigRunStatus=0
+	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" MDAT_HARNESS_CONTEXT_TOKENS="" \
+		ANTHROPIC_API_KEY="rig-not-a-credential" \
+		"$rigHere/AgentsClaudeHarness.sh" --access-root "$rigScenarioDir" RIG-TASK-MARKER \
+		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?
+	[ "$( cat "$rigScenarioDir/round" )" != 0 ] || rigRefuse "the claude leaf issued no request at all, so this scenario exercised nothing -- its stderr: $( head -5 "$rigScenarioDir/err" )"
+}
+rigStart claude-under-margin
+rigClaudeRun 866959
+rigAssert "the claude leaf is the one that ran"               "$( rigHolds "$rigScenarioDir/err" 'Anthropic' )" yes
+rigAssert "a round of 871999 does not trip"                   "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
+rigStart claude-at-margin
+rigClaudeRun 866960
+rigAssert "a round of 872000 trips the threshold"             "$( rigHolds "$rigScenarioDir/err" 'at or over 872000' )" yes
+rigAssert "and the leg restarted onto its summary"            "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
+rigVerdict "the claude leaf restarts at its window less its max_tokens, 872000"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ANTHROPIC WIRE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

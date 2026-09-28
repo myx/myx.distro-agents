@@ -3,7 +3,7 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>, h
 ---
 # <name>.basic.md — example skeleton
 
-Normative contract: `magic-team/magic-team.shared.md`'s "Armed & Routine contracts" → Basic. This file is a derived skeleton; where the two disagree, `magic-team/magic-team.shared.md` wins.
+Normative contract: this file's own `# Contract` section, at its end. Where it and the skeleton disagree, `# Contract` wins. `# Contract` is not part of the skeleton and is not copied.
 
 [Identity-only, unconditionally loaded. Enough to respond in a casual or social context, never enough to do the work — point at `<name>.armed.md` for real work-duty.]
 
@@ -29,3 +29,20 @@ Safe to share with anyone, including unverified/external sources — no verifica
 - **Favourites**: [optional.]
 
 [Whatever else this member's own identity needs, after those two sections.]
+
+# Contract
+
+- Frontmatter: `maintainers:` only.
+- Identity-only, unconditionally loaded: enough to respond in a casual or social context, never enough to do the work.
+- `## Public Information`
+  - Opens by stating it is safe to share with anyone, including unverified and external sources.
+  - `Description` — what this member does.
+  - `Name`, `Gender`, `Eyes`, `Alias`, `AKA`, `Birthday` — the persona. Every member is somebody, so every member carries them.
+  - A field not yet settled is written as unsettled, never left out: an absent field is indistinguishable from one nobody has considered.
+- `## Identity marks`
+  - Fields and their rules: `magic-team/magic-team.shared.md`'s own "Identity marks", under "Identifier and identity".
+- Whatever else that member's own identity needs, after those two.
+
+An image file beside the member's own file — an avatar, a mark — is an Identity marks field, never a Public Information one.
+
+`magic-team` is the team's own avatar rather than a person. It carries `Description`, `Name`, and its own `Contact` as the team's front door. It carries none of the person fields.

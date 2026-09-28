@@ -608,10 +608,16 @@ case "$1" in
 		trelloTokenEsc="${trelloTokenEsc//\"/\\\"}"
 		echo "# $MDSC_CMD --magic-comms-trello-post-comment: posting comment to card=$cardId" >&2
 		local trelloRc=0
-		printf 'header = "Authorization: OAuth oauth_consumer_key=\\"%s\\", oauth_token=\\"%s\\""\n' \
-			"$trelloKeyEsc" "$trelloTokenEsc" \
-			| curl -sS --connect-timeout 10 --max-time 120 --fail-with-body -K - -X POST "https://api.trello.com/1/cards/${cardId}/actions/comments" \
-				--data-urlencode "text=${bodyText}" || trelloRc=$?
+		## The text travels in a file, never argv, which a long one outgrows; stdin is the header's.
+		(
+			mkdir -p "$MMDAPP/.local/temp" && textFile="$( mktemp "$MMDAPP/.local/temp/mdat-trello-comment.XXXXXX" )" || exit 1
+			trap 'rm -f "$textFile"' EXIT
+			printf '%s' "$bodyText" > "$textFile" || exit 1
+			printf 'header = "Authorization: OAuth oauth_consumer_key=\\"%s\\", oauth_token=\\"%s\\""\n' \
+				"$trelloKeyEsc" "$trelloTokenEsc" \
+				| curl -sS --connect-timeout 10 --max-time 120 --fail-with-body -K - -X POST "https://api.trello.com/1/cards/${cardId}/actions/comments" \
+					--data-urlencode "text@$textFile"
+		) || trelloRc=$?
 		if [ "$trelloRc" -ne 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: posting the comment to card=$cardId failed (curl rc=$trelloRc) -- the comment was NOT posted; curl's own error is on the line above" >&2
 			set +e ; return "$trelloRc"

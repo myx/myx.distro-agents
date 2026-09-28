@@ -149,7 +149,7 @@ case "$1" in
 		done
 		printf '\n%s\n\n' "## board digest"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
-			--state pending --state running --state blocked --state parked \
+			--state backlog --state pending --state running --state blocked --state parked \
 			--all-types \
 			--do-inbox-inquiry-active \
 			--do-inbox-reflections \

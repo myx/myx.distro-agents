@@ -317,6 +317,43 @@ rigAssert "the refusal names its type and message"     "$( rigHolds "$rigScenari
 rigAssert "it is never read as a disconnect"           "$( rigHolds "$rigScenarioDir/err" 'disconnected mid-stream' )" no
 rigVerdict "xAI's unterminated refusal is reported by its type, never retried as a disconnect"
 
+## A refusal arriving INSIDE the stream: an error object on a `data:` line after the
+## stream has started, with no [DONE] behind it -- the shape a spending limit reached
+## mid-run takes. Each fixture below is the whole of what the fake curl emits.
+rigPartialChunk='data: {"choices":[{"index":0,"delta":{"content":"RIG-PARTIAL-MARKER"}}]}'
+rigStart d-midstream-error-flat
+printf '%s\n\n%s\n\n' "$rigPartialChunk" 'data: {"code":"permission-denied","error":"RIG-CREDITS-MARKER used all available credits"}' > "$rigScenarioDir/res.1"
+rigRun --access-write-root "$rigScenarioDir"
+rigAssert "exactly one request was made"               "$rigRoundCount" 1
+rigAssert "the run fails"                              "$rigRunStatus" 1
+rigAssert "the refusal names its type and message"     "$( rigHolds "$rigScenarioDir/err" 'api.x.ai refused the request -- permission-denied -- RIG-CREDITS-MARKER used all available credits' )" yes
+rigAssert "it is never read as a disconnect"           "$( rigHolds "$rigScenarioDir/err" 'disconnected mid-stream' )" no
+rigAssert "and nothing was printed as an answer"       "$( cat "$rigScenarioDir/out" )" ""
+
+## The nested envelope on the same line, followed by [DONE]: still a refusal, never an
+## empty answer synthesized from the partial text.
+rigStart d-midstream-error-nested
+printf '%s\n\n%s\n\n%s\n\n' "$rigPartialChunk" 'data: {"error":{"message":"RIG-NESTED-MARKER","type":"invalid_request_error","code":"permission-denied"}}' 'data: [DONE]' > "$rigScenarioDir/res.1"
+rigRun --access-write-root "$rigScenarioDir"
+rigAssert "exactly one request was made"               "$rigRoundCount" 1
+rigAssert "the run fails"                              "$rigRunStatus" 1
+rigAssert "the refusal names its code and message"     "$( rigHolds "$rigScenarioDir/err" 'api.x.ai refused the request -- permission-denied -- RIG-NESTED-MARKER' )" yes
+rigAssert "and nothing was printed as an answer"       "$( cat "$rigScenarioDir/out" )" ""
+
+## The control: the same partial stream cut short with no error frame is a real
+## disconnect, retried whole, and given up on after the last attempt.
+rigStart d-midstream-cut
+printf '%s\n\n' "$rigPartialChunk" > "$rigScenarioDir/res.1"
+cp "$rigScenarioDir/res.1" "$rigScenarioDir/res.2"
+cp "$rigScenarioDir/res.1" "$rigScenarioDir/res.3"
+rigRun --access-write-root "$rigScenarioDir"
+rigAssert "control: every attempt was made"            "$rigRoundCount" 3
+rigAssert "control: the run fails"                     "$rigRunStatus" 1
+rigAssert "control: it reads as a disconnect"          "$( rigHolds "$rigScenarioDir/err" 'disconnected mid-stream' )" yes
+rigAssert "control: and is given up on"                "$( rigHolds "$rigScenarioDir/err" 'gave up after 3 stream attempts' )" yes
+rigAssert "control: no refusal is invented"            "$( rigHolds "$rigScenarioDir/err" 'refused the request' )" no
+rigVerdict "an error frame inside the stream is one refusal, and a bare cut is still a disconnect"
+
 ## ---------------------------------------------------------------------------
 ## E. A PreToolUse hook refusal reaching the model, and the same rounds without it.
 ## ---------------------------------------------------------------------------
@@ -377,7 +414,35 @@ rigAssert "the fresh leg's own answer is the result"   "$( cat "$rigScenarioDir/
 rigVerdict "each tier's own model window governs, not the core's fallback"
 
 ## ---------------------------------------------------------------------------
-## G. The offline claim, asserted rather than stated, and last so the whole run is in
+## G. A request body past the OS argument limit still reaches curl. Sixteen reads of a
+##    file at the Read tool's own 200000-byte cap put over 3 MB into round 2, which is
+##    past ARG_MAX on all three platforms, so a body carried in argv never execs curl.
+## ---------------------------------------------------------------------------
+rigStart g-large-body
+LC_ALL=C awk 'BEGIN { for ( lineIndex = 0 ; lineIndex < 2000 ; lineIndex++ ) printf "%099d\n", lineIndex ; }' > "$rigScenarioDir/big.txt"
+{
+	printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":['
+	rigCallIndex=0
+	while [ "$rigCallIndex" -lt 16 ] ; do
+		[ "$rigCallIndex" = 0 ] || printf ','
+		printf '{"index":%s,"id":"rig-call-%s","type":"function","function":{"name":"Read","arguments":"{\\"path\\":\\"%s\\"}"}}' "$rigCallIndex" "$rigCallIndex" "$rigScenarioDir/big.txt"
+		rigCallIndex=$(( rigCallIndex + 1 ))
+	done
+	printf ']}}]}\n'
+	printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\n'
+	printf 'data: [DONE]\n'
+} > "$rigScenarioDir/res.1"
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+rigRun --access-write-root "$rigScenarioDir"
+rigAssert "the oversized round reached curl"           "$( rigHolds "$rigScenarioDir/err" 'Argument list too long' )" no
+rigAssert "two rounds were requested"                  "$rigRoundCount" 2
+rigAssert "round 2 carried the whole 3 MB body"        "$( rigAtLeast "$( wc -c < "$rigScenarioDir/req.2" | tr -d ' ' )" 3200000 )" at-least-3200000
+rigAssert "the leg completed"                          "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
+rigAssert "the run ends normally"                      "$rigRunStatus" 0
+rigVerdict "a request body past the OS argument limit is sent, not refused at exec"
+
+## ---------------------------------------------------------------------------
+## H. The offline claim, asserted rather than stated, and last so the whole run is in
 ##    the log. This is the assertion every scenario above rests on: an instrument that
 ##    quietly reached the live endpoint would still print its PASS lines.
 ## ---------------------------------------------------------------------------

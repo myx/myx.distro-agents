@@ -239,17 +239,6 @@ mention the detail.
 One carve-out: a gap that needs a real external account or infrastructure action, not just code, is not a
 pure tooling fix. Flag it as its own decision point and stop. Never pursue it silently.
 
-### Why this rule exists
-
-- Documenting internals couples member-owned docs to tooling refactors. Renaming an internal
-  option then costs an edit to every member-owned file that names it. That change alters nothing
-  any member does. With internals out of the skillset, the same rename touches no skillset file
-  at all.
-- A documented forwarded flag manufactures contradictions that do not exist. A routine step whose
-  documented scan scope disagrees with the step's own wording carries a self-flagged, unresolved
-  mismatch. Deleting the internals **dissolves** that mismatch rather than resolving it. There is no
-  real conflict there, only a leaked detail disagreeing with the duty text.
-
 A stated prohibition is also worse than silence when it names the mechanism. Take *"no caller-facing
 `--state`/`--header` override"*. It tells a member what it cannot do about something it should not know
 exists, which invites the question. State the call signature positively instead — what the member
@@ -257,391 +246,61 @@ passes, and what it gets back.
 
 ## Armed & Routine contracts
 
-Every `.basic.md`/`.armed.md`/`.routine.md` file follows one of the contracts below, by its own kind. Each is complete and self-contained — read the one that matches, never a diff against another.
+Every `.basic.md`/`.armed.md`/`.routine.md` file follows one of the contracts below, by its own kind. Each is stated in full in its own template file's `# Contract` section, under `magic-team/templates/`. Each is complete and self-contained — read the one that matches, never a diff against another.
 
 **Every section a contract names is present, in contract order, even when empty**. Each carries its own mandatory lead-in paragraph. Where there is no content, an explicit "none" line follows that lead-in. `# Terminology: none` and `# Domain knowledge: none` express the same rule in the heading. An absent heading is indistinguishable from an unfinished file. Fix an existing gap when that file is next touched, not as a standing sweep.
 
 ### Basic (`<name>.basic.md`)
 
-Copyable skeleton: `magic-team/templates/basic.contract.format.md`.
-
-- Frontmatter: `maintainers:` only.
-- Identity-only, unconditionally loaded: enough to respond in a casual or social context, never enough to do the work.
-- `## Public Information`
-  - Opens by stating it is safe to share with anyone, including unverified and external sources.
-  - `Description` — what this member does.
-  - `Name`, `Gender`, `Eyes`, `Alias`, `AKA`, `Birthday` — the persona. Every member is somebody, so every member carries them.
-  - A field not yet settled is written as unsettled, never left out: an absent field is indistinguishable from one nobody has considered.
-- `## Identity marks`
-  - Fields and their rules: this file's own "Identity marks", under "Identifier and identity".
-- Whatever else that member's own identity needs, after those two.
-
-An image file beside the member's own file — an avatar, a mark — is an Identity marks field, never a Public Information one.
-
-`magic-team` is the team's own avatar rather than a person. It carries `Description`, `Name`, and its own `Contact` as the team's front door. It carries none of the person fields.
+Contract: `magic-team/templates/basic.contract.format.md`'s own `# Contract`.
 
 ### Routine (`<owning-member>.<short-name>.routine.md`)
 
-Copyable skeleton: `magic-team/templates/routine.contract.format.md`.
+Contract: `magic-team/templates/routine.contract.format.md`'s own `# Contract`.
 
-- Frontmatter: `executors:`, `maintainers:`, `invitees:`.
-- No `SKILL.md`.
-- No `.basic.md`/`.armed.md` split.
-- No separate `.access.md`/`.reference.md`/`.librarian.md`.
-- `# <owning-member>.<short-name>.routine — the actual procedure`
-  - The file's own title line, before `# Summary` — every existing routine file carries one.
-  - The title is the file's own name minus `.md`: a routine is named by its file, never by an identity of its own.
-- `# Summary`
-  - One short sentence, names the routine.
-  - `## Goals`
-    - Compact narrative, still detailed.
-  - `## Scope`
-    - What it does.
-    - What it deliberately doesn't do.
-- `# Steps`
-  - Exact instructions, execute in order, literally as written.
-  - A step that can't execute as written: escalate, or fail loud.
-  - Exact steps as nested lists. Nested lines follow the nested-item grammar below (`goal:`/`rule:`/`step:`).
-  - Every root-level step carries a name, in the established shape: `<N>. **name-of-meaning**: …` — names what the step does, never where it sits. Unique within the file.
-  - A step is referred to by its name, not its number alone — inside the file and from any other file. A step with no name can only be pointed at by position, and position is the first thing an edit changes.
-  - Applied as each routine file is next touched, not as a sweep.
-- `# Closure steps`
-  - Same shape/discipline as `# Steps`.
-  - Runs only after `# Steps`, and everything it extended/dispatched/spawned, have finished.
-  - An already-existing closing tail in `# Steps` relocates here verbatim — no invented content.
-  - No closing tail of its own: state that plainly, plus a pointer to whatever actually closes it.
-  - Sequencing: `# Steps`, including its own direct synchronous sub-calls, completes in full before any extended, dispatched or spawned run begins. `# Closure steps` runs only after all of that finishes.
-  - An async, board-tracked dispatch or hand-off counts as complete for this purpose once tracked.
-- `# Routine's local procedures`
-  - Named procedure blocks, `## <local-procedure-name>`, called by name from `# Steps`.
-  - Not separate routines.
-  - Not visible outside this file.
-- `# Routine's local rules`
-  - All statements apply simultaneously.
-  - Override a participant's own general `.armed.md` rules while this routine is active.
-  - Executor is permitted/obliged to execute every step as written.
-  - Participants obey this routine's own rules over their normal ones.
-  - Any other rules, exceptions, overrides.
-- `# Routine-specific tooling`
-  - Every `magic-tooling` operation this routine uses — not more, not less.
-  - `## DistroAgentsTools magic-tooling operations`
-    - List, with argument syntax.
-  - `## <--operation-name> Operation Reference`
-    - Syntax again.
-    - Every exact description/comment needed to run it correctly, without looking elsewhere.
-- `# Maintainer Notes`
-  - Not part of a participant's own instructions.
-  - `## Verbatim-goals (intents)`
-    - Abstract goal statements, for conflict testing.
-  - `## Verbatim-tests (benchmarks)`
-    - Concrete edge-case tests.
-  - `## Librarian Comments`
-    - `### Reference`
-      - Pointers, folded in from any `.reference.md`.
-    - `### Conventions`
-      - This file's own conventions.
+What binds a routine's executor beyond the lead-ins every routine file carries:
+
+- `# Closure steps` runs only after `# Steps`, and everything it extended/dispatched/spawned, have finished.
+- Sequencing: `# Steps`, including its own direct synchronous sub-calls, completes in full before any extended, dispatched or spawned run begins. `# Closure steps` runs only after all of that finishes.
+- An async, board-tracked dispatch or hand-off counts as complete for this purpose once tracked.
 
 ### Team-member (`magic-*`)
 
-Copyable skeleton: `magic-team/templates/team-member.contract.format.md`.
-
-- Frontmatter: `maintainers:` only.
-- `# Summary`
-  - One short sentence, names the team-member.
-  - `## Goals`
-    - Compact narrative, still detailed.
-  - `## Scope`
-    - What it does.
-    - What it deliberately doesn't do.
-    - Invocation conditions and auto-trigger behavior stated here.
-- `# Terminology: <topic>`
-  - Pure glossary, `term` → definition.
-  - `## Term: <name>` only when a term needs more than one line.
-  - `# Terminology: none` when empty.
-- `# Team-Member's (-specific) local procedures`
-  - Named procedure blocks, `## <local-procedure-name>`, called by name.
-  - Not separate routines.
-  - Not visible outside this file.
-- `# Team-Member's (-specific) local rules`
-  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
-  - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
-    - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - this member's own limits, restrictions, decision-making guidance.
-- `# Domain knowledge: <topic>`
-  - This member's own reference material, or `: none`.
-  - Owned routines are named here, typically in a routines-index subsection. Each points to its own exact `.routine.md` filename. That is the only place in this file that filename is spelled out.
-- `# Team-Member's (-specific) tooling`
-  - Every `magic-tooling` operation this member uses, full syntax and behavior.
-- `# Maintainer Notes`
-  - `## Verbatim-goals (intents)`
-  - `## Verbatim-tests (benchmarks)`
-  - `## Librarian Comments`
-    - `### Reference`
-      - This folder's own knowledge index: pointers to this folder's own typed files, cross-referenced skill folders, shared (`*.shared.md`) material.
-    - `### Conventions`
-
-- **Floor-doc carve-out — `magic-team` only.** As the team-avatar whose `.armed.md` is every member's baseline, `magic-team` may carry extra top-level sections for genuinely team-wide content, placed between `# Team-Member's (-specific) local rules` and `# Team-Member's (-specific) tooling`. No other member takes this carve-out.
+Contract: `magic-team/templates/team-member.contract.format.md`'s own `# Contract`.
 
 ### Keeper / Warden (`keeper-*`/`warden-*`)
 
-Relationship shape — internal domain-knowledge stewardship, not restated here: see
-`magic-team.authority.keeper.contract.md`/`magic-team.authority.warden.contract.md`'s own "Relationship
-shape".
-
-Copyable skeleton: `magic-team/templates/keeper-warden.contract.format.md`.
-
-- Frontmatter: `maintainers:` only.
-- `# Summary`
-  - One short sentence, names the team-member.
-  - `## Goals`
-    - Compact narrative, still detailed.
-  - `## Scope`
-    - What it does.
-    - What it deliberately doesn't do.
-    - Invocation conditions and auto-trigger behavior stated here.
-    - `### Domain anchor` — present even if N/A.
-      - Named workspace(s): name only, never a hardcoded path — the workspace registry is the path source of truth.
-      - A path/namespace + project-name restriction within it, if any.
-      - A cross-workspace namespace family, if any.
-    - `### Tree restriction` — present even if N/A.
-      - Source-vs-deployed-output split, if one exists: name both trees, source only ever hand-edited.
-      - Else: "N/A — no deploy-output split in this domain."
-- `# Terminology: <topic>`
-  - Pure glossary, `term` → definition.
-  - `## Term: <name>` only when a term needs more than one line.
-  - `# Terminology: none` when empty.
-- `# Team-Member's (-specific) local procedures`
-  - text: "Named procedure blocks. Steps below call them by name. Not separate routines — not visible outside this file."
-  - nested list of procedures, typically including a `daily-idle-task` procedure, steps:
-    - select one eligible idle-run routine from this member's own `## Idle-Tasks` section, weighted by `weight`, honoring each entry's `min-interval` cap and `scope`
-    - run that routine's own `<member>.<name>.routine.md` procedure
-    - log the outcome as a new dated file under `processed/`, which is the routine's own Closure step
-  - Idle tasks are ordinary `.routine.md` files in the member's own folder, never a separate `idle-tasks/` directory.
-  - The `## Idle-Tasks` section sits at the end of the member's `# Domain knowledge` in its `.armed.md`. It is the only thing designating which routines are idle-run, and with what weight, min-interval and scope.
-  - This same `## Idle-Tasks`-designates-idle-run model applies to any member type carrying idle-run routines, not keepers alone. That covers a `magic-*` team-member and a `partner-*`/`client-*`.
-  - A present-non-reporting member's own section additionally states that its routines fire on ad-hoc or grooming dispatch only, never automatic daily fan-out.
-- `# Team-Member's (-specific) local rules`
-  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
-  - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
-    - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - "Console-session use: this role-family may open a `--console-start`/`--console-send` session only when its own instructions explicitly require one — this member's own `.armed.md` listing those operations for its domain is that instruction. Otherwise every call goes directly via `mcp__myx_distro__execute`, whatever the command count." Stated to agree with `magic-team.armed.md`'s own keeper exception, which governs.
-    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`keeper` or `warden`), never restated in full.
-    - this member's own further limits, restrictions, decision-making guidance.
-- `# Domain knowledge: <topic>`
-  - This member's own reference material, or `: none`.
-- `# Team-Member's (-specific) tooling`
-  - Every `magic-tooling` operation this member uses, full syntax and behavior.
-- `# Maintainer Notes`
-  - `## Verbatim-goals (intents)`
-  - `## Verbatim-tests (benchmarks)`
-  - `## Librarian Comments`
-    - `### Reference`
-    - `### Conventions`
-- Instances of this shape live under the owning `keeper-*`/`warden-*` members' own folders.
+Contract: `magic-team/templates/keeper-warden.contract.format.md`'s own `# Contract`.
 
 ### Partner / Client (`partner-*`/`client-*`)
 
-Relationship shape — the asymmetric external-organisation relationship (`client-*` faces one direction,
-`partner-*` the opposite), not restated here: see `magic-team.authority.partner.contract.md`/
-`magic-team.authority.client.contract.md`'s own "Relationship shape".
+Contract: `magic-team/templates/partner-client.contract.format.md`'s own `# Contract`.
 
 Comms-sweep for any `client-*` member reads via `--client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]`. It is generic across every `client-*` member, per-member-credentialed, and client-only. A `partner-*` member is not accepted. The member name and the optional cut-off are its only arguments. It reads every baseline source that member holds credentials for. An item name is not a parameter to it.
 
 `magic-coordinator.communication-sweep.routine` is the wrapper around it. That routine's own pass reads every `client-*` member, alongside the executor's own team-scoped sources, under each member's own credentials.
 
-Copyable skeleton: `magic-team/templates/partner-client.contract.format.md`.
-
-- Frontmatter: `maintainers:` only.
-- `# Summary`
-  - One short sentence, names the team-member.
-  - `## Goals`
-    - Compact narrative, still detailed.
-  - `## Scope`
-    - What it does.
-    - What it deliberately doesn't do.
-    - Invocation conditions and auto-trigger behavior stated here.
-    - `### External representation` — present even if N/A.
-      - Which direction this member represents, and whether it holds our credentials into the external
-        organisation's own systems — never asserted generically here, `partner-*` and `client-*` face
-        opposite directions: see `magic-team.authority.partner.contract.md`/
-        `magic-team.authority.client.contract.md`'s own "Relationship shape".
-      - Communication with the external entity uses this member's own dedicated account or email, where one is configured. Otherwise it routes through `magic-coordinator` — an explicit ask, `magic-coordinator`'s own conscious assessment, escalated to human-owner confirmation when warranted.
-      - Generic role operations run through the shared `magic-tooling` baseline. Any external-system tooling specific to this particular partner or client — their own issue tracker, messaging or document systems — is this member's own addition. It is documented in its own `Team-Member's (-specific) tooling` section.
-- `# Terminology: <topic>`
-  - Pure glossary, `term` → definition.
-  - `## Term: <name>` only when a term needs more than one line.
-  - `# Terminology: none` when empty.
-- `# Team-Member's (-specific) local procedures`
-  - Named procedure blocks, `## <local-procedure-name>`, called by name.
-  - Not separate routines.
-  - Not visible outside this file.
-- `# Team-Member's (-specific) local rules`
-  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
-  - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
-    - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - `partner-*` only: "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement." Not part of the `client-*` shape — a `client-*` member is a representative, normally with no workspace or console of its own, so it gets no console grant by default. A specific client that genuinely needs one states it explicitly in its own file, which is what the `magic-team.armed.md` console rules require anyway.
-    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`partner` or `client`), never restated in full.
-    - this member's own further limits, restrictions, decision-making guidance.
-- `# Domain knowledge: <topic>`
-  - This member's own reference material, or `: none`.
-- `# Team-Member's (-specific) tooling`
-  - Every `magic-tooling` operation this member uses, full syntax and behavior.
-- `# Maintainer Notes`
-  - `## Verbatim-goals (intents)`
-  - `## Verbatim-tests (benchmarks)`
-  - `## Librarian Comments`
-    - `### Reference`
-    - `### Conventions`
-- Instances of this shape live under the owning `partner-*`/`client-*` members' own folders.
-
 ### Oncall / Expert (`oncall-*`/`expert-*`)
 
-Copyable skeleton: `magic-team/templates/oncall-expert.contract.format.md`.
-
-- Frontmatter: `maintainers:` only.
-- `# Summary`
-  - One short sentence, names the team-member.
-  - `## Goals`
-    - Compact narrative, still detailed.
-  - `## Scope`
-    - What it does.
-    - What it deliberately doesn't do.
-    - Invocation conditions and auto-trigger behavior stated here.
-    - `### Engagement shape` — present even if N/A.
-      - Not a standing team member: a costed, external AI-service resource, spawned into a billed pay-per-time session, brought in to boost/accelerate one specific, complicated task.
-      - Domain of expertise: the specific type(s) of work this member is brought in for — not a workspace, a work-type.
-      - Remote execution account info: this member's own settings name whatever account/credential the billed remote service is actually reached through.
-      - Spawn trigger, cost and billing tracking, and session lifecycle are not yet defined team-wide. State whatever this specific member's own instructions already settle, and flag the rest as open.
-- `# Terminology: <topic>`
-  - Pure glossary, `term` → definition.
-  - `## Term: <name>` only when a term needs more than one line.
-  - `# Terminology: none` when empty.
-- `# Team-Member's (-specific) local procedures`
-  - Named procedure blocks, `## <local-procedure-name>`, called by name.
-  - Not separate routines.
-  - Not visible outside this file.
-- `# Team-Member's (-specific) local rules`
-  - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
-  - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
-    - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`oncall` or `expert`), never restated in full.
-    - this member's own further limits, restrictions, decision-making guidance.
-- `# Domain knowledge: <topic>`
-  - This member's own reference material, or `: none`.
-- `# Team-Member's (-specific) tooling`
-  - Every `magic-tooling` operation this member uses, full syntax and behavior.
-- `# Maintainer Notes`
-  - `## Verbatim-goals (intents)`
-  - `## Verbatim-tests (benchmarks)`
-  - `## Librarian Comments`
-    - `### Reference`
-    - `### Conventions`
-- This contract applies once such a member is created.
+Contract: `magic-team/templates/oncall-expert.contract.format.md`'s own `# Contract`.
 
 ### Human-owner (`human-owner`)
 
-Copyable skeleton: `magic-team/templates/human-owner.contract.format.md`.
-
-A non-acting identity record that nonetheless carries one real, invocable procedure — not an inert reference stub, and not an executor.
-
-- Frontmatter: `maintainers:` only.
-- `# Summary`
-  - One short sentence, names the record.
-  - `## Goals`
-    - Compact narrative, still detailed.
-  - `## Scope`
-    - What it does — the reference point other files use for "the human-owner" as a role, plus the invocable procedure for contacting them.
-    - What it deliberately doesn't do. It is never loaded to generate human-owner speech, replies, or actions. It has no auto-trigger and no dispatch path, and none should exist. It holds no actual contact details.
-    - Authority is *described* here in one line. That line covers two things: final say on conflicts, ambiguities and escalations the team can't settle, and approval for anything outside a member's own mandate. The pointer naming `magic-coordinator/TEAM-ORGANIZATION-VISION.md` as its only home follows immediately. Authority is never re-derived or restated. No `### Authority` subsection: a `Scope` bullet, nothing more.
-- `# Terminology: <topic>` — or `: none`.
-- `# Team-Member's (-specific) local procedures`
-  - Named procedure blocks, `## <local-procedure-name>`, called by name.
-  - Always includes `reach-human-owner` — how a session actually contacts the human-owner asynchronously when they're needed but not present.
-  - Not separate routines. Not visible outside this file.
-- `# Team-Member's (-specific) local rules`
-  - text: "All statements apply at the same time, always."
-  - flat, present-tense bullets, always including:
-    - "Never impersonate the human-owner." No exception, no maintainer carve-out, ever.
-    - Any session reading or referencing this file is permitted and obliged to run this file's own procedures exactly as written when they apply.
-    - Carries no member-execution bullet of its own. This record never executes anything itself. The referencing session runs its procedures, under that session's own `magic-tooling` rules.
-- `# Domain knowledge: <topic>` — or `: none`.
-- `# Team-Member's (-specific) tooling`
-  - Every `magic-tooling` operation this record's own procedures invoke, full syntax and behavior. `none` only when no procedure invokes any.
-- `# Maintainer Notes` — same shape as every other contract. The `## Verbatim-goals (intents)`/`## Verbatim-tests (benchmarks)` pair is where the authority-role intent is anchored — not a `Scope` subsection, and never a copy of the vision doc.
-- One member only. Not a family. No second `human-owner`-shaped member exists or is expected.
+Contract: `magic-team/templates/human-owner.contract.format.md`'s own `# Contract`.
 
 ### Session-context document (`# Session Sweep Report`)
 
-Copyable skeleton: `magic-team/templates/session-context.document.format.md`.
+Format: `magic-team/templates/session-context.document.format.md`'s own `# Contract`.
 
-Not a contract — the shape of a **generated** document, produced by tooling and read by a session at its start. Nothing writes it by hand. No session calls the producing operation directly. Each routine or member invokes its own stub, and each stub requests exactly the scopes its own invocation place needs.
+Not a contract — the shape of a **generated** document, produced by tooling and read by a session at its start. Nothing writes it by hand.
 
-- `# Session Sweep Report`
-  - `## Contents & Abstract` — `generated-for`, `generated-at`, the scopes actually requested, and the comms cut-off in force. Scopes are named as this document names its own sections, never as tooling option spellings. Where no cut-off was set, it says so.
-- `# New Incoming Communications`
-  - Carries `**NOTE:** no new incoming communications` only when every requested comms sub-section is empty.
-  - `## Incoming IM Updates` (cap 128), `## Incoming Email Updates` (cap 128), `## Incoming Trello Updates` (cap 64).
-- Four inbox sections:
-  - `## Active Inbox Inquiry Items` (`inquiry-*`)
-  - `## Current Inbox Reflections` (`reflection-*`)
-  - `## Current Inbox Notes` (`note-*`)
-  - `## Other Inbox Items` — every inbox item whose prefix is none of those three
-- All four alike: cap 64 items, oldest first by file modification time, a `scope:` line first, and item bodies per the body-framing rule below.
-- The fourth section exists because without it the other three silently drop everything else an inbox turns out to hold. It carries two different things at once, and they are not read alike:
-  - a legitimate `warning-*`. That is an inbox type, one of `magic-team.armed.md`'s four, but it has no section of its own here.
-  - a board-type document — `task-*`, `proposal-*`, `change-*`, `interview-*` and the rest. It does not belong in an inbox at all, and it is misfiled.
-- Whether this section is kept as is, removed, or repurposed as a misfiling report is an open human-owner decision, not settled here.
-- **The inbox window advances only from oldest toward newest, and an item leaves it by being moved to `processed/`**. No inbox pointer is stored anywhere. The live root's own oldest edge is the pointer. It is materialised as the difference between what is filed and what has been drained.
-- **Handled means moved, never edited in place**. The sort key is modification time. Any write that leaves an item where it is makes it the newest item in the inbox — an in-place edit, a header change. Such a write buries it behind the far edge, beyond the cap's reach. Draining does not reorder the live root. The drained item leaves the root rather than moving within it. The processed copy carries the drain time. A scope reading `processed/` too therefore sorts recently drained items to the newest edge, the end an oldest-first cap cuts first.
-- `## Board Items` — inserted into this structure keeping the existing `--*-input-scan` per-item shape (`## <state>/<item-filename>` then its frontmatter). Never restructured, and **never capped**: the board is the work list, and silently dropping part of it is the failure this document exists to prevent.
-- **Six requestable scopes feed the inbox and board sections** — two mutually exclusive pairs and two singles. Inbox inquiry items: the active ones, or the active ones plus collected ones. Inbox reflections. Inbox notes. Board items related to the member: the active states, or every state. A pair's two breadths are mutually exclusive — one breadth per run, never both.
-- **Each of those four sections states its own `scope:` as its first line** — before any item block and before any `**NOTE:**`, extending the same per-section metadata convention the comms sub-sections already carry with `identity:`/`instrument:`/`sources-scanned:`. Present whenever the scope was requested, on empty and non-empty sections alike, exactly as `identity:` is. The heading names the section, `scope:` names the run — which is what lets two runs under the same heading tell themselves apart, and is why the heading set stays fixed rather than growing a variant per breadth.
-- Four exact `scope:` forms, one per breadth. They are strings this document emits, describing what was read; no member constructs or resolves them, and item lookup still goes through the operations that own it:
-  - `scope: inboxes/<member>/*.md -- top level only, excluding processed/` — the reflections, notes and other-items sections always, and the inquiry section at its narrower breadth.
-  - `scope: inboxes/<member>/*.md -- top level plus processed/` — the inquiry section at its wider breadth.
-  - `scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, <type filter>, owner: <member>` — the board section at its narrower breadth.
-  - `scope: board/<state>/*.md -- backlog|pending|running|blocked|parked|processed|archived|retained, <type filter>, owner: <member>` — the board section at its wider breadth.
-  - The board form carries a **type filter** between its state list and its owner, because the board section is the one that can be filtered by board-item type: `all types` when none was applied, otherwise the prefixes that were. The two inbox forms carry no type filter — each inbox section already *is* its type. `owner: any owner` where no owner filter applied.
-- **The wider inbox breadth is live plus not-yet-collected `processed/`, never complete history.** `processed/` is garbage-collected on a retention threshold that varies by document type, so what it still holds when the document is generated is what that section reports. A reader must not treat it as an archive.
-- **Relatedness is `owner:` alone.** `participants:` and `restart-session:` are deliberately not consulted: an item naming a member is not thereby that member's work, and widening relatedness to them would return items nobody has been assigned.
-- **Every scope is in one of three states, and no two of them render alike.** A scope is requested, declined, or neither. A requested scope produces its section. A declined scope produces no section at all — no heading, no `**NOTE:**` line. A scope that was neither requested nor declined produces its heading and `**NOTE:** not requested`, and nothing beside it.
-- **`**NOTE:** not requested` reports the request, never the tree.** It says the run stated nothing about that section — neither asking for it nor excluding it — so a reader takes it as an incomplete request and never as an absence of content.
-- **Requesting is per breadth, declining is per section.** A scope offering two breadths is requested at exactly one of them, one breadth per run. Its decline names the section alone — one decline per section, never one per breadth.
-- **`# New Incoming Communications` is emitted whenever any of its three comms sub-sections is emitted**, and carries `**NOTE:** not requested` when none of the three was requested. With all three declined the heading goes with them.
-- Every emitted section carries items or a `**NOTE:**` line, and never neither. `**NOTE:**` covers two distinct kinds, and which kind it is decides what the section may carry alongside it:
-  - **Status forms** — `no new X`, `not requested`, `no scan was made`. Mutually exclusive, exactly one, and only ever *instead of* items.
-  - **Annotation marks** — `partial`, `truncated`. They accompany items, and may co-occur with each other: a section can be over its cap and missing a source at the same time.
+What a session reading it relies on:
+
 - Three distinct `**NOTE:**` forms, never interchangeable: *no new X* (looked, found nothing), *not requested* (nobody asked and nobody declined, so nothing looked) and *no scan was made* (asked, could not look). That distinction is the document's own reason to exist: an empty result, an unstated request and an unperformed scan must never read alike.
-- **Form 1 always carries a denominator and its filter** — `no new X -- scanned <N> items, <M> matched <filter>`. It is the only form asserting a fact about the world rather than about the process, so it is the only one that can be wrong while looking right. Without the denominator, a broken filter and an empty tree render identically. An owner-extraction defect matching none of a full board's items reads exactly like a truthful "no board items".
-- A section with plural sources carries `sources-scanned: <N> of <M>`. Where `N < M` it also carries a `**NOTE:** partial -- <source> not scanned, <reason>` beside its items. A populated section must still be able to report that something underneath it failed.
+- **`**NOTE:** not requested` reports the request, never the tree.** It says the run stated nothing about that section — neither asking for it nor excluding it — so a reader takes it as an incomplete request and never as an absence of content.
 - The aggregate `no new incoming communications` fires only when every requested comms sub-section is **empty and successfully scanned**. An unscannable sub-section is unknown, not empty, and blocks it.
-- Each comms sub-section states its own `identity:` before its `instrument:`. `identity:` names the account that sub-section was read through, and the member whose config supplied the credentials. Identifiers only: a Slack user id, an email address, a Trello username and id. Credential values never appear in the document.
-- Each comms sub-section states its own `instrument:`. The services differ. Slack takes a cut-off and has no unread flag. Email and Trello have unread and take no cut-off. A single global cut-off line therefore cannot describe what was actually used.
-- Every item block states its type name and id on its heading line.
-- **Item bodies, inbox sections only, framed by a declared line count and no delimiter**. No delimiter can work. Every fence or sentinel is a string a body may legally contain. Each inbox item block runs `## inbox/<filename>` first. Then its frontmatter `key: value` lines, verbatim. Then `body-truncated:` where it applies. Then `body-final-newline: absent` where it applies. Then `body-lines: <N>`. Then exactly `N` lines. Then one blank line, then the next `##` or EOF.
-  - `body-lines:` is **the last key before the body** — a reader stops treating lines as headers there. `body-lines: 0` when there is no body.
-  - **An item that is zero bytes still gets a block**. It has no frontmatter and no body, so nothing about it would otherwise be emitted. Meanwhile the section's `scanned`/`matched` counts still include it. The document then asserts an item it never shows. That is the one false-completeness failure a reader cannot detect, because the counts agree with themselves. The block is emitted in that item's own position. It carries exactly: `item-empty: 0 bytes stored -- no frontmatter and no body; an interrupted write leaves exactly this`, then `body-lines: 0`.
-  - `item-empty:` is what distinguishes an empty item from one that legitimately has frontmatter and no body. The two must never read alike. It keeps `body-lines:` rather than omitting it. Every block therefore still ends with the same last key, and a reader still consumes `N` lines and expects `##` or EOF. The mark distinguishes without costing the frame its uniformity.
-  - `body-lines:` states the lines **actually emitted**, and those lines are byte-identical to the corresponding prefix of storage. Where no body was cut, that prefix is the whole body.
-  - `body-final-newline: absent` appears only when the body was emitted **whole** and storage did not end in a newline. It sits immediately before `body-lines:`, so that `body-lines:` stays last. The emitter supplies the missing newline. Nothing else is added or removed. A cut body never carries it. A body that did not reach its own last byte says nothing about how storage ended, and asserting it would be a claim the emitter cannot make.
-  - A count rather than a delimiter is what makes the body byte-exact and the framing self-checking. After `N` lines a reader must find `##` or EOF. Where it does not, the document is corrupt and can say so.
-  - The board section keeps frontmatter only, and keeps its no-cap rule. Board bodies are not carried here — `--member-read-board-item` already returns one.
-- **Wherever anything is cut, the document says so at the point it was cut**. That is a rule of the whole document, not a feature of one section. Two forms exist, never a fresh one. Each states *what* was cut and *how much*, never merely that something was:
-  - **Section-level mark**, when the item *count* is cut. Base form, for the email and Trello sections, emitted exactly: `**NOTE:** truncated -- <N> items found, capped at <M>`
-  - Inbox form, for all four inbox sections, emitted exactly: `**NOTE:** truncated -- <N> items found, capped at <M> -- OLDEST kept, newest not shown`
-  - The inbox form names the end it kept, because a count alone does not say which items are out of reach.
-  - IM superset, for `## Incoming IM Updates` only: the same counts, then the dropped-conversation list, then that this is a display cap and not an unread source. That clause exists because the IM cap counts conversations, and a dropped conversation is not an unread source.
-  - The `**NOTE:** ` prefix is part of every section-level form. A form quoted without it is a different string.
-  - **Per-item mark**, when a *body* is cut at the 8192-byte cap. Emitted exactly, as a header key inside the item's own frame: `body-truncated: <T> bytes stored, capped at 8192 -- <N> of <M> lines emitted`. `<T>` is the body's full stored size in bytes. `<N>` is the lines emitted, the same number `body-lines:` carries. `<M>` is the lines the body has in storage.
-  - It is a key, not a `**NOTE:**`, and it sits before `body-final-newline:`/`body-lines:`. The reason is that `body-lines:` must stay the last key before the body. A mark placed after `body-lines:` would be counted as a body line. A `**NOTE:**` placed before it would break the `key: value` grammar the block is parsed with.
-  - **The per-item mark is not stylistic and cannot be omitted**. `body-lines:` is a count a reader consumes literally. A body cut without the mark still yields a count that no longer describes the whole stored body. A reader that consumes `N` lines and finds neither `##` nor EOF has walked into the next block. A cut without its mark is a corrupt document, not a terse one.
-  - Both marks are required, and they are independent. A section can be over its item cap while one of the items it did carry also had its body cut.
-  - **Where the 8192-byte cut falls**: at the last line boundary at or before 8192 bytes. Whole lines only, so no multi-byte character is ever split. Where a single line exceeds the cap on its own, no lines are emitted: `body-lines: 0`, with the mark stating `0 of <M> lines emitted`. That is a truthful empty body and not a silent one. The reader is told the size and goes to the item.
-- **A string this document emits is code: every emitted string uses ASCII `--`, never an em dash**. It governs every `scope:`, `**NOTE:**`, `identity:`, `instrument:` and `sources-scanned:` line quoted here or in the skeleton. Reproduce those characters exactly, and do not compose one at the point of use. Contract prose around them is unconstrained and is not touched by this rule.
-- **`## Board Items` carries a `scope:` line whenever it has content**, stating the states walked, the type filter, and the owner filter or that any owner matched. It never carries a cap line and never carries a `truncated` mark, because it is uncapped. A section that walked the board and declared nothing is the failure this rule closes.
-- Shell-readable, human-readable and agent-readable at once: stable headings, one item per block, `key: value` lines, blank line between blocks.
-- The inbox sections carry **every** inbox item: `inquiry-*`, `reflection-*` and `note-*` in their own three sections, and everything else in `## Other Inbox Items`. Reading the inbox whole is a property of this document, not a widening of what an inbox may hold. `magic-team.armed.md`'s restriction stands. A member's own inbox holds `note-*`, `inquiry-*`, `reflection-*` and `warning-*` only, and a board-type document found in one is misfiled. This document reports what is actually in an inbox rather than only what belongs there. That is also what makes `magic-team.process-inbox.routine`'s own non-enumerating job actually reachable from it.
-- Recorded gaps live in the skeleton file, stated rather than solved. Two of them: `assignee` not existing in the entity model, and the uneven per-service cut-off support that makes lagging pointers the sanctioned mechanism.
+- **The wider inbox breadth is live plus not-yet-collected `processed/`, never complete history.** `processed/` is garbage-collected on a retention threshold that varies by document type, so what it still holds when the document is generated is what that section reports. A reader must not treat it as an archive.
+- **Handled means moved, never edited in place**. The sort key is modification time. Any write that leaves an item where it is makes it the newest item in the inbox — an in-place edit, a header change. Such a write buries it behind the far edge, beyond the cap's reach. Draining does not reorder the live root. The drained item leaves the root rather than moving within it. The processed copy carries the drain time. A scope reading `processed/` too therefore sorts recently drained items to the newest edge, the end an oldest-first cap cuts first.
 
 ## Nested-item grammar
 
@@ -899,7 +558,7 @@ The length of an ask is a diagnostic on the ask, not a style score. A choice tha
 
 An intent given to a member is a thing to act on, not a subject to write about. Producing text about an ask, in place of putting the ask, is the failure this rule catches. It binds a session relaying someone else's ask exactly as it binds one raising its own.
 
-Distinct from "Compact, structured, simple, important first" below. That rule orders a message's parts, and leaves what counts as important to whoever writes it. A session that has just done the work sincerely reads its own findings as the important part, and orders them first in good faith. This rule settles that: in a message that wants something, the thing wanted is the important part. It also governs what stays in the message at all, which ordering does not reach.
+Distinct from "Compact, structured, simple, important first" below. That rule orders a message's parts, and leaves what counts as important to whoever writes it. This rule settles that: in a message that wants something, the thing wanted is the important part. It also governs what stays in the message at all, which ordering does not reach.
 
 ## Every message is addressed, tagged, and sent on a real channel
 
@@ -965,7 +624,7 @@ A number a reader needs is computed where it is emitted, never typed in. A writt
 
 The test: "Nothing measures emitted text" is a claim about the world on one morning, and a single change elsewhere makes it false. "A predicate that has not graduated does not refuse" is a claim about what holds, and it survives every graduation. Same content, no expiry.
 
-This sits at authoring rather than at change time. The truth of a present-state claim has an expiry nobody schedules, so no later step can be relied on to arrive. The author can see they are writing an expiring proposition. Nobody afterwards can, because by then it reads as a true sentence. It is also why searching cannot recover it. A sentence asserting that something does not exist names nothing to search for. It is precisely the sentence that omits the term anyone would look under.
+This sits at authoring: afterwards the claim reads as a true sentence, and searching cannot recover it — a sentence asserting that something does not exist names nothing to search for.
 
 **What this forbids, bounded, because a rule generalised past its intent stops meaning anything.** Three conditions, and the first is the one that matters:
 
@@ -991,7 +650,7 @@ All emitted text is under this floor. Emitted means anything a member writes tha
 
 **Carried text is recognised by its markup, never declared by an argument**. A quotation is marked as a quotation, and a check skips marked spans exactly as it skips code fences. A payload with no natural markup is marked by the member. No argument routes around the floor, because none exists. The risk that carries is a member failing to mark, not a member missing an exception. An unmarked quotation is measured as the member's own prose, and restyling it would destroy the thing that makes it worth having.
 
-**The floor governs sentences and lists, and completeness governs what must be present**. They were never on the same axis. Two rule sets appeared to compete only because both were written as if they governed documents. A long report is a list, and the floor already permits it.
+**The floor governs sentences and lists, and completeness governs what must be present**. They were never on the same axis. A long report is a list, and the floor already permits it.
 
 Two standards compose it. ELI5 gives the reader the thing itself rather than the route to it. ASD-STE100 gives the testable limits. Twelve clauses:
 
@@ -1008,7 +667,7 @@ Two standards compose it. ELI5 gives the reader the thing itself rather than the
 11. Nothing is dropped to hit a number (STE 4.2, 4.5). Over the cap means split the sentence, never compress it.
 12. A noun cluster in prose is three words maximum (STE 2.1). An identifier is a technical noun rather than a cluster (STE 1.5, 1.6), so 2.1 does not count its parts. Where its written-out form runs longer than three words, give that form once, then use the identifier as one hyphenated unit (STE 2.2). Judgement applies this clause, never a counter.
 
-Clause 10 is where to expect silence rather than noise. Clause 5 was once written per message, fired on every correct document, and was found within a day. Clause 10 was written the same way, fired on nothing, and could have sat for a year. A rule satisfied vacuously and a rule complied with produce identical evidence. A clean log is not a result.
+Clause 10 is where to expect silence rather than noise. A rule satisfied vacuously and a rule complied with produce identical evidence. A clean log is not a result.
 
 Four named shapes exist for stating an exception, and only `relay` is a genuine one:
 
@@ -1019,13 +678,9 @@ Four named shapes exist for stating an exception, and only `relay` is a genuine 
 
 They are not four parallel defaults a member chooses between.
 
-Deliberately not taken: STE's restricted verb forms and tenses (3.2, 3.4). Their purpose is to keep a procedure's time unambiguous. A message reporting what happened needs the perfect tenses. Banning them pushes the writer into a longer construction, which loses on both standards at once.
-
-The clause numbers are ASD-STE100 Issue 9 rule numbers, consistent across four independent sources. The standard's own text is not publicly readable, so nothing here is quoted as the standard's own words.
+Deliberately not taken: STE's restricted verb forms and tenses (3.2, 3.4). A message reporting what happened needs the perfect tenses.
 
 Which clauses a measurement applies and which a reader judges is `magic-librarian`'s own to state, with the reasons, in `magic-librarian/magic-librarian.armed.md`. A clause is measured only where the measurement cannot fire on correct text. Most clauses are reader-judged. A few carry a graduated measurement at the message sites, and which ones is stated there rather than here.
-
-**A measurement of formatting is not a measurement of prose, and clause 5 is where the two are confused**. A sentence counter that joins consecutive non-blank lines into one paragraph fires on a compact status post. Such a post is one fact per line, and the counter reads it as a single long paragraph. The same words with blank lines between them, or set as bullets, produce nothing. One text, three formattings, three different answers. The line-per-fact shape is what clauses 2 and 6 ask for, so a counter built that way refuses the formatting this floor requires. That is a limitation of the instrument, never a strictness setting to turn down. No threshold repairs an instrument that cannot tell a prose paragraph from a line-per-fact block.
 
 **The floor binds all emitted text.** New text conforms. Changed text conforms in what changed. Bringing an existing document to the floor is commissioned work, done in a stated order. A member meeting a not-yet-conforming document does not rewrite it in passing.
 
@@ -1088,7 +743,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - The team's general coding style reaches whoever is actually on duty writing the code, never only the member that owns and maintains it.
 - Every acting member's own source files — `.basic.md`/`.armed.md`, plus every `.routine.md` it owns — are fully sufficient on their own.
 - A duty instruction says how to perform the duty. Nothing else belongs in a skill file. Tooling internals stay with the package that owns them, so a tooling refactor never forces an edit to a member-owned file.
-- Each file-shape contract stated here is complete and self-contained. A file's shape is read off the one contract matching its own kind, never reconstructed as a diff against another.
+- Each file-shape contract, stated in its own template file, is complete and self-contained. A file's shape is read off the one contract matching its own kind, never reconstructed as a diff against another.
 - Changing what a folder's own definition *is* is a group decision, never one maintainer acting alone. Executing the activity that definition describes stays free.
 - The human-owner's own standing corrections are stated here in full. The skillset is the only thing that carries them forward, and an agent's own private memory does not.
 - The human-owner's standing corrections are carried as present-tense instruction text. His own words are quoted in no file, a `MAGIC.md` included. Verbatim lives in the verbatim stores, and in a current active tracking document or a hand-off. An approved document becomes the new and only verbatim to use, replacing all working verbatim collected before it.

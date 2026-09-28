@@ -4,13 +4,15 @@
 ## AgentsHarnessMcpClient.sh -- MCP server enumeration, declaration and calling for
 ## the universal harness. Sourced by AgentsUniversalHarness.sh and never executed:
 ## everything here runs in the core's process, exactly as AgentsHarnessHooks.sh does.
-## THE TOOL SET IS FROZEN HERE, BEFORE THE FIRST ROUND. Enumeration runs once, at
-## source time, and $harnessMcpToolsJson never changes afterwards -- a summarise-and-
-## restart reuses it rather than re-enumerating, because `tools` must stay byte-
-## identical for the prompt cache and, on the Anthropic wire, binds to the thinking
-## blocks such that changing it mid-session is a 400 at replay.
+## THE TOOL SET IS DYNAMIC. AgentsHarnessMcpEnumerate runs as this file loads and the
+## core runs it again before every round after the first, so $harnessMcpToolsJson is
+## whatever the registrations and the servers declare at that round. A round whose
+## enumeration matches the last one sends the same bytes. On the Anthropic wire `tools`
+## is bound by every thinking block produced after it, so a set that changes mid-leg
+## there is a 400 at replay (AgentsAnthropicStub.sh, constraint 3).
 ## A SERVER IS SPAWNED ONLY BECAUSE harnessMcpServers HOLDS IT -- named by --mcp-server,
-## or else the workspace's own mcp.servers.json minus myx.distro, settled by the core.
+## or else the workspace's own mcp.servers.json minus myx.distro, read again by the
+## core's AgentsHarnessMcpServerSet on every enumeration.
 ## A run holding none starts no process, opens no file and leaves this file inert,
 ## which is also what keeps the offline checks offline.
 
@@ -314,94 +316,107 @@ AgentsHarnessMcpCall(){ ## declared name, raw arguments JSON
 	printf '%s' "$callOut"
 }
 
-if [ "${#harnessMcpServers[@]}" -gt 0 ] ; then
-	## Enumeration runs before the member does any work, and a healthy stdio server
-	## answers `initialize` in milliseconds, so it is bounded in seconds rather than by
-	## the run bound a deliberate tool call keeps. The 30 is the human-owner's chosen
-	## value, so a later reader tuning it is changing a policy decision, not a guess.
-	harnessMcpEnumTimeout="${MDAT_HARNESS_MCP_ENUM_TIMEOUT:-30}"
-	## Whole seconds, by explicit enumeration rather than a collation-dependent range.
-	harnessMcpEnumTimeoutRest="$harnessMcpEnumTimeout"
-	while [ -n "$harnessMcpEnumTimeoutRest" ] ; do
-		harnessMcpEnumTimeoutChar="${harnessMcpEnumTimeoutRest%"${harnessMcpEnumTimeoutRest#?}"}"
-		harnessMcpEnumTimeoutRest="${harnessMcpEnumTimeoutRest#?}"
-		case "$harnessMcpEnumTimeoutChar" in
-			0|1|2|3|4|5|6|7|8|9) ;;
-			*)
-				echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: MDAT_HARNESS_MCP_ENUM_TIMEOUT must be whole seconds, got: $harnessMcpEnumTimeout" >&2
-				exit 1
-			;;
-		esac
-	done
-
-	## Named servers and no configuration is not the inert case: the inert case is a
-	## spawn that named none, which never reaches here at all.
-	## Our own registration, under the workspace's system-data root. A native
-	## client's `.mcp.json` is installer output generated from this file, never a
-	## source read here -- reading it would make something we publish the authority.
-	harnessMcpConfigFile="${MMDAPP:-}/.local/agents/mcp.servers.json"
-	if [ -z "${MMDAPP:-}" ] ; then
-		harnessMcpConfigFault="MMDAPP is not set, so there is no mcp.servers.json to resolve it against"
-	elif [ ! -f "$harnessMcpConfigFile" ] || [ ! -r "$harnessMcpConfigFile" ] ; then
-		harnessMcpConfigFault="there is no readable $harnessMcpConfigFile to resolve it against"
-	fi
-
-	for harnessMcpName in "${harnessMcpServers[@]}" ; do
-		{
-			AgentsHarnessMcpHandshake
-			printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-		} > "$harnessScratch/mcp.req"
-		if ! AgentsHarnessMcpRun "$harnessMcpName" "$harnessMcpEnumTimeout" 2 ; then
-			AgentsHarnessMcpDegrade "$harnessMcpName" "$harnessMcpFault"
-			continue
-		fi
-		if ! AgentsHarnessMcpReply 1 ; then
-			AgentsHarnessMcpDegrade "$harnessMcpName" "it never answered \`initialize\` (exit status $harnessMcpStatus)${harnessMcpDiag:+ -- it said: $harnessMcpDiag}"
-			continue
-		fi
-		if ! AgentsHarnessMcpReply 2 ; then
-			AgentsHarnessMcpDegrade "$harnessMcpName" "it answered \`initialize\` and then returned no \`tools/list\` result (exit status $harnessMcpStatus)${harnessMcpDiag:+ -- it said: $harnessMcpDiag}"
-			continue
-		fi
-		printf '%s\n' "$harnessMcpReply" > "$harnessScratch/mcp.reply"
-
-		harnessMcpRc=0
-		harnessMcpToolCount="$( AgentsHarnessMcpField result.tools.__count < "$harnessScratch/mcp.reply" )" || harnessMcpRc=$?
-		if [ "$harnessMcpRc" != "0" ] ; then
-			AgentsHarnessMcpDegrade "$harnessMcpName" "its \`tools/list\` answer carries no \`result.tools\` array (rc=$harnessMcpRc)"
-			continue
-		fi
-
-		printf '%s\n' "🔌 ${harnessDim}MCP${harnessOff} ${harnessValue}$harnessMcpName${harnessOff} ${harnessDim}-- $harnessMcpToolCount tool(s) enumerated${harnessOff}" >&2
-		harnessMcpToolIndex=0
-		while [ "$harnessMcpToolIndex" -lt "$harnessMcpToolCount" ] 2>/dev/null ; do
-			harnessMcpToolPath="result.tools.$harnessMcpToolIndex"
-			harnessMcpToolIndex=$(( harnessMcpToolIndex + 1 ))
-			harnessMcpRc=0
-			harnessMcpTool="$( AgentsHarnessMcpField "$harnessMcpToolPath.name" < "$harnessScratch/mcp.reply" )" || harnessMcpRc=$?
-			if [ "$harnessMcpRc" != "0" ] ; then
-				printf '%s\n' "${harnessWarn}🔌 mcp${harnessOff} ${harnessDim}$harnessMcpName: dropped $harnessMcpToolPath -- it declares no readable name${harnessOff}" >&2
-				continue
-			fi
-			if ! AgentsHarnessMcpNameOk "$harnessMcpTool" "_.-" ; then
-				printf '%s\n' "${harnessWarn}🔌 mcp${harnessOff} ${harnessDim}$harnessMcpName: dropped the tool named ${harnessOff}${harnessValue}$harnessMcpTool${harnessOff}${harnessDim} -- a tool name carries letters, digits, underscore, dot and hyphen only${harnessOff}" >&2
-				continue
-			fi
-			harnessMcpSchemaFile="$harnessScratch/mcp.$harnessMcpName.$harnessMcpTool.schema.json"
-			harnessMcpRc=0
-			LC_ALL=C awk -v path="$harnessMcpToolPath.inputSchema" -v mode=raw -f "$harnessHere/AgentsHarnessJsonSlice.awk" < "$harnessScratch/mcp.reply" > "$harnessMcpSchemaFile" 2>/dev/null || harnessMcpRc=$?
-			if [ "$harnessMcpRc" != "0" ] ; then
-				rm -f "$harnessMcpSchemaFile"
-				printf '%s\n' "${harnessWarn}🔌 mcp${harnessOff} ${harnessDim}$harnessMcpName: dropped the tool ${harnessOff}${harnessValue}$harnessMcpTool${harnessOff}${harnessDim} -- it declares no readable inputSchema (rc=$harnessMcpRc)${harnessOff}" >&2
-				continue
-			fi
-			harnessMcpDesc="$( AgentsHarnessMcpField "$harnessMcpToolPath.description" < "$harnessScratch/mcp.reply" )" || harnessMcpDesc=""
-			## A dot is a legal name here and a 400 on the wire, whose names are [A-Za-z0-9_-]:
-			## it becomes `_`, the spelling mcp__myx_distro__execute already has everywhere.
-			harnessMcpDeclared="mcp__${harnessMcpName//./_}__${harnessMcpTool//./_}"
-			harnessMcpCatalogue="${harnessMcpCatalogue}${harnessMcpName}"$'\t'"${harnessMcpTool}"$'\t'"${harnessMcpDeclared}"$'\t'"${harnessMcpSchemaFile}"$'\n'
-			harnessMcpToolsJson="${harnessMcpToolsJson},$( AgentsWireToolDeclaration "$harnessMcpDeclared" "$harnessMcpDesc" "$( cat "$harnessMcpSchemaFile" )" )"
-			printf '%s\n' "   ${harnessDim}·${harnessOff} ${harnessTool}${harnessMcpDeclared}${harnessOff} ${harnessDim}declared${harnessOff}" >&2
+## Enumerates the server set as it stands now and rebuilds the catalogue, the
+## declarations and the unavailable note from nothing. Run once as this file loads and
+## again by the core before every round after the first.
+AgentsHarnessMcpEnumerate(){
+	harnessMcpCatalogue=""
+	harnessMcpUnavailableNote=""
+	harnessMcpToolsJson=""
+	harnessMcpConfigFile=""
+	harnessMcpConfigFault=""
+	AgentsHarnessMcpServerSet
+	if [ "${#harnessMcpServers[@]}" -gt 0 ] ; then
+		## Enumeration runs before the member does any work, and a healthy stdio server
+		## answers `initialize` in milliseconds, so it is bounded in seconds rather than by
+		## the run bound a deliberate tool call keeps. The 30 is the human-owner's chosen
+		## value, so a later reader tuning it is changing a policy decision, not a guess.
+		harnessMcpEnumTimeout="${MDAT_HARNESS_MCP_ENUM_TIMEOUT:-30}"
+		## Whole seconds, by explicit enumeration rather than a collation-dependent range.
+		harnessMcpEnumTimeoutRest="$harnessMcpEnumTimeout"
+		while [ -n "$harnessMcpEnumTimeoutRest" ] ; do
+			harnessMcpEnumTimeoutChar="${harnessMcpEnumTimeoutRest%"${harnessMcpEnumTimeoutRest#?}"}"
+			harnessMcpEnumTimeoutRest="${harnessMcpEnumTimeoutRest#?}"
+			case "$harnessMcpEnumTimeoutChar" in
+				0|1|2|3|4|5|6|7|8|9) ;;
+				*)
+					echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: MDAT_HARNESS_MCP_ENUM_TIMEOUT must be whole seconds, got: $harnessMcpEnumTimeout" >&2
+					exit 1
+				;;
+			esac
 		done
-	done
-fi
+
+		## Named servers and no configuration is not the inert case: the inert case is a
+		## spawn that named none, which never reaches here at all.
+		## Our own registration, under the workspace's system-data root. A native
+		## client's `.mcp.json` is installer output generated from this file, never a
+		## source read here -- reading it would make something we publish the authority.
+		harnessMcpConfigFile="${MMDAPP:-}/.local/agents/mcp.servers.json"
+		if [ -z "${MMDAPP:-}" ] ; then
+			harnessMcpConfigFault="MMDAPP is not set, so there is no mcp.servers.json to resolve it against"
+		elif [ ! -f "$harnessMcpConfigFile" ] || [ ! -r "$harnessMcpConfigFile" ] ; then
+			harnessMcpConfigFault="there is no readable $harnessMcpConfigFile to resolve it against"
+		fi
+
+		for harnessMcpName in "${harnessMcpServers[@]}" ; do
+			{
+				AgentsHarnessMcpHandshake
+				printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+			} > "$harnessScratch/mcp.req"
+			if ! AgentsHarnessMcpRun "$harnessMcpName" "$harnessMcpEnumTimeout" 2 ; then
+				AgentsHarnessMcpDegrade "$harnessMcpName" "$harnessMcpFault"
+				continue
+			fi
+			if ! AgentsHarnessMcpReply 1 ; then
+				AgentsHarnessMcpDegrade "$harnessMcpName" "it never answered \`initialize\` (exit status $harnessMcpStatus)${harnessMcpDiag:+ -- it said: $harnessMcpDiag}"
+				continue
+			fi
+			if ! AgentsHarnessMcpReply 2 ; then
+				AgentsHarnessMcpDegrade "$harnessMcpName" "it answered \`initialize\` and then returned no \`tools/list\` result (exit status $harnessMcpStatus)${harnessMcpDiag:+ -- it said: $harnessMcpDiag}"
+				continue
+			fi
+			printf '%s\n' "$harnessMcpReply" > "$harnessScratch/mcp.reply"
+
+			harnessMcpRc=0
+			harnessMcpToolCount="$( AgentsHarnessMcpField result.tools.__count < "$harnessScratch/mcp.reply" )" || harnessMcpRc=$?
+			if [ "$harnessMcpRc" != "0" ] ; then
+				AgentsHarnessMcpDegrade "$harnessMcpName" "its \`tools/list\` answer carries no \`result.tools\` array (rc=$harnessMcpRc)"
+				continue
+			fi
+
+			printf '%s\n' "🔌 ${harnessDim}MCP${harnessOff} ${harnessValue}$harnessMcpName${harnessOff} ${harnessDim}-- $harnessMcpToolCount tool(s) enumerated${harnessOff}" >&2
+			harnessMcpToolIndex=0
+			while [ "$harnessMcpToolIndex" -lt "$harnessMcpToolCount" ] 2>/dev/null ; do
+				harnessMcpToolPath="result.tools.$harnessMcpToolIndex"
+				harnessMcpToolIndex=$(( harnessMcpToolIndex + 1 ))
+				harnessMcpRc=0
+				harnessMcpTool="$( AgentsHarnessMcpField "$harnessMcpToolPath.name" < "$harnessScratch/mcp.reply" )" || harnessMcpRc=$?
+				if [ "$harnessMcpRc" != "0" ] ; then
+					printf '%s\n' "${harnessWarn}🔌 mcp${harnessOff} ${harnessDim}$harnessMcpName: dropped $harnessMcpToolPath -- it declares no readable name${harnessOff}" >&2
+					continue
+				fi
+				if ! AgentsHarnessMcpNameOk "$harnessMcpTool" "_.-" ; then
+					printf '%s\n' "${harnessWarn}🔌 mcp${harnessOff} ${harnessDim}$harnessMcpName: dropped the tool named ${harnessOff}${harnessValue}$harnessMcpTool${harnessOff}${harnessDim} -- a tool name carries letters, digits, underscore, dot and hyphen only${harnessOff}" >&2
+					continue
+				fi
+				harnessMcpSchemaFile="$harnessScratch/mcp.$harnessMcpName.$harnessMcpTool.schema.json"
+				harnessMcpRc=0
+				LC_ALL=C awk -v path="$harnessMcpToolPath.inputSchema" -v mode=raw -f "$harnessHere/AgentsHarnessJsonSlice.awk" < "$harnessScratch/mcp.reply" > "$harnessMcpSchemaFile" 2>/dev/null || harnessMcpRc=$?
+				if [ "$harnessMcpRc" != "0" ] ; then
+					rm -f "$harnessMcpSchemaFile"
+					printf '%s\n' "${harnessWarn}🔌 mcp${harnessOff} ${harnessDim}$harnessMcpName: dropped the tool ${harnessOff}${harnessValue}$harnessMcpTool${harnessOff}${harnessDim} -- it declares no readable inputSchema (rc=$harnessMcpRc)${harnessOff}" >&2
+					continue
+				fi
+				harnessMcpDesc="$( AgentsHarnessMcpField "$harnessMcpToolPath.description" < "$harnessScratch/mcp.reply" )" || harnessMcpDesc=""
+				## A dot is a legal name here and a 400 on the wire, whose names are [A-Za-z0-9_-]:
+				## it becomes `_`, the spelling mcp__myx_distro__execute already has everywhere.
+				harnessMcpDeclared="mcp__${harnessMcpName//./_}__${harnessMcpTool//./_}"
+				harnessMcpCatalogue="${harnessMcpCatalogue}${harnessMcpName}"$'\t'"${harnessMcpTool}"$'\t'"${harnessMcpDeclared}"$'\t'"${harnessMcpSchemaFile}"$'\n'
+				harnessMcpToolsJson="${harnessMcpToolsJson},$( AgentsWireToolDeclaration "$harnessMcpDeclared" "$harnessMcpDesc" "$( cat "$harnessMcpSchemaFile" )" )"
+				printf '%s\n' "   ${harnessDim}·${harnessOff} ${harnessTool}${harnessMcpDeclared}${harnessOff} ${harnessDim}declared${harnessOff}" >&2
+			done
+		done
+	fi
+}
+
+AgentsHarnessMcpEnumerate
