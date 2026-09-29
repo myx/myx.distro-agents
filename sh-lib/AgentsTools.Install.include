@@ -156,6 +156,13 @@ AgentsToolsVscodeFolderLinks(){
 		elif [ "$linkSlot" -ef "$linkTarget" ] ; then
 			linkKept="$linkKept." ; continue
 		elif [ -L "$linkSlot" ] || [ -e "$linkSlot" ] ; then
+			case "$( cd -P "${linkSlot%/*}" && pwd -P )/" in
+				"$linkWorkspaceReal"/*) ;;
+				*) echo "🙋 WARNING: $MDSC_CMD --$linkContext: $linkSlot lies outside the workspace, left untouched" >&2 ; continue ;;
+			esac
+			[ -L "$linkSlot" ] || [ ! -d "$linkSlot" ] || case "$( cd -P "$linkTarget" && pwd -P )/" in "$( cd -P "$linkSlot" && pwd -P )"/*)
+				echo "⛔ ERROR: $MDSC_CMD --$linkContext: $linkSlot holds $linkTarget itself, not removed" >&2 ; linkHadError="true" ; continue ;;
+			esac
 			rm -rf -- "$linkSlot" || { echo "⛔ ERROR: $MDSC_CMD --$linkContext: failed to remove $linkSlot" >&2 ; linkHadError="true" ; continue ; }
 			echo "# $MDSC_CMD --$linkContext: removed: $linkSlot" >&2
 		fi
@@ -361,6 +368,10 @@ case "$1" in
 				continue
 			elif [ -e "$memberTarget" ] ; then
 				[ "$scope" = "workspace" ] || { echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: real content at $memberTarget, left untouched (outside the workspace)" >&2 ; continue ; }
+				[ ! -d "$memberTarget" ] || case "$( cd -P "$memberBundled" && pwd -P )/" in "$( cd -P "$memberTarget" && pwd -P )"/*)
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $memberTarget holds $memberBundled itself, not removed" >&2
+					errorMembers="${errorMembers}${memberName} " ; hadError="true" ; continue ;;
+				esac
 				rm -rf -- "$memberTarget" || {
 					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove $memberTarget" >&2
 					errorMembers="${errorMembers}${memberName} " ; hadError="true"
@@ -480,6 +491,10 @@ case "$1" in
 				continue
 			elif [ -e "$dcSlot" ] ; then
 				[ "$scope" = "workspace" ] || { echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: real content at $dcSlot, left untouched (outside the workspace)" >&2 ; continue ; }
+				[ ! -d "$dcSlot" ] || case "$( cd -P "$dcLinkTarget" && pwd -P )/" in "$( cd -P "$dcSlot" && pwd -P )"/*)
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $dcSlot holds $dcLinkTarget itself, not removed" >&2
+					errorMembers="${errorMembers}${dcMember} " ; hadError="true" ; continue ;;
+				esac
 				rm -rf -- "$dcSlot" || {
 					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove $dcSlot" >&2
 					errorMembers="${errorMembers}${dcMember} " ; hadError="true"
@@ -544,6 +559,10 @@ case "$1" in
 					ownedMembers="${ownedMembers}${rfName} ${rfBundled}"$'\n'
 					continue
 				elif [ -e "$rfTarget" ] ; then
+					[ ! -d "$rfTarget" ] || case "$( cd -P "$rfBundled" && pwd -P )/" in "$( cd -P "$rfTarget" && pwd -P )"/*)
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $rfTarget holds $rfBundled itself, not removed" >&2
+						errorMembers="${errorMembers}${rfName} " ; hadError="true" ; continue ;;
+					esac
 					rm -rf -- "$rfTarget" || {
 						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove $rfTarget" >&2
 						errorMembers="${errorMembers}${rfName} " ; hadError="true"
@@ -1351,6 +1370,9 @@ case "$1" in
 				elif [ "$nsLink" -ef "$workspace/.claude" ] ; then
 					continue
 				elif [ -L "$nsLink" ] || [ -e "$nsLink" ] ; then
+					[ -L "$nsLink" ] || [ ! -d "$nsLink" ] || case "$( cd -P "$workspace/.claude" && pwd -P )/" in "$( cd -P "$nsLink" && pwd -P )"/*)
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $nsLink holds $workspace/.claude itself, not removed" >&2 ; hooksFailed=1 ; continue ;;
+					esac
 					rm -rf -- "$nsLink" || {
 						echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: failed to remove $nsLink" >&2
 						hooksFailed=1 ; continue
@@ -1747,8 +1769,8 @@ case "$1" in
 			## and a stale prior generation are indistinguishable without a
 			## registry, so both are treated as real content and left alone).
 			if [ -e "$agentFile" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: real content at $agentFile, will not overwrite (generated content would differ)" >&2
-				rm -f "$agentTmp" ; hadError="true" ; continue
+				echo "🙋 WARNING: $MDSC_CMD --install-copilot-agent-files: real content at $agentFile, left untouched (outside the workspace)" >&2
+				rm -f "$agentTmp" ; continue
 			fi
 			if ! mv -f "$agentTmp" "$agentFile" ; then
 				echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: could not install $agentFile" >&2
@@ -2090,10 +2112,15 @@ case "$1" in
 			fi
 			failed=1
 		else
-			local mcpTarget mcpFile
+			local mcpTarget mcpFile mcpWorkspaceReal
+			mcpWorkspaceReal="$( cd -P "$workspace" && pwd -P )"
 			for mcpTarget in "$workspace/.local/agents/mcp.servers.json:mcpServers" "$vscodeMcpDir/mcp.json:servers" "$workspace/.mcp.json:mcpServers" ; do
 				mcpFile="${mcpTarget%%:*}"
 				[ -f "$mcpFile" ] || continue
+				case "$( cd -P "${mcpFile%/*}" && pwd -P )/" in
+					"$mcpWorkspaceReal"/*) ;;
+					*) echo "🙋 WARNING: $mcpFile lies outside the workspace, left untouched" >&2 ; continue ;;
+				esac
 				if [ -r "$mcpFile" ] ; then
 					case "$( MYX_MCPVERIFY_TOPKEY="${mcpTarget#*:}" MYX_MCPVERIFY_COMMAND="$serverScript" \
 						LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonVerify.awk" "$mcpFile" )" in
@@ -2101,7 +2128,12 @@ case "$1" in
 						*) continue ;;
 					esac
 				fi
-				AgentsToolsInstallMoveAside "$workspace" "$mcpFile" install-vscode-integrations || { [ "$?" = "2" ] || failed=1 ; }
+				if rm -f -- "$mcpFile" ; then
+					echo "# removed unusable $mcpFile, written fresh below" >&2
+				else
+					echo "⛔ ERROR: failed to remove unusable $mcpFile" >&2
+					failed=1
+				fi
 			done
 			local homeSetup="$mcpRoot/bin/setup/agentMcp.Common"
 			if [ ! -x "$homeSetup" ] ; then
@@ -2253,7 +2285,7 @@ case "$1" in
 		elif [ "$workspace" = "$MMDAPP" ] ; then
 			Distro DistroSourceTools --make-code-workspace --quiet >&2 || wsRegenRc=$?
 		else
-			echo 'DistroSourceTools --make-code-workspace --quiet' | "$workspace/DistroSourceConsole.sh" --non-interactive >&2 || wsRegenRc=$?
+			echo 'Distro DistroSourceTools --make-code-workspace --quiet' | MMDAPP="$workspace" "$workspace/DistroSourceConsole.sh" --non-interactive >&2 || wsRegenRc=$?
 		fi
 		if [ ! -x "$workspace/DistroSourceConsole.sh" ] ; then
 			echo "🙋 WARNING: code-workspace not regenerated, no executable DistroSourceConsole.sh -- chat.agentSkillsLocations stays absent" >&2

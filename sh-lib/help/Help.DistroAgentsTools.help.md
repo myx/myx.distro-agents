@@ -3258,13 +3258,14 @@
 			of its own.
 			A root that is no longer listed has its clone removed, so a
 			de-registered namespace does not keep one; only this op's own
-			clone is ever removed. Real content, or a symlink pointing
-			anywhere else, is moved aside into a fresh
-			`<workspace>/.local/.cleanup/mdat-install-workspace-restrictions.*`
-			directory and the clone is linked in its place; only
-			`--owner-cleanup-purge` empties `.local/.cleanup`. A path
-			whose real location is outside `<workspace>` is left untouched,
-			with a warning. A dangling clone is reclaimed and relinked.
+			clone is ever removed as unlisted. A link that already reaches
+			`<workspace>/.claude` is kept. Real content, or a symlink
+			pointing anywhere else, is removed and the clone is linked in
+			its place: it is installer output, rebuilt from sources. Real
+			content that holds `<workspace>/.claude` itself is never
+			removed, and is an error. A namespace folder whose real
+			location is outside `<workspace>` is left untouched, with a
+			warning. A dangling clone is reclaimed and relinked.
 			An unreadable or empty root list creates and removes
 			NOTHING -- never read as "every namespace disappeared", the
 			same trust rule the declared-member scan follows.
@@ -3329,14 +3330,14 @@
 			symlink pointing at a different target is also kept as-is and
 			registered at the target it actually points to, not the one it
 			would have been given; a dangling symlink is reclaimed and
-			relinked. Real (non-symlink) content at a target inside the
-			workspace is moved aside into a fresh
-			`<workspace>/.local/.cleanup/mdat-install-skillset-symlinks.*`
-			directory and the link is made in its place; only
-			`--owner-cleanup-purge` empties `.local/.cleanup`. Real content
-			at a target outside the workspace (the user-home fan) is left
-			untouched, with a warning. Only a failed write (reclaim, move
-			or link) is an error.
+			relinked. Real (non-symlink) content that already is the
+			source it would be linked to is kept. Other real content at a
+			target inside the workspace is removed and the link is made in
+			its place; content that holds that source itself is never
+			removed, and is an error. Real content at a target outside the
+			workspace (the user-home fan) is left untouched, with a
+			warning. Only a failed write (reclaim, removal or link) is an
+			error.
 			With no `--scope`, default is workspace; if the resolved workspace
 			is not a set-up myx.distro workspace and scope was not explicitly
 			provided, falls back to user-home. If `--scope workspace` was

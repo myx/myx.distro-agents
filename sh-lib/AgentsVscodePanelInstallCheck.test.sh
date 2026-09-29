@@ -136,9 +136,8 @@ rm -f "$rigWs/.local/.vscode/status/.vscode/extensions/magic-team-panel"
 mkdir -p "$rigWs/.local/.vscode/status/.vscode/extensions/magic-team-panel"
 : > "$rigWs/.local/.vscode/status/.vscode/extensions/magic-team-panel/rig-own.txt"
 rigRun
-rigAssert "it is moved aside into .local/.cleanup"        "$( LC_ALL=C grep -c "moved aside: $rigWs/.local/.vscode/status/.vscode/extensions/magic-team-panel -> $rigWs/.local/.cleanup/mdat-install-vscode-magic-team-panel\." "$rigTmp/err" )" 1
+rigAssert "it is removed"                                 "$( LC_ALL=C grep -c -x -F "# DistroAgentsTools --install-vscode-magic-team-panel: removed: $rigWs/.local/.vscode/status/.vscode/extensions/magic-team-panel" "$rigTmp/err" )" 1
 rigAssert "and the op succeeds, rc 0"                     "$rigRc" 0
-rigAssert "the content is kept there"                     "$( find "$rigWs/.local/.cleanup" -path '*/magic-team-panel/rig-own.txt' | LC_ALL=C awk 'END { print NR ; }' )" 1
 rigAssert "and every folder links to the copy again"      "$( rigResolving )" 3
 
 echo "-- --install-vscode-integrations reaches it --"
@@ -181,7 +180,7 @@ rigRunX(){
 		bash "$rigTool" --install-vscode-integrations --workspace "$rigWsX" > /dev/null 2> "$rigTmp/x.err" || :
 }
 rigRunX
-rigAssert "X's own console was asked to regenerate"       "$( LC_ALL=C grep -c -x -F 'DistroSourceTools --make-code-workspace --quiet' "$rigWsX/console.log" 2>/dev/null )" 1
+rigAssert "X's own console was asked to regenerate"       "$( LC_ALL=C grep -c -x -F 'Distro DistroSourceTools --make-code-workspace --quiet' "$rigWsX/console.log" 2>/dev/null )" 1
 rigAssert "X's workspace file is written"                 "$( [ -f "$rigWsX/${rigWsX##*/}.code-workspace" ] && echo written || echo missing )" written
 rigAssert "MMDAPP's workspace file is untouched"          "$( cat "$rigWsM/${rigWsM##*/}.code-workspace" )" rig-mmdapp-file
 rigAssert "and MMDAPP's console was never asked"          "$( [ -f "$rigWsM/console.log" ] && echo asked || echo never )" never
@@ -201,20 +200,20 @@ rigRunX
 rigAssert "a re-run links nothing new"                     "$( LC_ALL=C grep -c 'newly linked' "$rigTmp/x.err" ) $( LC_ALL=C grep -c ': 0 folder(s) newly linked, 1 already linked' "$rigTmp/x.err" )" "4 4"
 rm -f "$rigXFolder/.claude/skills" ; mkdir -p "$rigXFolder/.claude/skills" ; : > "$rigXFolder/.claude/skills/rig-own"
 rigRunX
-rigAssert "real content in a slot is moved aside"          "$( LC_ALL=C grep -c "moved aside: $rigXFolder/.claude/skills -> $rigWsX/.local/.cleanup/mdat-install-vscode-integrations\." "$rigTmp/x.err" )" 1
-rigAssert "and kept under X's .local/.cleanup"             "$( find "$rigWsX/.local/.cleanup" -path '*/skills/rig-own' | LC_ALL=C awk 'END { print NR ; }' )" 1
+rigAssert "real content in a slot is removed"              "$( LC_ALL=C grep -c -x -F "# DistroAgentsTools --install-vscode-integrations: removed: $rigXFolder/.claude/skills" "$rigTmp/x.err" )" 1
 rigAssert "and the slot links to X's root copy again"      "$( rigLinksTo .claude/skills "$rigWsX/.claude/skills" )" resolves
 
 echo "-- a slot already reaching X's root copy is kept --"
 rm -rf "$rigXFolder/.claude" "$rigXFolder/.vscode"
 ln -s ../../../.claude "$rigXFolder/.claude" ; ln -s ../../../.vscode "$rigXFolder/.vscode"
 rigRunX
-rigAssert "a dir and a file slot through a parent link: no refusal" "$( LC_ALL=C grep -e 'ERROR' -e 'WARNING' -e 'moved aside' "$rigTmp/x.err" | LC_ALL=C grep -c -e 'browse/.claude/skills' -e 'browse/.vscode/mcp.json' )" 0
+rigAssert "X's root .claude/skills is still a real folder"  "$( [ -d "$rigWsX/.claude/skills" ] && [ ! -L "$rigWsX/.claude/skills" ] && echo real || echo gone )" real
+rigAssert "a dir and a file slot through a parent link: no refusal" "$( LC_ALL=C grep -e 'ERROR' -e 'WARNING' -e 'removed:' "$rigTmp/x.err" | LC_ALL=C grep -c -e 'browse/.claude/skills' -e 'browse/.vscode/mcp.json' )" 0
 rigAssert "both count as already linked"                   "$( LC_ALL=C grep -c -e '.claude/skills: 0 folder(s) newly linked, 1 already linked' -e '.vscode/mcp.json: 0 folder(s) newly linked, 1 already linked' "$rigTmp/x.err" )" 2
 rigAssert "the parent links are left as they were"         "$( readlink "$rigXFolder/.claude" ) $( readlink "$rigXFolder/.vscode" )" "../../../.claude ../../../.vscode"
 rm -f "$rigXFolder/.claude" ; mkdir -p "$rigXFolder/.claude" ; ln -s ../../../../.claude/skills "$rigXFolder/.claude/skills"
 rigRunX
-rigAssert "a differently spelled link to it: no refusal"   "$( LC_ALL=C grep -e 'ERROR' -e 'WARNING' -e 'moved aside' "$rigTmp/x.err" | LC_ALL=C grep -c 'browse/.claude/skills' )" 0
+rigAssert "a differently spelled link to it: no refusal"   "$( LC_ALL=C grep -e 'ERROR' -e 'WARNING' -e 'removed:' "$rigTmp/x.err" | LC_ALL=C grep -c 'browse/.claude/skills' )" 0
 rigAssert "and it is kept as spelled"                      "$( readlink "$rigXFolder/.claude/skills" )" ../../../../.claude/skills
 
 if [ "$rigFailCount" -ne 0 ] ; then
