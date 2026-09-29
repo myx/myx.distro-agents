@@ -146,7 +146,7 @@ harnessToolOnlyName=""
 ## Both values are stated once, in AgentsHarnessReadCap.include, which also fills them into the descriptions.
 . "$harnessHere/AgentsHarnessReadCap.include"
 harnessReadCap="$agentsReadCapWire"
-harnessAlwaysAllowedDomains="wikipedia.org"
+harnessWebAllowDefaults="https://wikipedia.org/ https://freebsd.org/"
 if [ "${1:-}" = --intern-tool ] ; then
 	if [ -z "${2:-}" ] ; then
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: --intern-tool: tool name required" >&2
@@ -1310,7 +1310,7 @@ AgentsHarnessSearchField(){ ## response JSON, path
 ## carries GROUP entries holding nested topics instead of a link -- those are counted
 ## as skipped and said so, never dropped in silence, because a list that quietly
 ## shows four of nine reads as a list of four.
-AgentsHarnessSearchTopics(){ ## response JSON, array path, heading, cap, allowed domains, blocked domains
+AgentsHarnessSearchTopics(){ ## response JSON, array path, heading, cap, allowed domains, blocked domains, denied URL prefixes, default allowed URL prefixes
 	local topicsBody="$1" topicsPath="$2" topicsHeading="$3" topicsCap="$4"
 	local topicsCount topicsIndex=0 topicsShown=0 topicsSkipped=0 topicsDropped=0 topicsText topicsUrl
 	topicsCount="$( AgentsHarnessSearchField "$topicsBody" "$topicsPath.__count" )"
@@ -1326,13 +1326,12 @@ AgentsHarnessSearchTopics(){ ## response JSON, array path, heading, cap, allowed
 			topicsSkipped=$(( topicsSkipped + 1 ))
 			continue
 		fi
-		if ! SEARCH_URL="$topicsUrl" SEARCH_ALLOWED="$5" SEARCH_BLOCKED="$6" SEARCH_ALWAYS="$harnessAlwaysAllowedDomains" LC_ALL=C awk 'BEGIN {
+		if ! SEARCH_URL="$topicsUrl" SEARCH_ALLOWED="$5" SEARCH_BLOCKED="$6" SEARCH_ALWAYS="$( WEB_URL="$topicsUrl" WEB_ALLOW="$8" WEB_DENY="$7" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk 'BEGIN {
 			urlHost = tolower(ENVIRON["SEARCH_URL"]) ; sub(/^[a-z][a-z0-9+.-]*:\/\//, "", urlHost) ; sub(/[\/?#].*$/, "", urlHost) ; sub(/^.*@/, "", urlHost) ; sub(/:[0-9]*$/, "", urlHost) ; sub(/\.$/, "", urlHost) ;
 			allowCount = split(tolower(ENVIRON["SEARCH_ALLOWED"]), allowList, "\n") ; blockCount = split(tolower(ENVIRON["SEARCH_BLOCKED"]), blockList, "\n") ;
 			keepIt = 1 ; allowSeen = 0 ; allowHit = 0 ;
 			for ( listIndex = 1 ; listIndex <= allowCount ; listIndex++ ) { domainName = allowList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; allowSeen = 1 ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { allowHit = 1 ; } ; }
-			alwaysCount = split(ENVIRON["SEARCH_ALWAYS"], alwaysList, "\n") ;
-			for ( listIndex = 1 ; listIndex <= alwaysCount ; listIndex++ ) { domainName = alwaysList[listIndex] ; if ( domainName != "" && ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) ) { allowHit = 1 ; } ; }
+			if ( ENVIRON["SEARCH_ALWAYS"] == "allowed" ) { allowHit = 1 ; }
 			if ( allowSeen && !allowHit ) { keepIt = 0 ; }
 			for ( listIndex = 1 ; listIndex <= blockCount ; listIndex++ ) { domainName = blockList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { keepIt = 0 ; } ; }
 			exit ( keepIt ? 0 : 1 ) ;
@@ -1369,7 +1368,7 @@ AgentsHarnessToolWebSearch(){ ## query, raw arguments
 	local toolQuery="$1" searchBody searchStatus searchRc=0 searchEmitted=0 searchCount
 	local searchAbstract searchAbstractSource searchAbstractUrl
 	local searchAnswer searchAnswerType searchDefinition searchDefinitionUrl
-	local searchAllowed="" searchBlocked="" domainKey domainList domainCount domainIndex
+	local searchAllowed="" searchBlocked="" searchDenied="" searchDefaults domainKey domainList domainCount domainIndex
 	if [ -z "$toolQuery" ] ; then
 		printf 'ERROR: query is required and was empty, so nothing was searched.\n' ; return 0
 	fi
@@ -1393,6 +1392,11 @@ AgentsHarnessToolWebSearch(){ ## query, raw arguments
 			*) searchBlocked="$domainList" ;;
 		esac
 	done
+	searchDefaults="$harnessWebAllowDefaults"
+	[ -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] || searchDefaults=""
+	[ -z "$searchDefaults" ] || searchDenied="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select WEB_DENY_PREFIXES 2> "$harnessScratch/webpolicy.err" )" || searchDefaults=""
+	[ -z "$searchDefaults" ] || ! LC_ALL=C grep -qF '.local/.agents/magic-team.agent.env' "$harnessScratch/webpolicy.err" || searchDefaults=""
+	[ -n "$searchDefaults" ] || printf 'Note: the web access policy could not be read, so no result is kept outside allowed_domains by default.\n'
 	## Body to its own file, so the capture holds the one-line status and nothing else.
 	searchStatus="$( curl -sS -L --connect-timeout 10 --max-time 60 -G \
 		--data-urlencode "q=$toolQuery" \
@@ -1421,13 +1425,12 @@ AgentsHarnessToolWebSearch(){ ## query, raw arguments
 	searchAbstractUrl="$( AgentsHarnessSearchField "$searchBody" AbstractURL )"
 	if [ -n "$searchAbstract" ] ; then
 		searchEmitted=$(( searchEmitted + 1 ))
-		if [ -n "$searchAbstractUrl" ] && ! SEARCH_URL="$searchAbstractUrl" SEARCH_ALLOWED="$searchAllowed" SEARCH_BLOCKED="$searchBlocked" SEARCH_ALWAYS="$harnessAlwaysAllowedDomains" LC_ALL=C awk 'BEGIN {
+		if [ -n "$searchAbstractUrl" ] && ! SEARCH_URL="$searchAbstractUrl" SEARCH_ALLOWED="$searchAllowed" SEARCH_BLOCKED="$searchBlocked" SEARCH_ALWAYS="$( WEB_URL="$searchAbstractUrl" WEB_ALLOW="$searchDefaults" WEB_DENY="$searchDenied" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk 'BEGIN {
 			urlHost = tolower(ENVIRON["SEARCH_URL"]) ; sub(/^[a-z][a-z0-9+.-]*:\/\//, "", urlHost) ; sub(/[\/?#].*$/, "", urlHost) ; sub(/^.*@/, "", urlHost) ; sub(/:[0-9]*$/, "", urlHost) ; sub(/\.$/, "", urlHost) ;
 			allowCount = split(tolower(ENVIRON["SEARCH_ALLOWED"]), allowList, "\n") ; blockCount = split(tolower(ENVIRON["SEARCH_BLOCKED"]), blockList, "\n") ;
 			keepIt = 1 ; allowSeen = 0 ; allowHit = 0 ;
 			for ( listIndex = 1 ; listIndex <= allowCount ; listIndex++ ) { domainName = allowList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; allowSeen = 1 ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { allowHit = 1 ; } ; }
-			alwaysCount = split(ENVIRON["SEARCH_ALWAYS"], alwaysList, "\n") ;
-			for ( listIndex = 1 ; listIndex <= alwaysCount ; listIndex++ ) { domainName = alwaysList[listIndex] ; if ( domainName != "" && ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) ) { allowHit = 1 ; } ; }
+			if ( ENVIRON["SEARCH_ALWAYS"] == "allowed" ) { allowHit = 1 ; }
 			if ( allowSeen && !allowHit ) { keepIt = 0 ; }
 			for ( listIndex = 1 ; listIndex <= blockCount ; listIndex++ ) { domainName = blockList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { keepIt = 0 ; } ; }
 			exit ( keepIt ? 0 : 1 ) ;
@@ -1448,13 +1451,12 @@ AgentsHarnessToolWebSearch(){ ## query, raw arguments
 	searchDefinitionUrl="$( AgentsHarnessSearchField "$searchBody" DefinitionURL )"
 	if [ -n "$searchDefinition" ] ; then
 		searchEmitted=$(( searchEmitted + 1 ))
-		if [ -n "$searchDefinitionUrl" ] && ! SEARCH_URL="$searchDefinitionUrl" SEARCH_ALLOWED="$searchAllowed" SEARCH_BLOCKED="$searchBlocked" SEARCH_ALWAYS="$harnessAlwaysAllowedDomains" LC_ALL=C awk 'BEGIN {
+		if [ -n "$searchDefinitionUrl" ] && ! SEARCH_URL="$searchDefinitionUrl" SEARCH_ALLOWED="$searchAllowed" SEARCH_BLOCKED="$searchBlocked" SEARCH_ALWAYS="$( WEB_URL="$searchDefinitionUrl" WEB_ALLOW="$searchDefaults" WEB_DENY="$searchDenied" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk 'BEGIN {
 			urlHost = tolower(ENVIRON["SEARCH_URL"]) ; sub(/^[a-z][a-z0-9+.-]*:\/\//, "", urlHost) ; sub(/[\/?#].*$/, "", urlHost) ; sub(/^.*@/, "", urlHost) ; sub(/:[0-9]*$/, "", urlHost) ; sub(/\.$/, "", urlHost) ;
 			allowCount = split(tolower(ENVIRON["SEARCH_ALLOWED"]), allowList, "\n") ; blockCount = split(tolower(ENVIRON["SEARCH_BLOCKED"]), blockList, "\n") ;
 			keepIt = 1 ; allowSeen = 0 ; allowHit = 0 ;
 			for ( listIndex = 1 ; listIndex <= allowCount ; listIndex++ ) { domainName = allowList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; allowSeen = 1 ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { allowHit = 1 ; } ; }
-			alwaysCount = split(ENVIRON["SEARCH_ALWAYS"], alwaysList, "\n") ;
-			for ( listIndex = 1 ; listIndex <= alwaysCount ; listIndex++ ) { domainName = alwaysList[listIndex] ; if ( domainName != "" && ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) ) { allowHit = 1 ; } ; }
+			if ( ENVIRON["SEARCH_ALWAYS"] == "allowed" ) { allowHit = 1 ; }
 			if ( allowSeen && !allowHit ) { keepIt = 0 ; }
 			for ( listIndex = 1 ; listIndex <= blockCount ; listIndex++ ) { domainName = blockList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { keepIt = 0 ; } ; }
 			exit ( keepIt ? 0 : 1 ) ;
@@ -1470,30 +1472,71 @@ AgentsHarnessToolWebSearch(){ ## query, raw arguments
 	searchCount="$( AgentsHarnessSearchField "$searchBody" Results.__count )"
 	case "$searchCount" in ''|*[!0123456789]*) searchCount=0 ;; esac
 	[ "$searchCount" = 0 ] || searchEmitted=$(( searchEmitted + 1 ))
-	AgentsHarnessSearchTopics "$searchBody" Results "Results" 10 "$searchAllowed" "$searchBlocked"
+	AgentsHarnessSearchTopics "$searchBody" Results "Results" 10 "$searchAllowed" "$searchBlocked" "$searchDenied" "$searchDefaults"
 	searchCount="$( AgentsHarnessSearchField "$searchBody" RelatedTopics.__count )"
 	case "$searchCount" in ''|*[!0123456789]*) searchCount=0 ;; esac
 	[ "$searchCount" = 0 ] || searchEmitted=$(( searchEmitted + 1 ))
-	AgentsHarnessSearchTopics "$searchBody" RelatedTopics "Related topics" 10 "$searchAllowed" "$searchBlocked"
+	AgentsHarnessSearchTopics "$searchBody" RelatedTopics "Related topics" 10 "$searchAllowed" "$searchBlocked" "$searchDenied" "$searchDefaults"
 	if [ "$searchEmitted" = 0 ] ; then
 		printf 'No instant-answer content for this query. The endpoint was reached and answered HTTP %s; it simply holds no abstract, answer, definition, result or related topic for these words. THIS IS A COMPLETE, SUCCESSFUL SEARCH AND NOT A FAILURE: the DuckDuckGo Instant Answer API indexes named things rather than arbitrary phrases, so an ordinary multi-word question returns exactly this. Do not retry the same query. A shorter query naming one thing may well answer; otherwise say in your final answer that the search returned nothing, never that web search was unavailable.\n' "$searchStatus"
 	fi
 }
 
-## Unrestricted by the human-owner's own ruling: any address this host can reach, no allow-list.
 AgentsHarnessToolWebFetch(){
-	local toolUrl="$1" fetchStatus fetchRc=0 toolBytes
+	local toolUrl="$1" fetchUrl="$1" fetchStatus fetchTarget fetchRc=0 fetchHops=0 toolBytes fetchTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" fetchVerdict fetchAllowExtra="" fetchDenied="" fetchUnread="" fetchFromHost fetchToHost
 	case "$toolUrl" in
 		http://*|https://*) ;;
 		*)
 			printf 'ERROR: url must be an absolute http:// or https:// URL, got: %s\n' "$toolUrl" ; return 0
 		;;
 	esac
-	## Body to its own file, so the capture holds curl's own one-line status and nothing else.
-	fetchStatus="$( curl -sS -L --connect-timeout 10 --max-time 120 -o "$harnessScratch/fetch.body" -w '%{http_code}' -- "$toolUrl" 2>"$harnessScratch/fetch.err" )" || fetchRc=$?
-	if [ "$fetchRc" != "0" ] ; then
-		printf 'ERROR: the request did not complete (curl rc=%s): %s\n' "$fetchRc" "$( cat "$harnessScratch/fetch.err" 2>/dev/null )" ; return 0
+	[ -x "$fetchTools" ] || fetchUnread=1
+	[ -n "$fetchUnread" ] || fetchAllowExtra="$( "$fetchTools" --agents-config-option magic-team --select WEB_ALLOW_PREFIXES 2> "$harnessScratch/webpolicy.err" )" || fetchUnread=1
+	[ -n "$fetchUnread" ] || fetchDenied="$( "$fetchTools" --agents-config-option magic-team --select WEB_DENY_PREFIXES 2>> "$harnessScratch/webpolicy.err" )" || fetchUnread=1
+	[ -n "$fetchUnread" ] || ! LC_ALL=C grep -qF '.local/.agents/magic-team.agent.env' "$harnessScratch/webpolicy.err" || fetchUnread=1
+	if [ -n "$fetchUnread" ] ; then
+		printf 'ERROR: the web access policy could not be read, so it cannot be checked and nothing was fetched: %s\n' "$toolUrl" ; return 0
 	fi
+	while : ; do
+		fetchVerdict="$( WEB_URL="$fetchUrl" WEB_ALLOW="$harnessWebAllowDefaults $fetchAllowExtra" WEB_DENY="$fetchDenied" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlPolicy.awk" )"
+		case "$fetchVerdict" in
+			allowed) ;;
+			*)
+				if ! AgentsHarnessGranted WebFetch "$fetchUrl" ; then
+					case "$fetchVerdict" in
+						denied) AgentsHarnessRefusal WebFetch "$fetchUrl" "ERROR: forbidden: $fetchUrl matches a denied URL prefix. Ask permission for it with the refusal id below, or accept that this URL will not be fetched." ;;
+						*) AgentsHarnessRefusal WebFetch "$fetchUrl" "ERROR: forbidden: $fetchUrl matches no allowed URL prefix. Ask permission for it with the refusal id below, or accept that this URL will not be fetched." ;;
+					esac
+					return 0
+				fi
+			;;
+		esac
+		## Body to its own file, so the capture holds curl's own one-line status and nothing else.
+		fetchRc=0
+		fetchStatus="$( curl -sS --proto '=http,https' --connect-timeout 10 --max-time 120 -o "$harnessScratch/fetch.body" -w '%{http_code} %{redirect_url}' -- "$fetchUrl" 2>"$harnessScratch/fetch.err" )" || fetchRc=$?
+		if [ "$fetchRc" != "0" ] ; then
+			printf 'ERROR: the request did not complete (curl rc=%s): %s\n' "$fetchRc" "$( cat "$harnessScratch/fetch.err" 2>/dev/null )" ; return 0
+		fi
+		fetchTarget=""
+		case "$fetchStatus" in
+			*' '*) fetchTarget="${fetchStatus#* }" ; fetchStatus="${fetchStatus%% *}" ;;
+		esac
+		case "$fetchStatus" in
+			3??) [ -n "$fetchTarget" ] || break ;;
+			*) break ;;
+		esac
+		fetchFromHost="${fetchUrl#*://}" ; fetchFromHost="${fetchFromHost%%[/?#]*}" ; fetchFromHost="${fetchFromHost##*@}" ; fetchFromHost="${fetchFromHost%:*}"
+		fetchToHost="${fetchTarget#*://}" ; fetchToHost="${fetchToHost%%[/?#]*}" ; fetchToHost="${fetchToHost##*@}" ; fetchToHost="${fetchToHost%:*}"
+		if [ "$( printf '%s' "${fetchFromHost%.}" | LC_ALL=C tr '[:upper:]' '[:lower:]' )" != "$( printf '%s' "${fetchToHost%.}" | LC_ALL=C tr '[:upper:]' '[:lower:]' )" ] ; then
+			printf 'ERROR: redirect not followed: HTTP %s from %s to a different host: %s\nFetch that URL with WebFetch to follow it.\n' "$fetchStatus" "$fetchUrl" "$fetchTarget" ; return 0
+		fi
+		fetchHops=$(( fetchHops + 1 ))
+		if [ "$fetchHops" -gt 10 ] ; then
+			printf 'ERROR: more than 10 same-host redirects, stopped before: %s -- nothing more was fetched.\n' "$fetchTarget" ; return 0
+		fi
+		fetchUrl="$fetchTarget"
+	done
+	[ "$fetchHops" = 0 ] || printf '... followed %s same-host redirect(s) to: %s ...\n' "$fetchHops" "$fetchUrl"
 	## A non-2xx still carries a body worth reading, so the status leads and the body follows.
 	case "$fetchStatus" in
 		2??) printf '... HTTP %s -- raw body follows, nothing stripped or rendered ...\n' "$fetchStatus" ;;

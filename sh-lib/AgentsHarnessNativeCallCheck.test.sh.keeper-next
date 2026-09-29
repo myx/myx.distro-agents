@@ -49,6 +49,9 @@ LC_ALL=C awk 'BEGIN { for ( lineNo = 1 ; lineNo <= 300 ; lineNo++ ) printf "hit 
 mkdir -p "$rigS/sl/src/deep"
 printf 'needle e\n' > "$rigS/sl/src/deep/e.ts"
 printf 'needle f\n' > "$rigS/sl/f.ts"
+## The class-escape translation fixture, one line per class, plus a literal backslash-d.
+mkdir -p "$rigS/tr"
+printf 'id 42 here\nno digits\ntab\there\nback\\dslash\nfoo_bar baz\n' > "$rigS/tr/t.txt"
 
 ## The stub answers every request with HTTP 200: a search gets two results on two domains, anything else one body.
 cat > "$rigTmp/bin/curl" <<'EOF'
@@ -149,6 +152,14 @@ rigCall(){ ## request id, tool name, arguments JSON -- one tools/call line
 	rigCall 61 WebFetch '{"url":"https://fetch.example/redirect-cross"}'
 	rigCall 62 WebFetch '{"url":"https://fetch.example/redirect-same"}'
 	rigCall 63 WebFetch '{"url":"https://en.wikipedia.org/wiki/RedirectToDenied"}'
+	rigCall 65 Grep '{"pattern":"\\d+","path":"'"$rigS/tr/t.txt"'","output_mode":"content"}'
+	rigCall 66 Grep '{"pattern":"[\\d]{2}","path":"'"$rigS/tr/t.txt"'","output_mode":"content"}'
+	rigCall 67 Grep '{"pattern":"tab\\shere","path":"'"$rigS/tr/t.txt"'","output_mode":"content"}'
+	rigCall 68 Grep '{"pattern":"\\w+_\\w+","path":"'"$rigS/tr/t.txt"'","output_mode":"content","-o":true}'
+	rigCall 69 Grep '{"pattern":"^\\D+$","path":"'"$rigS/tr/t.txt"'","output_mode":"content"}'
+	rigCall 70 Grep '{"pattern":"k\\\\d","path":"'"$rigS/tr/t.txt"'","output_mode":"content"}'
+	rigCall 71 Grep '{"pattern":"[\\D]","path":"'"$rigS/tr/t.txt"'","output_mode":"content"}'
+	rigCall 72 Grep '{"pattern":"needle","path":"'"$rigG"'","type":"nosuchtype"}'
 } | ( cd "$rigG" && MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="$rigTmp/home/.claude/skills" \
 	MDAT_DATA_ROOT="$rigTmp/data" PATH="$rigTmp/bin:$PATH" bash "$rigTool" --intern-mcp-server --run ) > "$rigTmp/wire" 2> "$rigTmp/err" || :
 
@@ -160,7 +171,7 @@ chmod 600 "$rigTmp/.local/.agents/magic-team.agent.env"
 
 ## A request the server never answered was never exercised, so the run stops there.
 rigId=2
-while [ "$rigId" -le 64 ] ; do
+while [ "$rigId" -le 72 ] ; do
 	LC_ALL=C grep -q "^{\"jsonrpc\":\"2.0\",\"id\":$rigId," "$rigTmp/wire" || {
 		echo "-- the server left request $rigId unanswered, so its stderr follows --" >&2
 		sed 's/^/    /' "$rigTmp/err" >&2
@@ -297,11 +308,19 @@ rigText="$( rigResult 34 )"
 rigNative Grep "offset 10 skips ten entries before head_limit 5" "$( rigHits "$rigText" ) $( rigHas "$rigText" 'hit 010' ) $( rigHas "$rigText" 'hit 011' )" '5 no yes'
 rigNative Grep "path omitted searches the cwd" "$( rigPathSet "$( rigResult 36 )" )" 'b.txt '
 rigText="$( rigResult 37 )"
-rigNative Grep "(pending decision) regex dialect: ( | ) alternation matches" "$( rigHas "$rigText" 'needle two' ) $( rigHas "$rigText" 'needle three' )" 'yes yes'
-rigNative Grep "(pending decision) type js filters the files" "$( rigPathSet "$( rigResult 38 )" )" 'a.js sub/d.js '
-rigNative Grep "(pending decision) multiline matches across a newline" "$( rigPathSet "$( rigResult 39 )" )" 'a.js '
+rigNative Grep "regex dialect: ( | ) alternation matches" "$( rigHas "$rigText" 'needle two' ) $( rigHas "$rigText" 'needle three' )" 'yes yes'
+rigNative Grep "type js filters the files" "$( rigPathSet "$( rigResult 38 )" )" 'a.js sub/d.js '
+rigNative Grep "multiline is refused, with a hint naming the native Grep" "$( rigIsError "$( rigResult 39 )" ) $( rigHas "$( rigResult 39 )" 'only by the native Grep tool' )" 'yes yes'
+rigNative Grep "an unknown type is refused, with a hint to use glob" "$( rigIsError "$( rigResult 72 )" ) $( rigHas "$( rigResult 72 )" 'Use glob to select files by name' )" 'yes yes'
+rigNative Grep "\\d matches a digit" "$( rigHas "$( rigResult 65 )" 'id 42 here' ) $( rigHas "$( rigResult 65 )" 'no digits' )" 'yes no'
+rigNative Grep "\\d inside a bracket matches a digit" "$( rigHas "$( rigResult 66 )" 'id 42 here' ) $( rigHas "$( rigResult 66 )" 'no digits' )" 'yes no'
+rigNative Grep "\\s matches a tab" "$( rigHas "$( rigResult 67 )" 'here' )" 'yes'
+rigNative Grep "\\w matches a word character, underscore included" "$( rigHas "$( rigResult 68 )" 'foo_bar' ) $( rigHas "$( rigResult 68 )" 'baz' )" 'yes no'
+rigNative Grep "\\D matches a non-digit" "$( rigHas "$( rigResult 69 )" 'no digits' ) $( rigHas "$( rigResult 69 )" 'id 42 here' )" 'yes no'
+rigNative Grep "an escaped backslash stays literal, so a backslash then d matches" "$( rigHas "$( rigResult 70 )" 'back\dslash' ) $( rigHas "$( rigResult 70 )" 'id 42' )" 'yes no'
+rigNative Grep "\\D inside a bracket is refused, with a hint" "$( rigIsError "$( rigResult 71 )" ) $( rigHas "$( rigResult 71 )" 'Use [^...] instead' )" 'yes yes'
 rigText="$( rigResult 54 )"
-rigNative Grep "(pending decision) glob with a slash src/**/*.ts filters to that path" "$( rigHas "$rigText" "$rigS/sl/src/deep/e.ts" ) $( rigHas "$rigText" "$rigS/sl/f.ts" )" 'yes no'
+rigNative Grep "glob with a slash src/**/*.ts filters to that path" "$( rigHas "$rigText" "$rigS/sl/src/deep/e.ts" ) $( rigHas "$rigText" "$rigS/sl/f.ts" )" 'yes no'
 
 echo "-- WebSearch --"
 rigText="$( rigResult 40 )"

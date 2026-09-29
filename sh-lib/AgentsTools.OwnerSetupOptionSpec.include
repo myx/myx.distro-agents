@@ -23,6 +23,12 @@ AgentsToolsOwnerSetupOptionSpec(){
 		CLIENT_ACCESS_ROOTS_EXTRA)
 			printf '%s\n' 'magic-team|<abs-path>[:<abs-path>...]|plain|extra directories a spawned agent may read and write, beyond the member and source roots the installer already grants. Absolute paths, colon-separated.'
 		;;
+		WEB_ALLOW_PREFIXES)
+			printf '%s\n' 'magic-team|<url-prefix>[ <url-prefix>...]|plain|extra URL prefixes WebFetch may fetch, beyond the built-in http and https prefixes of wikipedia.org and freebsd.org. Space-separated, such as https://docs.example.org/api/. A prefix covers its scheme, its host and the subdomains of that host, and every path that starts with its own.'
+		;;
+		WEB_DENY_PREFIXES)
+			printf '%s\n' 'magic-team|<url-prefix>[ <url-prefix>...]|plain|URL prefixes WebFetch never fetches, even under an allowed or built-in prefix. Space-separated, matched as WEB_ALLOW_PREFIXES is. A WebSearch result under one of them is no longer kept outside allowed_domains.'
+		;;
 		TEAM_DATA_DIRECTORY)
 			printf '%s\n' 'magic-coordinator|<abs-path>|plain|the directory holding the board and the inboxes. Left unset it is .local/agents/team-data-root inside this workspace; set it only to share team data between workspaces. Any path this account can write to; it is created on first use.'
 		;;
