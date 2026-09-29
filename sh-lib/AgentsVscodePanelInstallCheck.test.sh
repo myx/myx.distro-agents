@@ -216,6 +216,49 @@ rigRunX
 rigAssert "a differently spelled link to it: no refusal"   "$( LC_ALL=C grep -e 'ERROR' -e 'WARNING' -e 'removed:' "$rigTmp/x.err" | LC_ALL=C grep -c 'browse/.claude/skills' )" 0
 rigAssert "and it is kept as spelled"                      "$( readlink "$rigXFolder/.claude/skills" )" ../../../../.claude/skills
 
+echo "-- a slot whose real parent is outside the workspace is left untouched --"
+mkdir -p "$rigTmp/outside/skills" ; printf 'rig-outside\n' > "$rigTmp/outside/skills/own.txt"
+rm -rf "$rigXFolder/.claude" ; ln -s "$rigTmp/outside" "$rigXFolder/.claude"
+rigRunX
+rigAssert "it is warned about"                             "$( LC_ALL=C grep -c -F "WARNING: DistroAgentsTools --install-vscode-integrations: $rigXFolder/.claude/skills lies outside the workspace, left untouched" "$rigTmp/x.err" )" 1
+rigAssert "and the outside content is unchanged"           "$( [ -d "$rigTmp/outside/skills" ] && [ ! -L "$rigTmp/outside/skills" ] && cat "$rigTmp/outside/skills/own.txt" )" rig-outside
+
+echo "-- a real folder holding X's root copy is never removed --"
+rm -rf "$rigWsX/.claude/skills" ; mkdir -p "$rigWsX/.local/store/skills/inner"
+ln -s "$rigWsX/.local/store/skills/inner" "$rigWsX/.claude/skills"
+rm -f "$rigXFolder/.claude" ; ln -s "$rigWsX/.local/store" "$rigXFolder/.claude"
+rigRunX
+rigAssert "it is refused with ⛔"                          "$( LC_ALL=C grep -c -F "ERROR: DistroAgentsTools --install-vscode-integrations: $rigXFolder/.claude/skills holds $rigWsX/.claude/skills itself, not removed" "$rigTmp/x.err" )" 1
+rigAssert "and the store holding the root copy survives"   "$( [ -d "$rigWsX/.local/store/skills/inner" ] && [ ! -L "$rigWsX/.local/store/skills" ] && echo intact || echo gone )" intact
+
+echo "-- --install-skillset-symlinks converges its own slots --"
+rigWsS="$rigTmp/wsS" rigBundle="$rigTmp/origin/myx/myx.distro-agents/skillset/magic-team"
+mkdir -p "$rigWsS/.local/myx/myx.distro-.local/sh-lib" ; : > "$rigWsS/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
+rigRunS(){ ## scope, target root, declared member sources
+	env -u MDAT_DATA_ROOT HOME="$rigTmp/home" TMPDIR="$rigTmp/tmp" MMDAPP="$rigWsS" MDLT_ORIGIN="$rigTmp/origin" \
+		MDSC_SKILLSET_PRESCAN=1 MDSC_SKILLSET_MEMBERNAMES="magic-tester" MDSC_SKILLSET_MEMBERSOURCES="$3" MDSC_SKILLSET_DISCOVERY_TRUSTED=true \
+		bash "$rigTool" --install-skillset-symlinks --scope "$1" --workspace "$rigWsS" --target-root "$2" > /dev/null 2> "$rigTmp/s.err" || :
+}
+mkdir -p "$rigWsS/.agents/skills/magic-tester" ; : > "$rigWsS/.agents/skills/magic-tester/rig-own"
+rigRunS workspace "$rigWsS/.agents/skills" ""
+rigAssert "a bundled slot holding real content is removed" "$( LC_ALL=C grep -c -x -F "# DistroAgentsTools --install-skillset-symlinks: removed: $rigWsS/.agents/skills/magic-tester" "$rigTmp/s.err" )" 1
+rigAssert "and linked to the bundle"                       "$( readlink "$rigWsS/.agents/skills/magic-tester" )" "$rigBundle/magic-tester"
+mkdir -p "$rigTmp/home/.agents/skills/magic-tester" ; : > "$rigTmp/home/.agents/skills/magic-tester/rig-own"
+rigRunS user-home "$rigTmp/home/.agents/skills" ""
+rigAssert "outside the workspace it is warned about"       "$( LC_ALL=C grep -c -F "WARNING: DistroAgentsTools --install-skillset-symlinks: real content at $rigTmp/home/.agents/skills/magic-tester, left untouched" "$rigTmp/s.err" )" 1
+rigAssert "and left untouched"                             "$( [ -f "$rigTmp/home/.agents/skills/magic-tester/rig-own" ] && echo untouched || echo gone )" untouched
+ln -s "$rigBundle" "$rigTmp/tgtS3"
+rigRunS workspace "$rigTmp/tgtS3" ""
+rigAssert "a slot that already is the bundled member is kept" "$( LC_ALL=C grep -c 'removed:' "$rigTmp/s.err" ) $( [ -d "$rigBundle/magic-tester" ] && [ ! -L "$rigBundle/magic-tester" ] && echo intact )" "0 intact"
+mkdir -p "$rigTmp/storeS/rig-member/inner" ; ln -s "$rigTmp/storeS" "$rigTmp/tgtS4"
+rigRunS workspace "$rigTmp/tgtS4" "rig-member $rigTmp/storeS/rig-member/inner"
+rigAssert "a declared slot holding its own source is refused" "$( LC_ALL=C grep -c -F "ERROR: DistroAgentsTools --install-skillset-symlinks: $rigTmp/tgtS4/rig-member holds $rigTmp/storeS/rig-member/inner itself, not removed" "$rigTmp/s.err" )" 1
+rigAssert "and the source survives"                        "$( [ -d "$rigTmp/storeS/rig-member/inner" ] && echo intact || echo gone )" intact
+mkdir -p "$rigWsS/.claude/skills" "$rigWsS/.claude/rules" ; printf 'rig-own\n' > "$rigWsS/.claude/rules/magic-team.basic.md"
+rigRunS workspace "$rigWsS/.claude/skills" ""
+rigAssert "a rules file holding real content is removed"   "$( LC_ALL=C grep -c -x -F "# DistroAgentsTools --install-skillset-symlinks: removed: $rigWsS/.claude/rules/magic-team.basic.md" "$rigTmp/s.err" )" 1
+rigAssert "and linked to the bundle"                       "$( readlink "$rigWsS/.claude/rules/magic-team.basic.md" )" "$rigBundle/magic-team/magic-team.basic.md"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ VSCODE PANEL INSTALL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

@@ -345,7 +345,7 @@ case "$1" in
 		fi
 
 		local memberName memberTarget memberBundled memberActual
-		local ownedMembers="" newLinks="" deletedMembers="" errorMembers=""
+		local ownedMembers="" ownedNames="" newLinks="" deletedMembers="" errorMembers=""
 		while IFS= read -r memberName ; do
 			[ -n "$memberName" ] || continue
 			[ "$memberName" != "trash" ] || continue
@@ -360,11 +360,11 @@ case "$1" in
 				fi
 			elif [ -L "$memberTarget" ] ; then
 				memberActual="$( readlink "$memberTarget" )"
-				ownedMembers="${ownedMembers}${memberName} ${memberActual}"$'\n'
+				ownedMembers="${ownedMembers}${memberName} ${memberActual}"$'\n' ; ownedNames="$ownedNames $memberName"
 				continue
 			fi
 			if [ "$memberTarget" -ef "$memberBundled" ] ; then
-				ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n'
+				ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n' ; ownedNames="$ownedNames $memberName"
 				continue
 			elif [ -e "$memberTarget" ] ; then
 				[ "$scope" = "workspace" ] || { echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: real content at $memberTarget, left untouched (outside the workspace)" >&2 ; continue ; }
@@ -384,7 +384,7 @@ case "$1" in
 				errorMembers="${errorMembers}${memberName} " ; hadError="true"
 				continue
 			fi
-			ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n'
+			ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n' ; ownedNames="$ownedNames $memberName"
 			newLinks="${newLinks}${memberName} "
 		done <<< "$memberNames"
 
@@ -400,7 +400,7 @@ case "$1" in
 			dcSources="$( printf '%s\n' "$memberSources" | LC_ALL=C awk -v m="$dcMember" '$1 == m { sub(/^[^ ]+ /, ""); print; }' )"
 			dcCount="$( printf '%s' "$dcSources" | grep -c '' )"
 
-			if printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$dcMember" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
+			if [[ " $ownedNames " == *" $dcMember "* ]] ; then
 				## Same name, same member: every declared source resolves to the slot's own folder,
 				## so it is one entity declared twice and not a collision (human-owner, 2026-08-27).
 				local dcOwnedReal="" dcSame="true"
@@ -483,11 +483,11 @@ case "$1" in
 					continue
 				fi
 			elif [ -L "$dcSlot" ] ; then
-				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n'
+				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n' ; ownedNames="$ownedNames $dcMember"
 				continue
 			fi
 			if [ "$dcSlot" -ef "$dcLinkTarget" ] ; then
-				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n'
+				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n' ; ownedNames="$ownedNames $dcMember"
 				continue
 			elif [ -e "$dcSlot" ] ; then
 				[ "$scope" = "workspace" ] || { echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: real content at $dcSlot, left untouched (outside the workspace)" >&2 ; continue ; }
@@ -507,7 +507,7 @@ case "$1" in
 				errorMembers="${errorMembers}${dcMember} " ; hadError="true"
 				continue
 			fi
-			ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n'
+			ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n' ; ownedNames="$ownedNames $dcMember"
 			newLinks="${newLinks}${dcMember} "
 		done
 
@@ -517,9 +517,10 @@ case "$1" in
 				[ -d "${unclaimedDir%/}" ] || continue
 				unclaimedName="$( basename "${unclaimedDir%/}" )"
 				[ "$unclaimedName" != "trash" ] || continue
-				if ! printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$unclaimedName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
-					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundled team-member $unclaimedName was not installed into $targetRoot and will not load" >&2
-				fi
+				case " $ownedNames " in
+					*" $unclaimedName "*) ;;
+					*) echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: bundled team-member $unclaimedName was not installed into $targetRoot and will not load" >&2 ;;
+				esac
 			done
 		fi
 
@@ -552,11 +553,11 @@ case "$1" in
 					fi
 				elif [ -L "$rfTarget" ] ; then
 					rfActual="$( readlink "$rfTarget" )"
-					ownedMembers="${ownedMembers}${rfName} ${rfActual}"$'\n'
+					ownedMembers="${ownedMembers}${rfName} ${rfActual}"$'\n' ; ownedNames="$ownedNames $rfName"
 					continue
 				fi
 				if [ "$rfTarget" -ef "$rfBundled" ] ; then
-					ownedMembers="${ownedMembers}${rfName} ${rfBundled}"$'\n'
+					ownedMembers="${ownedMembers}${rfName} ${rfBundled}"$'\n' ; ownedNames="$ownedNames $rfName"
 					continue
 				elif [ -e "$rfTarget" ] ; then
 					[ ! -d "$rfTarget" ] || case "$( cd -P "$rfBundled" && pwd -P )/" in "$( cd -P "$rfTarget" && pwd -P )"/*)
@@ -575,7 +576,7 @@ case "$1" in
 					errorMembers="${errorMembers}${rfName} " ; hadError="true"
 					continue
 				fi
-				ownedMembers="${ownedMembers}${rfName} ${rfBundled}"$'\n'
+				ownedMembers="${ownedMembers}${rfName} ${rfBundled}"$'\n' ; ownedNames="$ownedNames $rfName"
 				newLinks="${newLinks}${rfName} "
 			done
 		fi
@@ -602,7 +603,8 @@ case "$1" in
 				hadError="true"
 			}
 
-			local regEntry regName regResolved regType regRel regLine regTmp
+			local regEntry regName regResolved regType regRel regLine regTmp regContent
+			regContent=$'\n'"$( cat "$registryFile" 2>/dev/null )"$'\n'
 			while IFS= read -r regEntry ; do
 				[ -n "$regEntry" ] || continue
 				regName="${regEntry%% *}"
@@ -647,7 +649,7 @@ case "$1" in
 									## rules entry (a file) and a member (a directory) alike.
 									if diff -r -q "$regResolved" "$regBundled" >/dev/null 2>&1 ; then
 										regVerdict="same"
-									elif awk -F: -v m="$regName" '$1 == m { hit = 1; } END { exit !hit; }' "$registryFile" 2>/dev/null ; then
+									elif [[ "$regContent" == *$'\n'"$regName:"* ]] ; then
 										## Content differs, but one of our own workspaces registered this
 										## member into this shared root: known, so not foreign.
 										regVerdict="ours"
@@ -678,13 +680,8 @@ case "$1" in
 				fi
 				regLine="$regName:$workspaceName:$regType:$regRel"
 
-				if awk -F: -v m="$regName" -v w="$workspaceName" -v t="$regType" -v p="$regRel" '
-					$1 == m && $2 == w && $3 == t && substr( $0, length($1) + length($2) + length($3) + 4 ) == p { hit = 1; }
-					END { exit !hit; }
-				' "$registryFile" 2>/dev/null ; then
-					continue
-				fi
-				if awk -F: -v m="$regName" -v w="$workspaceName" '$1 == m && $2 == w { hit = 1; } END { exit !hit; }' "$registryFile" 2>/dev/null ; then
+				case "$regContent" in *$'\n'"$regLine"$'\n'*) continue ;; esac
+				if [[ "$regContent" == *$'\n'"$regName:$workspaceName:"* ]] ; then
 					regTmp="$registryFile.tmp.$$"
 					if awk -F: -v m="$regName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$regTmp" ; then
 						printf '%s\n' "$regLine" >> "$regTmp" || {
@@ -699,6 +696,7 @@ case "$1" in
 							hadError="true"
 							continue
 						fi
+						regContent=$'\n'"$( cat "$registryFile" 2>/dev/null )"$'\n'
 					else
 						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while rewriting $regLine -- registry left untouched" >&2
 						rm -f "$regTmp" 2>/dev/null || true
@@ -706,10 +704,12 @@ case "$1" in
 						continue
 					fi
 				else
-					printf '%s\n' "$regLine" >> "$registryFile" || {
+					if printf '%s\n' "$regLine" >> "$registryFile" ; then
+						regContent="$regContent$regLine"$'\n'
+					else
 						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry append failed for $regLine" >&2
 						hadError="true"
-					}
+					fi
 				fi
 			done <<< "$ownedMembers"
 
@@ -732,9 +732,7 @@ case "$1" in
 				}
 				while IFS=$'\t' read -r rcName rcType rcRel ; do
 					[ -n "$rcName" ] || continue
-					if printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$rcName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
-						continue
-					fi
+					case " $ownedNames " in *" $rcName "*) continue ;; esac
 
 					case "$rcType" in
 						source-symlink) rcPath="$workspace/source/$rcRel" ;;
@@ -800,7 +798,7 @@ case "$1" in
 				## a rules file is not a skill member -- keep it out of the
 				## foreign-members table/count the same as everywhere else below
 				case " $rulesNames " in *" $regLineName "*) continue ;; esac
-				printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$regLineName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' && continue
+				case " $ownedNames " in *" $regLineName "*) continue ;; esac
 				foreignMembers="${foreignMembers}${regLineName} "
 			done < "$registryFile"
 		fi
@@ -1115,7 +1113,10 @@ case "$1" in
 			LC_ALL=C awk -F: 'NF >= 4 {
 				grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
 				if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
-			}' "$permissionsRegistry" > "$grantsFile.prev"
+			}' "$permissionsRegistry" > "$grantsFile.prev" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions registry snapshot failed for workspace $workspaceName -- registry left untouched" >&2
+				exit 1
+			}
 
 			## Rows are reconciled for THIS workspace only; every other workspace's
 			## rows pass through untouched. Suppressed entirely when the scan is not
@@ -1146,7 +1147,11 @@ case "$1" in
 			## one of them having been rewritten under a concurrent multi-workspace
 			## install.
 			tagsRegistry="$HOME/.claude/skills/.linked.magic-team.permissions-tags.txt"
-			[ -f "$tagsRegistry" ] || printf '%s\n' "# generated by $MDSC_CMD --install-claude-permissions -- do not hand-edit, this file is fully rewritten per-workspace on every run" > "$tagsRegistry"
+			[ -f "$tagsRegistry" ] || printf '%s\n' "# generated by $MDSC_CMD --install-claude-permissions -- do not hand-edit, this file is fully rewritten per-workspace on every run" > "$tagsRegistry" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions tags sidecar header write failed for workspace $workspaceName -- no sidecar was created" >&2
+				[ -L "$tagsRegistry" ] || rm -f "$tagsRegistry" 2>/dev/null || true
+				exit 1
+			}
 			if [ "$grantsTrusted" = "true" ] ; then
 				tagsTmp="$tagsRegistry.tmp.$$"
 				if awk -F: -v w="$workspaceName" '!( $2 == w )' "$tagsRegistry" > "$tagsTmp" ; then
@@ -1750,25 +1755,26 @@ case "$1" in
 		}
 
 		## One line so `local` masks grep's exit 1 on a legitimately empty member set.
-		local memberCount="$( AgentsToolsClientAccessRootsMembers acting | grep -c '' )"
+		local memberDirs ; memberDirs="$( AgentsToolsClientAccessRootsMembers acting )"
+		local memberCount="$( printf '%s' "$memberDirs" | grep -c '' )"
 		if [ "$memberCount" -lt 1 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: no member skill directories resolved under $MDAT_SKILLSET_ROOT -- refusing to write copilot agent files for zero members" >&2
 			set +e ; return 1
 		fi
 
-		local memberDir memberName agentFile agentTmp hadError="false" writtenCount=0
+		local memberDir memberName agentFile agentTmp agentText agentExisting hadError="false" writtenCount=0
 		while IFS= read -r memberDir ; do
 			[ -n "$memberDir" ] || continue
-			memberName="$( basename "$memberDir" )"
+			memberName="${memberDir%/}" ; memberName="${memberName##*/}"
 			agentFile="$agentsDir/$memberName.agent.md"
 			agentTmp="$agentFile.tmp.$$"
-			if ! printf -- '---\nname: %s\ndescription: magic-team member %s\n---\nYou are %s, a magic-team member. Read your own skill files before acting.\n' \
-				"$memberName" "$memberName" "$memberName" > "$agentTmp" ; then
+			printf -v agentText -- '---\nname: %s\ndescription: magic-team member %s\n---\nYou are %s, a magic-team member. Read your own skill files before acting.\n' \
+				"$memberName" "$memberName" "$memberName"
+			agentExisting="" ; [ ! -f "$agentFile" ] || [ ! -r "$agentFile" ] || IFS= read -r -d '' agentExisting < "$agentFile" || :
+			[ "$agentExisting" != "$agentText" ] || continue
+			if ! printf '%s' "$agentText" > "$agentTmp" ; then
 				echo "⛔ ERROR: $MDSC_CMD --install-copilot-agent-files: could not write $agentFile" >&2
 				rm -f "$agentTmp" ; hadError="true" ; continue
-			fi
-			if [ -f "$agentFile" ] && cmp -s "$agentTmp" "$agentFile" ; then
-				rm -f "$agentTmp" ; continue
 			fi
 			## Real content is never overwritten -- same refusal as
 			## --install-skillset-symlinks's own "real content ... will not
@@ -1785,7 +1791,7 @@ case "$1" in
 				rm -f "$agentTmp" ; hadError="true" ; continue
 			fi
 			writtenCount=$(( writtenCount + 1 ))
-		done <<< "$( AgentsToolsClientAccessRootsMembers acting )"
+		done <<< "$memberDirs"
 
 		if [ "$hadError" = "true" ] ; then
 			set +e ; return 1
@@ -1987,16 +1993,30 @@ case "$1" in
 			mkdir -p "$MMDAPP/.local/temp" && : > "$MDSC_SKILLSET_REPORT" || { set +e ; return 1 ; }
 			export MDSC_SKILLSET_REPORT ; ownsReport="true"
 		fi
+		local ownsPrescan="false" installStatus=0
+		if [ -z "$MDSC_SKILLSET_PRESCAN" ] ; then
+			local scanMemberNames scanMemberSources scanDiscoveryTrusted scanDiscoveryError
+			AgentsToolsInstallScanMembers "$workspace" "false" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"
+			export MDSC_SKILLSET_MEMBERNAMES="$scanMemberNames"
+			export MDSC_SKILLSET_MEMBERSOURCES="$scanMemberSources"
+			export MDSC_SKILLSET_DISCOVERY_TRUSTED="$scanDiscoveryTrusted"
+			export MDSC_SKILLSET_DISCOVERY_ERROR="$scanDiscoveryError"
+			export MDSC_SKILLSET_PRESCAN="1" ; ownsPrescan="true"
+		fi
 		if [ -n "$scope" ] ; then
-			DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" || { set +e ; return 1 ; }
+			DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" || installStatus=1
 		else
-			DistroAgentsTools --install-skillset-symlinks --scope user-home --workspace "$workspace" || { set +e ; return 1 ; }
-			DistroAgentsTools --install-skillset-symlinks --scope workspace --workspace "$workspace" || { set +e ; return 1 ; }
+			DistroAgentsTools --install-skillset-symlinks --scope user-home --workspace "$workspace" || installStatus=1
+			DistroAgentsTools --install-skillset-symlinks --scope workspace --workspace "$workspace" || installStatus=1
+		fi
+		if [ "$ownsPrescan" = "true" ] ; then
+			unset MDSC_SKILLSET_PRESCAN MDSC_SKILLSET_MEMBERNAMES MDSC_SKILLSET_MEMBERSOURCES MDSC_SKILLSET_DISCOVERY_TRUSTED MDSC_SKILLSET_DISCOVERY_ERROR
 		fi
 		if [ "$ownsReport" = "true" ] ; then
 			DistroAgentsTools --install-skillset-report-render
 			rm -f "$MDSC_SKILLSET_REPORT" ; unset MDSC_SKILLSET_REPORT
 		fi
+		[ "$installStatus" = "0" ] || { set +e ; return 1 ; }
 
 		## must follow --install-vscode-integrations, which creates $HOME/.claude.json when missing
 		DistroAgentsTools --install-claude-workspace-trust --workspace "$workspace" || { set +e ; return 1 ; }

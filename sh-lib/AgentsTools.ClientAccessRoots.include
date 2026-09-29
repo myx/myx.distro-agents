@@ -58,7 +58,7 @@ AgentsToolsClientAccessRootsMembers(){
 	local memberEntry memberName memberReal
 	for memberEntry in "$@" ; do
 		[ -d "${memberEntry%/}" ] || continue
-		memberName="$( basename "${memberEntry%/}" )"
+		memberName="${memberEntry%/}" ; memberName="${memberName##*/}"
 		[ "$memberName" != "trash" ] || continue
 		memberReal="$( cd "${memberEntry%/}" 2>/dev/null && pwd -P )" || continue
 		[ -n "$memberReal" ] || continue
