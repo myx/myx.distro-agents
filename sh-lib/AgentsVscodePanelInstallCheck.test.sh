@@ -28,7 +28,7 @@ rigRefuse(){
 }
 [ -f "$rigGenerator" ] || rigRefuse "the workspace generator is not at the origin: $rigGenerator"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsVscodePanelInstallCheck.XXXXXX" )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap 'chflags -R nouchg "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0
 rigFailCount=0
@@ -234,9 +234,9 @@ rigAssert "and the store holding the root copy survives"   "$( [ -d "$rigWsX/.lo
 echo "-- --install-skillset-symlinks converges its own slots --"
 rigWsS="$rigTmp/wsS" rigBundle="$rigTmp/origin/myx/myx.distro-agents/skillset/magic-team"
 mkdir -p "$rigWsS/.local/myx/myx.distro-.local/sh-lib" ; : > "$rigWsS/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
-rigRunS(){ ## scope, target root, declared member sources
+rigRunS(){ ## scope, target root, declared member sources, bundled member names
 	env -u MDAT_DATA_ROOT HOME="$rigTmp/home" TMPDIR="$rigTmp/tmp" MMDAPP="$rigWsS" MDLT_ORIGIN="$rigTmp/origin" \
-		MDSC_SKILLSET_PRESCAN=1 MDSC_SKILLSET_MEMBERNAMES="magic-tester" MDSC_SKILLSET_MEMBERSOURCES="$3" MDSC_SKILLSET_DISCOVERY_TRUSTED=true \
+		MDSC_SKILLSET_PRESCAN=1 MDSC_SKILLSET_MEMBERNAMES="${4:-magic-tester}" MDSC_SKILLSET_MEMBERSOURCES="$3" MDSC_SKILLSET_DISCOVERY_TRUSTED=true \
 		bash "$rigTool" --install-skillset-symlinks --scope "$1" --workspace "$rigWsS" --target-root "$2" > /dev/null 2> "$rigTmp/s.err" || :
 }
 mkdir -p "$rigWsS/.agents/skills/magic-tester" ; : > "$rigWsS/.agents/skills/magic-tester/rig-own"
@@ -249,7 +249,18 @@ rigAssert "outside the workspace it is warned about"       "$( LC_ALL=C grep -c 
 rigAssert "and left untouched"                             "$( [ -f "$rigTmp/home/.agents/skills/magic-tester/rig-own" ] && echo untouched || echo gone )" untouched
 ln -s "$rigBundle" "$rigTmp/tgtS3"
 rigRunS workspace "$rigTmp/tgtS3" ""
-rigAssert "a slot that already is the bundled member is kept" "$( LC_ALL=C grep -c 'removed:' "$rigTmp/s.err" ) $( [ -d "$rigBundle/magic-tester" ] && [ ! -L "$rigBundle/magic-tester" ] && echo intact )" "0 intact"
+rigAssert "a slot that already is the bundled member is kept" "$( LC_ALL=C grep -c -e "removed: $rigTmp/tgtS3/magic-tester" -e "ERROR: .*$rigTmp/tgtS3/magic-tester" "$rigTmp/s.err" ) $( [ -d "$rigBundle/magic-tester" ] && [ ! -L "$rigBundle/magic-tester" ] && echo intact )" "0 intact"
+ln -s "$rigTmp/origin/myx/myx.distro-agents/skillset" "$rigTmp/tgtSa"
+rigRunS workspace "$rigTmp/tgtSa" "" magic-team
+rigAssert "a bundled slot holding its own member is refused" "$( LC_ALL=C grep -c -F "ERROR: DistroAgentsTools --install-skillset-symlinks: $rigTmp/tgtSa/magic-team holds $rigBundle/magic-team itself, not removed" "$rigTmp/s.err" )" 1
+rigAssert "and the bundle survives"                        "$( [ -d "$rigBundle/magic-team" ] && [ -d "$rigBundle/magic-tester" ] && echo intact || echo gone )" intact
+mkdir -p "$rigTmp/storeD/rig-dc" ; : > "$rigTmp/storeD/rig-dc/rig-own" ; ln -s "$rigTmp/storeD" "$rigTmp/tgtSd"
+rigRunS workspace "$rigTmp/tgtSd" "rig-dc $rigTmp/storeD/rig-dc"
+rigAssert "a declared slot that already is its source is kept" "$( LC_ALL=C grep -c -e 'removed: .*rig-dc' -e 'ERROR: .*rig-dc' "$rigTmp/s.err" ) $( [ -f "$rigTmp/storeD/rig-dc/rig-own" ] && echo intact )" "0 intact"
+mkdir -p "$rigTmp/home/.claude/skills/rig-dc" "$rigTmp/srcD" ; : > "$rigTmp/home/.claude/skills/rig-dc/rig-own"
+rigRunS user-home "$rigTmp/home/.claude/skills" "rig-dc $rigTmp/srcD"
+rigAssert "a declared slot outside the workspace is warned about" "$( LC_ALL=C grep -c -F "WARNING: DistroAgentsTools --install-skillset-symlinks: real content at $rigTmp/home/.claude/skills/rig-dc, left untouched" "$rigTmp/s.err" )" 1
+rigAssert "and left untouched"                             "$( [ -f "$rigTmp/home/.claude/skills/rig-dc/rig-own" ] && echo untouched || echo gone )" untouched
 mkdir -p "$rigTmp/storeS/rig-member/inner" ; ln -s "$rigTmp/storeS" "$rigTmp/tgtS4"
 rigRunS workspace "$rigTmp/tgtS4" "rig-member $rigTmp/storeS/rig-member/inner"
 rigAssert "a declared slot holding its own source is refused" "$( LC_ALL=C grep -c -F "ERROR: DistroAgentsTools --install-skillset-symlinks: $rigTmp/tgtS4/rig-member holds $rigTmp/storeS/rig-member/inner itself, not removed" "$rigTmp/s.err" )" 1
@@ -258,6 +269,9 @@ mkdir -p "$rigWsS/.claude/skills" "$rigWsS/.claude/rules" ; printf 'rig-own\n' >
 rigRunS workspace "$rigWsS/.claude/skills" ""
 rigAssert "a rules file holding real content is removed"   "$( LC_ALL=C grep -c -x -F "# DistroAgentsTools --install-skillset-symlinks: removed: $rigWsS/.claude/rules/magic-team.basic.md" "$rigTmp/s.err" )" 1
 rigAssert "and linked to the bundle"                       "$( readlink "$rigWsS/.claude/rules/magic-team.basic.md" )" "$rigBundle/magic-team/magic-team.basic.md"
+rm -rf "$rigWsS/.claude/rules" ; ln -s "$rigBundle/magic-team" "$rigWsS/.claude/rules"
+rigRunS workspace "$rigWsS/.claude/skills" ""
+rigAssert "a rules file that already is the bundled file is kept" "$( LC_ALL=C grep -c -e 'removed: .*magic-team.basic.md' -e 'ERROR: .*magic-team.basic.md' "$rigTmp/s.err" ) $( [ -f "$rigBundle/magic-team/magic-team.basic.md" ] && [ ! -L "$rigBundle/magic-team/magic-team.basic.md" ] && echo intact )" "0 intact"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ VSCODE PANEL INSTALL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

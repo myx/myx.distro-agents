@@ -560,7 +560,7 @@ case "$1" in
 					ownedMembers="${ownedMembers}${rfName} ${rfBundled}"$'\n' ; ownedNames="$ownedNames $rfName"
 					continue
 				elif [ -e "$rfTarget" ] ; then
-					[ ! -d "$rfTarget" ] || case "$( cd -P "$rfBundled" && pwd -P )/" in "$( cd -P "$rfTarget" && pwd -P )"/*)
+					[ ! -d "$rfTarget" ] || case "$( cd -P "${rfBundled%/*}" && pwd -P )/${rfBundled##*/}/" in "$( cd -P "$rfTarget" && pwd -P )"/*)
 						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $rfTarget holds $rfBundled itself, not removed" >&2
 						errorMembers="${errorMembers}${rfName} " ; hadError="true" ; continue ;;
 					esac
@@ -604,7 +604,11 @@ case "$1" in
 			}
 
 			local regEntry regName regResolved regType regRel regLine regTmp regContent
-			regContent=$'\n'"$( cat "$registryFile" 2>/dev/null )"$'\n'
+			local regReadFailed="false"
+			regContent=$'\n'"$( cat "$registryFile" 2>/dev/null )"$'\n' || {
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed: $registryFile -- removing NOTHING" >&2
+				regContent=$'\n' ; regReadFailed="true" ; hadError="true"
+			}
 			while IFS= read -r regEntry ; do
 				[ -n "$regEntry" ] || continue
 				regName="${regEntry%% *}"
@@ -696,7 +700,10 @@ case "$1" in
 							hadError="true"
 							continue
 						fi
-						regContent=$'\n'"$( cat "$registryFile" 2>/dev/null )"$'\n'
+						regContent=$'\n'"$( cat "$registryFile" 2>/dev/null )"$'\n' || {
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry re-read failed after rewriting $regLine -- removing NOTHING" >&2
+							regContent="$regContent$regLine"$'\n' ; hadError="true"
+						}
 					else
 						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while rewriting $regLine -- registry left untouched" >&2
 						rm -f "$regTmp" 2>/dev/null || true
@@ -704,7 +711,9 @@ case "$1" in
 						continue
 					fi
 				else
-					if printf '%s\n' "$regLine" >> "$registryFile" ; then
+					if [ "$regReadFailed" = "true" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry was not readable, $regLine not appended -- registry left untouched" >&2
+					elif printf '%s\n' "$regLine" >> "$registryFile" ; then
 						regContent="$regContent$regLine"$'\n'
 					else
 						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry append failed for $regLine" >&2
