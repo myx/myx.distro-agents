@@ -34,7 +34,10 @@
 import json
 import sys
 
-PREFIX = "⛔ ERROR: DistroAgentsTools --intern-op-board-upsert-move-edit: --edit-patch-from-stdin:"
+## The calling operation names itself as the one argument, so the error names the op the
+## caller ran; with none, the board op this helper was written for.
+PREFIX = "⛔ ERROR: DistroAgentsTools {}: --edit-patch-from-stdin:".format(
+	sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else "--intern-op-board-upsert-move-edit")
 
 
 def fail(message):

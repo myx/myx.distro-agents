@@ -200,7 +200,7 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, all types, 
   does not, the document is corrupt and can say so. It also stays line-oriented, so `awk`/`grep` still
   work.
 - rule: Bodies are carried for **inbox items only**. The board section keeps frontmatter alone and
-  keeps its no-cap rule — board bodies were not asked for, and `--member-read-board-item` already
+  keeps its no-cap rule — board bodies were not asked for, and `--member-board-item-read` already
   returns one.
 - rule: There are **four** inbox sections, not three: `## Active Inbox Inquiry Items` (`inquiry-*`),
   `## Current Inbox Reflections` (`reflection-*`), `## Current Inbox Notes` (`note-*`), and
@@ -376,7 +376,7 @@ Not a contract — the shape of a **generated** document, produced by tooling an
   - `body-lines:` states the lines **actually emitted**, and those lines are byte-identical to the corresponding prefix of storage. Where no body was cut, that prefix is the whole body.
   - `body-final-newline: absent` appears only when the body was emitted **whole** and storage did not end in a newline. It sits immediately before `body-lines:`, so that `body-lines:` stays last. The emitter supplies the missing newline. Nothing else is added or removed. A cut body never carries it. A body that did not reach its own last byte says nothing about how storage ended, and asserting it would be a claim the emitter cannot make.
   - A count rather than a delimiter is what makes the body byte-exact and the framing self-checking. After `N` lines a reader must find `##` or EOF. Where it does not, the document is corrupt and can say so.
-  - The board section keeps frontmatter only, and keeps its no-cap rule. Board bodies are not carried here — `--member-read-board-item` already returns one.
+  - The board section keeps frontmatter only, and keeps its no-cap rule. Board bodies are not carried here — `--member-board-item-read` already returns one.
 - **Wherever anything is cut, the document says so at the point it was cut**. That is a rule of the whole document, not a feature of one section. Two forms exist, never a fresh one. Each states *what* was cut and *how much*, never merely that something was:
   - **Section-level mark**, when the item *count* is cut. Base form, for the email and Trello sections, emitted exactly: `**NOTE:** truncated -- <N> items found, capped at <M>`
   - Inbox form, for all four inbox sections, emitted exactly: `**NOTE:** truncated -- <N> items found, capped at <M> -- OLDEST kept, newest not shown`
