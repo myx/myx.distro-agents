@@ -19,15 +19,15 @@ The board isn't trustworthy between daily/grooming cycles — sessions die mid-w
 **In scope**, every invocation:
 - All new incoming communication (email, Trello, Slack) — the full `magic-coordinator.communication-sweep.routine` pass (**check** + **process-each-message**, every found message, ascending timestamp order), not a narrow slice.
 - `board-running` — every item, every pass, including its own in-place testing round; no separate `board/testing/` folder.
-- `board-backlog` and `board-pending` — every item, every pass: mechanical `board-backlog`→`board-pending`→`board-running` moves, readiness-flagging only — not a full re-triage.
-- `board-parked` and `board-blocked`, narrowly — only items carrying a `recheck-date` whose date has arrived (or, for `board-blocked`, an early-fire per `check-process-board`'s **board-reassess-parked-blocked**).
+- `board-pending` — every item, every pass: mechanical `board-pending`→`board-running` moves, readiness-flagging only — not a full re-triage. `board-backlog` is not read here: promoting a backlog item is `magic-team.grooming.routine`'s **check-backlog-promote**.
+- `board-parked` and `board-blocked`, narrowly — only items whose `recheck-date` has arrived or which carry none (or, for `board-blocked`, an early-fire per `check-process-board`'s **board-reassess-parked-blocked**).
 - `magic-coordinator`'s own inbox, narrowly — only `pending-slack-reaction` and `pending-trello-update` records (used in `check-pending-comms-actions`). One record per deferred action, not one standing record; the input-scan surfaces them, so no filename is written down or matched here.
 - Dependency-graph recomputation (`blocks:`/`blocked-by:` edges and ordering) — bounded, not every pass (`check-process-board`'s **board-recompute-dependencies**).
 
 **`recheck-date`/`condition` convention**, on any item entering `board-parked`/`board-blocked`:
 - set at the moment it's parked/blocked, by whoever does that triage
 - extended by `check-process-board`'s **board-reassess-parked-blocked** whenever it spins off an inquiry job instead of resolving inline
-- no `recheck-date` recorded → never triggers that step, falls to `magic-team.grooming.routine`'s own slower cadence
+- no `recheck-date` recorded → due now, every pass: a missing `recheck-date` never defers. The item gets a real check and a report each pass that reaches `board-blocked`/`board-parked`, whatever another pass the same day already sent, until a check sets one.
 
 **`recheck-date` computation (deterministic, not mental arithmetic)**: every `recheck-date` value this routine sets — whatever offset a step below states (`check-execute-board`'s `now + 7min (jittered ±2min)` restart-session spawn, its `now + 17 minutes` spawn-proxy-failure retry, or any other) — is computed by an actual shell `date` command, run via `mcp__myx_distro__execute`, never worked out as LLM mental arithmetic. A step's stated offset (`now + 7min`, `now + 17 minutes`) names the target only; this is how it's actually produced. Required output shape: full `date-time` per `magic-team/magic-team.armed.md`'s Terminology (`YYYY-MM-DD HH:MM ±HHMM`, e.g. `2026-08-13 15:20 +0000`) — never a bare date, never dropping the UTC offset. Where a jitter window is stated (e.g. `±2min`), the jitter itself is also produced by that same shell call — a randomized offset folded into the base minutes before formatting — not eyeballed or approximated.
 
@@ -326,9 +326,9 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-advance-input-scan` operation reference
 
-`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — read-only scan giving all board job-state information relevant to this routine, plus this routine's own `state-and-lock` note as part of the same prepared input. `<team-member>` is the only argument; the scan's shape is fixed, and it reads every baseline item this routine needs — an item name is not a parameter to it.
+`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — read-only scan of `board-pending`, `board-running`, `board-blocked` and `board-parked` — every item type, every frontmatter field, never `board-backlog` — plus this routine's own `state-and-lock` note as part of the same prepared input. After the board digest come three registry sections: `## team members`, `## spawned sessions` and `## pending replies`. `<team-member>` is the only argument; the scan's shape is fixed, and it reads every baseline item this routine needs — an item name is not a parameter to it.
 
-**Inbox scope**: `<team-member>`'s own inbox, plus every `client-*` member that exists as a skill directory, each under its own `## Additional Inbox -- <member>` group with its sections suffixed by that member's name. Board scope is all types / any owner, so a board item a `client-*` member filed is visible here on that ground alone; the client-inbox groups are what surface the `inquiry-*` items `magic-coordinator.communication-sweep.routine` files into `inboxes/client-*/`. That read is a read and nothing more: the acting identity stays `<team-member>`, no `client-*` credential or comms source is touched, and nothing is written into a client inbox — answering one is still a write this routine performs deliberately (`--member-upsert-member-inquiry`/`--member-inbox-note-upsert`), never a side effect of the scan. The `client-*` members that actually exist decide the scope; the roster note is a cache and does not.
+**Inbox scope**: `<team-member>`'s own inbox, notes only — the `pending-slack-reaction` and `pending-trello-update` records `check-pending-comms-actions` acts on. No inquiries, no reflections and no `client-*` inbox: those are `--magic-grooming-input-scan`'s. Board scope is all types / any owner, so a board item a `client-*` member filed is visible here on that ground alone.
 
 ## `--magic-advance-lock-acquire` / `--magic-advance-lock-refresh` / `--magic-advance-close-state-and-unlock` / `--magic-advance-lock-status` operation reference
 

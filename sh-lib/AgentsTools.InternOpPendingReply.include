@@ -160,6 +160,7 @@ case "$1" in
 		local pendingId="$1"
 		shift || true
 		local pendingStatus="" pendingVerdict="" pendingAnsweredBy="" pendingIfOpen="" pendingAnswerTs="" pendingMark=""
+		local pendingAmend="" pendingAmendedBy="" pendingAmendReason=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				## The ts of the reply taken as the answer, marked :eyes: once the record is closed.
@@ -181,6 +182,20 @@ case "$1" in
 				--if-open)
 					pendingIfOpen=1
 					shift
+				;;
+				## Corrects a record already closed: its verdict and status are rewritten, and
+				## who amended it and why are recorded; its close time and reactions stay as they were.
+				--amend)
+					pendingAmend=1
+					shift
+				;;
+				--amended-by)
+					pendingAmendedBy="${2:-}"
+					shift 2
+				;;
+				--amend-reason)
+					pendingAmendReason="${2:-}"
+					shift 2
 				;;
 				--status)
 					pendingStatus="${2:-}"
@@ -232,6 +247,14 @@ case "$1" in
 			set +e ; return 1
 		fi
 		pendingLock="$agentsLocalLockPath"
+		if [ -n "$pendingAmend" ] ; then
+			pendingNow="$( LC_ALL=C awk -F': ' 'NR > 1 && $0 == "---" { exit ; } $1 == "status" { print substr($0, 9) ; exit ; }' "$pendingFile" )"
+			if [ "$pendingNow" = "reply-pending" ] || [ -z "$pendingAmendedBy" ] || [ -z "$pendingAmendReason" ] || [ -z "$pendingVerdict" ] ; then
+				AgentsToolsLocalLockGive "$pendingLock"
+				echo "$MDSC_CMD: ⛔ ERROR: --amend corrects a closed record only, and needs --verdict, --amended-by and --amend-reason; $pendingId is ${pendingNow:-unknown}, left as it is" >&2
+				set +e ; return 1
+			fi
+		fi
 		if [ -n "$pendingIfOpen" ] ; then
 			pendingNow="$( LC_ALL=C awk -F': ' 'NR > 1 && $0 == "---" { exit ; } $1 == "status" { print substr($0, 9) ; exit ; }' "$pendingFile" )"
 			if [ "$pendingNow" != "reply-pending" ] ; then
@@ -248,10 +271,22 @@ case "$1" in
 		mkdir -p "$MMDAPP/.local/temp" || { AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
 		{
 			printf 'upsert\tstatus\t%s\n' "$pendingStatus"
-			printf 'upsert\tresolved-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
-			## The same moment in epoch seconds, which a reply's Slack ts compares with: a
-			## plain reply after this question was closed answers nothing (AgentsTools.AskThread.include).
-			printf 'upsert\tresolved-epoch\t%s\n' "$( date +%s )"
+			if [ -n "$pendingAmend" ] ; then
+				## What the correction corrected stays on the record: the first verdict and its giver.
+				LC_ALL=C awk '
+					NR > 1 && $0 == "---" { exit ; }
+					index($0, "verdict: ") == 1 { printf "upsert\tamended-from\t%s\n", substr($0, 10) ; }
+					index($0, "answered-by: ") == 1 { printf "upsert\tamended-from-answered-by\t%s\n", substr($0, 14) ; }
+				' "$pendingFile"
+				printf 'upsert\tamended-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+				printf 'upsert\tamended-by\t%s\n' "${pendingAmendedBy//$'\n'/ }"
+				printf 'upsert\tamend-reason\t%s\n' "${pendingAmendReason//$'\n'/ }"
+			else
+				printf 'upsert\tresolved-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+				## The same moment in epoch seconds, which a reply's Slack ts compares with: a
+				## plain reply after this question was closed answers nothing (AgentsTools.AskThread.include).
+				printf 'upsert\tresolved-epoch\t%s\n' "$( date +%s )"
+			fi
 			[ -z "$pendingVerdict" ] || printf 'upsert\tverdict\t%s\n' "${pendingVerdict//$'\n'/ }"
 			[ -z "$pendingAnsweredBy" ] || printf 'upsert\tanswered-by\t%s\n' "${pendingAnsweredBy//$'\n'/ }"
 		} > "$pendingOps" || { rm -f "$pendingOps" ; AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
@@ -272,7 +307,7 @@ case "$1" in
 		## the conversation once no question in that thread is open. Best effort, after the
 		## record is closed: a reaction that fails is logged and never undoes the close. Never
 		## an answer either: only an addressee's reaction answers.
-		if [ "$pendingStatus" = "reply-received" ] ; then
+		if [ "$pendingStatus" = "reply-received" ] && [ -z "$pendingAmend" ] ; then
 			local reactOwner="" reactChannel="" reactQuestion="" reactThread="" reactTo="" reactKey reactValue
 			while IFS=$'\t' read -r reactKey reactValue ; do
 				case "$reactKey" in

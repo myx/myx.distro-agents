@@ -2173,20 +2173,38 @@ blocks|verbatim|caller|stdin file"
 			fi
 		fi
 
-		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false" identitySwapped="false" permanentVerdict=""
+		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false" identitySwapped="false" permanentVerdict="" sendRc sendUnknown=""
 		while [ "$attempt" -le "$maxAttempts" ] ; do
 			## The body travels in a file, never argv, which a long message outgrows; stdin is the header's.
-			response="$( mkdir -p "$MMDAPP/.local/temp" && bodyFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-send.XXXXXX" )" || exit 1
+			sendRc=0
+			## 200, above curl's own exit codes, is this machine failing before curl ran: nothing was sent, and it is said as such.
+			response="$( mkdir -p "$MMDAPP/.local/temp" && bodyFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-send.XXXXXX" )" || exit 200
 				trap 'rm -f "$bodyFile"' EXIT
-				printf '%s' "$payload" > "$bodyFile" || exit 1
+				printf '%s' "$payload" > "$bodyFile" || exit 200
 				curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/chat.postMessage" \
 				-H @- \
 				-H "Content-type: application/json" \
-				--data-binary "@$bodyFile" <<< "$authHeader" 2>&1 )"
+				--data-binary "@$bodyFile" <<< "$authHeader" 2>&1 )" || sendRc=$?
 			if printf '%s' "$response" | grep -q '"ok":true' ; then
 				sent="true"
 				break
 			fi
+			## A post is not idempotent. curl failing to resolve or to connect (6, 7) sent
+			## nothing, so it is retried. Any other transport failure may have reached Slack
+			## with the reply lost, and a retry could post it twice -- so it is not retried.
+			case "$sendRc" in
+				0|6|7) ;;
+				200)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: nothing was posted -- the message body could not be staged under $MMDAPP/.local/temp, so curl never ran" >&2
+					AgentsToolsSlackSendLogLine failed "not posted: the body could not be staged locally"
+					set +e ; return 1
+				;;
+				*)
+					sendUnknown="curl exited $sendRc after the request may have reached Slack"
+					echo "# $MDSC_CMD --member-comms-slack-send-message: $sendUnknown -- not retried, a retry could post it twice -- $response" >&2
+					break
+				;;
+			esac
 			if [ "$sendIdentity" = "bot" ] && [ "$joinAttempted" = "false" ] && [ -z "$threadTs" ] && printf '%s' "$response" | grep -q '"error":"not_in_channel"' ; then
 				joinAttempted="true"
 				local joinResponse
@@ -2250,13 +2268,13 @@ blocks|verbatim|caller|stdin file"
 				local responseMessageUser="" responseMessageUserRc=0
 				responseMessageUser="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=message.user -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || responseMessageUserRc=$?
 				if [ "$responseMessageUserRc" != "0" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: member SLACK_USER_TOKEN send for $memberName could not be confirmed as message.user=$authUserId -- the response carries no readable message.user (reader rc=$responseMessageUserRc), so the control reached no verdict, which is not a pass" >&2
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: THE MESSAGE WAS POSTED -- do not send it again. member SLACK_USER_TOKEN send for $memberName could not be confirmed as message.user=$authUserId -- the response carries no readable message.user (reader rc=$responseMessageUserRc), so the control reached no verdict, which is not a pass" >&2
 					echo "# Response: $response" >&2
 					AgentsToolsSlackSendLogLine failed "posted, but message.user not readable"
 					set +e ; return 1
 				fi
 				if [ "$responseMessageUser" != "$authUserId" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: member SLACK_USER_TOKEN send for $memberName did not confirm message.user=$authUserId (actual message.user=$responseMessageUser)" >&2
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: THE MESSAGE WAS POSTED -- do not send it again. member SLACK_USER_TOKEN send for $memberName did not confirm message.user=$authUserId (actual message.user=$responseMessageUser)" >&2
 					echo "# Response: $response" >&2
 					AgentsToolsSlackSendLogLine failed "posted, but not as message.user=$authUserId"
 					set +e ; return 1
@@ -2297,6 +2315,12 @@ blocks|verbatim|caller|stdin file"
 			AgentsToolsSlackSendLogLine ok "posted ts=$sentTs"
 			printf '%s\n' "$response"
 			return 0
+		fi
+
+		if [ -n "$sendUnknown" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: WHETHER THIS WAS POSTED IS UNKNOWN -- $sendUnknown. Read the conversation before sending it again, or it may appear twice." >&2
+			AgentsToolsSlackSendLogLine failed "unknown whether posted: $sendUnknown"
+			set +e ; return 1
 		fi
 
 		if [ -n "$permanentVerdict" ] ; then

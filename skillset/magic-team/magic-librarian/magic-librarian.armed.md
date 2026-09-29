@@ -130,6 +130,7 @@ All statements apply at the same time, always. These rules override a magic-team
 
 - `magic-librarian.conventions-check.routine` — the review pass checking a proposed change against the closest existing real analog in the repo/skill-set before it lands. Any armed member may run it inline.
 - `magic-librarian.morning-review.routine` — the once-per-workday joint `magic-coordinator`+`magic-librarian` checkpoint for board state-model drift and cross-file consistency.
+- `magic-librarian.prepare-clear.routine` — the knowledge-consolidation pass: memory files, reflections and notes absorbed into the skill files, the rest filed for the next round.
 
 ## Content standards (team-wide, authored and stewarded by `magic-librarian`)
 

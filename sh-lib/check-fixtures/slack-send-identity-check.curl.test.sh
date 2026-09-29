@@ -14,6 +14,15 @@ for rigArg in "$@" ; do
 done
 rigToken="${rigHeader#Authorization: Bearer }"
 printf '%s %s\n' "$rigMethod" "$rigToken" >> "$RIG_SCENARIO/calls"
+## A scenario can have successive posts fail at the transport, one curl exit code per line.
+if [ "$rigMethod" = "chat.postMessage" ] && [ -s "$RIG_SCENARIO/post-exits" ] ; then
+	rigExit="$( head -1 "$RIG_SCENARIO/post-exits" )"
+	tail -n +2 "$RIG_SCENARIO/post-exits" > "$RIG_SCENARIO/post-exits.next" && mv "$RIG_SCENARIO/post-exits.next" "$RIG_SCENARIO/post-exits"
+	if [ "$rigExit" != "0" ] ; then
+		echo "curl: ($rigExit) rig transport failure"
+		exit "$rigExit"
+	fi
+fi
 case "$rigToken" in
 	rig-bot-*) rigUser="URIGBOT01" ;;
 	*) rigUser="URIG${rigToken##*-}" ;;

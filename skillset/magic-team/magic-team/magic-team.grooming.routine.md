@@ -28,7 +28,7 @@ Manually triggered, same as the other structured routines. Always confirm with t
 
 ## Scope
 
-Does: full-backlog RICE re-score, per-item triage, `blocked/`/`parked/` active-pursuit chasing.
+Does: bounded RICE scoring (first score on triage, plus a rescore quota), per-item triage, `blocked/`/`parked/` active-pursuit chasing.
 Doesn't do: daily status reporting (`magic-coordinator.daily.routine`'s job).
 
 # Steps
@@ -54,13 +54,11 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - spot-check `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section against anything that's actually come up as wrong since the last grooming
        - if a specific fact genuinely needs live confirmation, dispatch `magic-tester` for it — don't check it here directly
      - **Trello board coverage** (grooming-cadence, not every sweep):
-       - diff `GET /1/members/me/boards` (id/name only) against the set of boards the coordinator's notification-feed check already covers
-       - auto-subscribe (`PUT /1/boards/{id}/subscribed?value=true`) anything new
+       - no operation lists or subscribes boards yet, so this sub-check has none to run
+       - record it as a tooling gap for `keeper-myx`, and never call the Trello API directly in its place
      - **Google Drive/Sheets check** (grooming-cadence, not every sweep):
        - `magic-coordinator.communication-sweep.routine` deliberately skips Google in its routine Check step — it's heavier and only worth it when actually searching or grooming
-       - run it here instead, steps:
-         - refresh the OAuth token
-         - `files.list` ordered by `modifiedTime desc`
+       - run it here instead, through the `--member-comms-google-file-find` operation, with a raw Drive query for files modified since the last grooming
      - **Human-action-required items**:
        - collect items that are generally approved but need the human-owner's own hands-on action (Slack app config, OAuth scope grants, and similar) as they accumulate; consolidate into one batch
        - **send this batch, don't just file it**: fire it directly via `--member-comms-slack-send-message` operation, as part of this same pass:
@@ -214,8 +212,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - Assess each and decide its outcome, then record it: `--header:upsert:resolved-at:<value>` on a single same-state `--magic-grooming-to-<its current state>` call, `--from-state:` set to that same state.
    - No outcome decidable this pass: leave `resolved-at` unset and say why — it stays visible here next pass rather than being silently closed.
 6. **rescore-backlog-rice**
-   - Do this every grooming — not just for newly-triaged items.
-   - Before reprioritizing, re-score **every** open task and project across the board's states:
+   - Do this every grooming, and keep each pass bounded:
+     - **first score on triage**: every item triaged this pass that carries no score gets its first one now
+     - **rescore quota**: then re-score the 10 open items whose scores are oldest, oldest first
+   - The open set this step draws from spans the board's states:
      - **`board-backlog`** — freshly-triaged, not yet assessed
      - **`board-pending`** — go decided, not yet dispatched
      - **`board-running`** — actively dispatched/executing
@@ -283,7 +283,7 @@ Record scores on the item's own file under the board, tagged by who gave the sco
 
 ### When scores get set or updated
 
-- **At this routine**: every pending/planned/active item, every pass — not just newly-triaged ones, since normalization is relative to the whole backlog. See **rescore-backlog-rice** above.
+- **At this routine**: a first score for each item triaged this pass, then the 10 oldest scores re-scored. See **rescore-backlog-rice** above.
 - **By `magic-architect`**, as its `grooming-scores-review` idle activity: refines existing scores, doesn't reassign/split/drop items.
 - **Ad hoc**: any member, any time.
 
@@ -388,6 +388,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-grooming-create-blocked` (creates a new board-item in `board-blocked`)
 - `--magic-grooming-create-processed` (creates a new board-item in `board-processed`)
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
+- `--member-comms-google-file-find <team-member> <drive-query> --raw-query [--limit <n>]`
 - `--member-work-session-input-scan <team-member>`
 - `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 
@@ -398,6 +399,8 @@ Prints this syntax + summary and exits.
 ## `--magic-grooming-input-scan` operation reference
 
 `DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>` — read-only: lists the open board items as `<state>/<item-filename>`, one per line, with their frontmatter, and this routine's own `state-and-lock` note alongside them as part of the same prepared input. Use this to find an item's actual current state before calling `--magic-grooming-to-*`. `<team-member>` is the only argument: the scan reads every baseline item this routine needs, and an item name is not a parameter to it.
+
+**Inbox scope**: `<team-member>`'s own inbox, plus every `client-*` member that exists as a skill directory, each under its own `## Additional Inbox -- <member>` group with its sections suffixed by that member's name. The client-inbox groups are what surface the `inquiry-*` items `magic-coordinator.communication-sweep.routine` files into `inboxes/client-*/`. That read is a read and nothing more: the acting identity stays `<team-member>`, no `client-*` credential or comms source is touched, and nothing is written into a client inbox — answering one is still a deliberate write (`--member-upsert-member-inquiry`/`--member-inbox-note-upsert`), never a side effect of the scan. The `client-*` members that actually exist decide the scope; the roster note is a cache and does not.
 
 ## `--magic-grooming-lock-acquire` / `--magic-grooming-lock-refresh` / `--magic-grooming-close-state-and-unlock` / `--magic-grooming-lock-status` operation reference
 
@@ -444,6 +447,10 @@ Same shape as `--magic-grooming-to-backlog` operation, target fixed to `board-pa
 ## `--magic-grooming-to-blocked` operation reference
 
 `DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-blocked` in one call, and/or patches its frontmatter. `--owner-header-value` is mandatory. Auto-stamps `groomed-at`, `groomed-from` and `track:true` — full grooming policy, same as its `--magic-grooming-to-*` siblings and unlike the `--magic-advance-*`/`--magic-board-*` families, which stamp nothing. Also auto-stamps `execution-receipt: blocked:<timestamp>` unless the caller already supplied one via `--header:upsert:execution-receipt:*`/`--header:append:execution-receipt:*`, in which case the caller's value stands — see `magic-team.board.md`'s `board-blocked` section.
+
+## `--member-comms-google-file-find` operation reference
+
+`DistroAgentsTools.fn.sh --member-comms-google-file-find <team-member> <drive-query> --raw-query [--limit <n>]` — lists the Drive files `<team-member>`'s own identity can see that match `<drive-query>`, passed to Drive's `q` parameter as written. Used here with a `modifiedTime` bound for the Google Drive/Sheets check.
 
 ## `--member-comms-slack-send-message` operation reference
 

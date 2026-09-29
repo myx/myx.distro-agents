@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on --magic-advance-input-scan, run rather than read, against a
 ## scenario board built here. Holds: one item placed in each active board state comes
-## back as its own `## <state>/<item-filename>` row, backlog included. Offline by construction.
+## back as its own `## <state>/<item-filename>` row, except backlog, which is grooming's
+## (the owner's "grooming reads backlog+inquiries+notes, advance does not"). Offline by construction.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -30,7 +31,14 @@ rigOut="$( cd "$rigTmp/ws" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" MMDA
 printf '%s\n' "$rigOut" | grep -q '^## running/task-rig-running\.md$' || rigRefuse "the running item, which every revision scans, came back missing, so no state below would be measured"
 
 rigFails=0 rigPasses=0
-for rigState in backlog pending running blocked parked ; do
+if printf '%s\n' "$rigOut" | grep -q '^## backlog/task-rig-backlog\.md$' ; then
+	printf '  FAIL  the backlog item is in the scan, and backlog is grooming'"'"'s\n'
+	rigFails=$(( rigFails + 1 ))
+else
+	printf '  PASS  the backlog item is not in the scan\n'
+	rigPasses=$(( rigPasses + 1 ))
+fi
+for rigState in pending running blocked parked ; do
 	if printf '%s\n' "$rigOut" | grep -q "^## $rigState/task-rig-$rigState\\.md\$" ; then
 		printf '  PASS  the %s item comes back as a %s/ row\n' "$rigState" "$rigState"
 		rigPasses=$(( rigPasses + 1 ))

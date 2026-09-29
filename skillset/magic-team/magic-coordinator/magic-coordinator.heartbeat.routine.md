@@ -288,7 +288,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-heartbeat-input-scan` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>` — read-only: this routine's own prepared input (the name deliberately doesn't echo this routine's own name). Returns this routine's own state-and-lock note, then `<team-member>`'s own inbox reflections, each with its body. It returns no board items. `<team-member>` is the only argument: the scan reads every baseline item this routine needs, and an item name is not a parameter to it.
+`DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>` — read-only: this routine's own prepared input (the name deliberately doesn't echo this routine's own name). Returns this routine's own state-and-lock note, then a `## questions (pending replies)` section — the main loop's last collect of unanswered questions, then every question still open, with its session, asker and age — then a `## spawned sessions` section, each session as measured at its close and whether it is alive now — then `<team-member>`'s own inbox reflections, each with its body. It returns no board items. `<team-member>` is the only argument: the scan reads every baseline item this routine needs, and an item name is not a parameter to it.
 
 ## `--magic-advance-input-scan` operation reference
 

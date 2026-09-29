@@ -959,7 +959,10 @@ AgentsHarnessLockTake(){ ## resolved target
 
 ## Whole-file overwrite or create, never a partial patch; Edit is the partial path.
 AgentsHarnessToolWrite(){
-	local toolPath="$1" toolContent="$2" toolTemp toolLock=""
+	local toolPath="${3:-$1}" toolContent="$2" toolTemp toolLock=""
+	if [ -z "$toolPath" ] ; then
+		printf 'ERROR: no path was given -- pass file_path, or path. Keys received: %s. Nothing was written.\n' "$( printf '{"a":%s}' "$4" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' )" ; return 0
+	fi
 	if ! AgentsHarnessPathAllowed "$toolPath" "$harnessWriteRoots" && ! AgentsHarnessGranted Write "$harnessResolvedPath" ; then
 		AgentsHarnessRefusal Write "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0
 	fi
@@ -994,7 +997,10 @@ AgentsHarnessToolWrite(){
 ## long for Read's cap. Uniqueness is required, not preferred: a silent
 ## first-of-several substitution is unrecoverable, and identical lines are the norm here.
 AgentsHarnessToolEdit(){
-	local toolPath="$1" toolOld="$2" toolNew="$3" toolAll="$4" toolCount toolTemp toolLock=""
+	local toolPath="${5:-$1}" toolOld="$2" toolNew="$3" toolAll="$4" toolCount toolTemp toolLock=""
+	if [ -z "$toolPath" ] ; then
+		printf 'ERROR: no path was given -- pass file_path, or path. Keys received: %s. Nothing was written.\n' "$( printf '{"a":%s}' "$6" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' )" ; return 0
+	fi
 	if ! AgentsHarnessPathAllowed "$toolPath" "$harnessWriteRoots" && ! AgentsHarnessGranted Edit "$harnessResolvedPath" ; then
 		AgentsHarnessRefusal Edit "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0
 	fi
@@ -1006,7 +1012,7 @@ AgentsHarnessToolEdit(){
 		printf 'ERROR: no such file: %s\n' "$toolPath" ; return 0
 	fi
 	if [ -z "$toolOld" ] ; then
-		printf 'ERROR: old_text is empty -- an empty match has no unique position\n' ; return 0
+		printf 'ERROR: old_string is empty -- an empty match has no unique position\n' ; return 0
 	fi
 	## Taken before the count: a count read outside the lock is stale by the time it is used.
 	if ! AgentsHarnessLockTake "$toolPath" ; then
@@ -1028,7 +1034,7 @@ AgentsHarnessToolEdit(){
 	[ -n "$toolCount" ] || toolCount=0
 	if [ "$toolCount" = "0" ] ; then
 		AgentsToolsLocalLockGive "$toolLock"
-		printf 'ERROR: old_text not found in %s -- nothing was written\n' "$toolPath" ; return 0
+		printf 'ERROR: old_string not found in %s -- nothing was written\n' "$toolPath" ; return 0
 	fi
 	## Only an explicit opt-in lifts the uniqueness guard; anything else leaves it standing.
 	case "$toolAll" in
@@ -1037,7 +1043,7 @@ AgentsHarnessToolEdit(){
 	esac
 	if [ -z "$toolAll" ] && [ "$toolCount" != "1" ] ; then
 		AgentsToolsLocalLockGive "$toolLock"
-		printf 'ERROR: old_text occurs %s times in %s -- it must identify exactly one place. Nothing was written; extend old_text until it is unique, or pass replace_all to change every occurrence.\n' "$toolCount" "$toolPath" ; return 0
+		printf 'ERROR: old_string occurs %s times in %s -- it must identify exactly one place. Nothing was written; extend old_string until it is unique, or pass replace_all to change every occurrence.\n' "$toolCount" "$toolPath" ; return 0
 	fi
 	## `printf "%s", $0` with the RS re-join, never `print`, which appends ORS and
 	## gave a file that ended without a newline one it never had.
@@ -3146,7 +3152,9 @@ AgentsHarnessArgValue(){
 ## trailing newline, so content ending in one would be written without it.
 harnessArgExact=""
 harnessArgOld=""
-AgentsHarnessArgExact(){ ## raw arguments, key
+AgentsHarnessArgExact(){ ## raw arguments, key, alias key read only when the key is absent
+	## Absent, not empty: an empty new_string is a real value, and the key still wins over its alias.
+	[ -z "$3" ] || printf '%s\n' "$1" | LC_ALL=C awk -v path="$2" -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" >/dev/null 2>&1 || set -- "$1" "$3"
 	harnessArgExact="$( AgentsHarnessArgValue "$1" "$2" ; printf 'x' )"
 	harnessArgExact="${harnessArgExact%x}"
 	harnessArgExact="${harnessArgExact%$'\n'}"
@@ -3216,7 +3224,9 @@ AgentsHarnessAnnounceTool(){
 		;;
 		Write)
 			announceIcon="📝"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" path )" )$harnessOff"
+			announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" file_path )"
+			[ -n "$announcePath" ] || announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" path )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
 		;;
 		Glob)
 			announceIcon="📁"
@@ -3233,7 +3243,9 @@ AgentsHarnessAnnounceTool(){
 		;;
 		Edit)
 			announceIcon="✏️"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" path )" )$harnessOff"
+			announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" file_path )"
+			[ -n "$announcePath" ] || announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" path )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
 		;;
 		Grep)
 			announceIcon="🔍"
@@ -3411,13 +3423,13 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 	## Text a tool writes is taken byte for byte, ahead of the arms that keep their own spelling.
 	case "$harnessFuncName" in
 		Write) AgentsHarnessArgExact "$harnessFuncArgsRaw" content ;;
-		Edit) AgentsHarnessArgExact "$harnessFuncArgsRaw" old_text ; harnessArgOld="$harnessArgExact" ; AgentsHarnessArgExact "$harnessFuncArgsRaw" new_text ;;
+		Edit) AgentsHarnessArgExact "$harnessFuncArgsRaw" old_string old_text ; harnessArgOld="$harnessArgExact" ; AgentsHarnessArgExact "$harnessFuncArgsRaw" new_string new_text ;;
 	esac
 	case "$harnessFuncName" in
 		Read)      harnessResult="$( AgentsHarnessToolRead "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pages )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file_path )" )" ;;
-		Write)     harnessResult="$( AgentsHarnessToolWrite "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgExact" )" ;;
+		Write)     harnessResult="$( AgentsHarnessToolWrite "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgExact" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file_path )" "$harnessFuncArgsRaw" )" ;;
 		Glob)      harnessResult="$( AgentsHarnessToolGlob "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" long )" )" ;;
-		Edit)      harnessResult="$( AgentsHarnessToolEdit "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgOld" "$harnessArgExact" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" replace_all )" )" ;;
+		Edit)      harnessResult="$( AgentsHarnessToolEdit "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgOld" "$harnessArgExact" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" replace_all )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file_path )" "$harnessFuncArgsRaw" )" ;;
 		Grep)      harnessResult="$( AgentsHarnessToolGrep "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" before )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" after )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" ignore_case )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_mode )" )" ;;
 		Bash)      harnessResult="$( AgentsHarnessToolBash "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" )" ;;
 		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" )" ;;

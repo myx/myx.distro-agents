@@ -42,7 +42,7 @@ AgentsToolsPendingReplyScan(){ ## owner filter (empty for any), open only (1 or 
 			printf "question: %s\n\n", first ;
 			shown++ ;
 		}
-		BEGIN { keyCount = split("status owner kind question-tag channel question-ts thread-ts address-to session-id asked-at resolved-at verdict answered-by", keys, " ") ; }
+		BEGIN { keyCount = split("status owner kind question-tag channel question-ts thread-ts address-to session-id asked-at resolved-at verdict answered-by amended-at amended-by amend-reason amended-from amended-from-answered-by", keys, " ") ; }
 		FNR == 1 { if ( haveRecord ) { flush() ; } resetRecord() ; }
 		$0 == "---" { dashes++ ; next ; }
 		dashes == 1 {
@@ -156,6 +156,60 @@ case "$1" in
 		case "$settleRc" in
 			0) printf 'SETTLED %s\n' "$settleId" ; return 0 ;;
 			3) return 0 ;;
+			*) set +e ; return 1 ;;
+		esac
+	;;
+
+	## Corrects a closed record's verdict, when it was closed with a wrong or missing answer.
+	## The coordinator's only: a close can't be undone, so the correction is recorded beside
+	## it, with who amended it and why, and the record stays closed.
+	--magic-pending-reply-amend)
+		shift
+		MDSC_CMD="$MDSC_CMD --magic-pending-reply-amend"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local amendMember="${1:-}" amendId="${2:-}" amendVerdict="" amendReason="" amendRc=0
+		shift 2 2>/dev/null || shift $#
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--verdict)
+					[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --verdict requires a value (<text>)" >&2 ; set +e ; return 1 ; }
+					amendVerdict="$2" ; shift 2
+				;;
+				--reason)
+					[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --reason requires a value (<text>)" >&2 ; set +e ; return 1 ; }
+					amendReason="$2" ; shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$amendMember" ] || [ -z "$amendId" ] || [ -z "$amendVerdict" ] || [ -z "$amendReason" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <magic-coordinator> <pending-id> --verdict <text> --reason <text>" >&2
+			set +e ; return 1
+		fi
+		if [ "$amendMember" != "magic-coordinator" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: only magic-coordinator amends a closed record, not $amendMember" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$amendId" "<pending-id>" pending-reply-amend || { set +e ; return 1 ; }
+		local amendFile="$MMDAPP/.local/agents/pending/$amendId.md" amendKind
+		[ -f "$amendFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $amendId" >&2 ; set +e ; return 1 ; }
+		## A readback, decision or permission verdict may have written a grant at its close;
+		## amending the record alone would leave the grant disagreeing with it.
+		amendKind="$( AgentsToolsPendingReplyField "$amendFile" kind )"
+		case "$amendKind" in
+			''|question) ;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: $amendId is a $amendKind, whose verdict may have written a grant; it is not amended here -- a grant is corrected through the grant store" >&2
+				set +e ; return 1
+			;;
+		esac
+		DistroAgentsTools --intern-op-pending-reply-close "$amendId" --amend --status reply-received \
+			--verdict "$amendVerdict" --amended-by "$amendMember" --amend-reason "$amendReason" --context "$MDSC_CMD" || amendRc=$?
+		case "$amendRc" in
+			0) printf 'AMENDED %s\n' "$amendId" ; return 0 ;;
 			*) set +e ; return 1 ;;
 		esac
 	;;

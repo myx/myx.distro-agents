@@ -128,6 +128,12 @@ rigAssert "it carries the resolved target"                 "$( rigRecordField "$
 rigAssert "it carries the session"                         "$( rigRecordField "$rigId" session-id )" rig-session
 rigAssert "the result says it is not a verdict"            "$( rigHolds "$rigScenarioDir/out" 'This is a refusal, not a verdict' )" yes
 rigAssert "the result names how to ask"                    "$( rigHolds "$rigScenarioDir/out" "kind=permission, refusal_id=$rigId" )" yes
+## A Write refused before it named a path (no path key at all)
+## is still recorded, with an id to escalate by, never "REFUSAL-ID: none".
+rigTool rig-session Write '{"content":"x"}'
+rigId="$( rigRefusalId )"
+rigAssert "a refusal with no path still gets an id"        "$( [ -n "$rigId" ] && printf yes || printf no )" yes
+rigAssert "its record says no target was given"            "$( rigRecordField "$rigId" target )" "(no target given)"
 rigAssert "nothing was written outside"                    "$( [ -e "$rigScenarioDir/ws/OUT/x.txt" ] && printf yes || printf no )" no
 rigAssert "nothing was posted"                             "$( rigCalls chat.postMessage )" 0
 rigVerdict "a refusal with no event-track -- recorded locally, id returned, nothing posted"

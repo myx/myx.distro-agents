@@ -624,6 +624,8 @@ The tool family is software with other clients. Any member can be set up in any 
 
 The team does its own work only inside the workspace containing the team's own source tree — every other tracked workspace is a client, read for reference but never directly edited by the team, even when a board item names files living there. Surface the boundary and ask, rather than requesting a one-off access grant. Workspaces are named, never pathed (see "Workspace" in `magic-team.armed.md`).
 
+The exception: a member's own skillset files are the team's own work, wherever they are hosted. A session edits them at whatever path that member's folder resolves to, and the folder's resolution is the line. Outside this workspace it still never touches anything outside that member's own folder, never writes our own internal record about a counterparty into that counterparty's repository, never mutates git, and never reports an edit done when the path was unreachable.
+
 Distinct from "We build software, not fixes for one workspace" above: that one is about what the team *builds*, this one about where the team *edits*.
 
 ## A rule statement stays a rule statement

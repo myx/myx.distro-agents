@@ -29,6 +29,15 @@ AgentsToolsSpawnProxyExecutedCli(){
 ## Succeeded means all three: the child exited 0, the bound did not fire, and a launch really happened.
 AgentsToolsSpawnProxyOutcome(){
 	local childExit="$1" markerFile="$2" childTimedOut="$3"
+	## A session our harness ran (its .harness marker) that never armed did no work, whatever
+	## its exit: a clean start is not a session provisioned to work. A native CLI session
+	## carries no such marker, so this reads nothing into its absence.
+	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] \
+		&& [ -e "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" ] \
+		&& [ ! -s "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed" ] ; then
+		echo failed
+		return 0
+	fi
 	if [ "$childTimedOut" = "0" ] && [ "$childExit" = "0" ] && AgentsToolsSpawnProxySawSentinel "$markerFile" ; then
 		echo succeeded
 	else
@@ -526,7 +535,8 @@ case "$1" in
 
 		## The session this spawn was started from, read before the export below
 		## replaces it: a spawning session inherited its own id from its console.
-		## Empty when the caller is no spawned session. Used by the event-track thread only.
+		## Empty when the caller is no spawned session. Used by the event-track thread, and
+		## to detach a spawn made from inside a session.
 		local parentSessionId="${MDAT_SPAWN_SESSION_ID:-}"
 
 		## The session the agent will actually run under, minted HERE so the same
@@ -797,12 +807,25 @@ case "$1" in
 			## one stays visible to ListAgents and TaskOutput, and Ctrl-C still reaches it.
 			waitTimeoutSeconds="$( DistroAgentsTools --agents-config-option magic-team --select-default SPAWN_WAIT_TIMEOUT_SECONDS 0 )"
 			case "$waitTimeoutSeconds" in *[!0123456789]*|'') waitTimeoutSeconds=0 ;; esac
-			if [ -n "$outputFile" ] ; then
+			## A spawn made from inside a session is detached (backlog :229): its own process
+			## group, HUP ignored, so the bound that ends its caller's pass does not end it.
+			## The main loop's own pass spawn has no parent session and stays in the group.
+			if [ -n "$parentSessionId" ] ; then
+				set -m
+				if [ -n "$outputFile" ] ; then
+					( trap '' HUP ; exec env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" > "$outputFile" 2>&1 &
+				else
+					( trap '' HUP ; exec env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 &
+				fi
+				spawnPid=$!
+				set +m
+			elif [ -n "$outputFile" ] ; then
 				env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 &
+				spawnPid=$!
 			else
 				env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 &
+				spawnPid=$!
 			fi
-			spawnPid=$!
 			## An interactive Ctrl-C (or an external TERM sent to this call) must
 			## reach the real spawned console process immediately -- without this,
 			## only the timeout watcher below ever signals $spawnPid, so a live
@@ -893,20 +916,24 @@ case "$1" in
 			return 0
 		fi
 
+		## Detached when spawned from inside a session (backlog :229), close steps and all:
+		## its own process group, HUP ignored, so ending the caller's pass leaves it running.
+		[ -z "$parentSessionId" ] || set -m
 		(
+			[ -z "$parentSessionId" ] || trap '' HUP
 			set +e
 			env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext"
 			bgExitCode=$?
 			set -e
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
-			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0
-			## Nothing bounds this branch, so nothing timed out: 0 is the fact, not a placeholder.
-			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )" "$bgExitCode"
+			## Measured once, so the event-track close, the sandbox record and the board item
+			## can never disagree. Nothing bounds this branch, so nothing timed out: 0 is the fact.
+			bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
+			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0
+			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode"
 			if [ "$dispatchDocMode" = "create" ] ; then
-				bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running pending
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
-				bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
 				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$bgExitCode" "$outputFile" "$bgOutcome" "$trackedItemState"
 			fi
 			rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
@@ -919,6 +946,7 @@ case "$1" in
 			AgentsToolsTeamDataPushIfAhead "agent-spawn-proxy close" > /dev/null 2>&1
 		) > "$outputFile" 2>&1 &
 		local spawnPid=$!
+		[ -z "$parentSessionId" ] || set +m
 		echo "RECEIPT_ID=$receiptId"
 		echo "DISPATCH_DOC=$dispatchDocMode"
 		case "$dispatchDocMode" in

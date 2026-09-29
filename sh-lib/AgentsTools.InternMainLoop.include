@@ -288,11 +288,12 @@ case "$1" in
 				if [ "$passTimeoutSeconds" -gt 0 ] && [ "$(( SECONDS - passStarted ))" -ge "$passTimeoutSeconds" ] ; then
 					passTimedOut=1
 					echo "⚠️ WARNING: $MDSC_CMD --intern-main-loop: heartbeat pass passed MAIN_LOOP_PASS_TIMEOUT_SECONDS=$passTimeoutSeconds -- ending it (TERM, then KILL); its lock is left for the next pass's stale-lock recheck" >&2
+					## A group already gone fails the kill; under set -e that would end the loop itself.
 					{
-						kill -TERM -- "-$mainLoopSpawnPid"
+						kill -TERM -- "-$mainLoopSpawnPid" || :
 						passGrace=5
 						while [ "$passGrace" -gt 0 ] && kill -0 "$mainLoopSpawnPid" ; do sleep 1 ; passGrace=$(( passGrace - 1 )) ; done
-						kill -KILL -- "-$mainLoopSpawnPid"
+						kill -KILL -- "-$mainLoopSpawnPid" || :
 					} 2>/dev/null
 					break
 				fi

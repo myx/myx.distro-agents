@@ -146,7 +146,7 @@ Steps:
 3. **board-mechanical-moves**: Apply mechanical moves. Each move posts one short structured line as it happens, per `magic-team/magic-team.armed.md`'s announce rule; the pass's closing summary goes to the session's own thread, separately from **board-report**'s `event-track` trace.
    - `board-backlog` item carries `approved-by`/`approved-at` → move to `board-pending` via `--magic-board-to-pending`.
    - `board-backlog` item flagged for human-owner approval, no `approval-*`/`board-blocked` move yet → create `approval-*` in `board-running` via `--magic-board-create-running`, recording `blocks`/`blocked-by` with `--header:upsert:*` on that same call, then move the original to `board-blocked` via `--magic-board-to-blocked`.
-   - `board-pending` item's content already records an actual dispatch → move to `board-running` via `--magic-advance-to-running`.
+   - `board-pending` item's content already records an actual dispatch → move to `board-running` via `--magic-advance-to-running`. Excluded: an item whose `status:` is `dispatch-succeeded` or `dispatch-failed`, which stays in `board-pending` for grooming.
    - Never move `board-backlog` straight to `board-running`, skipping `board-pending`.
 4. **board-recompute-dependencies**: Recompute board dependency ordering.
    - Gate: once per workday (`heartbeat-state-note`'s own `today-stage` field), or on direct request.
@@ -169,7 +169,7 @@ Steps:
    - `warning-*`: (placeholder) not yet defined.
    - Any other type: flag and report once.
 6. **board-reopen-signaled-items**: Restart `board-processed`/`board-archived` items a fresh signal reopens. Trigger: an in-scope item's content this pass explicitly references one as needing reopen. Move it back to `board-backlog` via `--magic-board-to-backlog`, note what triggered the reopen. No signal this pass: do nothing.
-7. **board-reassess-parked-blocked**: Reassess `board-parked`/`board-blocked` items whose `recheck-date` has arrived. Requires `recheck-date` + `condition` on the item.
+7. **board-reassess-parked-blocked**: Reassess `board-parked`/`board-blocked` items whose `recheck-date` has arrived, and every item carrying none — a missing `recheck-date` means due now. Requires `condition` on the item.
    - Trigger: `recheck-date` arrived, or (`board-blocked` only) a listed blocker completed this pass.
    - Evaluate from this pass's already-loaded data only.
    - The board-item carries `handoff-action:`: no state-only action here — `check-execute-board` owns this item's own retry and its `recheck-date`. Skip it.
@@ -468,7 +468,7 @@ Every `magic-tooling` operation this member's own procedures/rules actually invo
 
 ## `--magic-heartbeat-input-scan` Operation Reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>` — read-only: `magic-coordinator.heartbeat.routine`'s own prepared input. Returns that routine's own state-and-lock note, then `<team-member>`'s own inbox reflections, each with its body. It returns no board items.
+`DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>` — read-only: `magic-coordinator.heartbeat.routine`'s own prepared input. Returns that routine's own state-and-lock note, then a `## questions (pending replies)` section — the main loop's last collect of unanswered questions, then every question still open, with its session, asker and age — then a `## spawned sessions` section, each session as measured at its close and whether it is alive now — then `<team-member>`'s own inbox reflections, each with its body. It returns no board items.
 
 ## `--member-work-session-input-scan` Operation Reference
 

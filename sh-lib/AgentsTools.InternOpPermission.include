@@ -236,7 +236,10 @@ case "$1" in
 				;;
 			esac
 		done
-		if [ -z "$refusalOwner" ] || [ -z "$refusalSession" ] || [ -z "$refusalTool" ] || [ -z "$refusalTarget" ] ; then
+		## A call refused before it named a target (a path argument missing, or passed under a name
+		## the tool does not take) is still a refusal, and still gets an id to escalate by.
+		[ -n "$refusalTarget" ] || refusalTarget="(no target given)"
+		if [ -z "$refusalOwner" ] || [ -z "$refusalSession" ] || [ -z "$refusalTool" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> --session-id <id> --tool <tool> --target <target> [--reason <text>]" >&2
 			set +e ; return 1
 		fi

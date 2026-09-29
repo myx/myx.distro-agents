@@ -13,15 +13,16 @@ function flushElement( elementText, isListed,    sentenceList, sentenceTotal, se
 	sentenceTotal = 0 ;
 	spanText = "" ;
 	restText = elementText ;
-	while ( match( restText, /[.!?]+[")*]*([[:space:]]+|$)/ ) ) {
+	while ( match( restText, /[.!?]+([")*_]|\]\([^)]*\))*([[:space:]]+|$)/ ) ) {
 		markText = substr( restText, RSTART, RLENGTH ) ;
 		spanText = spanText substr( restText, 1, RSTART - 1 ) ;
 		restText = substr( restText, RSTART + RLENGTH ) ;
 		closerRun = markText ;
 		sub( /^[.!?]+/, "", closerRun ) ;
 		sub( /[[:space:]]+$/, "", closerRun ) ;
-		## A bold run closes whatever it wraps, so it is read off before the rest is judged.
-		sub( /[*][*]+$/, "", closerRun ) ;
+		## An emphasis run (`_`, `*`, `**`, `***`) or a link tail `](…)` closes whatever it
+		## wraps, so each is read off, in any order, before the rest is judged.
+		while ( match( closerRun, /([*_]+|\]\([^)]*\))$/ ) ) { closerRun = substr( closerRun, 1, RSTART - 1 ) ; }
 		## A quote ends a sentence unless those dots are an ellipsis. A parenthesis needs the span to have opened it.
 		if ( closerRun == "" || ( closerRun == "\"" && markText !~ /[.][.]/ ) || ( closerRun == ")" && spanText ~ /^[[:space:]]*["*_]*[(]/ ) ) {
 			sentenceList[++sentenceTotal] = spanText ;

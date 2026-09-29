@@ -71,6 +71,23 @@ rigAssert "no flag, the same member to a channel keeps its own token" \
 rigAssert "no flag, a token-less member to human-owner relays under magic-coordinator" \
 	"$( rigSend magic-team human-owner )" rig-user-token-COORD
 
+## A transport failure before anything reached Slack is retried; one after it may have
+## reached Slack is not, since a post is not idempotent and a retry could post twice.
+rigPostCount(){ LC_ALL=C grep -c '^chat.postMessage ' "$rigTmp/calls" ; }
+printf '6\n0\n' > "$rigTmp/post-exits"
+rigAssert "a DNS failure (curl 6) is retried and the post goes out" \
+	"$( rigSend keeper-myx magic-team --identity-bot > /dev/null ; rigPostCount )" 2
+printf '28\n0\n' > "$rigTmp/post-exits"
+: > "$rigTmp/calls"
+rigSendRc=0
+rigSendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	bash "$rigTool" --member-comms-slack-send-message keeper-myx magic-team --identity-bot RIG-BODY-MARKER 2>&1 )" || rigSendRc=$?
+rigAssert "a timeout after the request left (curl 28) is not retried" "$( rigPostCount )" 1
+rigAssert "and the send fails" "$rigSendRc" 1
+rigAssert "and the send says whether it posted is unknown" \
+	"$( printf '%s' "$rigSendOut" | grep -c 'WHETHER THIS WAS POSTED IS UNKNOWN' )" 1
+rm -f "$rigTmp/post-exits"
+
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SLACK SEND IDENTITY CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1
 fi

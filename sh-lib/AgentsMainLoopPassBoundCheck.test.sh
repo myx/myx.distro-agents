@@ -83,17 +83,18 @@ rigGuardOut="$( env -i PATH=/usr/bin:/bin MMDAPP=/nonexistent/real MDAT_DATA_ROO
 rigAssert "a workspace outside the tree is refused before any tooling runs" "$rigGuardOut" "RIG-GUARD: MMDAPP outside the rig tree: /nonexistent/real"
 
 echo "-- a bound that fires --"
-rigScenario bounded 3 60
+## The bound sits above the proxy's own start-up cost, or every pass ends before its console starts.
+rigScenario bounded 20 90
 rigLoopStart
 rigWaitFor 60 rigAtLeast 1 rigStarts || { cat "$rigDir/loop.err" >&2 ; rigRefuse "the loop never started a pass" ; }
 rigFirstPid="$( LC_ALL=C sed -n '1s/^start //p' "$rigDir/console.log" )"
-rigWaitFor 30 env LC_ALL=C grep -q 'MAIN_LOOP_LAST_OUTCOME=timed-out' "$rigDir/ws/.local/agents/main-loop.state"
+rigWaitFor 60 env LC_ALL=C grep -q 'MAIN_LOOP_LAST_OUTCOME=timed-out' "$rigDir/ws/.local/agents/main-loop.state"
 rigAssert "the state records timed-out"                "$( LC_ALL=C grep -c '^MAIN_LOOP_LAST_OUTCOME=timed-out$' "$rigDir/ws/.local/agents/main-loop.state" 2>/dev/null || printf 0 )" 1
 rigAssert "the hung pass is gone, its whole group with it" "$( kill -0 "$rigFirstPid" 2>/dev/null && printf alive || printf gone )" gone
 rigAssert "it never reached its own end"               "$( LC_ALL=C grep -c "^end $rigFirstPid$" "$rigDir/console.log" )" 0
-rigAssert "the ending is said on stderr"               "$( LC_ALL=C grep -c 'passed MAIN_LOOP_PASS_TIMEOUT_SECONDS=3 -- ending it' "$rigDir/loop.err" )" 1
+rigAssert "the ending is said on stderr"               "$( LC_ALL=C grep -c 'passed MAIN_LOOP_PASS_TIMEOUT_SECONDS=20 -- ending it' "$rigDir/loop.err" )" 1
 rigAssert "event-track is told"                        "$( LC_ALL=C grep -q -F 'Heartbeat pass timed out' "$rigDir/posted" 2>/dev/null && printf yes || printf no )" yes
-rigWaitFor 30 rigAtLeast 2 rigStarts
+rigWaitFor 60 rigAtLeast 2 rigStarts
 rigAssert "the next pass proceeds"                     "$( [ "$( rigStarts )" -ge 2 ] && printf yes || printf no )" yes
 rigLoopStop
 

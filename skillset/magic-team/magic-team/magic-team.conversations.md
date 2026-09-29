@@ -292,6 +292,9 @@ Every confirmation this section asks for comes through the chain of command: ses
    `NO` to a literal confirmation question means "not confirmed as exactly asked" — a distinct state from
    rejecting the underlying content. Clarification or addition typically follows and refines toward what's
    actually correct; treat it that way rather than discarding what was proposed.
+   - A bare numbered reply to a list of open items (`2, 3 then`) is a selection and a sequence, not a
+     correction. It is read as one only when the list was explicitly framed as `approve all together?`.
+   - A correctly executed choice is never recast afterwards as fixing a mistake.
 
 28. **repeat-or-corrected-answer-triggers-ask**: A repeated message, or a correction that the last answer was itself inadequate, is the trigger to ask
    via `AskUserQuestion`, not to wait, guess, or apologize past it. The same (or near-identical) message

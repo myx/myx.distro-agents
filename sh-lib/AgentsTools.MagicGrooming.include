@@ -835,6 +835,28 @@ case "$1" in
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 		printf '\n%s\n\n' "## team-roster (cache)"
 		DistroAgentsTools --magic-team-roster-read "$callingMember"
+		## The board scope below is already all types / any owner, so an item a
+		## client-* member filed on the board has always been visible here. An
+		## INBOX item was not: the scan read inboxes/<calling member>/ alone, and an
+		## inquiry the communication sweep filed into inboxes/client-ndm/ was
+		## invisible. Each client-* member's inbox is widened into the same scan,
+		## read-only -- grooming never acts as that identity and never writes into
+		## that inbox; --do-inbox-also-member widens the read and nothing else. Same
+		## "the members that exist, not the ones a cache remembers" enumeration
+		## --magic-sweep-input-scan uses; the roster note is a cache and does not
+		## decide which inboxes are in scope. Moved here from the advance scan, which
+		## no longer reads inquiries.
+		local groomingInboxAlso=() groomingClientDir groomingClientName
+		for groomingClientDir in "$MDAT_SKILLSET_ROOT"/client-* ; do
+			if [ -d "$groomingClientDir" ] ; then
+				groomingClientName="${groomingClientDir##*/}"
+				AgentsToolsAssertBareName "$groomingClientName" "<team-member>" magic-grooming-input-scan || { set +e ; return 1 ; }
+				## The acting member's own inbox is already the scan's first section.
+				if [ "$groomingClientName" != "$callingMember" ] ; then
+					groomingInboxAlso+=( --do-inbox-also-member "$groomingClientName" )
+				fi
+			fi
+		done
 		printf '\n%s\n\n' "## board digest"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--state backlog --state pending --state running --state blocked --state parked \
@@ -843,6 +865,7 @@ case "$1" in
 			--do-inbox-notes --do-inbox-other \
 			--no-slack --no-email --no-trello \
 			--no-board-related \
+			"${groomingInboxAlso[@]+"${groomingInboxAlso[@]}"}" \
 			--context --magic-grooming-input-scan
 		return $?
 	;;

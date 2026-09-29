@@ -123,6 +123,31 @@ rigAssert "one says settled"                          "$( cat "$rigTmp/raceA" "$
 rigAssert "the other says already closed"             "$( cat "$rigTmp/raceA" "$rigTmp/raceB" | LC_ALL=C grep -c '^ALREADY-CLOSED ' )" 1
 rigAssert "and the verdict is the winner's"           "$( rigField 11111111-0000-0000-0000-000000000005 verdict | LC_ALL=C grep -c -E '^settled: race (A|B)$' )" 1
 
+echo "-- amend: the coordinator corrects a closed record's verdict --"
+rigRecord 11111111-0000-0000-0000-000000000006 magic-tester reply-unknown "" "May the rig keep report six?"
+printf 'verdict: closed in error\n' > "$rigTmp/v6" && LC_ALL=C awk -v add="$( cat "$rigTmp/v6" )" 'NR == 2 { print add ; } { print ; }' "$rigStore/11111111-0000-0000-0000-000000000006.md" > "$rigTmp/r6" && mv "$rigTmp/r6" "$rigStore/11111111-0000-0000-0000-000000000006.md"
+rigRecord 11111111-0000-0000-0000-000000000007 magic-tester reply-received permission "Rig permission seven"
+rigOp amend6 --magic-pending-reply-amend magic-coordinator 11111111-0000-0000-0000-000000000006 --verdict "No - keep it elsewhere" --reason "the answer in its thread at 12:32"
+rigAssert "it says amended"                           "$( head -1 "$rigTmp/amend6" )" "AMENDED 11111111-0000-0000-0000-000000000006"
+rigAssert "the verdict is corrected"                  "$( rigField 11111111-0000-0000-0000-000000000006 verdict )" "No - keep it elsewhere"
+rigAssert "the record reads received"                 "$( rigStatus 11111111-0000-0000-0000-000000000006 )" reply-received
+rigAssert "with who amended it"                       "$( rigField 11111111-0000-0000-0000-000000000006 amended-by )" magic-coordinator
+rigAssert "and why"                                   "$( rigField 11111111-0000-0000-0000-000000000006 amend-reason )" "the answer in its thread at 12:32"
+rigAssert "and what it corrected"                     "$( rigField 11111111-0000-0000-0000-000000000006 amended-from )" "closed in error"
+rigOp read6 --member-pending-reply-read magic-tester 11111111-0000-0000-0000-000000000006
+rigAssert "the read shows who amended it"             "$( rigHolds "$rigTmp/read6" 'amended-by: magic-coordinator' )" yes
+rigAssert "and what it corrected"                     "$( rigHolds "$rigTmp/read6" 'amended-from: closed in error' )" yes
+rigOp amend7 --magic-pending-reply-amend magic-coordinator 11111111-0000-0000-0000-000000000007 --verdict "deny" --reason "x"
+rigAssert "a permission record is not amended"        "$( rigHolds "$rigTmp/amend7.err" 'corrected through the grant store' )" yes
+rigAssert "and is left as it was"                     "$( rigField 11111111-0000-0000-0000-000000000007 verdict )" ""
+rigAssert "and no Slack mark is posted for it"        "$( LC_ALL=C grep -c -x -F '1700000001.000102 white_check_mark' "$rigTmp/scenario/reactions" 2>/dev/null )" 0
+rigOp amendOpen --magic-pending-reply-amend magic-coordinator 11111111-0000-0000-0000-000000000003 --verdict "x" --reason "y"
+rigAssert "an open record is refused"                 "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
+rigAssert "and stays open"                            "$( rigStatus 11111111-0000-0000-0000-000000000003 )" reply-pending
+rigOp amendOther --magic-pending-reply-amend magic-tester 11111111-0000-0000-0000-000000000006 --verdict "x" --reason "y"
+rigAssert "another member may not amend"              "$( rigHolds "$rigTmp/amendOther.err" 'only magic-coordinator amends' )" yes
+rigAssert "and the verdict stands"                    "$( rigField 11111111-0000-0000-0000-000000000006 verdict )" "No - keep it elsewhere"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MEMBER PENDING REPLY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

@@ -49,6 +49,7 @@ rigBrief(){ ## result file
 echo "-- no gate file, no warnings --"
 rigBrief "$rigTmp/b1"
 printf '%s\n' "SPAWN-PREPARE-BRIEF: rig-member" "tool-routing: use the tools and MCP this session was given, in the ways your instructions prescribe. Read --member-help rig-member when unsure how a tool works. Follow what a refused call says: the tool to use instead, or the REFUSAL-ID to escalate by. Report a blockage the prescribed way, so the tooling can be polished. Never hack around it. Do not research source code unless it is the task." \
+	"scratchpad: your own files go in <scratchpad>/rig-member/, because every member of this session shares the scratchpad root" \
 	"execution-gate: none" "## open warning-* items" "(none open)" > "$rigTmp/b1.want"
 rigAssert "the brief is the filled Skeleton, byte for byte" "$( cmp -s "$rigTmp/b1" "$rigTmp/b1.want" && printf same || printf differs )" same
 rigAssert "no slot is left unfilled"                   "$( LC_ALL=C grep -c '{{' "$rigTmp/b1" )" 0
