@@ -229,28 +229,28 @@ case "$1" in
 
 	## Read one board item by filename and optional state restrictions, with
 	## optional line range. Path lookup remains inside --intern-op-data-read.
-	--member-read-board-item)
+	--member-board-item-read)
 		shift
 		local memberName="$1"
 		shift || true
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: syntax is <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: syntax is <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$memberName" "<team-member>" member-read-board-item || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-board-item-read || { set +e ; return 1 ; }
 		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
 		if [ ! -d "$memberDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: no such member skill directory: $memberDir" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$itemName" "<item-name>" member-read-board-item || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-name>" member-board-item-read || { set +e ; return 1 ; }
 		case "$itemName" in
 			*-*.md)
 			;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: item name must match <type>-<name>.md: $itemName" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: item name must match <type>-<name>.md: $itemName" >&2
 				set +e ; return 1
 			;;
 		esac
@@ -265,7 +265,7 @@ case "$1" in
 							boardStates+=( "$2" )
 						;;
 						*)
-							echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: invalid --board-state: $2" >&2
+							echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: invalid --board-state: $2" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -280,7 +280,7 @@ case "$1" in
 					shift 2
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -288,7 +288,7 @@ case "$1" in
 
 		if [ -n "$startLine" ] || [ -n "$endLine" ] ; then
 			if [ -z "$startLine" ] || [ -z "$endLine" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: --start-line and --end-line must be provided together" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: --start-line and --end-line must be provided together" >&2
 				set +e ; return 1
 			fi
 		fi
@@ -296,10 +296,10 @@ case "$1" in
 			boardStates=( backlog pending running blocked parked processed archived retained )
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --member-read-board-item: MDAT_DATA_ROOT is not set" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local readArgs=( --intern-op-data-read "$itemName" --context --member-read-board-item )
+		local readArgs=( --intern-op-data-read "$itemName" --context --member-board-item-read )
 		local boardState
 		for boardState in "${boardStates[@]}" ; do
 			readArgs+=( --lookup-folder "$MDAT_DATA_ROOT/board/$boardState" )

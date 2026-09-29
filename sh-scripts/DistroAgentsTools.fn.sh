@@ -154,7 +154,7 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--member-pending-reply-*)
+		--member-pending-reply-*|--magic-pending-reply-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberPendingReply.include"
 			return $?
 		;;
