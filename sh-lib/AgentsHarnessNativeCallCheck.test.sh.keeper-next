@@ -159,7 +159,9 @@ rigCall(){ ## request id, tool name, arguments JSON -- one tools/call line
 	rigCall 69 Grep '{"pattern":"^\\D+$","path":"'"$rigS/tr/t.txt"'","output_mode":"content"}'
 	rigCall 70 Grep '{"pattern":"k\\\\d","path":"'"$rigS/tr/t.txt"'","output_mode":"content"}'
 	rigCall 71 Grep '{"pattern":"[\\D]","path":"'"$rigS/tr/t.txt"'","output_mode":"content"}'
-	rigCall 72 Grep '{"pattern":"needle","path":"'"$rigG"'","type":"nosuchtype"}'
+	rigCall 72 Grep '{"pattern":"needle","path":"'"$rigG"'","type":"typescript"}'
+	rigCall 73 Grep '{"pattern":"needle","path":"'"$rigG"'","type":"nosuchtype"}'
+	rigCall 74 Grep '{"pattern":"needle","path":"'"$rigG"'","type":"js","glob":"a.*"}'
 } | ( cd "$rigG" && MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="$rigTmp/home/.claude/skills" \
 	MDAT_DATA_ROOT="$rigTmp/data" PATH="$rigTmp/bin:$PATH" bash "$rigTool" --intern-mcp-server --run ) > "$rigTmp/wire" 2> "$rigTmp/err" || :
 
@@ -171,7 +173,7 @@ chmod 600 "$rigTmp/.local/.agents/magic-team.agent.env"
 
 ## A request the server never answered was never exercised, so the run stops there.
 rigId=2
-while [ "$rigId" -le 72 ] ; do
+while [ "$rigId" -le 74 ] ; do
 	LC_ALL=C grep -q "^{\"jsonrpc\":\"2.0\",\"id\":$rigId," "$rigTmp/wire" || {
 		echo "-- the server left request $rigId unanswered, so its stderr follows --" >&2
 		sed 's/^/    /' "$rigTmp/err" >&2
@@ -311,7 +313,6 @@ rigText="$( rigResult 37 )"
 rigNative Grep "regex dialect: ( | ) alternation matches" "$( rigHas "$rigText" 'needle two' ) $( rigHas "$rigText" 'needle three' )" 'yes yes'
 rigNative Grep "type js filters the files" "$( rigPathSet "$( rigResult 38 )" )" 'a.js sub/d.js '
 rigNative Grep "multiline is refused, with a hint naming the native Grep" "$( rigIsError "$( rigResult 39 )" ) $( rigHas "$( rigResult 39 )" 'only by the native Grep tool' )" 'yes yes'
-rigNative Grep "an unknown type is refused, with a hint to use glob" "$( rigIsError "$( rigResult 72 )" ) $( rigHas "$( rigResult 72 )" 'Use glob to select files by name' )" 'yes yes'
 rigNative Grep "\\d matches a digit" "$( rigHas "$( rigResult 65 )" 'id 42 here' ) $( rigHas "$( rigResult 65 )" 'no digits' )" 'yes no'
 rigNative Grep "\\d inside a bracket matches a digit" "$( rigHas "$( rigResult 66 )" 'id 42 here' ) $( rigHas "$( rigResult 66 )" 'no digits' )" 'yes no'
 rigNative Grep "\\s matches a tab" "$( rigHas "$( rigResult 67 )" 'here' )" 'yes'
@@ -319,6 +320,9 @@ rigNative Grep "\\w matches a word character, underscore included" "$( rigHas "$
 rigNative Grep "\\D matches a non-digit" "$( rigHas "$( rigResult 69 )" 'no digits' ) $( rigHas "$( rigResult 69 )" 'id 42 here' )" 'yes no'
 rigNative Grep "an escaped backslash stays literal, so a backslash then d matches" "$( rigHas "$( rigResult 70 )" 'back\dslash' ) $( rigHas "$( rigResult 70 )" 'id 42' )" 'yes no'
 rigNative Grep "\\D inside a bracket is refused, with a hint" "$( rigIsError "$( rigResult 71 )" ) $( rigHas "$( rigResult 71 )" 'Use [^...] instead' )" 'yes yes'
+rigNative Grep "type alias typescript selects the ts files" "$( rigPathSet "$( rigResult 72 )" )" 'c.ts '
+rigNative Grep "an unknown type is refused, with a hint" "$( rigIsError "$( rigResult 73 )" ) $( rigHas "$( rigResult 73 )" 'unknown type: nosuchtype' )" 'yes yes'
+rigNative Grep "type and glob together: a file must match both" "$( rigPathSet "$( rigResult 74 )" )" 'a.js '
 rigText="$( rigResult 54 )"
 rigNative Grep "glob with a slash src/**/*.ts filters to that path" "$( rigHas "$rigText" "$rigS/sl/src/deep/e.ts" ) $( rigHas "$rigText" "$rigS/sl/f.ts" )" 'yes no'
 
@@ -347,6 +351,9 @@ rigAssert "web lists: its refusal carries the hint and a REFUSAL-ID" "$( rigHas 
 rigText="$( rigResult 59 )"
 rigAssert "web lists: an unknown URL is refused, not fetched" "$( rigHas "$rigText" 'matches no allowed URL prefix' ) $( rigHas "$rigText" RIGFETCHBODY )" 'yes no'
 rigAssert "web lists: its refusal carries the hint and a REFUSAL-ID" "$( rigHas "$rigText" 'accept that this URL will not be fetched' ) $( rigHas "$rigText" 'REFUSAL-ID:' )" 'yes yes'
+rigRefusalId="$( printf '%s\n' "$rigText" | LC_ALL=C sed -n 's/.*REFUSAL-ID: \(refusal-[0-9a-f-]*\).*/\1/p' | head -1 )"
+rigRefusalRecord="$( ls "$rigTmp"/.local/agents/sessions/*/"$rigRefusalId.md" 2>/dev/null | head -1 )"
+rigAssert "web lists: the refusal record stores the URL as given, not percent-encoded" "$( LC_ALL=C grep -c '^target: https://' "$rigRefusalRecord" 2>/dev/null ) $( LC_ALL=C grep -c '^target: .*%3A' "$rigRefusalRecord" 2>/dev/null )" '1 0'
 rigText="$( rigResult 61 )"
 rigAssert "web lists: a cross-host 3xx comes back unfollowed, with its target" "$( rigHas "$rigText" 'redirect not followed: HTTP 302' ) $( rigHas "$rigText" 'https://unknown.example/landing' ) $( rigHas "$rigText" RIGFETCHBODY )" 'yes yes no'
 rigText="$( rigResult 62 )"

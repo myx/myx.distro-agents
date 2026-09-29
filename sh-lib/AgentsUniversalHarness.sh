@@ -1154,8 +1154,18 @@ AgentsHarnessToolGlob(){
 }
 
 ## `ripgrep` would replace this `grep -rn` outright; the human-owner ruled "Not now".
-AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, output_mode, glob, -n, -o, -A, -B, -C, -i, head_limit, offset
-	local toolPattern="$1" toolPath="${2:-$PWD}" toolContext="${13:-$3}" toolBefore="${12:-$4}" toolAfter="${11:-$5}" toolIgnoreCase="${14:-$6}" toolMode="${7:-files_with_matches}" toolGlob="${8#\*\*/}" toolLineNumbers="$9" toolOnlyMatching="${10}" toolHeadLimit="${15:-250}" toolOffset="${16:-0}" toolBytes grepFlags globPrefix globGroup globSuffix globAlts globAlt
+AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, output_mode, glob, -n, -o, -A, -B, -C, -i, head_limit, offset, multiline, type
+	local toolPattern="$1" toolPath="${2:-$PWD}" toolContext="${13:-$3}" toolBefore="${12:-$4}" toolAfter="${11:-$5}" toolIgnoreCase="${14:-$6}" toolMode="${7:-files_with_matches}" toolGlob="$8" toolLineNumbers="$9" toolOnlyMatching="${10}" toolHeadLimit="${15:-250}" toolOffset="${16:-0}" toolBytes toolRegex grepFlags globPrefix globGroup globSuffix globAlts globAlt
+	case "${17}" in
+		true|1) printf 'ERROR: multiline is not supported by this Grep, only by the native Grep tool. Search with a pattern that matches within one line instead. Nothing was searched.\n' ; return 0 ;;
+	esac
+	if [ -n "${18}" ] ; then
+		printf 'ERROR: type is not supported yet: its type table is not built. Use glob to select files by name instead, such as *.js. Nothing was searched.\n' ; return 0
+	fi
+	case "${toolGlob#\*\*/}" in
+		*/*) ;;
+		*) toolGlob="${toolGlob#\*\*/}" ;;
+	esac
 	if ! AgentsHarnessPathAllowed "$toolPath" ; then
 		printf 'ERROR: path not in the allowed access-root set: %s\n' "$toolPath" ; return 0
 	fi
@@ -1163,11 +1173,38 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 	if [ ! -e "$toolPath" ] ; then
 		printf 'ERROR: no such path: %s\n' "$toolPath" ; return 0
 	fi
-	## The mode picks the output shape; -C/-B/-A, -i, -o and --include are carried by BSD and GNU grep alike.
+	## ripgrep class escapes become POSIX classes; an escaped backslash and every other escape pass through untouched.
+	toolRegex="$( GREP_PATTERN="$toolPattern" LC_ALL=C awk 'BEGIN {
+		patternText = ENVIRON["GREP_PATTERN"] ; outText = "" ; inBracket = 0 ; charPos = 1 ; patternLength = length(patternText) ;
+		while ( charPos <= patternLength ) {
+			thisChar = substr(patternText, charPos, 1) ; nextChar = substr(patternText, charPos + 1, 1) ;
+			if ( !inBracket && thisChar == "[" ) {
+				outText = outText thisChar ; charPos++ ; inBracket = 1 ;
+				if ( substr(patternText, charPos, 1) == "^" ) { outText = outText "^" ; charPos++ ; }
+				if ( substr(patternText, charPos, 1) == "]" ) { outText = outText "]" ; charPos++ ; }
+				continue ;
+			}
+			if ( inBracket && thisChar == "[" && nextChar != "" && index(":=.", nextChar) > 0 && ( closePos = index(substr(patternText, charPos + 2), nextChar "]") ) > 0 ) {
+				outText = outText substr(patternText, charPos, closePos + 3) ; charPos = charPos + closePos + 3 ; continue ;
+			}
+			if ( inBracket && thisChar == "]" ) { outText = outText thisChar ; charPos++ ; inBracket = 0 ; continue ; }
+			if ( thisChar == "\\" && nextChar != "" ) {
+				classIndex = index("dswDSW", nextChar) ;
+				if ( classIndex == 0 ) { outText = outText thisChar nextChar ; charPos = charPos + 2 ; continue ; }
+				className = ( classIndex % 3 == 1 ) ? "[:digit:]" : ( ( classIndex % 3 == 2 ) ? "[:space:]" : "[:alnum:]_" ) ;
+				if ( inBracket && classIndex > 3 ) { print "ERROR: \\" nextChar " cannot stand inside a [...] bracket expression here, because POSIX has no negated class inside one. Use [^...] instead. Nothing was searched." ; exit 3 ; }
+				outText = outText ( inBracket ? className : ( classIndex > 3 ? "[^" className "]" : "[" className "]" ) ) ;
+				charPos = charPos + 2 ; continue ;
+			}
+			outText = outText thisChar ; charPos++ ;
+		}
+		print outText ;
+	}' )" || { printf '%s\n' "$toolRegex" ; return 0 ; }
+	## The mode picks the output shape; -E, -C/-B/-A, -i, -o, -H and --include are carried by BSD and GNU grep alike.
 	case "$toolMode" in
-		content)            grepFlags=( -r ) ;;
-		files_with_matches) grepFlags=( -rl ) ;;
-		count)              grepFlags=( -rc ) ;;
+		content)            grepFlags=( -rE ) ;;
+		files_with_matches) grepFlags=( -rlE ) ;;
+		count)              grepFlags=( -rcE ) ;;
 		*)
 			printf 'ERROR: output_mode must be content, files_with_matches or count, got: %s\n' "$toolMode" ; return 0
 		;;
@@ -1208,7 +1245,7 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 	## --include matches a file name only, and takes no braces, so one {a,b} group becomes one --include per branch.
 	case "$toolGlob" in
 		'') ;;
-		*/*) printf 'ERROR: glob is matched against file names, so apart from a leading **/ it cannot contain /, got: %s\n' "$toolGlob" ; return 0 ;;
+		*/*) ;;
 		*\{*\}*)
 			globPrefix="${toolGlob%%\{*}" ; globGroup="${toolGlob#*\{}" ; globSuffix="${globGroup#*\}}" ; globGroup="${globGroup%%\}*}"
 			case "$globGroup$globSuffix" in
@@ -1225,7 +1262,40 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 		*) grepFlags+=( --include="$toolGlob" ) ;;
 	esac
 	## `|| :` keeps grep's own rc 1 on no-match from tripping this script's set -e. Paged, and said so when cut.
-	{ grep "${grepFlags[@]}" -- "$toolPattern" "$toolPath" 2>&1 || : ; } | LC_ALL=C awk -v skipCount="$toolOffset" -v keepCount="$toolHeadLimit" '
+	## A glob holding a slash selects files by path first, as Glob matches a path, and grep reads only those.
+	{
+		case "$toolGlob" in
+			*/*)
+				find "$toolPath" -type f 2>&3 | GLOB_ROOT="${toolPath%/}/" GLOB_PATTERN="$toolGlob" LC_ALL=C awk '
+					function globRegex(globText,   regexText, charPos, globChar, braceDepth, classLength, classText) {
+						regexText = "^" ; braceDepth = 0 ;
+						for ( charPos = 1 ; charPos <= length(globText) ; charPos++ ) {
+							globChar = substr(globText, charPos, 1)
+							if ( substr(globText, charPos, 3) == "**/" ) { regexText = regexText "(.*/)?" ; charPos = charPos + 2 ; }
+							else if ( substr(globText, charPos) == "**" ) { regexText = regexText ".*" ; charPos = charPos + 1 ; }
+							else if ( globChar == "*" ) regexText = regexText "[^/]*"
+							else if ( globChar == "?" ) regexText = regexText "[^/]"
+							else if ( globChar == "{" && index(substr(globText, charPos), "}") > 0 ) { regexText = regexText "(()" ; braceDepth = braceDepth + 1 ; }
+							else if ( globChar == "," && braceDepth > 0 ) regexText = regexText "|()"
+							else if ( globChar == "}" && braceDepth > 0 ) { regexText = regexText ")" ; braceDepth = braceDepth - 1 ; }
+							else if ( globChar == "[" && ( classLength = index(substr(globText, charPos + 2), "]") ) > 0 ) { classText = substr(globText, charPos + 1, classLength) ; if ( substr(classText, 1, 1) == "!" ) classText = "^" substr(classText, 2) ; regexText = regexText "[" classText "]" ; charPos = charPos + classLength + 1 ; }
+							else if ( index("\\.+()|^$[]{}", globChar) > 0 ) regexText = regexText "\\" globChar
+							else regexText = regexText globChar
+						}
+						return regexText "$"
+					}
+					BEGIN { globRoot = ENVIRON["GLOB_ROOT"] ; globMatch = globRegex(ENVIRON["GLOB_PATTERN"]) ; }
+					{
+						relPath = ( index($0, globRoot) == 1 ) ? substr($0, length(globRoot) + 1) : $0
+						sub(/^\/+/, "", relPath)
+						if ( relPath == "" ) { relPath = $0 ; sub(/^.*\//, "", relPath) ; }
+						if ( relPath ~ globMatch ) { print ; }
+					}
+				' | LC_ALL=C tr '\n' '\000' | xargs -0 -r grep "${grepFlags[@]}" -H -- "$toolRegex" 2>&1 || :
+			;;
+			*) grep "${grepFlags[@]}" -- "$toolRegex" "$toolPath" 2>&1 || : ;;
+		esac
+	} 3>&1 | LC_ALL=C awk -v skipCount="$toolOffset" -v keepCount="$toolHeadLimit" '
 		NR > skipCount && ( keepCount == 0 || NR <= skipCount + keepCount ) { print ; }
 		END { if ( keepCount > 0 && NR > skipCount + keepCount ) { printf "... head_limit reached: showed %d of %d lines or entries; continue with offset %d ...\n", keepCount, NR, skipCount + keepCount ; } ; }
 	' > "$harnessScratch/grep.out"
@@ -3582,7 +3652,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		Write)     harnessResult="$( AgentsHarnessToolWrite "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgExact" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file_path )" "$harnessFuncArgsRaw" )" ;;
 		Glob)      harnessResult="$( AgentsHarnessToolGlob "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" long )" )" ;;
 		Edit)      harnessResult="$( AgentsHarnessToolEdit "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgOld" "$harnessArgExact" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" replace_all )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file_path )" "$harnessFuncArgsRaw" )" ;;
-		Grep)      harnessResult="$( AgentsHarnessToolGrep "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" before )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" after )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" ignore_case )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_mode )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" glob )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -n )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -o )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -A )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -B )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -C )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -i )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" head_limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" )" ;;
+		Grep)      harnessResult="$( AgentsHarnessToolGrep "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" before )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" after )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" ignore_case )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_mode )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" glob )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -n )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -o )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -A )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -B )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -C )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -i )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" head_limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" multiline )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" type )" )" ;;
 		Bash)      harnessResult="$( AgentsHarnessToolBash "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" )" ;;
 		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" "$harnessFuncArgsRaw" )" ;;
 		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" )" ;;
