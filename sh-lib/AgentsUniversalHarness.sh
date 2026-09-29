@@ -146,6 +146,7 @@ harnessToolOnlyName=""
 ## Both values are stated once, in AgentsHarnessReadCap.include, which also fills them into the descriptions.
 . "$harnessHere/AgentsHarnessReadCap.include"
 harnessReadCap="$agentsReadCapWire"
+harnessAlwaysAllowedDomains="wikipedia.org"
 if [ "${1:-}" = --intern-tool ] ; then
 	if [ -z "${2:-}" ] ; then
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: --intern-tool: tool name required" >&2
@@ -1309,9 +1310,9 @@ AgentsHarnessSearchField(){ ## response JSON, path
 ## carries GROUP entries holding nested topics instead of a link -- those are counted
 ## as skipped and said so, never dropped in silence, because a list that quietly
 ## shows four of nine reads as a list of four.
-AgentsHarnessSearchTopics(){ ## response JSON, array path, heading, cap
+AgentsHarnessSearchTopics(){ ## response JSON, array path, heading, cap, allowed domains, blocked domains
 	local topicsBody="$1" topicsPath="$2" topicsHeading="$3" topicsCap="$4"
-	local topicsCount topicsIndex=0 topicsShown=0 topicsSkipped=0 topicsText topicsUrl
+	local topicsCount topicsIndex=0 topicsShown=0 topicsSkipped=0 topicsDropped=0 topicsText topicsUrl
 	topicsCount="$( AgentsHarnessSearchField "$topicsBody" "$topicsPath.__count" )"
 	## Explicit digit enumeration, never a bracket range: [0-9] is collation-dependent.
 	case "$topicsCount" in ''|*[!0123456789]*) topicsCount=0 ;; esac
@@ -1325,10 +1326,25 @@ AgentsHarnessSearchTopics(){ ## response JSON, array path, heading, cap
 			topicsSkipped=$(( topicsSkipped + 1 ))
 			continue
 		fi
+		if ! SEARCH_URL="$topicsUrl" SEARCH_ALLOWED="$5" SEARCH_BLOCKED="$6" SEARCH_ALWAYS="$harnessAlwaysAllowedDomains" LC_ALL=C awk 'BEGIN {
+			urlHost = tolower(ENVIRON["SEARCH_URL"]) ; sub(/^[a-z][a-z0-9+.-]*:\/\//, "", urlHost) ; sub(/[\/?#].*$/, "", urlHost) ; sub(/^.*@/, "", urlHost) ; sub(/:[0-9]*$/, "", urlHost) ; sub(/\.$/, "", urlHost) ;
+			allowCount = split(tolower(ENVIRON["SEARCH_ALLOWED"]), allowList, "\n") ; blockCount = split(tolower(ENVIRON["SEARCH_BLOCKED"]), blockList, "\n") ;
+			keepIt = 1 ; allowSeen = 0 ; allowHit = 0 ;
+			for ( listIndex = 1 ; listIndex <= allowCount ; listIndex++ ) { domainName = allowList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; allowSeen = 1 ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { allowHit = 1 ; } ; }
+			alwaysCount = split(ENVIRON["SEARCH_ALWAYS"], alwaysList, "\n") ;
+			for ( listIndex = 1 ; listIndex <= alwaysCount ; listIndex++ ) { domainName = alwaysList[listIndex] ; if ( domainName != "" && ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) ) { allowHit = 1 ; } ; }
+			if ( allowSeen && !allowHit ) { keepIt = 0 ; }
+			for ( listIndex = 1 ; listIndex <= blockCount ; listIndex++ ) { domainName = blockList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { keepIt = 0 ; } ; }
+			exit ( keepIt ? 0 : 1 ) ;
+		}' ; then
+			topicsDropped=$(( topicsDropped + 1 ))
+			continue
+		fi
 		topicsShown=$(( topicsShown + 1 ))
 		printf '  %s. %s\n     %s\n' "$topicsShown" "${topicsText:-<no text on this entry>}" "$topicsUrl"
 	done
 	[ "$topicsSkipped" = 0 ] || printf '  (%s of the first %s carried a nested topic group rather than a link, and are not shown)\n' "$topicsSkipped" "$topicsIndex"
+	[ "$topicsDropped" = 0 ] || printf '  (%s of the first %s were dropped by allowed_domains or blocked_domains)\n' "$topicsDropped" "$topicsIndex"
 	[ "$topicsIndex" -ge "$topicsCount" ] || printf '  (first %s of %s examined, capped at %s)\n' "$topicsIndex" "$topicsCount" "$topicsCap"
 	return 0
 }
@@ -1349,13 +1365,34 @@ AgentsHarnessSearchTopics(){ ## response JSON, array path, heading, cap
 ## A query that finds nothing is NOT dressed as an error: this endpoint indexes
 ## named things, so an ordinary question returning nothing is its ordinary
 ## behaviour, and only a request that could not be made at all says ERROR.
-AgentsHarnessToolWebSearch(){ ## query
+AgentsHarnessToolWebSearch(){ ## query, raw arguments
 	local toolQuery="$1" searchBody searchStatus searchRc=0 searchEmitted=0 searchCount
 	local searchAbstract searchAbstractSource searchAbstractUrl
 	local searchAnswer searchAnswerType searchDefinition searchDefinitionUrl
+	local searchAllowed="" searchBlocked="" domainKey domainList domainCount domainIndex
 	if [ -z "$toolQuery" ] ; then
 		printf 'ERROR: query is required and was empty, so nothing was searched.\n' ; return 0
 	fi
+	if [ "${#toolQuery}" -lt 2 ] ; then
+		printf 'ERROR: query must be at least 2 characters, got: %s -- nothing was searched.\n' "$toolQuery" ; return 0
+	fi
+	## Each list is an array of domains, one per line here.
+	for domainKey in allowed_domains blocked_domains ; do
+		domainList="" ; domainIndex=0
+		domainCount="$( AgentsHarnessArgValue "$2" "$domainKey.__count" )"
+		if [ -z "$domainCount" ] && [ -n "$( AgentsHarnessArgValue "$2" "$domainKey" )" ] ; then
+			printf 'ERROR: %s must be an array of domains, got a single value -- nothing was searched.\n' "$domainKey" ; return 0
+		fi
+		case "$domainCount" in ''|*[!0123456789]*) domainCount=0 ;; esac
+		while [ "$domainIndex" -lt "$domainCount" ] ; do
+			domainList="$domainList$( AgentsHarnessArgValue "$2" "$domainKey.$domainIndex" )"$'\n'
+			domainIndex=$(( domainIndex + 1 ))
+		done
+		case "$domainKey" in
+			allowed_domains) searchAllowed="$domainList" ;;
+			*) searchBlocked="$domainList" ;;
+		esac
+	done
 	## Body to its own file, so the capture holds the one-line status and nothing else.
 	searchStatus="$( curl -sS -L --connect-timeout 10 --max-time 60 -G \
 		--data-urlencode "q=$toolQuery" \
@@ -1384,8 +1421,22 @@ AgentsHarnessToolWebSearch(){ ## query
 	searchAbstractUrl="$( AgentsHarnessSearchField "$searchBody" AbstractURL )"
 	if [ -n "$searchAbstract" ] ; then
 		searchEmitted=$(( searchEmitted + 1 ))
-		printf 'Abstract%s: %s\n' "${searchAbstractSource:+ ($searchAbstractSource)}" "$searchAbstract"
-		[ -z "$searchAbstractUrl" ] || printf '  %s\n' "$searchAbstractUrl"
+		if [ -n "$searchAbstractUrl" ] && ! SEARCH_URL="$searchAbstractUrl" SEARCH_ALLOWED="$searchAllowed" SEARCH_BLOCKED="$searchBlocked" SEARCH_ALWAYS="$harnessAlwaysAllowedDomains" LC_ALL=C awk 'BEGIN {
+			urlHost = tolower(ENVIRON["SEARCH_URL"]) ; sub(/^[a-z][a-z0-9+.-]*:\/\//, "", urlHost) ; sub(/[\/?#].*$/, "", urlHost) ; sub(/^.*@/, "", urlHost) ; sub(/:[0-9]*$/, "", urlHost) ; sub(/\.$/, "", urlHost) ;
+			allowCount = split(tolower(ENVIRON["SEARCH_ALLOWED"]), allowList, "\n") ; blockCount = split(tolower(ENVIRON["SEARCH_BLOCKED"]), blockList, "\n") ;
+			keepIt = 1 ; allowSeen = 0 ; allowHit = 0 ;
+			for ( listIndex = 1 ; listIndex <= allowCount ; listIndex++ ) { domainName = allowList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; allowSeen = 1 ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { allowHit = 1 ; } ; }
+			alwaysCount = split(ENVIRON["SEARCH_ALWAYS"], alwaysList, "\n") ;
+			for ( listIndex = 1 ; listIndex <= alwaysCount ; listIndex++ ) { domainName = alwaysList[listIndex] ; if ( domainName != "" && ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) ) { allowHit = 1 ; } ; }
+			if ( allowSeen && !allowHit ) { keepIt = 0 ; }
+			for ( listIndex = 1 ; listIndex <= blockCount ; listIndex++ ) { domainName = blockList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { keepIt = 0 ; } ; }
+			exit ( keepIt ? 0 : 1 ) ;
+		}' ; then
+			printf 'Abstract: dropped by allowed_domains or blocked_domains\n'
+		else
+			printf 'Abstract%s: %s\n' "${searchAbstractSource:+ ($searchAbstractSource)}" "$searchAbstract"
+			[ -z "$searchAbstractUrl" ] || printf '  %s\n' "$searchAbstractUrl"
+		fi
 	fi
 	searchAnswer="$( AgentsHarnessSearchField "$searchBody" Answer )"
 	searchAnswerType="$( AgentsHarnessSearchField "$searchBody" AnswerType )"
@@ -1397,19 +1448,33 @@ AgentsHarnessToolWebSearch(){ ## query
 	searchDefinitionUrl="$( AgentsHarnessSearchField "$searchBody" DefinitionURL )"
 	if [ -n "$searchDefinition" ] ; then
 		searchEmitted=$(( searchEmitted + 1 ))
-		printf 'Definition: %s\n' "$searchDefinition"
-		[ -z "$searchDefinitionUrl" ] || printf '  %s\n' "$searchDefinitionUrl"
+		if [ -n "$searchDefinitionUrl" ] && ! SEARCH_URL="$searchDefinitionUrl" SEARCH_ALLOWED="$searchAllowed" SEARCH_BLOCKED="$searchBlocked" SEARCH_ALWAYS="$harnessAlwaysAllowedDomains" LC_ALL=C awk 'BEGIN {
+			urlHost = tolower(ENVIRON["SEARCH_URL"]) ; sub(/^[a-z][a-z0-9+.-]*:\/\//, "", urlHost) ; sub(/[\/?#].*$/, "", urlHost) ; sub(/^.*@/, "", urlHost) ; sub(/:[0-9]*$/, "", urlHost) ; sub(/\.$/, "", urlHost) ;
+			allowCount = split(tolower(ENVIRON["SEARCH_ALLOWED"]), allowList, "\n") ; blockCount = split(tolower(ENVIRON["SEARCH_BLOCKED"]), blockList, "\n") ;
+			keepIt = 1 ; allowSeen = 0 ; allowHit = 0 ;
+			for ( listIndex = 1 ; listIndex <= allowCount ; listIndex++ ) { domainName = allowList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; allowSeen = 1 ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { allowHit = 1 ; } ; }
+			alwaysCount = split(ENVIRON["SEARCH_ALWAYS"], alwaysList, "\n") ;
+			for ( listIndex = 1 ; listIndex <= alwaysCount ; listIndex++ ) { domainName = alwaysList[listIndex] ; if ( domainName != "" && ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) ) { allowHit = 1 ; } ; }
+			if ( allowSeen && !allowHit ) { keepIt = 0 ; }
+			for ( listIndex = 1 ; listIndex <= blockCount ; listIndex++ ) { domainName = blockList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { keepIt = 0 ; } ; }
+			exit ( keepIt ? 0 : 1 ) ;
+		}' ; then
+			printf 'Definition: dropped by allowed_domains or blocked_domains\n'
+		else
+			printf 'Definition: %s\n' "$searchDefinition"
+			[ -z "$searchDefinitionUrl" ] || printf '  %s\n' "$searchDefinitionUrl"
+		fi
 	fi
 	## Counted here as well as inside the renderer, because what decides the
 	## found-nothing sentence below is whether the response carried anything at all.
 	searchCount="$( AgentsHarnessSearchField "$searchBody" Results.__count )"
 	case "$searchCount" in ''|*[!0123456789]*) searchCount=0 ;; esac
 	[ "$searchCount" = 0 ] || searchEmitted=$(( searchEmitted + 1 ))
-	AgentsHarnessSearchTopics "$searchBody" Results "Results" 10
+	AgentsHarnessSearchTopics "$searchBody" Results "Results" 10 "$searchAllowed" "$searchBlocked"
 	searchCount="$( AgentsHarnessSearchField "$searchBody" RelatedTopics.__count )"
 	case "$searchCount" in ''|*[!0123456789]*) searchCount=0 ;; esac
 	[ "$searchCount" = 0 ] || searchEmitted=$(( searchEmitted + 1 ))
-	AgentsHarnessSearchTopics "$searchBody" RelatedTopics "Related topics" 10
+	AgentsHarnessSearchTopics "$searchBody" RelatedTopics "Related topics" 10 "$searchAllowed" "$searchBlocked"
 	if [ "$searchEmitted" = 0 ] ; then
 		printf 'No instant-answer content for this query. The endpoint was reached and answered HTTP %s; it simply holds no abstract, answer, definition, result or related topic for these words. THIS IS A COMPLETE, SUCCESSFUL SEARCH AND NOT A FAILURE: the DuckDuckGo Instant Answer API indexes named things rather than arbitrary phrases, so an ordinary multi-word question returns exactly this. Do not retry the same query. A shorter query naming one thing may well answer; otherwise say in your final answer that the search returned nothing, never that web search was unavailable.\n' "$searchStatus"
 	fi
@@ -1862,14 +1927,14 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 ## escalates silently is a destructive default. Nothing is reported as stopped until
 ## the process list has been read AGAIN and the process is gone -- a signal delivered
 ## is not a process ended, and the two must never read alike.
-AgentsHarnessToolTaskStop(){ ## handle, force
-	local toolHandle="$1" toolForce="$2"
+AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
+	local toolHandle="${3:-${4:-$1}}" toolForce="$2"
 	local itemPath itemName itemStatus sessionId stopPids stopPid survivors forceWanted=no
 	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
 		printf 'ERROR: MDAT_DATA_ROOT is not set in this process, so the dispatch records naming a helper session cannot be located. Nothing was signalled, and no session is implied to be absent.\n' ; return 0
 	fi
 	if [ -z "$toolHandle" ] ; then
-		printf 'ERROR: handle is required: the session id, which ListAgents prints, or the dispatch item filename, which the Agent result names as DISPATCH_ITEM. Nothing was signalled.\n' ; return 0
+		printf 'ERROR: task_id is required: the session id, which ListAgents prints, or the dispatch item filename, which the Agent result names as DISPATCH_ITEM. Nothing was signalled.\n' ; return 0
 	fi
 	case "$toolForce" in
 		true|1|yes) forceWanted=yes ;;
@@ -3388,7 +3453,10 @@ AgentsHarnessAnnounceTool(){
 		;;
 		TaskStop)
 			announceIcon="🛑"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" handle )" )$harnessOff"
+			announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" task_id )"
+			[ -n "$announcePath" ] || announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" shell_id )"
+			[ -n "$announcePath" ] || announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" handle )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
 		;;
 		TaskOutput)
 			announceIcon="📜"
@@ -3473,7 +3541,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		Edit)      harnessResult="$( AgentsHarnessToolEdit "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgOld" "$harnessArgExact" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" replace_all )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file_path )" "$harnessFuncArgsRaw" )" ;;
 		Grep)      harnessResult="$( AgentsHarnessToolGrep "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" before )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" after )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" ignore_case )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_mode )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" glob )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -n )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -o )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -A )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -B )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -C )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -i )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" head_limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" )" ;;
 		Bash)      harnessResult="$( AgentsHarnessToolBash "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" )" ;;
-		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" )" ;;
+		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" "$harnessFuncArgsRaw" )" ;;
 		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" )" ;;
 		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" message )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		ListAgents) harnessResult="$( AgentsHarnessToolListAgents )" ;;
@@ -3488,7 +3556,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri_prefix )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
 		Skill)     harnessResult="$( AgentsHarnessToolSkill "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" name )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" list )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" skill )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" args )" )" ;;
 		Agent)     harnessResult="$( AgentsHarnessToolAgent "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" agent )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" prompt )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cli_service )" )" ;;
-		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" force )" )" ;;
+		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" force )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task_id )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" shell_id )" )" ;;
 		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_file )" )" ;;
 		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" max_results )" )" ;;
 		Monitor)   harnessResult="$( AgentsHarnessToolMonitor "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;

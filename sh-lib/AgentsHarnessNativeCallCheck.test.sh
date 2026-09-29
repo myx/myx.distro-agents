@@ -60,7 +60,7 @@ while [ "$#" -gt 0 ] ; do
 	shift
 done
 case "$stubUrl" in
-	*duckduckgo*) printf '%s\n' '{"Abstract":"","Results":[{"Text":"RIGALLOWED","FirstURL":"https://allowed.example/a"},{"Text":"RIGBLOCKED","FirstURL":"https://blocked.example/b"}],"RelatedTopics":[]}' > "$stubOut" ;;
+	*duckduckgo*) printf '%s\n' '{"Abstract":"","Results":[{"Text":"RIGALLOWED","FirstURL":"https://allowed.example/a"},{"Text":"RIGBLOCKED","FirstURL":"https://blocked.example/b"},{"Text":"RIGWIKI","FirstURL":"https://en.wikipedia.org/wiki/Rig"}],"RelatedTopics":[]}' > "$stubOut" ;;
 	*) printf 'RIGFETCHBODY\n' > "$stubOut" ;;
 esac
 printf '200'
@@ -130,12 +130,15 @@ rigCall(){ ## request id, tool name, arguments JSON -- one tools/call line
 	rigCall 52 Write '{"content":"h\n"}'
 	rigCall 53 Edit '{"old_string":"alpha","new_string":"ALPHA"}'
 	rigCall 54 Grep '{"pattern":"needle","path":"'"$rigS/sl"'","glob":"src/**/*.ts","output_mode":"files_with_matches"}'
+	rigCall 55 WebSearch '{"query":"rigquery","allowed_domains":["example.com"]}'
+	rigCall 56 WebSearch '{"query":"rigquery","blocked_domains":["wikipedia.org"]}'
+	rigCall 57 WebFetch '{"url":"https://en.wikipedia.org/wiki/Rig"}'
 } | ( cd "$rigG" && MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="$rigTmp/home/.claude/skills" \
 	MDAT_DATA_ROOT="$rigTmp/data" PATH="$rigTmp/bin:$PATH" bash "$rigTool" --intern-mcp-server --run ) > "$rigTmp/wire" 2> "$rigTmp/err" || :
 
 ## A request the server never answered was never exercised, so the run stops there.
 rigId=2
-while [ "$rigId" -le 54 ] ; do
+while [ "$rigId" -le 57 ] ; do
 	LC_ALL=C grep -q "^{\"jsonrpc\":\"2.0\",\"id\":$rigId," "$rigTmp/wire" || {
 		echo "-- the server left request $rigId unanswered, so its stderr follows --" >&2
 		sed 's/^/    /' "$rigTmp/err" >&2
@@ -286,6 +289,8 @@ if [ "$( rigHas "$rigText" RIGALLOWED )$( rigHas "$rigText" RIGBLOCKED )" = yesy
 	rigNative WebSearch "allowed_domains keeps only that domain" "$( rigHas "$rigText" RIGALLOWED ) $( rigHas "$rigText" RIGBLOCKED )" 'yes no'
 	rigText="$( rigResult 42 )"
 	rigNative WebSearch "blocked_domains drops that domain" "$( rigHas "$rigText" RIGALLOWED ) $( rigHas "$rigText" RIGBLOCKED )" 'yes no'
+	rigAssert "wikipedia: allowed_domains example.com still keeps the en.wikipedia.org result" "$( rigHas "$( rigResult 55 )" RIGWIKI ) $( rigHas "$( rigResult 55 )" RIGALLOWED )" 'yes no'
+	rigAssert "wikipedia: blocked_domains wikipedia.org drops it, the native exception" "$( rigHas "$( rigResult 56 )" RIGWIKI ) $( rigHas "$( rigResult 56 )" RIGALLOWED )" 'no yes'
 else
 	rigSkip WebSearch "allowed_domains keeps only that domain" "the stub curl was not reached, so domain filtering cannot be measured offline"
 	rigSkip WebSearch "blocked_domains drops that domain" "the stub curl was not reached, so domain filtering cannot be measured offline"
@@ -293,6 +298,7 @@ fi
 
 echo "-- WebFetch --"
 rigAssert "control: url returns the stub body" "$( rigHas "$( rigResult 43 )" RIGFETCHBODY )" yes
+rigAssert "wikipedia: a fetch of an en.wikipedia.org URL returns the body" "$( rigIsError "$( rigResult 57 )" ) $( rigHas "$( rigResult 57 )" RIGFETCHBODY )" 'no yes'
 rigText="$( rigResult 44 )"
 rigNative WebFetch "prompt is honoured: the answer is the prompt applied, not the raw body" \
 	"$( rigIsError "$rigText" ) $( rigHas "$rigText" 'raw body follows' )" 'no no'
