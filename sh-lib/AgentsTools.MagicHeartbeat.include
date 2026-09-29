@@ -50,10 +50,14 @@ case "$1" in
 		fi
 		printf 'Every question still open:\n\n'
 		DistroAgentsTools --member-pending-reply-read "$callingMember" --any-owner 2>/dev/null || echo "(the open questions could not be read)"
+		## Spawned sessions as the tooling measured them at their close, and alive now or
+		## not: a note that says a session is alive is read beside this, never instead of it.
+		printf '\n'
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+		AgentsToolsRegistryRenderSpawnedSessions || echo "(the spawned-sessions registry could not be read)"
 		printf '\n%s\n\n' "## board digest"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--all-types \
-			--header status \
 			--do-inbox-reflections \
 			--no-slack --no-email --no-trello \
 			--no-inbox-inquiry --no-inbox-notes --no-inbox-other \

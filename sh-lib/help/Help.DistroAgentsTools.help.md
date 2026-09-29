@@ -137,6 +137,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text>
+📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-amend <magic-coordinator> <pending-id> --verdict <text> --reason <text>
 📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <tracking-document>...
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>
@@ -3368,8 +3369,8 @@
 			local scope, `~/.claude.json`'s
 			`projects["<workspace>"].mcpServers."myx.common"`, delegated to
 			myx.common's own `setup/agentMcp` so that file keeps being edited
-			by its one owner. All three register the same resolved myx.common
-			`bin/lib/agentMcpServer.Common`, launched with `--run` (without
+			by its one owner. All three register the workspace's own installed
+			myx.common, `.local/myx/myx.common/.../bin/lib/agentMcpServer.Common`, launched with `--run` (without
 			`--run` that script prints usage and exits instead of serving, so
 			the `args` are what make the entry actually work). Each written
 			file is verified by re-reading the `myx.common` entry and asserting
@@ -3656,6 +3657,17 @@
 			call --magic-team-roster-read separately after this scan.
 			<team-member> is the only argument -- no --state/--header
 			override.
+
+			Inbox scope is <team-member>'s own inbox (active inquiries,
+			reflections, notes, other) PLUS every client-* member that
+			exists as a skill directory, each in its own
+			"Additional Inbox -- <member>" group. Widening the read is all
+			it does: the acting identity stays <team-member>, no client
+			credential or comms source is read, and nothing is written into
+			a client inbox. It exists because the communication sweep files
+			its findings as inquiry-* items into inboxes/client-*/. The
+			client-* members that exist decide the scope, not the roster
+			note, which is a cache.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -4022,6 +4034,22 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
+		--magic-pending-reply-amend <magic-coordinator> <pending-id> --verdict <text> --reason <text>
+			Corrects the verdict of a plain question already closed with
+			a wrong or missing answer, and prints `AMENDED <id>`. Only
+			magic-coordinator may, and only on a closed record. The
+			record reads received, with the new verdict, `amended-at`,
+			`amended-by` and `amend-reason`. The verdict and answerer it
+			replaces are kept as `amended-from` and
+			`amended-from-answered-by`. Only one step is kept: a second
+			amend replaces those with the first amend's values. The close
+			time and the Slack marks are left as they were. A readback,
+			decision or permission is refused, because its verdict may
+			have written a grant, which is corrected through the grant
+			store.
+
+			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
+
 		--member-work-session-input-scan <team-member>
 			Read-only: one member's own current work-session input --
 			personal, not routine-dictated (every armed member runs this
@@ -4072,7 +4100,14 @@
 			`## board digest` heading, <team-member>'s own inbox
 			reflections: top-level items only, processed/ excluded, at most
 			64, each with its frontmatter and body. No board items are
-			returned. <team-member>
+			returned. Before the digest, a `## questions (pending replies)`
+			section shows what the main loop's last collect of unanswered
+			questions found, then every question still open, from any
+			member, with its session, asker and age. Then a
+			`## spawned sessions` section: each spawn's recorded close
+			status and exit code, and whether its process is alive now, so
+			a note claiming a session is alive is read beside the
+			measured row. <team-member>
 			is the only argument -- no --state/--header override.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
@@ -4133,9 +4168,11 @@
 
 		--magic-advance-input-scan <team-member>
 			Read-only: routine-advance's own board scan, and the same scan
-			routine-update-board reads to recompute what blocks what. Scans
-			backlog/pending/running/blocked/parked, every board-item type,
-			every frontmatter field. A caller needing a narrower view
+			routine-update-board reads to recompute what blocks what, and
+			routine-heartbeat reads for the board rows. Scans
+			pending/running/blocked/parked, every board-item type,
+			every frontmatter field. Not backlog: that is
+			--magic-grooming-input-scan's. A caller needing a narrower view
 			(routine-update-board uses only running/blocked) selects from
 			the returned rows itself -- each one is labelled
 			<state>/<item-filename>. Also returns routine-advance's own
@@ -4144,18 +4181,13 @@
 			does not exist yet reports as having nothing to report and is
 			not an error. Returns content only -- it never evaluates the
 			lock. <team-member> is the only argument -- no --state/--header
-			override.
+			override. After the board digest come three registry sections:
+			`## team members`, `## spawned sessions` and `## pending replies`.
 
-			Inbox scope is <team-member>'s own inbox PLUS every client-*
-			member that exists as a skill directory, each in its own
-			"Additional Inbox -- <member>" group. Widening the read is all
-			it does: the acting identity stays <team-member>, no client
-			credential or comms source is read, and nothing is written into
-			a client inbox. It exists because the communication sweep files
-			its findings as inquiry-* items into inboxes/client-*/, and a
-			scan that read only inboxes/<team-member>/ never saw them. The
-			client-* members that exist decide the scope, not the roster
-			note, which is a cache.
+			Inbox scope is <team-member>'s own inbox, notes only: the
+			pending-slack-reaction and pending-trello-update records the
+			routine's comms step acts on. No inquiries, no reflections, and
+			no client-* inbox -- those are --magic-grooming-input-scan's.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

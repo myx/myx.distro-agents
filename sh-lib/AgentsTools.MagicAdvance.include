@@ -126,38 +126,21 @@ case "$1" in
 		printf '%s\n\n' "## state-and-lock (routine-advance)"
 		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
-		## The board scope below is already all types / any owner, so an item a
-		## client-* member filed on the board has always been visible here. An
-		## INBOX item was not: the scan read inboxes/<calling member>/ alone, and an
-		## inquiry the communication sweep filed into inboxes/client-ndm/ was
-		## invisible to every advance pass. Each client-* member's inbox is widened
-		## into the same scan, read-only -- advance never acts as that identity and
-		## never writes into that inbox; --do-inbox-also-member widens the read and
-		## nothing else. Same "the members that exist, not the ones a cache
-		## remembers" enumeration --magic-sweep-input-scan uses; the roster note is a
-		## cache and does not decide which inboxes are in scope.
-		local advanceInboxAlso=() advanceClientDir advanceClientName
-		for advanceClientDir in "$MDAT_SKILLSET_ROOT"/client-* ; do
-			if [ -d "$advanceClientDir" ] ; then
-				advanceClientName="${advanceClientDir##*/}"
-				AgentsToolsAssertBareName "$advanceClientName" "<team-member>" magic-advance-input-scan || { set +e ; return 1 ; }
-				## The acting member's own inbox is already the scan's first section.
-				if [ "$advanceClientName" != "$callingMember" ] ; then
-					advanceInboxAlso+=( --do-inbox-also-member "$advanceClientName" )
-				fi
-			fi
-		done
+		## Scoped to what advance itself acts on, per the owner's "grooming reads
+		## backlog+inquiries+notes, advance does not": no backlog (promotion is
+		## grooming's), and of the own inbox only notes -- the pending-slack-reaction and
+		## pending-trello-update records check-pending-comms-actions reads. Inquiries,
+		## reflections and the client-* inboxes are read by --magic-grooming-input-scan.
 		printf '\n%s\n\n' "## board digest"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
-			--state backlog --state pending --state running --state blocked --state parked \
+			--state pending --state running --state blocked --state parked \
 			--all-types \
-			--do-inbox-inquiry-active \
-			--do-inbox-reflections \
+			--no-inbox-inquiry \
+			--no-inbox-reflections \
 			--do-inbox-notes \
 			--no-slack --no-email --no-trello \
 			--no-inbox-other \
 			--no-board-related \
-			"${advanceInboxAlso[@]+"${advanceInboxAlso[@]}"}" \
 			--context --magic-advance-input-scan
 		local advanceScanRc=$?
 		## All three registries ride in this scan's output because the pass that reads
@@ -206,11 +189,15 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-running: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
 			set +e ; return 1
 		}
+		## Stamped on a move only: a same-state edit of an item already running keeps the
+		## started-at it has, as the help says.
+		local startedArgs=( --header:upsert:started-at:"$startedAt" )
+		[ "$fromStateArg" != "--from-state:running" ] || startedArgs=()
 		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
 			"$fromStateArg" \
-			--header:upsert:started-at:"$startedAt" \
+			${startedArgs[@]+"${startedArgs[@]}"} \
 			--context --magic-advance-to-running \
-			"${passthrough[@]}"
+			${passthrough[@]+"${passthrough[@]}"}
 		return $?
 	;;
 
