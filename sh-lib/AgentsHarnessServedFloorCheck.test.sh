@@ -191,6 +191,23 @@ while IFS= read -r rigExecutor ; do
 		"$( LC_ALL=C grep -qx -- "$rigExecutor" "$rigTmp/harness" && printf 'served' || printf 'unserved' )" "unserved"
 done < "$rigTmp/executors"
 
+## A typed ask served without its fields degrades to a plain question: a permission request
+## would then read as one, and its answer would never be applied as a verdict.
+rigAskSchema="$( LC_ALL=C awk '
+	{
+		askAt = index( $0, "{\"name\":\"AskUserQuestion\"" ) ;
+		if ( askAt == 0 ) { next ; }
+		askRest = substr( $0, askAt ) ;
+		schemaAt = index( askRest, "\"inputSchema\":" ) ;
+		nextAt = index( substr( askRest, 2 ), "{\"name\":\"" ) ;
+		if ( schemaAt > 0 && ( nextAt == 0 || schemaAt < nextAt ) ) { print substr( askRest, schemaAt, ( nextAt == 0 ? length( askRest ) : nextAt ) - schemaAt ) ; }
+	}
+' "$rigTmp/list" )"
+for rigAskField in kind refusal_id reason task_ref understood source will_do pending_id ; do
+	rigAssert "the served AskUserQuestion carries '$rigAskField'" \
+		"$( printf '%s' "$rigAskSchema" | LC_ALL=C grep -q -F "\"$rigAskField\":{" && printf 'yes' || printf 'no' )" "yes"
+done
+
 ## A host whose list this server never recorded is told to list again on its first call,
 ## and a host that listed the same floor is not. The call is a refused Bash: it renders
 ## the floor and answers without running anything.

@@ -189,11 +189,12 @@ EXIT_CODE=<code>
 OUTPUT_FILE=<path>
 ```
 
-Example — the async, stdin-body path this routine takes by default, so no item key:
+Example — the async, stdin-body path this routine takes by default, which creates a dispatch document:
 
 ```text
 RECEIPT_ID=spawn-proxy-20260908T072500-48217
-DISPATCH_DOC=none
+DISPATCH_DOC=create
+DISPATCH_ITEM=dispatch-20260908T072500-spawn-proxy-48217.md
 STATUS=started
 PID=48219
 OUTPUT_FILE=<audit-dir>/spawn-proxy-20260908T072500-48217.output.log

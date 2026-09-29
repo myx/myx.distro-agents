@@ -1639,10 +1639,16 @@ case "$1" in
 		## Addressees, repeatable. WHO THE MESSAGE IS FOR -- deliberately not
 		## the operation's own target, which is the conversation it goes TO.
 		local addressToList=""
+		## A reply into a thread also shown in the conversation itself (Slack's
+		## reply_broadcast), so it is seen where it would otherwise sit buried.
+		local replyBroadcast="false"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--identity-bot)
 					identityAsBot="true" ; shift
+				;;
+				--reply-broadcast)
+					replyBroadcast="true" ; shift
 				;;
 				--message-from-stdin|--from-stdin)
 					fromStdin="true" ; bodySourceKind="stdin" ; shift
@@ -2096,6 +2102,7 @@ blocks|verbatim|caller|stdin file"
 
 		local payload="{\"channel\":\"$channel\",\"text\":\"$escapedText\""
 		[ -z "$threadTs" ] || payload="$payload,\"thread_ts\":\"$threadTs\""
+		[ -z "$threadTs" ] || [ "$replyBroadcast" != "true" ] || payload="$payload,\"reply_broadcast\":true"
 		[ -z "$blocksJson" ] || payload="$payload,\"blocks\":$blocksJson"
 		payload="$payload}"
 
@@ -2212,6 +2219,7 @@ blocks|verbatim|caller|stdin file"
 						escapedText="$( printf '%s' "$rawText" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
 						payload="{\"channel\":\"$channel\",\"text\":\"$escapedText\""
 						[ -z "$threadTs" ] || payload="$payload,\"thread_ts\":\"$threadTs\""
+						[ -z "$threadTs" ] || [ "$replyBroadcast" != "true" ] || payload="$payload,\"reply_broadcast\":true"
 						[ -z "$blocksJson" ] || payload="$payload,\"blocks\":$blocksJson"
 						payload="$payload}"
 					fi

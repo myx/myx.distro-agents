@@ -103,6 +103,8 @@ rigAssert "three posts: one opener, then Q1 and Q2"       "$( rigPosts )" 3
 rigAssert "Q1 is tagged in its heading"                   "$( rigHolds "$rigScenarioDir/post.2" 'Question Q1' )" yes
 rigAssert "Q2 is tagged in its heading"                   "$( rigHolds "$rigScenarioDir/post.3" 'Question Q2' )" yes
 rigAssert "Q2 is posted into Q1's thread"                 "$( rigHolds "$rigScenarioDir/post.3" '"thread_ts":"1700000001.000101"' )" yes
+rigAssert "and shown in the conversation too"             "$( rigHolds "$rigScenarioDir/post.3" '"reply_broadcast":true' )" yes
+rigAssert "Q1, in a fresh thread, is not broadcast"       "$( rigHolds "$rigScenarioDir/post.2" 'reply_broadcast' )" no
 rigAssert "Q2's record carries its tag"                   "$( LC_ALL=C grep -c '^question-tag: Q2$' "$rigScenarioDir/ws/.local/agents/pending/$rigQ2Id.md" )" 1
 
 echo "-- an identical open question is not posted again --"
@@ -206,7 +208,16 @@ rigAsk ask1 20 "{\"to\":\"human-owner\",\"question\":\"$rigQ1\",\"wait\":false}"
 rigAsk ask2 20 "{\"to\":\"magic-team\",\"address_to\":\"human-owner\",\"question\":\"$rigQ2\",\"wait\":false}"
 rigAssert "two openers and two questions"                 "$( rigPosts )" 4
 rigAssert "the second question is in its own thread"      "$( rigHolds "$rigScenarioDir/post.4" '"thread_ts":"1700000001.000103"' )" yes
-rigAssert "and is its thread's Q1"                        "$( rigHolds "$rigScenarioDir/post.4" 'Question Q1' )" yes
+rigAssert "and is numbered on from the person's first, Q2" "$( rigHolds "$rigScenarioDir/post.4" 'Question Q2' )" yes
+rigAssert "never a second Q1 for the same person"         "$( rigHolds "$rigScenarioDir/post.4" 'Question Q1' )" no
+
+echo "-- the person's counter starts above every number already in use --"
+rigStart seeded
+rigReplies "" ""
+mkdir -p "$rigScenarioDir/ws/.local/agents/pending"
+printf -- '---\nstatus: reply-received\nowner: magic-tester\naddress-to: human-owner\nquestion-tag: Q7\n---\n\n# Question asked\n' > "$rigScenarioDir/ws/.local/agents/pending/33333333-0000-0000-0000-000000000007.md"
+rigAsk ask1 20 "{\"to\":\"human-owner\",\"question\":\"$rigQ1\",\"wait\":false}"
+rigAssert "the next question is Q8"                       "$( rigHolds "$rigScenarioDir/post.2" 'Question Q8' )" yes
 
 echo "-- only the thread numbers a question, and no post says tag --"
 rigStart numbering

@@ -1399,8 +1399,8 @@ AgentsHarnessToolWebFetch(){
 ## the credential stays inside that operation and never reaches argv. The text goes in
 ## on stdin, where no shell quoting can reach it -- a single apostrophe in a composed
 ## send emptied one live message in this estate.
-AgentsHarnessToolSendMessage(){
-	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" sendRc=0
+AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation)
+	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" toolBroadcast="${5:-}" sendRc=0
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to send under, and one is never guessed here. Nothing was sent. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
@@ -1416,6 +1416,7 @@ AgentsHarnessToolSendMessage(){
 		true|1|yes) set -- "$@" --identity-bot ;;
 	esac
 	[ -z "$toolAddressTo" ] || set -- "$@" --address-to "$toolAddressTo"
+	[ "$toolBroadcast" != "true" ] || set -- "$@" --reply-broadcast
 	## Output to a file rather than a capture: the operation forks curl, and a capture
 	## returns on pipe EOF rather than on the command it ran.
 	printf '%s' "$toolMessage" | "$@" --from-stdin >"$harnessScratch/send.out" 2>&1 || sendRc=$?
@@ -2351,6 +2352,11 @@ AgentsHarnessToolAskUserQuestion(){
 			IFS=$'\t' read -r _ askReuseChannel askReuseThread askTag <<< "$askWhere"
 		;;
 	esac
+	## The number is the person's, not the thread's: one counter per addressee, taken while
+	## the ask-thread lock is held, so the same person never sees two questions called Q1.
+	if [ -n "$toolAddressTo" ] && type AgentsToolsAskThreadNextTag > /dev/null 2>&1 ; then
+		askTag="$( AgentsToolsAskThreadNextTag "$toolAddressTo" )"
+	fi
 	askBody="$(
 		case "$toolKind" in
 			(readback) printf '# 🔁 Readback %s\n\n%s\n\n' "$askTag" "$toolQuestion" ;;
@@ -2439,7 +2445,9 @@ AgentsHarnessToolAskUserQuestion(){
 			askAsk="$toolTo:$askOpenTs"
 		;;
 	esac
-	askSent="$( AgentsHarnessToolSendMessage "$askAsk" "$askBody" "$toolAsBot" "$toolAddressTo" )"
+	## A question joining a thread already running is also shown in the conversation, or it
+	## sits buried under earlier replies where the person never sees it.
+	askSent="$( AgentsHarnessToolSendMessage "$askAsk" "$askBody" "$toolAsBot" "$toolAddressTo" "${askReuseThread:+true}" )"
 	case "$askSent" in
 		ERROR:*)
 			[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"

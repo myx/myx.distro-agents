@@ -89,6 +89,27 @@ AgentsToolsAskThreadOthers(){ ## channel, question ts
 	printf '%s\n' "${othList# }"
 }
 
+## The next question number for one addressee, Q<n>, counted per person rather than per
+## thread, so two threads to the same person never both show a Q1. Kept as a small counter
+## file under the local agents store; taken under the caller's per-addressee ask-thread
+## lock. On first use the counter starts above the highest `question-tag` any record to
+## that addressee already carries, so no number in use is given again.
+AgentsToolsAskThreadNextTag(){ ## addressee
+	local tagDir="$MMDAPP/.local/agents/ask-counters" tagKey tagFile tagLast="" tagNext
+	tagKey="$( printf '%s' "$1" | LC_ALL=C tr -c 'A-Za-z0-9._-' '_' )"
+	tagFile="$tagDir/$tagKey"
+	mkdir -p "$tagDir" 2>/dev/null || { printf 'Q1\n' ; return 0 ; }
+	[ ! -s "$tagFile" ] || tagLast="$( LC_ALL=C tr -cd '0-9' < "$tagFile" )"
+	if [ -z "$tagLast" ] ; then
+		tagLast="$( LC_ALL=C grep -r -l -x -F --include='*.md' "address-to: $1" "$MMDAPP/.local/agents/pending" 2>/dev/null \
+			| while IFS= read -r tagRecord ; do LC_ALL=C sed -n 's/^question-tag: [Qq]\([0-9][0-9]*\)$/\1/p' "$tagRecord" ; done \
+			| LC_ALL=C awk 'BEGIN { top = 0 ; } $1 + 0 > top { top = $1 + 0 ; } END { print top ; }' )"
+	fi
+	tagNext=$(( ${tagLast:-0} + 1 ))
+	printf '%s\n' "$tagNext" > "$tagFile.$$" 2>/dev/null && mv -f "$tagFile.$$" "$tagFile" 2>/dev/null || rm -f "$tagFile.$$"
+	printf 'Q%s\n' "$tagNext"
+}
+
 ## Before a question is posted: prints one line saying where it goes.
 ##   DUPLICATE<TAB><pending id><TAB><owner><TAB><session>  -- an open question to the same
 ##       addressee with the same key already stands; nothing is to be posted

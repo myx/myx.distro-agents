@@ -147,6 +147,8 @@ AgentsToolsVscodeFolderLinks(){
 				echo "⛔ ERROR: $MDSC_CMD --$linkContext: failed to remove dangling symlink: $linkSlot" >&2
 				linkHadError="true" ; continue
 			fi
+		elif [ "$linkSlot" -ef "$linkTarget" ] ; then
+			linkKept="$linkKept." ; continue
 		elif [ -L "$linkSlot" ] ; then
 			if [ "$( readlink "$linkSlot" )" = "$linkTarget" ] ; then
 				linkKept="$linkKept." ; continue

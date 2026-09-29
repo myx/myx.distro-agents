@@ -204,6 +204,18 @@ rigRunX
 rigAssert "control: real content in a slot is reported"    "$( LC_ALL=C grep -c 'real content at .*/browse/.claude/skills, will not overwrite' "$rigTmp/x.err" )" 1
 rigAssert "and left alone"                                 "$( [ -f "$rigXFolder/.claude/skills/rig-own" ] && [ ! -L "$rigXFolder/.claude/skills" ] && echo alone || echo touched )" alone
 
+echo "-- a slot already reaching X's root copy is kept --"
+rm -rf "$rigXFolder/.claude" "$rigXFolder/.vscode"
+ln -s ../../../.claude "$rigXFolder/.claude" ; ln -s ../../../.vscode "$rigXFolder/.vscode"
+rigRunX
+rigAssert "a dir and a file slot through a parent link: no refusal" "$( LC_ALL=C grep 'ERROR' "$rigTmp/x.err" | LC_ALL=C grep -c -e 'browse/.claude/skills' -e 'browse/.vscode/mcp.json' )" 0
+rigAssert "both count as already linked"                   "$( LC_ALL=C grep -c -e '.claude/skills: 0 folder(s) newly linked, 1 already linked' -e '.vscode/mcp.json: 0 folder(s) newly linked, 1 already linked' "$rigTmp/x.err" )" 2
+rigAssert "the parent links are left as they were"         "$( readlink "$rigXFolder/.claude" ) $( readlink "$rigXFolder/.vscode" )" "../../../.claude ../../../.vscode"
+rm -f "$rigXFolder/.claude" ; mkdir -p "$rigXFolder/.claude" ; ln -s ../../../../.claude/skills "$rigXFolder/.claude/skills"
+rigRunX
+rigAssert "a differently spelled link to it: no refusal"   "$( LC_ALL=C grep 'ERROR' "$rigTmp/x.err" | LC_ALL=C grep -c 'browse/.claude/skills' )" 0
+rigAssert "and it is kept as spelled"                      "$( readlink "$rigXFolder/.claude/skills" )" ../../../../.claude/skills
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ VSCODE PANEL INSTALL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

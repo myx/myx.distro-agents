@@ -138,7 +138,9 @@ rigAsk(){ ## target path
 	local rigBefore=" $( cd "$rigScenarioDir/ws/.local/agents/pending" 2>/dev/null && printf '%s ' *.md ) "
 	rigTool rig-asker Write "{\"path\":\"$1\",\"content\":\"x\"}" "$rigScenarioDir/refused"
 	set -m
-	rigTool rig-asker AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file?\",\"address_to\":\"magic-coordinator\",\"kind\":\"permission\",\"refusal_id\":\"$( rigRefusalId "$rigScenarioDir/refused" )\",\"reason\":\"rig\",\"task_ref\":\"dispatch-rig\"}" "$rigScenarioDir/ask" &
+	## Named per target: an identical question to the same addressee, still open from an
+	## earlier stopped ask, is not asked again (ALREADY-OPEN), so each ask must differ.
+	rigTool rig-asker AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file ${1##*/}?\",\"address_to\":\"magic-coordinator\",\"kind\":\"permission\",\"refusal_id\":\"$( rigRefusalId "$rigScenarioDir/refused" )\",\"reason\":\"rig\",\"task_ref\":\"dispatch-rig\"}" "$rigScenarioDir/ask" &
 	rigAskPid=$!
 	set +m
 	local waitLeft=20

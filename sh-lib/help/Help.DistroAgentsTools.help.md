@@ -6,8 +6,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [text...]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>]
@@ -316,7 +316,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--text-group report|brief|relay]
+		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--text-group report|brief|relay]
 			Posts a message, attributed to <team-member>, to one of:
 			magic-team, human-owner, event-track, event-alert, a bare
 			<conversation-id> (posted as a NEW TOP-LEVEL message in that
@@ -331,7 +331,10 @@
 			and nothing is sent anywhere. Content comes from
 			trailing text args, --from-stdin, or --from-file <path> —
 			exactly one. --message-from-stdin is accepted as an alias of
-			--from-stdin. --identity-bot posts as the team bot. Without it,
+			--from-stdin. --reply-broadcast, with a <channel>:<ts>
+			target, also shows the threaded reply in the conversation
+			itself (Slack's reply_broadcast); it does nothing for a
+			top-level post. --identity-bot posts as the team bot. Without it,
 			the member's own identity is used when it has one, and the team
 			bot when it does not, except for a send to human-owner, which
 			always goes under a user identity: this member's own
