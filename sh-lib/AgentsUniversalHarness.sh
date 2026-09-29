@@ -961,7 +961,7 @@ AgentsHarnessLockTake(){ ## resolved target
 AgentsHarnessToolWrite(){
 	local toolPath="${3:-$1}" toolContent="$2" toolTemp toolLock=""
 	if [ -z "$toolPath" ] ; then
-		printf 'ERROR: no path was given -- pass file_path, or path. Keys received: %s. Nothing was written.\n' "$( printf '{"a":%s}' "$4" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' )" ; return 0
+		AgentsHarnessRefusal Write "" "ERROR: no path was given -- pass file_path, or path. Keys received: $( printf '{"a":%s}' "$4" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' ). Nothing was written." ; return 0
 	fi
 	if ! AgentsHarnessPathAllowed "$toolPath" "$harnessWriteRoots" && ! AgentsHarnessGranted Write "$harnessResolvedPath" ; then
 		AgentsHarnessRefusal Write "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0
@@ -999,7 +999,7 @@ AgentsHarnessToolWrite(){
 AgentsHarnessToolEdit(){
 	local toolPath="${5:-$1}" toolOld="$2" toolNew="$3" toolAll="$4" toolCount toolTemp toolLock=""
 	if [ -z "$toolPath" ] ; then
-		printf 'ERROR: no path was given -- pass file_path, or path. Keys received: %s. Nothing was written.\n' "$( printf '{"a":%s}' "$6" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' )" ; return 0
+		AgentsHarnessRefusal Edit "" "ERROR: no path was given -- pass file_path, or path. Keys received: $( printf '{"a":%s}' "$6" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' ). Nothing was written." ; return 0
 	fi
 	if ! AgentsHarnessPathAllowed "$toolPath" "$harnessWriteRoots" && ! AgentsHarnessGranted Edit "$harnessResolvedPath" ; then
 		AgentsHarnessRefusal Edit "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0
@@ -1153,8 +1153,8 @@ AgentsHarnessToolGlob(){
 }
 
 ## `ripgrep` would replace this `grep -rn` outright; the human-owner ruled "Not now".
-AgentsHarnessToolGrep(){
-	local toolPattern="$1" toolPath="$2" toolContext="$3" toolBefore="$4" toolAfter="$5" toolIgnoreCase="$6" toolMode="$7" toolBytes grepFlags
+AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, output_mode, glob, -n, -o, -A, -B, -C, -i, head_limit, offset
+	local toolPattern="$1" toolPath="${2:-$PWD}" toolContext="${13:-$3}" toolBefore="${12:-$4}" toolAfter="${11:-$5}" toolIgnoreCase="${14:-$6}" toolMode="${7:-files_with_matches}" toolGlob="${8#\*\*/}" toolLineNumbers="$9" toolOnlyMatching="${10}" toolHeadLimit="${15:-250}" toolOffset="${16:-0}" toolBytes grepFlags globPrefix globGroup globSuffix globAlts globAlt
 	if ! AgentsHarnessPathAllowed "$toolPath" ; then
 		printf 'ERROR: path not in the allowed access-root set: %s\n' "$toolPath" ; return 0
 	fi
@@ -1162,31 +1162,72 @@ AgentsHarnessToolGrep(){
 	if [ ! -e "$toolPath" ] ; then
 		printf 'ERROR: no such path: %s\n' "$toolPath" ; return 0
 	fi
-	## The mode picks the output shape; -C/-B/-A and -i are carried by BSD and GNU grep alike.
+	## The mode picks the output shape; -C/-B/-A, -i, -o and --include are carried by BSD and GNU grep alike.
 	case "$toolMode" in
-		''|content)         grepFlags=( -rn ) ;;
+		content)            grepFlags=( -r ) ;;
 		files_with_matches) grepFlags=( -rl ) ;;
 		count)              grepFlags=( -rc ) ;;
 		*)
 			printf 'ERROR: output_mode must be content, files_with_matches or count, got: %s\n' "$toolMode" ; return 0
 		;;
 	esac
-	## A per-side value wins over context, which otherwise sets both sides.
+	## A per-side value wins over -C, which otherwise sets both sides.
 	[ -n "$toolBefore" ] || toolBefore="$toolContext"
 	[ -n "$toolAfter" ] || toolAfter="$toolContext"
 	if [ -n "$toolBefore" ] && ! AgentsHarnessWholeNumber "$toolBefore" ; then
-		printf 'ERROR: before/context must be a whole number of lines, got: %s\n' "$toolBefore" ; return 0
+		printf 'ERROR: -B/before/-C/context must be a whole number of lines, got: %s\n' "$toolBefore" ; return 0
 	fi
 	if [ -n "$toolAfter" ] && ! AgentsHarnessWholeNumber "$toolAfter" ; then
-		printf 'ERROR: after/context must be a whole number of lines, got: %s\n' "$toolAfter" ; return 0
+		printf 'ERROR: -A/after/-C/context must be a whole number of lines, got: %s\n' "$toolAfter" ; return 0
 	fi
-	[ -z "$toolBefore" ] || grepFlags+=( -B "$toolBefore" )
-	[ -z "$toolAfter" ] || grepFlags+=( -A "$toolAfter" )
+	if ! AgentsHarnessWholeNumber "$toolHeadLimit" ; then
+		printf 'ERROR: head_limit must be a whole number of lines or entries, got: %s\n' "$toolHeadLimit" ; return 0
+	fi
+	if ! AgentsHarnessWholeNumber "$toolOffset" ; then
+		printf 'ERROR: offset must be a whole number of lines or entries, got: %s\n' "$toolOffset" ; return 0
+	fi
+	if [ "$toolMode" = content ] ; then
+		## BSD grep mixes context lines into -o output and GNU grep drops them, so -o takes none.
+		case "$toolOnlyMatching" in
+			true|1) toolBefore="" ; toolAfter="" ;;
+		esac
+		[ -z "$toolBefore" ] || grepFlags+=( -B "$toolBefore" )
+		[ -z "$toolAfter" ] || grepFlags+=( -A "$toolAfter" )
+		case "$toolLineNumbers" in
+			false|0) ;;
+			*) grepFlags+=( -n ) ;;
+		esac
+		case "$toolOnlyMatching" in
+			true|1) grepFlags+=( -o ) ;;
+		esac
+	fi
 	case "$toolIgnoreCase" in
 		true|1) grepFlags+=( -i ) ;;
 	esac
-	## `|| :` keeps grep's own rc 1 on no-match from tripping this script's set -e.
-	grep "${grepFlags[@]}" -- "$toolPattern" "$toolPath" > "$harnessScratch/grep.out" 2>&1 || :
+	## --include matches a file name only, and takes no braces, so one {a,b} group becomes one --include per branch.
+	case "$toolGlob" in
+		'') ;;
+		*/*) printf 'ERROR: glob is matched against file names, so apart from a leading **/ it cannot contain /, got: %s\n' "$toolGlob" ; return 0 ;;
+		*\{*\}*)
+			globPrefix="${toolGlob%%\{*}" ; globGroup="${toolGlob#*\{}" ; globSuffix="${globGroup#*\}}" ; globGroup="${globGroup%%\}*}"
+			case "$globGroup$globSuffix" in
+				*[{}]*) printf 'ERROR: glob takes at most one {a,b} group, got: %s\n' "$toolGlob" ; return 0 ;;
+			esac
+			if [ -z "$globGroup" ] ; then
+				printf 'ERROR: glob has an empty {} group, so it would match every file, got: %s\n' "$toolGlob" ; return 0
+			fi
+			IFS=, read -r -a globAlts <<< "$globGroup"
+			for globAlt in "${globAlts[@]}" ; do
+				grepFlags+=( --include="$globPrefix$globAlt$globSuffix" )
+			done
+		;;
+		*) grepFlags+=( --include="$toolGlob" ) ;;
+	esac
+	## `|| :` keeps grep's own rc 1 on no-match from tripping this script's set -e. Paged, and said so when cut.
+	{ grep "${grepFlags[@]}" -- "$toolPattern" "$toolPath" 2>&1 || : ; } | LC_ALL=C awk -v skipCount="$toolOffset" -v keepCount="$toolHeadLimit" '
+		NR > skipCount && ( keepCount == 0 || NR <= skipCount + keepCount ) { print ; }
+		END { if ( keepCount > 0 && NR > skipCount + keepCount ) { printf "... head_limit reached: showed %d of %d lines or entries; continue with offset %d ...\n", keepCount, NR, skipCount + keepCount ; } ; }
+	' > "$harnessScratch/grep.out"
 	## Capped and said so: a truncated search reads as "there are no further matches".
 	toolBytes="$( wc -c < "$harnessScratch/grep.out" | tr -d ' ' )"
 	if [ "$toolBytes" -gt "$harnessReadCap" ] ; then
@@ -3430,7 +3471,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		Write)     harnessResult="$( AgentsHarnessToolWrite "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgExact" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file_path )" "$harnessFuncArgsRaw" )" ;;
 		Glob)      harnessResult="$( AgentsHarnessToolGlob "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" long )" )" ;;
 		Edit)      harnessResult="$( AgentsHarnessToolEdit "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgOld" "$harnessArgExact" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" replace_all )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file_path )" "$harnessFuncArgsRaw" )" ;;
-		Grep)      harnessResult="$( AgentsHarnessToolGrep "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" before )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" after )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" ignore_case )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_mode )" )" ;;
+		Grep)      harnessResult="$( AgentsHarnessToolGrep "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" before )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" after )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" ignore_case )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_mode )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" glob )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -n )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -o )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -A )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -B )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -C )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -i )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" head_limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" )" ;;
 		Bash)      harnessResult="$( AgentsHarnessToolBash "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" )" ;;
 		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" )" ;;
 		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" )" ;;

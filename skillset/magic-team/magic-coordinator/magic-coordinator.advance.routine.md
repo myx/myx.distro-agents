@@ -99,7 +99,7 @@ Process all `board-pending` items each pass — some, all, or none started. Not 
   - rule: a detected candidate that is not spawned and moved is an error.
   - step: spawn.
   - step: move to `board-running`.
-- Candidate set: `board-pending`, approved, no active dispatch note.
+- Candidate set: `board-pending`, approved, no active dispatch note. Excluded: an item whose `status:` is `dispatch-succeeded` or `dispatch-failed`, which stays in `board-pending` for grooming.
   - Carries `restart-session:` → needs a coworking-session spawn: conflict gate + spawn steps below apply.
   - No `restart-session:` → basic task: start now, move to `board-running` via `--magic-advance-to-running`. No conflict gate, no spawn.
 - Required header on a `restart-session:` candidate: `recheck-date`. Missing → set to now first.
