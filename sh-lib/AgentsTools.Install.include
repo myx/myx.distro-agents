@@ -1123,7 +1123,11 @@ case "$1" in
 			if [ "$grantsTrusted" = "true" ] ; then
 				regTmp="$permissionsRegistry.tmp.$$"
 				if awk -F: -v w="$workspaceName" '!( $2 == w )' "$permissionsRegistry" > "$regTmp" ; then
-					printf '%s' "$grantRows" >> "$regTmp"
+					printf '%s' "$grantRows" >> "$regTmp" || {
+						echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions registry append failed for workspace $workspaceName -- registry left untouched" >&2
+						rm -f "$regTmp" 2>/dev/null || true
+						exit 1
+					}
 					mv -f "$regTmp" "$permissionsRegistry" || {
 						echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions registry rewrite failed for workspace $workspaceName" >&2
 						rm -f "$regTmp" 2>/dev/null || true
@@ -1146,7 +1150,11 @@ case "$1" in
 			if [ "$grantsTrusted" = "true" ] ; then
 				tagsTmp="$tagsRegistry.tmp.$$"
 				if awk -F: -v w="$workspaceName" '!( $2 == w )' "$tagsRegistry" > "$tagsTmp" ; then
-					printf '%s' "$grantTagRows" >> "$tagsTmp"
+					printf '%s' "$grantTagRows" >> "$tagsTmp" || {
+						echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions tags sidecar append failed for workspace $workspaceName -- sidecar left untouched" >&2
+						rm -f "$tagsTmp" 2>/dev/null || true
+						exit 1
+					}
 					mv -f "$tagsTmp" "$tagsRegistry" || {
 						echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions tags sidecar rewrite failed for workspace $workspaceName" >&2
 						rm -f "$tagsTmp" 2>/dev/null || true
