@@ -128,11 +128,13 @@ AgentsToolsVscodeFolderLinks(){
 		echo "🙋 WARNING: $MDSC_CMD --$linkContext: no generated workspace file at $linkWsFile, so no VS Code folder gets $linkRelative yet -- the next integrations run links them" >&2
 		return 0
 	fi
-	local linkFolder linkSlot linkHadError="false" linkNew="" linkKept=""
+	local linkFolder linkSlot linkHadError="false" linkNew="" linkKept="" linkWorkspaceReal
 	if [ ! -e "$linkTarget" ] ; then
 		echo "# $MDSC_CMD --$linkContext: $linkTarget does not exist yet, so no VS Code folder gets $linkRelative -- the next integrations run links it" >&2
 		return 0
 	fi
+	linkWorkspaceReal="$( cd -P "$linkWorkspace" && pwd -P )" || {
+		echo "⛔ ERROR: $MDSC_CMD --$linkContext: cannot resolve the workspace $linkWorkspace" >&2 ; return 1 ; }
 	while IFS= read -r linkFolder ; do
 		[ -n "$linkFolder" ] || continue
 		linkFolder="${linkFolder%/}"
@@ -140,6 +142,10 @@ AgentsToolsVscodeFolderLinks(){
 			echo "# $MDSC_CMD --$linkContext: listed folder absent, not linked: $linkFolder" >&2
 			continue
 		fi
+		case "$( cd -P "$linkFolder" && pwd -P )/" in
+			"$linkWorkspaceReal"/*) ;;
+			*) echo "🙋 WARNING: $MDSC_CMD --$linkContext: listed folder lies outside the workspace, left untouched: $linkFolder" >&2 ; continue ;;
+		esac
 		linkSlot="$linkFolder/$linkRelative"
 		if [ -L "$linkSlot" ] && [ ! -e "$linkSlot" ] ; then
 			echo "# $MDSC_CMD --$linkContext: $linkSlot is a dangling symlink (points at $( readlink "$linkSlot" ), which does not exist) -- reclaiming the slot" >&2
@@ -149,13 +155,9 @@ AgentsToolsVscodeFolderLinks(){
 			fi
 		elif [ "$linkSlot" -ef "$linkTarget" ] ; then
 			linkKept="$linkKept." ; continue
-		elif [ -L "$linkSlot" ] ; then
-			echo "🙋 WARNING: $MDSC_CMD --$linkContext: $linkSlot is a symlink to $( readlink "$linkSlot" ), not to $linkTarget -- will not overwrite" >&2
-			continue
-		fi
-		if [ -e "$linkSlot" ] ; then
-			echo "🙋 WARNING: $MDSC_CMD --$linkContext: real content at $linkSlot, will not overwrite" >&2
-			continue
+		elif [ -L "$linkSlot" ] || [ -e "$linkSlot" ] ; then
+			rm -rf -- "$linkSlot" || { echo "⛔ ERROR: $MDSC_CMD --$linkContext: failed to remove $linkSlot" >&2 ; linkHadError="true" ; continue ; }
+			echo "# $MDSC_CMD --$linkContext: removed: $linkSlot" >&2
 		fi
 		if ! { mkdir -p "${linkSlot%/*}" && ln -s "$linkTarget" "$linkSlot" ; } ; then
 			echo "⛔ ERROR: $MDSC_CMD --$linkContext: failed to create symlink: $linkSlot" >&2
@@ -354,10 +356,17 @@ case "$1" in
 				ownedMembers="${ownedMembers}${memberName} ${memberActual}"$'\n'
 				continue
 			fi
-			if [ -e "$memberTarget" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: real content at $memberTarget, will not overwrite (bundle already has $memberBundled)" >&2
-				errorMembers="${errorMembers}${memberName} " ; hadError="true"
+			if [ "$memberTarget" -ef "$memberBundled" ] ; then
+				ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n'
 				continue
+			elif [ -e "$memberTarget" ] ; then
+				[ "$scope" = "workspace" ] || { echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: real content at $memberTarget, left untouched (outside the workspace)" >&2 ; continue ; }
+				rm -rf -- "$memberTarget" || {
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove $memberTarget" >&2
+					errorMembers="${errorMembers}${memberName} " ; hadError="true"
+					continue
+				}
+				echo "# $MDSC_CMD --install-skillset-symlinks: removed: $memberTarget" >&2
 			fi
 			if ! ln -s "$memberBundled" "$memberTarget" ; then
 				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $memberTarget" >&2
@@ -466,10 +475,17 @@ case "$1" in
 				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n'
 				continue
 			fi
-			if [ -e "$dcSlot" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: real content at $dcSlot, won't overwrite (declared source is $dcLinkTarget)" >&2
-				errorMembers="${errorMembers}${dcMember} " ; hadError="true"
+			if [ "$dcSlot" -ef "$dcLinkTarget" ] ; then
+				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n'
 				continue
+			elif [ -e "$dcSlot" ] ; then
+				[ "$scope" = "workspace" ] || { echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: real content at $dcSlot, left untouched (outside the workspace)" >&2 ; continue ; }
+				rm -rf -- "$dcSlot" || {
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove $dcSlot" >&2
+					errorMembers="${errorMembers}${dcMember} " ; hadError="true"
+					continue
+				}
+				echo "# $MDSC_CMD --install-skillset-symlinks: removed: $dcSlot" >&2
 			fi
 			if ! ln -s "$dcLinkTarget" "$dcSlot" ; then
 				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $dcSlot" >&2
@@ -524,10 +540,16 @@ case "$1" in
 					ownedMembers="${ownedMembers}${rfName} ${rfActual}"$'\n'
 					continue
 				fi
-				if [ -e "$rfTarget" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: real content at $rfTarget, will not overwrite (bundle already has $rfBundled)" >&2
-					errorMembers="${errorMembers}${rfName} " ; hadError="true"
+				if [ "$rfTarget" -ef "$rfBundled" ] ; then
+					ownedMembers="${ownedMembers}${rfName} ${rfBundled}"$'\n'
 					continue
+				elif [ -e "$rfTarget" ] ; then
+					rm -rf -- "$rfTarget" || {
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove $rfTarget" >&2
+						errorMembers="${errorMembers}${rfName} " ; hadError="true"
+						continue
+					}
+					echo "# $MDSC_CMD --install-skillset-symlinks: removed: $rfTarget" >&2
 				fi
 				if ! ln -s "$rfBundled" "$rfTarget" ; then
 					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to create symlink: $rfTarget" >&2
@@ -555,7 +577,11 @@ case "$1" in
 		done
 
 		if [ "$regLocked" = "true" ] ; then
-			[ -f "$registryFile" ] || : > "$registryFile"
+			## Every command that could abort while the lock is held is tested, so each one ends at the one release below.
+			[ -f "$registryFile" ] || : > "$registryFile" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: cannot create registry: $registryFile" >&2
+				hadError="true"
+			}
 
 			local regEntry regName regResolved regType regRel regLine regTmp
 			while IFS= read -r regEntry ; do
@@ -642,7 +668,12 @@ case "$1" in
 				if awk -F: -v m="$regName" -v w="$workspaceName" '$1 == m && $2 == w { hit = 1; } END { exit !hit; }' "$registryFile" 2>/dev/null ; then
 					regTmp="$registryFile.tmp.$$"
 					if awk -F: -v m="$regName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$regTmp" ; then
-						printf '%s\n' "$regLine" >> "$regTmp"
+						printf '%s\n' "$regLine" >> "$regTmp" || {
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed for $regLine" >&2
+							rm -f "$regTmp" 2>/dev/null || true
+							hadError="true"
+							continue
+						}
 						if ! mv -f "$regTmp" "$registryFile" ; then
 							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed for $regLine" >&2
 							rm -f "$regTmp" 2>/dev/null || true
@@ -656,7 +687,10 @@ case "$1" in
 						continue
 					fi
 				else
-					printf '%s\n' "$regLine" >> "$registryFile"
+					printf '%s\n' "$regLine" >> "$registryFile" || {
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry append failed for $regLine" >&2
+						hadError="true"
+					}
 				fi
 			done <<< "$ownedMembers"
 
@@ -673,7 +707,10 @@ case "$1" in
 							printf "%s\t%s\t%s\n", $1, $3, rest
 						}
 					' "$registryFile"
-				)"
+				)" || {
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while listing $workspaceName's entries -- removing NOTHING" >&2
+					rcOwned="" ; hadError="true"
+				}
 				while IFS=$'\t' read -r rcName rcType rcRel ; do
 					[ -n "$rcName" ] || continue
 					if printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$rcName" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
@@ -1032,6 +1069,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot create $HOME/.claude/skills" >&2
 			set +e ; return 1
 		}
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientToolPolicy.include"
 		local regLock="$permissionsRegistry.lock" regWait=0 regLocked="false"
 		while [ "$regWait" -lt 10 ] ; do
 			if mkdir "$regLock" 2>/dev/null ; then regLocked="true" ; break ; fi
@@ -1046,7 +1085,7 @@ case "$1" in
 		local grantsFile="$MMDAPP/.local/temp/mdat-claude-permissions-grants.$$"
 		(
 			## The trap is this subshell's own, so it can never disarm the caller's. The path is
-			## baked in: an `exit` here drops the function's locals first (bash 3.2, sourced or eval'd).
+			## baked in: leaving this subshell early drops the function's locals first (bash 3.2, run through eval).
 			trap "rmdir $( printf '%q' "$regLock" ) 2>/dev/null || true" EXIT
 			mkdir -p "$MMDAPP/.local/temp" || exit 1
 			[ -f "$permissionsRegistry" ] || : > "$permissionsRegistry" || exit 1
@@ -1110,10 +1149,7 @@ case "$1" in
 				grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
 				if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
 			}' "$permissionsRegistry" > "$grantsFile"
-		) || { set +e ; return 1 ; }
-
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientToolPolicy.include"
+		) || { rm -f "$grantsFile" "$grantsFile.prev" ; set +e ; return 1 ; }
 
 		local settingsTmp="$settingsFile.tmp.$$"
 
@@ -1144,9 +1180,12 @@ case "$1" in
 			grep -c '' "$memberPathsFile" || true
 		)" || {
 			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions merge failed, $settingsFile left untouched" >&2
-			rm -f "$settingsTmp"
+			rm -f "$settingsTmp" "$grantsFile" "$grantsFile.prev"
 			set +e ; return 1
 		}
+
+		## Read only by the merge above, so they go as soon as it has run.
+		rm -f "$grantsFile" "$grantsFile.prev"
 
 		local settingsState="installed"
 		if cmp -s "$settingsTmp" "$settingsFile" ; then
@@ -1281,10 +1320,15 @@ case "$1" in
 		## root -- so a workspace `.claude` no folder carries never loads, and the
 		## deny rules and hooks above are silently not in force. A relative
 		## symlink keeps the one generated `.claude` the single source of truth.
-		local nsListed nsRoot nsLink nsActual nsDir
+		local nsListed="" nsRoot nsLink nsDir nsWorkspaceReal
 		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
 		Require DistroSourceTools || :
-		nsListed="$( Distro DistroSourceTools --list-namespace-roots 2>/dev/null | tr '\n' ' ' )"
+		if [ "$workspace" = "$MMDAPP" ] ; then
+			nsListed="$( Distro DistroSourceTools --list-namespace-roots 2>/dev/null | tr '\n' ' ' )"
+		elif [ -x "$workspace/DistroSourceConsole.sh" ] ; then
+			nsListed="$( echo 'Distro DistroSourceTools --list-namespace-roots' | MMDAPP="$workspace" "$workspace/DistroSourceConsole.sh" --non-interactive 2>/dev/null | tr '\n' ' ' )"
+		fi
+		nsWorkspaceReal="$( cd -P "$workspace" && pwd -P )"
 		if [ -z "$nsListed" ] ; then
 			## Same trust rule the member scan above follows: an unreadable or empty
 			## list is never read as "every namespace disappeared", so nothing goes.
@@ -1292,22 +1336,26 @@ case "$1" in
 		else
 			for nsRoot in $nsListed ; do
 				nsLink="$workspace/source/$nsRoot/.claude"
+				if [ -d "$workspace/source/$nsRoot" ] ; then
+					case "$( cd -P "$workspace/source/$nsRoot" && pwd -P )/" in
+						"$nsWorkspaceReal"/*) ;;
+						*) echo "🙋 WARNING: $MDSC_CMD --install-workspace-restrictions: source/$nsRoot lies outside the workspace, left untouched" >&2 ; continue ;;
+					esac
+				fi
 				if [ -L "$nsLink" ] && [ ! -e "$nsLink" ] ; then
 					echo "# $MDSC_CMD --install-workspace-restrictions: $nsLink is a dangling symlink (points at $( readlink "$nsLink" ), which does not exist) -- reclaiming the slot" >&2
 					rm -f "$nsLink" || {
 						echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: failed to remove dangling symlink: $nsLink" >&2
 						hooksFailed=1 ; continue
 					}
-				elif [ -L "$nsLink" ] ; then
-					nsActual="$( readlink "$nsLink" )"
-					[ "$nsActual" = "../../.claude" ] || {
-						echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $nsLink points at $nsActual, not at the workspace .claude -- left exactly as it is" >&2
-						hooksFailed=1
-					}
+				elif [ "$nsLink" -ef "$workspace/.claude" ] ; then
 					continue
-				elif [ -e "$nsLink" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: real content at $nsLink, will not replace it -- a namespace .claude is a clone of $claudeDir, never content of its own" >&2
-					hooksFailed=1 ; continue
+				elif [ -L "$nsLink" ] || [ -e "$nsLink" ] ; then
+					rm -rf -- "$nsLink" || {
+						echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: failed to remove $nsLink" >&2
+						hooksFailed=1 ; continue
+					}
+					echo "# $MDSC_CMD --install-workspace-restrictions: removed: $nsLink" >&2
 				fi
 				ln -s ../../.claude "$nsLink" || {
 					echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: failed to create symlink: $nsLink -> ../../.claude" >&2
@@ -2042,6 +2090,19 @@ case "$1" in
 			fi
 			failed=1
 		else
+			local mcpTarget mcpFile
+			for mcpTarget in "$workspace/.local/agents/mcp.servers.json:mcpServers" "$vscodeMcpDir/mcp.json:servers" "$workspace/.mcp.json:mcpServers" ; do
+				mcpFile="${mcpTarget%%:*}"
+				[ -f "$mcpFile" ] || continue
+				if [ -r "$mcpFile" ] ; then
+					case "$( MYX_MCPVERIFY_TOPKEY="${mcpTarget#*:}" MYX_MCPVERIFY_COMMAND="$serverScript" \
+						LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonVerify.awk" "$mcpFile" )" in
+						not-a-json-object|unparsable|"${mcpTarget#*:}-not-an-object") ;;
+						*) continue ;;
+					esac
+				fi
+				AgentsToolsInstallMoveAside "$workspace" "$mcpFile" install-vscode-integrations || { [ "$?" = "2" ] || failed=1 ; }
+			done
 			local homeSetup="$mcpRoot/bin/setup/agentMcp.Common"
 			if [ ! -x "$homeSetup" ] ; then
 				echo "⛔ ERROR: mcp-home not present/executable, ~/.claude.json local scope NOT registered: $homeSetup" >&2

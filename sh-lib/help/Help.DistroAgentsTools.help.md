@@ -3250,16 +3250,22 @@
 			`<workspace>/.claude` no folder carries is never loaded and the
 			deny rules and hooks above are simply not in force there. The
 			roots come from `DistroSourceTools.fn.sh
-			--list-namespace-roots`, the same source the workspace generator
-			itself uses, so the link set and the listed folders cannot drift
-			apart. Each namespace copy is a clone of the one generated
-			`<workspace>/.claude`, never content of its own.
+			--list-namespace-roots` of `<workspace>` itself (asked through
+			its own console when it is not the current workspace), the same
+			source the workspace generator itself uses, so the link set and
+			the listed folders cannot drift apart. Each namespace copy is a
+			clone of the one generated `<workspace>/.claude`, never content
+			of its own.
 			A root that is no longer listed has its clone removed, so a
 			de-registered namespace does not keep one; only this op's own
-			clone is ever removed, and real content or a symlink pointing
-			anywhere else is refused and left exactly as it is (reported,
-			and the run exits non-zero). A dangling clone is reclaimed and
-			relinked. An unreadable or empty root list creates and removes
+			clone is ever removed. Real content, or a symlink pointing
+			anywhere else, is moved aside into a fresh
+			`<workspace>/.local/.cleanup/mdat-install-workspace-restrictions.*`
+			directory and the clone is linked in its place; only
+			`--owner-cleanup-purge` empties `.local/.cleanup`. A path
+			whose real location is outside `<workspace>` is left untouched,
+			with a warning. A dangling clone is reclaimed and relinked.
+			An unreadable or empty root list creates and removes
 			NOTHING -- never read as "every namespace disappeared", the
 			same trust rule the declared-member scan follows.
 			A run that changes nothing (already current) is reported as
@@ -3323,9 +3329,14 @@
 			symlink pointing at a different target is also kept as-is and
 			registered at the target it actually points to, not the one it
 			would have been given; a dangling symlink is reclaimed and
-			relinked. Only real (non-symlink) content at the target, or a
-			link-creation failure, is an error — nothing is ever
-			overwritten.
+			relinked. Real (non-symlink) content at a target inside the
+			workspace is moved aside into a fresh
+			`<workspace>/.local/.cleanup/mdat-install-skillset-symlinks.*`
+			directory and the link is made in its place; only
+			`--owner-cleanup-purge` empties `.local/.cleanup`. Real content
+			at a target outside the workspace (the user-home fan) is left
+			untouched, with a warning. Only a failed write (reclaim, move
+			or link) is an error.
 			With no `--scope`, default is workspace; if the resolved workspace
 			is not a set-up myx.distro workspace and scope was not explicitly
 			provided, falls back to user-home. If `--scope workspace` was
