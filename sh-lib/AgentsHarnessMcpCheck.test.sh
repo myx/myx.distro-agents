@@ -174,7 +174,7 @@ rigAssert "an unchanged set is reported as no change"       "$( rigHolds "$rigSc
 ## -- message text may carry the same key, escaped, earlier in the body.
 rigToolsOf(){ ## request file
 	LC_ALL=C awk '
-		{ body = body $0 }
+		{ body = body $0 ; }
 		END {
 			endPos = index( body, "],\"tool_choice\":" )
 			if ( !endPos ) exit
@@ -216,6 +216,43 @@ rigAssert "two rounds were requested"                       "$rigRoundCount" 2
 rigAssert "the first round declares no MCP tool"            "$( rigHolds "$rigScenarioDir/req.1" 'mcp__rigmcp__ping' )" no
 rigAssert "the next round declares the new registration"    "$( rigHolds "$rigScenarioDir/req.2" 'RIG-DESC-MARKER' )" yes
 rigVerdict "a registration added mid-run -- declared from the next round"
+
+## The unavailable note follows the enumeration, both ways. The server dying after the
+## first round is told to the model in the next request; one coming back is told too.
+rigStart unavailable-mid-run
+rigMcpStream "$rigScenarioDir/res.1" 20
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+RIG_AFTER_ROUND_1=": > '$rigScenarioDir/mcp.dead'" rigRun 0
+rigAssert "the run ends normally"                           "$rigRunStatus" 0
+rigAssert "the first request says nothing is unavailable"   "$( rigHolds "$rigScenarioDir/req.1" 'is unavailable' )" no
+rigAssert "the next request tells the model it is"          "$( rigHolds "$rigScenarioDir/req.2" 'have changed since you were last told. As of now' )" yes
+rigVerdict "a server lost mid-run -- the model is told in the next round"
+
+rigStart available-again-mid-run
+: > "$rigScenarioDir/mcp.dead"
+rigMcpStream "$rigScenarioDir/res.1" 20
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+RIG_AFTER_ROUND_1="rm -f '$rigScenarioDir/mcp.dead'" rigRun 0
+rigAssert "the run ends normally"                           "$rigRunStatus" 0
+rigAssert "the first request says the server is unavailable" "$( rigHolds "$rigScenarioDir/req.1" 'is unavailable' )" yes
+rigAssert "the next request declares it again"              "$( rigHolds "$rigScenarioDir/req.2" 'RIG-DESC-MARKER' )" yes
+rigAssert "and tells the model the earlier sentence no longer holds" "$( rigHolds "$rigScenarioDir/req.2" 'is now available' )" yes
+rigVerdict "a server back mid-run -- declared and told in the next round"
+
+## A failure inside a mid-run enumeration is stated and the run carries on. The rig
+## makes one by turning the reply file enumeration writes into a directory; the first
+## round calls a built-in tool, so nothing but the enumeration writes that file.
+rigStart enumeration-fails-mid-run
+printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-glob-call","type":"function","function":{"name":"Glob","arguments":"{\\"pattern\\":\\"*\\"}"}}]}}]}\n' > "$rigScenarioDir/res.1"
+printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\ndata: [DONE]\n' >> "$rigScenarioDir/res.1"
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+RIG_AFTER_ROUND_1='rigReq="${RIG_REQUEST_FILE%/*}/mcp.reply" ; rm -f "$rigReq" ; mkdir "$rigReq"' rigRun 0
+rigAssert "the run ends normally"                           "$rigRunStatus" 0
+rigAssert "two rounds were requested"                       "$rigRoundCount" 2
+rigAssert "the failure's own reason is shown"               "$( rigHolds "$rigScenarioDir/err" 'Is a directory' )" yes
+rigAssert "the server is degraded, saying why"              "$( rigHolds "$rigScenarioDir/err" 'answer could not be written' )" yes
+rigAssert "and the model is told"                           "$( rigHolds "$rigScenarioDir/req.2" 'answer could not be written' )" yes
+rigVerdict "an enumeration failing mid-run -- stated, and the run carries on"
 
 ## The negative control, and the reason a green run above cannot be a vacuous one: the
 ## same canned rounds with no server named and no mcp.servers.json to default to, where

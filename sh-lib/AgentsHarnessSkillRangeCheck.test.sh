@@ -80,6 +80,24 @@ rigAssert "an offset that is not a line number is refused" \
 	"$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.armed.md","offset":0}' )" \
 	"ERROR: offset must be a whole line number counting from 1, got: 0"
 
+echo "-- a served whole-file read past the cap stays under the MCP client's limit --"
+## 1000 lines of 90 bytes: 90000 bytes, past the served cap and under the model-run one.
+LC_ALL=C awk 'BEGIN { for ( lineIndex = 1 ; lineIndex <= 1000 ; lineIndex++ ) printf "%089d\n", lineIndex ; }' > "$rigTmp/owners/rig-keeper/rig-keeper.big.md"
+rigBigOut="$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.big.md"}' )"
+rigAssert "it returns at most 48000 bytes" \
+	"$( [ "$( printf '%s' "$rigBigOut" | wc -c | tr -d ' ' )" -le 48200 ] && printf under || printf over )" under
+rigAssert "it names the offset to continue from" \
+	"$( printf '%s\n' "$rigBigOut" | LC_ALL=C sed -n 's/.*; continue with offset \([0123456789]*\) \.\.\./\1/p' )" 534
+rigAssert "that offset reads on from the next line" \
+	"$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.big.md","offset":534,"limit":1}' | head -1 )" \
+	"$( printf '%089d' 534 )"
+## One line past the cap is named as unreturnable, never offered back as its own next offset.
+LC_ALL=C awk 'BEGIN { printf "short\n%049000d\nafter\n", 0 ; }' > "$rigTmp/owners/rig-keeper/rig-keeper.big.md"
+rigAssert "a line past the cap is named, not offered back" \
+	"$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.big.md","offset":2}' | head -1 )" \
+	"... line 2 alone is over the 48000-byte cap of this reader, so it cannot be returned here ..."
+rm -f "$rigTmp/owners/rig-keeper/rig-keeper.big.md"
+
 echo "-- a listing names what the file argument takes --"
 rigAssert "list prints names relative to the member folder" \
 	"$( rigSkill '{"name":"rig-keeper","list":true}' | LC_ALL=C sort | tr '\n' ' ' )" \

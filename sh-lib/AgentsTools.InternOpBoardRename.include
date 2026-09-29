@@ -131,10 +131,19 @@ case "$1" in
 		for state in backlog pending running blocked parked processed archived retained ; do
 			oldFile="$boardRoot/$state/$oldName"
 			if [ -f "$oldFile" ] ; then
+				## The move op below sees a same-state edit of the new name, so it commits
+				## that path only: the old name's removal is committed here, and only when
+				## git knew the old name -- asked before the `mv` removes it.
+				local oldTracked="false"
+				[ -z "$( git -C "$MDAT_DATA_ROOT" ls-files -- "$oldFile" 2>/dev/null )" ] || oldTracked="true"
 				mv "$oldFile" "$boardRoot/$state/$newName"
 				if ! DistroAgentsTools --intern-op-board-upsert-move-edit "$state" "$newName" --from-state:"$state" --header:upsert:supersedes:"$oldName (renamed)" --context --intern-op-board-rename ; then
 					echo "$MDSC_CMD: board-rename: ⛔ ERROR: renamed $oldFile -> $newName but failed to stamp supersedes" >&2
 					set +e ; return 1
+				fi
+				if [ "$oldTracked" = "true" ] ; then
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+					AgentsToolsTeamDataCommitPaths "renamed: $oldName -> $newName, removal of the old name" "$oldFile"
 				fi
 				renamed="true"
 				break

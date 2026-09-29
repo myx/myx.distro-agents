@@ -19,7 +19,7 @@ Doesn't do: collection-only (`magic-team.interview.routine`'s job), idea-generat
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: run `magic-team.process-inbox.routine <executor>` — inline execution (own identity). Items asking for a decision (an `inquiry-*`, a `note-*` handed off unresolved) — candidates for the decision **frame-the-decision** frames, and context for it. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 2. **frame-the-decision**: state plainly, up front, what needs deciding by the end of this session — a discuss session with no clear decision target risks drifting into either an interview (pure collection) or a brainstorm (pure idea generation) without anyone noticing the shift. **One topic, one thread — fork, don't absorb**: same threading discipline as `magic-team.interview.routine`'s **open-channel-and-create-item** — if an unrelated topic surfaces mid-discussion, fork it into its own new Slack thread immediately rather than letting the current thread drift off its framed decision.

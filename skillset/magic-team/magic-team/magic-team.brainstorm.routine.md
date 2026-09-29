@@ -19,7 +19,7 @@ Doesn't do: reach a decision (`magic-team.discuss.routine`'s job), capture one p
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: run `magic-team.process-inbox.routine <executor>` — inline execution (own identity). `idea-*`/`note-*` notes parked there from earlier sessions, so this brainstorm generates from them rather than re-inventing them. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 2. **set-topic-loosely**: state the area being brainstormed, but keep it open — a brainstorm with an overly narrow framing risks just being a discussion in disguise. **Any example given when the topic is set is a floor, not a ceiling** — a starting minimum to extend from, never a closed boundary on what counts, unless an explicit ceiling was stated (a hard number, an explicit "no more than X").

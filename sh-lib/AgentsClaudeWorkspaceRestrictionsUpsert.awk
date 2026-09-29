@@ -23,7 +23,9 @@
 #   MYX_WSRESTRICT_DENY_ADD_JSON      -- fixed permissions.deny addition, JSON
 #                                        string array (literal)
 #   MYX_WSRESTRICT_HOOKS_FILE         -- path to a plain text file, one hook
-#                                        descriptor per line: `<dedupe-key>\t<PreToolUse-array-element-json>`.
+#                                        descriptor per line: `<dedupe-key>\t<PreToolUse-array-element-json>`,
+#                                        or `...\t<event>` to add the element under
+#                                        that hooks event instead of PreToolUse.
 #                                        <dedupe-key> is a plain substring (not
 #                                        JSON) searched for within the CURRENT
 #                                        hooks.PreToolUse array's raw text --
@@ -362,6 +364,14 @@ BEGIN {
 		if (tabAt == 0) fail("hooks-descriptor-malformed")
 		hookKey[hooksCount] = substr(hooksLine, 1, tabAt - 1)
 		hookJson[hooksCount] = substr(hooksLine, tabAt + 1)
+		## An optional third field names the hooks event; without it the entry is PreToolUse.
+		hookEvent[hooksCount] = "PreToolUse"
+		tabAt = index(hookJson[hooksCount], "\t")
+		if (tabAt > 0) {
+			hookEvent[hooksCount] = substr(hookJson[hooksCount], tabAt + 1)
+			hookJson[hooksCount] = substr(hookJson[hooksCount], 1, tabAt - 1)
+			if (hookEvent[hooksCount] !~ /^[A-Za-z]+$/) fail("hooks-descriptor-malformed")
+		}
 		hooksCount++
 	}
 	close(hooksFile)
@@ -530,7 +540,11 @@ END {
 		n = length(s); p = 1; skipws(); rootStart = p
 		if (!findKeyInObjectAt(rootStart, "hooks")) fail("unparsable")
 		hooksStart = VALUE_START
-		if (!findKeyInObjectAt(hooksStart, "PreToolUse") || !FOUND) fail("unparsable")
+		s = ensureKey(hooksStart, hookEvent[i], "[]")
+		n = length(s); p = 1; skipws(); rootStart = p
+		if (!findKeyInObjectAt(rootStart, "hooks")) fail("unparsable")
+		hooksStart = VALUE_START
+		if (!findKeyInObjectAt(hooksStart, hookEvent[i]) || !FOUND) fail("unparsable")
 		preToolUseStart = VALUE_START
 		if (substr(s, preToolUseStart, 1) != "[") fail("pretooluse-not-an-array")
 

@@ -279,6 +279,10 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: <path> required" >&2
 			set +e ; return 1
 		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: takes exactly one <path>, and more followed it: $*" >&2
+			set +e ; return 1
+		fi
 		case "$wsPath" in
 			/*)
 			;;
@@ -316,6 +320,10 @@ case "$1" in
 		shift || true
 		if [ -z "$wsPath" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-forget: <path> required" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-forget: takes exactly one <path>, and more followed it: $*" >&2
 			set +e ; return 1
 		fi
 		[ "$wsPath" = "/" ] || wsPath="${wsPath%/}"
@@ -379,7 +387,7 @@ case "$1" in
 
 		local storeFailed=0
 		local storePerm
-		storePerm="$( stat -f '%Lp' "$storeDir" 2>/dev/null || stat -c '%a' "$storeDir" 2>/dev/null )"
+		storePerm="$( stat -c '%a' "$storeDir" 2>/dev/null || stat -f '%Lp' "$storeDir" 2>/dev/null )"
 		if [ "$storePerm" = "770" ] ; then
 			echo "OK   770  $storeDir"
 		else
@@ -390,7 +398,7 @@ case "$1" in
 		local storeFile
 		for storeFile in "$storeDir"/*.agent.env ; do
 			[ -e "$storeFile" ] || continue
-			storePerm="$( stat -f '%Lp' "$storeFile" 2>/dev/null || stat -c '%a' "$storeFile" 2>/dev/null )"
+			storePerm="$( stat -c '%a' "$storeFile" 2>/dev/null || stat -f '%Lp' "$storeFile" 2>/dev/null )"
 			if [ "$storePerm" = "660" ] ; then
 				echo "OK   660  $storeFile"
 			else
@@ -459,11 +467,34 @@ case "$1" in
 
 		DistroAgentsTools --agents-config-option magic-coordinator --delete "$probeKey" >/dev/null
 
+		## Each file this package seeds or publishes, at the mode it claims for it. A file
+		## that is absent is stated and not asserted: there is nothing to hold a mode.
+		local modeWant modePath modeGot
+		for modeWant in \
+			"600:$HOME/.claude.json" \
+			"644:$MMDAPP/.local/agents/mcp.servers.json" \
+			"644:$MMDAPP/.vscode/mcp.json" \
+			"644:$MMDAPP/.mcp.json" \
+		; do
+			modePath="${modeWant#*:}" ; modeWant="${modeWant%%:*}"
+			if [ ! -e "$modePath" ] ; then
+				echo "# $MDSC_CMD --owner-credential-store-self-test: $modePath is absent, so its mode 0$modeWant is not asserted" >&2
+				continue
+			fi
+			modeGot="$( stat -c '%a' "$modePath" 2>/dev/null || stat -f '%Lp' "$modePath" 2>/dev/null )"
+			if [ "$modeGot" = "$modeWant" ] ; then
+				echo "# $MDSC_CMD --owner-credential-store-self-test: $modePath is 0$modeWant: OK" >&2
+			else
+				echo "⛔ ERROR: $MDSC_CMD --owner-credential-store-self-test: $modePath is 0${modeGot:-<unreadable>}, and this package claims 0$modeWant for it" >&2
+				probeFailed=1
+			fi
+		done
+
 		if [ "$probeFailed" = "1" ] ; then
 			echo "⛔ $MDSC_CMD --owner-credential-store-self-test: FAILED" >&2
 			set +e ; return 1
 		fi
-		echo "# $MDSC_CMD --owner-credential-store-self-test: PASSED -- permission hardening holds under umask 022" >&2
+		echo "# $MDSC_CMD --owner-credential-store-self-test: PASSED -- permission hardening holds under umask 022, and every present seeded or published file holds its mode" >&2
 		return 0
 	;;
 
@@ -716,6 +747,8 @@ case "$1" in
 					--allow TEAM_DATA_DIRECTORY
 					--allow TEAM_DATA_GIT_REMOTE
 					--allow TEAM_DATA_BRANCH
+					--allow TEAM_DATA_GIT_USER_NAME
+					--allow TEAM_DATA_GIT_USER_EMAIL
 				)
 			;;
 		esac
@@ -806,6 +839,15 @@ case "$1" in
 						;;
 					esac
 
+					## storage: the store is made a repository -- cloned when a remote is set, else
+					## initialised -- and the configured author identity is written into it.
+					if [ "$setupDomain" = "storage" ] ; then
+						( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataPrepareStore ) || {
+							echo "⛔ ERROR: $MDSC_CMD --owner-setup-storage --apply: stopped at the store step -- the settings above are stored, the store repository is not ready" >&2
+							exit 1
+						}
+					fi
+
 					## The apply's own verdict on its own work, in place of telling
 					## the reader to re-run the diagnosis himself. Its status is
 					## this operation's status: a setup that wrote everything and
@@ -864,6 +906,16 @@ case "$1" in
 				DistroAgentsTools --intern-op-check-configs magic-team \
 					--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \
 					--context "--owner-setup-storage:$setupCtxTag" || true
+				## A repository store needs an author for the commits the tooling makes.
+				if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -e "$MDAT_DATA_ROOT/.git" ] ; then
+					if [ -z "$( git -C "$MDAT_DATA_ROOT" config user.name 2>/dev/null )" ] || [ -z "$( git -C "$MDAT_DATA_ROOT" config user.email 2>/dev/null )" ] ; then
+						echo "TEAM_DATA_GIT_IDENTITY: FAIL"
+						echo "  fail: git has no author identity for $MDAT_DATA_ROOT, so the tooling's team-data commits fail -- set TEAM_DATA_GIT_USER_NAME and TEAM_DATA_GIT_USER_EMAIL and run --owner-setup-storage --apply"
+						setupRc=1
+					elif [ "$setupOperation" = "--check" ] ; then
+						echo "TEAM_DATA_GIT_IDENTITY: OK"
+					fi
+				fi
 			;;
 			## The scaleway arm's presence and credential halves. The harness check
 			## pass stays in that arm alone, which already runs this leg's own check.
@@ -1059,6 +1111,8 @@ case "$1" in
 						"$setupLibDir/AgentsProgressLineSafe.awk" \
 						"$setupLibDir/AgentsHarnessJsonField.awk" \
 						"$setupLibDir/AgentsHarnessJsonSlice.awk" \
+						"$setupLibDir/AgentsHarnessToolSearch.awk" \
+						"$setupLibDir/AgentsHarnessMcpMirror.awk" \
 						"$setupLibDir/AgentsMcpJsonEscape.awk" \
 						"$setupLibDir/AgentsHarnessSelfCheck.test.awk" \
 						"$setupLibDir/AgentsHarnessAwkAxiom.test.awk" 2>&1 )" || setupAxiomRc=$?
@@ -1284,6 +1338,13 @@ case "$1" in
 					setupServedIdentityOut="$( bash "$setupLibDir/AgentsHarnessServedIdentityCheck.test.sh" 2>&1 )" || setupServedIdentityRc=$?
 					printf '%s\n' "$setupServedIdentityOut"
 					[ "$setupServedIdentityRc" = "0" ] || setupRc=1
+
+					## The session thread a spawn opens in magic-team and hands to the session,
+					## and a failed post not blocking the spawn. Offline, its own fixtures.
+					local setupSessionThreadOut="" setupSessionThreadRc=0
+					setupSessionThreadOut="$( bash "$setupLibDir/AgentsSpawnSessionThreadCheck.test.sh" 2>&1 )" || setupSessionThreadRc=$?
+					printf '%s\n' "$setupSessionThreadOut"
+					[ "$setupSessionThreadRc" = "0" ] || setupRc=1
 
 					## The --owner-setup-* settings themselves: an empty flag removes a
 					## setting as a stdin KEY= does, a required key is still refused, and

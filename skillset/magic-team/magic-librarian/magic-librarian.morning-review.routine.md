@@ -19,7 +19,7 @@ Doesn't do: the deep team self-sufficiency audit `magic-librarian`'s own `magic-
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **session-start**: execute `magic-team.coworking.routine`'s Steps — declares itself coworking-like/structured-multi-member (`magic-coordinator` + `magic-librarian` jointly), invokes `magic-team.process-reflections.routine` for this session's own project/workspace, processes own inbox, and posts an opening broadcast to `slack-magic-team`/Trello.
 2. **read-board-shape**: `board-running`/`board-blocked`/`board-parked`/`board-processed`/`board-archived`/`board-retained`, plus the `heartbeat-state-note`, for comms-platform state not yet reflected there. The `heartbeat-state-note` read is executed by `magic-coordinator` — this routine's joint executor present in the session — from its own tooling; `magic-librarian` reads the result, it does not make the call.
@@ -55,7 +55,7 @@ All statements apply at the same time, always. These rules override a participan
 - This routine is an extension of `magic-team.coworking.routine` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - Never inspect the credential store directly — only through `DistroAgentsTools.fn.sh`'s own config resolution.
-- One documented mechanism failing once is a stop-and-ask signal, not a puzzle to solve alone.
+- One documented mechanism failing once is an escalation signal, not a puzzle to solve alone.
 - A state-shape drift is found (for example, two states silently collapsed into one): treat this as higher priority than ordinary content staleness — fix the model gap itself, not just the one instance of it, since a model-level gap likely produced more than one misclassified item.
 - A cross-file inconsistency is found, where it's unclear which file is actually correct: do not silently pick a winner — surface the conflict and resolve it explicitly.
 - A `blocked/`/`parked/` item's condition looks like it may have changed, but isn't certain: a light-touch re-check is enough here — flag it for a real decision at the next `magic-team.grooming.routine` pass, rather than resolving the transition unilaterally in this session.

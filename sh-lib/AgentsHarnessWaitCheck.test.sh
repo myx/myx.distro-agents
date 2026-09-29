@@ -280,6 +280,10 @@ rigAssert "it is not dressed as an error"               "$( rigHolds "$rigOpOut"
 rigAssert "stderr carries no diagnostic either"         "$( rigHolds "$rigOpErr" '⛔ ERROR' )" no
 rigAssert "it says in words that this is not a fault"   "$( rigHolds "$rigOpOut" 'COMPLETE, SUCCESSFUL wait' )" yes
 rigAssert "it really waited the bound out"              "$( rigAtLeast "$( rigWaited "$rigOpOut" )" 2 )" "at-least-2"
+rigAssert "it says the sources were read"               "$( rigHolds "$rigOpOut" 'those sources were read' )" yes
+rigAssert "no never-read line when every source was read" "$( rigHolds "$rigOpOut" 'WAIT-NEVER-READ:' )" no
+rigAssert "it does not say none could be read"          "$( rigHolds "$rigOpOut" 'None of the sources could be read' )" no
+rigAssert "it names no source as never read"            "$( rigHolds "$rigOpOut" 'these sources could not be read at all' )" no
 rigAssert "no request left this box"                    "$( rigCurlCalls )" 0
 rigVerdict "the bound expires with nothing new -- TIMEOUT, rc 0, and never an error"
 
@@ -333,6 +337,23 @@ rigAssert "alone: the wait completes"                   "$( rigMarker "$rigOpOut
 rigAssert "alone: it returns 0"                         "$rigOpStatus" 0
 rigAssert "alone: the unreadable source is named"       "$( rigHolds "$rigOpOut" '[file:not-an-absolute-path]' )" yes
 rigAssert "alone: its silence is not read as quiet"     "$( rigHolds "$rigOpOut" 'Do not read their silence as quiet' )" yes
+rigAssert "alone: it says none could be read"           "$( rigHolds "$rigOpOut" 'None of the sources could be read' )" yes
+rigAssert "alone: the never-read line names it"         "$( rigHolds "$rigOpOut" 'WAIT-NEVER-READ: [file:not-an-absolute-path]' )" yes
+rigAssert "alone: it claims no read at all"             "$( rigHolds "$rigOpOut" 'were read' )" no
+rigAssert "alone: it claims no successful wait"         "$( rigHolds "$rigOpOut" 'COMPLETE, SUCCESSFUL' )" no
+
+## One unreadable source beside one readable source that stays empty: the text
+## names which was read and which never was.
+rigDropM="$rigTmp/dropM.txt"
+: > "$rigDropM"
+rigOp failing-source-mixed "$rigMember" --wait-source "file:not-an-absolute-path" --wait-source "file:$rigDropM" --wait-timeout 2 --wait-poll-interval 1
+rigAssert "mixed: the wait completes"                   "$( rigMarker "$rigOpOut" )" "WAIT-RESULT: TIMEOUT"
+rigAssert "mixed: it returns 0"                         "$rigOpStatus" 0
+rigAssert "mixed: the read source is named as read"     "$( rigHolds "$rigOpOut" "on the sources that were read: [file:$rigDropM]" )" yes
+rigAssert "mixed: the other is named as never read"     "$( rigHolds "$rigOpOut" 'nothing is known about them either way: [file:not-an-absolute-path]' )" yes
+rigAssert "mixed: it does not say none could be read"   "$( rigHolds "$rigOpOut" 'None of the sources could be read' )" no
+rigAssert "mixed: no blanket read claim"                "$( rigHolds "$rigOpOut" 'those sources were read' )" no
+rigAssert "mixed: the never-read line names only the unread one" "$( LC_ALL=C awk '/^WAIT-NEVER-READ: / { print ; }' "$rigOpOut" )" "WAIT-NEVER-READ: [file:not-an-absolute-path]"
 rigAssert "no request left this box"                    "$( rigCurlCalls )" 0
 rigVerdict "a source that cannot be read is named while the wait carries on over the rest"
 

@@ -27,7 +27,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Run the Security/CRA due-diligence pass, and the idle-task research feeding it, per this file's own `# Domain knowledge` → `Security/CRA` section.
 - Doesn't:
   - Run a standing idle-work menu that runs automatically every day — reporting posture, not a keeper.
-  - Self-approve and act on its own self-initiated findings in the same pass it found them — coverage gaps, testing infra discovered/clarified, a suggested test plan go to `magic-coordinator` as proposals for RICE-scoring/triage.
+  - Self-approve and act on its own self-initiated findings in the same pass it found them — coverage gaps, testing infra discovered/clarified, a suggested test plan go to `magic-coordinator` as proposals for RICE scoring/triage.
   - Message platforms (Trello/Slack/email) directly with findings/results — surfaces them via `magic-coordinator`'s communication-sweep instead.
   - Solely own security-by-design — light cross-check with `magic-architect`'s macro-design lens, not sole ownership in isolation.
 
@@ -49,7 +49,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - `magic-tester` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - A "no tests exist" claim surfaces: never take it at face value — verify by finding and reading the real test tree for that domain first (this skill's own founding reason to exist).
 - A testing question touches domain internals this skill doesn't independently carry: call on the relevant keeper/partner via the `post-inquiry` procedure rather than guessing.
-- A self-initiated finding is ready (coverage gap, testing infra discovered/clarified, a suggested test plan): propose it to `magic-coordinator` for RICE-scoring/triage via `--member-inbox-note-upsert` — never self-approve into action.
+- A self-initiated finding is ready (coverage gap, testing infra discovered/clarified, a suggested test plan): propose it to `magic-coordinator` for RICE scoring/triage via `--member-inbox-note-upsert` — never self-approve into action.
   - Exception: a specific, already-approved testing task dispatched directly — just do it; the propose/triage step is only for self-initiated findings.
   - Exception: a finding is bigger than a normal test-coverage gap — reads as a pattern change affecting how the whole team works, or something globally structural — skip ordinary RICE/triage entirely and flag it via the `post-inquiry` procedure for `magic-coordinator` to bring to the real user directly for explicit confirmation.
 - A security concern surfaces during any review: open an investigation subtask, then either escalate it or open a solution/implementation subtask — same shape used elsewhere in the team's docs, not a different one invented here; still routes through the propose/triage discipline above, no self-approving.
@@ -120,7 +120,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - Readback of this file's contents still matches all `verbatim-intents` of this file.
 - `magic-tester` finds a coverage gap on its own initiative and files it as a proposal to
-  `magic-coordinator` for RICE-scoring, rather than writing the missing test itself in the same pass.
+  `magic-coordinator` for RICE scoring, rather than writing the missing test itself in the same pass.
 
 ## Librarian Comments
 

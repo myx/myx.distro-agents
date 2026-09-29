@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.OwnerSetupOptionSpec.include -- the option catalogue of the
+## --owner-setup-<domain> family. Sourced, never run. Functions only.
+##
+## A reader of one option takes its scope from here rather than restating it:
+## optionSpec="$( AgentsToolsOwnerSetupOptionSpec KEY )", then "${optionSpec%%|*}".
+##
+
+## The catalogue: `scope|placeholder|secret|how-to-obtain`, one entry per option
+## any domain may declare. `secret` marks a value that never travels in argv.
+## THIS is the single definition of an option -- a domain names it and takes
+## these, rather than restating any of them.
+AgentsToolsOwnerSetupOptionSpec(){
+	case "$1" in
+		## No '|' inside a field: it is this line's own separator, so one in a
+		## placeholder splits the entry and every later field arrives shifted.
+		SPAWN_CLI_SERVICE)
+			printf '%s\n' 'magic-team|<cli-name>|plain|the agent CLI this workspace starts -- copilot, claude, claude-native, grok, grok-native or scaleway. A spawned agent runs non-interactively, where the console accepts only copilot, claude, claude-native, grok and scaleway.'
+		;;
+		CLIENT_ACCESS_ROOTS_EXTRA)
+			printf '%s\n' 'magic-team|<abs-path>[:<abs-path>...]|plain|extra directories a spawned agent may read and write, beyond the member and source roots the installer already grants. Absolute paths, colon-separated.'
+		;;
+		TEAM_DATA_DIRECTORY)
+			printf '%s\n' 'magic-coordinator|<abs-path>|plain|the directory holding the board and the inboxes. Left unset it is .local/agents/team-data-root inside this workspace; set it only to share team data between workspaces. Any path this account can write to; it is created on first use.'
+		;;
+		TEAM_DATA_GIT_REMOTE)
+			printf '%s\n' 'magic-team|<git-remote-url>|plain|the clone URL of a repository you own, which the team data is pushed to. An empty repository is fine.'
+		;;
+		## Changing this on a running rig DELETES and re-clones the team-data checkout on
+		## the next iteration: myx.common git/clonePull switches branches by removing the
+		## working tree, ahead of any conflict handling, so onConflict does not protect it.
+		## Correct for command data pulled from a remote, and surprising from a settings
+		## edit, which is why it is said here rather than at the call site.
+		TEAM_DATA_BRANCH)
+			printf '%s\n' 'magic-team|<branch-name>|plain|the branch of the team-data repository this workspace tracks. Left unset the loop tracks "main".'
+		;;
+		TEAM_DATA_GIT_USER_NAME)
+			printf '%s\n' 'magic-team|<name>|plain|the author name on the team-data commits the tooling makes, written into that repository only. Left unset, git resolves its own identity.'
+		;;
+		TEAM_DATA_GIT_USER_EMAIL)
+			printf '%s\n' 'magic-team|<email>|plain|the author email on the team-data commits the tooling makes, written into that repository only. Left unset, git resolves its own identity.'
+		;;
+		## The three below are the CLIs' OWN variable names, not keys coined here:
+		## each is the name its CLI already reads out of its environment, so what
+		## is stored and what the console exports are one string and no mapping
+		## between them can drift. claude's two are alternatives -- an API key or a
+		## subscription token -- so neither is ever required, and which one a
+		## machine uses is that machine's answer rather than this catalogue's.
+		ANTHROPIC_API_KEY)
+			printf '%s\n' 'magic-team|<sk-ant-...>|secret|claude reads this name itself. console.anthropic.com, API keys, Create key -- billed per use. Alternative to CLAUDE_CODE_OAUTH_TOKEN; set one, not both.'
+		;;
+		CLAUDE_CODE_OAUTH_TOKEN)
+			printf '%s\n' 'magic-team|<oauth-token>|secret|claude reads this name itself, and bills a Claude subscription rather than API use. Run "claude setup-token" once on a machine with a browser and store what it prints. Alternative to ANTHROPIC_API_KEY.'
+		;;
+		COPILOT_GITHUB_TOKEN)
+			printf '%s\n' 'magic-team|<github-token>|secret|copilot reads this name itself, ahead of GH_TOKEN and GITHUB_TOKEN. A github.com fine-grained personal access token carrying the Copilot Requests permission; classic ghp_ tokens are refused.'
+		;;
+		## Scaleway scopes a secret key by Project+policy, not by model --
+		## confirmed live -- so either name reaches every model; the names are
+		## which tier prefers which, not an enforced restriction. Neither is
+		## required alone, but the harness refuses to run with both unset.
+		SCALEWAY_DEEPSEEK)
+			printf '%s\n' 'magic-team|<key>|secret|AgentsScalewayHarness.sh reads this name itself, preferred for the normal/heavy tiers (deepseek-v4-flash-0731). console.scaleway.com, IAM, API Keys -- a Project-scoped key carrying the GenerativeApisFullAccess policy.'
+		;;
+		SCALEWAY_GEMMA)
+			printf '%s\n' 'magic-team|<key>|secret|AgentsScalewayHarness.sh reads this name itself, preferred for the light tier (gemma-4-26b-a4b-it). console.scaleway.com, IAM, API Keys -- a Project-scoped key carrying the GenerativeApisFullAccess policy.'
+		;;
+		XAI_API_KEY)
+			printf '%s\n' 'magic-team|<xai-...>|secret|AgentsGrokHarness.sh reads this name itself, for every tier. console.x.ai, API Keys, Create API Key.'
+		;;
+		SLACK_BOT_TOKEN)
+			printf '%s\n' 'magic-team|<xoxb-token>|secret|api.slack.com/apps, your app, OAuth and Permissions, Bot User OAuth Token.'
+		;;
+		SLACK_WORKSPACE_DOMAIN)
+			printf '%s\n' 'magic-team|<name>.slack.com|plain|the workspace subdomain as it appears in its own Slack URL.'
+		;;
+		SLACK_CHANNEL_MAGIC_TEAM)
+			printf '%s\n' 'magic-team|<channel-id>|plain|the team channel id: open the channel, View channel details, the id sits at the bottom and starts with C.'
+		;;
+		SLACK_CHANNEL_HUMAN_OWNER)
+			printf '%s\n' 'magic-team|<user-id>|plain|your own member id: your profile, More, Copy member ID. It starts with U.'
+		;;
+		SLACK_CHANNEL_EVENT_TRACK)
+			printf '%s\n' 'magic-team|<channel-id>|plain|the activity-log channel id, read like the team channel. Left unset this traffic goes to the team channel instead.'
+		;;
+		SLACK_CHANNEL_EVENT_ALERT)
+			printf '%s\n' 'magic-team|<channel-id>|plain|the alert channel id, read like the team channel. Left unset this traffic goes to the team channel instead.'
+		;;
+	esac
+}

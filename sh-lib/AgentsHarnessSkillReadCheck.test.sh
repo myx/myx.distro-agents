@@ -4,7 +4,8 @@
 ## name in both forms, `<member>` and `<member>/<file>` -- and that a root set which
 ## cannot be computed is refused with its reason: by the harness on stdout, the only
 ## stream an MCP caller sees, and by the console before it starts a harness leg. AgentsHarnessAccessRootsCheck.test.sh asks where the set comes from;
-## this asks whether the skills are inside it.
+## this asks whether the skills are inside it. It also holds Skill by `skill`, in every
+## name form a client passes, rendered with `args` as Claude Code renders a skill.
 ##
 ## Why it exists. A member folder under $HOME/.claude/skills is a symlink into the tree
 ## that owns it, and Read resolves a path before matching it, so the granted skills
@@ -17,7 +18,8 @@
 ## Red recipe, run: drop the `$HOME/.claude/skills"/*/` walk from
 ## AgentsToolsClientAccessRootsMembers, or the `*/*)` split from AgentsHarnessToolSkill,
 ## or the status capture around AgentsToolsClientAccessRoots in the harness or in
-## AgentsConsoleShellScript.template.sh.
+## AgentsConsoleShellScript.template.sh, or pass only name, file, list, offset and limit
+## to AgentsHarnessToolSkill from its dispatch arm.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
@@ -101,6 +103,100 @@ rigAssert "Skill <member>/<file> reads that file" \
 rigAssert "Skill <member>/<file> steps out of no folder" \
 	"$( rigCall Skill '{"name":"rig-keeper/../../OUTSIDE/secret.txt"}' )" "other"
 
+## skill as the native tool takes it: the workspace skillset, a synced skill, a synced
+## plugin holding skills and a command, and a working directory holding a project skill
+## plus a decoy named like the plugin, which the plugin must win over.
+rigWsSkills="$rigTmp/ws/.claude/skills"
+rigPlugin="$rigTmp/home/.claude/plugins/synced/rig-bucket/rig-plugin-dir"
+mkdir -p "$rigWsSkills/rig-bare" "$rigWsSkills/rig-folder" "$rigWsSkills/rig-manual" "$rigWsSkills/rig-args" \
+	"$rigWsSkills/rig-noph" "$rigWsSkills/rig-issue" "$rigTmp/home/.claude/skills/synced/rig-bucket/rig-synced" \
+	"$rigPlugin/.claude-plugin" "$rigPlugin/skills/rig-ps" "$rigPlugin/skills/rig-ps-folder" "$rigPlugin/commands" \
+	"$rigTmp/cwd/rig-proj/.claude/skills/rig-local" "$rigTmp/cwd/rig-plugin/.claude/skills/rig-ps"
+printf '%s\n' rig-bare-one rig-bare-two > "$rigWsSkills/rig-bare/SKILL.md"
+printf '%s\n' --- 'name: rig-named' --- rig-folder-body > "$rigWsSkills/rig-folder/SKILL.md"
+printf '%s\n' --- 'disable-model-invocation: true' --- rig-manual-body > "$rigWsSkills/rig-manual/SKILL.md"
+printf '%s\n' 'all=[$ARGUMENTS] first=[$0] second=[$ARGUMENTS[1]] esc=[\$1] dir=[${CLAUDE_SKILL_DIR}]' > "$rigWsSkills/rig-args/SKILL.md"
+printf '%s\n' rig-noph-body > "$rigWsSkills/rig-noph/SKILL.md"
+printf '%s\n' --- 'arguments: [issue, branch]' --- 'i=[$issue] b=[$branch] x=[$2] d=[\\$0] cost=$1.00' > "$rigWsSkills/rig-issue/SKILL.md"
+printf '%s\n' rig-synced-body > "$rigTmp/home/.claude/skills/synced/rig-bucket/rig-synced/SKILL.md"
+printf '%s\n' '{"name":"rig-plugin"}' > "$rigPlugin/.claude-plugin/plugin.json"
+printf '%s\n' 'root=[${CLAUDE_PLUGIN_ROOT}] data=[${CLAUDE_PLUGIN_DATA}]' > "$rigPlugin/skills/rig-ps/SKILL.md"
+printf '%s\n' --- 'name: rig-ps-named' --- rig-ps-folder-body > "$rigPlugin/skills/rig-ps-folder/SKILL.md"
+printf '%s\n' rig-cmd-body > "$rigPlugin/commands/rig-cmd.md"
+printf '%s\n' rig-local-body > "$rigTmp/cwd/rig-proj/.claude/skills/rig-local/SKILL.md"
+printf '%s\n' rig-decoy-body > "$rigTmp/cwd/rig-plugin/.claude/skills/rig-ps/SKILL.md"
+
+## The whole result, as the server returns it, from the working directory a dir:skill
+## name is taken against.
+rigSkill(){ ## argument object
+	local rigOut
+	rigOut="$( cd "$rigTmp/cwd" && printf '%s' "$1" | HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$rigWsSkills" \
+		"$rigHarness" --intern-tool Skill 2>/dev/null )" || :
+	[ -n "$rigOut" ] || rigRefuse "no output from Skill $1, so the tool was never exercised"
+	printf '%s' "$rigOut"
+}
+
+echo "-- Skill by skill, every name form --"
+rigAssert "Skill with neither skill nor name is refused" \
+	"$( rigSkill '{}' | cut -c1-13 )" "ERROR: Skill:"
+rigAssert "Skill name still reads the file raw, frontmatter and all" \
+	"$( rigSkill '{"name":"rig-folder"}' )" "---"$'\n'"name: rig-named"$'\n'"---"$'\n'"rig-folder-body"
+rigAssert "skill <bare> renders from the workspace skillset" \
+	"$( rigSkill '{"skill":"rig-bare"}' )" "Base directory for this skill: $rigWsSkills/rig-bare"$'\n'"rig-bare-one"$'\n'"rig-bare-two"
+rigAssert "skill <bare> finds a folder by its frontmatter name" \
+	"$( rigSkill '{"skill":"rig-named"}' )" "Base directory for this skill: $rigWsSkills/rig-folder"$'\n'"rig-folder-body"
+rigAssert "skill <bare> falls back to \$HOME/.claude/skills" \
+	"$( rigSkill '{"skill":"rig-keeper"}' )" "Base directory for this skill: $rigTmp/home/.claude/skills/rig-keeper"$'\n'"rig-keeper-boot"
+rigAssert "skill anthropic-skills:<S> reads a synced skill" \
+	"$( rigSkill '{"skill":"anthropic-skills:rig-synced"}' )" "Base directory for this skill: $rigTmp/home/.claude/skills/synced/rig-bucket/rig-synced"$'\n'"rig-synced-body"
+rigAssert "skill <plugin>:<S> finds a plugin by its plugin.json name, a skill by its frontmatter name" \
+	"$( rigSkill '{"skill":"rig-plugin:rig-ps-named"}' )" "Base directory for this skill: $rigPlugin/skills/rig-ps-folder"$'\n'"rig-ps-folder-body"
+rigAssert "skill <plugin>:<S> reads a plugin command" \
+	"$( rigSkill '{"skill":"rig-plugin:rig-cmd"}' )" "Base directory for this skill: $rigPlugin/commands"$'\n'"rig-cmd-body"
+rigAssert "skill <dir>:<S> reads <dir>/.claude/skills under the working directory" \
+	"$( rigSkill '{"skill":"rig-proj:rig-local"}' )" "Base directory for this skill: $rigTmp/cwd/rig-proj/.claude/skills/rig-local"$'\n'"rig-local-body"
+rigAssert "skill :<S> is refused" \
+	"$( rigSkill '{"skill":":rig-bare"}' )" "ERROR: Skill: skill has an empty prefix before the colon: :rig-bare"
+
+echo "-- Skill by skill, not found in each form --"
+rigAssert "skill <bare> not found" \
+	"$( rigSkill '{"skill":"rig-nosuch"}' | sed 's/ -- looked for .*//' )" "ERROR: Skill: no such skill: rig-nosuch"
+rigAssert "skill anthropic-skills:<S> not found" \
+	"$( rigSkill '{"skill":"anthropic-skills:rig-nosuch"}' | sed 's/ -- looked for .*//' )" "ERROR: Skill: no such skill: anthropic-skills:rig-nosuch"
+rigAssert "skill <plugin>:<S> not found" \
+	"$( rigSkill '{"skill":"rig-plugin:rig-nosuch"}' | sed 's/ -- looked for .*//' )" "ERROR: Skill: no such skill: rig-plugin:rig-nosuch"
+rigAssert "skill <dir>:<S> not found" \
+	"$( rigSkill '{"skill":"rig-proj:rig-nosuch"}' | sed 's/ -- looked for .*//' )" "ERROR: Skill: no such skill: rig-proj:rig-nosuch"
+
+echo "-- Skill by skill, disable-model-invocation --"
+rigAssert "Skill name reads the file that sets it" \
+	"$( rigSkill '{"name":"rig-manual"}' )" "---"$'\n'"disable-model-invocation: true"$'\n'"---"$'\n'"rig-manual-body"
+rigAssert "skill refuses a skill that sets it" \
+	"$( rigSkill '{"skill":"rig-manual"}' | cut -d, -f1 )" "ERROR: Skill: rig-manual sets disable-model-invocation: true"
+
+echo "-- Skill by skill, args --"
+rigAssert "args fill full, indexed and shorthand places, an escaped one stays, the skill dir expands" \
+	"$( rigSkill '{"skill":"rig-args","args":"x y"}' )" "Base directory for this skill: $rigWsSkills/rig-args"$'\n'"all=[x y] first=[x] second=[y] esc=[\$1] dir=[$rigWsSkills/rig-args]"
+rigAssert "args split on an unescaped space only" \
+	"$( rigSkill '{"skill":"rig-args","args":"a\\ b c"}' )" "Base directory for this skill: $rigWsSkills/rig-args"$'\n'"all=[a\\ b c] first=[a b] second=[c] esc=[\$1] dir=[$rigWsSkills/rig-args]"
+rigAssert "args fill named places, and a place past them stays" \
+	"$( rigSkill '{"skill":"rig-issue","args":"42"}' )" "Base directory for this skill: $rigWsSkills/rig-issue"$'\n''i=[42] b=[] x=[$2] d=[\\42] cost=$1.00'
+rigAssert "a skill with no place gets no ARGUMENTS line without args" \
+	"$( rigSkill '{"skill":"rig-noph"}' )" "Base directory for this skill: $rigWsSkills/rig-noph"$'\n'"rig-noph-body"
+rigAssert "a skill with no place gets args appended" \
+	"$( rigSkill '{"skill":"rig-noph","args":"x y"}' )" "Base directory for this skill: $rigWsSkills/rig-noph"$'\n'"rig-noph-body"$'\n'$'\n'"ARGUMENTS: x y"
+
+echo "-- Skill by skill, plugin variables --"
+rigAssert "a plugin skill wins over a same-named directory, expands its root, and its data stays literal with no marketplace" \
+	"$( rigSkill '{"skill":"rig-plugin:rig-ps"}' )" "Base directory for this skill: $rigPlugin/skills/rig-ps"$'\n'"root=[$rigPlugin] data=[\${CLAUDE_PLUGIN_DATA}]"
+printf '%s\n' '{"marketplace_name":"rig-market"}' > "$rigTmp/home/.claude/plugins/synced/rig-bucket/rig-plugin-dir.meta.json"
+rigAssert "a plugin skill expands its data once the marketplace is known" \
+	"$( rigSkill '{"skill":"rig-plugin:rig-ps"}' )" "Base directory for this skill: $rigPlugin/skills/rig-ps"$'\n'"root=[$rigPlugin] data=[$rigTmp/home/.claude/plugins/data/rig-plugin-rig-market]"
+
+echo "-- Skill by skill, paging --"
+rigAssert "offset and limit page the rendered skill" \
+	"$( rigSkill '{"skill":"rig-bare","offset":2,"limit":1}' )" "rig-bare-one"$'\n'"... read 1 line(s) from line 2; the file has 3 lines ..."
+
 ## The console computes the same set for a harness leg before it starts one. Its own
 ## origin is this rig's, named in the fixture workspace's settings. No HARNESS_* and no
 ## provider credential reach it, so a spawn that got past the roots stops at the
@@ -142,10 +238,11 @@ rigAssert "the console refuses the spawn and names why" "$( rigConsole )" "refus
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SKILL READ CHECK FAILED: $rigFails assertion(s)" >&2
 	echo "  warn: a team skill file is not readable through the MCP-served tools, or an" >&2
-	echo "        access-root set that could not be computed was used silently" >&2
+	echo "        access-root set that could not be computed was used silently, or a skill" >&2
+	echo "        is not loaded by skill and args as the native Skill tool loads it" >&2
 	echo "  fix:  repair sh-lib/AgentsTools.ClientAccessRoots.include or the Read/Skill" >&2
 	echo "        tools in sh-lib/AgentsUniversalHarness.sh, or the root capture in" >&2
 	echo "        sh-lib/AgentsConsoleShellScript.template.sh -- never the assertion" >&2
 	exit 1
 fi
-echo "HARNESS_SKILL_READ: OK (skills by path and by name, outside refused, failure named by harness and console, offline)"
+echo "HARNESS_SKILL_READ: OK (skills by path, by name and by skill with args in every name form, outside refused, failure named by harness and console, offline)"

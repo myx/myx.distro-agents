@@ -33,7 +33,7 @@ Doesn't do: daily status reporting (`magic-coordinator.daily.routine`'s job).
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **acquire-lock**: Acquire this routine's own lock — a single `--magic-grooming-lock-acquire` call, before anything else in this routine runs. `ACQUIRED`, or a reclaim of a dead holder's lock, means go. Contention means another `magic-team.grooming.routine` is live: this pass does not start, and nothing below runs.
 2. **session-start**: execute `magic-team.coworking.routine`'s Steps — grooming is coworking-like, so its coworking-gated parts apply.
@@ -154,6 +154,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - run the `check-backlog-promote` procedure (below) against `board-backlog`
      - run the `check-reassess` procedure (below) against `board-pending`, `board-parked`, `board-blocked`, and `board-running` items — a separate call, own pass
      - `board-pending` items ready to dispatch into `board-running`
+     - closed spawn records in `board-pending` — the `dispatch-*` items a spawn's close parks there for grooming to adjudicate, steps:
+       - `status: dispatch-succeeded`: move it to `board-processed` with `--magic-grooming-to-processed`
+       - `status: dispatch-failed` with a `tracks:` header: judge it — to re-dispatch, return the item it `tracks` to `board-pending` with `--magic-grooming-to-pending`, carrying what the retry needs; either way, close the record to `board-processed` with `--magic-grooming-to-processed`, stating the reason
+       - `status: dispatch-failed` with no `tracks:` header: nothing is tracked, so nothing is re-dispatched from it. Close the record to `board-processed` with `--magic-grooming-to-processed`, stating the failure. Where the record's own body names the work it was for, `magic-coordinator` may re-dispatch that work by judgement, as new work, never by reviving the record.
      - `board-running` items with a claimed completion — these get (or continue) their own in-place testing round, dispatching `magic-tester` rather than taking a completion claim at face value; no separate `board/testing/` folder, this happens in place
      - **`board-running` items that have stalled**: move to `board-blocked` rather than leaving it sitting there looking active
        - not the only trigger — see the board's own "at least three paths" note for the other two: live discovery during `magic-coordinator.daily.routine`; a member's own async block-report via `magic-coordinator`'s inbox, handled by `magic-team.process-inbox.routine`

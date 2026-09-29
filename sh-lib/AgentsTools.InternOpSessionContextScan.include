@@ -7,6 +7,7 @@
 ## own dispatcher arm (not a wildcard -- this file holds one op only) via the
 ## standard $MDLT_ORIGIN-based path. Not standalone: relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD.
+## Its whole argument contract is documented in MAGIC.md, "The internal session-context scan".
 ##
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
@@ -801,9 +802,10 @@ case "$1" in
 					}
 				'
 
+				## Every work path here is unique by mktemp, never by $$: scans of several
+				## accounts run concurrently in one process tree and share its $$.
 				local dmIdentityMapFile
-				dmIdentityMapFile="$MMDAPP/.local/temp/mdat-sweep-dm-identity.$$"
-				mkdir -p "$MMDAPP/.local/temp" && : > "$dmIdentityMapFile" || { set +e ; return 1 ; }
+				dmIdentityMapFile="$( mkdir -p "$MMDAPP/.local/temp" && mktemp "$MMDAPP/.local/temp/mdat-sweep-dm-identity.XXXXXX" )" || { set +e ; return 1 ; }
 
 				## Per-conversation resume points, `label<TAB>channel<TAB>identity<TAB>ts<TAB>origin`,
 				## collected as the loop resolves each source and handed to the
@@ -812,9 +814,67 @@ case "$1" in
 				## reader cannot tell one source's starting point from another's.
 				local imSourceResume=""
 
+				## THE WATCHED SOURCES ARE READ CONCURRENTLY. Each read is a network round
+				## trip, paged, and one after another they were most of this scan's time.
+				## One worker per source resolves it and reads it into its own files; the
+				## loop below then works through those files in the original order, so
+				## what it concludes, and the order it says it in, is unchanged. Parallel
+				## runs in its own subshell: it installs an EXIT trap, which must not
+				## replace the caller's.
+				local sourcePrefetchDir
+				sourcePrefetchDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-sweep-sources.XXXXXX" )" \
+					|| { rm -f "$dmIdentityMapFile" ; set +e ; return 1 ; }
+				AgentsSessionContextSourceFetchOne(){ ## index into slackSourceSpecs
+					local fetchSpec="${slackSourceSpecs[$1]}" fetchIdentity fetchTarget fetchResolved fetchChannel fetchRc=0
+					fetchIdentity="${fetchSpec%%|*}"
+					fetchTarget="${fetchSpec#*|}"
+					fetchTarget="${fetchTarget%%|*}"
+					fetchResolved="$( DistroAgentsToolsResolveTarget "$fetchTarget" )" || {
+						printf 'unresolved\n' > "$sourcePrefetchDir/state.$1"
+						return 0
+					}
+					printf '%s\n' "$fetchResolved" > "$sourcePrefetchDir/resolved.$1"
+					fetchChannel="$( printf '%s\n' "$fetchResolved" | sed -n 's/^CHANNEL=//p' )"
+					local fetchCheckTarget="$fetchChannel:"
+					if [ "$commsMemberScopeOnly" != "true" ] && [ "$fetchTarget" = "human-owner" ] ; then
+						fetchCheckTarget="$fetchTarget"
+					fi
+					## --page-until, NOT --oldest. The read below is now paged to
+					## the end of a conversation instead of stopping after one
+					## page, and with nothing bounding the walk that means every
+					## watched source is re-read from its first message on every
+					## pass. This bounds how far back the PAGING goes -- to the
+					## same cut-off this scan already applies client-side -- while
+					## leaving Slack's own `oldest=` unsent, so the page that
+					## straddles the cut-off still arrives whole and thread
+					## discovery keeps seeing parents older than it.
+					local fetchPageUntilArgs=()
+					if [ -n "$cutoffEpoch" ] ; then
+						fetchPageUntilArgs=( --page-until "$cutoffEpoch" )
+					fi
+					## The spec names which token reads this source. `bot` keeps the
+					## identity every team-side source has always been read under; `user`
+					## is the persona's own token, which is what a USER_TOKEN persona's
+					## own DMs and the whole client-* path have always needed.
+					if [ "$fetchIdentity" = "bot" ] ; then
+						DistroAgentsTools --intern-op-slack-check "$actingMember" "$fetchCheckTarget" "${fetchPageUntilArgs[@]+"${fetchPageUntilArgs[@]}"}" --identity-bot --raw > "$sourcePrefetchDir/raw.$1" || fetchRc=$?
+					else
+						DistroAgentsTools --intern-op-slack-check "$actingMember" "$fetchCheckTarget" "${fetchPageUntilArgs[@]+"${fetchPageUntilArgs[@]}"}" --raw > "$sourcePrefetchDir/raw.$1" || fetchRc=$?
+					fi
+					printf '%s\n' "$fetchRc" > "$sourcePrefetchDir/rc.$1"
+					printf 'read\n' > "$sourcePrefetchDir/state.$1"
+					return 0
+				}
+				if [ ${#slackSourceSpecs[@]} -gt 0 ] ; then
+					( type Parallel > /dev/null 2>&1 || . "$MYXROOT/bin/lib/parallel.Common" || exit 1
+						Parallel AgentsSessionContextSourceFetchOne ) < <( seq 0 $(( ${#slackSourceSpecs[@]} - 1 )) ) \
+						|| echo "$MDSC_CMD: session-context-scan: ⚠️ WARNING: the concurrent source reads did not all report; each one missing is stated below" >&2
+				fi
+
 				local slackSpec slackName slackResolved slackChannel slackRaw slackJson slackBlocks
-				local specIdentity specTarget
+				local specIdentity specTarget sourceIndex=-1 sourceState
 				for slackSpec in ${slackSourceSpecs[@]+"${slackSourceSpecs[@]}"} ; do
+					sourceIndex=$(( sourceIndex + 1 ))
 					specIdentity="${slackSpec%%|*}"
 					slackName="${slackSpec#*|}"
 					specTarget="${slackName%%|*}"
@@ -822,18 +882,24 @@ case "$1" in
 					slackName="${slackName%%|*}"
 
 					imSourcesTotal=$(( imSourcesTotal + 1 ))
-					slackResolved="$( DistroAgentsToolsResolveTarget "$specTarget" )" || {
-						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, no channel id configured"$'\n'
-						imAnySourceFailed="true"
-						continue
-					}
+					sourceState="$( cat "$sourcePrefetchDir/state.$sourceIndex" 2>/dev/null )" || sourceState=""
+					case "$sourceState" in
+						read) ;;
+						unresolved)
+							imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, no channel id configured"$'\n'
+							imAnySourceFailed="true"
+							continue
+						;;
+						*)
+							imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, its concurrent read never reported"$'\n'
+							imAnySourceFailed="true"
+							continue
+						;;
+					esac
+					slackResolved="$( cat "$sourcePrefetchDir/resolved.$sourceIndex" )"
 					slackChannel="$( printf '%s\n' "$slackResolved" | sed -n 's/^CHANNEL=//p' )"
 					local slackUserId=""
 					slackUserId="$( printf '%s\n' "$slackResolved" | sed -n 's/^USER_ID=//p' )" || slackUserId=""
-					local slackCheckTarget="$slackChannel:"
-					if [ "$commsMemberScopeOnly" != "true" ] && [ "$specTarget" = "human-owner" ] ; then
-						slackCheckTarget="$specTarget"
-					fi
 
 					## WHERE THIS SOURCE RESUMES FROM: the cut-off this pass was GIVEN,
 					## the same one for every source. This scan holds no position of
@@ -844,29 +910,10 @@ case "$1" in
 					## neither reads nor writes it.
 					imSourceResume="$imSourceResume$slackName	$slackChannel	$specIdentity	$cutoffEpoch	pass cut-off"$'\n'
 
+					## Read by this source's worker above, under the identity its spec names.
 					local slackCheckRc=0
-					## --page-until, NOT --oldest. The read below is now paged to
-					## the end of a conversation instead of stopping after one
-					## page, and with nothing bounding the walk that means every
-					## watched source is re-read from its first message on every
-					## pass. This bounds how far back the PAGING goes -- to the
-					## same cut-off this scan already applies client-side -- while
-					## leaving Slack's own `oldest=` unsent, so the page that
-					## straddles the cut-off still arrives whole and thread
-					## discovery keeps seeing parents older than it.
-					local slackPageUntilArgs=()
-					if [ -n "$cutoffEpoch" ] ; then
-						slackPageUntilArgs=( --page-until "$cutoffEpoch" )
-					fi
-					## The spec names which token reads this source. `bot` keeps the
-					## identity every team-side source has always been read under; `user`
-					## is the persona's own token, which is what a USER_TOKEN persona's
-					## own DMs and the whole client-* path have always needed.
-					slackRaw="$( if [ "$specIdentity" = "bot" ] ; then
-						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackCheckTarget" "${slackPageUntilArgs[@]+"${slackPageUntilArgs[@]}"}" --identity-bot --raw
-					else
-						DistroAgentsTools --intern-op-slack-check "$actingMember" "$slackCheckTarget" "${slackPageUntilArgs[@]+"${slackPageUntilArgs[@]}"}" --raw
-					fi )" || slackCheckRc=$?
+					slackCheckRc="$( cat "$sourcePrefetchDir/rc.$sourceIndex" 2>/dev/null )" || slackCheckRc=1
+					slackRaw="$( cat "$sourcePrefetchDir/raw.$sourceIndex" 2>/dev/null )" || slackRaw=""
 					if [ "$slackCheckRc" != "0" ] && [ "$slackCheckRc" != "3" ] ; then
 						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, --intern-op-slack-check failed"$'\n'
 						imAnySourceFailed="true"
@@ -927,6 +974,8 @@ case "$1" in
 						threadTargets+=( "$dt" )
 					done <<< "$discovered"
 				done
+				rm -rf "$sourcePrefetchDir"
+				unset -f AgentsSessionContextSourceFetchOne
 
 				if [ "$commsMemberScopeOnly" != "true" ] && [ ${#matchedFiles[@]} -gt 0 ] ; then
 					local boardThreads
@@ -954,8 +1003,7 @@ case "$1" in
 				fi
 
 				local threadFetchWorkDir
-				threadFetchWorkDir="$MMDAPP/.local/temp/mdat-sweep-threads.$$"
-				mkdir -p "$MMDAPP/.local/temp" && rm -rf "$threadFetchWorkDir" && mkdir "$threadFetchWorkDir" \
+				threadFetchWorkDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-sweep-threads.XXXXXX" )" \
 					|| { rm -f "$dmIdentityMapFile" ; set +e ; return 1 ; }
 
 				local threadTrimAwkFile="$threadFetchWorkDir/trim.awk"
@@ -1108,8 +1156,8 @@ case "$1" in
 				fi
 				if [ "$emailFailed" = "false" ] ; then
 					local emailReadRc emailBlock emailFetched=0
-					local emailWorkFile="$MMDAPP/.local/temp/mdat-sweep-email.$$"
-					mkdir -p "$MMDAPP/.local/temp" && : > "$emailWorkFile" || { set +e ; return 1 ; }
+					local emailWorkFile
+					emailWorkFile="$( mkdir -p "$MMDAPP/.local/temp" && mktemp "$MMDAPP/.local/temp/mdat-sweep-email.XXXXXX" )" || { set +e ; return 1 ; }
 					while IFS= read -r emailUid ; do
 						[ -n "$emailUid" ] || continue
 						emailUidsTotal=$(( emailUidsTotal + 1 ))
@@ -1631,7 +1679,7 @@ case "$1" in
 						closed_fm = 1
 						next
 					}
-					closed_fm { next }
+					closed_fm { next ; }
 					{
 						pos = index($0, ": ")
 						if (pos > 0) {

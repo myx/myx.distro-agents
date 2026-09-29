@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberPendingReply.include -- the member-facing ops over the pending-reply
+## records AskUserQuestion leaves in $MMDAPP/.local/agents/pending: read them, and settle
+## one's own question once it needs no answer. The records themselves are written and
+## closed by AgentsTools.InternOpPendingReply.include; nothing here writes a record except
+## through that close, so its lock and its one-close-only rule hold here too.
+##
+## The records are workspace-local state, not team data: nothing here commits them.
+##
+
+## One header field of a record, empty when absent. The header ends at its second `---`.
+AgentsToolsPendingReplyField(){ ## record file, field name
+	LC_ALL=C awk -v key="$2" '
+		$0 == "---" { dashes++ ; if ( dashes == 2 ) { exit ; } next ; }
+		dashes == 1 && index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit ; }
+	' "$1" 2>/dev/null
+}
+
+## Prints records as the read shows them, in one awk pass over every file given:
+## `PENDING-REPLY: <id>`, the header fields the read names, `question:` with the
+## question's first line, then a blank line. -v owner keeps only that member's records,
+## -v openOnly=1 only waiting ones, and -v countLine=1 ends with `PENDING-REPLIES: <n>`.
+AgentsToolsPendingReplyScan(){ ## owner filter (empty for any), open only (1 or empty), count line (1 or empty), record files...
+	local scanOwner="$1" scanOpen="$2" scanCount="$3"
+	shift 3
+	LC_ALL=C awk -v wantOwner="$scanOwner" -v openOnly="$scanOpen" -v countLine="$scanCount" '
+		function resetRecord() {
+			dashes = 0 ; first = "" ; haveRecord = 1 ; split("", val) ;
+			fileId = FILENAME ; sub(/^.*\//, "", fileId) ; sub(/\.md$/, "", fileId) ;
+		}
+		function flush(   keyIdx, keyName) {
+			if ( wantOwner != "" && val["owner"] != wantOwner ) { return ; }
+			if ( openOnly != "" && val["status"] != "reply-pending" ) { return ; }
+			printf "PENDING-REPLY: %s\n", fileId ;
+			for ( keyIdx = 1 ; keyIdx <= keyCount ; keyIdx++ ) {
+				keyName = keys[keyIdx] ;
+				if ( keyName in val ) { printf "%s: %s\n", keyName, val[keyName] ; }
+			}
+			printf "question: %s\n\n", first ;
+			shown++ ;
+		}
+		BEGIN { keyCount = split("status owner kind question-tag channel question-ts thread-ts address-to session-id asked-at resolved-at verdict answered-by", keys, " ") ; }
+		FNR == 1 { if ( haveRecord ) { flush() ; } resetRecord() ; }
+		$0 == "---" { dashes++ ; next ; }
+		dashes == 1 {
+			colon = index($0, ": ") ;
+			if ( colon > 1 ) {
+				keyName = substr($0, 1, colon - 1) ;
+				if ( ! ( keyName in val ) ) { val[keyName] = substr($0, colon + 2) ; }
+			}
+			next ;
+		}
+		dashes >= 2 && first == "" && $0 !~ /^#/ && $0 !~ /^[ \t]*$/ { first = $0 ; }
+		END {
+			if ( haveRecord ) { flush() ; }
+			if ( countLine != "" ) { printf "PENDING-REPLIES: %d\n", shown + 0 ; }
+		}
+	' "$@" 2>/dev/null
+}
+
+case "$1" in
+
+	## Reads pending-reply records: one by id, or a list of the member's own, open by
+	## default. Read-only: it changes no record, and reads no thread.
+	--member-pending-reply-read)
+		shift
+		MDSC_CMD="$MDSC_CMD --member-pending-reply-read"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local readMember="${1:-}" readId="" readAll="" readAnyOwner="" readFile
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--all) readAll=1 ; shift ;;
+				--any-owner) readAnyOwner=1 ; shift ;;
+				-*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+				*)
+					[ -z "$readId" ] || { echo "$MDSC_CMD: ⛔ ERROR: one pending id at most, got a second: $1" >&2 ; set +e ; return 1 ; }
+					readId="$1" ; shift
+				;;
+			esac
+		done
+		if [ -z "$readMember" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> [<pending-id>] [--all] [--any-owner]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$readMember" "<team-member>" pending-reply-read || { set +e ; return 1 ; }
+		if [ -n "$readId" ] ; then
+			AgentsToolsAssertBareName "$readId" "<pending-id>" pending-reply-read || { set +e ; return 1 ; }
+			readFile="$MMDAPP/.local/agents/pending/$readId.md"
+			[ -f "$readFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $readId" >&2 ; set +e ; return 1 ; }
+			AgentsToolsPendingReplyScan "" "" "" "$readFile"
+			return 0
+		fi
+		local readFiles=( "$MMDAPP/.local/agents/pending"/*.md )
+		if [ ! -f "${readFiles[0]}" ] ; then
+			printf 'PENDING-REPLIES: 0\n'
+			return 0
+		fi
+		local readOwnerFilter="$readMember" readOpenFilter="1"
+		[ -z "$readAnyOwner" ] || readOwnerFilter=""
+		[ -z "$readAll" ] || readOpenFilter=""
+		AgentsToolsPendingReplyScan "$readOwnerFilter" "$readOpenFilter" 1 "${readFiles[@]}"
+		return 0
+	;;
+
+	## Closes one of the member's own open questions as settled, with the reason, when it
+	## no longer needs an answer. Only the member that asked it, and only a plain question:
+	## a readback, decision or permission closes through its own escalation ops.
+	--member-pending-reply-settle)
+		shift
+		MDSC_CMD="$MDSC_CMD --member-pending-reply-settle"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local settleMember="${1:-}" settleId="${2:-}" settleReason="" settleFile settleOwner settleKind settleRc=0
+		shift 2 2>/dev/null || shift $#
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--reason)
+					[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --reason requires a value (<text>)" >&2 ; set +e ; return 1 ; }
+					settleReason="$2" ; shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$settleMember" ] || [ -z "$settleId" ] || [ -z "$settleReason" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> <pending-id> --reason <text>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$settleMember" "<team-member>" pending-reply-settle || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$settleId" "<pending-id>" pending-reply-settle || { set +e ; return 1 ; }
+		settleFile="$MMDAPP/.local/agents/pending/$settleId.md"
+		[ -f "$settleFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $settleId" >&2 ; set +e ; return 1 ; }
+		settleOwner="$( AgentsToolsPendingReplyField "$settleFile" owner )"
+		if [ "$settleOwner" != "$settleMember" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $settleId was asked by ${settleOwner:-nobody}, so $settleMember cannot settle it; it stays as it is" >&2
+			set +e ; return 1
+		fi
+		settleKind="$( AgentsToolsPendingReplyField "$settleFile" kind )"
+		case "$settleKind" in
+			''|question) ;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: $settleId is a $settleKind, which closes through its own escalation ops, never by settling; it stays as it is" >&2
+				set +e ; return 1
+			;;
+		esac
+		DistroAgentsTools --intern-op-pending-reply-close "$settleId" --if-open --status reply-received --resolved-as settled \
+			--verdict "settled: $settleReason" --answered-by "$settleMember (settled)" --context "$MDSC_CMD" || settleRc=$?
+		case "$settleRc" in
+			0) printf 'SETTLED %s\n' "$settleId" ; return 0 ;;
+			3) return 0 ;;
+			*) set +e ; return 1 ;;
+		esac
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

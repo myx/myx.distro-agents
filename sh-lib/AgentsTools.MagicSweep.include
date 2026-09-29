@@ -157,23 +157,14 @@ case "$1" in
 			if [ -n "$n" ] ; then phaseBArgs+=( --item "$n" ) ; fi
 		done < <( sort -u <<< "$survivorNames" )
 
-		local magicSweepStatus=0
-		DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" --all-types "${commsArgs[@]}" \
-			--do-inbox-inquiry-active --do-inbox-reflections \
-			--do-inbox-notes --do-inbox-other \
-			--no-board-related \
-			--context --magic-sweep-input-scan || magicSweepStatus=$?
-		case "$magicSweepStatus" in
-			0|3|4) ;;
-			*) set +e ; return "$magicSweepStatus" ;;
-		esac
-
 		## The members that exist, not the ones a cache remembers. The name is asserted
 		## here because a worker's command line is built from it before the callee sees it.
-		local clientMembers="" clientMember
+		## A name that fails is held until the team's own document is out, where it has
+		## always been reported, and no client is swept.
+		local clientMembers="" clientMember clientNameRefused=""
 		for clientMember in "$MDAT_SKILLSET_ROOT"/client-* ; do
 			if [ -d "$clientMember" ] ; then
-				AgentsToolsAssertBareName "${clientMember##*/}" "<team-member>" magic-sweep-input-scan || { set +e ; return 1 ; }
+				AgentsToolsAssertBareName "${clientMember##*/}" "<team-member>" magic-sweep-input-scan || { clientNameRefused="true" ; clientMembers="" ; break ; }
 				clientMembers="$clientMembers ${clientMember##*/}"
 			fi
 		done
@@ -194,21 +185,44 @@ case "$1" in
 			rm -rf "$clientSweepDir" && mkdir -p "$clientSweepDir" || exit 1
 			trap 'rm -rf "$clientSweepDir"' EXIT
 
-			## NO CUT-OFF IS FORWARDED, deliberately. This pass's own cut-off is a
-			## position in the TEAM's traffic; a client-* member's conversations are
-			## a different stream under different credentials, and the two have no
-			## common position. Forwarding it -- which is what this call used to do
-			## -- filtered every client's messages by the team's last team-side pass
-			## and reported the remainder as "nothing new": against the live NDM
-			## workspace that hid all ten of its messages. Each member resolves its
-			## OWN stored position instead, inside --client-sweep-input-scan.
-			for clientMember in $clientMembers ; do printf '%s\n' "$clientMember" ; done \
-			| while IFS= read -r clientMember ; do
-				memberStatus=0
-				DistroAgentsTools --client-sweep-input-scan "$clientMember" \
-					> "$clientSweepDir/$clientMember.document" || memberStatus=$?
-				printf '%s\n' "$memberStatus" > "$clientSweepDir/$clientMember.status"
-			done
+			## All accounts concurrently, emitted in the original order (MAGIC.md).
+			AgentsToolsMagicSweepAccountOne(){ ## team | client <member>
+				local accountStatus=0
+				if [ "$1" = "team" ] ; then
+					DistroAgentsTools --intern-op-session-context-scan "$callingMember" "${phaseBArgs[@]}" --all-types "${commsArgs[@]}" \
+						--do-inbox-inquiry-active --do-inbox-reflections \
+						--do-inbox-notes --do-inbox-other \
+						--no-board-related \
+						--context --magic-sweep-input-scan > "$clientSweepDir/team.document" || accountStatus=$?
+					printf '%s\n' "$accountStatus" > "$clientSweepDir/team.status"
+					return 0
+				fi
+				## NO CUT-OFF IS FORWARDED, deliberately. This pass's own cut-off is a
+				## position in the TEAM's traffic; a client-* member's conversations are
+				## a different stream under different credentials, and the two have no
+				## common position. Forwarding it -- which is what this call used to do
+				## -- filtered every client's messages by the team's last team-side pass
+				## and reported the remainder as "nothing new": against the live NDM
+				## workspace that hid all ten of its messages. Each member resolves its
+				## OWN stored position instead, inside --client-sweep-input-scan.
+				DistroAgentsTools --client-sweep-input-scan "$2" \
+					> "$clientSweepDir/$2.document" || accountStatus=$?
+				printf '%s\n' "$accountStatus" > "$clientSweepDir/$2.status"
+				return 0
+			}
+			( type Parallel > /dev/null 2>&1 || . "$MYXROOT/bin/lib/parallel.Common" || exit 1
+				Parallel AgentsToolsMagicSweepAccountOne ) < <( printf 'team\n' ; for clientMember in $clientMembers ; do printf 'client %s\n' "$clientMember" ; done ) \
+				|| echo "# $MDSC_CMD --magic-sweep-input-scan: the concurrent sweeps did not all report; each one missing is stated below" >&2
+
+			## The team's own document, and its verdict, exactly where they always were.
+			magicSweepStatus="$( cat "$clientSweepDir/team.status" 2>/dev/null )" || magicSweepStatus=""
+			[ -n "$magicSweepStatus" ] || magicSweepStatus=1
+			cat "$clientSweepDir/team.document" 2>/dev/null
+			case "$magicSweepStatus" in
+				0|3|4) ;;
+				*) exit "$magicSweepStatus" ;;
+			esac
+			if [ -n "$clientNameRefused" ] ; then exit 1 ; fi
 
 			## A member that recorded no coverage of its own is a member nothing was read
 			## for, never one with nothing new, and it is said in that member's own place:
@@ -354,6 +368,8 @@ case "$1" in
 
 		printf '%s\n' "$content" > "$target"
 		echo "# $MDSC_CMD --magic-sweep-state-upsert: wrote ${target#"$stateDir"/} ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataCommitPaths "magic-sweep-state-upsert, $callingMember" "$target"
 		return 0
 	;;
 

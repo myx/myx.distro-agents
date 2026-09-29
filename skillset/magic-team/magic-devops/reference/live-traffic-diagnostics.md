@@ -8,7 +8,7 @@ Reconstructing "which source IP produced this payload match" by counting a fixed
 
 Two known-good fixes, either one:
 - **(a) Stateful parser**: track "current packet's source IP" as a state variable while scanning line-by-line; report it only when a content match is found afterward, regardless of how many lines away.
-- **(b) Binary capture**: capture with `-xx` (full hex dump, no ASCII) and do binary pattern matching (e.g. in perl via `pack("H*", ...)` + regex) — avoids the ASCII-line-count problem entirely, and additionally allows extracting exact binary payload fields.
+- **(b) Binary capture**: capture with `-xx` (full hex dump, no ASCII) and do binary pattern matching on the hex text itself (e.g. in awk, matching the hex digits of the wanted bytes; Python only where awk won't do, never Perl) — avoids the ASCII-line-count problem entirely, and additionally allows extracting exact binary payload fields.
 
 ## Reverse-DNS-to-known-hosting-provider is not a legitimate-traffic signal
 

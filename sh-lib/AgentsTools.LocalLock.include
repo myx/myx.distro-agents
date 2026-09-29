@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.LocalLock.include -- the one local lock primitive: the harness's
+## per-target write lock and the board's routine locks (advance, heartbeat, daily).
+##
+## A lock is a symlink in $MMDAPP/.local/agents/locks/<key> whose target is the
+## holder's pid: `ln -s` creates it and names its holder in one atomic step, so there
+## is never a lock without a holder. A lock whose holder is gone is claimed by
+## renaming it to a name of the breaker's own -- only one rename of one path can
+## succeed -- and only that breaker then takes a fresh lock. The earlier directory
+## form is stale by definition. The lock is local to this host: nothing here
+## coordinates two hosts.
+##
+## Sourced, never run. Functions only. Take returns the lock's path in
+## `agentsLocalLockPath`; the caller keeps it and hands it to Give, so a lock taken
+## while another is held never loses track of the first.
+##
+
+agentsLocalLockPath=""
+
+## Takes the lock named <key>, polling up to <tries> times a second apart. rc 0 held,
+## rc 1 not taken -- held by a live holder all along, or the lock area unusable.
+AgentsToolsLocalLockTake(){ ## key, tries (default 30), label for warnings
+	local lockKey="$1" lockTries="${2:-30}" lockLabel="${3:-$1}" lockTry=0 lockPid lockStale lockMoved
+	agentsLocalLockPath=""
+	[ -n "${MMDAPP:-}" ] && [ -n "$lockKey" ] || return 1
+	case "$lockKey" in
+		*/*|.|..) return 1 ;;
+	esac
+	mkdir -p "$MMDAPP/.local/agents/locks" 2>/dev/null || return 1
+	agentsLocalLockPath="$MMDAPP/.local/agents/locks/$lockKey"
+	while [ "$lockTry" -lt "$lockTries" ] ; do
+		## Checked first: `ln -s` onto a directory creates the link inside it and succeeds.
+		if [ -d "$agentsLocalLockPath" ] && [ ! -L "$agentsLocalLockPath" ] ; then
+			rm -rf "$agentsLocalLockPath" 2>/dev/null || { agentsLocalLockPath="" ; return 1 ; }
+			printf 'WARNING: removed an old-form lock on %s\n' "$lockLabel" >&2
+			continue
+		fi
+		ln -s "$$" "$agentsLocalLockPath" 2>/dev/null && return 0
+		lockPid="$( readlink "$agentsLocalLockPath" 2>/dev/null )" || lockPid=""
+		if [ -n "$lockPid" ] && ! kill -0 "$lockPid" 2>/dev/null ; then
+			## Claimed by rename, so of two breakers only one moves it. The breaker that moved
+			## the dead lock takes the next pass free: the state it tested is gone, so the loop
+			## still ends. Anyone else spends a try.
+			lockStale="$agentsLocalLockPath.stale.$$"
+			if mv "$agentsLocalLockPath" "$lockStale" 2>/dev/null ; then
+				lockMoved="$( readlink "$lockStale" 2>/dev/null )" || lockMoved=""
+				rm -f "$lockStale"
+				if [ "$lockMoved" = "$lockPid" ] ; then
+					printf 'WARNING: broke a stale lock on %s, held by pid %s which is gone\n' "$lockLabel" "$lockPid" >&2
+					continue
+				fi
+				## A fresh lock moved by mistake, taken between the read and the rename, is
+				## recreated for its holder -- `ln -s` creates or fails, never overwrites.
+				if [ -n "$lockMoved" ] && ! ln -s "$lockMoved" "$agentsLocalLockPath" 2>/dev/null ; then
+					printf 'WARNING: LOCK_CONFLICT on %s: the lock of pid %s was moved while being broken and could not be restored, because pid %s holds it now -- both believe they hold it\n' \
+						"$lockLabel" "$lockMoved" "$( readlink "$agentsLocalLockPath" 2>/dev/null )" >&2
+				fi
+			fi
+			lockTry=$(( lockTry + 1 ))
+			continue
+		fi
+		lockTry=$(( lockTry + 1 ))
+		[ "$lockTry" -lt "$lockTries" ] || break
+		sleep 1
+	done
+	agentsLocalLockPath=""
+	return 1
+}
+
+## Gives back the lock at <path>, the one Take returned; one another process holds is
+## left alone, and an empty path gives back nothing.
+AgentsToolsLocalLockGive(){ ## lock path
+	[ -z "$1" ] || [ "$( readlink "$1" 2>/dev/null )" != "$$" ] || rm -f "$1"
+}

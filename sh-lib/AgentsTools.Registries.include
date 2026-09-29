@@ -56,7 +56,7 @@ AgentsToolsRegistryHeader(){ ## frontmatter text, header name
 			val = substr(line, pos + 1)
 			gsub(/^[ \t]+|[ \t]+$/, "", val)
 			gsub(/[ \t]+/, "_", val)
-			if (val != "") { print val ; exit }
+			if (val != "") { print val ; exit ; }
 		}
 	' )" || headerValue=""
 	[ -n "$headerValue" ] || headerValue="-"
@@ -89,8 +89,8 @@ AgentsToolsRegistryTeamMembersRows(){
 		## fields are a member name, a workspace name, a link kind and a path
 		## relative to that workspace, none of which contains either.
 		printf '%s\n' "$membersLine" | LC_ALL=C awk -F: '
-			NF >= 4 { printf "%s %s %s %s\n", $1, $2, $3, $4 ; next }
-			{ printf "%s %s %s %s\n", ($1 == "" ? "-" : $1), ($2 == "" ? "-" : $2), ($3 == "" ? "-" : $3), ($4 == "" ? "-" : $4) }
+			NF >= 4 { printf "%s %s %s %s\n", $1, $2, $3, $4 ; next ; }
+			{ printf "%s %s %s %s\n", ($1 == "" ? "-" : $1), ($2 == "" ? "-" : $2), ($3 == "" ? "-" : $3), ($4 == "" ? "-" : $4) ; }
 		'
 	done < "$membersIndex"
 	return 0

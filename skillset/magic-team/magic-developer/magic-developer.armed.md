@@ -55,7 +55,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - A domain skill's or `keeper-*` member's daily work surfaces a genuine language-level axiom: feed it back into the relevant `reference/*.md` module, rather than letting it stay implicit in the domain skill's own file.
 - Code is written straight-line and top-to-bottom, with structure introduced only where the code genuinely has structure — real reuse, or a name carrying meaning its body cannot — never to organise, tidy, decorate or signal effort; fewer functions, variables, layers and files is better code, and in doubt the thing is written where it is used. A one-call function, a two-line wrapper, a single-use variable, a trivially derived one, an out-parameter global, and a location assembled through a chain of names are all written inline instead. This governs code in every language, applies before anything is written rather than at review, and is stated in full — the three costs and the reuse-or-comprehension counter-rule — in `reference/code-craft.md`.
 - Working code is never rewritten for consistency alone: a difference in style, ordering or phrasing between two correct pieces of code is not a defect and is not fixed, and only a behaviour-changing defect or an explicit human-owner ask justifies touching code that already works. A mass cosmetic pass also buries real defects — a diff of hundreds of mechanical edits cannot be reviewed, so a genuine bug inside it goes unseen — which keeps behavioural fixes and cosmetic passes separate, separately-approvable work. The sibling of the rule above, and stated in full in `reference/code-craft.md`.
-- Language choice for a small script defaults to `awk` over Python: spawning a Python interpreter costs far more process-start latency than `awk`. Reach for Python only when the task genuinely needs something `awk` can't do cleanly — and even then, try `jq` first when the task is JSON-shaped. A preference for new code, not a ban: don't rewrite working Python to chase purity, and state at the call site why Python was needed.
+- Language order for new code: bash 3.2+ where it is efficient and fast for the task, then `awk`, then Python only where `awk` won't do or would be utterly inefficient. When the task is JSON-shaped, try `jq` before Python. Perl is not used: between the two, Python is the chosen one, for now. Switching would replace every Python file and install Perl everywhere, so it needs proof that Perl is universally better, sent to the human-owner's direct channel. Spawning a Python interpreter costs far more process-start latency than `awk`. No choice adds a new dependency. The tool is chosen for the file it is expected to grow into after the first MVP, counting the complications and improvements that follow, not for its first version. The order applies when a file is written, or when a task already changes it for its own reason. It is never a reason to convert working code by itself, and never a sweep: working code is kept until it is clearly a laggard or a blocker. The call site states why a later tool was needed. Full rule: `reference/shell.md`'s "Which language a piece of tooling is written in".
 - Text-transform/filter work over structured input (fields, records, line-by-line reformatting) defaults to `awk` over a bash loop: a `while read`/`for` loop typically forks a subprocess per line, where `awk` processes the whole stream in one pass. Reach for a bash loop only when the task needs shell-specific control `awk` doesn't have — spawning a process per item, job control, interactive prompts. A preference for new code, not a ban: don't rewrite a working loop to chase purity, and state at the call site why the loop was needed.
 - Script language defaults to POSIX `sh` over bash: portable across the team's Linux/FreeBSD/Darwin fleet with no assumption bash is even installed. That choice is made once, when the file is created, and it settles which of the two standards in `reference/shell.md` the file is then held to — a file declaring a bash requirement is written against bash 3.2's own feature set rather than contorted into POSIX, and a file written to `sh` carries no bash-ism at all, including ones that would work on Linux. What actually executes a file settles this over the file's own shebang: a body embedded and evaluated inline, or a file handed to an interpreter as an argument, runs under whatever runs it, and its own first line is inert — so the mechanism is read, never the shebang. A preference for new code, not a ban: don't rewrite a working script to chase either standard, and state at the call site why bash was needed.
 - Shell-feature portability and external-tool portability are different constraints, and conflating them is what produces needless POSIX contortions: the bash 3.2 floor grants the shell's own syntax, while `grep -P` and in-place `sed -i` are out because the three platforms' utilities differ. Neither constraint says anything about the other. Stated in full in `reference/shell.md`.
@@ -104,9 +104,10 @@ Used to check this file's own definitions against its own goals when it is updat
   write the language itself correctly, regardless of which repo you're in.
 - Code is written straight-line and top-to-bottom, and a function or variable is introduced only where the
   code genuinely has structure — real reuse, or a name carrying meaning its body cannot.
-- Default to `awk` over Python for a small scripting task — `awk`'s process-start latency is far lower
-  than spawning a Python interpreter; Python is the fallback only when the task genuinely needs something
-  `awk` can't do cleanly.
+- New tooling code takes bash 3.2+ where it is efficient, else `awk`, else Python only where `awk` won't do,
+  and never Perl — with no new dependency, chosen for the file it will grow into after the first MVP
+  (complications and improvements included), and without
+  converting working code that is not clearly a laggard or a blocker.
 - Prefer the least-latency, most-portable tool actually suited to a scripting task's shape, in order to
   keep tool choice consistent across every shell-scripting decision.
 - A shell file is held to exactly one standard, settled by what that file itself requires: bash 3.2 where
@@ -124,9 +125,13 @@ Used to check this file's own definitions against its own goals when it is updat
   `reference/java.md`, not left buried in that `keeper-*`'s own file.
 - A helper called from exactly one place is inlined rather than kept, in any language, even where the
   surrounding file is full of such helpers and the extraction would read as tidier.
-- Asked to write a small text-transform/filter script for a shell operation, the member reaches for `awk`
-  first; it only turns to Python when the task is something `awk` genuinely can't do cleanly, and even
-  then tries `jq` first when the task is JSON-shaped.
+- Asked to write a small text-transform/filter script for a shell operation, the member uses bash builtins
+  where they are efficient, and `awk` where bash would fork per line. It turns to Python only when `awk`
+  won't do or would be utterly inefficient, trying `jq` first when the task is JSON-shaped.
+- A working Python helper is touched for an unrelated fix. The member keeps it in Python: it is neither a
+  laggard nor a blocker, and the tool order is not a reason to convert it.
+- A member believes Perl fits a task better. It writes no Perl file: it sends the human-owner the proof that
+  Perl is universally better, on his direct channel, and Python stays until he rules.
 - Given a choice between two tools where either could do the job, the one with lower startup cost and
   narrower/more portable scope is chosen, unless the task genuinely needs the other tool's specific
   capability.

@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.TeamDataCommit.include -- the one commit step for tooling writers
+## into the team-data store that are not board, inbox or item ops. Sourced, never
+## run. Functions only.
+##
+## Same gate as the board ops: .git presence under $MDAT_DATA_ROOT, presence only
+## and independent of TEAM_DATA_GIT_REMOTE, and it never pushes -- the board ops
+## commit locally and item-upsert is the op that pushes. A failed commit warns on
+## stderr and never fails the write that came before it: the write has happened,
+## and the dirty-store warning at heartbeat and spawn close names what is left.
+##
+
+## Commits exactly the given paths, which must lie under $MDAT_DATA_ROOT.
+AgentsToolsTeamDataCommitPaths(){ ## context, path...
+	local commitContext="$1" ; shift
+	[ "$#" -gt 0 ] || return 0
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	local repoRoot="" gitOut="" gitRc=0 commitPath commitPaths=()
+	repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+	[ -n "$repoRoot" ] || return 0
+	for commitPath in "$@" ; do
+		case "$commitPath" in
+			*/../*|*/..) echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: a path with .. is never committed: $commitPath" >&2 ;;
+			"$MDAT_DATA_ROOT"/*) commitPaths+=( "$commitPath" ) ;;
+			*) echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: not under the team-data store, not committed: $commitPath" >&2 ;;
+		esac
+	done
+	[ "${#commitPaths[@]}" -gt 0 ] || return 0
+	gitOut="$( git -C "$repoRoot" add -A -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+	if [ "$gitRc" -ne 0 ] ; then
+		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: git add failed, left uncommitted (${commitPaths[*]}): $gitOut" >&2
+		return 0
+	fi
+	## Nothing staged for these paths -- the write changed nothing -- is not a commit.
+	if git -C "$repoRoot" diff --cached --quiet -- "${commitPaths[@]}" 2>/dev/null ; then
+		return 0
+	fi
+	gitOut="$( git -C "$repoRoot" commit -m "* $commitContext" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+	if [ "$gitRc" -ne 0 ] ; then
+		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: git commit failed, left uncommitted (${commitPaths[*]}): $gitOut" >&2
+		return 0
+	fi
+	echo "# $MDSC_CMD: team-data commit: committed ${#commitPaths[@]} path(s), $commitContext" >&2
+	return 0
+}
+
+## Pushes the store's branch when it is ahead of origin, at a close point, never per
+## write: one push carries everything committed since. The primitive is item-upsert's:
+## push origin HEAD; when the remote moved, integrate with myx.common git/cloneSync
+## --no-push and push once more; then read origin back and require it to equal HEAD.
+## Never a reset or a force, and local commits are never discarded: a failure is a
+## stated warning naming the reason and the ahead count, and the next close retries.
+## Pushes only when the store is its repository's own root and that repository's
+## origin is TEAM_DATA_GIT_REMOTE. Always returns 0.
+## One pusher at a time on this host: every close can call this, async spawn closes
+## concurrently, so the body runs under the package's local lock. A busy lock skips
+## with a warning -- the holder is pushing the same branch, and the next close retries.
+AgentsToolsTeamDataPushIfAhead(){ ## where
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
+	local pushLock=""
+	if ! AgentsToolsLocalLockTake "team-data-push" 30 "the team-data push" ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: another team-data push holds the lock; skipped, and the next close retries" >&2
+		return 0
+	fi
+	pushLock="$agentsLocalLockPath"
+	AgentsToolsTeamDataPushIfAheadLocked "$1"
+	AgentsToolsLocalLockGive "$pushLock"
+	return 0
+}
+
+AgentsToolsTeamDataPushIfAheadLocked(){ ## where
+	local pushWhere="$1"
+	local repoRoot="" gitDir="" originUrl="" repoOrigin="" storeRoot="" pushBranch="" aheadCount="" pushOut="" pushRc=0 headFull="" remoteHead=""
+	repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || return 0
+	[ -n "$repoRoot" ] || return 0
+	gitDir="$( git -C "$repoRoot" rev-parse --absolute-git-dir 2>/dev/null )" || return 0
+	originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || originUrl=""
+	[ -n "$originUrl" ] || return 0
+	storeRoot="$( cd "$MDAT_DATA_ROOT" && pwd -P )" || storeRoot=""
+	[ -n "$storeRoot" ] && [ "$storeRoot" = "$( cd "$repoRoot" && pwd -P )" ] || return 0
+	repoOrigin="$( git -C "$repoRoot" remote get-url origin 2>/dev/null )" || repoOrigin=""
+	[ "$repoOrigin" = "$originUrl" ] || return 0
+	pushBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || pushBranch=""
+	[ -n "$pushBranch" ] && [ "$pushBranch" != "HEAD" ] || return 0
+	## Nothing ahead of the last fetch: no push is attempted.
+	if git -C "$repoRoot" rev-parse --verify --quiet "refs/remotes/origin/$pushBranch" > /dev/null 2>&1 ; then
+		aheadCount="$( git -C "$repoRoot" rev-list --count "refs/remotes/origin/$pushBranch..HEAD" 2>/dev/null )" || aheadCount=""
+		[ "$aheadCount" != "0" ] || return 0
+	fi
+	pushOut="$( LC_ALL=C git -C "$repoRoot" push origin HEAD 2>&1 )" || pushRc=$?
+	## Whether origin moved is read from state, never from the message: fetch, then ask
+	## whether origin's branch is still an ancestor of HEAD.
+	if [ "$pushRc" -ne 0 ] && LC_ALL=C git -C "$repoRoot" fetch -q origin "$pushBranch" > /dev/null 2>&1 \
+		&& git -C "$repoRoot" rev-parse --verify --quiet "refs/remotes/origin/$pushBranch" > /dev/null 2>&1 \
+		&& ! git -C "$repoRoot" merge-base --is-ancestor "refs/remotes/origin/$pushBranch" HEAD 2>/dev/null ; then
+		## An operation already in progress is not ours to touch, and never integrated over.
+		local interrupted=""
+		[ ! -e "$gitDir/index.lock" ] || interrupted="$interrupted index.lock"
+		[ ! -e "$gitDir/MERGE_HEAD" ] || interrupted="$interrupted merge"
+		[ ! -e "$gitDir/CHERRY_PICK_HEAD" ] || interrupted="$interrupted cherry-pick"
+		[ ! -e "$gitDir/REVERT_HEAD" ] || interrupted="$interrupted revert"
+		[ ! -d "$gitDir/rebase-merge" ] && [ ! -d "$gitDir/rebase-apply" ] || interrupted="$interrupted rebase"
+		if [ -n "$interrupted" ] ; then
+			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected (origin moved) and the store shows an operation in progress:$interrupted -- not integrated, not touched; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
+			return 0
+		fi
+		if [ -n "$( git -C "$repoRoot" status --porcelain --untracked-files=all 2>/dev/null )" ] ; then
+			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected (origin moved) and the store holds uncommitted paths, so it was not integrated; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
+			return 0
+		fi
+		if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
+			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected (origin moved) and myx.common git/cloneSync is unreachable to integrate; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
+			return 0
+		fi
+		## cloneSync's pull needs a reconcile mode when the two sides diverged: a merge,
+		## which keeps both sides' commits and rewrites none. No merge was in progress
+		## above, so one present after a failure is this call's own, and only that is aborted.
+		pushOut="$( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false LC_ALL=C \
+			"$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$pushBranch" 2>&1 )" || {
+			[ ! -e "$gitDir/MERGE_HEAD" ] || git -C "$repoRoot" merge --abort > /dev/null 2>&1
+			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected and integrating origin failed; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries: $pushOut" >&2
+			return 0
+		}
+		pushRc=0
+		pushOut="$( LC_ALL=C git -C "$repoRoot" push origin HEAD 2>&1 )" || pushRc=$?
+	fi
+	if [ "$pushRc" -ne 0 ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push failed; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries: $pushOut" >&2
+		return 0
+	fi
+	headFull="$( git -C "$repoRoot" rev-parse HEAD 2>/dev/null )" || headFull=""
+	remoteHead="$( git -C "$repoRoot" ls-remote origin "refs/heads/$pushBranch" 2>/dev/null | LC_ALL=C awk 'NR == 1 { print $1 ; }' )" || remoteHead=""
+	if [ -z "$headFull" ] || [ "$remoteHead" != "$headFull" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push reported success but origin/$pushBranch reads back '${remoteHead:-<nothing>}', not ${headFull:-<unknown>}; the next close retries" >&2
+		return 0
+	fi
+	echo "# $MDSC_CMD: $pushWhere: team-data pushed, origin/$pushBranch = $headFull" >&2
+	return 0
+}
+
+## When TEAM_DATA_GIT_REMOTE is set and no local board exists yet -- the store is
+## missing or empty -- clones it with myx.common git/clonePull, the main loop's own
+## primitive, on TEAM_DATA_BRANCH. A store holding content that is not a clone is left
+## alone and said: adopting it is the main loop's decision, never a writer's. Returns 0.
+AgentsToolsTeamDataEnsureClone(){ ## where
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	[ ! -e "$MDAT_DATA_ROOT/.git" ] || return 0
+	## Called for every op: a store holding content costs one test and no config read.
+	if [ -d "$MDAT_DATA_ROOT" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
+		return 0
+	fi
+	## Once per process tree: an op dispatching nested ops never tries, or warns, twice.
+	[ -z "${MDAT_TEAM_DATA_CLONE_TRIED:-}" ] || return 0
+	local cloneRemote="" cloneLock=""
+	cloneRemote="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || cloneRemote=""
+	[ -n "$cloneRemote" ] || return 0
+	export MDAT_TEAM_DATA_CLONE_TRIED=1
+	## Two first writers never both clone: the loser, once it holds the lock, finds the clone done.
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
+	if ! AgentsToolsLocalLockTake "team-data-clone" 30 "the team-data clone" ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: another writer holds the team-data clone lock, so this one did not clone" >&2
+		return 0
+	fi
+	cloneLock="$agentsLocalLockPath"
+	AgentsToolsTeamDataEnsureCloneLocked "$1" "$cloneRemote"
+	AgentsToolsLocalLockGive "$cloneLock"
+	return 0
+}
+
+AgentsToolsTeamDataEnsureCloneLocked(){ ## where, remote
+	local cloneRemote="$2" cloneBranch=""
+	[ ! -e "$MDAT_DATA_ROOT/.git" ] || return 0
+	## A store inside a larger repository is already in one, and is never given a nested clone.
+	if [ -d "$MDAT_DATA_ROOT" ] && git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel > /dev/null 2>&1 ; then
+		return 0
+	fi
+	if [ -d "$MDAT_DATA_ROOT" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE is set but $MDAT_DATA_ROOT holds local content and is not a clone, so nothing is committed or pushed from it; the main loop adopts such a store, a writer never does" >&2
+		return 0
+	fi
+	if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/clonePull.Common" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE is set and no local board exists, but myx.common git/clonePull is unreachable, so it was not cloned" >&2
+		return 0
+	fi
+	cloneBranch="$( DistroAgentsTools --agents-config-option magic-team --select-default TEAM_DATA_BRANCH main 2>/dev/null )" || cloneBranch=""
+	[ -n "$cloneBranch" ] || cloneBranch="main"
+	if ( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$cloneBranch" \
+		"$MYXROOT/bin/git/clonePull.Common" "$MDAT_DATA_ROOT" "$cloneRemote" "$cloneBranch" >&2 ) ; then
+		echo "# $MDSC_CMD: $1: no local board existed, cloned $cloneRemote ($cloneBranch) into $MDAT_DATA_ROOT" >&2
+	else
+		echo "⚠️ WARNING: $MDSC_CMD: $1: no local board existed and cloning $cloneRemote failed, so this write stays local and uncommitted" >&2
+	fi
+	return 0
+}
+
+## The store step of --owner-setup-storage --apply. MDAT_DATA_ROOT is resolved the
+## dispatcher's way, which also clones a missing or empty store when a remote is set.
+## With no remote the store is initialised. A store holding content that is not a
+## clone while a remote is set is left alone, and said. The configured author identity
+## is then written into the store repository's own config. Non-zero only on a failure.
+AgentsToolsTeamDataPrepareStore(){
+	local MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}" prepareRemote="" prepareName="" prepareEmail=""
+	set -- --owner-setup-storage
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --owner-setup-storage: the team-data store could not be resolved" >&2 ; return 1 ; }
+	prepareRemote="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || prepareRemote=""
+	## A store inside a larger repository is never given a nested one, nor an identity of the outer one's.
+	local prepareProbe="$MDAT_DATA_ROOT"
+	while [ -n "$prepareProbe" ] && [ ! -d "$prepareProbe" ] ; do
+		[ "${prepareProbe%/*}" != "$prepareProbe" ] || { prepareProbe="" ; break ; }
+		prepareProbe="${prepareProbe%/*}"
+	done
+	if [ ! -e "$MDAT_DATA_ROOT/.git" ] && [ -n "$prepareProbe" ] && git -C "$prepareProbe" rev-parse --show-toplevel > /dev/null 2>&1 ; then
+		echo "⚠️ WARNING: $MDSC_CMD --owner-setup-storage: $MDAT_DATA_ROOT sits inside the larger repository $( git -C "$prepareProbe" rev-parse --show-toplevel ), so no repository is made for it and no identity is written" >&2
+		return 0
+	fi
+	if [ ! -e "$MDAT_DATA_ROOT/.git" ] ; then
+		if [ -n "$prepareRemote" ] ; then
+			echo "⚠️ WARNING: $MDSC_CMD --owner-setup-storage: $MDAT_DATA_ROOT holds local content and is not a clone of TEAM_DATA_GIT_REMOTE, so it was left alone; the main loop adopts such a store" >&2
+			return 0
+		fi
+		mkdir -p "$MDAT_DATA_ROOT" && git -C "$MDAT_DATA_ROOT" init -q || { echo "⛔ ERROR: $MDSC_CMD --owner-setup-storage: could not initialise $MDAT_DATA_ROOT as a repository" >&2 ; return 1 ; }
+		echo "# $MDSC_CMD --owner-setup-storage: no remote is set, so $MDAT_DATA_ROOT was initialised as a repository" >&2
+	fi
+	prepareName="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_USER_NAME 2>/dev/null )" || prepareName=""
+	prepareEmail="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_USER_EMAIL 2>/dev/null )" || prepareEmail=""
+	[ -z "$prepareName" ] || git -C "$MDAT_DATA_ROOT" config user.name "$prepareName" || return 1
+	[ -z "$prepareEmail" ] || git -C "$MDAT_DATA_ROOT" config user.email "$prepareEmail" || return 1
+	[ -z "$prepareName$prepareEmail" ] || echo "# $MDSC_CMD --owner-setup-storage: the configured author identity is written into $MDAT_DATA_ROOT's own config" >&2
+	return 0
+}
+
+## Says so on stderr when the store holds uncommitted changes, and when its branch
+## is ahead of origin. Never fails and never changes anything: a silent dirty or
+## unpushed store is what this exists to prevent.
+AgentsToolsTeamDataDirtyWarning(){ ## where
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel > /dev/null 2>&1 || return 0
+	local dirtyList="" dirtyCount=0 dirtyBranch="" aheadCount=""
+	dirtyList="$( git -C "$MDAT_DATA_ROOT" status --porcelain --untracked-files=all -- . 2>/dev/null )" || dirtyList=""
+	if [ -n "$dirtyList" ] ; then
+		dirtyCount="$( printf '%s\n' "$dirtyList" | wc -l | tr -d '[:space:]' )"
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data store $MDAT_DATA_ROOT holds $dirtyCount uncommitted path(s) after the team's own ops -- a tooling writer did not commit. First ones:" >&2
+		printf '%s\n' "$dirtyList" | head -10 >&2
+	fi
+	## Measured against the last fetched origin/<branch>: `git rev-list --count origin/<branch>..HEAD`.
+	dirtyBranch="$( git -C "$MDAT_DATA_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null )" || dirtyBranch=""
+	if [ -n "$dirtyBranch" ] && [ "$dirtyBranch" != "HEAD" ] && git -C "$MDAT_DATA_ROOT" rev-parse --verify --quiet "refs/remotes/origin/$dirtyBranch" > /dev/null 2>&1 ; then
+		aheadCount="$( git -C "$MDAT_DATA_ROOT" rev-list --count "refs/remotes/origin/$dirtyBranch..HEAD" 2>/dev/null )" || aheadCount=""
+		if [ -n "$aheadCount" ] && [ "$aheadCount" != "0" ] ; then
+			echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data branch $dirtyBranch is $aheadCount commit(s) ahead of origin/$dirtyBranch (rev-list --count against the last fetch) -- not pushed yet" >&2
+		fi
+	fi
+	return 0
+}

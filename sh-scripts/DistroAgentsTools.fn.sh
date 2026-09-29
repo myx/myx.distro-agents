@@ -149,6 +149,16 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--member-escalation-*|--magic-escalation-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberEscalation.include"
+			return $?
+		;;
+
+		--member-pending-reply-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberPendingReply.include"
+			return $?
+		;;
+
 		--member-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Member.include"
 			return $?
@@ -245,6 +255,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--intern-op-permission-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPermission.include"
+			return $?
+		;;
+
 		--intern-op-remote-bootstrap-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpRemoteBootstrap.include"
 			return $?
@@ -317,7 +332,7 @@ DistroAgentsTools(){
 				set +e ; return 1
 			fi
 			if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
-				echo "$MDSC_CMD: config-board-location: ⛔ ERROR: TEAM_DATA_DIRECTORY is not configured" >&2
+				echo "$MDSC_CMD: config-board-location: ⛔ ERROR: the team data store is not resolved -- fix with: $MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-storage --apply" >&2
 				set +e ; return 1
 			fi
 			printf '%s\n' "$MDAT_DATA_ROOT"
@@ -382,6 +397,11 @@ DistroAgentsTools(){
 
 		--magic-team-roster-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicTeamRoster.include"
+			return $?
+		;;
+
+		--magic-team-data-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicTeamData.include"
 			return $?
 		;;
 

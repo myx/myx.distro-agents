@@ -19,7 +19,7 @@ Doesn't do: let them accumulate indefinitely unreviewed.
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: run `magic-team.process-inbox.routine <executor>` (typically `magic-librarian`) — inline execution (own identity). `reflection-*` documents only, not the inbox generally — the in-inbox counterpart to the `feedback_*` auto-memory files **read-feedback-files** reads. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
 2. **read-feedback-files**: read the accumulated `feedback_*`-style memory files for the project/workspace this session is operating in — these are Claude's own learned-lesson files, distinct from board-items and distinct from any member's personal inbox content.

@@ -20,7 +20,7 @@ Doesn't do: convergence/decision among team members (`magic-team.discuss.routine
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: run `magic-team.process-inbox.routine <executor>` — inline execution (own identity), so own inbox is read before the proposal is put.
 2. **open-thread-on-invariant-question**: open the standing thread by posting its root, per **proposal-thread-mechanic**'s root clause — the root is the invariant question, and only that. Capture the root `<channel>:<ts>` as this proposal's own thread anchor; every later step targets that same thread. The root is never reposted or rewritten after this step.
@@ -60,7 +60,7 @@ All statements apply at the same time, always. These rules override a participan
 - **Clean-proposal discipline governs every proposal reply**, per **proposal-thread-mechanic**'s in-thread-proposal clause: present/future-tense, proposed form plus its tight reasoning only, no history/narrative/how-reached/precedent/tension. A reply carrying any of those is not clean and is reworked before it stands.
 - One proposal reply is live in the thread at a time — a revision is a delete-and-replace, never an addition.
 - The root is posted once and never touched again except by the human-owner's own closing reaction.
-- One documented mechanism failing once is a stop-and-ask signal, not a puzzle to solve alone.
+- One documented mechanism failing once is an escalation signal, not a puzzle to solve alone.
 - **A proposal runs beside the work it came from, never in place of it.** A readback the source does not settle with a yes or no enters the escalation process and reaches this routine only where that process does not resolve it; a proposal never reduces back to a readback.
 - `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
 

@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.PendingReplyCollect.include -- collects the answers to AskUserQuestion
+## questions nobody is waiting on. Definitions only, sourced by the
+## --intern-op-pending-reply-collect arm (AgentsTools.InternOpPendingReply.include).
+##
+## Each open record is read once and never waited on: one --member-wait-for-input round
+## with a zero bound, over the question's own thread, since the question -- the same
+## probe and the same answer rules a live wait uses. Only plain questions are collected:
+## a readback, decision or permission always waits for its verdict, so a collect never
+## reads, closes or grants one.
+##
+## Pure tooling, run by the tooling itself: no model is called anywhere here.
+##
+## One line per record examined, first word the outcome:
+##   ANSWERED <id> <tag> | <question first line> | <answer>   -- closed as received
+##   UNMATCHED <id> <tag> | <question first line>              -- a reply seen and not taken
+##   OPEN <id> <tag> | <question first line>                   -- nothing yet
+##   UNREADABLE <id> <tag> | <why>                             -- nothing is known; stays open
+##   ALREADY-CLOSED <id> <status>                              -- closed by another closer first
+## then `COLLECT: answered=<n> unmatched=<n> open=<n> unreadable=<n>`.
+##
+
+## The header fields a collect needs, one line each as `<field>\t<value>`, in one pass.
+AgentsToolsPendingReplyCollectFields(){ ## record file
+	LC_ALL=C awk '
+		$0 == "---" { dashes++ ; if ( dashes == 2 ) { inBody = 1 ; } next ; }
+		dashes == 1 {
+			colon = index($0, ": ") ;
+			if ( colon > 1 ) { printf "%s\t%s\n", substr($0, 1, colon - 1), substr($0, colon + 2) ; }
+			next ;
+		}
+		inBody && ! firstSeen && $0 !~ /^#/ && $0 !~ /^[ \t]*$/ { printf "first\t%s\n", $0 ; firstSeen = 1 ; }
+	' "$1" 2>/dev/null
+}
+
+## Marks a record whose session has ended, so the main loop's collect finds it. Under
+## the record's own lock, like every close.
+AgentsToolsPendingReplyMarkEnded(){ ## pending id, record file
+	local markLock markOps markBody
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
+	AgentsToolsLocalLockTake "pending-reply-$1" 30 || return 1
+	markLock="$agentsLocalLockPath"
+	markOps="$MMDAPP/.local/temp/mdat-pending-reply-mark.$$.$RANDOM"
+	if [ "$( AgentsToolsPendingReplyCollectFieldOf "$2" status )" = "reply-pending" ] ; then
+		printf 'upsert\tcollect\tended\n' > "$markOps" \
+			&& markBody="$( LC_ALL=C awk -v opsFile="$markOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$2" )" \
+			&& [ -n "$markBody" ] && printf '%s\n' "$markBody" > "$2"
+	fi
+	rm -f "$markOps"
+	AgentsToolsLocalLockGive "$markLock"
+	return 0
+}
+
+## One field, for the rare single read.
+AgentsToolsPendingReplyCollectFieldOf(){ ## record file, field
+	LC_ALL=C awk -v key="$2" '
+		$0 == "---" { dashes++ ; if ( dashes == 2 ) { exit ; } next ; }
+		dashes == 1 && index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit ; }
+	' "$1" 2>/dev/null
+}
+
+## Collects one record. Prints its outcome line; sets collectOutcome and collectAnswer
+## for the caller. The record is closed here only when it is answered.
+AgentsToolsPendingReplyCollectOne(){ ## record file
+	local oneFile="$1" oneId oneLine oneKey oneValue oneWork oneRc=0 oneBody oneHead oneClose
+	local oneStatus="" oneKind="" oneOwner="" oneChannel="" oneQts="" oneTts="" oneAddr="" oneTag="" oneFirst=""
+	collectOutcome="" ; collectAnswer=""
+	oneId="${oneFile##*/}" ; oneId="${oneId%.md}"
+	while IFS=$'\t' read -r oneKey oneValue ; do
+		case "$oneKey" in
+			status) oneStatus="$oneValue" ;;
+			kind) oneKind="$oneValue" ;;
+			owner) oneOwner="$oneValue" ;;
+			channel) oneChannel="$oneValue" ;;
+			question-ts) oneQts="$oneValue" ;;
+			thread-ts) oneTts="$oneValue" ;;
+			addressees) oneAddr="$oneValue" ;;
+			question-tag) oneTag="$oneValue" ;;
+			first) oneFirst="$oneValue" ;;
+		esac
+	done < <( AgentsToolsPendingReplyCollectFields "$oneFile" )
+	case "$oneKind" in
+		''|question) ;;
+		*) collectOutcome="SKIPPED" ; return 0 ;;
+	esac
+	[ "$oneStatus" = "reply-pending" ] || { collectOutcome="SKIPPED" ; return 0 ; }
+	if [ -z "$oneChannel" ] || [ -z "$oneQts" ] || [ -z "$oneTts" ] || [ -z "$oneAddr" ] || [ -z "$oneOwner" ] ; then
+		collectOutcome="UNREADABLE"
+		printf 'UNREADABLE %s %s | the record names no thread, question or addressee to read\n' "$oneId" "${oneTag:--}"
+		return 0
+	fi
+	oneWork="$( mktemp "$MMDAPP/.local/temp/mdat-pending-collect.XXXXXX" )" || { collectOutcome="UNREADABLE" ; printf 'UNREADABLE %s %s | no work file\n' "$oneId" "${oneTag:--}" ; return 0 ; }
+	DistroAgentsTools --member-wait-for-input "$oneOwner" --wait-source "slack:$oneChannel:$oneTts" \
+		--wait-timeout 0 --wait-since-utime "$oneQts" --wait-addressee "$oneAddr" > "$oneWork" 2> "$oneWork.err" || oneRc=$?
+	if [ "$oneRc" != "0" ] || LC_ALL=C grep -q '^WAIT-NEVER-READ: ' "$oneWork" || ! LC_ALL=C grep -q -E '^WAIT-RESULT: (RECEIVED|TIMEOUT)$' "$oneWork" ; then
+		collectOutcome="UNREADABLE"
+		printf 'UNREADABLE %s %s | the thread could not be read, so nothing is known about it\n' "$oneId" "${oneTag:--}"
+		rm -f "$oneWork" "$oneWork.err"
+		return 0
+	fi
+	if LC_ALL=C grep -q '^WAIT-RESULT: TIMEOUT$' "$oneWork" ; then
+		collectOutcome="OPEN"
+		printf 'OPEN %s %s | %s\n' "$oneId" "${oneTag:--}" "$oneFirst"
+		rm -f "$oneWork" "$oneWork.err"
+		return 0
+	fi
+	oneBody="$( LC_ALL=C awk '
+		$0 == "# --- what that source holds now follows ---" { inBody = 1 ; next ; }
+		$0 == "# --- end ---" { inBody = 0 ; next ; }
+		inBody { print ; }
+	' "$oneWork" )"
+	rm -f "$oneWork" "$oneWork.err"
+	## An answer is a reply head or a reaction, exactly what ends a live wait on a question.
+	oneHead="$( printf '%s\n' "$oneBody" | LC_ALL=C grep -m1 -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' )"
+	if [ -z "$oneHead" ] ; then
+		collectOutcome="UNMATCHED"
+		printf 'UNMATCHED %s %s | %s\n' "$oneId" "${oneTag:--}" "$oneFirst"
+		return 0
+	fi
+	local oneBy="reaction" oneAnswerTs=""
+	case "$oneHead" in
+		'reaction on the question: '*)
+			collectAnswer="$oneHead"
+		;;
+		*)
+			oneAnswerTs="${oneHead%% *}"
+			oneBy="${oneHead#* | }" ; oneBy="${oneBy%% |*}"
+			collectAnswer="$( printf '%s\n' "$oneBody" | LC_ALL=C awk '
+				/^[0-9]+\.[0-9]+ \| / {
+					if ( taken ) { exit ; }
+					taken = 1 ;
+					line = $0 ; sub(/^[^|]*\| [^|]*\|/, "", line) ;
+					while ( match(line, /^ \[[^]]*\]/) ) { line = substr(line, RSTART + RLENGTH) ; }
+					sub(/^ +/, "", line) ;
+					text = line ;
+					next ;
+				}
+				taken && $0 !~ /^UNMATCHED-REPLY / { text = ( text == "" ? $0 : text " " $0 ) ; }
+				END { print text ; }
+			' )"
+		;;
+	esac
+	oneRc=0
+	oneClose="$( DistroAgentsTools --intern-op-pending-reply-close "$oneId" --if-open --status reply-received \
+		--verdict "$collectAnswer" --answered-by "$oneBy" ${oneAnswerTs:+--answer-ts "$oneAnswerTs"} --context collect 2>/dev/null )" || oneRc=$?
+	case "$oneRc" in
+		0)
+			collectOutcome="ANSWERED"
+			printf 'ANSWERED %s %s | %s | %s\n' "$oneId" "${oneTag:--}" "$oneFirst" "$collectAnswer"
+		;;
+		3)
+			collectOutcome="ALREADY-CLOSED"
+			printf '%s\n' "$oneClose"
+		;;
+		*)
+			collectOutcome="OPEN"
+			printf 'OPEN %s %s | %s -- an answer was seen, and the close failed, so it stays open\n' "$oneId" "${oneTag:--}" "$oneFirst"
+		;;
+	esac
+	return 0
+}

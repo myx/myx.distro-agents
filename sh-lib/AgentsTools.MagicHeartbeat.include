@@ -40,6 +40,16 @@ case "$1" in
 		printf '%s\n\n' "## state-and-lock (routine-heartbeat)"
 		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
+		## Questions: what the main loop's last collect found, then every question still open,
+		## with its session, asker and age. Both written by the tooling; this pass only reads.
+		printf '\n%s\n\n' "## questions (pending replies)"
+		if [ -s "$MMDAPP/.local/agents/pending-collect.last" ] ; then
+			printf 'Last collect by the main loop:\n'
+			cat "$MMDAPP/.local/agents/pending-collect.last"
+			printf '\n'
+		fi
+		printf 'Every question still open:\n\n'
+		DistroAgentsTools --member-pending-reply-read "$callingMember" --any-owner 2>/dev/null || echo "(the open questions could not be read)"
 		printf '\n%s\n\n' "## board digest"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--all-types \
@@ -57,7 +67,7 @@ case "$1" in
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-spawn-proxy: syntax is <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <audit-item-name>] [--from-audit <vault-item-name>] [--wait]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-spawn-proxy: syntax is <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <audit-item-name>] [--from-audit <vault-item-name>] [--session-thread:event-track|magic-team] [--wait]" >&2
 			set +e ; return 1
 		fi
 		case "$callingMember" in
@@ -133,6 +143,14 @@ case "$1" in
 			--expect-secret SLACK_BOT_TOKEN \
 			--resolve-slack-workspace-into SLACK_WORKSPACE_DOMAIN \
 			--context --magic-heartbeat-config-check || true
+		## The main loop's readiness floor, applied the same way here: a pass dispatches spawns.
+		if [ -z "$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )" ] ; then
+			echo "SPAWN_CLI_SERVICE: FAIL"
+			echo "  fail: Agent CLI service is not set, so this pass's spawns cannot start -- set it with DistroAgentsTools.fn.sh --owner-setup-claude --apply (or --owner-setup-copilot --apply)"
+			configRc=1
+		else
+			echo "SPAWN_CLI_SERVICE: OK"
+		fi
 		DistroAgentsTools --intern-op-slack-check-scopes magic-coordinator \
 			--scope-source --member-comms-slack-send-message \
 			--scope-source --intern-op-slack-check \
@@ -157,11 +175,13 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-board-item-trash: syntax is <team-member> <board-state> <item-name>" >&2
 			set +e ; return 1
 		fi
+		local trashUntrash=""
+		if [ "${1:-}" = "--untrash" ] ; then trashUntrash="--untrash" ; shift ; fi
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-board-item-trash: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-board-trash "$callingMember" "$boardState" "$itemName" --context --magic-heartbeat-board-item-trash
+		DistroAgentsTools --intern-op-board-trash "$callingMember" "$boardState" "$itemName" $trashUntrash --context --magic-heartbeat-board-item-trash
 		return $?
 	;;
 
@@ -234,7 +254,14 @@ case "$1" in
 			--header:upsert:state:heartbeat-finished \
 			--commit-message "* main-loop, heartbeat, $( date -u +%Y-%m-%dT%H:%M:%SZ )" \
 			--context --magic-heartbeat-close-state-and-unlock
-		return $?
+		local closeRc=$?
+		## After the unlock's own commit and push: anything still uncommitted or unpushed is said.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataPushIfAhead "heartbeat close"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+		AgentsToolsSpawnSandboxSweep "heartbeat close"
+		AgentsToolsTeamDataDirtyWarning "heartbeat close"
+		return "$closeRc"
 	;;
 
 	--magic-heartbeat-lock-status)
@@ -368,7 +395,7 @@ case "$1" in
 		## awk above), so the stale copy would silently win forever.
 		local lockFields callerFields callerBody
 		lockFields="$( LC_ALL=C awk '
-			NR==1 { if ($0=="---") { inFM=1 } ; next }
+			NR==1 { if ($0=="---") { inFM=1 ; } ; next ; }
 			inFM {
 				if ($0=="---") exit
 				if ($0 ~ /^(type|from|date|owner|state|recheck-date|session-id): /) print
@@ -388,7 +415,7 @@ case "$1" in
 		## uses --edit-patch-from-stdin on this op today, but the op accepts
 		## it, so this excludes rather than trusts the caller never to.
 		callerFields="$( printf '%s\n' "$content" | LC_ALL=C awk '
-			NR==1 { if ($0=="---") { inFM=1 } ; next }
+			NR==1 { if ($0=="---") { inFM=1 ; } ; next ; }
 			inFM {
 				if ($0=="---") exit
 				if ($0 !~ /^(type|from|date|owner|state|recheck-date|session-id): /) print
@@ -398,13 +425,13 @@ case "$1" in
 		## input -- callerFields alone empty is fine. This is NOT the same
 		## check as the "both empty" guard below.
 		callerBody="$( printf '%s\n' "$content" | LC_ALL=C awk '
-			NR==1 { if ($0=="---") { hasFm=1 } }
+			NR==1 { if ($0=="---") { hasFm=1 ; } ; }
 			hasFm {
-				if ($0=="---") { delims++ ; next }
+				if ($0=="---") { delims++ ; next ; }
 				if (delims >= 2) print
 				next
 			}
-			{ print }
+			{ print ; }
 		' )"
 		## Strip callerBody's own leading blank line(s) before splicing --
 		## $mergedContent below always adds exactly one separating blank line
@@ -418,8 +445,8 @@ case "$1" in
 		## adding exactly one, makes the separator idempotent regardless of
 		## how many blank lines the input happened to carry.
 		callerBody="$( printf '%s\n' "$callerBody" | LC_ALL=C awk '
-			BEGIN { started = 0 }
-			{ if (!started && $0 == "") next ; started = 1 ; print }
+			BEGIN { started = 0 ; }
+			{ if (!started && $0 == "") next ; started = 1 ; print ; }
 		' )"
 		## Defense in depth: whatever the cause (a future edge case, not only
 		## the two fixed above), extraction producing nothing at all from a

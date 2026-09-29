@@ -24,7 +24,7 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **[step-one-name]**: [Step one. Every step carries a name in this shape — what it does, never where it sits; unique within the file.]
    - goal: [What this branch is for. Optional, may be several, goes first, never executed.]
@@ -113,7 +113,7 @@ Used to check this file's own definitions against its own goals when it is updat
     - What it deliberately doesn't do.
 - `# Steps`
   - Exact instructions, execute in order, literally as written.
-  - A step that can't execute as written: escalate, or fail loud.
+  - A step that can't execute as written: escalate it, and never skip it silently.
   - Exact steps as nested lists. Nested lines follow `magic-team/magic-team.shared.md`'s nested-item grammar (`goal:`/`rule:`/`step:`).
   - Every root-level step carries a name, in the established shape: `<N>. **name-of-meaning**: …` — names what the step does, never where it sits. Unique within the file.
   - A step is referred to by its name, not its number alone — inside the file and from any other file. A step with no name can only be pointed at by position, and position is the first thing an edit changes.

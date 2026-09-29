@@ -138,9 +138,13 @@ function fail(reason) {
 	exit 1
 }
 
+# A text file ends with exactly one newline, whatever the input ended with: the
+# records are rejoined without the last one's, so an upsert of its own output would
+# otherwise differ from it by that newline and never read as unchanged.
 function emit(result) {
 	if (!validJson(result, "{")) fail("generated-config-would-not-parse")
-	printf "%s", result
+	sub(/\n+$/, "", result)
+	printf "%s\n", result
 	DONE = 1
 }
 

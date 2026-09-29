@@ -103,9 +103,11 @@ rigSplit=( --access-read-root "$rigTmp/READABLE" --access-read-root "$rigTmp/WRI
 rigNoWriteFlag=( --access-read-root "$rigTmp/READABLE" --access-read-root "$rigTmp/WRITABLE" )
 
 rigFails=0
+rigPasses=0
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
 		printf '  PASS  %s\n' "$1"
+		rigPasses=$(( rigPasses + 1 ))
 	else
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3"
 		rigFails=$(( rigFails + 1 ))
@@ -172,6 +174,156 @@ rigAssert "the team scratchpad accepts a write" \
 rigAssert "a declared Edit grant accepts a write" \
 	"$( rigVerdict "$( HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="" CLAUDE_CODE_SESSION_ID="" rigWrite "$rigTmp/GRANTED/x.txt" )" )" "wrote"
 
+echo "-- a symlink as the last path element is judged by where it points --"
+rigLeafIn="$rigTmp/LEAF-IN"
+rigLeafOut="$rigTmp/LEAF-OUT"
+mkdir -p "$rigLeafIn/sub" "$rigLeafOut"
+rigLeaf=( --access-read-root "$rigLeafIn" --access-write-root "$rigLeafIn" )
+
+rigEdit(){ ## target path, new text, then the root flags for this scenario
+	local rigTarget="$1" rigNew="$2" rigLine ; shift 2
+	rigLine="$( printf '{"path":"%s","old_text":"orig","new_text":"%s"}' "$rigTarget" "$rigNew" \
+		| MMDAPP="$rigTmp" "$rigHarness" --intern-tool Edit "$@" 2>/dev/null \
+		| LC_ALL=C grep -m1 '^OK:\|^ERROR:' )" || rigLine=""
+	[ -n "$rigLine" ] || rigRefuse "no verdict line from an Edit call on $rigTarget, so the write gate was never exercised"
+	printf '%s' "$rigLine"
+}
+
+rigBytes(){ ## path
+	[ -f "$1" ] || { printf 'absent' ; return 0 ; }
+	cat "$1"
+}
+
+printf 'orig' > "$rigLeafOut/target"
+ln -s "$rigLeafOut/target" "$rigLeafIn/link"
+rigAssert "Write through an in-root link to an outside file is refused" \
+	"$( rigVerdict "$( rigWrite "$rigLeafIn/link" "${rigLeaf[@]}" )" )" "refused-not-writable"
+rigAssert "and the outside file is unchanged" "$( rigBytes "$rigLeafOut/target" )" "orig"
+
+printf 'orig' > "$rigLeafOut/target2"
+ln -s "$rigLeafOut/target2" "$rigLeafIn/link2"
+rigAssert "Edit through an in-root link to an outside file is refused" \
+	"$( rigVerdict "$( rigEdit "$rigLeafIn/link2" rig-edited "${rigLeaf[@]}" )" )" "refused-not-writable"
+rigAssert "and the outside file is unchanged" "$( rigBytes "$rigLeafOut/target2" )" "orig"
+
+printf 'orig' > "$rigLeafOut/rt"
+ln -s "../../LEAF-OUT/rt" "$rigLeafIn/sub/rel"
+rigAssert "a relative link out is refused" \
+	"$( rigVerdict "$( rigWrite "$rigLeafIn/sub/rel" "${rigLeaf[@]}" )" )" "refused-not-writable"
+rigAssert "and the outside file is unchanged" "$( rigBytes "$rigLeafOut/rt" )" "orig"
+
+printf 'orig' > "$rigLeafOut/ht"
+ln -s "$rigLeafOut/ht" "$rigLeafIn/h2"
+ln -s "$rigLeafIn/h2" "$rigLeafIn/h1"
+rigAssert "a two-hop chain out is refused" \
+	"$( rigVerdict "$( rigWrite "$rigLeafIn/h1" "${rigLeaf[@]}" )" )" "refused-not-writable"
+rigAssert "and the outside file is unchanged" "$( rigBytes "$rigLeafOut/ht" )" "orig"
+
+rigAssert "a plain in-root file is written" \
+	"$( rigVerdict "$( rigWrite "$rigLeafIn/plain" "${rigLeaf[@]}" )" )" "wrote"
+printf 'orig' > "$rigLeafIn/real"
+ln -s "$rigLeafIn/real" "$rigLeafIn/lin"
+rigAssert "an in-root link to an in-root file is written" \
+	"$( rigVerdict "$( rigWrite "$rigLeafIn/lin" "${rigLeaf[@]}" )" )" "wrote"
+rigAssert "and the write landed on its target" "$( rigBytes "$rigLeafIn/real" )" "x"
+rigAssert "an outside path is refused and not created" \
+	"$( rigVerdict "$( rigWrite "$rigLeafOut/direct" "${rigLeaf[@]}" )" )" "refused-not-writable"
+rigAssert "and nothing was created there" "$( rigBytes "$rigLeafOut/direct" )" "absent"
+
+ln -s "$rigLeafOut" "$rigLeafIn/dl"
+rigAssert "a file under an in-root link to an outside directory is refused" \
+	"$( rigVerdict "$( rigWrite "$rigLeafIn/dl/f" "${rigLeaf[@]}" )" )" "refused-not-writable"
+rigAssert "and nothing was created outside" "$( rigBytes "$rigLeafOut/f" )" "absent"
+
+ln -s "$rigLeafOut/new" "$rigLeafIn/dangling"
+rigAssert "Write on a dangling link out replaces the link, via temp plus mv" \
+	"$( rigVerdict "$( rigWrite "$rigLeafIn/dangling" "${rigLeaf[@]}" )" )" "wrote"
+rigAssert "Write via temp plus mv: nothing was created outside" "$( rigBytes "$rigLeafOut/new" )" "absent"
+rigAssert "Write via temp plus mv: the link is now a regular file" "$( [ -f "$rigLeafIn/dangling" ] && [ ! -L "$rigLeafIn/dangling" ] && printf yes || printf no )" yes
+ln -s "$rigLeafOut/new2" "$rigLeafIn/dangedit"
+rigAssert "Edit on a dangling link out fails as no such file" \
+	"$( case "$( rigEdit "$rigLeafIn/dangedit" rig-edited "${rigLeaf[@]}" )" in (*'no such file'*) printf yes ;; (*) printf no ;; esac )" yes
+rigAssert "Edit on a missing file: nothing was created outside" "$( rigBytes "$rigLeafOut/new2" )" "absent"
+rigAssert "Edit on a missing file: the link is unchanged" "$( [ -L "$rigLeafIn/dangedit" ] && printf yes || printf no )" yes
+ln -s "$rigLeafIn/new" "$rigLeafIn/dangin"
+rigAssert "Write on a dangling link in replaces the link, via temp plus mv" \
+	"$( rigVerdict "$( rigWrite "$rigLeafIn/dangin" "${rigLeaf[@]}" )" )" "wrote"
+rigAssert "Write via temp plus mv: the in-root link is now a regular file" "$( [ -f "$rigLeafIn/dangin" ] && [ ! -L "$rigLeafIn/dangin" ] && printf yes || printf no )" yes
+ln -s "$rigLeafIn/c2" "$rigLeafIn/c1"
+ln -s "$rigLeafIn/c1" "$rigLeafIn/c2"
+rigCycleStart="$( date +%s )"
+rigAssert "Write on a link cycle replaces the link, via temp plus mv" \
+	"$( rigVerdict "$( rigWrite "$rigLeafIn/c1" "${rigLeaf[@]}" )" )" "wrote"
+rigAssert "Write on a link cycle returned rather than hanging" \
+	"$( [ $(( $( date +%s ) - rigCycleStart )) -le 10 ] && printf yes || printf no )" yes
+rigAssert "Write via temp plus mv: the cyclic link is now a regular file" "$( [ -f "$rigLeafIn/c1" ] && [ ! -L "$rigLeafIn/c1" ] && printf yes || printf no )" yes
+
+echo "-- an unattended session never writes the team stores, whatever its roots grant --"
+rigStoreData="$rigTmp/STORE-DATA"
+rigStoreSessions="$rigTmp/.local/agents/sessions"
+mkdir -p "$rigStoreData/board/running" "$rigStoreSessions/rig-session" "$rigTmp/STORE-PLAIN"
+printf 'orig' > "$rigStoreData/board/running/dispatch-rig.md"
+rigWide=( --access-read-root "$rigTmp" --access-write-root "$rigTmp" )
+
+## One call with the three launch values stated outright, so nothing ambient decides it.
+rigStoreCall(){ ## unattended marker, spawn session id, tool (write|edit), target; the client entrypoint is RIG_ENTRYPOINT
+	local storeTool="$3" storeTarget="$4"
+	if [ "$storeTool" = "edit" ] ; then
+		env -u MDAT_SESSION_UNATTENDED -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT MDAT_DATA_ROOT="$rigStoreData" \
+			${1:+MDAT_SESSION_UNATTENDED="$1"} ${2:+MDAT_SPAWN_SESSION_ID="$2"} ${RIG_ENTRYPOINT:+CLAUDE_CODE_ENTRYPOINT="$RIG_ENTRYPOINT"} \
+			bash -c 'rigHarness="$1" rigTmp="$2" ; shift 2 ; printf "{\"path\":\"%s\",\"old_text\":\"orig\",\"new_text\":\"rig-edited\"}" "$1" | MMDAPP="$rigTmp" "$rigHarness" --intern-tool Edit "${@:2}" 2>/dev/null | LC_ALL=C grep -m1 "^OK:\|^ERROR:"' \
+			rig "$rigHarness" "$rigTmp" "$storeTarget" "${rigWide[@]}"
+	else
+		env -u MDAT_SESSION_UNATTENDED -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT MDAT_DATA_ROOT="$rigStoreData" \
+			${1:+MDAT_SESSION_UNATTENDED="$1"} ${2:+MDAT_SPAWN_SESSION_ID="$2"} ${RIG_ENTRYPOINT:+CLAUDE_CODE_ENTRYPOINT="$RIG_ENTRYPOINT"} \
+			bash -c 'rigHarness="$1" rigTmp="$2" ; shift 2 ; printf "{\"path\":\"%s\",\"content\":\"x\"}" "$1" | MMDAPP="$rigTmp" "$rigHarness" --intern-tool Write "${@:2}" 2>/dev/null | LC_ALL=C grep -m1 "^OK:\|^ERROR:"' \
+			rig "$rigHarness" "$rigTmp" "$storeTarget" "${rigWide[@]}"
+	fi
+}
+rigStoreVerdict(){ ## verdict line
+	case "$1" in
+		'OK:'*)                          printf 'wrote' ;;
+		*'unattended session never'*)    printf 'refused-team-store' ;;
+		'')                              printf 'no-verdict' ;;
+		*)                               printf 'other' ;;
+	esac
+}
+
+rigAssert "marker set: Write into the board is refused" \
+	"$( rigStoreVerdict "$( rigStoreCall true "" write "$rigStoreData/board/running/dispatch-rig.md" )" )" "refused-team-store"
+rigAssert "marker set: Edit into the board is refused" \
+	"$( rigStoreVerdict "$( rigStoreCall true "" edit "$rigStoreData/board/running/dispatch-rig.md" )" )" "refused-team-store"
+rigAssert "and the board item is unchanged" "$( rigBytes "$rigStoreData/board/running/dispatch-rig.md" )" "orig"
+rigAssert "spawn id set: Write into the session store is refused" \
+	"$( rigStoreVerdict "$( rigStoreCall "" rig-session write "$rigStoreSessions/rig-session/grants" )" )" "refused-team-store"
+rigAssert "and nothing was created there" "$( rigBytes "$rigStoreSessions/rig-session/grants" )" "absent"
+rigAssert "spawn id set: Write into the board is refused" \
+	"$( rigStoreVerdict "$( rigStoreCall "" rig-session write "$rigStoreData/board/running/x.md" )" )" "refused-team-store"
+ln -s "$rigStoreData/board/running/dispatch-rig.md" "$rigTmp/STORE-PLAIN/link-into-board"
+rigAssert "marker set: a link into the board is refused by where it points" \
+	"$( rigStoreVerdict "$( rigStoreCall true "" write "$rigTmp/STORE-PLAIN/link-into-board" )" )" "refused-team-store"
+rigAssert "and the board item is still unchanged" "$( rigBytes "$rigStoreData/board/running/dispatch-rig.md" )" "orig"
+## The controls: the same widened root still writes an ordinary path, and an attended call writes the store.
+rigAssert "marker set: an ordinary path under the same root is written" \
+	"$( rigStoreVerdict "$( rigStoreCall true "" write "$rigTmp/STORE-PLAIN/x.txt" )" )" "wrote"
+## Attended only from an interactive Claude Code client with neither marker nor spawn id.
+printf 'orig' > "$rigStoreData/board/running/dispatch-attended.md"
+rigAssert "an interactive cli session writes the board" \
+	"$( RIG_ENTRYPOINT=cli rigStoreVerdict "$( RIG_ENTRYPOINT=cli rigStoreCall "" "" edit "$rigStoreData/board/running/dispatch-attended.md" )" )" "wrote"
+rigAssert "and the edit landed" "$( rigBytes "$rigStoreData/board/running/dispatch-attended.md" )" "rig-edited"
+rigAssert "the IDE client is attended too" \
+	"$( rigStoreVerdict "$( RIG_ENTRYPOINT=claude-vscode rigStoreCall "" "" write "$rigStoreData/board/running/dispatch-ide.md" )" )" "wrote"
+rigAssert "no entrypoint at all is unattended" \
+	"$( rigStoreVerdict "$( rigStoreCall "" "" write "$rigStoreData/board/running/dispatch-none.md" )" )" "refused-team-store"
+rigAssert "claude -p (sdk-cli) is unattended" \
+	"$( rigStoreVerdict "$( RIG_ENTRYPOINT=sdk-cli rigStoreCall "" "" write "$rigStoreData/board/running/dispatch-sdk.md" )" )" "refused-team-store"
+rigAssert "an unknown entrypoint is unattended" \
+	"$( rigStoreVerdict "$( RIG_ENTRYPOINT=some-new-surface rigStoreCall "" "" write "$rigStoreData/board/running/dispatch-new.md" )" )" "refused-team-store"
+rigAssert "cli with the unattended marker is unattended" \
+	"$( rigStoreVerdict "$( RIG_ENTRYPOINT=cli rigStoreCall true "" write "$rigStoreData/board/running/dispatch-cli-marker.md" )" )" "refused-team-store"
+rigAssert "cli with a spawn id is unattended" \
+	"$( rigStoreVerdict "$( RIG_ENTRYPOINT=cli rigStoreCall "" rig-session write "$rigStoreData/board/running/dispatch-cli-spawn.md" )" )" "refused-team-store"
+
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ WRITE SPLIT CHECK FAILED: $rigFails assertion(s)" >&2
 	echo "  warn: the write-root set no longer narrows writes the way the flag says," >&2
@@ -182,4 +334,4 @@ if [ "$rigFails" -ne 0 ] ; then
 	echo "        never the assertion, and never by widening a caller's grant to suit it" >&2
 	exit 1
 fi
-echo "HARNESS_WRITE_SPLIT: OK (14 assertions, both polarities, offline)"
+echo "HARNESS_WRITE_SPLIT: OK ($rigPasses assertions, both polarities, offline)"

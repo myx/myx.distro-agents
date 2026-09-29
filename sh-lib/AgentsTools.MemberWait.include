@@ -21,6 +21,14 @@
 ##
 ## RECEIVED and TIMEOUT both return 0, because both are answers. ERROR returns 1.
 ##
+## A source never read once during the wait is named on the line right after it:
+##
+##     WAIT-NEVER-READ: [<kind>:<target>] ...
+##
+## absent when every source was read at least once. It changes neither the outcome
+## nor the return code; a caller watching one thread reads it to tell a quiet
+## thread from one it could not see at all.
+##
 ## SOURCE ADAPTERS -- the extension point.
 ##
 ## A source is named `<kind>:<target>`. The kind selects a probe function by
@@ -120,8 +128,14 @@ AgentsWaitProbeSlack(){
 	fi
 	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessagesFormat.awk" \
 		< "$probeOut.read" > "$probeOut.rendered" 2>> "$probeOut.err" || probeRc=$?
+	## A thread several questions share answers each by its tag (AgentsTools.AskThread.include).
+	local probeStanding=""
+	type AgentsToolsAskThreadStanding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskThread.include"
+	probeStanding="$( AgentsToolsAskThreadStanding "${probeTarget%%:*}" "$probeSince" )"
+	local probeOthers=""
+	[ "${probeStanding#*$'\t'}" = "0" ] || [ "${probeStanding#*$'\t'}" = "1" ] || probeOthers="$( AgentsToolsAskThreadOthers "${probeTarget%%:*}" "$probeSince" )"
 	if [ "$probeRc" = "0" ] ; then
-		LC_ALL=C awk -v rootTs="$probeSince" -v fromUsers="$probeAddressee" \
+		LC_ALL=C awk -v rootTs="$probeSince" -v fromUsers="$probeAddressee" -v tag="${probeStanding%%$'\t'*}" -v threadCount="${probeStanding#*$'\t'}" -v others="$probeOthers" \
 			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackThreadAnswers.awk" \
 			< "$probeOut.rendered" > "$probeOut" 2>> "$probeOut.err" || probeRc=$?
 	fi
@@ -406,7 +420,7 @@ case "$1" in
 		local waitReadFloor="${waitSince:-$waitStart}"
 
 		local waitRound=0 waitOutcome="TIMEOUT" waitHitSource="" waitHitFile=""
-		local waitProbeFailures=""
+		local waitProbeFailures="" waitReadSources=""
 		while : ; do
 			waitRound=$(( waitRound + 1 ))
 			local roundSource roundKind roundTarget roundFn roundIndex=0 roundRc
@@ -428,6 +442,11 @@ case "$1" in
 					esac
 					continue
 				fi
+				## Which sources were read at least once, so the TIMEOUT text claims a read only for those.
+				case "$waitReadSources" in
+					*"[$roundSource]"*) ;;
+					*) waitReadSources="$waitReadSources[$roundSource] " ;;
+				esac
 
 				if [ ! -f "$waitDir/base.$roundIndex" ] ; then
 					if [ "$waitBaselineMode" = "empty" ] ; then
@@ -463,7 +482,16 @@ case "$1" in
 		waitEnd="$( date +%s )"
 		waitElapsed=$(( waitEnd - waitStart ))
 
+		local waitNeverRead="" waitOneSource
+		for waitOneSource in $waitSources ; do
+			case "$waitReadSources" in
+				*"[$waitOneSource]"*) ;;
+				*) waitNeverRead="$waitNeverRead[$waitOneSource] " ;;
+			esac
+		done
+
 		echo "WAIT-RESULT: $waitOutcome"
+		[ -z "$waitNeverRead" ] || echo "WAIT-NEVER-READ: ${waitNeverRead% }"
 		echo "# member: $memberName"
 		echo "# sources: ${waitSources% }"
 		[ -z "$waitAddressee" ] || echo "# answers counted only from: ${waitAddressee% }"
@@ -478,8 +506,16 @@ case "$1" in
 				echo "# --- end ---"
 			;;
 			*)
-				echo "# Nothing new arrived on any source within the bound. This is a COMPLETE, SUCCESSFUL wait, not a failure and not an error: those sources were read and held nothing new. Decide what to do next -- wait again, look elsewhere, or escalate under the rules that already govern escalation -- and do not report this as a fault."
-				[ -z "$waitProbeFailures" ] || echo "# NOTE: the sources listed above could not be read at all this wait, so nothing is known about them either way. Do not read their silence as quiet."
+				## A read is claimed only for a source read at least once, so the text differs by which were.
+				if [ -z "$waitReadSources" ] ; then
+					echo "# None of the sources could be read at all this wait, so NOTHING is known about them, arrivals included. The wait itself ran its bound, which is why this is TIMEOUT and not ERROR. Do not read their silence as quiet. Decide what to do next -- wait again, look elsewhere, or escalate under the rules that already govern escalation."
+				elif [ -n "$waitNeverRead" ] ; then
+					echo "# Nothing new arrived within the bound on the sources that were read: ${waitReadSources% }. For those, this is a COMPLETE, SUCCESSFUL wait, not a failure and not an error. Decide what to do next -- wait again, look elsewhere, or escalate under the rules that already govern escalation."
+					echo "# NOTE: these sources could not be read at all this wait, so nothing is known about them either way: ${waitNeverRead% }. Do not read their silence as quiet."
+				else
+					echo "# Nothing new arrived on any source within the bound. This is a COMPLETE, SUCCESSFUL wait, not a failure and not an error: those sources were read and held nothing new. Decide what to do next -- wait again, look elsewhere, or escalate under the rules that already govern escalation -- and do not report this as a fault."
+					[ -z "$waitProbeFailures" ] || echo "# NOTE: some reads of the sources listed above failed. Each was read at least once, so this covers only the rounds that were read."
+				fi
 			;;
 		esac
 

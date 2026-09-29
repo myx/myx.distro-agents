@@ -20,14 +20,14 @@ Does: fast/parallel-by-default check-and-act, one full sweep = one pass through 
 - Resolving which members exist, and reading each of them, is the input-scan's own work. This routine names no member, enumerates nothing and loops over nothing; what it owes is being ready for that operation's combined output, described in **check** below. Per-member coverage is landing in the operation — until it reports members, the document carries the executor's own sources alone.
 - Two kinds of traffic arrive, and the executor does different things with them. A message addressed between team members is **routed**: the coordinator is the delivery mechanism, not the addressee — one member addressing another in the team channel (say `magic-tester` addressing `magic-developer`) is the canonical example, and this is how inter-member messaging works at all. A message addressed to the coordinator, any DM, any client DM under that member's own identity, and an unaddressed external request in a team channel is **handled** by the coordinator itself. A client's representation inside another organisation is the same mechanism, which is why a message on a member's own source runs under that member's own identity.
 - Credentials for every live platform are made available before check calls run, resolved by `magic-tooling` itself. Never print them into a transcript/chat/log.
-- Credentials unavailable: stop and ask the user immediately — no filesystem search, no fallback connector, no solo puzzle-solving past one failed round.
+- Credentials unavailable: escalate to the user immediately — no filesystem search, no fallback connector, no solo puzzle-solving past one failed round.
 - Open-thread set for Slack thread-reply checks: whichever `board-item`s are currently open and track a live Slack thread — `communication-channel-id` in the three-part `slack:<channel>:<ts>` shape; a bare `slack:<channel>` tracks no thread — read fresh each sweep, no separate registry.
 
 Doesn't do: Google (Drive/Sheets) — extended procedure, only when the task is actually searching/grooming, not a default **check** call.
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — items a previous sweep routed there and left unacted, read before this pass adds more.
 2. **check**: read the sweep-state-note via --magic-sweep-state-read. Call --magic-sweep-input-scan <team-member> --comms-since-utime <last_swept_ts> — board-tracked threads and every watched source, one pass, covering both watched targets and every open thread (see Scope).
@@ -58,7 +58,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
       - Bigger/questionable, concerns specific member(s) only → propose a `magic-coordinator.one-on-one.routine` session.
       - Worth recording, no investigation needed now → into the backlog `magic-team.grooming.routine` already triages.
       - Never start a new epic/initiative unilaterally inline.
-      - Normalize a genuinely new incoming item into a board-item (`note-*.md`/`inquiry-*.md`, per the team's own entity model): write it into `magic-coordinator`'s own inbox by default, or directly into the relevant member's own inbox via `--member-inbox-note-upsert` if clearly addressed to someone specific. This settles where a record is filed — neither whose words it carries nor which identity sends anything. Filename shape mandatory, `note-<date>-<matter>.md` / `inquiry-<date>-<matter>.md`. Solo `magic-coordinator` work; no deep classification/enqueue-todo/triage here — that's `magic-team.grooming.routine`'s job later.
+      - Normalize a genuinely new incoming item into a board-item (`note-*.md`/`inquiry-*.md`, per the team's own entity model): write it into `magic-coordinator`'s own inbox by default, or directly into the relevant member's own inbox via `--member-inbox-note-upsert` if clearly addressed to someone specific. This settles where a record is filed — neither whose words it carries nor which identity sends anything. Filename shape mandatory, `note-<date>-<matter>.md` / `inquiry-<date>-<matter>.md`, with `<date>` in `magic-team/magic-team.armed.md`'s tooling-section naming **Rule**, `YYYYMMDD'T'HHmm'Z'`. Solo `magic-coordinator` work; no deep classification/enqueue-todo/triage here — that's `magic-team.grooming.routine`'s job later.
       - Slack: apply the `slack-reaction-tracking` procedure's Act-stage reaction on **this message**, now.
    4. **reply-if-warranted**: respect each platform's own send/confirm rules, for this message specifically.
       - minimum floor: acknowledge every non-ignored incoming message.
@@ -171,7 +171,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--member-upsert-member-inquiry` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]` — passes an inquiry into `<member>`'s own inbox. Same argument shape and file-writing mechanics as `--member-inbox-note-upsert`, kept separate because the two mean different things: filing something for later, versus handing it to another member. Filename `inquiry-<date>-<matter>.md`; required frontmatter `type: inquiry`, `from`, `date`, `owner`, plus `communication-channel-id` when the item traces back to one specific external message.
+`DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]` — passes an inquiry into `<member>`'s own inbox. Same argument shape and file-writing mechanics as `--member-inbox-note-upsert`, kept separate because the two mean different things: filing something for later, versus handing it to another member. Filename `inquiry-<date>-<matter>.md`, `<date>` per the same naming **Rule**; required frontmatter `type: inquiry`, `from`, `date`, `owner`, plus `communication-channel-id` when the item traces back to one specific external message.
 
 ## `--member-inbox-note-upsert` Operation Reference
 

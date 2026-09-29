@@ -388,7 +388,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-sleep-run: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		local remaining=29
+		## Five one-second loops, the owner's own specification.
+		local remaining=5
 		while [ "$remaining" -gt 0 ] ; do
 			echo "$remaining"
 			sleep 1

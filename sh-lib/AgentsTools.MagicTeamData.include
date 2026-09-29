@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MagicTeamData.include -- the team-data store's own
+## --magic-team-data-* operation group for DistroAgentsTools.fn.sh's
+## dispatcher. Sourced lazily from the `--magic-team-data-*)` wildcard arm
+## via the standard $MDLT_ORIGIN-based path. Not standalone: relies on being
+## dot-sourced for $1/$@/$MDSC_CMD.
+##
+## Every other team-data op commits only the paths it writes itself. This one
+## commits whatever is pending under $MDAT_DATA_ROOT -- additions, edits and
+## deletions -- in one commit, then pushes it the way --intern-op-item-upsert
+## does. It exists for work left uncommitted, and it is magic-coordinator's only.
+##
+
+case "$1" in
+
+	--magic-team-data-commit-pending)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: syntax is <team-member> [--commit-message <message>] [--no-push]" >&2
+			set +e ; return 1
+		fi
+		## A team-wide write: one owner, and a caller passing any other name fails loud.
+		if [ "$callingMember" != "magic-coordinator" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: <team-member> must be magic-coordinator -- this commits the whole team-data store and has no other owner (got: $callingMember)" >&2
+			set +e ; return 1
+		fi
+		local commitMessage="* team-data pending, magic-coordinator" noPush="false"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--commit-message)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: --commit-message: value required" >&2
+						set +e ; return 1
+					fi
+					commitMessage="$2"
+					shift 2
+				;;
+				--no-push)
+					noPush="true" ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: unrecognized argument: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		[ -n "${MDAT_DATA_ROOT:-}" ] && [ -d "$MDAT_DATA_ROOT" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: MDAT_DATA_ROOT is not set or is not a directory: ${MDAT_DATA_ROOT:-<unset>}" >&2
+			set +e ; return 1
+		}
+
+		local repoRoot="" originUrl="" gitOut="" gitRc=0
+		set +e
+		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
+		set -e
+		if [ -z "$repoRoot" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: $MDAT_DATA_ROOT is not in a git repository, so there is nothing to commit into" >&2
+			set +e ; return 1
+		fi
+
+		## An interrupted operation is reported and left for a person: nothing here repairs it.
+		local gitDir="" interrupted=""
+		gitDir="$( git -C "$MDAT_DATA_ROOT" rev-parse --absolute-git-dir 2>/dev/null )" || gitDir=""
+		if [ -z "$gitDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: could not locate the repository's .git directory, nothing committed" >&2
+			set +e ; return 1
+		fi
+		[ ! -e "$gitDir/index.lock" ] || interrupted="$interrupted index.lock"
+		[ ! -e "$gitDir/MERGE_HEAD" ] || interrupted="$interrupted merge"
+		[ ! -e "$gitDir/CHERRY_PICK_HEAD" ] || interrupted="$interrupted cherry-pick"
+		[ ! -e "$gitDir/REVERT_HEAD" ] || interrupted="$interrupted revert"
+		[ ! -d "$gitDir/rebase-merge" ] && [ ! -d "$gitDir/rebase-apply" ] || interrupted="$interrupted rebase"
+		if [ -n "$interrupted" ] ; then
+			echo "TEAM-DATA-REFUSED: the repository shows an interrupted operation:$interrupted -- it is not repaired here, and nothing was committed"
+			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: interrupted operation in $gitDir:$interrupted" >&2
+			set +e ; return 1
+		fi
+
+		## Every pathspec is `.` run from the store itself, so nothing outside
+		## $MDAT_DATA_ROOT is staged or committed, even when the store sits inside
+		## a larger repository or that repository has other paths staged.
+		set +e
+		gitOut="$( git -C "$MDAT_DATA_ROOT" add -A -- . 2>&1 )"
+		gitRc=$?
+		set -e
+		if [ "$gitRc" -ne 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: git add failed under $MDAT_DATA_ROOT, nothing committed: $gitOut" >&2
+			set +e ; return 1
+		fi
+		local pendingList=""
+		set +e
+		pendingList="$( git -C "$MDAT_DATA_ROOT" diff --cached --name-status --relative -- . 2>&1 )"
+		gitRc=$?
+		set -e
+		if [ "$gitRc" -ne 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: could not list the staged paths, nothing committed: $pendingList" >&2
+			set +e ; return 1
+		fi
+		local commitId=""
+		if [ -z "$pendingList" ] ; then
+			## Nothing to commit is not nothing to push: commits already ahead of
+			## origin still go out below, under the same guards and read-back.
+			echo "TEAM-DATA-NOTHING-PENDING: $MDAT_DATA_ROOT"
+			commitId="$( git -C "$MDAT_DATA_ROOT" rev-parse --short HEAD 2>/dev/null )" || commitId="<unknown>"
+		else
+			set +e
+			gitOut="$( git -C "$MDAT_DATA_ROOT" commit -m "$commitMessage" -m "$pendingList" -- . 2>&1 )"
+			gitRc=$?
+			set -e
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: git commit failed; the paths stay staged, nothing is committed: $gitOut" >&2
+				set +e ; return 1
+			fi
+			commitId="$( git -C "$MDAT_DATA_ROOT" rev-parse --short HEAD 2>/dev/null )" || commitId="<unknown>"
+			echo "TEAM-DATA-COMMITTED: $commitId $( printf '%s\n' "$pendingList" | wc -l | tr -d '[:space:]' ) path(s) under $MDAT_DATA_ROOT"
+			printf '%s\n' "$pendingList"
+		fi
+
+		if [ -z "$originUrl" ] ; then
+			echo "TEAM-DATA-NOT-PUSHED: no TEAM_DATA_GIT_REMOTE is configured"
+			return 0
+		fi
+		if [ "$noPush" = "true" ] ; then
+			echo "TEAM-DATA-NOT-PUSHED: --no-push"
+			return 0
+		fi
+		## A push sends the whole branch, so it is scoped the way the commit is only
+		## when the store is its repository's own root, and only to team-data's remote.
+		local storeRoot="" repoOrigin=""
+		storeRoot="$( cd "$MDAT_DATA_ROOT" && pwd -P )" || storeRoot=""
+		if [ -z "$storeRoot" ] || [ "$storeRoot" != "$( cd "$repoRoot" && pwd -P )" ] ; then
+			echo "TEAM-DATA-NOT-PUSHED: the store is inside $repoRoot, whose branch is not team-data's alone to push"
+			return 0
+		fi
+		repoOrigin="$( git -C "$repoRoot" remote get-url origin 2>/dev/null )" || repoOrigin=""
+		if [ "$repoOrigin" != "$originUrl" ] ; then
+			echo "TEAM-DATA-NOT-PUSHED: origin of $repoRoot is '${repoOrigin:-<none>}', not TEAM_DATA_GIT_REMOTE '$originUrl'"
+			return 0
+		fi
+
+		## The push and its one network retry are --intern-op-item-upsert's.
+		local pushAttempt=1 pushOut="" pushRc=0
+		while : ; do
+			set +e
+			pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
+			pushRc=$?
+			set -e
+			[ "$pushRc" -eq 0 ] && break
+			case "$pushOut" in
+				*"Could not resolve host"*|*"could not resolve host"*|*"unable to access"*|*"Could not read from remote repository"*|*"Connection timed out"*|*"Connection refused"*|*"Operation timed out"*|*"Network is unreachable"*|*"connection reset"*)
+					if [ "$pushAttempt" -eq 1 ] ; then
+						echo "# $MDSC_CMD --magic-team-data-commit-pending: push network failure, retrying once in 15s" >&2
+						sleep 15
+						pushAttempt=2
+						continue
+					fi
+				;;
+			esac
+			break
+		done
+		if [ "$pushRc" -ne 0 ] ; then
+			echo "TEAM-DATA-NOT-PUSHED: the push failed; commit $commitId is local only"
+			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: committed $commitId but the push failed: $pushOut" >&2
+			set +e ; return 1
+		fi
+		## Read back: the remote branch must now name this very commit.
+		local headFull="" headBranch="" remoteHead=""
+		headFull="$( git -C "$repoRoot" rev-parse HEAD 2>/dev/null )" || headFull=""
+		headBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || headBranch=""
+		remoteHead="$( git -C "$repoRoot" ls-remote origin "refs/heads/$headBranch" 2>/dev/null | LC_ALL=C awk 'NR == 1 { print $1 ; }' )" || remoteHead=""
+		if [ -z "$headFull" ] || [ "$remoteHead" != "$headFull" ] ; then
+			echo "TEAM-DATA-NOT-PUSHED: the push reported success but origin's $headBranch reads back '${remoteHead:-<nothing>}', not $headFull"
+			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: committed $commitId, push not confirmed by read-back" >&2
+			set +e ; return 1
+		fi
+		echo "TEAM-DATA-PUSHED: $commitId to origin, read back as origin/$headBranch = $headFull"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

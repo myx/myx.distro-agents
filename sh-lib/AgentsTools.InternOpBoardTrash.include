@@ -131,6 +131,17 @@ case "$1" in
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found in $inboxRootDir or $inboxProcessedDir: $inboxItemName" >&2
 				set +e ; return 1
 			fi
+			## An item git never knew is committed first, so the deletion below is recorded
+			## over it and history keeps it like any tracked item.
+			if [ -n "$repoRoot" ] && [ -z "$( git -C "$repoRoot" ls-files -- "$inboxSourcePath" 2>/dev/null )" ] ; then
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+				AgentsToolsTeamDataCommitPaths "board-trash: keep ${inboxSourcePath#"$MDAT_DATA_ROOT"/} in history before deleting it" "$inboxSourcePath"
+				## HEAD, not the index: staged-but-uncommitted is not in history.
+				if [ -z "$( git -C "$repoRoot" ls-tree --name-only HEAD -- "$inboxSourcePath" 2>/dev/null )" ] ; then
+					echo "$MDSC_CMD: board-trash: ⛔ ERROR: could not commit the never-committed $inboxSourcePath before deleting it, so it was left in place" >&2
+					set +e ; return 1
+				fi
+			fi
 			if [ -n "$repoRoot" ] ; then
 				rm -f -- "$inboxSourcePath"
 				local gitOut="" gitRc=0
@@ -171,17 +182,23 @@ case "$1" in
 			echo "$MDSC_CMD: board-trash: ⛔ ERROR: syntax is <team-member> <board-state> <item-name>" >&2
 			set +e ; return 1
 		fi
-		if [ "$1" = "--context" ] ; then
-			if [ -z "${2:-}" ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --context: value required" >&2
-				set +e ; return 1
-			fi
-			shift 2
-		fi
-		if [ $# -gt 0 ] ; then
-			echo "$MDSC_CMD: board-trash: ⛔ ERROR: invalid option: $1" >&2
-			set +e ; return 1
-		fi
+		local untrashMode=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--untrash) untrashMode=1 ; shift ;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: board-trash: ⛔ ERROR: --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: board-trash: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
 		case "$boardState" in
 			backlog|pending|running|blocked|parked|processed|archived|retained)
 			;;
@@ -199,10 +216,43 @@ case "$1" in
 		local repoRoot=""
 		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
 
+		## Restore: only a store without git keeps a trashed item in trash/; a git store's copy is its history.
+		if [ -n "$untrashMode" ] ; then
+			if [ -n "$repoRoot" ] ; then
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash: a git store keeps trashed items only in its history; no tooling op restores from it; ask the coordinator -- nothing was changed" >&2
+				set +e ; return 1
+			fi
+			local untrashSource="$MDAT_DATA_ROOT/trash/$itemName" untrashTarget="$MDAT_DATA_ROOT/board/$boardState/$itemName"
+			if [ ! -f "$untrashSource" ] ; then
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash: not in trash/: $untrashSource" >&2
+				set +e ; return 1
+			fi
+			if [ -e "$untrashTarget" ] ; then
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash: the board already holds that name, refusing to overwrite it: $untrashTarget" >&2
+				set +e ; return 1
+			fi
+			mkdir -p "$MDAT_DATA_ROOT/board/$boardState" && mv "$untrashSource" "$untrashTarget" || {
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash: could not move $untrashSource back to $untrashTarget" >&2
+				set +e ; return 1
+			}
+			echo "# $MDSC_CMD: board-trash: restored trash/$itemName to board/$boardState/" >&2
+			return 0
+		fi
+
 		local sourcePath="$MDAT_DATA_ROOT/board/$boardState/$itemName"
 		if [ ! -f "$sourcePath" ] ; then
 			echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found: $sourcePath" >&2
 			set +e ; return 1
+		fi
+		## Same never-committed case as the inbox arm above: committed first, then deleted.
+		if [ -n "$repoRoot" ] && [ -z "$( git -C "$repoRoot" ls-files -- "$sourcePath" 2>/dev/null )" ] ; then
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+			AgentsToolsTeamDataCommitPaths "board-trash: keep ${sourcePath#"$MDAT_DATA_ROOT"/} in history before deleting it" "$sourcePath"
+			## HEAD, not the index: staged-but-uncommitted is not in history.
+			if [ -z "$( git -C "$repoRoot" ls-tree --name-only HEAD -- "$sourcePath" 2>/dev/null )" ] ; then
+				echo "$MDSC_CMD: board-trash: ⛔ ERROR: could not commit the never-committed $sourcePath before deleting it, so it was left in place" >&2
+				set +e ; return 1
+			fi
 		fi
 		if [ -n "$repoRoot" ] ; then
 			rm -f -- "$sourcePath"

@@ -79,6 +79,10 @@ WebSearch)
 	denyWith "use the myx.distro MCP instead, method mcp__myx_distro__WebSearch -- one search path for this estate, under its own settings, rather than the client own"
 ;;
 
+PushNotification)
+	denyWith "use the myx.distro MCP instead, method mcp__myx_distro__PushNotification -- one notification path for this estate, under its own team identity, rather than the client own"
+;;
+
 *)
 	denyWith "this hook was installed for a tool it carries no reroute for, so it cannot say where to go instead. The installed PreToolUse entry and this script disagree. Report that rather than retrying: a hook that cannot decide refuses here, because one that emits nothing would read as permission."
 ;;

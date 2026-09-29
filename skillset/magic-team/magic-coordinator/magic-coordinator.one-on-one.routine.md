@@ -19,7 +19,7 @@ Doesn't do: execute the activity inline in the UI/chat instance itself.
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **session-start**, steps:
    - execute `magic-team.coworking.routine`'s Steps — declare this a coworking-like/structured-multi-member session

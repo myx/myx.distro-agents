@@ -23,7 +23,7 @@ invitees: none
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **review-open-items**: Review the open backlog items under `board-backlog` and `board-running` (and `board-blocked`/`board-parked` where relevant) that fall in this skill's own domain of judgment — the board is the sole live backlog source.
 2. **score-in-domain**: For each such item, set or refine a RICE-style score per `magic-team.grooming.routine`'s `rice-scoring` block's formula. For a structural score (risk, coupling, blast radius):

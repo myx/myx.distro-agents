@@ -9,6 +9,22 @@
 # Own-line braces are the documented false positive and are skipped, as is a
 # brace inside a quoted payload the file only transports.
 
+## True when the line's last `}` closes an opener written as `${`. Openers are paired
+## by nesting depth from the left; an unmatched close leaves the answer false.
+function closesShellExpansion(text,   i, c, depth, openAt) {
+	depth = 0
+	for (i = 1 ; i <= length(text) ; i++) {
+		c = substr(text, i, 1)
+		if (c == "{") { depth++ ; openAt[depth] = i ; }
+		else if (c == "}") {
+			if (depth == 0) return 0
+			if (i == length(text)) return (openAt[depth] > 1 && substr(text, openAt[depth] - 1, 1) == "$")
+			depth--
+		}
+	}
+	return 0
+}
+
 {
 	lineText = $0
 	sub(/^[ \t]+/, "", lineText)
@@ -21,6 +37,9 @@
 	if (beforeBrace == "" || beforeBrace ~ /;$/ || beforeBrace ~ /\{$/) next
 	## A transported payload, not a program: quoted, or a JSON object literal.
 	if (lineText ~ /^["\x27]/ || lineText ~ /"[ \t]*:[ \t]*["{[]/) next
+	## A shell expansion, not a block: the brace the line ends on closes a `${`,
+	## which awk has no syntax for, so the line is shell.
+	if (closesShellExpansion(lineText)) next
 	printf "%s:%d: %s\n", FILENAME, FNR, $0
 	hitCount = hitCount + 1
 }

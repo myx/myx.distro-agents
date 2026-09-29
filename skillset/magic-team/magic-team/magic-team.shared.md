@@ -113,6 +113,7 @@ File set:
   - `<name>.basic.md`
   - `<name>.armed.md`
   - optionally `<name>.shared.md`, under the gated condition below. It is not a routine per-member option.
+  - optionally `<name>.execution-gate.md`, whose first line is the execution gate this member puts on work dispatched to it. Absent means no gate.
   - zero or more `<name>.<short-name>.routine.md`. Each one is self-contained, and describes one procedure or activity this member owns, never its own folder.
 
 Every acting member's skill folder under `<skillset>/` contains what follows. Careful: such a folder may be a symlink into the real source tree rather than the canonical location itself. Anyone editing resolves the real path first.
@@ -237,7 +238,7 @@ never to soften how the limitation is worded. Fill the gap in the tooling, so th
 mention the detail.
 
 One carve-out: a gap that needs a real external account or infrastructure action, not just code, is not a
-pure tooling fix. Flag it as its own decision point and stop. Never pursue it silently.
+pure tooling fix. Flag it as its own decision point and escalate it, per "Nothing stops on its own" below. Never pursue it silently.
 
 A stated prohibition is also worse than silence when it names the mechanism. Take *"no caller-facing
 `--state`/`--header` override"*. It tells a member what it cannot do about something it should not know
@@ -301,6 +302,12 @@ What a session reading it relies on:
 - The aggregate `no new incoming communications` fires only when every requested comms sub-section is **empty and successfully scanned**. An unscannable sub-section is unknown, not empty, and blocks it.
 - **The wider inbox breadth is live plus not-yet-collected `processed/`, never complete history.** `processed/` is garbage-collected on a retention threshold that varies by document type, so what it still holds when the document is generated is what that section reports. A reader must not treat it as an archive.
 - **Handled means moved, never edited in place**. The sort key is modification time. Any write that leaves an item where it is makes it the newest item in the inbox — an in-place edit, a header change. Such a write buries it behind the far edge, beyond the cap's reach. Draining does not reorder the live root. The drained item leaves the root rather than moving within it. The processed copy carries the drain time. A scope reading `processed/` too therefore sorts recently drained items to the newest edge, the end an oldest-first cap cuts first.
+
+
+
+### Escalation ask (`AskUserQuestion` `kind`)
+
+Format: `magic-team/templates/escalation.document.format.md`'s own `# Contract` — the fields and verdicts of the `readback`, `decision` and `permission` kinds.
 
 ## Nested-item grammar
 
@@ -513,6 +520,8 @@ It is owed wherever the two parties' pictures are not already backed by a writte
 
 It goes where the exchange already is — in the session, in the thread, in the tracking document that already holds the conversation's questions and data. It needs an artefact of its own only where none of those exists. It is kept in some basic form, because a readback too expensive to spend is one that will not be spent.
 
+A readback that needs an answer goes out as an `AskUserQuestion` ask with `kind` `readback`, addressed and tagged to whoever can confirm it. A choice the member cannot make goes out the same way with `kind` `decision`. The fields each kind carries are in `magic-team/templates/escalation.document.format.md`.
+
 **Propose-approve** is the process-flow one, for a decision that outlives the exchange it arose in. Initiating it does not stop the work it arose from. One exception: work that is itself to assess, investigate, research, work out or propose. There, initiating the flow is the work rather than a detour beside it. `magic-team.proposal.routine` runs it. Where the exchange it arose in is still live and has the human-owner in it, the approval happens there too. It takes a thread of its own only where the decision must outlive that exchange.
 
 Every piece of work is in one of three cases:
@@ -540,13 +549,29 @@ A question, a link he has to click, a decision that blocks work — it goes to h
 
 The channel is whichever direct one this installation actually has configured. The acting member resolves it at the moment of sending: the best available instant-messaging channel where one is set, the next-best direct channel where none is. A rule naming a transport is wrong the first time the transport changes.
 
-Whose ask it is decides who sends it. A question whose answer would bind the team goes through `magic-coordinator`, the mandated channel for those — an approval, a design ruling, a policy decision. A question whose answer only unblocks this member's own assigned work is that member's own, and goes out under its own identity. What the answer binds is the test, not what the question blocks. A ruling can block one member and still bind everyone, and that one is the chair's to carry.
+Whose ask it is decides who sends it. A question whose answer would bind the team goes through `magic-coordinator`, the mandated channel for those — an approval, a design ruling, a policy decision. A question whose answer only unblocks this member's own assigned work is that member's own, and goes out under its own identity. Either kind goes first to the session participants and then the session's `magic-coordinator`, which settles a simple question itself; only what it does not settle reaches him. What the answer binds is the test, not what the question blocks. A ruling can block one member and still bind everyone, and that one is the chair's to carry.
 
-Every session asks with `AskUserQuestion` (`mcp__myx_distro__AskUserQuestion` in a native client). It sends under the session's own team identity to his direct channel and waits for the answer. The send is automatic and needs no permission. Where the ask itself fails, the member states plainly what it needed, and hands the ask to `magic-coordinator`. It does not swallow the question, and it does not wait on an answer that cannot arrive.
+Every session asks with `AskUserQuestion` (`mcp__myx_distro__AskUserQuestion` in a native client). In a coordinated session the ask is addressed to the session's `magic-coordinator`. Only an ask it forwards, or one raised with no coordinator present, goes under the session's own team identity to his direct channel and waits for the answer. The send is automatic and needs no permission. Where the ask itself fails, the member states plainly what it needed, and hands the ask to `magic-coordinator`. It does not swallow the question, and it does not wait on an answer that cannot arrive.
 
-A message continuing an existing exchange goes into that exchange's own thread. A new top-level message is only for a new subject. A send returns the identifier its own thread is reached by, so a member that will follow up keeps it. Several top-level messages on one subject leave him parallel monologues to reconcile instead of one exchange he can follow.
+A message continuing an existing exchange goes into that exchange's own thread. A new top-level message is only for a new subject. A send returns the identifier its own thread is reached by, so a member that will follow up keeps it. Before a ping or a re-ask, the member reads that thread: an answer already there is the answer. A question settled elsewhere is closed by the member that asked it, with `--member-pending-reply-settle` and the reason, never left open to be pinged. Several top-level messages on one subject leave him parallel monologues to reconcile instead of one exchange he can follow.
 
 Send path: `human-owner`'s own `reach-human-owner` procedure.
+
+## Nothing stops on its own: log, escalate, resolve
+
+A refusal, a failed mechanism, a missing operation or grant, or an unverified source never ends a task by itself. It never changes the task's scope either.
+
+- The tooling logs a refusal in the session's own event-track thread, and prints its `REFUSAL-ID:`. A refusal is a fact, never a verdict.
+- The member escalates only when the task needs the refused thing. Otherwise it carries on with nothing to raise.
+- An escalation is an `AskUserQuestion` ask with the `kind` that fits it. It goes to the member or session that can decide it, addressed and tagged. It is posted in the session's own thread or the addressee's direct conversation. It never travels as chat relay.
+- An escalation is synchronous. The member asks with the wait on and waits for the resolution. Getting access and approving a spawn or a dispatch are escalations.
+- A matter that does not block the work is not an escalation. The member files it as an `inquiry-*` to `magic-coordinator` or to the member it concerns, per `magic-team.armed.md`'s `post-inquiry`, and carries on. It is handled later as its own task.
+- Answers to filed inquiries are collected once the member's work is done, before its closure steps are decided.
+- The gated part stays open until a verdict arrives. No answer is not a verdict.
+- A deny is a verdict. The member reports that part as denied and still open. It never drops it, narrows the task around it, or works around it.
+- A verdict comes back through the tooling, which matched the answer to its addressee. The member acts on it as returned, with no text marker and no re-check.
+
+The kinds, fields and verdicts are in `magic-team/templates/escalation.document.format.md`. A permission ask follows `magic-team.armed.md`'s missing-grant rule. Who the ask goes to follows "Anything needing the human-owner to act" above.
 
 ## One topic per message, and the decision leads it
 
@@ -579,9 +604,13 @@ A post that answers, replies to, or continues a specific prior message targets t
 
 It generalises the thread clause of "Anything needing the human-owner to act reaches him on his own direct channel" above, past that rule's own narrower case. The narrower case is continuing a subject the member itself raised with the human-owner. The general case is any message being answered, from anyone, in any conversation.
 
-Exception, named so it is not wrongly caught here. A message that reports outward rather than answering anything — a status update, a closing summary — is not an answer to any one message either. It is still not a fresh top-level post. It threads onto that session's own already-open thread, per `magic-team.coworking.routine`'s own Thread continuity rule. Only that session's own opening broadcast legitimately posts fresh and top-level, because it has no prior message of its own to attach to. Every later post that session makes, closing summary included, threads onto that opening post. It never threads onto whichever message may have prompted the work.
+Exception, named so it is not wrongly caught here. A message that reports outward rather than answering anything — a status update, a closing summary — is not an answer to any one message either. It is still not a fresh top-level post. It threads onto that session's own already-open thread, per `magic-team.coworking.routine`'s own Thread continuity rule. The tooling opens that thread when it starts the session, and hands it over as `session_thread_ts` in `<channel>:<ts>` form. The opening broadcast posts into it too. A session opens a new thread only when it holds none. Every post that session makes, closing summary included, threads onto that session thread. It never threads onto whichever message may have prompted the work.
 
 Target syntax: the Operation Reference of that member's own send operation for the configured platform.
+
+## All work runs in a coworking session with the right members
+
+Every piece of work is done in a coworking session, with the members its subject needs invited. A session working alone is not how work gets done. The one exception is work that is clear, checkable and single-dispatchable, where one member holds all of its expertise, access and responsibility. `magic-coordinator.armed.md`'s batch-dispatch rule states it, and a long-running, multi-task session is never that case. `magic-team.armed.md`'s rule that source is written in a spawned coworking session is one instance of this.
 
 ## We build software, not fixes for one workspace
 
@@ -749,7 +778,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - The human-owner's standing corrections are carried as present-tense instruction text. His own words are quoted in no file, a `MAGIC.md` included. Verbatim lives in the verbatim stores, and in a current active tracking document or a hand-off. An approved document becomes the new and only verbatim to use, replacing all working verbatim collected before it.
 - This file carries the durable model, not a live index of what currently exists. A live enumeration is read directly from whatever owns it, rather than from a central table summarising it.
 - A rule about reaching the human-owner states what the channel must achieve, never which transport it is. The acting member resolves the transport from what the installation has configured.
-- What an answer would bind decides who sends the question. A member carries its own unblocking ask, and anything binding the team goes through `magic-coordinator`.
+- What an answer would bind decides who sends the question. A member carries its own unblocking ask, and anything binding the team goes through `magic-coordinator`. Neither reaches the human-owner before the session coordinator has assessed it.
 - A message that wants something leads with the thing it wants, stated as the choice it is. It carries the work behind it only when that is asked for. The length of an ask is a diagnostic on whether the choice has been identified, never a style score.
 - A rule that was in force and was broken is treated as proven insufficient. The response is a change to the text, or to what makes it hold. It is never a citation of the text that failed.
 - What a member tells the human-owner comes from what the team has written down, or from a report another session sent it. A reading that is neither is told to him as a reading. This binds an answer given in conversation exactly as it binds a filed report.
@@ -763,7 +792,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - One member's skills are linked into more than one harness folder at once. The folder holding the rules and hooks is the primary one. A grant, a permission and a path are stated against it. Reaching the same files through a second link is the same content under a name nothing was granted to. That is how an action passes one check and fails another for no visible reason.
 - A sentence in a skill file names something that is not duty content. That is a flag a stub forwards, an internal operation name, what a tool does beneath its own interface, unsettled design rationale, or a vendor-specific caveat. It is removed from the skill file and filed where it belongs. The homes: the package's own help pair, the package's `CLAUDE.md`/`README.md`, the owning `keeper-*`'s reference material or a board item, or the tooling implementation's own source comments.
 - A paragraph is 90% duty content and 10% internals. It is not exempt: the "can a member perform this step without this sentence?" test is applied to the sentence, not the section.
-- A step cannot do something because the tooling cannot yet do it. The gap is closed in the tooling so the skillset never needs awareness of it; the doc's wording is not softened instead. A gap needing a real external account or infrastructure action is flagged as its own decision point and pursuit stops there.
+- A step cannot do something because the tooling cannot yet do it. The gap is closed in the tooling so the skillset never needs awareness of it; the doc's wording is not softened instead. A gap needing a real external account or infrastructure action is flagged as its own decision point and escalated, never pursued silently.
 - A contract names a section for which a file has no content. The heading is still present with its lead-in paragraph plus an explicit "none" line — an absent heading is indistinguishable from an unfinished file.
 - An acting member's `.armed.md` is written. Its frontmatter carries `maintainers:` only — no `executors:`, no `invitees:` — and who runs it is stated in `Scope`/`Local rules` prose instead.
 - A rule protects the human-owner's identity, their consent and sole channel, or their credentials boundary. The file stating it carries `human-owner` in its `maintainers:`.
@@ -787,12 +816,13 @@ Used to check this file's own definitions against its own goals when it is updat
 - A new operation, flag, file, key, or document type needs a name, or a new method/operation syntax is proposed. It goes via approval before it lands — internal names nobody can invoke included — and the request shows the sibling names it would join plus the adjacent sets deliberately not the same thing.
 - An operation-renaming pass runs. Flags are left untouched: an operation carries its owner's namespace, a flag does not.
 - Two instruction files or conventions conflict, or a convention is genuinely ambiguous. It goes to the human-owner for the decision, both sides intact and unedited until he rules; a dispatch to investigate one is not authorization to reconcile it.
-- A session has a question for the human-owner, a link he must click, or a decision that blocks it, and the answer would unblock only its own assigned work. It goes to his own direct channel as it arises, sent with `AskUserQuestion` under the session's own team identity, without asking permission; the session never leaves it in the session and waits.
+- A session has a question for the human-owner, a link he must click, or a decision that blocks it, and the answer would unblock only its own assigned work. Once the session participants and the session's `magic-coordinator` have not settled it, it goes to his own direct channel at once, sent with `AskUserQuestion` under the session's own team identity, without asking permission; the session never leaves it in the session and waits.
 - A question would bind the team once answered — an approval, a design ruling, a policy decision. It goes through `magic-coordinator` whatever identity the asking member holds, because what the answer binds is the test rather than what the question blocks.
+- A member's question is one an established pattern or the family's existing form already answers. The session coordinator settles it, and the human-owner never receives it.
 - The acting member's `AskUserQuestion` ask fails. It says so plainly, names what it needed, and hands the ask to `magic-coordinator` — rather than swallowing the question, or treating a failed or unanswered send as delivery.
 - No instant-messaging channel is configured in an installation. The ask still goes out on the next-best direct channel that is — the member resolves the channel from what is configured, and no rule names the transport for it.
 - A member sends a second message on a subject it has already raised. It goes into that subject's own thread, reached by the identifier the first send returned — never as a second top-level message beside the first.
-- A member is about to post an answer to a specific message, whoever sent it. It targets that message directly, in the form its own send operation documents. A target naming only the conversation is used solely to start a genuinely new subject, never to answer one. A message that reports outward without answering anything — a session's own opening broadcast, a standalone status or closing summary — is exempt, and posts fresh top-level or continues that session's own already-open thread instead.
+- A member is about to post an answer to a specific message, whoever sent it. It targets that message directly, in the form its own send operation documents. A target naming only the conversation is used solely to start a genuinely new subject, never to answer one. A message that reports outward without answering anything — a session's own opening broadcast, a standalone status or closing summary — is exempt, and posts into that session's own thread instead, opening a new one only when the session holds none.
 - A session has finished an investigation and needs a ruling on whether one language's code is refactored now. The ask is the message: the question, stated as the choice it is. The status, findings and history that produced it are not sent with it and follow only if he asks — a ruling reachable only by reading a screen of surrounding text has not been asked for.
 - A draft ask cannot be stated briefly. It is not sent longer: the choice is identified and restated, or the ask is held as not yet ready.
 - Two unrelated matters are ready to send at the same moment. They go as two messages; no test is applied first to decide whether bundling them would have been acceptable.

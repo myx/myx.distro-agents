@@ -48,7 +48,7 @@ Standing idle-activity, triggered when nothing else is pending — the coordinat
 
 Steps:
 1. Read this file's own `## Idle-Tasks` section (below) and select one eligible idle-run routine from it: weighted-random by each entry's `weight`, considering only entries whose `min-interval` has elapsed since that routine's last run and whose `scope` fits the current duty context. The universal research-own-duties activity is always one more eligible candidate beyond the listed routines.
-2. Run that routine's own procedure — currently `magic-architect.grooming-scores.routine` (the RICE-scoring pass over open board items in this skill's domain) — following its Steps and Closure steps.
+2. Run that routine's own procedure — currently `magic-architect.grooming-scores.routine` (the RICE scoring pass over open board items in this skill's domain) — following its Steps and Closure steps.
 
 # Team-Member's (-specific) local rules
 
@@ -118,7 +118,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-architect.grooming-scores.routine` — the idle-run RICE-scoring routine; its scheduling policy is this file's own `## Idle-Tasks` section.
+- `magic-architect.grooming-scores.routine` — the idle-run RICE scoring routine; its scheduling policy is this file's own `## Idle-Tasks` section.
 - `magic-tester` — security/CRA-style due-diligence overlap.
 - The relevant `partner-*` — infra/deployment topology questions that still fall under this skill's own lens.
 - `magic-team/magic-team.armed.md` — "Duties: three kinds, plus reflection" section (shared web-search idle-duty shape/definition).

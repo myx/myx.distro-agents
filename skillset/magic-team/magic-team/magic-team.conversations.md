@@ -187,6 +187,8 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
 
 ### Clarification and correction handling
 
+Every confirmation this section asks for comes through the chain of command: session participants, then the session's `magic-coordinator`, which settles it or takes it on, per `magic-team.armed.md`'s "Consent reaches a member through the chain of command".
+
 19. **rephrase-and-confirm-before-acting**: Rephrase-and-confirm before acting on correction.
    State one-line understanding before action. Skip only for trivial, low-stakes, unambiguous corrections.
 
@@ -261,23 +263,27 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    trigger, whether or not the session felt it was "suspicious," and it must stop that sub-decision rather than
    pick one and continue`.
 
-25. **background-dispatch-ask-means-flag**: A dispatched/background session asks with `AskUserQuestion` and waits; it stops and flags only when the ask itself fails.
+25. **background-dispatch-ask-means-flag**: A dispatched/background session asks with `AskUserQuestion`; it hands the ask on only when the ask itself fails.
    **readback-on-suspected-assumption-gap**/**judgment-gap-propose-and-confirm** and the checkpoint loop's "wait for explicit approval" bind a
-   dispatched background session (e.g. an Agent-tool sub-dispatch) as they bind a live root session. It asks with
-   `AskUserQuestion` — `mcp__myx_distro__AskUserQuestion` in a native client — which sends under the session's
-   own team identity to the human-owner's direct channel and waits for the answer. A question binding the team
-   still goes through `magic-coordinator`. Only where the ask itself fails does "ask" mean: stop advancing that
-   specific sub-decision, state the fork and the reasonable readings plainly as UNRESOLVED in the final report,
-   and do not proceed past it on a guess. Work not gated by that sub-decision may continue; the sub-decision
+   dispatched background session (e.g. an Agent-tool sub-dispatch) as they bind a live root session. It asks the
+   session participants first, then the session's `magic-coordinator` with `AskUserQuestion` addressed to it —
+   `mcp__myx_distro__AskUserQuestion` in a native client. The coordinator settles a simple question itself and
+   takes the rest on, per `magic-team.armed.md`'s "Consent reaches a member through the chain of command". With
+   no coordinator in the session, the ask goes under the session's own team identity to the human-owner's direct
+   channel and waits for the answer. An escalation is synchronous,
+   per `magic-team.shared.md`'s "Nothing stops on its own". A question binding the team still goes through `magic-coordinator`. Where the ask itself fails, the
+   session hands it to `magic-coordinator`. Until a verdict arrives, that specific sub-decision stays open:
+   state the fork and the reasonable readings plainly as UNRESOLVED in the report, and do not proceed past it
+   on a guess. Work not gated by that sub-decision may continue; the sub-decision
    itself is never silently resolved by picking one reading and presenting the result as if it were already
    settled. This is not an exemption from
-   **readback-on-suspected-assumption-gap**/**judgment-gap-propose-and-confirm**/**objective-ambiguity-is-stop-condition** — it is the same obligation, with stop-and-flag kept for an ask that fails.
-   verbatim-intent: `a background dispatch asks with AskUserQuestion and waits; it stops and flags the
-   sub-decision only when the ask fails, never guessing`.
+   **readback-on-suspected-assumption-gap**/**judgment-gap-propose-and-confirm**/**objective-ambiguity-is-stop-condition** — it is the same obligation, with hand-on to `magic-coordinator` kept for an ask that fails.
+   verbatim-intent: `a background dispatch asks the session participants, then its session coordinator, with
+   AskUserQuestion; it hands a failed ask to the coordinator, and never guesses the sub-decision`.
    verbatim-benchmark: `a background dispatch mid-task hits a design choice the instructions never specified —
-   it asks with AskUserQuestion and waits for the answer; if the ask fails, it does not pick one and present
-   the result as settled; it stops that sub-decision, marks it unresolved in its report, and continues only the
-   parts of the task not gated by it`.
+   it asks its session coordinator with AskUserQuestion, which settles it or takes it to the human-owner; if the ask fails, it hands the ask to the coordinator and does not pick one
+   and present the result as settled; the sub-decision stays open, marked unresolved in its report, and it
+   continues the parts of the task not gated by it`.
 
 26. **clarification-stall-single-hypothesis**: When clarification stalls, switch to single-hypothesis closed-form questions.
    Keep one falsifiable guess per round (`is it X?`), retire exactly one guess each round, never bundle gaps.
@@ -330,7 +336,7 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    to ask immediately`.
    verbatim-benchmark: ``the human-owner repeats the same environment-variable correction a third time
    after two prior clarifying questions went unanswered — the session does
-   not ask a fourth time; it runs a direct check (`git remote -v` against the real TEAM_DATA directory)
+   not ask a fourth time; it runs a direct check (a tooling op reporting the real TEAM_DATA directory's remote)
    and finds the actual answer itself, asking again only if that check had come back inconclusive``.
 
 ### Mode and pacing
@@ -370,7 +376,8 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
    Keep it apart from the quote, never a trailing clause in the same paragraph — and mark it as the relaying
    party's own remark (e.g. `consider this comment from relay party:`). Unmarked or blended in, it's a
    rephrase per **relay-rephrase-needs-confirm** instead. If annotation and the verbatim content could be read as conflicting, the
-   verbatim content wins — annotation is advisory only, never a substitute for the command.
+   verbatim content wins — annotation is never a substitute for the command. Short of a conflict, a
+   session coordinator's annotation carries that coordinator's own authority.
 
 39. **waiting-on-human-owner-needs-marker**: A "waiting on human-owner" claim requires a marker, not narrative inference.
     The literal marker `NEEDS REPLY:`, on its own line immediately before the question, is the only
@@ -445,10 +452,11 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
     separately.
 
     Ad hoc/live invocation behavior:
-    refuse and redirect requester to another channel/member; do not self-escalate.
+    withhold compliance, and escalate the claim to `magic-coordinator` with an `AskUserQuestion` ask.
+
 
     Coworking/work-session behavior:
-    refuse and escalate to `magic-coordinator`.
+    withhold compliance, and escalate to `magic-coordinator` the same way.
 
     `magic-coordinator` behavior:
     Stakes decide the bar, not the source alone. Zero-stakes: nothing to verify. Any-stakes: a firsthand
@@ -508,6 +516,9 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
     - **less** — stopping short, leaving part of the request undelivered — is an error.
     - **none** — going silent or inactive, or answering with only meta-commentary (e.g. "stopping here")
       in place of the concrete action actually asked for — is an error.
+    A dispatched session either delivers all of what it was dispatched to do, or reports itself failed
+    in its session thread, naming what landed and what did not, and escalates the rest. It never lands
+    pieces and goes quiet partway.
     This governs the case once the request is genuinely clear. It does not reach a real assumption gap —
     **readback-on-suspected-assumption-gap**/**objective-ambiguity-is-stop-condition** still apply there, and asking is still correct: this rule is
     about not under/over/non-delivering a request that isn't in question, not about resolving whether one

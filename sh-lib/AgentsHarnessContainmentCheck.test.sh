@@ -12,9 +12,9 @@ rigHarness="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsUn
 
 rigExtract(){
 	LC_ALL=C awk -v fnName="$1" '
-		$0 ~ "^" fnName "\\(\\)\\{" { inFn=1 }
-		inFn { print }
-		inFn && /^\}/ { exit }
+		$0 ~ "^" fnName "\\(\\)\\{" { inFn=1 ; }
+		inFn { print ; }
+		inFn && /^\}/ { exit ; }
 	' "$rigHarness"
 }
 ## Refusing to report is this block's whole job. A guard naming only one of the

@@ -362,7 +362,10 @@ AgentsHarnessMcpEnumerate(){
 			{
 				AgentsHarnessMcpHandshake
 				printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-			} > "$harnessScratch/mcp.req"
+			} > "$harnessScratch/mcp.req" || {
+				AgentsHarnessMcpDegrade "$harnessMcpName" "its request could not be written to $harnessScratch/mcp.req"
+				continue
+			}
 			if ! AgentsHarnessMcpRun "$harnessMcpName" "$harnessMcpEnumTimeout" 2 ; then
 				AgentsHarnessMcpDegrade "$harnessMcpName" "$harnessMcpFault"
 				continue
@@ -375,7 +378,10 @@ AgentsHarnessMcpEnumerate(){
 				AgentsHarnessMcpDegrade "$harnessMcpName" "it answered \`initialize\` and then returned no \`tools/list\` result (exit status $harnessMcpStatus)${harnessMcpDiag:+ -- it said: $harnessMcpDiag}"
 				continue
 			fi
-			printf '%s\n' "$harnessMcpReply" > "$harnessScratch/mcp.reply"
+			printf '%s\n' "$harnessMcpReply" > "$harnessScratch/mcp.reply" || {
+				AgentsHarnessMcpDegrade "$harnessMcpName" "its \`tools/list\` answer could not be written to $harnessScratch/mcp.reply"
+				continue
+			}
 
 			harnessMcpRc=0
 			harnessMcpToolCount="$( AgentsHarnessMcpField result.tools.__count < "$harnessScratch/mcp.reply" )" || harnessMcpRc=$?
@@ -411,8 +417,12 @@ AgentsHarnessMcpEnumerate(){
 				## A dot is a legal name here and a 400 on the wire, whose names are [A-Za-z0-9_-]:
 				## it becomes `_`, the spelling mcp__myx_distro__execute already has everywhere.
 				harnessMcpDeclared="mcp__${harnessMcpName//./_}__${harnessMcpTool//./_}"
+				harnessMcpDeclaration="$( AgentsWireToolDeclaration "$harnessMcpDeclared" "$harnessMcpDesc" "$( cat "$harnessMcpSchemaFile" )" )" || {
+					printf '%s\n' "${harnessWarn}🔌 mcp${harnessOff} ${harnessDim}$harnessMcpName: dropped the tool ${harnessOff}${harnessValue}$harnessMcpTool${harnessOff}${harnessDim} -- its declaration could not be rendered${harnessOff}" >&2
+					continue
+				}
 				harnessMcpCatalogue="${harnessMcpCatalogue}${harnessMcpName}"$'\t'"${harnessMcpTool}"$'\t'"${harnessMcpDeclared}"$'\t'"${harnessMcpSchemaFile}"$'\n'
-				harnessMcpToolsJson="${harnessMcpToolsJson},$( AgentsWireToolDeclaration "$harnessMcpDeclared" "$harnessMcpDesc" "$( cat "$harnessMcpSchemaFile" )" )"
+				harnessMcpToolsJson="${harnessMcpToolsJson},$harnessMcpDeclaration"
 				printf '%s\n' "   ${harnessDim}·${harnessOff} ${harnessTool}${harnessMcpDeclared}${harnessOff} ${harnessDim}declared${harnessOff}" >&2
 			done
 		done

@@ -38,7 +38,7 @@ Routine-daily is the team's standing daily checkpoint: surface every member's st
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **acquire-lock**: Acquire this routine's own lock — a single `--magic-daily-lock-acquire` call, before anything else in this routine runs, **spawn-morning-review**'s spawn included. `ACQUIRED`, or a reclaim of a dead holder's lock, means go. Contention means another `magic-coordinator.daily.routine` is live: this pass does not start, and nothing below runs.
 2. **spawn-morning-review**: first-today only — spawn `magic-librarian.morning-review.routine` as a full sub-session, and wait for it to complete.

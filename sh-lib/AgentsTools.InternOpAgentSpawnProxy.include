@@ -128,6 +128,16 @@ AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
 		printf 'upsert\tstatus\tspawn-%s\n' "$sandboxOutcome"
 		printf 'upsert\texit-code\t%s\n' "$sandboxExit"
 		printf 'upsert\tresolved-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+		## Whether the session read its own duty file, as the harness recorded it beside this file.
+		## "no" only where the harness loop ran and could see it; a native CLI's session is unknown.
+		if [ -s "${sandboxFile%.md}.armed" ] ; then
+			printf 'upsert\tarmed\tyes\n'
+			printf 'upsert\tarmed-at\t%s\n' "$( head -1 "${sandboxFile%.md}.armed" )"
+		elif [ -e "${sandboxFile%.md}.harness" ] ; then
+			printf 'upsert\tarmed\tno\n'
+		else
+			printf 'upsert\tarmed\tunknown\n'
+		fi
 	} > "$sandboxOps" || return 0
 	sandboxBody="$( LC_ALL=C awk -v opsFile="$sandboxOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$sandboxFile" )" || sandboxBody=""
 	rm -f "$sandboxOps"
@@ -140,7 +150,7 @@ AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
 ## none was opened. Replays only lines already present in the spawn output file,
 ## matched by the prefixes their producers print -- nothing here is derived or
 ## guessed, so a field a CLI never prints is never posted. Never on stdout, and
-## never fails the spawn: one stderr warning at most.
+## never fails the spawn: one stderr warning at most per Slack call.
 AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, marker, output file, timed out, timeout seconds
 	local closeThread="$1" closeMember="$2" closeOutcome="$3" closeExit="$4" closeMarker="$5" closeLog="$6" closeTimedOut="$7" closeTimeout="$8"
 	[ -n "$closeThread" ] || return 0
@@ -151,6 +161,14 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 		printf 'cli-executed: %s\n' "$( AgentsToolsSpawnProxyExecutedCli "$closeMarker" )"
 		[ "$closeTimedOut" = "0" ] || printf 'timed-out-after-seconds: %s\n' "$closeTimeout"
 		[ "$closeExit" != "5" ] || printf 'setup-status: cli-not-configured\n'
+		[ "$closeExit" != "6" ] || printf 'setup-status: cli-not-authenticated\n'
+		if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -s "$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.armed" ] ; then
+			printf 'armed: yes, at %s\n' "$( head -1 "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed" )"
+		elif [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -e "$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.harness" ] ; then
+			printf 'armed: no\n'
+		else
+			printf 'armed: unknown\n'
+		fi
 		printf 'resolved-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 		[ -z "$closeLog" ] || [ ! -f "$closeLog" ] || LC_ALL=C awk '
 			function clip( text,    cutAt ) {
@@ -179,6 +197,7 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 					if ( index( matchText, classList[classIndex] ) == 1 && ++classCount[classIndex] <= 3 ) { kept[++keptTotal] = clip( line ) ; }
 				}
 			}
+			$0 ~ /^[^[:space:]]+: line [0-9]+: / && ++shellErrorCount <= 3 { kept[++keptTotal] = clip( $0 ) ; }
 			END {
 				if ( sessionLine != "" ) { print sessionLine ; }
 				if ( modelLine != "" ) { print modelLine ; }
@@ -194,6 +213,9 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 		printf '%s\n' '```'
 	} | DistroAgentsTools --member-comms-slack-send-message "$closeMember" "$closeThread" --identity-bot --from-stdin 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track close not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
+	  || :
+	DistroAgentsTools --member-comms-slack-react "$closeMember" "$closeThread" checkered_flag --identity-bot 2>&1 > /dev/null \
+	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track finish flag not added " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
 	return 0
 }
@@ -229,6 +251,10 @@ case "$1" in
 		## is named by leaving this empty -- the session uuid is then the name, because
 		## the uuid IS the tracking name, the session name and the spawn id.
 		local trackingName=""
+		## Where the spawned session's own thread lives. magic-team, the default, opens a
+		## new thread in the team channel; event-track hands over this spawn's event-track
+		## thread instead, for a caller whose routine keeps its thread there.
+		local sessionThreadMode="magic-team"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-file)
@@ -296,6 +322,17 @@ case "$1" in
 					esac
 					shift
 				;;
+				--session-thread:*)
+					sessionThreadMode="${1#--session-thread:}"
+					case "$sessionThreadMode" in
+						event-track|magic-team) ;;
+						*)
+							echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --session-thread: must be event-track|magic-team: $sessionThreadMode" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift
+				;;
 				## The spelling this package already uses for the same thing: the
 				## owner-setup option that writes SPAWN_CLI_SERVICE is spelled
 				## --spawn-cli-service, so a per-spawn override of that same setting
@@ -355,7 +392,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$callerName" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--wait]" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--wait]" >&2
 			set +e ; return 1
 		fi
 		local sourceCount=0
@@ -483,7 +520,8 @@ case "$1" in
 		fi
 
 		local timestamp receiptId
-		timestamp="$( date +%Y%m%dT%H%M%S )"
+		## The ruled name form, seconds variant, in UTC: a dispatch item is a board item.
+		timestamp="$( date -u +%Y%m%dT%H%M%SZ )"
 		receiptId="spawn-proxy-$timestamp-$$"
 
 		## The session this spawn was started from, read before the export below
@@ -553,6 +591,7 @@ case "$1" in
 				--header:upsert:owner:"$callerName" \
 				--header:upsert:status:dispatch-started \
 				--header:upsert:session-id:"$MDAT_SPAWN_SESSION_ID" \
+				${trackedItemName:+--header:upsert:tracks:"${trackedItemName%.md}"} \
 				--log-verb:created || {
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: could not create dispatch tracking item $dispatchItemName" >&2
 				set +e ; return 1
@@ -680,6 +719,15 @@ case "$1" in
 			"" \
 			"Read-only input: $sandboxRoot/input" \
 			"Writable output, for deliverables and working files: $sandboxRoot/output" )"
+		## input/ gets what the task reads: the brief as given, its board item, MAGIC.md copies, routines, pointers.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+		local sandboxItem=""
+		if [ -n "$dispatchItemName" ] ; then
+			sandboxItem="$MDAT_DATA_ROOT/board/running/$dispatchItemName"
+		elif [ -n "$trackedItemName" ] && [ -n "$trackedItemState" ] ; then
+			sandboxItem="$MDAT_DATA_ROOT/board/$trackedItemState/$trackedItemName"
+		fi
+		AgentsToolsSpawnSandboxFillInput "$sandboxRoot" "$spawnContext" "$sandboxItem" "$callerName"
 
 		## The event-track thread: one tooling-maintained Slack thread per spawn,
 		## opened here and closed by AgentsToolsSpawnProxyEventTrackClose. Only when
@@ -708,6 +756,39 @@ case "$1" in
 					else { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track thread not opened " sendError > "/dev/stderr" ; }
 				}'
 		)" || eventTrackThread=""
+
+		## The session thread: the spawned session's own thread in the team channel, opened
+		## here and handed over in the brief as `<channel>:<ts>`. A failed post is one stderr
+		## warning, the spawn goes on, and the brief says no thread was opened.
+		## --session-thread:event-track hands over the event-track thread opened above
+		## instead, and posts nothing to the team channel. Where that thread was not
+		## opened, the team-channel thread is opened as for magic-team.
+		local sessionThread=""
+		if [ "$sessionThreadMode" = "event-track" ] && [ -n "$eventTrackThread" ] ; then
+			sessionThread="$eventTrackThread"
+		else
+			sessionThread="$(
+				printf '%s\n' "Session started for $callerName" '```' \
+					"session-id: $MDAT_SPAWN_SESSION_ID" "tracking-name: $sandboxName" \
+					"host: $( hostname -s 2>/dev/null || echo unknown )" \
+					"started-at: $( date +"%Y-%m-%d %H:%M %z" )" '```' \
+				| DistroAgentsTools --member-comms-slack-send-message "$callerName" magic-team --identity-bot --address-to "$callerName" --from-stdin 2>&1 > /dev/null \
+				| LC_ALL=C awk -F= '
+					$1 == "SENT_MESSAGE_CHANNEL" { sentChannel = $2 ; }
+					$1 == "SENT_MESSAGE_TS" { sentTs = $2 ; }
+					index( $0, "⛔" ) == 1 && sendError == "" { sendError = $0 ; }
+					END {
+						if ( sentChannel != "" && sentTs != "" ) { print sentChannel ":" sentTs ; }
+						else { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened " sendError > "/dev/stderr" ; }
+					}'
+			)" || sessionThread=""
+		fi
+		spawnContext="$( printf '%s\n' \
+			"$spawnContext" \
+			"" \
+			"## Your session thread" \
+			"" \
+			"session_thread_ts: ${sessionThread:-none -- the opening post failed, so post a new thread in magic-team yourself}" )"
 
 		if [ "$waitMode" = "true" ] ; then
 			local exitCode spawnPid watchPid timedOut waitTimeoutSeconds
@@ -779,6 +860,14 @@ case "$1" in
 			esac
 			echo "STATUS=$spawnOutcome"
 			echo "EXIT_CODE=$exitCode"
+			## The spawn's questions nobody waited on: answers collected now, and the ones
+			## still open marked for the main loop, since this session is over. Tooling only.
+			local spawnCollected=""
+			spawnCollected="$( DistroAgentsTools --intern-op-pending-reply-collect --session-id "$MDAT_SPAWN_SESSION_ID" --mark-ended \
+				--context --intern-op-agent-spawn-proxy 2>/dev/null )" || spawnCollected=""
+			echo "PENDING_ANSWERED=$( printf '%s\n' "$spawnCollected" | LC_ALL=C grep -c '^ANSWERED ' )"
+			echo "PENDING_OPEN=$( printf '%s\n' "$spawnCollected" | LC_ALL=C grep -c -E '^(OPEN|UNMATCHED|UNREADABLE) ' )"
+			printf '%s\n' "$spawnCollected" | LC_ALL=C grep -E '^(ANSWERED|OPEN|UNMATCHED|UNREADABLE) ' | LC_ALL=C sed 's/^/PENDING_REPLY=/' || :
 			## Kept beside the status, never folded into it: this is what separates a real failure from a silent no-op.
 			echo "LAUNCHED=$( AgentsToolsSpawnProxySawSentinel "$MDAT_SPAWN_LAUNCH_MARKER" && echo true || echo false )"
 			## rc 5 from the console is its one structured answer: no external CLI
@@ -786,9 +875,18 @@ case "$1" in
 			## caller spawns an internal agent instead of reading the failure as a
 			## CLI that broke, and re-runs nothing to find that out.
 			[ "$exitCode" != "5" ] || echo "SETUP_STATUS=cli-not-configured"
+			[ "$exitCode" != "6" ] || echo "SETUP_STATUS=cli-not-authenticated"
 			[ "$timedOut" = "0" ] || echo "TIMEOUT_SECONDS=$waitTimeoutSeconds"
 			[ -z "$outputFile" ] || echo "OUTPUT_FILE=$outputFile"
 			rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
+			## The spawn's audit log is complete once the child is gone, on success, failure,
+			## timeout and interrupt alike -- every one of them reaches this line. A log kept in
+			## scratch is not under the store and is skipped by the helper.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+			[ -z "$outputFile" ] || AgentsToolsTeamDataCommitPaths "agent-spawn-proxy output, $callerName, $receiptId" "$outputFile"
+			AgentsToolsSpawnSandboxCleanInput "$sandboxRoot"
+			AgentsToolsTeamDataPushIfAhead "agent-spawn-proxy close"
+			AgentsToolsTeamDataDirtyWarning "agent-spawn-proxy close"
 			if [ "$spawnOutcome" != "succeeded" ] ; then
 				set +e ; return 1
 			fi
@@ -812,6 +910,13 @@ case "$1" in
 				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$bgExitCode" "$outputFile" "$bgOutcome" "$trackedItemState"
 			fi
 			rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
+			AgentsToolsSpawnSandboxCleanInput "$sandboxRoot"
+			## Last, and silent: this subshell's own output IS the log, so any line after
+			## the commit would leave it dirty again. A failed commit is caught by the
+			## dirty-store warning at the next heartbeat or waited spawn close.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+			AgentsToolsTeamDataCommitPaths "agent-spawn-proxy output, $callerName, $receiptId" "$outputFile" 2>/dev/null
+			AgentsToolsTeamDataPushIfAhead "agent-spawn-proxy close" > /dev/null 2>&1
 		) > "$outputFile" 2>&1 &
 		local spawnPid=$!
 		echo "RECEIPT_ID=$receiptId"

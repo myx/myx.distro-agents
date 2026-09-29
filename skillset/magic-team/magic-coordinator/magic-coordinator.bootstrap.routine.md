@@ -36,7 +36,7 @@ This routine stands a team up in a new place — a full custom-team setup for a 
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **check-preconditions**: any one missing is a fail-loud stop, escalated via **escalate-to-human-owner**'s script.
 - Workspace root available with `source/myx/myx.distro-agents`.
@@ -47,10 +47,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **load-identity-and-targets**
 - Read member token and configured targets:
   - `--member-config-option magic-coordinator --select SLACK_USER_TOKEN`
-  - `--agents-config-option magic-coordinator --select SLACK_CHANNEL_MAGIC_TEAM`
-  - `--agents-config-option magic-coordinator --select SLACK_CHANNEL_HUMAN_OWNER`
-  - `--agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_TRACK`
-  - `--agents-config-option magic-coordinator --select SLACK_CHANNEL_EVENT_ALERT`
+  - `--agents-config-option magic-team --select SLACK_CHANNEL_MAGIC_TEAM`
+  - `--agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER`
+  - `--agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK`
+  - `--agents-config-option magic-team --select SLACK_CHANNEL_EVENT_ALERT`
 - Missing any required value: stop and escalate using the human-owner script in **escalate-to-human-owner**.
 
 3. **check-auth-identity**

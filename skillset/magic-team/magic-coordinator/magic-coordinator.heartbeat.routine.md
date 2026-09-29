@@ -32,7 +32,7 @@ Routine-heartbeat is the team's continuous, self-driven operating rhythm — dec
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud. Each step below runs once per `next-iteration`, in sequence — one bounded pass, not a continuous loop of its own.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently. Each step below runs once per `next-iteration`, in sequence — one bounded pass, not a continuous loop of its own.
 
 1. **check-required-config**: `--magic-heartbeat-config-check` operation.
    - State the outcome in this pass's own output — each missing key's line already carries its own exact fix command.
@@ -283,7 +283,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-heartbeat-config-check` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-config-check` — takes no arguments. Checks magic-coordinator's own config, plus magic-team's for `SLACK_BOT_TOKEN`, which is the team's own credential rather than any one member's. Prints one `<KEY>: OK`/`<KEY>: FAIL` line per key (name only, never the value) for `TEAM_DATA_DIRECTORY`, `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_EVENT_TRACK`, `SLACK_CHANNEL_EVENT_ALERT`, `SLACK_CHANNEL_MAGIC_TEAM`, `SLACK_CHANNEL_HUMAN_OWNER`, `EMAIL_IMAP_HOST`, `EMAIL_USER`, `EMAIL_APP_PASSWORD`, `TRELLO_KEY`, `TRELLO_TOKEN`, `TEAM_DATA_GIT_REMOTE`, each FAIL with its own exact fix command. The four `SLACK_CHANNEL_*` keys gate the exit code (1 if any is missing). `TEAM_DATA_DIRECTORY` never gates: unset, it reads OK and names the workspace's own `.local/agents/team-data-root` it defaults to. The rest — `SLACK_BOT_TOKEN`, `TEAM_DATA_GIT_REMOTE`, and the email/Trello keys — are informational; a FAIL there does not affect the exit code.
+`DistroAgentsTools.fn.sh --magic-heartbeat-config-check` — takes no arguments. Checks magic-coordinator's own config, plus magic-team's for `SLACK_BOT_TOKEN` and the four `SLACK_CHANNEL_*` keys, the team's own credential and channels rather than any one member's. Prints one `<KEY>: OK`/`<KEY>: FAIL` line per key (name only, never the value) for `TEAM_DATA_DIRECTORY`, `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_EVENT_TRACK`, `SLACK_CHANNEL_EVENT_ALERT`, `SLACK_CHANNEL_MAGIC_TEAM`, `SLACK_CHANNEL_HUMAN_OWNER`, `EMAIL_IMAP_HOST`, `EMAIL_USER`, `EMAIL_APP_PASSWORD`, `TRELLO_KEY`, `TRELLO_TOKEN`, `TEAM_DATA_GIT_REMOTE`, each FAIL with its own exact fix command. The four `SLACK_CHANNEL_*` keys gate the exit code (1 if any is missing). `TEAM_DATA_DIRECTORY` never gates: unset, it reads OK and names the workspace's own `.local/agents/team-data-root` it defaults to. The rest — `SLACK_BOT_TOKEN`, `TEAM_DATA_GIT_REMOTE`, and the email/Trello keys — are informational; a FAIL there does not affect the exit code.
 
 ## `--magic-heartbeat-input-scan` operation reference
 

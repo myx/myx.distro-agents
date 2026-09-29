@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SpawnSandbox.include -- what a spawn sandbox's input/ holds, and when it
+## is emptied. Sourced, never run. Functions only. Contract: MAGIC.md, "Spawn sandbox input/".
+##
+
+## Path-like words of a text that name something on disk, one resolved path per line.
+AgentsToolsSpawnSandboxNamedPaths(){ ## text
+	local namedWord namedPath
+	printf '%s\n' "$1" | LC_ALL=C grep -oE '[A-Za-z0-9_.~/-]*[A-Za-z0-9_.-]/[A-Za-z0-9_./-]+' | LC_ALL=C sort -u | while IFS= read -r namedWord ; do
+		namedWord="${namedWord%%:*}"
+		for namedPath in "$MMDAPP/source/$namedWord" "$MMDAPP/source"/*/"$namedWord" "$MMDAPP/$namedWord" "$namedWord" ; do
+			[ -e "$namedPath" ] || continue
+			printf '%s\n' "$namedPath"
+			break
+		done
+	done
+}
+
+## The nearest MAGIC.md above a path, never above $MMDAPP/source.
+AgentsToolsSpawnSandboxNearestMagic(){ ## path
+	local magicDir="$1"
+	[ -d "$magicDir" ] || magicDir="${magicDir%/*}"
+	magicDir="$( cd "$magicDir" 2>/dev/null && pwd -P )" || return 0
+	local sourceRoot
+	sourceRoot="$( cd "$MMDAPP/source" 2>/dev/null && pwd -P )" || return 0
+	while [ -n "$magicDir" ] ; do
+		case "$magicDir/" in "$sourceRoot"/*) ;; *) return 0 ;; esac
+		[ ! -f "$magicDir/MAGIC.md" ] || { printf '%s\n' "$magicDir/MAGIC.md" ; return 0 ; }
+		[ "$magicDir" != "$sourceRoot" ] || return 0
+		magicDir="${magicDir%/*}"
+	done
+}
+
+## Fills input/: the brief, the board item behind it, the MAGIC.md copies, a named
+## routine, and pointers.md. Copies, never links, and never secret material: the
+## credentials line in pointers.md names the identity the tooling acts as, not a value.
+AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path (may be empty), member
+	local fillInput="$1/input" fillBrief="$2" fillItem="$3" fillMember="$4"
+	local fillText fillPath fillMagic fillName fillCount=0 fillSkillsRoot fillMemberDir
+	[ -d "$fillInput" ] || return 0
+	## A joined sandbox may hold a run's read-only input/ still: opened and emptied first.
+	AgentsToolsSpawnSandboxCleanInput "$1"
+	printf '%s\n' "$fillBrief" > "$fillInput/dispatch.md" || {
+		echo "⚠️ WARNING: $MDSC_CMD: could not write $fillInput/dispatch.md, so this spawn's input/ holds no brief" >&2
+		return 0
+	}
+	fillText="$fillBrief"
+	if [ -n "$fillItem" ] && [ -f "$fillItem" ] ; then
+		cp -p "$fillItem" "$fillInput/${fillItem##*/}" 2>/dev/null
+		fillText="$fillText"$'\n'"$( cat "$fillItem" 2>/dev/null )"
+	fi
+	## MAGIC.md of every repo or package the brief or its item names, else the workspace's.
+	while IFS= read -r fillPath ; do
+		fillMagic="$( AgentsToolsSpawnSandboxNearestMagic "$fillPath" )"
+		[ -n "$fillMagic" ] || continue
+		fillName="${fillMagic#"$( cd "$MMDAPP/source" && pwd -P )"/}"
+		fillName="MAGIC.${fillName%/MAGIC.md}.md"
+		fillName="${fillName//\//--}"
+		[ -e "$fillInput/$fillName" ] || { cp -p "$fillMagic" "$fillInput/$fillName" 2>/dev/null && fillCount=$(( fillCount + 1 )) ; }
+	done < <( AgentsToolsSpawnSandboxNamedPaths "$fillText" )
+	if [ "$fillCount" -eq 0 ] && [ -f "$MMDAPP/MAGIC.md" ] ; then
+		cp -p "$MMDAPP/MAGIC.md" "$fillInput/MAGIC.workspace.md" 2>/dev/null
+	fi
+	## Routines and skillset files: a named routine is copied; every skillset file is a pointer.
+	fillSkillsRoot="${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}"
+	{
+		printf '%s\n' "# Pointers for this spawn" ""
+		printf '%s\n' "Credentials: none are copied here. The team tooling acts as \`$fillMember\` for this spawn and resolves that member's credentials itself."
+		printf '%s\n' ""
+		printf '%s\n' "$fillText" | LC_ALL=C grep -oE '[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)+\.md' | LC_ALL=C sort -u | while IFS= read -r fillName ; do
+			for fillMemberDir in "$fillSkillsRoot"/*/ ; do
+				[ -f "$fillMemberDir$fillName" ] || continue
+				case "$fillName" in
+					*.routine.md)
+						cp -p "$fillMemberDir$fillName" "$fillInput/$fillName" 2>/dev/null && printf '%s\n' "- \`$fillName\`: copied here; also readable with Skill, name \`$( basename "${fillMemberDir%/}" )\`, file \`$fillName\`"
+					;;
+					*)
+						printf '%s\n' "- \`$fillName\`: read with Skill, name \`$( basename "${fillMemberDir%/}" )\`, file \`$fillName\`"
+					;;
+				esac
+				break
+			done
+		done
+	} > "$fillInput/pointers.md" 2>/dev/null
+	## Read-only by mode, whatever the client's access flag can say: a flag with no verb
+	## grants input/ for writing too, so the files and the folder carry no write bit.
+	chmod -R a-w "$fillInput" 2>/dev/null || :
+	return 0
+}
+
+## Empties input/ and keeps input/ itself, output/ and the root record.
+AgentsToolsSpawnSandboxCleanInput(){ ## sandbox root
+	[ -d "$1/input" ] || return 0
+	chmod -R u+w "$1/input" 2>/dev/null || :
+	find "$1/input" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null
+	return 0
+}
+
+## Empties input/ of every sandbox on this host with no live session, and says which.
+## A sandbox recorded on another host, or with any session still running, is never touched.
+AgentsToolsSpawnSandboxSweep(){ ## where
+	local sweepRoot="$MMDAPP/.local/agents/spawned" sweepDir sweepRecord sweepSession sweepHost sweepLive thisHost psText
+	[ -d "$sweepRoot" ] || return 0
+	thisHost="$( hostname -s 2>/dev/null )" || thisHost="unknown"
+	psText="$( ps -A -ww -o args= 2>/dev/null )" || return 0
+	for sweepDir in "$sweepRoot"/*/ ; do
+		sweepDir="${sweepDir%/}"
+		[ -d "$sweepDir/input" ] || continue
+		[ -n "$( find "$sweepDir/input" -mindepth 1 -maxdepth 1 2>/dev/null | head -1 )" ] || continue
+		## A sandbox with no record, or with a record under 10 minutes old, may still be launching.
+		sweepLive="no-record"
+		for sweepRecord in "$sweepDir"/*.md ; do
+			[ -f "$sweepRecord" ] || continue
+			sweepLive=""
+			if [ -n "$( find "$sweepRecord" -mmin -10 2>/dev/null )" ] ; then sweepLive="launching" ; break ; fi
+			sweepSession="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$sweepRecord" )"
+			sweepHost="$( LC_ALL=C awk '/^host: /{ print substr($0, 7) ; exit ; }' "$sweepRecord" )"
+			if [ "$sweepHost" != "$thisHost" ] ; then sweepLive="other-host" ; break ; fi
+			case "$psText" in *"$sweepSession"*) sweepLive="running" ; break ;; esac
+		done
+		[ -z "$sweepLive" ] || continue
+		AgentsToolsSpawnSandboxCleanInput "$sweepDir"
+		echo "# $MDSC_CMD: $1: emptied input/ of ${sweepDir##*/}, whose session is no longer running" >&2
+	done
+	return 0
+}

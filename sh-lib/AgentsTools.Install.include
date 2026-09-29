@@ -114,6 +114,59 @@ AgentsToolsInstallClassifyTarget(){
 	esac
 }
 
+## Links one authoritative path into every folder the workspace's generated
+## .code-workspace lists, as <folder>/<slot>: the workspace root is never a VS Code folder,
+## so what VS Code reads per folder reaches it only this way (MAGIC.md). The link form is
+## --install-skillset-symlinks' own: a dangling link is reclaimed, a link already to the
+## authoritative path is kept, and a link elsewhere or real content is reported and never
+## overwritten. Args: workspace, authoritative path, slot relative to each folder, context
+## for messages. Returns 1 when any slot could not be settled, each stated.
+AgentsToolsVscodeFolderLinks(){
+	local linkWorkspace="$1" linkTarget="$2" linkRelative="$3" linkContext="$4"
+	local linkWsFile="$linkWorkspace/${linkWorkspace##*/}.code-workspace"
+	if [ ! -f "$linkWsFile" ] ; then
+		echo "🙋 WARNING: $MDSC_CMD --$linkContext: no generated workspace file at $linkWsFile, so no VS Code folder gets $linkRelative yet -- the next integrations run links them" >&2
+		return 0
+	fi
+	local linkFolder linkSlot linkHadError="false" linkNew="" linkKept=""
+	if [ ! -e "$linkTarget" ] ; then
+		echo "# $MDSC_CMD --$linkContext: $linkTarget does not exist yet, so no VS Code folder gets $linkRelative -- the next integrations run links it" >&2
+		return 0
+	fi
+	while IFS= read -r linkFolder ; do
+		[ -n "$linkFolder" ] || continue
+		linkFolder="${linkFolder%/}"
+		if [ ! -d "$linkFolder" ] ; then
+			echo "# $MDSC_CMD --$linkContext: listed folder absent, not linked: $linkFolder" >&2
+			continue
+		fi
+		linkSlot="$linkFolder/$linkRelative"
+		if [ -L "$linkSlot" ] && [ ! -e "$linkSlot" ] ; then
+			echo "# $MDSC_CMD --$linkContext: $linkSlot is a dangling symlink (points at $( readlink "$linkSlot" ), which does not exist) -- reclaiming the slot" >&2
+			if ! rm -f "$linkSlot" ; then
+				echo "⛔ ERROR: $MDSC_CMD --$linkContext: failed to remove dangling symlink: $linkSlot" >&2
+				linkHadError="true" ; continue
+			fi
+		elif [ -L "$linkSlot" ] ; then
+			if [ "$( readlink "$linkSlot" )" = "$linkTarget" ] ; then
+				linkKept="$linkKept." ; continue
+			fi
+			echo "⛔ ERROR: $MDSC_CMD --$linkContext: $linkSlot is a symlink to $( readlink "$linkSlot" ), not to $linkTarget -- will not overwrite" >&2
+			linkHadError="true" ; continue
+		fi
+		if [ -e "$linkSlot" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --$linkContext: real content at $linkSlot, will not overwrite" >&2
+			linkHadError="true" ; continue
+		fi
+		if ! { mkdir -p "${linkSlot%/*}" && ln -s "$linkTarget" "$linkSlot" ; } ; then
+			echo "⛔ ERROR: $MDSC_CMD --$linkContext: failed to create symlink: $linkSlot" >&2
+			linkHadError="true" ; continue
+		fi
+		linkNew="$linkNew." ; echo "🔗 linked: $linkSlot" >&2
+	done < <( LC_ALL=C awk '{ t = $0 ; while ( match( t, /"path"[ \t]*:[ \t]*"[^"]*"/ ) ) { v = substr( t, RSTART, RLENGTH ) ; sub( /^"path"[ \t]*:[ \t]*"/, "", v ) ; sub( /"$/, "", v ) ; print v ; t = substr( t, RSTART + RLENGTH ) ; } ; }' "$linkWsFile" )
+	echo "# $MDSC_CMD --$linkContext: $linkRelative: ${#linkNew} folder(s) newly linked, ${#linkKept} already linked" >&2
+	[ "$linkHadError" = "false" ]
+}
 ## Resolves the icon for a --install-skillset-symlinks / --install-skillset-report-render row's
 ## MEMBER column ($1) into the caller's `reportWho`, the same assign-to-caller-var shape
 ## AgentsToolsInstallClassifyTarget uses for classifyHome/classifyWspace. $2, when non-empty, is
@@ -329,6 +382,19 @@ case "$1" in
 			dcCount="$( printf '%s' "$dcSources" | grep -c '' )"
 
 			if printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$dcMember" 'NF && $1 == m { hit = 1; } END { exit !hit; }' ; then
+				## Same name, same member: every declared source resolves to the slot's own folder,
+				## so it is one entity declared twice and not a collision (human-owner, 2026-08-27).
+				local dcOwnedReal="" dcSame="true"
+				dcOwnedReal="$( printf '%s\n' "$ownedMembers" | LC_ALL=C awk -v m="$dcMember" 'NF && $1 == m { sub( /^[^ ]+ /, "" ) ; print ; exit ; }' )"
+				dcOwnedReal="$( cd "$dcOwnedReal" 2>/dev/null && pwd -P )" || dcOwnedReal=""
+				while IFS= read -r dcSrc ; do
+					[ -n "$dcSrc" ] || continue
+					[ -n "$dcOwnedReal" ] && [ "$( cd "$dcSrc" 2>/dev/null && pwd -P )" = "$dcOwnedReal" ] || dcSame="false"
+				done <<< "$dcSources"
+				if [ "$dcSame" = "true" ] ; then
+					echo "# $MDSC_CMD --install-skillset-symlinks: $dcMember is bundled and declared from the same folder -- one member, not a collision" >&2
+					continue
+				fi
 				echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: NAME COLLISION on team-member $dcMember -- it is both bundled and declared by a workspace project. The bundled copy holds the slot $targetRoot/$dcMember and stays registered; the declared source(s) below are NOT linked and NOT registered, and will be shadowed until one of the two is renamed:" >&2
 				while IFS= read -r dcSrc ; do
 					[ -n "$dcSrc" ] || continue
@@ -807,8 +873,10 @@ case "$1" in
 
 		local settingsFile="$HOME/.claude/settings.json"
 		if [ ! -f "$settingsFile" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: not found: $settingsFile" >&2
-			set +e ; return 1
+			mkdir -p "$HOME/.claude" && printf '{}\n' > "$settingsFile" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot create $settingsFile" >&2
+				set +e ; return 1
+			}
 		fi
 
 		## Declared allow-write grants, discovered exactly as --install-skillset-symlinks
@@ -961,6 +1029,10 @@ case "$1" in
 		## discipline: one row per (member, workspace), workspace in field 2, grant
 		## last so a colon inside a path can never displace it.
 		local permissionsRegistry="$HOME/.claude/skills/.linked.magic-team.permissions.txt"
+		mkdir -p "$HOME/.claude/skills" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot create $HOME/.claude/skills" >&2
+			set +e ; return 1
+		}
 		local regLock="$permissionsRegistry.lock" regWait=0 regLocked="false"
 		while [ "$regWait" -lt 10 ] ; do
 			if mkdir "$regLock" 2>/dev/null ; then regLocked="true" ; break ; fi
@@ -1182,7 +1254,7 @@ case "$1" in
 		}
 		hookRerouteScript="${hookRerouteScript##*/}"
 
-		for hookInstallName in "$hookRerouteScript" "deny-memory-md-read.sh" ; do
+		for hookInstallName in "$hookRerouteScript" "deny-memory-md-read.sh" "permission-request-escalation.sh" ; do
 			hookSrcFile="$hookSrcDir/$hookInstallName"
 			hookDstFile="$hooksDir/$hookInstallName"
 			hookDstTmp="$hookDstFile.tmp.$$"
@@ -1323,6 +1395,8 @@ case "$1" in
 			## this op asserts each entry rather than just the shared script.
 			{
 				printf '%s\t%s\n' ".claude/hooks/deny-memory-md-read.sh" '{"matcher": "Read", "hooks": [{"type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/deny-memory-md-read.sh"}]}'
+				## Every tool's permission request, under its own event: it answers only in an unattended session.
+				printf '%s\t%s\t%s\n' ".claude/hooks/permission-request-escalation.sh" '{"hooks": [{"type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/permission-request-escalation.sh"}]}' "PermissionRequest"
 				while IFS= read -r hooksRerouteTool ; do
 					[ -n "$hooksRerouteTool" ] || continue
 					printf '%s %s\t{"matcher": "%s", "hooks": [{"type": "command", "command": "\\"$CLAUDE_PROJECT_DIR\\"/%s %s"}]}\n' \
@@ -1383,6 +1457,13 @@ case "$1" in
 			< "$settingsFile" )" || {
 			printf '%s\n' "$restrictionsVerify" >&2
 			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $settingsFile does not carry every hook the client tool policy names -- the MISSING line above names which" >&2
+			set +e ; return 1
+		}
+		restrictionsVerify="$( MYX_CLAUDEVERIFY_HOOK_EVENT=PermissionRequest MYX_CLAUDEVERIFY_HOOK_KEYS=".claude/hooks/permission-request-escalation.sh" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeSettingsVerify.awk" \
+			< "$settingsFile" )" || {
+			printf '%s\n' "$restrictionsVerify" >&2
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $settingsFile does not carry the PermissionRequest hook -- the MISSING line above names it" >&2
 			set +e ; return 1
 		}
 
@@ -1635,6 +1716,67 @@ case "$1" in
 		return 0
 	;;
 
+	## Installs the Magic-Team VS Code panel: one authoritative unpacked copy in the
+	## workspace's own .local/agents/vscode-magic-team-panel/, linked into every folder the
+	## generated .code-workspace lists as <folder>/.vscode/extensions/magic-team-panel -- VS
+	## Code's local workspace extension, offered however the workspace is opened. Links follow
+	## --install-skillset-symlinks' own form. Needs no VS Code. Internal step of
+	## --install-vscode-integrations, out of help. See MAGIC.md.
+	--install-vscode-magic-team-panel)
+		shift
+		local panelWorkspace="${1:-$MMDAPP}"
+		local panelSource="$MDLT_ORIGIN/myx/myx.distro-agents/vscode/magic-team"
+		local panelSkillset="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team"
+		local panelHome="$panelWorkspace/.local/agents/vscode-magic-team-panel"
+		local panelFile
+		for panelFile in "$panelSource/package.json" "$panelSource/extension.js" "$panelSource/instructions.md" \
+			"$panelSkillset/magic-team.basic.md" "$panelSkillset/resources/the-conclave.mark.svg" ; do
+			if [ ! -f "$panelFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-vscode-magic-team-panel: panel source file missing: $panelFile" >&2
+				set +e ; return 1
+			fi
+		done
+		## The payload in a fixed order: the sum decides a rewrite, so a changed team text
+		## reaches the panel with no version bump.
+		local panelSum
+		panelSum="$( cat "$panelSource/package.json" "$panelSource/extension.js" "$panelSource/instructions.md" \
+			"$panelSkillset/magic-team.basic.md" "$panelSkillset/resources/the-conclave.mark.svg" | cksum )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-magic-team-panel: could not sum the panel payload" >&2
+			set +e ; return 1
+		}
+		if [ "$( cat "$panelHome/.payload-sum" 2>/dev/null )" = "$panelSum" ] ; then
+			echo "# $MDSC_CMD --install-vscode-magic-team-panel: panel unchanged: ${panelHome#"$panelWorkspace"/}" >&2
+		else
+			## Assembled beside the copy and swapped in by two renames, the old copy restored if
+			## the second fails, so a failure never leaves the workspace with no panel. A crashed
+			## earlier run's build siblings are swept first.
+			local panelRc=0
+			(
+				mkdir -p "${panelHome%/*}" || exit 1
+				rm -rf "${panelHome%/*}"/.vscode-magic-team-panel.* || exit 1
+				panelBuild="$( mktemp -d "${panelHome%/*}/.vscode-magic-team-panel.XXXXXX" )" || exit 1
+				trap 'rm -rf "$panelBuild"' EXIT
+				cp "$panelSource/package.json" "$panelSource/extension.js" "$panelSource/instructions.md" \
+					"$panelSkillset/magic-team.basic.md" "$panelSkillset/resources/the-conclave.mark.svg" "$panelBuild/" || exit 1
+				printf '%s\n' "$panelSum" > "$panelBuild/.payload-sum" || exit 1
+				chmod 755 "$panelBuild" || exit 1
+				[ ! -e "$panelHome" ] || mv "$panelHome" "$panelBuild.old" || exit 1
+				mv "$panelBuild" "$panelHome" || { [ ! -e "$panelBuild.old" ] || mv "$panelBuild.old" "$panelHome" ; exit 1 ; }
+				rm -rf "$panelBuild.old"
+			) || panelRc=$?
+			if [ "$panelRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-vscode-magic-team-panel: could not write ${panelHome#"$panelWorkspace"/} -- any panel that was there is kept" >&2
+				set +e ; return 1
+			fi
+			echo "🧩 Magic-Team panel written: ${panelHome#"$panelWorkspace"/}" >&2
+		fi
+		## Every folder the generated workspace file lists gets the link.
+		if ! AgentsToolsVscodeFolderLinks "$panelWorkspace" "$panelHome" ".vscode/extensions/magic-team-panel" install-vscode-magic-team-panel ; then
+			set +e ; return 1
+		fi
+		return 0
+	;;
+
 	## Records claude's workspace trust (hasTrustDialogAccepted) for --workspace in
 	## $HOME/.claude.json. Internal step of --install-workspace-integrations and
 	## --owner-setup-claude(-native) --apply, out of help.
@@ -1687,7 +1829,7 @@ case "$1" in
 				## place to decide what it should be. A mode that cannot be
 				## read stops the run, since the alternative is a file left at
 				## whatever the ambient umask gave.
-				local setupTrustMode="$( stat -f '%Lp' "$HOME/.claude.json" 2>/dev/null || stat -c '%a' "$HOME/.claude.json" 2>/dev/null )"
+				local setupTrustMode="$( stat -c '%a' "$HOME/.claude.json" 2>/dev/null || stat -f '%Lp' "$HOME/.claude.json" 2>/dev/null )"
 				if [ -z "$setupTrustMode" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --install-claude-workspace-trust: could not read the mode of $HOME/.claude.json, so a replacement could not be given the same one -- nothing was changed" >&2
 					set +e ; return 1
@@ -1944,7 +2086,22 @@ case "$1" in
 				fi
 				if [ "$mcpSource" != /dev/null ] && cmp -s "$mcpTmp" "$mcpSource" ; then
 					rm -f "$mcpTmp"
+					## Unchanged content still gets the promised mode: an install is
+					## where 0644 is made true, whatever an earlier umask left.
+					if ! chmod 644 "$mcpFile" ; then
+						echo "⛔ ERROR: mcp-install $mcpFile: could not set mode 0644" >&2
+						failed=1
+						continue
+					fi
 				else
+					## The mode the help promises, set on the temp so mv carries it:
+					## the temp was created under the caller's umask.
+					if ! chmod 644 "$mcpTmp" ; then
+						echo "⛔ ERROR: mcp-install $mcpFile: could not set mode 0644" >&2
+						rm -f "$mcpTmp"
+						failed=1
+						continue
+					fi
 					if ! mv -f "$mcpTmp" "$mcpFile" ; then
 						echo "⛔ ERROR: mcp-install $mcpFile" >&2
 						rm -f "$mcpTmp"
@@ -2026,9 +2183,20 @@ case "$1" in
 
 		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
 		Require DistroSourceTools || :
+		## The generator works on $MMDAPP, so another --workspace is regenerated by its own
+		## console, non-interactively -- the way the generator itself asks a workspace for its
+		## namespace roots.
+		local wsRegenRc=0
+		if [ ! -x "$workspace/DistroSourceConsole.sh" ] ; then
+			:
+		elif [ "$workspace" = "$MMDAPP" ] ; then
+			Distro DistroSourceTools --make-code-workspace --quiet >&2 || wsRegenRc=$?
+		else
+			echo 'DistroSourceTools --make-code-workspace --quiet' | "$workspace/DistroSourceConsole.sh" --non-interactive >&2 || wsRegenRc=$?
+		fi
 		if [ ! -x "$workspace/DistroSourceConsole.sh" ] ; then
 			echo "🙋 WARNING: code-workspace not regenerated, no executable DistroSourceConsole.sh -- chat.agentSkillsLocations stays absent" >&2
-		elif ! Distro DistroSourceTools --make-code-workspace --quiet >&2 ; then
+		elif [ "$wsRegenRc" != "0" ] ; then
 			echo "⛔ ERROR: code-workspace regeneration (DistroSourceTools --make-code-workspace) failed for $workspace" >&2
 			failed=1
 		else
@@ -2040,6 +2208,16 @@ case "$1" in
 				failed=1
 			fi
 		fi
+
+		## The Magic-Team panel, after the workspace file is regenerated, so its links follow
+		## the folders listed now.
+		DistroAgentsTools --install-vscode-magic-team-panel "$workspace" || failed=1
+		## What VS Code reads per folder, authoritative at the workspace root, which is never a
+		## VS Code folder: linked into every listed folder by the one helper (MAGIC.md).
+		local vscodeRootItem
+		for vscodeRootItem in .agents/skills .claude/skills .vscode/mcp.json ; do
+			AgentsToolsVscodeFolderLinks "$workspace" "$workspace/$vscodeRootItem" "$vscodeRootItem" install-vscode-integrations || failed=1
+		done
 
 
 		if [ "$failed" -eq 0 ] ; then

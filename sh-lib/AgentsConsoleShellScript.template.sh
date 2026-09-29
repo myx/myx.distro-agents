@@ -438,6 +438,14 @@ DAGC_ACCESS_ARGS=()
 DAGC_ACCESS_GUARANTEED=0
 DAGC_ACCESS_WILDCARD_TOTAL=0
 DAGC_ACCESS_WILDCARD_ADDED=0
+if [ -n "$DAGC_ACCESS_FLAG" ] ; then
+	DAGC_ACCESS_INCLUDE="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
+	if [ ! -f "$DAGC_ACCESS_INCLUDE" ] ; then
+		echo "⛔ ERROR: DistroAgentsConsole: the access-root mechanism is missing: $DAGC_ACCESS_INCLUDE -- refusing rather than falling back to a rendered copy of it" >&2
+		exit 1
+	fi
+	. "$DAGC_ACCESS_INCLUDE"
+fi
 ## One append site for both sets, so no root is admitted by one rule on the read
 ## side and a different one on the write side.
 DagcAccessAppend(){
@@ -456,18 +464,12 @@ DagcAccessAppend(){
 	esac
 }
 if [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
-	DAGC_ACCESS_INCLUDE="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
-	if [ ! -f "$DAGC_ACCESS_INCLUDE" ] ; then
-		echo "⛔ ERROR: DistroAgentsConsole: the access-root mechanism is missing: $DAGC_ACCESS_INCLUDE -- refusing rather than falling back to a rendered copy of it" >&2
-		exit 1
-	fi
 	## The include reaches the config store through this name. This console otherwise
 	## calls the tool by path, so without this the machine's own extra read roots are
 	## dropped in silence and a narrower grant looks exactly like a full one.
 	if ! type DistroAgentsTools >/dev/null 2>&1 ; then
 		DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
 	fi
-	. "$DAGC_ACCESS_INCLUDE"
 	## Reads stay the full union, which is what every console generated before this
 	## already passed. Writes narrow to what may actually be written: the work
 	## directories, plus the roots a declared Edit grant names.
@@ -533,13 +535,11 @@ elif [ -n "$DAGC_ACCESS_FLAG" ] ; then
 			echo "# console: $DAGC_CLI $DAGC_ACCESS_FLAG: $DAGC_ACCESS_GUARANTEED install-guaranteed + $DAGC_ACCESS_WILDCARD_ADDED of $DAGC_ACCESS_WILDCARD_TOTAL live-checked candidates existed, added" >&2
 		fi
 	fi
-	## The sandbox on a flag that carries no verb. Both halves are granted alike here,
-	## so input/ is writable on this path -- a property of this CLI's own interface,
-	## stated rather than worked around. The root stays ungranted on every path.
+	## The sandbox on a flag that carries no verb: both halves are granted alike, and input/
+	## stays read-only by its own file mode, set when it is filled. The root stays ungranted.
 	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
 		DagcAccessAppend "$DAGC_ACCESS_FLAG" "$MDAT_SPAWN_SANDBOX_ROOT/input"
 		DagcAccessAppend "$DAGC_ACCESS_FLAG" "$MDAT_SPAWN_SANDBOX_ROOT/output"
-		echo "# console: $DAGC_CLI $DAGC_ACCESS_FLAG carries no verb, so the sandbox input/ is writable on this path" >&2
 	fi
 fi
 
@@ -569,8 +569,8 @@ if DagcCliIsLeg "$DAGC_CLI" ; then
 			credentialCount = split( $0, credentialParts, " " )
 			credentialNames = ""
 			for ( credentialIndex = 1 ; credentialIndex <= credentialCount ; credentialIndex ++ ) {
-				if ( credentialParts[ credentialIndex ] !~ /^[A-Z][A-Z0-9_]*$/ ) { continue }
-				if ( credentialNames != "" ) { credentialNames = credentialNames " " }
+				if ( credentialParts[ credentialIndex ] !~ /^[A-Z][A-Z0-9_]*$/ ) { continue ; }
+				if ( credentialNames != "" ) { credentialNames = credentialNames " " ; }
 				credentialNames = credentialNames credentialParts[ credentialIndex ]
 			}
 			print credentialNames
@@ -595,6 +595,34 @@ for DAGC_CREDENTIAL_NAME in $DAGC_CLI_CREDENTIALS ; do
 	[ -n "$DAGC_CREDENTIAL_VALUE" ] || continue
 	export "$DAGC_CREDENTIAL_NAME=$DAGC_CREDENTIAL_VALUE"
 done
+
+## claude-native: a signed-out spawn uses a configured key, else rc 6; an interactive console is only warned. MAGIC.md, "Claude sign-in".
+DagcClaudeAuthProbe(){
+	case "$( claude auth status </dev/null 2>/dev/null | LC_ALL=C tr -d ' \t' )" in
+		*'"loggedIn":true'*)  printf 'in' ;;
+		*'"loggedIn":false'*) printf 'out' ;;
+		*)                    printf 'unknown' ;;
+	esac
+}
+if [ "$DAGC_CLI" = "claude-native" ] && [ "$( DagcClaudeAuthProbe )" = "out" ] ; then
+	if [ "$1" == "--non-interactive" ] ; then
+		DAGC_CLAUDE_KEY=""
+		for DAGC_CREDENTIAL_NAME in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN ; do
+			DAGC_CREDENTIAL_VALUE="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$DAGC_CREDENTIAL_NAME" 2>/dev/null )" || DAGC_CREDENTIAL_VALUE=""
+			[ -n "$DAGC_CREDENTIAL_VALUE" ] || continue
+			export "$DAGC_CREDENTIAL_NAME=$DAGC_CREDENTIAL_VALUE"
+			DAGC_CLAUDE_KEY="$DAGC_CREDENTIAL_NAME"
+			echo "# DistroAgentsConsole: claude is not signed in on this machine, so the configured $DAGC_CREDENTIAL_NAME is used for this spawn" >&2
+			break
+		done
+		if [ -z "$DAGC_CLAUDE_KEY" ] ; then
+			echo "⛔ ERROR: DistroAgentsConsole: claude is installed and selected but not signed in on this machine, and no ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN is configured for a spawn to use. rc=6 means exactly this -- the CLI is present and cannot act -- distinct from rc=5 (none selected) and rc=1 (could not start). Sign in with claude, or set one of those keys with --owner-setup-claude-native." >&2
+			exit 6
+		fi
+	else
+		echo "🙋 WARNING: DistroAgentsConsole: claude is not signed in on this machine -- sign in with /login once it starts" >&2
+	fi
+fi
 
 ## The spawn proxy mints this session uuid, records it on its own dispatch
 ## document and exports it here, so a hook's own session_id joins that record.
@@ -719,6 +747,8 @@ DagcRunClaudeStreaming(){
 
 if [ "$1" == "--non-interactive" ] ; then
 	shift
+	## No human answers this run, so the harness gates it as unattended.
+	export MDAT_SESSION_UNATTENDED=true
 	## -- closes the option list for claude, whose prompt is positional; copilot's -p takes the body as its value.
 	## A harness leg takes neither: the universal core's own arg parser knows
 	## --tier/--access-read-root/--, and reads its prompt as plain trailing argv
@@ -727,6 +757,10 @@ if [ "$1" == "--non-interactive" ] ; then
 	## `*) break` arm unconsumed and be read back as literal prompt text.
 	if DagcCliIsLeg "$DAGC_CLI" ; then
 		DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=()
+		## The tier this workspace asks of every harness leg. Unset passes nothing and
+		## the harness keeps its own default; a value it does not know it refuses itself.
+		DAGC_HARNESS_TIER="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select SPAWN_HARNESS_TIER 2>/dev/null )" || DAGC_HARNESS_TIER=""
+		[ -z "$DAGC_HARNESS_TIER" ] || DAGC_PROMPT_ARGS=( --tier "$DAGC_HARNESS_TIER" )
 	else
 		case "$DAGC_CLI" in
 			copilot|copilot-native)  DAGC_NONINTERACTIVE_PERM_FLAGS="--allow-all-tools" ; DAGC_PROMPT_ARGS=( -p ) ;;

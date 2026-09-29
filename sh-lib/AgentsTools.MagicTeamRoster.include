@@ -77,6 +77,8 @@ case "$1" in
 		fi
 		printf '%s\n' "$content" > "$target"
 		echo "# $MDSC_CMD --magic-team-roster-upsert: wrote ${target#"$stateDir"/} ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataCommitPaths "magic-team-roster-upsert, $callingMember" "$target"
 		return 0
 	;;
 

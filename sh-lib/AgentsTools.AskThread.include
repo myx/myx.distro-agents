@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.AskThread.include -- how one AskUserQuestion stands in a thread that
+## several questions share. Definitions only, sourced by the two readers that judge an
+## answer: the wait over a thread (AgentsTools.MemberWait.include) and the escalation
+## read (AgentsTools.MemberEscalation.include). Both hand the result to
+## AgentsSlackThreadAnswers.awk as -v tag / -v threadCount / -v others (MAGIC.md, "AskUserQuestion").
+##
+
+## Prints "<tag>\t<questions the thread has held>" for the question posted at
+## <channel>:<question ts>, read from the pending-reply records; "\t0" when no record
+## names it, which leaves the answer rules exactly as for a thread of its own. Whether a
+## thread is shared is a fact about what it has held, not about how many are open now:
+## a late reply tagged for an answered question must not answer the one still open.
+## grep does the scanning, so a poll costs one pass over the store however it grows.
+AgentsToolsAskThreadStanding(){ ## channel, question ts
+	local standChannel="$1" standTs="$2" standStore="$MMDAPP/.local/agents/pending"
+	local standFile standLine standTag="" standThread="" standFileChannel standFileThread standFileTag standTotal=0
+	[ -n "$standChannel" ] && [ -n "$standTs" ] && [ -d "$standStore" ] || { printf '\t0\n' ; return 0 ; }
+	while IFS= read -r standFile ; do
+		[ -f "$standFile" ] || continue
+		standFileChannel="" standFileThread="" standFileTag=""
+		while IFS= read -r standLine ; do
+			case "$standLine" in
+				'channel: '*) standFileChannel="${standLine#channel: }" ;;
+				'thread-ts: '*) standFileThread="${standLine#thread-ts: }" ;;
+				'question-tag: '*) standFileTag="${standLine#question-tag: }" ;;
+				'# '*) break ;;
+			esac
+		done < "$standFile"
+		if [ "$standFileChannel" = "$standChannel" ] ; then
+			standTag="$standFileTag" ; standThread="$standFileThread" ; break
+		fi
+	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' "question-ts: $standTs" "$standStore" 2>/dev/null )
+	[ -n "$standThread" ] || { printf '%s\t0\n' "$standTag" ; return 0 ; }
+	while IFS= read -r standFile ; do
+		[ -f "$standFile" ] || continue
+		LC_ALL=C grep -q -x -F "channel: $standChannel" "$standFile" && standTotal=$(( standTotal + 1 ))
+	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' "thread-ts: $standThread" "$standStore" 2>/dev/null )
+	printf '%s\t%s\n' "$standTag" "$standTotal"
+}
+
+## Prints, space-separated, "<question ts>/<state>" for every OTHER question the thread of
+## the question at <channel>:<question ts> has held. <state> is `open` while its record
+## waits, the epoch second it was closed at, or `closed` for a record closed before that
+## was stamped. AgentsSlackThreadAnswers.awk takes it as -v others: a reply with no
+## question number answers the latest question posted above it, only while that one is
+## still open. Prints nothing for a thread that has held one question.
+AgentsToolsAskThreadOthers(){ ## channel, question ts
+	local othChannel="$1" othTs="$2" othStore="$MMDAPP/.local/agents/pending"
+	local othFile othLine othThread="" othFileChannel othFileThread othFileTs othFileStatus othFileEpoch othList=""
+	[ -n "$othChannel" ] && [ -n "$othTs" ] && [ -d "$othStore" ] || return 0
+	while IFS= read -r othFile ; do
+		[ -f "$othFile" ] || continue
+		othFileChannel="" othFileThread=""
+		while IFS= read -r othLine ; do
+			case "$othLine" in
+				'channel: '*) othFileChannel="${othLine#channel: }" ;;
+				'thread-ts: '*) othFileThread="${othLine#thread-ts: }" ;;
+				'# '*) break ;;
+			esac
+		done < "$othFile"
+		if [ "$othFileChannel" = "$othChannel" ] ; then
+			othThread="$othFileThread" ; break
+		fi
+	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' "question-ts: $othTs" "$othStore" 2>/dev/null )
+	[ -n "$othThread" ] || return 0
+	while IFS= read -r othFile ; do
+		[ -f "$othFile" ] || continue
+		othFileChannel="" othFileTs="" othFileStatus="" othFileEpoch=""
+		while IFS= read -r othLine ; do
+			case "$othLine" in
+				'channel: '*) othFileChannel="${othLine#channel: }" ;;
+				'question-ts: '*) othFileTs="${othLine#question-ts: }" ;;
+				'status: '*) othFileStatus="${othLine#status: }" ;;
+				'resolved-epoch: '*) othFileEpoch="${othLine#resolved-epoch: }" ;;
+				'# '*) break ;;
+			esac
+		done < "$othFile"
+		[ "$othFileChannel" = "$othChannel" ] && [ -n "$othFileTs" ] && [ "$othFileTs" != "$othTs" ] || continue
+		if [ "$othFileStatus" = "reply-pending" ] ; then
+			othList="$othList $othFileTs/open"
+		else
+			othList="$othList $othFileTs/${othFileEpoch:-closed}"
+		fi
+	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' "thread-ts: $othThread" "$othStore" 2>/dev/null )
+	printf '%s\n' "${othList# }"
+}
+
+## Before a question is posted: prints one line saying where it goes.
+##   DUPLICATE<TAB><pending id><TAB><owner><TAB><session>  -- an open question to the same
+##       addressee with the same key already stands; nothing is to be posted
+##   REUSE<TAB><channel><TAB><thread ts><TAB><tag>         -- post into that open thread
+##   NEW<TAB>Q1                                           -- open a thread of its own
+## The thread reused is an open question's to the same conversation and addressee, from
+## any member or session: one person, one running thread. <to> naming a thread already
+## (channel:ts) is never reused over, so only DUPLICATE or NEW come back for it.
+AgentsToolsAskThreadFind(){ ## to, address_to, question key
+	local findTo="$1" findAddress="$2" findKey="$3" findFile findLine
+	local reuseChannel="" reuseThread="" dupId="" dupOwner="" dupSession=""
+	local fileStatus fileTo fileAddress fileKey fileChannel fileThread fileOwner fileSession
+	for findFile in "$MMDAPP/.local/agents/pending"/*.md ; do
+		[ -f "$findFile" ] || continue
+		fileStatus="" fileTo="" fileAddress="" fileKey="" fileChannel="" fileThread="" fileOwner="" fileSession=""
+		while IFS= read -r findLine ; do
+			case "$findLine" in
+				'status: '*) fileStatus="${findLine#status: }" ;;
+				'communication-channel-id: slack:'*) fileTo="${findLine#communication-channel-id: slack:}" ;;
+				'address-to: '*) fileAddress="${findLine#address-to: }" ;;
+				'question-key: '*) fileKey="${findLine#question-key: }" ;;
+				'channel: '*) fileChannel="${findLine#channel: }" ;;
+				'thread-ts: '*) fileThread="${findLine#thread-ts: }" ;;
+				'owner: '*) fileOwner="${findLine#owner: }" ;;
+				'session-id: '*) fileSession="${findLine#session-id: }" ;;
+				'# '*) break ;;
+			esac
+		done < "$findFile"
+		[ "$fileStatus" = "reply-pending" ] && [ "$fileAddress" = "$findAddress" ] || continue
+		if [ -n "$findKey" ] && [ "$fileKey" = "$findKey" ] ; then
+			dupId="${findFile##*/}" ; dupId="${dupId%.md}" ; dupOwner="$fileOwner" ; dupSession="$fileSession"
+			break
+		fi
+		case "$findTo" in
+			*:*) ;;
+			*)
+				if [ -z "$reuseThread" ] && [ "$fileTo" = "$findTo" ] && [ -n "$fileChannel" ] && [ -n "$fileThread" ] ; then
+					reuseChannel="$fileChannel" ; reuseThread="$fileThread"
+				fi
+			;;
+		esac
+	done
+	if [ -n "$dupId" ] ; then
+		printf 'DUPLICATE\t%s\t%s\t%s\n' "$dupId" "$dupOwner" "$dupSession"
+		return 0
+	fi
+	if [ -z "$reuseThread" ] ; then
+		printf 'NEW\tQ1\n'
+		return 0
+	fi
+	## The next tag counts every question the thread has held, answered ones included,
+	## so a tag is never used twice in one thread.
+	local reuseCount=0
+	for findFile in "$MMDAPP/.local/agents/pending"/*.md ; do
+		[ -f "$findFile" ] || continue
+		fileChannel="" fileThread=""
+		while IFS= read -r findLine ; do
+			case "$findLine" in
+				'channel: '*) fileChannel="${findLine#channel: }" ;;
+				'thread-ts: '*) fileThread="${findLine#thread-ts: }" ;;
+				'# '*) break ;;
+			esac
+		done < "$findFile"
+		[ "$fileChannel" = "$reuseChannel" ] && [ "$fileThread" = "$reuseThread" ] && reuseCount=$(( reuseCount + 1 ))
+	done
+	printf 'REUSE\t%s\t%s\tQ%s\n' "$reuseChannel" "$reuseThread" "$(( reuseCount + 1 ))"
+}

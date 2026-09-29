@@ -28,13 +28,10 @@ session with zero diagnostic output. Wrap every reproduction attempt in a hard
 wall-clock limit before doing anything else, so a real hang fails loud and fast
 instead of stalling the session.
 
-**Gotcha: a dev box may carry no `timeout`/`gtimeout` binary at all.** Working
-substitute:
-```
-perl -e 'alarm shift; exec @ARGV' <secs> <cmd...>
-```
-Check for `timeout`/`gtimeout` first; fall back to the perl-alarm form if
-neither exists. Unconfirmed whether this gap is host-specific or general across
+**Gotcha: a dev box may carry no `timeout`/`gtimeout` binary at all.** Check
+for `timeout`/`gtimeout` first; with neither, use the hand-rolled wall-clock
+timeout in `magic-developer/reference/shell.md`'s reusable patterns. It needs
+only the shell, where a Perl one-liner adds a dependency the team does not use. Unconfirmed whether this gap is host-specific or general across
 the estate's dev machines — don't assume either way without checking.
 
 ## Know the codebase's verbose-tracing lever before reaching for ad hoc debugging
@@ -68,7 +65,7 @@ before diagnosing a "hang" as a code bug.
 
 A thorough static audit (no stale path self-references to the old location
 after a file move, correct file permissions matching git-tracked mode and
-sibling convention, clean additive-only `git diff --stat`) catches what it can
+sibling convention, each changed file read back showing only the intended change) catches what it can
 catch, but **only a real end-to-end run is actual proof a change didn't break
 runtime behavior.** Static/diff-level checks can't catch a runtime-only issue by
 construction. For anything with real side effects, budget for the live run (run
@@ -95,15 +92,19 @@ this one happened to be right.
 Differing HEADs across two working trees normally mean one is unpulled, not that
 work was lost. Measure it instead of reading the layout:
 
-- `git remote get-url origin` in each tree. The same upstream means these are two
-  checkouts of one repository, not two repositories that have diverged.
-- `git rev-list --count HEAD..origin/<branch>` in each, for how far behind each one
-  actually is.
+- Each tree's upstream. The same upstream means these are two checkouts of one
+  repository, not two repositories that have diverged.
+- Each tree's current commit, and how far behind the upstream each one is.
 
-**"Behind by N commits" is not "missing work".** Work is missing only when it exists
-in no reachable place. A commit present upstream and absent from one checkout is a
-`git pull` away; reporting that as missing landed work produces alarm and an
-investigation with nothing at the end of it.
+These are git measurements. The member reports which two trees it needs compared,
+and a tooling op or the human-owner takes the measurement. No member runs git or
+reads anything under `.git/` to take it.
+
+**"Behind" is not "missing work".** Work is missing only when it exists in no
+reachable place. A commit present upstream and absent from one checkout is one
+pull away, and the pull is the tooling's or the human-owner's. Reporting that as
+missing landed work produces alarm and an investigation with nothing at the end of
+it.
 
 **Whether two paths are one directory or two is a measurement, not a judgement.**
 `readlink` each path component, then compare `stat -f '%d:%i'` — the same device and

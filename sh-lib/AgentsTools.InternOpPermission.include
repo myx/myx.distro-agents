@@ -1,0 +1,510 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpPermission.include -- refusal records and grants, per session.
+##
+## A permission refusal is a logged fact with an id, never a verdict. It is recorded
+## in the session's own store before anything is posted, so an escalation can name
+## it and a grant can take its tool and target from it rather than from the text of
+## a request. The store is local runtime state and never a git tree:
+## .local/agents/sessions/<session-id>/, beside the pending-reply store.
+##
+
+## One value made safe for one field of a one-line entry: %, newline, CR, comma,
+## colon and edge whitespace are %-escaped, and nothing is ever decoded back.
+AgentsToolsPermissionEscape(){ ## value
+	local escValue="$1" escLead="" escTail="" escChar
+	escValue="${escValue//%/%25}"
+	escValue="${escValue//$'\n'/%0A}"
+	escValue="${escValue//$'\r'/%0D}"
+	escValue="${escValue//,/%2C}"
+	escValue="${escValue//:/%3A}"
+	while : ; do
+		escChar="${escValue%"${escValue#?}"}"
+		case "$escChar" in
+			' ') escLead="$escLead%20" ;;
+			$'\t') escLead="$escLead%09" ;;
+			*) break ;;
+		esac
+		escValue="${escValue#?}"
+	done
+	while : ; do
+		escChar="${escValue#"${escValue%?}"}"
+		case "$escChar" in
+			' ') escTail="%20$escTail" ;;
+			$'\t') escTail="%09$escTail" ;;
+			*) break ;;
+		esac
+		escValue="${escValue%?}"
+	done
+	printf '%s' "$escLead$escValue$escTail"
+}
+
+## The session's own directory in the store, created on first use. Prints it.
+AgentsToolsPermissionSessionDir(){ ## session id
+	local sessionDir="$MMDAPP/.local/agents/sessions/$1"
+	mkdir -p "$sessionDir" 2>/dev/null || return 1
+	printf '%s' "$sessionDir"
+}
+
+## Posts one event-track entry for the session: into its thread when one is recorded,
+## otherwise as a new top-level post whose thread is then recorded. Never fails its
+## caller: a post that does not happen is one stderr warning.
+AgentsToolsPermissionEventTrack(){ ## member, session dir, body text
+	local trackMember="$1" trackDir="$2" trackBody="$3" trackTarget="event-track" trackThread="" trackOut
+	[ -n "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null )" ] || {
+		echo "⚠️ WARNING: $MDSC_CMD: no event-track channel is configured, so this refusal is recorded locally only" >&2
+		return 0
+	}
+	## Opening the session's thread is a read, a post and a record: under the local lock,
+	## two first refusals at once open one thread, and the second threads into it.
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
+	local trackLock=""
+	if AgentsToolsLocalLockTake "event-track-${trackDir##*/}" 30 "the event-track thread of ${trackDir##*/}" ; then
+		trackLock="$agentsLocalLockPath"
+	else
+		echo "⚠️ WARNING: $MDSC_CMD: the event-track thread lock could not be taken, so this post may open a second thread" >&2
+	fi
+	[ ! -s "$trackDir/event-track.thread" ] || IFS= read -r trackThread < "$trackDir/event-track.thread" || :
+	[ -z "$trackThread" ] || trackTarget="$trackThread"
+	trackOut="$MMDAPP/.local/temp/mdat-permission-track.$$"
+	mkdir -p "$MMDAPP/.local/temp" || { AgentsToolsLocalLockGive "$trackLock" ; return 0 ; }
+	printf '%s\n' "$trackBody" | DistroAgentsTools --member-comms-slack-send-message "$trackMember" "$trackTarget" --identity-bot --from-stdin > /dev/null 2> "$trackOut" || {
+		echo "⚠️ WARNING: $MDSC_CMD: the refusal is recorded locally but was NOT posted to event-track: $( LC_ALL=C grep -m1 '⛔' "$trackOut" 2>/dev/null )" >&2
+		rm -f "$trackOut"
+		AgentsToolsLocalLockGive "$trackLock"
+		return 0
+	}
+	if [ -z "$trackThread" ] ; then
+		LC_ALL=C awk -F= '
+			$1 == "SENT_MESSAGE_CHANNEL" { sentChannel = $2 ; }
+			$1 == "SENT_MESSAGE_TS" { sentTs = $2 ; }
+			END { if ( sentChannel != "" && sentTs != "" ) { print sentChannel ":" sentTs ; } }
+		' "$trackOut" > "$trackDir/event-track.thread" 2>/dev/null || :
+	fi
+	rm -f "$trackOut"
+	AgentsToolsLocalLockGive "$trackLock"
+	return 0
+}
+
+## One ignored planned allow, said once per session: a marker keyed by the entry's cksum
+## stops the same entry being posted on every call it could not admit. Advisory: a post
+## that does not happen never changes a verdict.
+AgentsToolsPermissionPlannedIgnored(){ ## member, session id, dispatch item, entry, reason
+	local ignoredDir ignoredKey
+	ignoredDir="$( AgentsToolsPermissionSessionDir "$2" )" || return 0
+	ignoredKey="$( printf '%s' "$4" | LC_ALL=C cksum | LC_ALL=C tr ' ' '-' )" || return 0
+	mkdir "$ignoredDir/planned-ignored-$ignoredKey" 2>/dev/null || return 0
+	AgentsToolsPermissionEventTrack "$1" "$ignoredDir" "$( printf '%s\n' "Planned allow ignored for $1" '```' \
+		"dispatch: $3" "entry: $( AgentsToolsPermissionFenceSafe "$4" )" "why: $5" '```' )"
+	return 0
+}
+
+## A value made safe inside the event-track post's code fence, where a backtick ends it.
+AgentsToolsPermissionFenceSafe(){ ## value
+	local fenceValue
+	fenceValue="$( AgentsToolsPermissionEscape "$1" )"
+	printf '%s' "${fenceValue//\`/%60}"
+}
+
+## A path resolved exactly as the harness gate resolves it (AgentsHarnessPathAllowed in
+## AgentsUniversalHarness.sh), so a refusal or grant keyed here matches one keyed there:
+## the parent through pwd -P, then a symlink leaf that ends at an existing file followed
+## to that file. Prints the path as given where it does not resolve.
+AgentsToolsPermissionResolvePath(){ ## path
+	local resolvePath="$1" resolveReal resolveHops=0 resolveLink resolveDir
+	case "$resolvePath" in
+		/*) ;;
+		*) printf '%s' "$resolvePath" ; return 0 ;;
+	esac
+	if [ -d "$resolvePath" ] ; then
+		resolveReal="$( cd "$resolvePath" 2>/dev/null && pwd -P )" || resolveReal=""
+	else
+		resolveDir="${resolvePath%/*}"
+		[ -n "$resolveDir" ] || resolveDir="/"
+		resolveReal="$( cd "$resolveDir" 2>/dev/null && pwd -P )" || resolveReal=""
+		if [ -n "$resolveReal" ] ; then
+			case "$resolveReal" in
+				*/) resolveReal="$resolveReal${resolvePath##*/}" ;;
+				*)  resolveReal="$resolveReal/${resolvePath##*/}" ;;
+			esac
+		fi
+	fi
+	[ -n "$resolveReal" ] || { printf '%s' "$resolvePath" ; return 0 ; }
+	while [ -L "$resolveReal" ] && [ -e "$resolveReal" ] ; do
+		resolveHops=$(( resolveHops + 1 ))
+		[ "$resolveHops" -le 40 ] || break
+		resolveLink="$( readlink "$resolveReal" 2>/dev/null )" || break
+		[ -n "$resolveLink" ] || break
+		case "$resolveLink" in
+			/*) ;;
+			*) resolveLink="${resolveReal%/*}/$resolveLink" ;;
+		esac
+		resolveDir="${resolveLink%/*}"
+		[ -n "$resolveDir" ] || resolveDir="/"
+		resolveDir="$( cd "$resolveDir" 2>/dev/null && pwd -P )" || break
+		case "$resolveDir" in
+			*/) resolveReal="$resolveDir${resolveLink##*/}" ;;
+			*)  resolveReal="$resolveDir/${resolveLink##*/}" ;;
+		esac
+	done
+	printf '%s' "$resolveReal"
+}
+
+## One PermissionRequest decision, as Claude Code reads it from a hook's stdout.
+AgentsToolsPermissionHookDecision(){ ## allow|deny, message (deny only)
+	if [ "$1" = "allow" ] ; then
+		printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}\n'
+		return 0
+	fi
+	printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"%s"}}}\n' \
+		"$( printf '%s' "$2" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+}
+
+case "$1" in
+
+	--intern-op-permission-hook)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-hook"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		## A native client's PermissionRequest, decided for an unattended session the way
+		## the harness gate decides its own calls: a grant for this session, tool and
+		## target admits; anything else is a recorded refusal, denied with its id and the
+		## way to ask. It always prints a decision, because none is a deny with no reason.
+		local hookMember="$1" hookInput hookSession hookTool hookTarget hookGrant hookId
+		hookInput="$( cat )"
+		hookSession="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=session_id -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || hookSession=""
+		hookTool="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_name -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || hookTool=""
+		## The session a spawn was given wins: it is the id every grant and refusal of this run is keyed by.
+		[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || hookSession="$MDAT_SPAWN_SESSION_ID"
+		## A file tool's path, a command's exact text, or the whole input as sent.
+		hookTarget="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_input.file_path -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null ; printf 'x' )"
+		hookTarget="${hookTarget%x}" ; hookTarget="${hookTarget%$'\n'}"
+		if [ -n "$hookTarget" ] ; then
+			hookTarget="$( AgentsToolsPermissionResolvePath "$hookTarget" )"
+		else
+			hookTarget="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_input.command -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null ; printf 'x' )"
+			hookTarget="${hookTarget%x}" ; hookTarget="${hookTarget%$'\n'}"
+		fi
+		[ -n "$hookTarget" ] || hookTarget="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_input -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonSlice.awk" 2>/dev/null )" || hookTarget=""
+		if [ -z "$hookMember" ] || [ -z "$hookSession" ] || [ -z "$hookTool" ] || [ -z "$hookTarget" ] ; then
+			AgentsToolsPermissionHookDecision deny "Refused, and not recorded: the member, session, tool or target of this call could not be read, so it cannot be escalated by id."
+			return 0
+		fi
+		hookGrant="$( DistroAgentsTools --intern-op-permission-grant-read "$hookMember" --session-id "$hookSession" --tool "$hookTool" --target "$hookTarget" 2>/dev/null )" || hookGrant=""
+		hookGrant="$( printf '%s\n' "$hookGrant" | LC_ALL=C sed -n 's/^GRANT: //p' | head -1 )"
+		case "$hookGrant" in
+			'session '*|'planned '*)
+				AgentsToolsPermissionHookDecision allow
+				return 0
+			;;
+			'once '*)
+				if DistroAgentsTools --intern-op-permission-grant-consume --session-id "$hookSession" --refusal-id "${hookGrant#once }" > /dev/null 2>&1 ; then
+					AgentsToolsPermissionHookDecision allow
+					return 0
+				fi
+			;;
+		esac
+		hookId="$( DistroAgentsTools --intern-op-permission-refusal-log "$hookMember" --session-id "$hookSession" --tool "$hookTool" \
+			--target "$hookTarget" --reason "a native $hookTool call this unattended session holds no grant for" 2>/dev/null \
+			| LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )"
+		if [ -z "$hookId" ] ; then
+			AgentsToolsPermissionHookDecision deny "Refused. REFUSAL-ID: none -- recording the refusal failed, so it cannot be escalated by id."
+			return 0
+		fi
+		AgentsToolsPermissionHookDecision deny "Refused. REFUSAL-ID: $hookId. This is a refusal, not a verdict. If this task needs the call, ask for it with AskUserQuestion kind=permission, refusal_id=$hookId, a reason and a task_ref, addressed to the coordinator in this session. Carry on with work that does not need it. A granted call is retried exactly as it was made."
+		return 0
+	;;
+
+	--intern-op-permission-refusal-log)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-refusal-log"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local refusalOwner="$1"
+		shift || true
+		local refusalSession="" refusalTool="" refusalTarget="" refusalReason=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) refusalSession="${2:-}" ; shift 2 ;;
+				--tool) refusalTool="${2:-}" ; shift 2 ;;
+				--target) refusalTarget="${2:-}" ; shift 2 ;;
+				--reason) refusalReason="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$refusalOwner" ] || [ -z "$refusalSession" ] || [ -z "$refusalTool" ] || [ -z "$refusalTarget" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> --session-id <id> --tool <tool> --target <target> [--reason <text>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$refusalOwner" "<team-member>" permission-refusal-log || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$refusalSession" "--session-id" permission-refusal-log || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$refusalTool" "--tool" permission-refusal-log || { set +e ; return 1 ; }
+		local refusalId refusalDir
+		refusalId="$( uuidgen 2>/dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
+		if [ -z "$refusalId" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: no id could be generated, so no refusal was recorded" >&2
+			set +e ; return 1
+		fi
+		refusalId="refusal-$refusalId"
+		refusalDir="$( AgentsToolsPermissionSessionDir "$refusalSession" )" || {
+			echo "$MDSC_CMD: ⛔ ERROR: can't create the session store for $refusalSession, so no refusal was recorded" >&2
+			set +e ; return 1
+		}
+		{
+			printf '%s\n' "---"
+			printf 'status: %s\n' "refused"
+			printf 'owner: %s\n' "$refusalOwner"
+			printf 'host: %s\n' "$( hostname -s 2>/dev/null || echo unknown )"
+			printf 'session-id: %s\n' "$refusalSession"
+			printf 'tool: %s\n' "$refusalTool"
+			printf 'target: %s\n' "$( AgentsToolsPermissionEscape "$refusalTarget" )"
+			printf 'refused-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+			printf '%s\n' "---"
+			printf '\n# Refused\n\n%s\n' "${refusalReason:-no reason given}"
+		} > "$refusalDir/$refusalId.md" || {
+			rm -f "$refusalDir/$refusalId.md"
+			echo "$MDSC_CMD: ⛔ ERROR: can't write the refusal record, so no refusal id exists" >&2
+			set +e ; return 1
+		}
+		## The id on stdout before the post, because the record already stands without it.
+		printf '%s\n' "$refusalId"
+		AgentsToolsPermissionEventTrack "$refusalOwner" "$refusalDir" "$( printf '%s\n' "Permission refused for $refusalOwner" '```' \
+			"refusal-id: $refusalId" "session-id: $refusalSession" "tool: $refusalTool" \
+			"target: $( AgentsToolsPermissionFenceSafe "$refusalTarget" )" \
+			"reason: $( AgentsToolsPermissionFenceSafe "${refusalReason:-none}" )" '```' )"
+		return 0
+	;;
+
+	--intern-op-permission-grant-open)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-grant-open"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local grantBy="$1"
+		shift || true
+		local grantSession="" grantRefusal="" grantKind=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) grantSession="${2:-}" ; shift 2 ;;
+				--refusal-id) grantRefusal="${2:-}" ; shift 2 ;;
+				--kind) grantKind="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$grantBy" ] || [ -z "$grantSession" ] || [ -z "$grantRefusal" ] || [ -z "$grantKind" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <granting-member> --session-id <id> --refusal-id <id> --kind once|session" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$grantBy" "<granting-member>" permission-grant-open || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$grantSession" "--session-id" permission-grant-open || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$grantRefusal" "--refusal-id" permission-grant-open || { set +e ; return 1 ; }
+		case "$grantKind" in
+			once|session) ;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --kind must be once|session: $grantKind" >&2
+				set +e ; return 1
+			;;
+		esac
+		local grantDir="$MMDAPP/.local/agents/sessions/$grantSession"
+		local grantRecord="$grantDir/$grantRefusal.md"
+		if [ ! -f "$grantRecord" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: no refusal $grantRefusal is recorded for session $grantSession, so nothing is granted" >&2
+			set +e ; return 1
+		fi
+		## Tool and target come from the record, never from the request that asked.
+		local grantOwner="" grantTool="" grantTarget="" grantLine
+		while IFS= read -r grantLine ; do
+			case "$grantLine" in
+				'owner: '*) grantOwner="${grantLine#owner: }" ;;
+				'tool: '*) grantTool="${grantLine#tool: }" ;;
+				'target: '*) grantTarget="${grantLine#target: }" ;;
+				'# '*) break ;;
+			esac
+		done < "$grantRecord"
+		if [ -z "$grantOwner" ] || [ -z "$grantTool" ] || [ -z "$grantTarget" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: the refusal record $grantRecord lacks its owner, tool or target, so nothing is granted" >&2
+			set +e ; return 1
+		fi
+		if [ "$grantBy" = "$grantOwner" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $grantBy asked for this call and cannot grant it to itself, so nothing is granted" >&2
+			set +e ; return 1
+		fi
+		printf '%s:%s:%s:%s:%s:%s\n' "$grantKind" "$grantTool" "$grantTarget" "$grantBy" "$( date -u +%Y%m%dT%H%MZ )" "$grantRefusal" >> "$grantDir/grants" || {
+			echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $grantRefusal, so nothing is granted" >&2
+			set +e ; return 1
+		}
+		printf 'GRANT: %s %s\n' "$grantKind" "$grantRefusal"
+		return 0
+	;;
+
+	--intern-op-permission-grant-read)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-grant-read"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local readMember="$1"
+		shift || true
+		local readSession="" readTool="" readTarget=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) readSession="${2:-}" ; shift 2 ;;
+				--tool) readTool="${2:-}" ; shift 2 ;;
+				--target) readTarget="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$readMember" ] || [ -z "$readSession" ] || [ -z "$readTool" ] || [ -z "$readTarget" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> --session-id <id> --tool <tool> --target <target>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$readSession" "--session-id" permission-grant-read || { set +e ; return 1 ; }
+		local readDir="$MMDAPP/.local/agents/sessions/$readSession"
+		local readWant readEntry readKind readRest readEntryTool readEntryTarget readBy readRefusal readOwner readOwnerLine
+		readWant="$( AgentsToolsPermissionEscape "$readTarget" )"
+		## No grants file is no escalated grant; planned allows are still looked at below.
+		[ ! -f "$readDir/grants" ] || while IFS= read -r readEntry ; do
+			readKind="${readEntry%%:*}" ; readRest="${readEntry#*:}"
+			readEntryTool="${readRest%%:*}" ; readRest="${readRest#*:}"
+			readEntryTarget="${readRest%%:*}" ; readRest="${readRest#*:}"
+			readBy="${readRest%%:*}" ; readRest="${readRest#*:}"
+			readRefusal="${readRest#*:}"
+			[ "$readEntryTool" = "$readTool" ] || continue
+			[ "$readEntryTarget" = "$readWant" ] || continue
+			## A grant nobody is named for, or one the asking member made, counts for nothing.
+			[ -n "$readBy" ] && [ "$readBy" != "$readMember" ] || continue
+			## A grant is for the member whose refusal it answers, never another one in the session.
+			[ -f "$readDir/$readRefusal.md" ] || continue
+			readOwner=""
+			while IFS= read -r readOwnerLine ; do
+				case "$readOwnerLine" in
+					'owner: '*) readOwner="${readOwnerLine#owner: }" ; break ;;
+					'# '*) break ;;
+				esac
+			done < "$readDir/$readRefusal.md"
+			[ "$readOwner" = "$readMember" ] || continue
+			case "$readKind" in
+				session) ;;
+				once) [ ! -d "$readDir/consumed/$readRefusal" ] || continue ;;
+				*) continue ;;
+			esac
+			printf 'GRANT: %s %s\n' "$readKind" "$readRefusal"
+			return 0
+		done < "$readDir/grants"
+		## Planned allows: the session's dispatch item and the one item it tracks. The
+		## same match and the same self-grant rule apply; a planned allow is session-wide.
+		[ -n "${MDAT_DATA_ROOT:-}" ] && [ -d "$MDAT_DATA_ROOT/board" ] || { set +e ; return 1 ; }
+		local readItem readDispatch="" readTracks="" readPlanned="" readLine readState readItemSession readItemOwner readItemAllows readItemTracks
+		for readItem in "$MDAT_DATA_ROOT"/board/*/dispatch-*.md ; do
+			[ -f "$readItem" ] || continue
+			readItemSession="" ; readItemOwner="" ; readItemAllows="" ; readItemTracks="" ; readState=""
+			while IFS= read -r readLine ; do
+				case "$readState:$readLine" in
+					':---') readState=front ;;
+					front:---) break ;;
+					'front:session-id: '*) readItemSession="${readLine#session-id: }" ;;
+					'front:owner: '*) readItemOwner="${readLine#owner: }" ;;
+					'front:allows: '*) readItemAllows="${readLine#allows: }" ;;
+					'front:tracks: '*) readItemTracks="${readLine#tracks: }" ;;
+					:*) break ;;
+				esac
+			done < "$readItem"
+			[ "$readItemSession" = "$readSession" ] || continue
+			[ "$readItemOwner" = "$readMember" ] || continue
+			readDispatch="$readItem" ; readPlanned="$readItemAllows" ; readTracks="$readItemTracks"
+			break
+		done
+		[ -n "$readDispatch" ] || { set +e ; return 1 ; }
+		## The tracked item's own allows, found by its bare name in whichever state holds it.
+		if [ -n "$readTracks" ] && AgentsToolsAssertBareName "$readTracks" "tracks" permission-grant-read 2>/dev/null ; then
+			for readItem in "$MDAT_DATA_ROOT"/board/*/"$readTracks" "$MDAT_DATA_ROOT"/board/*/"$readTracks.md" ; do
+				[ -f "$readItem" ] || continue
+				readState=""
+				while IFS= read -r readLine ; do
+					case "$readState:$readLine" in
+						':---') readState=front ;;
+						front:---) break ;;
+						'front:allows: '*) readPlanned="${readPlanned:+$readPlanned,}${readLine#allows: }" ;;
+						:*) break ;;
+					esac
+				done < "$readItem"
+				break
+			done
+		fi
+		## Comma-separated entries; a target is escaped, so it never holds a comma. An entry
+		## that can never admit anything is said once per session in its event-track thread,
+		## so a planned allow that was written wrong does not fail silently.
+		local readIgnored readShape
+		while [ -n "$readPlanned" ] ; do
+			readEntry="${readPlanned%%,*}"
+			[ "$readEntry" != "$readPlanned" ] && readPlanned="${readPlanned#*,}" || readPlanned=""
+			readEntry="${readEntry# }"
+			[ -n "$readEntry" ] || continue
+			readKind="${readEntry%%:*}" ; readRest="${readEntry#*:}"
+			readEntryTool="${readRest%%:*}" ; readRest="${readRest#*:}"
+			readEntryTarget="${readRest%%:*}" ; readRest="${readRest#*:}"
+			readBy="${readRest%%:*}"
+			readShape="${readEntry//[!:]/}"
+			readIgnored=""
+			if [ "${#readShape}" -lt 4 ] || [ -z "$readEntryTool" ] || [ -z "$readEntryTarget" ] ; then
+				readIgnored="it is not <kind>:<tool>:<target>:<granted-by>:<time>"
+			elif [ "$readKind" != "session" ] ; then
+				readIgnored="its kind is $readKind, and a planned allow is session-wide"
+			elif [ -z "$readBy" ] ; then
+				readIgnored="it names nobody who granted it"
+			elif [ "$readBy" = "$readMember" ] ; then
+				readIgnored="it is signed by the session's own member"
+			fi
+			if [ -n "$readIgnored" ] ; then
+				AgentsToolsPermissionPlannedIgnored "$readMember" "$readSession" "${readDispatch##*/}" "$readEntry" "$readIgnored"
+				continue
+			fi
+			[ "$readEntryTool" = "$readTool" ] || continue
+			[ "$readEntryTarget" = "$readWant" ] || continue
+			printf 'GRANT: planned %s\n' "${readDispatch##*/}"
+			return 0
+		done
+		set +e ; return 1
+	;;
+
+	--intern-op-permission-grant-consume)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-grant-consume"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local consumeSession="" consumeRefusal=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) consumeSession="${2:-}" ; shift 2 ;;
+				--refusal-id) consumeRefusal="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$consumeSession" ] || [ -z "$consumeRefusal" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is --session-id <id> --refusal-id <id>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$consumeSession" "--session-id" permission-grant-consume || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$consumeRefusal" "--refusal-id" permission-grant-consume || { set +e ; return 1 ; }
+		## One mkdir is the whole lock: the first caller to create the marker uses the grant.
+		mkdir -p "$MMDAPP/.local/agents/sessions/$consumeSession/consumed" 2>/dev/null || { set +e ; return 1 ; }
+		mkdir "$MMDAPP/.local/agents/sessions/$consumeSession/consumed/$consumeRefusal" 2>/dev/null || { set +e ; return 1 ; }
+		printf 'CONSUMED: %s\n' "$consumeRefusal"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid operation: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

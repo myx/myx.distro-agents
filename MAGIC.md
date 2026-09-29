@@ -117,8 +117,8 @@ Team-owned notes for the magic-* team.
 
 ## This package is its own git repo
 
-- `myx.distro-agents` is a git repository in its own right: `git rev-parse` from the package root resolves, and `sh-lib/` content is tracked. A destructive-looking edit here has a real `git checkout -- <path>` restore.
-- The enclosing `source/` tree is not a repo. Probing from there returns "not a git repository" — a true answer to the wrong question, and not evidence that a file is untracked. Probe from the package root.
+- `myx.distro-agents` is a git repository in its own right; the enclosing `source/` tree is not one.
+- **Agents run no git, read-only included, and touch nothing under any `.git/`. The tooling does all git** (human-owner). A member checks its work by reading files and running rigs, and keeps its own saved copies to compare before and after; a restore is from those copies, never from git. Only a tooling op commits, and every commit of source is his, after review.
 
 ## Registering this workspace's MCP servers
 
@@ -267,9 +267,10 @@ Team-owned notes for the magic-* team.
 
 ## What `ListAgents` reads, and what it reports
 
-- It reads the `dispatch-*` items in the board's running state, and prints each one's session id, owner, status, started time and outcome.
-- **The state it reports comes from what the item carries, never from which folder holds it.** An item whose status records a finished dispatch is reported as finished. A listing is therefore not a running-or-not answer, and an item resting in a state is not by itself a stale entry.
-- The board item is the session record. A per-run directory beside it is that session's working space, so removing one is a matter of the directory and not of the register.
+- **It enumerates the spawned-sessions registry**, the human-owner's ruling: every spawn has a sandbox under `.local/agents/spawned/`, created even when empty, so a session with no tracking document and no board item is still listed. The registry is rebuilt from the sandbox roots on each call.
+- Each row carries tracking name, session id, host, owner, status and exit code, plus a `live` column measured during the call: `running`, `no-process`, `other-host`, `host-unrecorded` or `no-session-id`. Liveness is measured only for this host's rows, because the sandbox tree is synced between machines.
+- **The state it reports comes from the session record, never from a folder.** A row whose record is still started with no live process ended without closing its record. A row on another host says nothing about whether that session is alive.
+- The board's `dispatch-*` items are a separate record of the same spawns, and the listing says how to compare the two.
 
 ## `MDAT_SKILLSET_ROOT`: where the member set is read from
 
@@ -279,7 +280,7 @@ Team-owned notes for the magic-* team.
 - The workspace set is a publication list, not the authority on who is on the team — the members that workspace publishes and uses, normally a subset of the machine's. Team membership is the union of the workspaces present locally, linked into the rig user's own home, so a member absent from the calling workspace is not an error condition and a member-scoped operation never resolves against one session's workspace.
 - Consequence worth knowing: `--install-claude-permissions` writes `$HOME/.claude/settings.json`, a machine-global file, from this same resolved root. On a rig that has a home member set the root is machine-global too, so the two scopes match. On a workspace-only rig the root is that workspace's, and it still writes that workspace's grants into the machine-global file.
 - Every reader of the member set now reads the variable: the member-existence gates, the member-directory and skill-root locals, the `SEE …` pointers in `--*-input-scan` usage text, the `client-*` enumerations, and `--owner-setup-claude`'s link walk together with its installer registry `.linked.magic-team.members.txt`, which the installer writes into each target root and which therefore describes the root it sits in.
-- Four sites stay `$HOME` on purpose and are not leftovers. The resolver's own gated candidate in `DistroAgentsTools.fn.sh`, which wins where it holds a member set. `--install-skillset-symlinks --scope user-home`'s fan target, whose sibling `workspace` arm already spells the workspace roots. `$HOME/.claude/settings.json` and `$HOME/.claude.json`, machine-global host files that are not the member set. And `--owner-workspace-*`'s `.human-owner.workspaces.md`, which records absolute paths belonging to the machine and is the one authoritative list of tracked workspaces: resolving it per workspace fragments it into a registry per workspace, and on a host whose workspaces each carry their own member set it reports nothing tracked while the real list sits in `$HOME`. Its own portability gap — `--owner-workspace-upsert` refusing where `$HOME/.claude/skills` does not exist — was never a reason to move the file, and is closed by `mkdir -p`: measured, an entirely empty `$HOME/.claude/skills` satisfied the old gate, so it enforced storage rather than a skillset, and a directory created empty still carries no `<member>/SKILL.md` and so cannot shadow a workspace-scoped member set.
+- These sites stay `$HOME` on purpose and are not leftovers. The resolver's own gated candidate in `DistroAgentsTools.fn.sh`, which wins where it holds a member set. `--install-skillset-symlinks --scope user-home`'s fan target, whose sibling `workspace` arm already spells the workspace roots. `$HOME/.claude/settings.json` and `$HOME/.claude.json`, machine-global host files that are not the member set. And `--owner-workspace-*`'s `.human-owner.workspaces.md`, which records absolute paths belonging to the machine and is the one authoritative list of tracked workspaces: resolving it per workspace fragments it into a registry per workspace, and on a host whose workspaces each carry their own member set it reports nothing tracked while the real list sits in `$HOME`. Its own portability gap — `--owner-workspace-upsert` refusing where `$HOME/.claude/skills` does not exist — was never a reason to move the file, and is closed by `mkdir -p`: measured, an entirely empty `$HOME/.claude/skills` satisfied the old gate, so it enforced storage rather than a skillset, and a directory created empty still carries no `<member>/SKILL.md` and so cannot shadow a workspace-scoped member set. The harness `Skill` tool is another such site. It falls back to `$HOME/.claude/skills` after `$MDAT_SKILLSET_ROOT`, and its `skill` form also reads the synced skills and plugins under `$HOME/.claude`.
 
 ## Choosing a scope when writing a `magic-team:permissions` declare
 
@@ -315,7 +316,7 @@ Team-owned notes for the magic-* team.
 - **What the server shell derived from configuration at its own start is unset before each request is started** — `MDAT_DATA_ROOT`, `MYXROOT` and the distro index state (`MDSC_OPTION`, `MDSC_INMODE`, `MDSC_SOURCE`, `MDSC_CACHED`, `MDSC_OUTPUT`, `MDSC_MEMORY`, every `MDSC_ID*`) — so the request's own front door resolves them again. `MDAT_SKILLSET_ROOT` is kept: a caller may hand it in, and every rig does, it names a directory rather than a setting, and the members inside it are read per call.
 - **The wire reaches a request as fd 3, and the request's stdout is stderr.** Only the send helpers write to fd 3, so nothing the front door, an executed script or the harness prints can land on the wire. Every child a request starts has fd 3 closed, so a job left running cannot hold the host's pipe open after the server has gone.
 - Each request parses its message into its own `req.<sequence>/` and removes it once its fields are read. Requests are parsed in parallel now, so one shared `req/` would hand a request the next one's fields: measured before, when the read happened after the fork, three back-to-back `job` calls all answered `requires a non-empty 'command' argument`, because each read `req/arg_job` after the loop had already rewritten it.
-- **The floor is rendered on every `tools/list` and `tools/call`, and `initialize` declares `tools.listChanged`.** A `tools/list` records the rendered floor's checksum in `floor.sum`; a later `tools/call` that renders a different one sends `notifications/tools/list_changed` before its own answer and records the new checksum, so a host lists again. The call that notices is answered from the floor as it now is.
+- **The floor is rendered on every `tools/list` and `tools/call`, and `initialize` declares `tools.listChanged`.** A `tools/list` records the checksum of its whole answer, the server's own tools included, in `floor.sum`; a later `tools/call` that renders a different one sends `notifications/tools/list_changed` before its own answer and records the new checksum, so a host lists again. The call that notices is answered from the floor as it now is.
 - Responses are serialised by a `mkdir` test-and-set on `wire.lock`, held for the one `printf` and nothing else. `mkdir` is the atomic test-and-set every POSIX filesystem has; `flock` is not guaranteed on a bare FreeBSD or Darwin.
 - A message with no id is a notification and is never answered: the `notifications/*` arm does nothing, and both send helpers return on an empty id.
 - **The `workspace` parameter re-runs the call in a fresh process with `MMDAPP` moved to that workspace and `MDLT_ORIGIN` deliberately unchanged.** It is not the same as a standalone invocation there, which would resolve that workspace's own origin.
@@ -343,7 +344,7 @@ Team-owned notes for the magic-* team.
   own `Bash` matcher, and reroutes the caller to this server's own `execute`. That hook denies whatever
   its matcher names. **A tool taking a `command` under a different name is therefore an unguarded
   second path around it**, which is what makes this a containment boundary rather than a tidiness rule.
-- **`Monitor` is unserved for a second, independent reason: it cannot work over this wire at all.** A
+- **The harness `Monitor` is unserved for a second, independent reason: it cannot work over this wire at all.** A
   `tools/call` runs one tool in a FRESH `--intern-tool` process, so the scratch directory holding a job's
   log and handle is created and removed inside the one call. Measured: a start returned `job-1`, no
   scratch directory survived the call, a second call answered `no background job named job-1 was started
@@ -351,8 +352,28 @@ Team-owned notes for the magic-* team.
   never runs either, because there is no round loop. A read-only served form is not a lesser option but
   an impossible one, since the only thing that mints a handle is a start in the same process.
 - **What the exclusion gives up: nothing that ever worked over MCP.** A caller wanting a watched
-  background job uses `execute` with `background` set, which this server holds across calls and can poll
-  by job id and kill. `Monitor` remains a harness tool, where the spool it exists for actually runs.
+  background job uses the `Monitor` twin below, or `execute` with `background` set. This server holds
+  both in one job store across calls, polled by job id and killed. The harness `Monitor` remains a
+  harness tool, where the spool it exists for actually runs.
+- **The name `Monitor` IS served, by this server's own pull twin rather than the harness tool.** It is
+  declared in `AgentsTools.InternMcpRequest.include`'s own `tools/list`, beside `execute`, and never in
+  `harnessToolsJson`: that literal already declares the harness `Monitor`, and a second entry would give
+  the harness two functions with one name. `mcpUnservedToolNames` keeps `Monitor`, so the harness one
+  stays absent. Through another server the twin is withheld with the harness tools; only `execute` is
+  served there.
+- **The twin is `execute`'s own job store with the native watch contract laid over it.** A start needs
+  `command` and `description`, runs through the background start path into `jobs/<id>/`, and returns the
+  job id at once. Only stdout goes to `out`, since only stdout is events; stderr goes to `err` beside it,
+  named in the start result. A poll is `execute`'s poll: while the job runs it hands out whole lines only,
+  so an event is never split across two polls, and the rest goes out once the job has ended. Every status
+  line carries the description. A stop is `execute`'s kill path.
+- **`timeout_ms` defaults to 300000 and is capped at 1800000.** The deadline watchdog runs inside the
+  job's own process group, so a kill of the group ends it too, and the group id it signals cannot be
+  reused while it waits. At the deadline it marks `timedout`, sends TERM to the group, and KILL after 5s;
+  the next poll names the timeout. A job that ends first stops its own watchdog.
+- **Push delivery is blocked on the client, so the twin is pull-only.** The native `Monitor` delivers each
+  event by itself. Over this wire a tool answers once per call, so the caller polls with `job`, and
+  nothing here builds push.
 - **Unserved is ABSENT from `tools/list`, not present-and-refusing**: a tool that exists and refuses reads
   as a broken server. `tools/call` still names what to use instead for each unserved tool, because a
   caller who names one anyway needs somewhere to go.
@@ -365,6 +386,9 @@ Team-owned notes for the magic-* team.
   subtracted and its caller sent there instead. The candidate population is therefore what
   `AgentsHarnessMcpMirror.sh` renders, and `execute` falls outside it by construction rather than by being
   carried as a remembered exception.
+- **A served entry is a harness tool by its declaration, not its name**: it counts only when it equals the
+  mirror's own rendering of that name. The `Monitor` twin shares a harness name and falls outside the
+  population like `execute`, so the containment rule is unchanged.
 - **`command` is NOT the whole predicate, and this was measured rather than argued.** The name-based rule
   is evadable: with `Monitor` removed from the subtraction *and* its `command` parameter renamed to
   `script` in its declaration alone, the check's `command` assertion PASSES while the behavioural one
@@ -526,6 +550,8 @@ Three bugs found and fixed in that splice, by real execution against the live te
 - The op name is the stable interface a routine calls and its own skillset file declares; the argument list behind it is free to change for that routine alone. Collapsing them, or rewriting one as a call to another, couples independent routines to a single argument list and makes a later divergence a breaking change for a consumer that never asked for it.
 - A wrapper is fixed, not flexible: it exposes no caller-facing `--state`/`--header` override. A caller wanting a different scan shape calls `--intern-op-session-context-scan` directly.
 - What each wrapper sweeps is split so two wrappers do not intersect. Content that no step of the consuming routine asked for is the defect that split exists to prevent.
+- `--magic-sweep-input-scan` sweeps the team and each client-* account concurrently, each into its own document and status, and emits nothing until all are done: the team's document first, each client's after, as before. `lib/parallel` runs in a nested subshell because it installs an EXIT trap that would otherwise replace the sweep's own. Accounts run at Parallel's own bound. That fan-out is safe because `--intern-op-slack-call` waits out a Slack rate limit (`ratelimited` or HTTP 429) for its `Retry-After`, with a stated line, and retries up to 5 attempts, so a limited read is slower, not lost. One helper, `AgentsToolsSlackRateLimitWait`, serves every branch -- API, upload and raw GET -- off one `-D` header dump; `sh-lib/AgentsSlackRateLimitCheck.test.sh` holds each branch and both outcomes. Scan work paths are `mktemp`-unique, never `$$`: concurrent scans share one `$$`.
+- `sh-lib/AgentsSweepTimingInstrument.sh` is a timing instrument, not a rig: it asserts nothing, stays off `.test.sh` so no test sweep runs it, and times one `--magic-sweep-input-scan` against a fixture behind a fake curl with a fixed per-call latency. Run it as `MMDAPP=<workspace> sh-lib/AgentsSweepTimingInstrument.sh [<latency-seconds> [<dms> [<clients>]]]` (defaults `0.3 30 2`); it prints `SWEEP_TIMING: rc= seconds= calls= mdat-left=`.
 
 ## `--intern-op-session-context-scan`: what a wrapper owes the document
 
@@ -564,12 +590,55 @@ Three bugs found and fixed in that splice, by real execution against the live te
 - **The `.git`-gated commit is a requirement of the specification, and the message `- team-data-final-gc-deletion` is byte-exact.** It was briefly removed on 2026-09-04 by an agent misreading a human-owner instruction about *its own* committing as an instruction about the tooling's; that was wrong, and the commit was restored the same day. `AGENT AI DO NOT COMMIT` binds the agent, never this operation. Do not remove it again.
 - **A diversion is not a deletion, in the counts or in the `rc`.** `rc` is 2 when the pass deleted nothing and 0 when it deleted something, so a run that only diverted answers 2 — the `rc` asks what was deleted, and a divert-only pass deleted nothing. Folding the diversion into `rc 0` is exactly the silent conflation of two different outcomes. It is not hidden either: the deletion sentence never counts a diversion, and a second sentence is appended whenever one happened, so `rc 2` is never the only thing the caller is told. `--magic-advance-close-state-and-unlock` treats 0 and 2 alike and only anything else as a failure.
 
+## VS Code roots: authoritative in our own paths, symlinked into every listed folder
+
+- **The rule** (human-owner): the workspace root is never a VS Code folder. What VS Code reads per folder is installed authoritatively in the workspace's own paths and symlinked into every folder the generated `.code-workspace` lists, automatically, by the installer the updater runs.
+- **One mechanism:** `AgentsToolsVscodeFolderLinks` (`AgentsTools.Install.include`) links an authoritative path into every listed folder as `<folder>/<slot>`, in `--install-skillset-symlinks`' own form: a dangling link is reclaimed, a link already to the target is kept, and a link elsewhere or real content is reported and never overwritten. A target that does not exist yet is stated and linked on the next run.
+- **What it links**, at the end of `--install-vscode-integrations`, after the workspace file is regenerated: `.agents/skills` and `.claude/skills` (the members, read per folder by VS Code chat), `.vscode/mcp.json` (read per folder; VS Code's MCP doc places it in "your project"), and the Magic-Team panel.
+- **The panel** (`--install-vscode-magic-team-panel`): one authoritative unpacked copy -- `vscode/magic-team/` plus copies of `magic-team.basic.md` and `the-conclave.mark.svg` -- in `<workspace>/.local/agents/vscode-magic-team-panel/`, rewritten only when its payload `cksum` (`.payload-sum`) changes, by two renames that keep the old copy on failure. Linked as `.vscode/extensions/magic-team-panel`, VS Code's local workspace extension (release notes 1.89), offered however the workspace is opened. That VS Code offers it, following the link, is shown only by a real open.
+- **`--workspace X`** is regenerated by X's own console, non-interactively, so X's folders are the ones linked. No `code` CLI is called and `~/.vscode` is never read or written. `AgentsVscodePanelInstallCheck.test.sh` holds all of it.
+
+## Vault items: a dedicated read, and no write until a step names one
+
+- `--member-read-vault-item` is the audit read's shape over `vault/`: bare member and item names, a paired line range, lookup under `vault/` only (`AgentsMemberReadVaultItemCheck.test.sh` holds that an item only under `audit/` is not found). Any bare name is read, since the vault's document types are open. There is deliberately no vault write op: the team's rules name no step that writes a vault item, and a write op without one would be the generic accessor the member-oriented tooling rule forbids. It follows the first skillset step that names a vault write, in that step's shape.
+
 ## `--intern-op-item-upsert`: the commit gate and the push gate are separate
 
 - A repository in the team-data root is what makes a commit possible; `TEAM_DATA_GIT_REMOTE` is what makes a push possible. Held as one condition, a `.git`-present, remote-absent root wrote every item and committed nothing — the configuration in which both advance lock messages, and every other routine group's lock write, vanished with a clean exit.
 - Three configurations, and each is a different amount of the same path: no repository — write only; repository, no remote — write and commit, ending there, since there is nothing to push to and no remote copy to read the lock back from; repository and remote — write, commit, push, resync and read back.
 - `--no-push` is a caller's request, not a configuration, and its message stays distinct from the no-remote one: an unpushed commit has two possible reasons and a log that cannot tell them apart answers neither.
 - The lock read-back is a property of the remote configuration alone. Without a remote the lock is local and unverified, exactly as it was before the commit existed — committing does not make a single-checkout lock any more authoritative, and nothing here should be read as claiming it does.
+
+## Team-data persistence: every tooling writer commits, and a close point pushes
+
+- Each tooling writer into the team-data store commits the paths it wrote, through the one helper `AgentsToolsTeamDataCommitPaths` (`AgentsTools.TeamDataCommit.include`); an agent never commits by hand.
+- A close point -- a spawn's close, a heartbeat's close, a main-loop pass -- pushes what is ahead through `AgentsToolsTeamDataPushIfAhead`, under the local `team-data-push` lock: divergence is found by fetch plus `merge-base --is-ancestor`, integrated as a clone sync would (`pull.rebase=false`), and read back after the push. It aborts only a merge of its own.
+- `AgentsToolsTeamDataDirtyWarning` states a store that is uncommitted or ahead of its origin at those same points, never silently.
+- `--magic-team-data-commit-pending magic-coordinator [--commit-message <m>] [--no-push]` commits whatever a writer left uncommitted and pushes, and refuses while an index lock, a merge, a cherry-pick, a revert or a rebase is in progress.
+- The store is cloned at dispatch under the `team-data-clone` lock, once per process tree (`MDAT_TEAM_DATA_CLONE_TRIED`), and never into a nested repository.
+
+## AskUserQuestion: an unclassified reply goes back to the agent, and a re-wait posts nothing
+
+- The wait takes only the addressee's replies, never the asker's own posts, and judges every reply since the question -- a re-wait reads `question-ts` from the open record, not the time it starts.
+- A reply that classifies nothing returns `VERDICT: UNCLASSIFIED` with its text and the pending id, ending `AskUserQuestion pending_id=<id>`. There is no keep-waiting loop and no automatic post: re-waiting is the agent's choice.
+- `pending_id` re-waits on the open record without posting, and only for the session that asked (a new process of it included). `AgentsHarnessAskCheck` and `AgentsHarnessAskRewaitCheck` hold each rule.
+- **One person, one running thread** (`AgentsTools.AskThread.include`). A question to a conversation goes into the open question thread to the same conversation and addressee, from any member or session, with no second opener; only a thread with no open question starts a new one. Each question is numbered `Q<n>` in its heading, counted over every question that thread has held.
+- **An identical open question is not asked again.** The same addressee and the same whitespace-normalised text (`question-key` on the record) returns `ASK-RESULT: ALREADY-OPEN` with the open record's id, and posts nothing.
+- **In a thread several questions share, a plain reply answers the latest question above it.** The owner ruled "MAYBE JUST LAX THE REQUIREMENT" after a plain `YES` under Q3 went unmatched. A reaction answers the message it is on.
+- A reply starting with `Q<n>` answers that question, and the number is dropped before the reply is read.
+- A reply with no number answers the latest question posted above it, while that one is open. It is not seen by any other question.
+- A reply with no number, after the latest question above it was closed, answers none. Each open asker gets `VERDICT: UNCLASSIFIED`, with its record left open.
+- "Closed before the reply" compares the reply's ts with `resolved-epoch`, which the close stamps. A record closed before that stamp existed drops such a reply rather than marking it.
+- `AgentsToolsAskThreadOthers` feeds the other questions to `AgentsSlackThreadAnswers.awk` as `-v others`, for both readers. `AgentsHarnessAskThreadCheck.test.sh` holds it.
+- **Only the thread numbers a question.** A leading `Q<n>` label in the question text (`Q1:`, `q2)`, `Q3 -`, `Q4.`) is removed before posting, so the post shows one number.
+- The posted text never says "tag". A question after Q1 in its thread adds one line: to answer an earlier question instead, start the reply with its number.
+- **An answer nobody waited for is collected by the tooling** (`AgentsTools.PendingReplyCollect.include`, `--intern-op-pending-reply-collect`). The owner's rule is "collect on idle after done and before closure", and "runnable without tokens": no model does any of it.
+- It reads each open plain question once, with a zero-bound `--member-wait-for-input` over its thread, and the same answer rules a wait uses. A readback, decision or permission always waits, so a collect never reads, closes or grants one.
+- It runs in three places. `SubagentHandback` collects the session's questions and adds "Answers collected, and questions still open" to the handback. The spawn-proxy close collects the spawn's and marks what is still open `collect: ended`. The main loop collects the marked ones with `--ended` before it spawns anything.
+- An answer found by the main loop goes to the asker's inbox as a note, since its session is over. The result is kept in `.local/agents/pending-collect.last`, and `--magic-heartbeat-input-scan` shows it with every question still open. The heartbeat only reads it.
+- **Every close holds the record's lock, and `--if-open` closes only a waiting record.** The second of two closers (a wait, a collect, a settle) gets `ALREADY-CLOSED` and changes nothing.
+- **A resolved question is marked in Slack.** :eyes: goes on the reply taken as the answer, and :white_check_mark: on the question, or :ballot_box_with_check: when its asker settled it. :white_check_mark: goes on the thread's opener once no question in it is open. A reaction that fails is logged and never undoes the close.
+- `--member-pending-reply-read` lists and shows records, and `--member-pending-reply-settle` closes the member's own plain question with a reason. `AgentsPendingReplyCollectCheck` and `AgentsMemberPendingReplyCheck` hold these rules.
 
 ## `--intern-op-board-upsert-move-edit` commits the move it makes
 
@@ -746,6 +815,7 @@ The contracts themselves live in `magic-team.shared.md`'s "Session-context docum
 - **Readiness is checked once, before the loop, never per iteration.** `--intern-op-check-configs` probes the configuration keys (every key `--optional`, so the probe itself never gates) and the output is piped into `AgentsMainLoopReadinessReport.awk`, whose own exit — `PIPESTATUS[1]` — is the gate. A failing gate returns before the loop is entered. The keys all sit in `magic-team`'s config scope (`SLACK_CHANNEL_MAGIC_TEAM`, `SLACK_CHANNEL_HUMAN_OWNER`, `SLACK_CHANNEL_EVENT_TRACK`, `SLACK_CHANNEL_EVENT_ALERT`, `SPAWN_CLI_SERVICE`), so the probe is one call inside a `{ … }` group feeding one awk. `TEAM_DATA_DIRECTORY` is not probed: the arm writes `TEAM_DATA_DIRECTORY: OK` into the group from the resolved `MDAT_DATA_ROOT`, which an unset key defaults to the workspace's own store. The floor — the items that actually gate — is the team data root + Basic comms + `SPAWN_CLI_SERVICE`; the activity-log and alert channels are reported and never gate. A floor item probed but not declared in the awk's own `addItem` list is a hole in the gate, not a lenient gate: it lets the loop start and then fail every iteration.
 - **Gotcha: a team-data store holding content is not a clone, and `clonePull` never makes it one.** With `TEAM_DATA_GIT_REMOTE` set, each iteration first syncs `$MDAT_DATA_ROOT`. `git clone` refuses a non-empty directory, so the default store used before a remote was set would read `stale` on every iteration. Such a store — present, holding content, no `.git` — goes to `myx.common git/cloneSync` instead, which commits it and pushes it into an **empty** remote; from then on it is a clone and `clonePull` keeps it. `init.defaultBranch` travels as `TEAM_DATA_BRANCH` through `GIT_CONFIG_*`, because `cloneSync` pushes that branch name from whatever `git init` created: measured under a `master` default, the push fails with `src refspec main does not match any`, and `clonePull` then deletes the checkout as a branch switch. A remote that already has history plus a store holding local content is left untouched and reported, to be merged by hand. The adoption also needs the `cloneSync.Common` fix beside this change: its empty-remote test ran `git ls-remote --exit-code` bare inside a command substitution, and under `set -e` in `sh` a remote with no branches aborted the substitution, so adoption never ran.
 - Each iteration: one `--magic-heartbeat-spawn-proxy magic-coordinator --wait`, then a sleep. Log-and-continue regardless of the spawn's own exit code, but the wait is **not** flat: it starts at `MAIN_LOOP_RESTART_DELAY_SECONDS` (magic-coordinator config scope, default 29), doubles after each failed iteration, and stops at `MAIN_LOOP_RESTART_DELAY_MAX_SECONDS` (same scope, default 1200). A successful iteration resets it to the base. Both values are validated as digit strings and fall back to their defaults otherwise. The delay is the state, so the doubling stops at the ceiling and cannot overflow — and a permanent misconfiguration therefore shows as a green start followed by iterations that fail, then by silence at the ceiling, rather than as a loud exit.
+- **A heartbeat pass is watched while it runs, and bounded only when set.** The pass runs in its own process group and is polled once a second. After its first minute, a pass still running is said every `MAIN_LOOP_RESTART_DELAY_SECONDS`: `heartbeat pass running for <m> min`. `MAIN_LOOP_PASS_TIMEOUT_SECONDS` (magic-coordinator config scope, digits, default 0) bounds it. At 0 or unset nothing ends a pass, and it is only reported. When the bound is set and passed, the loop sends TERM, then KILL after up to 5 s, to the pass's process group. It records `MAIN_LOOP_LAST_OUTCOME=timed-out` and posts the timeout to event-track. It releases nothing itself: the lock the pass held is taken over by the next pass's stale-lock recheck. The number is the human-owner's to set.
 - **The spawn brief is a file, not a literal in the arm.** Each iteration pipes `skillset/magic-team/magic-team/dispatches/main-loop-next-iteration.prompt-packet.verbatim.md`, resolved under `$MDLT_ORIGIN` like the readiness awk beside it, into the spawn proxy — whole, with no strip rule of any kind, so the file's every byte is the brief and a member edits a real discoverable file rather than a printf. `cat … |` is the form on purpose and not a useless-`cat`: `DistroAgentsTools` is a shell function carrying its own `set -e`, and the pipe is the subshell that keeps a failure inside the spawn one failed iteration instead of the daemon exiting — a `<` redirect or a `--from-file` flag would remove it. The file is checked readable-and-non-empty once before the loop and a failure there is fatal, because the path is a constant shipped with the code: a per-iteration test would turn a permanent misconfiguration into an endless backoff, and the spawn proxy would report it only as `empty spawn context`, further down.
 - **Everything this operation says goes to stderr, the readiness report included.** It is a daemon loop whose whole life is watched on one stream, so the readiness verdict belongs on the same stream as the per-iteration lines rather than on a stdout nothing reads. The report's machine-readable half is the readiness awk's own exit status (`PIPESTATUS[1]`), which is what gates loop entry and is unaffected by where the text goes.
 - **The readiness report carries a third kind of item beside floor and optional: a diagnosed one.** It is a state the loop cannot fix and no config key holds, and today there is exactly one — `Agent CLI sign-in`. `SPAWN_CLI_SERVICE` present, the CLI installed and on `PATH`, and the human not signed in is the state every existing check passes and every iteration then fails on, opaquely, which is what a freshly provisioned host looks like. The arm reads it from the CLI itself and appends a `SPAWN_CLI_AUTHENTICATED: OK|FAIL|SKIP` line into the same brace group the check-configs probes feed, so the awk's existing `KEY: STATUS` contract carries it and `PIPESTATUS[1]` stays the awk. **It never gates**, and there is no auth config key — authentication is the CLI's own, done by the human out of band and only read here. The probe is `claude auth status`, whose JSON `loggedIn` field is the verdict: local-only, ~0.3s, stdin closed so nothing can prompt, and true for an `ANTHROPIC_API_KEY` or a Bedrock/Vertex provider as well as for a signed-in account. Every case it cannot read — any other CLI, a `claude` too old to carry `auth status`, one absent from `PATH`, an output shape it does not recognise — is `SKIP`, reported as `not checked`; a machine the probe cannot answer for is never refused. Adding a second CLI's probe is a branch in the arm's `case`, not a change to the report.
@@ -757,7 +827,7 @@ The contracts themselves live in `magic-team.shared.md`'s "Session-context docum
 ### `--intern-mcp-server` call contract
 
 - `--run` is required to actually serve; without it, prints syntax and exits — so a registration whose `args` omit it registers a command that can never serve.
-- Registers into this workspace's own MCP config only, command resolved to this workspace's own `DistroAgentsTools.fn.sh`, args `["--intern-mcp-server","--run"]`, no `env` (the operation establishes the workspace environment itself). To register another workspace's tooling, run this operation from that workspace. Exposes exactly one tool, `execute`, backed by `--intern-mcp-execute`.
+- Registers into this workspace's own MCP config only, command resolved to this workspace's own `DistroAgentsTools.fn.sh`, args `["--intern-mcp-server","--run"]`, no `env` (the operation establishes the workspace environment itself). To register another workspace's tooling, run this operation from that workspace. Serves `execute`, backed by `--intern-mcp-execute`, beside the `Monitor` twin and the harness tool floor, as "A harness tool joins the served MCP floor by default" states. Through another server only `execute` is served.
 - **`execute` takes one of two shapes and `required` is empty for that reason**: `command` starts a script, `job` addresses one this server already started. A call carrying neither is rejected, and `job` is read before `command` so a poll never falls through to the start path. `timeout`, `background` and `action` each qualify one of the two shapes and mean nothing on their own.
 - **A foreground call is bounded by `timeout`** — seconds, default 600, capped at 3600, and a non-numeric or absent value takes the default rather than failing the call, so a caller that never knew the argument exists keeps working. On expiry the call answers `isError` naming the limit, and the partial output is **kept** at a path named in that same message; ordinary completion deletes it. `background` imposes no bound at all: a bound is what an unwatched call needs, and a job the caller can poll and kill needs no deadline guessed for it.
 - **`background:true` answers at once with a job id, a pid and a log path.** `job:<id>` alone polls it, returning only the bytes written since that job's own last poll — a byte cursor, so polling a long build does not re-deliver its whole log. `job:<id>` with `action:"kill"` signals it. The id is this server's own request sequence number and is read out of the start reply, never assumed to be the JSON-RPC request id.
@@ -995,7 +1065,11 @@ External product behaviour, read out of the installed build (1.134.0, `Visual St
 - **A member reachable from two locations at once is a candidate for silently not loading, and it is not a filesystem fault.** The same member is normally installed both at the workspace root and in the home skills directory, and both are discovery locations, so one entry is loaded and the other is dropped as a duplicate `name`. Every filesystem check comes back clean either way. Confirming it means reading what discovery actually decided — the skills list the chat client renders, or its own discovery log — not the directories. Recorded as a candidate; nothing here establishes it as the cause of any particular member failing to appear.
 - `.agents/skills`, `.github/skills` and `.claude/skills` at the workspace root hold one member set under three names: `--install-skillset-symlinks` fans the same members into all three. Naming more than one of them in `chat.agentSkillsLocations` scans one directory repeatedly rather than adding a location.
 
-Consequence for this package: the members installed at the workspace root cannot be named by this setting, so the generated `.code-workspace` lists the workspace root as a folder and the built-in defaults find them there. The emitted key is `$MMDAPP/.agents/skills`, one absolute path naming that one directory. It adds no discovery: the validator above rejects an absolute value, and measured with the root listed and no key at all the members are found regardless. It is emitted because `AgentsTools.Install.include` fails the install when the setting is absent, and that check greps for the key name without reading its value.
+Consequence for this package: the members installed at the workspace root cannot be named by this setting, and the workspace root is never a VS Code folder (myx.distro-source MAGIC.md, "The generated `.code-workspace` never lists the workspace root"). The members reach VS Code chat two ways: the home-scope fan of `--install-skillset-symlinks` (`~/.agents/skills`, `~/.copilot/skills`, `~/.claude/skills`), read once per machine, and the root's `.agents/skills` and `.claude/skills` linked into every listed folder ("VS Code roots: authoritative in our own paths, symlinked into every listed folder"). The emitted key is `$MMDAPP/.agents/skills`, one absolute path naming that one directory. It adds no discovery: the validator above rejects an absolute value, and measured with the root listed and no key at all the members are found regardless. It is emitted because `AgentsTools.Install.include` fails the install when the setting is absent, and that check greps for the key name without reading its value.
+
+## The Magic-Team VS Code panel has an installed and a development layout
+
+- `extension.js` picks one layout, once, by whether `magic-team.basic.md` sits beside it. The installed layout is the flat copy described in "VS Code roots: authoritative in our own paths, symlinked into every listed folder" above. The development layout reads both files from this package tree through `../../skillset/magic-team/magic-team/`. A missing file names the path in the chosen layout.
 
 ## `.claude` is the primary of the three install names
 
@@ -1128,6 +1202,8 @@ than an explanation of code, which is what earns it more room there than a comme
   `AgentsCopilotHarness.sh` — the ids under the heading **"THESE MODEL IDS ARE ANCHORED BY ELIMINATION,
   NOT BY MEASURED CAPABILITY"**, the knobs in the comment above them. Same reason as the tier table:
   nothing else records where a declared value came from, so it is kept beside the value.
+
+**`AgentsAnthropicStub.sh` is a design record, not a leg**, kept non-working by the human-owner's own ruling; the live Anthropic leg is `AgentsClaudeHarness.sh`.
 
 **A second stub exists and does not run.** `AgentsAnthropicStub.sh` is structure with named gaps: it
 refuses to run and lists them. It is deliberately non-working because no field name in it could be
@@ -1510,7 +1586,9 @@ override: they ask whether the release reached this workspace, not which file a 
   The rule that matters: never `Write`'s own content, only the path being written to,
   and every value — the function name included, since that is model output too — passes through
   `AgentsHarnessTruncateArg` first: collapsed to one line, every C0 control byte and DEL folded to a
-  space, cut at 120 bytes (`...` appended), never dumped whole. That control-byte fold is what
+  space, cut at 120 bytes, never dumped whole. A value starting with `/` keeps its end, and under
+  the workspaces folder (the parent of `MMDAPP`) also its head through the workspace name, with one
+  `...` in the middle; anything else is cut on the right. That control-byte fold is what
   stops a prompt-injection payload arriving as a tool-call argument from forging or moving the
   harness's own chrome.
   `AgentsHarnessTruncateArg` is one line handing the value to `progressLineSafe` — the one
@@ -1679,13 +1757,15 @@ because they would hold the same way against any provider.
 
 ## The harness tool set
 
-The harness declares twenty tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`, `WebSearch`, `WebFetch`, `SendMessage`, `ListAgents`, `Wait`, `SubagentHandback`, `ReportFindings`, `PushNotification`, `Artifact`, `AskUserQuestion`, `ListMcpResourcesTool`, `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `Skill`. Each occupies four structural sites -- the `harnessToolsJson` literal in `sh-lib/AgentsOpenAiChatWire.sh`, and the announce arm, the dispatch arm and the tool function in `sh-lib/AgentsUniversalHarness.sh` -- and `sh-lib/AgentsHarnessSelfCheck.test.awk` proves all four for every one of them. MCP tools are added separately under `mcp__<server>__<tool>` and are not part of this set.
+The harness declares these tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`, `WebSearch`, `WebFetch`, `SendMessage`, `ListAgents`, `Wait`, `SubagentHandback`, `ReportFindings`, `PushNotification`, `Artifact`, `AskUserQuestion`, `ListMcpResourcesTool`, `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `Skill`, `Agent`, `TaskStop`, `TaskOutput`, `Monitor`, `ToolSearch`. Each occupies four structural sites -- the `harnessToolsJson` literal in `sh-lib/AgentsOpenAiChatWire.sh`, and the announce arm, the dispatch arm and the tool function in `sh-lib/AgentsUniversalHarness.sh` -- and `sh-lib/AgentsHarnessSelfCheck.test.awk` proves all four for every one of them. MCP tools are added separately under `mcp__<server>__<tool>` and are not part of this set.
 
 `SendMessage` posts through `--member-comms-slack-send-message`, under the member identity `--agent` named. A served call (`--intern-tool`) names none, so the harness resolves it itself on that call: a spawned session's own `MDAT_SPAWN_AGENT`, else `magic-coordinator` for a root session, kept only when that member's `.basic.md` is readable in the skillset -- otherwise the tools that send refuse and every other tool is still served. The MCP server passes no identity and holds none. A harness started directly for a model run without `--agent` still refuses to send rather than choosing one. The message text goes in on `--from-stdin`, so no shell parses it, and no credential ever reaches argv. Its `to` parameter is required because nothing hands the harness a thread of its own -- the full spawn-time environment is `MDAT_SPAWN_AGENT`, `MDAT_SPAWN_LAUNCH_MARKER` and `MDAT_SPAWN_SESSION_ID`.
 
-`ListAgents` lists the running-session records the team data store actually holds: the `dispatch-*` board items under `$MDAT_DATA_ROOT/board/running`, each carrying its own `session-id`, `owner` and `status`. There is no other session registry in this estate. A session id in `<channel>:<ts>` form is a thread `SendMessage` can post into. Where the store cannot be read the tool returns a stated ERROR, never an empty list, and every listing carries its denominator.
+`ListAgents` renders the spawned-sessions registry, rebuilt from the spawn sandboxes under `$MMDAPP/.local/agents/spawned/` on each call, with a measured `live` column for this host's rows. An empty sandbox is a listed session. Where the sandbox roots cannot be located the tool returns a stated ERROR, never an empty list.
 
 `Wait` -- one bounded long poll over a list of input sources, returning the moment any of them changes. It calls `--member-wait-for-input` and adds nothing of its own: which sources exist is that operation's business. The waiting happens in the shell, so a run that is waiting spends no tokens and its context does not grow. The first line of its result is the outcome -- `RECEIVED`, `TIMEOUT` or `ERROR` -- and `TIMEOUT` is a successful wait, not a fault. What to do after a quiet wait is the skillset's escalation rules, never this tool's.
+
+`ToolSearch` returns whole declarations out of the catalogue this run offers: the harness tools, rendered from the `harnessToolsJson` literal by `sh-lib/AgentsHarnessMcpMirror.sh` on every call, plus `$harnessMcpToolsJson`, which the model loop enumerates before every round and a served call enumerates as it loads. Nothing is cached, and nothing depends on when the run started. `select:A,B,C` returns exactly those names in that order, omits unknown ones and ignores `max_results`. `+word rest` keeps the tools whose name holds `word` and ranks them by the rest. Anything else is keywords, scored 2 per term in the name and 1 per term in the description, case-insensitively, ties in catalogue order, cut at `max_results` (default 5). The result is a `<functions>` block of one `<function>{"description","name","parameters"}</function>` line per tool, whatever envelope the wire declared it in -- `sh-lib/AgentsHarnessToolSearch.awk` reads all three. A query matching nothing is a plain successful line, not an ERROR. Query and bound reach the awk through the environment, never -v, which would decode backslashes, and terms are matched with index(), so no query character acts as a pattern. It is a separate reader from AgentsHarnessMcpMirror.awk because the mirror accepts one envelope by contract.
 
 **What `Skill` is for, at MVP scope: reading any skillset file, read-only, whatever `Read` and folder access would otherwise permit.** Reaching a skillset file is the point of the tool and not a side effect to be bounded. Read-only is a property of the implementation and not only of the intent -- it creates, moves and removes nothing, and its one redirect targets the harness's own scratch directory rather than anything under the skillset.
 
@@ -1693,7 +1773,17 @@ The harness declares twenty tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bas
 
 **One narrow case falls outside that reach and is accepted: a symlink PLANTED inside a member tree or in the skillset root, pointing somewhere outside the skillset tree entirely, is followed.** `-f`, `-r` and `cat` all follow symlinks, so the comment on the function is true about the STRING and false about the READ: the gate constrains what the argument may name, not where the named path resolves to. Six inputs carrying no `..` and no slash read files outside the skillset tree that way, `/etc/passwd` among them. **`/etc/passwd` is not a skillset file, so this case falls outside the intent above rather than inside it, and the two stand side by side without being reconciled here:** the intent is read-only over any skillset file, and this is a measured read of something that is not one. `list` is the same case and belongs to it: `find -L` follows such a link too, printing the outside file under an in-folder path, and a read by that advertised name then succeeds. What makes this acceptable is measured with a positive control -- zero symlinks of any kind inside the 20 real member trees, so none pointing outside them -- and the precondition that rests on is one `ln -s` planted in a member tree or in the skillset root, in ordinary source trees that humans and agents both write to. **The condition that reverses this is the first symlink pointing OUTSIDE the skillset tree appearing in a member tree or in the skillset root** -- never a symlink as such, since those are the architecture. Nobody polls for it and no watcher exists; it is written here so that whoever notices one knows what it means. **`Skill` is the one reader outside this harness's own resolved path handling, which is why the case exists here and nowhere else in the tool set:** `Read`, `Write`, `Edit`, `Glob`, `Grep` and `Bash` all go through `AgentsHarnessPathAllowed`, whose symlink behaviour is held in BOTH polarities by `AgentsHarnessContainmentCheck.test.sh` -- a symlinked access root is admitted, a `..` escape refused -- and `Skill` deliberately does not. The guard that matches this, recorded so it is not re-derived: resolve after the lexical gate and require the candidate under the resolved MEMBER folder, which admits all 20 real member trees. A resolved-skillset-root prefix does NOT work and is what the lexical gate exists to avoid -- measured, it admits 1 member folder and refuses 19. Where shared material is ever linked into several members, its own resolved target joins the admitted set: the bound is the union of the roots the skillset intentionally publishes, never a single prefix.
 
-**`Skill` takes the same `offset`/`limit` as `Read`, through the one `AgentsHarnessReadRange` both call.** A native client caps a tool result below the size of the largest duty files, so without a range their tail is out of reach wherever `Read` is denied. `list` prints names relative to the member folder, so each line is a valid `file` argument. `AgentsHarnessSkillRangeCheck.test.sh` holds both.
+**`Skill` takes the same `offset`/`limit` as `Read`, through the one `AgentsHarnessReadRange` both call.** A native client caps a tool result below the size of the largest duty files, so without a range their tail is out of reach wherever `Read` is denied. `list` prints names relative to the member folder, so each line is a valid `file` argument. `AgentsHarnessSkillRangeCheck.test.sh` holds both. The defaults differ. Without `limit`, `Read` returns at most 2000 lines, while `Skill` reads to the end of the file within the same byte cap.
+
+**`skill` loads a skill the way the native `Skill` tool does, as a path of its own beside `name`, `file` and `list`.** The reach stated above belongs to those three. `skill` reaches further, by the form of its value:
+
+- A bare name resolves to a folder of that name, or to a `SKILL.md` whose frontmatter `name` matches, under `$MDAT_SKILLSET_ROOT` and `$HOME/.claude/skills`.
+- `anthropic-skills:<name>` resolves under `$HOME/.claude/skills/synced`.
+- `<plugin>:<name>` resolves in the synced plugin under `$HOME/.claude/plugins/synced` whose `plugin.json` carries that name: a skill in its `skills/` by folder or frontmatter name, then its `commands/<name>.md`. A prefix naming no plugin, or a plugin without that skill, is tried as a directory next.
+- `<dir>:<name>` resolves to `<dir>/.claude/skills/<name>` under the working directory.
+- Every segment passes the same lexical gate as `name`. An empty prefix, as in `:<name>`, is refused.
+
+The rendered skill loses its frontmatter and opens with `Base directory for this skill: <dir>`. `args` fills `$ARGUMENTS`, `$ARGUMENTS[N]`, `$N` and the frontmatter's named `arguments`. Where no placeholder takes them, they are appended as an `ARGUMENTS:` line. `${CLAUDE_SKILL_DIR}` is replaced, and for a plugin `${CLAUDE_PLUGIN_ROOT}` and, where known, `${CLAUDE_PLUGIN_DATA}`. A skill that sets `disable-model-invocation: true` is refused. `offset` and `limit` page the rendered text. `AgentsHarnessSkillReadCheck.test.sh` holds each form.
 
 **A tool description is shell code before it is prose.** The whole tools JSON is one bash single-quoted literal, so an ordinary English possessive -- `harness's`, `team's` -- closes it and the harness dies before its first request. Rewrite the possessive rather than escape it: `the team's own X` becomes `the X this team owns`. `AgentsHarnessSelfCheck.test.awk` matches text and does not parse, so it reports OK over a file in this state; `HARNESS_PARSES` is the check that sees it.
 
@@ -1701,9 +1791,9 @@ The harness declares twenty tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bas
 
 ## MCP enumeration -- at startup and again before every round
 
-**Enumeration runs at source time and again before every round after the first.** `AgentsHarnessMcpEnumerate` in `sh-lib/AgentsHarnessMcpClient.sh` rebuilds the catalogue, the declarations and the unavailable note from nothing each time, and with no `--mcp-server` named the core's `AgentsHarnessMcpServerSet` reads `mcp.servers.json` again first, so a server registered or removed there reaches the next round. A re-enumeration's stderr is shown only when the declarations it produced differ from the last round's. The unavailable note reaches the system text once, when the leg starts. `sh-lib/AgentsHarnessMcpClient.sh` builds a catalogue of what a named server offers, writes it to stderr and to `$harnessMcpCatalogue`, and renders one declaration record per tool from it. Declaring those tools to the model and calling one are the same file's own work on top of that catalogue, and are the section below. A run naming no server puts no `mcp__` name on the wire; measured, with the request body captured from a fake `curl`: the built-in tools, and zero occurrences of `mcp__`.
+**Enumeration runs at source time and again before every round after the first.** `AgentsHarnessMcpEnumerate` in `sh-lib/AgentsHarnessMcpClient.sh` rebuilds the catalogue, the declarations and the unavailable note from nothing each time, and with no `--mcp-server` named the core's `AgentsHarnessMcpServerSet` reads `mcp.servers.json` again first, so a server registered or removed there reaches the next round. A re-enumeration's stderr is shown when the declarations or the unavailable note it produced differ from the last round's. A scratch write or a declaration render that fails inside it degrades that server or drops that tool, stated like any other degrade, so it never ends a run mid-work; a failure anywhere else still ends the run, as it would at startup. The unavailable note follows the enumeration: a changed note reaches the model between rounds as a user record, the way a background job's output does, and a fresh leg's system text carries the note as the latest enumeration left it. `sh-lib/AgentsHarnessMcpClient.sh` builds a catalogue of what a named server offers, writes it to stderr and to `$harnessMcpCatalogue`, and renders one declaration record per tool from it. Declaring those tools to the model and calling one are the same file's own work on top of that catalogue, and are the section below. A run naming no server puts no `mcp__` name on the wire; measured, with the request body captured from a fake `curl`: the built-in tools, and zero occurrences of `mcp__`.
 
-- **A spawn naming no server gets the workspace's own set.** `--mcp-server <name>` names one, is repeatable, and naming any replaces the default outright. With none named, the core takes the keys of `$MMDAPP/.local/agents/mcp.servers.json` minus `myx.distro` -- the same set a served resource-tool call already took, by the same code -- because this harness is the `myx.distro` destination and enumerating itself is how a walk recurses. There is no second config format and no path in any skillset file.
+- **A spawn naming no server gets the workspace's own set.** `--mcp-server <name>` names one, is repeatable, and naming any replaces the default outright. With none named, the core takes the keys of `$MMDAPP/.local/agents/mcp.servers.json` minus `myx.distro` -- the same set a served resource-tool or `ToolSearch` call already took, by the same code -- because this harness is the `myx.distro` destination and enumerating itself is how a walk recurses. There is no second config format and no path in any skillset file.
 - **A run holding no server leaves the file inert**, which is also what keeps the offline checks offline: `AgentsHarnessRestartCheck.test.sh` drives the real core with `MMDAPP` pointed at a scenario carrying no `mcp.servers.json`, so it opens no file and starts no process. Enumerating unconditionally at startup would destroy that check, so the guard on `${#harnessMcpServers[@]}` is load-bearing rather than defensive.
 - **`MMDAPP` unset or `.mcp.json` absent is not an error.** With no server named, nothing is printed at all, exactly as the hooks behave. With a server named it is a loud degrade instead of silence -- the operator asked for something they did not get -- and the run continues on the built-in tools.
 - **One process per enumeration, never a persistent connection.** The whole conversation is written before the server starts -- `initialize`, `notifications/initialized`, `tools/list` -- and the server reads three lines and answers, and stdin is held open until the awaited id is in `mcp.out` or the server has exited; only then does EOF reach it, which is what ends it. EOF is a stdio server's shutdown signal, and myx.common's `lib_execShStdin` answers from a background job, so closing stdin first left that call answerless three times in one live Grok run. The hold costs up to one second per exchange, its poll interval. bash 3.2 has no way to hold a bidirectional stdio session open without `mkfifo` plus statically allocated descriptors.
@@ -1834,20 +1924,26 @@ returning non-zero on a diagnostic finding.
     any argument name — that no tool whose own function in the core runs a caller-supplied string as a
     shell command is served. The served set is read off the real server's own `tools/list` answer, so the
     subtraction under test is observed rather than recomputed.
+    It also proves these `Monitor` twin behaviours: it is served, a start creates
+    `jobs/<id>/{out,pid,cursor}`, a poll returns new lines, `action` `kill` stops it, and a finished job
+    reports its exit code.
   - Why it exists: a harness tool joins that floor by default and nothing asked whether it should. The
     site check counts four structural sites, the tools-JSON check parses a declaration, and the mirror
     renders the whole floor by design — so all three stay green over a hole. `Monitor` reached the floor
     that way, where a `tools/call` runs one tool in a fresh process: the command ran, no scratch survived
     the call, and the job was left running with its log already deleted.
-  - Does not prove: that any served tool works, or that an unserved one is unservable for the right
-    reason. The process-local-handle half of the documented test is outside it entirely — see the section
-    above for why no source scan reaches it.
+  - Does not prove: that any served tool works beyond the twin behaviours above, or that an unserved one
+    is unservable for the right reason. The process-local-handle half of the documented test is outside
+    it entirely — see the section above for why no source scan reaches it.
   - Its reds, measured in a planted copy rather than reasoned. Plant the copy and name it as
     `MDLT_ORIGIN`, which is what selects the tree under test. Drop `Monitor` from
     `mcpUnservedToolNames`: the `command` assertion fails and so does `Monitor`'s own. Do that *and*
     rename `Monitor`'s `command` parameter to `script` in its declaration alone: the `command` assertion
     passes while the behavioural one still fails, which is the whole reason the behavioural form is
     carried rather than the name alone.
+    With the twin landed, the first plant also fails every twin assertion except `Monitor is served`,
+    because the harness `Monitor` is then served and takes its calls. A tree without the twin fails
+    every twin assertion.
   - Offline, and self-contained in its scratch only. `MMDAPP` — the root under test for the server's own
     scratch and every file it reads — is relocated onto its own `mktemp -d` fixture, so nothing is written
     outside it. No socket, no credential. The tree under test is whatever `MDLT_ORIGIN` names, and the
@@ -2035,3 +2131,237 @@ returning non-zero on a diagnostic finding.
   - Does not prove: anything about the live endpoint — the canned streams are Messages-shaped by construction, so the adapter is proven against itself.
   - Invoked: `bash sh-lib/AgentsHarnessAnthropicWireCheck.test.sh`. Green is `HARNESS_ANTHROPIC_WIRE: OK (2 scenarios, 19 assertions, offline)`.
   - Its red, measured against a changed copy of `sh-lib`: the assistant turn rebuilt from the calls the core assembles instead of replayed — 2 of 19, exit 1, the thinking block and the stream order both gone.
+
+## Arm before acting
+
+- **A spawned session reads its duty file before it acts.** In the harness model loop of a spawned session (`MDAT_SPAWN_SESSION_ID` set), Write, Edit, Bash, SendMessage, AskUserQuestion, Agent and any `mcp__*__execute` call are redirected with `ERROR: read your duty file first: Skill name=<member> file=<member>.armed.md -- then retry this call. Nothing was done.` The redirect applies until the session reads its own `<member>.armed.md` through Skill.
+- **Arming means the read reached the end of the file.** A read counts only when its output carries no truncation footer, and a ranged read's own footer shows it reached the last line. A single short range does not arm; the range that reaches the end does. Whether every range before it was read is not checked: this is an honest-agent gate.
+- **Loading stays deferred.** The prompt carries basic.md only, and the duty file costs nothing until it is read. Read-only tools are never redirected. A served `--intern-tool` call, or a session that is not spawned, is never gated.
+- **The redirect is not a stop.** The agent reads the file and retries, the router pattern the estate already uses for native tools. The first redirect in a session is posted once to event-track.
+- **Arming is recorded.** The harness marks its loop with `<sandbox>/<session-id>.harness`, and writes the arming time to `<sandbox>/<session-id>.armed`. The spawn close records one of three values, in the sandbox record and in the event-track close:
+  - `armed: yes`, with `armed-at`;
+  - `armed: no`, for a harness-loop session that ended without reading the file;
+  - `armed: unknown`, where no harness loop ran, so arming was never observable.
+- **Scope.** The gate lives in this package's harness, so it covers harness-leg spawns and the harness's own MCP-served acting tools. A vendor `-native` CLI does not run the harness loop, so its sessions are `armed: unknown`. Gating them would need a native hook, which waits on the human-owner's hook ruling.
+
+## Claude sign-in
+
+- **A signed-in machine is never moved onto a key.** For `claude-native`, the console asks `claude auth status`. When the answer is signed in, nothing is exported, even with a key configured, because Claude Code prefers an API key over a subscription sign-in and the switch would silently move spawns onto API billing.
+- **A signed-out spawn uses a configured key.** On the `--non-interactive` path only, a signed-out machine exports the first configured `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` from magic-team scope, says which one, and starts. It is not probed again: a bad key fails at launch with the CLI's own message, as rc 1.
+- **rc 6 means signed out with no key configured.** The spawn proxy reports it as `SETUP_STATUS=cli-not-authenticated`.
+- **An interactive console is only warned.** It never takes a key from here and is never refused, since a person there can sign in with `/login`.
+- **Any other answer never gates.** An unrecognised output shape, or a CLI other than claude, starts as before. The probe strips spaces before matching, so both JSON spellings are read.
+
+## Spawn sandbox input/
+
+- **What input/ holds.** At spawn, `sh-lib/AgentsTools.SpawnSandbox.include` fills `input/`, the part of the sandbox the spawn may read, with:
+  - `dispatch.md`, the brief exactly as the spawn receives it;
+  - a copy of the board item behind it, either the created dispatch item or the tracked item a reuse points at;
+  - `MAGIC.<package>.md` copies of the nearest MAGIC.md above every path the brief or the item names, never above `source/`. If none resolves, the workspace's own MAGIC.md, if there is one;
+  - a copy of each `*.routine.md` the text names;
+  - `pointers.md`, which lists every other skillset file named, with how to read it through Skill.
+- **Copies, not pointers.** The spawn gets what it needs inside its own access roots.
+- **input/ is read-only by file mode.** Once filled, it and everything in it lose their write bits. A client whose access flag carries no verb, such as `--add-dir`, grants input/ for writing too, so the mode is what keeps it read-only on every path. Cleaning restores the owner's write bit first.
+- **Credentials are never copied.** `pointers.md` names the member the tooling acts as for this spawn, and the tooling resolves that member's credentials itself.
+- **input/ is emptied at spawn close.** It is emptied on every exit path, in the waited branch and the async branch. `output/` and the root record are kept.
+- **Sweep.** Each main-loop iteration and each heartbeat close empties `input/` of every sandbox on this host whose sessions have no live process, and states which ones. A sandbox is never touched when it is recorded on another host, has a session still running, has no record, or has a record under 10 minutes old, since it may still be launching. A hard-killed spawn is therefore cleaned at the next pass after its launch window.
+
+## The internal session-context scan (`--intern-op-session-context-scan`)
+
+The single scan behind every `--*-input-scan` wrapper. It is internal, so it is kept off the public help; this is its whole argument contract, moved from there (backlog audit item 1892).
+
+```text
+--intern-op-session-context-scan <team-member> (--all-types|--type-prefix:<value>...) [--state <state>]... [--header <name>]... [--item <item-filename>]... [--item-include-inbox] [--filter-owner <member>] [--do-all] [--do-slack] [--do-email] [--do-trello] [--no-slack] [--no-email] [--no-trello] [--do-slack-tags] [--member-scope-only] [--comms-since-utime <v>|--comms-since-date-time <v>] [--do-inbox-inquiry-active|--do-inbox-inquiry-all] [--no-inbox-inquiry] [--do-inbox-reflections] [--no-inbox-reflections] [--do-inbox-notes] [--no-inbox-notes] [--do-inbox-other] [--no-inbox-other] [--do-inbox-also-member <member>]... [--do-board-related-active|--do-board-related-all] [--no-board-related] [--context <caller-op>]
+  Read-only: the single scan behind every --*-input-scan
+  wrapper. Internal -- a routine calls its own wrapper and
+  never this, and each wrapper hardcodes the argument list
+  below for the one view that routine needs. The flag
+  spellings live here and nowhere else: a skillset file
+  states this document's contract in its own terms and never
+  names a flag.
+
+  It emits the `# Session Sweep Report` document. What the
+  document must look like is the skillset's own
+  "Session-context document" entry and its skeleton file;
+  what follows is how a caller asks for it.
+
+  <team-member> is required and is the acting identity: every
+  comms read acts as that member, under that member's own
+  credentials, and the board and inbox reads are scoped to it.
+
+  Every section is requested, declined, or neither, and a
+  caller states two of the three. A --do-* flag requests a
+  section: it is scanned and emitted. A --no-* flag declines
+  it: no section at all, no heading and no **NOTE:** line. A
+  section named by neither flag is emitted as its heading plus
+  `**NOTE:** not requested` and nothing else. A wrapper
+  therefore passes both halves -- a --do-* for every section
+  it wants and a --no-* for every section it deliberately does
+  not -- so that a produced document carrying `not requested`
+  says the request itself was incomplete, and nothing else
+  says it.
+
+  Requesting is per breadth, declining is per section. A scope
+  offering two breadths is requested at exactly one of them,
+  and passing both is refused rather than unioned: both fill
+  the same heading, and a section carrying two scopes states
+  neither. Its decline names the section alone -- one --no-*
+  per section, never one per breadth. A --do-* and the --no-*
+  naming the same section are refused together: disagreeing
+  values are an error, not an intersection.
+
+  Exit code, reporting how much of the requested source set
+  was actually read: 0 when every source was scanned, and when
+  there was none to scan; 3 when some were read and some could
+  not be; 4 when none was read; 1 when the operation failed
+  before producing a document.
+
+
+  --all-types|--type-prefix:<value>...
+    The board-item type filter for `## Board Items`. Exactly
+    one of the two is required -- there is no implicit
+    default. --type-prefix: is repeatable and matches an item
+    filename by prefix; the two are mutually exclusive.
+
+  --state <state>
+    Repeatable. A board state to walk: backlog, pending,
+    running, blocked, parked, processed, archived or
+    retained. A --do-board-related-* flag supplies its own
+    state set, and a --state list beside one has to
+    byte-match it, order included, or the call is refused.
+
+  --header <name>
+    Repeatable. Emit only these frontmatter keys in each
+    board item's block. With none given, every key is
+    emitted.
+
+  --item <item-filename>
+    Repeatable. Restrict `## Board Items` to the named items.
+    The value is the full filename, `.md` included.
+
+  --item-include-inbox
+    A --item name found in no walked board state is then
+    looked up in the acting member's own inbox -- live root
+    first, then processed/ -- and rendered as an inbox block
+    there. A name found in neither is reported by name rather
+    than dropped.
+
+  --filter-owner <member>
+    Keep only board items whose `owner:` is this member. A
+    --do-board-related-* flag already binds the owner to the
+    acting <team-member>; passing --filter-owner beside one
+    with a different value is refused, because an
+    intersection would return a set neither argument asked
+    for.
+
+  --do-all
+    Requests all three comms sections: IM, email and Trello.
+    The whole set, not a shorthand to combine with part of it
+    -- passing it together with --do-slack, --do-email or
+    --do-trello is refused, and so is passing it together
+    with --no-slack, --no-email or --no-trello.
+
+  --do-slack
+  --do-email
+  --do-trello
+    Request one comms section each: `## Incoming IM Updates`,
+    `## Incoming Email Updates`, `## Incoming Trello Updates`.
+
+  --no-slack
+  --no-email
+  --no-trello
+    Decline one comms section each. A declined section is not
+    emitted at all. With all three declined the parent
+    `# New Incoming Communications` heading is not emitted
+    either.
+
+  --do-slack-tags
+    An additional IM source: mentions of the acting member,
+    read through the same per-conversation pipeline as
+    everything else. It needs the IM scan itself, so pass it
+    alongside --do-slack or --do-all. It is not a section of
+    its own and has no --no-* form.
+
+  --member-scope-only
+    Restrict the comms read to the acting member's own
+    configured sources under its own credentials, instead of
+    the team-side sources. It restricts a requested comms
+    scan and needs one, so pass it alongside --do-all,
+    --do-slack, --do-email or --do-trello. It is not a
+    section and has no --no-* form.
+
+  --comms-since-utime <v>|--comms-since-date-time <v>
+    The comms cut-off. --comms-since-utime takes epoch
+    seconds, with or without a fractional part;
+    --comms-since-date-time takes a YYYY-MM-DD-leading value.
+    Mutually exclusive, neither repeatable -- one cut-off,
+    one spelling. A cut-off with no comms section requested
+    is refused: it reads like comms were asked for when none
+    were. Given none, the IM read falls back to a recent
+    window and says so in that section's own `instrument:`
+    line -- a wrapper passes its own value rather than
+    letting it default.
+
+  --do-inbox-inquiry-active|--do-inbox-inquiry-all
+    Request `## Active Inbox Inquiry Items` at one of its two
+    breadths: the inbox's top level alone, or that plus
+    not-yet-collected processed/. Mutually exclusive.
+
+  --no-inbox-inquiry
+    Decline that section, at neither breadth in particular --
+    one decline for the section.
+
+  --do-inbox-reflections
+  --no-inbox-reflections
+  --do-inbox-notes
+  --no-inbox-notes
+  --do-inbox-other
+  --no-inbox-other
+    Request or decline `## Current Inbox Reflections`,
+    `## Current Inbox Notes` and `## Other Inbox Items`. Each
+    has one breadth, so each has one request and one decline.
+
+  --do-inbox-also-member <member>
+    Repeatable. Widens the inbox sections to that member's
+    inbox as well, each in its own group. A read-only
+    widening and nothing more: the acting identity, the
+    credentials every comms read uses, the board's owner
+    scoping and the named-item lookup all stay with
+    <team-member>, and nothing is written into another
+    member's inbox. Naming the acting member itself is
+    refused, naming one twice is refused, and passing it with
+    no inbox section requested is refused -- there would be
+    nothing to widen. A declined inbox section is declined
+    for every widened inbox alike.
+
+  --do-board-related-active|--do-board-related-all
+    Request `## Board Items` bound to the acting
+    <team-member> at one of its two breadths: the five active
+    states, or all eight. Mutually exclusive. The flag
+    supplies its own state set and its own owner filter.
+
+  --no-board-related
+    Decline that section, at neither breadth in particular --
+    one decline for the section. It declines the request only:
+    --state, --item, --type-prefix: and --filter-owner still
+    select board items, and the `## Board Items` heading is
+    still emitted whenever any of them produced one, because
+    an item block with no heading above it is a corrupt
+    document.
+
+  --context <caller-op>
+    Names the operation this scan was run for. Every wrapper
+    passes its own name.
+```
+
+## Permission refusals, grants and escalations
+
+- **A refusal is a recorded fact, never a verdict.** A harness Write or Edit refused by the write-root check, or by the unattended team-store rule, writes a record in `.local/agents/sessions/<session-id>/refusal-<uuid>.md` first (`--intern-op-permission-refusal-log`). It then posts it to that session's event-track thread, opening the thread on the first refusal. The tool result keeps the original `ERROR:` line and adds `REFUSAL-ID:`. With no session id, or a record that cannot be written, it says `REFUSAL-ID: none` and issues no id.
+- **Grants are keyed by session, member, tool and target.** The target is the resolved path for a file tool, or the exact command bytes. It is taken from the refusal record, never from the text of an ask. Allow once is used up by one `mkdir` of `consumed/<refusal-id>`. Allow in this session lasts as long as the session's id does. Planned allows are read from the session's `dispatch-*` item and the one item its `tracks:` names. Only `session` entries count there, and never one signed by the session's own member.
+- **Escalations are AskUserQuestion kinds.** readback, decision and permission always wait. The pending-reply record keeps what an answer is judged against, and `sh-lib/AgentsTools.MemberEscalation.include` applies a verdict in one place, behind a `mkdir` lock, so two answers never both apply. `sh-lib/AgentsEscalationVerdict.awk` is the one classifier.
+- **Unattended unless a person is known to be there.** Attended is only a served call from an interactive Claude Code client, where `CLAUDE_CODE_ENTRYPOINT` is `cli` or `claude-vscode`, with neither `MDAT_SESSION_UNATTENDED=true` (set by the console's `--non-interactive` branch) nor a spawn id. Everything else is unattended: the harness's own model loop, `claude -p` (`sdk-cli`), a client that is not Claude Code, and an unset or unknown entrypoint. To admit a new interactive surface, add its entrypoint value to the `case` in `AgentsHarnessUnattended` (`sh-lib/AgentsUniversalHarness.sh`) and in `sh-lib/client-hooks/permission-request-escalation.sh`, the one list both gates read. An unattended session never writes the team data store or the session store with Write or Edit, whatever its roots grant. The native `PermissionRequest` hook is silent in an attended session.
+- **The boundary is honest agents with an audit trail.** Grant files, refusal records, board frontmatter and the answering member's name are plain local state. A session that runs shell through `execute` can write any of them, because only Write and Edit are gated, and it can set any of the variables the attended rule reads.
+- **Write and Edit replace a file by rename, under a per-target lock.** A temp beside the target (`cp -p` first, so the mode carries over) is `mv`-ed over it, so a reader sees the old file or the new one, never half. The lock is a symlink in `.local/agents/locks/<cksum of the target>` naming the holder's pid; a dead holder's lock is broken, and 30 busy polls end in `ERROR: could not take the write lock`. Known limits: a rename breaks hard links to the target; a process killed between the copy and the rename leaves `.<name>.mdat-write.<pid>` beside it; a file rewritten by a user other than its owner becomes the writer's; two callers breaking the same dead lock at once can both take it; the swap window between the leaf check and the write is open.
+- **An Allow once is spent when the gate admits the call**, before the write happens, so a write that then fails still uses it up and the call needs a new escalation.
+- **The local lock trusts a pid.** A dead holder's pid reused by an unrelated live process keeps that lock looking held until the process exits; this is accepted. A fresh lock moved by a breaker is recreated with `ln -s`, which never overwrites: if another caller took the path in between, the conflict is logged naming both pids rather than lost.
+- **Exit status.** Under `set -e`, bash 3.2 hands an EXIT trap `$?=0` on a syntax error. So the harness trap keeps a 0 only when the run reached one of its own two successful exits, which set `harnessExitClean`. A harness cut short, or one that does not parse, therefore never exits 0 with nothing on stdout, and the MCP server reports empty output from a harness tool as an error.

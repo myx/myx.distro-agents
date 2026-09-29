@@ -200,6 +200,12 @@ case "$1" in
 			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --from-state:, --from-inbox:, and --create are mutually exclusive" >&2
 			set +e ; return 1
 		fi
+		## A new item's name is <type>-<YYYYMMDD'T'HHmm'Z' or HHmmSS'Z'>[-<slug>].md. Only creation
+		## is checked, and a rename's husk keeps the name it supersedes.
+		if [ "$isCreate" = "true" ] && [ "$opContext" != "--intern-op-board-rename" ] \
+			&& ! printf '%s\n' "$itemName" | LC_ALL=C grep -Eq '^[a-z][a-z0-9]*-[0-9]{8}T[0-9]{4}([0-9]{2})?Z(-[A-Za-z0-9._-]+)?\.md$' ; then
+			echo "$MDSC_CMD: board-upsert-move-edit: ⚠️ WARNING: --create: $itemName does not follow the naming Rule (magic-team.armed.md): \"when/if you add a date, always use \`YYYYMMDD'T'HHmm'Z'\` format. If seconds are required, use \`YYYYMMDD'T'HHmmSS'Z'\` extended variant.\" The shape is <type>-<date>-<matter>.md, for example task-$( date -u +%Y%m%dT%H%MZ )-short-matter.md. Created anyway." >&2
+		fi
 
 		if [ "$bodyModeCount" -gt 1 ] ; then
 			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --upsert-from-stdin, --edit-script-from-stdin, and --edit-patch-from-stdin are mutually exclusive" >&2

@@ -25,7 +25,7 @@ Doesn't do: reach agreement (`magic-team.discuss.routine`'s job).
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: run `magic-team.process-inbox.routine <executor>` — inline execution (own identity). Genuinely load-bearing here, not boilerplate: `magic-team.interview.routine` is manual-trigger-only with no daily/autonomous invocation anywhere else, so this explicit call is what guarantees own inbox is read before an interview starts.
 2. **open-channel-and-create-item**:
@@ -155,7 +155,7 @@ All statements apply at the same time, always. These rules override a participan
   - `fork:` — same readback-and-confirm step, but the topic does not join this interview's own scope: file it as its own new `interview-*` board-item instead, then add the topic to that new board-item's own scope/goals at the top of its plan once confirmed.
 - **Inherits the team's own topic/queue/question mechanics.** Both presentation modes (next-question and topics-to-choose) are available; use whichever fits the round.
 - A member with a genuine domain-specific interview need routes that request through `magic-coordinator`, rather than running this routine independently — unless, and until, a real case justifies widening this.
-- One documented mechanism failing once is a stop-and-ask signal, not a puzzle to solve alone.
+- One documented mechanism failing once is an escalation signal, not a puzzle to solve alone.
 - A small, stable understanding is reached mid-interview: apply and record it inline immediately.
 - A bigger understanding emerges mid-interview but isn't yet concrete enough to be **run-minimal-step-cycle**'s minimal step or **run-bigger-mechanism-cycle**'s settled mechanism: file it as an inbox task referencing the live interview, for `magic-coordinator` to decompose into proper subtasks later — don't decide it on the spot just because the interview surfaced it.
 - The other party starts pushing toward a decision or agreement, not just describing their vision: gently keep the session in collection mode if there's more to capture, but don't fight a natural convergence if the other party clearly wants to decide something right now — note explicitly that the mode shifted.

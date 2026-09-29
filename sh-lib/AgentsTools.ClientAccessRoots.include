@@ -197,7 +197,7 @@ AgentsToolsClientAccessRootTag(){
 	LC_ALL=C awk -F: -v wantRoot="$1" '
 		NF >= 4 {
 			rowRoot = substr( $0, length($1) + length($2) + length($3) + 4 )
-			if ( rowRoot == wantRoot ) { print $3 ; exit }
+			if ( rowRoot == wantRoot ) { print $3 ; exit ; }
 		}
 	' "$tagsFile"
 }

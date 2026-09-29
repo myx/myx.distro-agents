@@ -19,7 +19,7 @@ Doesn't do: write the board's formal state (`magic-coordinator`-exclusive).
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **read-and-classify**: a status/block report, a request/question, a routine handoff, a reflection, something else. Not an exhaustive list — classify by what it actually says.
 2. **act-lightweight**: reply, route to another member or to `magic-coordinator`, or resolve inline if it's genuinely simple/obvious and within this member's own duties. Needs a formal board change and this isn't `magic-coordinator` running the pass: route to `magic-coordinator` rather than attempting the write.

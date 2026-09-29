@@ -76,7 +76,7 @@ Steps:
 ## `own-inbox-batch-processing` — process this skill's own doc-fix inbox
 
 Steps:
-1. **Landing**: any team member (including this skill itself) files a note describing a needed doc-fix via `--member-inbox-note-upsert magic-librarian <item-filename>`. Filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`. Small/individual findings do not get their own immediate ad hoc dispatch.
+1. **Landing**: any team member (including this skill itself) files a note describing a needed doc-fix via `--member-inbox-note-upsert magic-librarian <item-filename>`. Filename: type prefix first, date immediately after, no extra words in between — `note-<date>-<matter>.md`, with `<date>` in `magic-team/magic-team.armed.md`'s tooling-section naming **Rule**, `YYYYMMDD'T'HHmm'Z'` — e.g. `note-20260929T0930Z-short-matter.md`. Small/individual findings do not get their own immediate ad hoc dispatch.
 2. **Timing**: process this inbox once per workday, before `magic-coordinator.daily.routine`, wired into `magic-coordinator.heartbeat.routine`'s first-today branch alongside its existing `magic-team.grooming.routine` pass.
 3. **Processing**, steps:
    - collect all doc-fix items in this inbox first

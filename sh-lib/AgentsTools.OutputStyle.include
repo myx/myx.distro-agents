@@ -80,6 +80,8 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 				-v rowKind="$rowKind" '
 				NF { printf "%s\t%s\t%s\t%s\t%s\t%s\n", stamp, rowKind, who, declared, dest, $0 ; }
 			' >> "$refusalLog" || echo "# $MDSC_CMD: the measurement could not be recorded, so nothing counts whether this floor is mis-set." >&2
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+			AgentsToolsTeamDataCommitPaths "output-style $rowKind, $styleMember" "$refusalLog"
 		fi
 		## rc 2 means the checker could not measure at all, which is never a pass.
 		[ "$styleRc" = "1" ] && [ -z "$gatingHit" ] || return 1
@@ -119,6 +121,8 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 			echo "⛔ ERROR: $MDSC_CMD: the --text-group $styleGroup declaration could not be appended to the audit store, so NOTHING WAS SENT. A declaration that leaves no trace is the silent off switch this design refuses." >&2
 			return 1
 		}
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataCommitPaths "output-style declaration, $styleMember" "$declarationLog"
 	fi
 
 	return 0

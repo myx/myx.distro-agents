@@ -2137,6 +2137,21 @@ blocks|verbatim|caller|stdin file"
 		## in place at the identity swap below, as the header file was rewritten.
 		local authHeader="Authorization: Bearer $token"
 
+		## One line per send outcome in a durable local log, as console.log is for a
+		## console: a session that did not send can still read what happened. Outside
+		## the team-data store, so a send adds no commit. Target, identity and outcome
+		## only -- never the body, never a token, never Slack's raw response.
+		local sendLog="$MMDAPP/.local/agents/comms-slack-send.log"
+		AgentsToolsSlackSendLogLine(){ ## ok|failed, reason
+			local logReason
+			logReason="$( printf '%s' "$2" | LC_ALL=C tr -c 'A-Za-z0-9_.:=/ -' '_' )"
+			{ mkdir -p "${sendLog%/*}" && printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$( date -u +%Y%m%dT%H%M%SZ )" "$memberName" "$target" "$channel" "$sendIdentity" "$1" "$logReason" >> "$sendLog" ; } 2>/dev/null \
+				|| echo "⚠️ WARNING: $MDSC_CMD --member-comms-slack-send-message: could not append this send's outcome to $sendLog" >&2
+		}
+		AgentsToolsSlackSendErrorCode(){ ## Slack's error code from $response, alone
+			printf '%s' "$response" | LC_ALL=C sed -n 's/.*"error":"\([a-z_]*\)".*/\1/p' | head -n 1
+		}
+
 		local authUserId=""
 		if [ "$sendIdentity" = "user" ] ; then
 			local authResp
@@ -2146,6 +2161,7 @@ blocks|verbatim|caller|stdin file"
 			if [ "$authUserIdRc" != "0" ] || [ -z "$authUserId" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: could not confirm auth.test user_id for $memberName SLACK_USER_TOKEN (user_id reader rc=$authUserIdRc)" >&2
 				echo "# Response: $authResp" >&2
+				AgentsToolsSlackSendLogLine failed "not posted: auth.test user_id not confirmed"
 				set +e ; return 1
 			fi
 		fi
@@ -2228,11 +2244,13 @@ blocks|verbatim|caller|stdin file"
 				if [ "$responseMessageUserRc" != "0" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: member SLACK_USER_TOKEN send for $memberName could not be confirmed as message.user=$authUserId -- the response carries no readable message.user (reader rc=$responseMessageUserRc), so the control reached no verdict, which is not a pass" >&2
 					echo "# Response: $response" >&2
+					AgentsToolsSlackSendLogLine failed "posted, but message.user not readable"
 					set +e ; return 1
 				fi
 				if [ "$responseMessageUser" != "$authUserId" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: member SLACK_USER_TOKEN send for $memberName did not confirm message.user=$authUserId (actual message.user=$responseMessageUser)" >&2
 					echo "# Response: $response" >&2
+					AgentsToolsSlackSendLogLine failed "posted, but not as message.user=$authUserId"
 					set +e ; return 1
 				fi
 			fi
@@ -2268,15 +2286,18 @@ blocks|verbatim|caller|stdin file"
 			## of their own. Empty is a stated value: a wait cannot qualify an answer
 			## without it, and must say so rather than accept whatever arrives.
 			echo "SENT_MESSAGE_ADDRESSEES=${addressedIds% }" >&2
+			AgentsToolsSlackSendLogLine ok "posted ts=$sentTs"
 			printf '%s\n' "$response"
 			return 0
 		fi
 
 		if [ -n "$permanentVerdict" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: nothing was posted -- $permanentVerdict. Slack answered, so comms are not stuck and no email is sent." >&2
+			AgentsToolsSlackSendLogLine failed "not posted: $permanentVerdict error=$( AgentsToolsSlackSendErrorCode )"
 			set +e ; return 1
 		fi
 
+		AgentsToolsSlackSendLogLine failed "not posted: no ok:true after $maxAttempts attempts error=$( AgentsToolsSlackSendErrorCode )"
 		echo "⛔ $MDSC_CMD --member-comms-slack-send-message: Slack did not confirm after $maxAttempts attempts -- notifying by email that Slack comms are stuck" >&2
 		local fallbackUser
 		fallbackUser="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_USER )"

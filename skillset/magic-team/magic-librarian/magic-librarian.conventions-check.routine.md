@@ -19,7 +19,7 @@ Doesn't do: invent a "convention" that isn't actually demonstrated somewhere in 
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **identify-target-and-analog**: identify what's actually being reviewed and its closest existing real analog already in the repo/skill set (an existing sibling op, an existing sibling `.md` file of the same type, etc.) — read that analog directly, don't rely on a recalled description of it. Across a multi-file or multi-finding batch, the analog is resolved per finding, not once per batch.
 2. **compare-against-analog**: compare the proposal against the actual pattern in that analog file — naming, error-message shape, where things are placed, the analog's own shape and verbosity, and any style rules stated in that file's own header/comments — including `magic-librarian`'s own "Two writing modes" standard for skill-folder `.md` files. Emitted text is compared against `magic-team/magic-team.shared.md`'s own "The output-style floor" instead, and against `magic-librarian/magic-librarian.armed.md`'s own "Applying the output-style floor" for which clauses a reader judges. Carried spans are recognised by their markup and are not measured. Shape and verbosity means how much the analog actually carries — the length of its lead-in, the prose around its substance, the number of elements — and a proposal several times more elaborate than its analog fails this step even where every other axis matches.

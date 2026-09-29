@@ -170,7 +170,7 @@ case "$1" in
 					sub(/"$/, "", v)
 					return v
 				}
-				{ body = body $0 }
+				{ body = body $0 ; }
 				END {
 					id = field("id") ; user = field("username")
 					if (id == "" || user == "") {

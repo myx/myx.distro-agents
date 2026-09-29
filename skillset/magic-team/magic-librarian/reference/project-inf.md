@@ -61,6 +61,7 @@ follows is only the grouping convention layered on top of it.
 
 - **A line carrying only a backslash is a blank separator inside the value, and is how a long
   `Provides:` is grouped.** The parser collapses it away; it exists for the reader.
+- **A blank line with no backslash ends the value, silently.** Every entry after it, up to the next key, is dropped with no error. Inside a value, the separator is always a backslash-only line.
 - **The established group order inside a `Provides:` is: the abstract capability alias, the
   `exec-update-*` fragments, the `context-variable` declarations, then the paired
   `sync-source-files`/`deploy-sync-files` lines, one blank-separated group per synced directory.**

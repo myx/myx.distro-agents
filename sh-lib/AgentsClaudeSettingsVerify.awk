@@ -22,6 +22,8 @@
 #   MYX_CLAUDEVERIFY_DENY_JSON        -- same, against `permissions.deny`
 #   MYX_CLAUDEVERIFY_MCP_SERVERS_JSON -- same, against root
 #                                        `enabledMcpjsonServers`
+#   MYX_CLAUDEVERIFY_HOOK_EVENT       -- the hooks event MYX_CLAUDEVERIFY_HOOK_KEYS
+#                                        are looked for under; PreToolUse when unset.
 #   MYX_CLAUDEVERIFY_HOOK_KEYS        -- newline-separated plain substrings,
 #                                        each required within the raw text of
 #                                        `hooks.PreToolUse`. Same dedupe-key
@@ -232,6 +234,9 @@ BEGIN {
 	wantDenyCount = loadWanted(ENVIRON["MYX_CLAUDEVERIFY_DENY_JSON"], wantDeny)
 	wantMcpCount = loadWanted(ENVIRON["MYX_CLAUDEVERIFY_MCP_SERVERS_JSON"], wantMcp)
 	wantHookCount = split(ENVIRON["MYX_CLAUDEVERIFY_HOOK_KEYS"], wantHook, "\n")
+	## The hooks event the keys are looked for under; PreToolUse unless named.
+	wantHookEvent = ENVIRON["MYX_CLAUDEVERIFY_HOOK_EVENT"]
+	if (wantHookEvent == "") wantHookEvent = "PreToolUse"
 }
 
 # Rejoin the records under the default RS: a NUL RS is the empty string, which
@@ -286,15 +291,15 @@ END {
 		if (FOUND) {
 			hooksStart = VALUE_START
 			if (substr(s, hooksStart, 1) != "{") fail("hooks-not-an-object")
-			if (!findKeyInObjectAt(hooksStart, "PreToolUse")) fail("unparsable")
+			if (!findKeyInObjectAt(hooksStart, wantHookEvent)) fail("unparsable")
 			if (FOUND) {
-				if (substr(s, VALUE_START, 1) != "[") fail("PreToolUse-not-an-array")
+				if (substr(s, VALUE_START, 1) != "[") fail(wantHookEvent "-not-an-array")
 				hooksSlice = arraySliceAt(VALUE_START)
 			}
 		}
 		for (i = 1; i <= wantHookCount; i++) {
 			seenHook = (hooksSlice != "" && index(hooksSlice, wantHook[i]) > 0)
-			printf "%s %s: %s\n", "hooks.PreToolUse", wantHook[i], (seenHook ? "OK" : "MISSING")
+			printf "%s %s: %s\n", "hooks." wantHookEvent, wantHook[i], (seenHook ? "OK" : "MISSING")
 			if (!seenHook) missingTotal++
 		}
 	}

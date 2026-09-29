@@ -142,6 +142,8 @@ harnessCredentialNames="${HARNESS_CREDENTIAL_NAMES:-}"
 ## the model are all skipped. First argument only -- a prompt is trailing argv.
 harnessToolOnly=""
 harnessToolOnlyName=""
+## Read and Skill return whole lines up to this many bytes; a served result stays under the MCP client's own limit.
+harnessReadCap=200000
 if [ "${1:-}" = --intern-tool ] ; then
 	if [ -z "${2:-}" ] ; then
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: --intern-tool: tool name required" >&2
@@ -149,10 +151,14 @@ if [ "${1:-}" = --intern-tool ] ; then
 	fi
 	harnessToolOnly=1
 	harnessToolOnlyName="$2"
+	## Read once and unset, so no child this harness starts can overwrite the caller's head or image file.
+	harnessHeadFile="${MDAT_MCP_RESULT_HEAD_FILE:-}" ; unset MDAT_MCP_RESULT_HEAD_FILE
+	harnessImageFile="${MDAT_MCP_RESULT_IMAGE_FILE:-}" ; unset MDAT_MCP_RESULT_IMAGE_FILE
+	harnessReadCap=48000
 	shift 2
 	## The wire IS needed, and reaching an endpoint is not why: AgentsHarnessMcpClient.sh
 	## builds its declarations through the wire's own AgentsWireToolDeclaration, so the
-	## three MCP resource tools fail without an adapter in scope. Sourcing one costs
+	## three MCP resource tools and ToolSearch fail without an adapter in scope. Sourcing one costs
 	## nothing -- the adapter's whole top level is a JSON literal and two variables.
 	## A stub that named a wire keeps it; otherwise this is the same default
 	## AgentsHarnessMcpMirror.sh renders the floor from.
@@ -247,6 +253,7 @@ harnessAccessRoots=()
 harnessWriteAccessRoots=()
 harnessSessionId=""
 harnessAgent=""
+harnessAgentMissing=""
 harnessMcpServers=()
 while [ $# -gt 0 ] ; do
 	case "$1" in
@@ -357,7 +364,18 @@ if [ -n "$harnessToolOnly" ] && [ -z "$harnessAgent" ] ; then
 			*) harnessAgent="" ; harnessAgentCheckRest="" ;;
 		esac
 	done
-	[ -n "$harnessAgent" ] && [ -r "${MDAT_SKILLSET_ROOT:-}/$harnessAgent/$harnessAgent.basic.md" ] || harnessAgent=""
+	## The skillset root the Skill tool also falls back to, so a served call resolves its
+	## member where MDAT_SKILLSET_ROOT is unset; one it still cannot find is said, not dropped.
+	harnessServedSkillset="${MDAT_SKILLSET_ROOT:-${HOME:+$HOME/.claude/skills}}"
+	## Announced, then exported, so every later check and every child the call runs reads the same root.
+	if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
+		printf 'WARNING: MDAT_SKILLSET_ROOT is not set in this process, so the served identity is read from the fallback %s\n' "${harnessServedSkillset:-<HOME unset too>}" >&2
+		[ -z "$harnessServedSkillset" ] || export MDAT_SKILLSET_ROOT="$harnessServedSkillset"
+	fi
+	if [ -n "$harnessAgent" ] && [ ! -r "$harnessServedSkillset/$harnessAgent/$harnessAgent.basic.md" ] ; then
+		harnessAgentMissing="no team identity resolved: ${harnessServedSkillset:-<MDAT_SKILLSET_ROOT and HOME unset>}/$harnessAgent/$harnessAgent.basic.md is not readable -- set MDAT_SKILLSET_ROOT in the MCP server environment"
+		harnessAgent=""
+	fi
 fi
 
 ## This leg has no external hook observer, so this line is the only session join.
@@ -529,7 +547,7 @@ fi
 	[ ! -d "$harnessSessionResults" ] || harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessSessionResults" )"$'\n'
 done
 
-harnessScratch="$( mktemp -d -t "AgentsUniversalHarness-XXXXXXXX" )" || {
+harnessScratch="$( mktemp -d "${TMPDIR:-/tmp}/AgentsUniversalHarness.XXXXXX" )" || {
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: could not create a scratch directory" >&2
 	exit 1
 }
@@ -560,7 +578,11 @@ AgentsHarnessReapChildren(){
 	done
 }
 
-trap 'trap "" INT TERM ; AgentsHarnessRestoreTerminal ; AgentsHarnessReapChildren ; rm -rf -- "$harnessScratch"' EXIT
+## The status the run exits with is kept through the cleanup, so a failure never leaves as
+## 0. Under set -e, bash 3.2 hands this trap $?=0 on a syntax error, so a 0 counts only
+## when the run reached one of its own two successful exits, which set harnessExitClean.
+harnessExitClean=""
+trap 'harnessExitStatus=$? ; [ "$harnessExitStatus" != 0 ] || [ -n "$harnessExitClean" ] || harnessExitStatus=2 ; trap "" INT TERM ; AgentsHarnessRestoreTerminal ; AgentsHarnessReapChildren ; rm -rf -- "$harnessScratch" ; exit "$harnessExitStatus"' EXIT
 
 ## Monitor handles number from here rather than from a pid, so a handle stays readable
 ## in a transcript and cannot be reused by the system for something else.
@@ -629,11 +651,11 @@ fi
 harnessResolvedPath=""
 
 ## Absolute paths only, no `..` segment, resolved to their real location and then
-## prefix-matched against the resolved roots. A final component that is itself a
-## symlink is not resolved, so a symlink inside an allowed root pointing out of it
-## is followed by any tool that opens it.
+## prefix-matched against the resolved roots. A final symlink component that exists
+## is followed to its target and judged there; a dangling or cyclic one is judged as given.
 AgentsHarnessPathAllowed(){
-	local checkPath="$1" checkRoots="${2:-$harnessRoots}" checkRoot checkReal
+	local checkPath="$1" checkRoots="${2:-$harnessRoots}" checkRoot checkReal checkLinkDir
+	harnessResolvedPath=""
 	case "$checkPath" in
 		/*) ;;
 		*) return 1 ;;
@@ -646,16 +668,36 @@ AgentsHarnessPathAllowed(){
 	if [ -d "$checkPath" ] ; then
 		checkReal="$( cd "$checkPath" 2>/dev/null && pwd -P )" || checkReal=""
 	else
-		checkReal="$( cd "$( dirname -- "$checkPath" )" 2>/dev/null && pwd -P )" || checkReal=""
+		checkLinkDir="${checkPath%/*}"
+		[ -n "$checkLinkDir" ] || checkLinkDir="/"
+		checkReal="$( cd "$checkLinkDir" 2>/dev/null && pwd -P )" || checkReal=""
 		if [ -n "$checkReal" ] ; then
 			case "$checkReal" in
-				*/) checkReal="$checkReal$( basename -- "$checkPath" )" ;;
-				*)  checkReal="$checkReal/$( basename -- "$checkPath" )" ;;
+				*/) checkReal="$checkReal${checkPath##*/}" ;;
+				*)  checkReal="$checkReal/${checkPath##*/}" ;;
 			esac
 		fi
 	fi
 	## An unresolvable path is compared as given rather than admitted by default.
 	[ -n "$checkReal" ] || checkReal="$checkPath"
+	local checkHops=0 checkLink
+	while [ -L "$checkReal" ] && [ -e "$checkReal" ] ; do
+		checkHops=$(( checkHops + 1 ))
+		[ "$checkHops" -le 40 ] || return 1
+		checkLink="$( readlink "$checkReal" 2>/dev/null )" || return 1
+		[ -n "$checkLink" ] || return 1
+		case "$checkLink" in
+			/*) ;;
+			*) checkLink="${checkReal%/*}/$checkLink" ;;
+		esac
+		checkLinkDir="${checkLink%/*}"
+		[ -n "$checkLinkDir" ] || checkLinkDir="/"
+		checkReal="$( cd "$checkLinkDir" 2>/dev/null && pwd -P )" || return 1
+		case "$checkReal" in
+			*/) checkReal="$checkReal${checkLink##*/}" ;;
+			*)  checkReal="$checkReal/${checkLink##*/}" ;;
+		esac
+	done
 	## Published so every tool operates on this rather than the spelling the model typed.
 	harnessResolvedPath="$checkReal"
 	while IFS= read -r checkRoot ; do
@@ -665,6 +707,81 @@ AgentsHarnessPathAllowed(){
 		esac
 	done <<< "$checkRoots"
 	return 1
+}
+
+## Unattended unless a person is known to be there: this harness's own model loop always
+## is; a served call is attended only from an interactive Claude Code client (its
+## CLAUDE_CODE_ENTRYPOINT is cli or claude-vscode) with no unattended marker and no spawn
+## id. An unset or unknown entrypoint is unattended, so a new surface fails closed.
+AgentsHarnessUnattended(){
+	[ -n "$harnessToolOnly" ] || return 0
+	[ "${MDAT_SESSION_UNATTENDED:-}" != "true" ] || return 0
+	[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || return 0
+	case "${CLAUDE_CODE_ENTRYPOINT:-}" in
+		cli|claude-vscode) return 1 ;;
+	esac
+	return 0
+}
+
+## The team stores an unattended session never writes with Write or Edit, whatever its roots grant.
+AgentsHarnessWriteExcluded(){ ## resolved path
+	local excludeRoot excludeReal
+	AgentsHarnessUnattended || return 1
+	for excludeRoot in "${MDAT_DATA_ROOT:-}" "${MMDAPP:+$MMDAPP/.local/agents/sessions}" ; do
+		[ -n "$excludeRoot" ] || continue
+		excludeReal="$( cd "$excludeRoot" 2>/dev/null && pwd -P )" || excludeReal="$excludeRoot"
+		case "$1" in
+			"$excludeReal"|"$excludeReal"/*|"$excludeRoot"|"$excludeRoot"/*) return 0 ;;
+		esac
+	done
+	return 1
+}
+
+## The session this call belongs to: the harness's own, a spawn's, or the Claude Code client's.
+AgentsHarnessSessionKey(){
+	printf '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+}
+
+## A granted call for this session, tool and resolved target; an Allow once is used up here.
+AgentsHarnessGranted(){ ## tool, resolved target
+	local grantTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" grantSession grantLine
+	grantSession="$( AgentsHarnessSessionKey )"
+	[ -n "$2" ] && [ -n "$grantSession" ] && [ -n "$harnessAgent" ] && [ -x "$grantTools" ] || return 1
+	"$grantTools" --intern-op-permission-grant-read "$harnessAgent" --session-id "$grantSession" --tool "$1" --target "$2" \
+		> "$harnessScratch/grant.out" 2> /dev/null || return 1
+	grantLine="$( LC_ALL=C sed -n 's/^GRANT: //p' "$harnessScratch/grant.out" | head -1 )"
+	case "$grantLine" in
+		'session '*|'planned '*) return 0 ;;
+		'once '*)
+			"$grantTools" --intern-op-permission-grant-consume --session-id "$grantSession" --refusal-id "${grantLine#once }" \
+				> /dev/null 2>&1 || return 1
+			return 0
+		;;
+	esac
+	return 1
+}
+
+## A gated refusal: the original ERROR line first and unchanged, then the recorded
+## refusal id and how to ask for the call. Recording never changes the outcome.
+AgentsHarnessRefusal(){ ## tool, target, error line
+	local refusalTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" refusalId="" refusalSession
+	printf '%s\n' "$3"
+	refusalSession="$( AgentsHarnessSessionKey )"
+	if [ -z "$refusalSession" ] || [ -z "$harnessAgent" ] || [ ! -x "$refusalTools" ] ; then
+		printf 'REFUSAL-ID: none -- this session has no session id or team identity, so the refusal was not recorded and cannot be escalated by id.\n'
+		return 0
+	fi
+	"$refusalTools" --intern-op-permission-refusal-log "$harnessAgent" --session-id "$refusalSession" --tool "$1" --target "$2" \
+		--reason "$3" > "$harnessScratch/refusal.out" 2> "$harnessScratch/refusal.err" || :
+	refusalId="$( LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' "$harnessScratch/refusal.out" | head -1 )"
+	if [ -z "$refusalId" ] ; then
+		printf 'REFUSAL-ID: none -- recording the refusal failed, so it cannot be escalated by id. What the operation reported follows:\n'
+		cat "$harnessScratch/refusal.err" 2>/dev/null
+		return 0
+	fi
+	printf 'REFUSAL-ID: %s\n' "$refusalId"
+	printf 'This is a refusal, not a verdict. If this task needs the call, ask for it with AskUserQuestion kind=permission, refusal_id=%s, a reason and a task_ref, addressed to the coordinator in this session. Carry on with work that does not need it. A granted call is retried exactly as it was made.\n' "$refusalId"
+	LC_ALL=C grep '⚠️' "$harnessScratch/refusal.err" 2>/dev/null || :
 }
 
 ## Digits only, by explicit enumeration: a bracket range is collation-dependent.
@@ -682,8 +799,8 @@ AgentsHarnessWholeNumber(){
 }
 
 ## A line range is the only way past the byte cap, so it states what it showed. Read and
-## Skill both take one.
-AgentsHarnessReadRange(){ ## path, offset, limit
+## Skill both take one; Read passes numbered, for cat -n lines, and Skill does not.
+AgentsHarnessReadRange(){ ## path, offset, limit, optional numbered
 	local rangeOffset="${2:-1}" rangeLimit="$3"
 	if ! AgentsHarnessWholeNumber "$rangeOffset" || [ "$rangeOffset" -lt 1 ] ; then
 		printf 'ERROR: offset must be a whole line number counting from 1, got: %s\n' "$rangeOffset" ; return 0
@@ -691,25 +808,35 @@ AgentsHarnessReadRange(){ ## path, offset, limit
 	if [ -n "$rangeLimit" ] && { ! AgentsHarnessWholeNumber "$rangeLimit" || [ "$rangeLimit" -lt 1 ] ; } ; then
 		printf 'ERROR: limit must be a whole number of lines, at least 1, got: %s\n' "$rangeLimit" ; return 0
 	fi
-	## Digits by the checks above, so there is nothing here for -v to backslash-decode.
-	LC_ALL=C awk -v fromLine="$rangeOffset" -v lineLimit="${rangeLimit:-0}" -v byteCap=200000 '
+	## Digits by the checks above and the mode a literal, so there is nothing here for -v to backslash-decode.
+	LC_ALL=C awk -v fromLine="$rangeOffset" -v lineLimit="${rangeLimit:-0}" -v byteCap="$harnessReadCap" -v numberLines="$4" -v restHint="$5" '
 		NR >= fromLine && ( lineLimit == 0 || NR < fromLine + lineLimit ) {
-			rangeBytes = rangeBytes + length($0) + 1
-			if ( rangeBytes <= byteCap ) { print ; shownCount = shownCount + 1 ; shownBytes = rangeBytes ; }
+			shownLine = ( numberLines == "" ) ? $0 : sprintf("%6d\t%s", NR, $0)
+			rangeBytes = rangeBytes + length(shownLine) + 1
+			if ( rangeBytes <= byteCap ) { print shownLine ; shownCount = shownCount + 1 ; shownBytes = rangeBytes ; }
 		}
 		END {
-			if ( rangeBytes > byteCap ) printf "... TRUNCATED: showed %d of %d bytes in the requested range ...\n", shownBytes, rangeBytes
+			if ( rangeBytes > byteCap && shownCount == 0 ) printf "... line %d alone is over the %d-byte cap of this reader, so it cannot be returned here ...\n", fromLine, byteCap
+			else if ( rangeBytes > byteCap && restHint != "" ) printf "... TRUNCATED: showed %d of %d bytes; %s ...\n", shownBytes, rangeBytes, restHint
+			else if ( rangeBytes > byteCap ) printf "... TRUNCATED: showed %d of %d bytes in the requested range; continue with offset %d ...\n", shownBytes, rangeBytes, fromLine + shownCount
+			else if ( numberLines != "" && lineLimit > 0 && NR >= fromLine + lineLimit ) printf "... TRUNCATED: showed %d of %d lines; continue with offset %d ...\n", shownCount, NR - fromLine + 1, fromLine + shownCount
 			printf "... read %d line(s) from line %d; the file has %d lines ...\n", shownCount, fromLine, NR
 		}
 	' "$1"
 }
 
 AgentsHarnessToolRead(){
-	local toolPath="$1" toolOffset="$2" toolLimit="$3" toolBytes
+	local toolPath="${5:-$1}" toolOffset="$2" toolLimit="$3" toolPages="$4" toolBytes toolMime pdfFirst pdfLast pdfText imagePath imageEdge
+	if [ -z "$toolPath" ] ; then
+		printf 'ERROR: file_path is required and was empty. Nothing was read.\n' ; return 0
+	fi
 	if ! AgentsHarnessPathAllowed "$toolPath" ; then
 		printf 'ERROR: path not in the allowed access-root set: %s\n' "$toolPath" ; return 0
 	fi
 	toolPath="$harnessResolvedPath"
+	if [ -d "$toolPath" ] ; then
+		printf 'ERROR: is a directory, not a file: %s\n' "$toolPath" ; return 0
+	fi
 	if [ ! -f "$toolPath" ] ; then
 		printf 'ERROR: no such file: %s\n' "$toolPath" ; return 0
 	fi
@@ -718,46 +845,145 @@ AgentsHarnessToolRead(){
 	if [ ! -r "$toolPath" ] ; then
 		printf 'ERROR: not readable (permission denied): %s\n' "$toolPath" ; return 0
 	fi
+	## pages is a PDF argument alone, so anywhere else it is refused rather than ignored.
+	if [ -n "$toolPages" ] ; then
+		case "$toolPath" in
+			*.[pP][dD][fF]) ;;
+			*) printf 'ERROR: pages applies to PDF files only: %s\n' "$toolPath" ; return 0 ;;
+		esac
+	fi
+	if [ ! -s "$toolPath" ] ; then
+		printf 'The file exists but is empty: %s\n' "$toolPath" ; return 0
+	fi
+	case "$toolPath" in
+		*.[pP][dD][fF])
+			## N or N-M, at most 20 pages. Without pages the first 11 are read, only to prove there are no more than 10.
+			pdfFirst="${toolPages%%-*}" ; pdfLast="${toolPages#*-}"
+			[ -n "$toolPages" ] || { pdfFirst=1 ; pdfLast=11 ; }
+			if ! AgentsHarnessWholeNumber "$pdfFirst" || ! AgentsHarnessWholeNumber "$pdfLast" || [ "$pdfFirst" -lt 1 ] || [ "$pdfLast" -lt "$pdfFirst" ] || [ $(( 10#$pdfLast - 10#$pdfFirst )) -ge 20 ] ; then
+				printf 'ERROR: pages must be one page number or a range such as 1-5, counting from 1, at most 20 pages per request, got: %s\n' "$toolPages" ; return 0
+			fi
+			## Pages each ended by a form feed, from PDFKit on macOS or pdftotext elsewhere.
+			if command -v osascript >/dev/null 2>&1 ; then
+				pdfText="$( osascript -l JavaScript -e 'ObjC.import("PDFKit"); function run(argv) { var pdfDoc = $.PDFDocument.alloc.initWithURL($.NSURL.fileURLWithPath(argv[0])); if (pdfDoc.isNil()) return "ERROR: not a readable PDF: " + argv[0]; var pageTotal = pdfDoc.pageCount, pageTexts = []; if (Number(argv[1]) > pageTotal) return "ERROR: pages start past the end of this PDF, which has " + pageTotal + " pages: " + argv[0]; for (var pageNo = Number(argv[1]); pageNo <= Math.min(Number(argv[2]), pageTotal); pageNo++) pageTexts.push(ObjC.unwrap(pdfDoc.pageAtIndex(pageNo - 1).string) || ""); return pageTexts.join("\f") + "\f"; }' "$toolPath" "$pdfFirst" "$pdfLast" 2>/dev/null )" || pdfText="ERROR: PDFKit could not read this PDF: $toolPath"
+			elif command -v pdftotext >/dev/null 2>&1 ; then
+				pdfText="$( pdftotext -f "$pdfFirst" -l "$pdfLast" "$toolPath" - 2>/dev/null )" || pdfText="ERROR: pdftotext could not read pages $pdfFirst-$pdfLast of this PDF -- past its last page, or not a readable PDF: $toolPath"
+			else
+				pdfText="ERROR: no PDF reader on this host -- neither osascript nor pdftotext is available: $toolPath"
+			fi
+			case "$pdfText" in
+				ERROR:*) printf '%s\n' "$pdfText" ; return 0 ;;
+			esac
+			## One record per page; validated above, so nothing here for -v to decode.
+			printf '%s' "$pdfText" | LC_ALL=C awk -v RS='\f' -v firstPage="$pdfFirst" -v pagesAsked="$toolPages" -v byteCap="$harnessReadCap" '
+				{
+					sub(/\n+$/, "")
+					pageNo = firstPage + NR - 1
+					lineTotal = split("--- page " pageNo " ---\n" $0, pageLines, "\n")
+					for ( lineNo = 1 ; lineNo <= lineTotal ; lineNo++ ) {
+						textBytes = textBytes + length(pageLines[lineNo]) + 1
+						if ( textBytes <= byteCap ) shownText = shownText pageLines[lineNo] "\n"
+						else if ( !cutPage ) cutPage = pageNo
+					}
+				}
+				END {
+					if ( pagesAsked == "" && NR > 10 ) { print "ERROR: this PDF has more than 10 pages, so pages is required -- pass a range such as 1-5, at most 20 pages per request" ; exit ; }
+					printf "%s", shownText
+					if ( cutPage && cutPage == firstPage ) printf "... page %d alone is over the %d-byte cap of this reader, so the rest of it cannot be returned here ...\n", cutPage, byteCap
+					else if ( cutPage ) printf "... TRUNCATED at page %d: continue with pages %d-%d ...\n", cutPage, cutPage, firstPage + NR - 1
+				}
+			'
+			return 0
+		;;
+		*.[iI][pP][yY][nN][bB])
+			## jq, not python3: nested JSON, and jq ships in the macOS base where python3 is a stub.
+			pdfText="$( jq -r 'def flat: if type == "array" then join("") else . end ; .cells | to_entries[] | "--- cell \(.key + 1): \(.value.cell_type // "unknown") ---", (.value.source // "" | flat), (.value.outputs // [] | .[] | "--- output: \(.output_type // "unknown") ---", (if .text then (.text | flat) elif .data["text/plain"] then (.data["text/plain"] | flat) else (.traceback // [] | join("\n")) end), (.data // {} | keys[] | select(startswith("image/")) | "[image output: \(.), not shown]"))' "$toolPath" 2>/dev/null )" || { printf 'ERROR: could not render this notebook -- not notebook JSON, or no jq on this host: %s\n' "$toolPath" ; return 0 ; }
+			printf '%s\n' "$pdfText" | LC_ALL=C awk -v byteCap="$harnessReadCap" '{ shownBytes = shownBytes + length($0) + 1 ; if ( shownBytes > byteCap ) { print "... TRUNCATED: the rest of this notebook is over the " byteCap "-byte cap of this reader ..." ; exit ; } print ; }'
+			return 0
+		;;
+	esac
+	## An image goes back as its own content part through the side file the served path passes; stdout carries text only.
+	case "$toolPath" in
+		*.[pP][nN][gG]|*.[jJ][pP][gG]|*.[jJ][pP][eE][gG]|*.[gG][iI][fF]|*.[wW][eE][bB][pP]) toolMime="$( file --mime-type -b "$toolPath" 2>/dev/null )" || toolMime="" ;;
+	esac
+	case "$toolMime" in
+		image/png|image/jpeg|image/gif|image/webp)
+			if [ -z "${harnessImageFile:-}" ] ; then
+				printf 'Image file (%s): it cannot be shown on this path, only through the served Read tool: %s\n' "$toolMime" "$toolPath" ; return 0
+			fi
+			imagePath="$toolPath"
+			toolBytes="$( wc -c < "$toolPath" | tr -d ' ' )"
+			## Shrunk only when over budget; sips -Z enlarges as readily as it shrinks, so the edge only halves from the real one.
+			if [ $(( ( toolBytes + 2 ) / 3 * 4 )) -gt "$harnessReadCap" ] && command -v sips >/dev/null 2>&1 ; then
+				imageEdge="$( sips -g pixelWidth -g pixelHeight "$toolPath" 2>/dev/null | LC_ALL=C awk '( $1 == "pixelWidth:" || $1 == "pixelHeight:" ) && $2 + 0 > edgeMax { edgeMax = $2 + 0 ; } END { print edgeMax + 0 ; }' )"
+				while [ $(( ( toolBytes + 2 ) / 3 * 4 )) -gt "$harnessReadCap" ] && [ "$imageEdge" -gt 1 ] ; do
+					imageEdge=$(( imageEdge / 2 ))
+					sips -Z "$imageEdge" "$toolPath" --out "$harnessScratch/read.image" >/dev/null 2>&1 || break
+					imagePath="$harnessScratch/read.image"
+					toolBytes="$( wc -c < "$imagePath" | tr -d ' ' )"
+				done
+			fi
+			if [ $(( ( toolBytes + 2 ) / 3 * 4 )) -gt "$harnessReadCap" ] ; then
+				printf 'ERROR: image is %s bytes, over the %s-byte budget this reader can return once encoded: %s\n' "$toolBytes" "$harnessReadCap" "$toolPath" ; return 0
+			fi
+			if ! { printf '%s\t' "$toolMime" ; base64 < "$imagePath" | LC_ALL=C tr -d '\n' ; } > "$harnessImageFile" ; then
+				printf 'ERROR: could not stage the image for return: %s\n' "$toolPath" ; return 0
+			fi
+			printf 'Image %s, %s bytes, returned as an image part: %s\n' "$toolMime" "$toolBytes" "$toolPath"
+			return 0
+		;;
+	esac
 	if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] ; then
-		AgentsHarnessReadRange "$toolPath" "$toolOffset" "$toolLimit"
+		AgentsHarnessReadRange "$toolPath" "$toolOffset" "${toolLimit:-2000}" numbered
 		return 0
 	fi
 	## Capped and said so, never silently: an unbounded read risks the request itself.
-	toolBytes="$( wc -c < "$toolPath" | tr -d ' ' )"
-	if [ "$toolBytes" -gt 200000 ] ; then
-		head -c 200000 "$toolPath"
-		printf '\n... TRUNCATED at 200000 of %s bytes ...\n' "$toolBytes"
+	## Measured as numbered, since that is what goes back: a file under the cap can be over it once numbered.
+	toolBytes="$( LC_ALL=C awk -v byteCap="$harnessReadCap" '{ numberedBytes = numberedBytes + length(sprintf("%6d", NR)) + length($0) + 2 ; if ( NR > 2000 ) numberedBytes = byteCap + 1 ; if ( numberedBytes > byteCap ) exit ; } END { print numberedBytes + 0 ; }' "$toolPath" )"
+	if [ "$toolBytes" -gt "$harnessReadCap" ] ; then
+		AgentsHarnessReadRange "$toolPath" 1 2000 numbered
 	else
-		cat "$toolPath"
+		LC_ALL=C awk '{ printf "%6d\t%s\n", NR, $0 ; }' "$toolPath"
 	fi
+}
+
+## One writer per target at a time, through the package's one local lock primitive
+## (sh-lib/AgentsTools.LocalLock.include), keyed by the cksum of the resolved path.
+AgentsHarnessLockTake(){ ## resolved target
+	local lockKey
+	lockKey="$( printf '%s' "$1" | LC_ALL=C cksum | LC_ALL=C tr ' ' '-' )" || return 1
+	AgentsToolsLocalLockTake "$lockKey" 30 "$1"
 }
 
 ## Whole-file overwrite or create, never a partial patch; Edit is the partial path.
 AgentsHarnessToolWrite(){
-	local toolPath="$1" toolContent="$2" toolTemp
-	if ! AgentsHarnessPathAllowed "$toolPath" "$harnessWriteRoots" ; then
-		printf 'ERROR: path not in the allowed write-root set -- it may still be readable: %s\n' "$toolPath" ; return 0
+	local toolPath="$1" toolContent="$2" toolTemp toolLock=""
+	if ! AgentsHarnessPathAllowed "$toolPath" "$harnessWriteRoots" && ! AgentsHarnessGranted Write "$harnessResolvedPath" ; then
+		AgentsHarnessRefusal Write "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0
 	fi
 	toolPath="$harnessResolvedPath"
+	if AgentsHarnessWriteExcluded "$toolPath" ; then
+		AgentsHarnessRefusal Write "$toolPath" "ERROR: path is in a team store that an unattended session never writes with Write or Edit -- use the team tooling operation for it: $toolPath" ; return 0
+	fi
 	mkdir -p "$( dirname -- "$toolPath" )" 2>/dev/null || {
 		printf 'ERROR: could not create the parent directory of: %s\n' "$toolPath" ; return 0
 	}
-	## In place, never temp+rename: `mv -f` carries the temp's umask mode onto the
-	## target and silently widens a file that was deliberately not group-readable.
-	if [ -e "$toolPath" ] ; then
-		if ! printf '%s' "$toolContent" > "$toolPath" ; then
-			printf 'ERROR: could not write: %s\n' "$toolPath" ; return 0
-		fi
-		printf 'OK: wrote %s\n' "$toolPath"
-		return 0
+	if ! AgentsHarnessLockTake "$toolPath" ; then
+		printf 'ERROR: could not take the write lock for %s -- another call is writing it, or the lock area is unusable -- so nothing was written. Retry.\n' "$toolPath" ; return 0
 	fi
-	toolTemp="$toolPath.tmp.$$"
-	if ! printf '%s' "$toolContent" > "$toolTemp" ; then
-		printf 'ERROR: could not write: %s\n' "$toolPath" ; rm -f "$toolTemp" ; return 0
+	toolLock="$agentsLocalLockPath"
+	## Replaced by rename, never rewritten in place, so a reader sees the old file or the
+	## new one and never half of it. `cp -p` first gives the temp the target's own mode.
+	toolTemp="$( dirname -- "$toolPath" )/.$( basename -- "$toolPath" ).mdat-write.$$"
+	if [ -e "$toolPath" ] && ! cp -p "$toolPath" "$toolTemp" 2>/dev/null ; then
+		rm -f "$toolTemp" ; AgentsToolsLocalLockGive "$toolLock"
+		printf 'ERROR: could not write: %s\n' "$toolPath" ; return 0
 	fi
-	if ! mv -f "$toolTemp" "$toolPath" ; then
-		printf 'ERROR: could not install: %s\n' "$toolPath" ; rm -f "$toolTemp" ; return 0
+	if ! printf '%s' "$toolContent" > "$toolTemp" || ! mv -f "$toolTemp" "$toolPath" ; then
+		rm -f "$toolTemp" ; AgentsToolsLocalLockGive "$toolLock"
+		printf 'ERROR: could not write: %s\n' "$toolPath" ; return 0
 	fi
+	AgentsToolsLocalLockGive "$toolLock"
 	printf 'OK: wrote %s\n' "$toolPath"
 }
 
@@ -766,17 +992,25 @@ AgentsHarnessToolWrite(){
 ## long for Read's cap. Uniqueness is required, not preferred: a silent
 ## first-of-several substitution is unrecoverable, and identical lines are the norm here.
 AgentsHarnessToolEdit(){
-	local toolPath="$1" toolOld="$2" toolNew="$3" toolAll="$4" toolCount
-	if ! AgentsHarnessPathAllowed "$toolPath" "$harnessWriteRoots" ; then
-		printf 'ERROR: path not in the allowed write-root set -- it may still be readable: %s\n' "$toolPath" ; return 0
+	local toolPath="$1" toolOld="$2" toolNew="$3" toolAll="$4" toolCount toolTemp toolLock=""
+	if ! AgentsHarnessPathAllowed "$toolPath" "$harnessWriteRoots" && ! AgentsHarnessGranted Edit "$harnessResolvedPath" ; then
+		AgentsHarnessRefusal Edit "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0
 	fi
 	toolPath="$harnessResolvedPath"
+	if AgentsHarnessWriteExcluded "$toolPath" ; then
+		AgentsHarnessRefusal Edit "$toolPath" "ERROR: path is in a team store that an unattended session never writes with Write or Edit -- use the team tooling operation for it: $toolPath" ; return 0
+	fi
 	if [ ! -f "$toolPath" ] ; then
 		printf 'ERROR: no such file: %s\n' "$toolPath" ; return 0
 	fi
 	if [ -z "$toolOld" ] ; then
 		printf 'ERROR: old_text is empty -- an empty match has no unique position\n' ; return 0
 	fi
+	## Taken before the count: a count read outside the lock is stale by the time it is used.
+	if ! AgentsHarnessLockTake "$toolPath" ; then
+		printf 'ERROR: could not take the write lock for %s -- another call is writing it, or the lock area is unusable -- so nothing was written. Retry.\n' "$toolPath" ; return 0
+	fi
+	toolLock="$agentsLocalLockPath"
 	## index() counts and substitutes in one call so the two cannot drift; ENVIRON, never -v.
 	toolCount="$( EDIT_OLD="$toolOld" LC_ALL=C awk -v RS=$'\001' '
 		BEGIN { editOld = ENVIRON["EDIT_OLD"] ; matchCount = 0 ; }
@@ -791,6 +1025,7 @@ AgentsHarnessToolEdit(){
 	' "$toolPath" 2>/dev/null || : )"
 	[ -n "$toolCount" ] || toolCount=0
 	if [ "$toolCount" = "0" ] ; then
+		AgentsToolsLocalLockGive "$toolLock"
 		printf 'ERROR: old_text not found in %s -- nothing was written\n' "$toolPath" ; return 0
 	fi
 	## Only an explicit opt-in lifts the uniqueness guard; anything else leaves it standing.
@@ -799,6 +1034,7 @@ AgentsHarnessToolEdit(){
 		*) toolAll="" ;;
 	esac
 	if [ -z "$toolAll" ] && [ "$toolCount" != "1" ] ; then
+		AgentsToolsLocalLockGive "$toolLock"
 		printf 'ERROR: old_text occurs %s times in %s -- it must identify exactly one place. Nothing was written; extend old_text until it is unique, or pass replace_all to change every occurrence.\n' "$toolCount" "$toolPath" ; return 0
 	fi
 	## `printf "%s", $0` with the RS re-join, never `print`, which appends ORS and
@@ -817,11 +1053,16 @@ AgentsHarnessToolEdit(){
 			printf "%s%s", outText, scanRest
 		}
 	' "$toolPath" > "$harnessScratch/edit.out" 2>/dev/null ; then
+		AgentsToolsLocalLockGive "$toolLock"
 		printf 'ERROR: could not rewrite: %s -- nothing was written\n' "$toolPath" ; return 0
 	fi
-	if ! cat "$harnessScratch/edit.out" > "$toolPath" ; then
+	## Replaced by rename, as Write does, so no reader ever sees a half-written file.
+	toolTemp="$( dirname -- "$toolPath" )/.$( basename -- "$toolPath" ).mdat-edit.$$"
+	if ! cp -p "$toolPath" "$toolTemp" 2>/dev/null || ! cat "$harnessScratch/edit.out" > "$toolTemp" || ! mv -f "$toolTemp" "$toolPath" ; then
+		rm -f "$toolTemp" ; AgentsToolsLocalLockGive "$toolLock"
 		printf 'ERROR: could not write: %s\n' "$toolPath" ; return 0
 	fi
+	AgentsToolsLocalLockGive "$toolLock"
 	if [ -n "$toolAll" ] ; then
 		printf 'OK: replaced %s occurrence(s) in %s\n' "$toolCount" "$toolPath"
 	else
@@ -832,7 +1073,7 @@ AgentsHarnessToolEdit(){
 ## The root is tested before the pattern is evaluated, so a missing directory is named
 ## as missing rather than collapsing into "the pattern matched nothing".
 AgentsHarnessToolGlob(){
-	local toolPattern="$1" toolPath="$2" toolLong="$3" toolBytes
+	local toolPattern="$1" toolPath="${2:-$PWD}" toolLong="$3" toolBytes globStat globLine globSlice
 	if ! AgentsHarnessPathAllowed "$toolPath" ; then
 		printf 'ERROR: path not in the allowed access-root set: %s\n' "$toolPath" ; return 0
 	fi
@@ -843,18 +1084,61 @@ AgentsHarnessToolGlob(){
 	## `find`, not a shell glob: a glob cannot recurse and an unmatched one expands to itself.
 	## -L because a skillset member entry is a symlinked directory, and without it the walk
 	## lists such an entry without ever entering it, reporting a clean empty result.
-	local toolFindMode=""
-	[ -z "$toolLong" ] || toolFindMode="-ls"
-	if [ -n "$toolPattern" ] ; then
-		find -L "$toolPath/" -name "$toolPattern" $toolFindMode > "$harnessScratch/glob.out" 2>&1 || :
+	## Oldest first by modification time, the package's own `ls -tr` order; stat(1) speaks BSD or GNU.
+	if stat -f '%m' / >/dev/null 2>&1 ; then
+		globStat=( -L -f $'%m\t%N' )
+	elif stat -c '%Y' / >/dev/null 2>&1 ; then
+		globStat=( -L -c $'%Y\t%n' )
 	else
-		find -L "$toolPath/" -maxdepth 1 $toolFindMode > "$harnessScratch/glob.out" 2>&1 || :
+		printf 'ERROR: stat(1) understands neither the BSD nor the GNU format flag, so matches cannot be ordered by modification time\n' ; return 0
+	fi
+	## A pattern holding a slash is matched against the root-relative path as an anchored ERE, built here; ENVIRON, never -v.
+	case "$toolPattern" in
+		'')  find -L "$toolPath/" -maxdepth 1 -exec stat "${globStat[@]}" {} + || : ;;
+		*/*) find -L "$toolPath/" -type f | GLOB_ROOT="$toolPath/" GLOB_PATTERN="$toolPattern" LC_ALL=C awk '
+				BEGIN {
+					globRoot = ENVIRON["GLOB_ROOT"] ; globText = ENVIRON["GLOB_PATTERN"] ; globRegex = "^" ; braceDepth = 0 ;
+					for ( charPos = 1 ; charPos <= length(globText) ; charPos++ ) {
+						globChar = substr(globText, charPos, 1)
+						if ( substr(globText, charPos, 3) == "**/" ) { globRegex = globRegex "(.*/)?" ; charPos = charPos + 2 ; }
+						else if ( substr(globText, charPos) == "**" ) { globRegex = globRegex ".*" ; charPos = charPos + 1 ; }
+						else if ( globChar == "*" ) globRegex = globRegex "[^/]*"
+						else if ( globChar == "?" ) globRegex = globRegex "[^/]"
+						else if ( globChar == "{" && index(substr(globText, charPos), "}") > 0 ) { globRegex = globRegex "(()" ; braceDepth = braceDepth + 1 ; }
+						else if ( globChar == "," && braceDepth > 0 ) globRegex = globRegex "|()"
+						else if ( globChar == "}" && braceDepth > 0 ) { globRegex = globRegex ")" ; braceDepth = braceDepth - 1 ; }
+						else if ( globChar == "[" && ( classLength = index(substr(globText, charPos + 2), "]") ) > 0 ) { classText = substr(globText, charPos + 1, classLength) ; if ( substr(classText, 1, 1) == "!" ) classText = "^" substr(classText, 2) ; globRegex = globRegex "[" classText "]" ; charPos = charPos + classLength + 1 ; }
+						else if ( index("\\.+()|^$[]{}", globChar) > 0 ) globRegex = globRegex "\\" globChar
+						else globRegex = globRegex globChar
+					}
+					globRegex = globRegex "$"
+				}
+				{
+					relPath = ( index($0, globRoot) == 1 ) ? substr($0, length(globRoot) + 1) : $0
+					sub(/^\/+/, "", relPath)
+					if ( relPath != "" && relPath ~ globRegex ) print ;
+				}
+			' | LC_ALL=C tr '\n' '\000' | xargs -0 -r stat "${globStat[@]}" ;;
+		*)   find -L "$toolPath/" -type f -name "$toolPattern" -exec stat "${globStat[@]}" {} + || : ;;
+	esac 2> "$harnessScratch/glob.err" | LC_ALL=C sort -n | LC_ALL=C awk '{ sub(/^[0-9]+\t/, "") ; print ; }' > "$harnessScratch/glob.out"
+	## find -ls over the sorted paths, in slices well under any argv limit; every path is absolute, so none reads as an expression.
+	if [ -n "$toolLong" ] ; then
+		globSlice=()
+		while IFS= read -r globLine ; do
+			globSlice+=( "$globLine" )
+			[ "${#globSlice[@]}" -lt 1000 ] || { find -L "${globSlice[@]}" -maxdepth 0 -ls || : ; globSlice=() ; }
+		done < "$harnessScratch/glob.out" > "$harnessScratch/glob.ls" 2>&1
+		[ "${#globSlice[@]}" -eq 0 ] || find -L "${globSlice[@]}" -maxdepth 0 -ls >> "$harnessScratch/glob.ls" 2>&1 || :
+		mv -f "$harnessScratch/glob.ls" "$harnessScratch/glob.out"
+	fi
+	cat "$harnessScratch/glob.err" >> "$harnessScratch/glob.out"
+	if [ -n "$toolPattern" ] && [ ! -s "$harnessScratch/glob.out" ] ; then
+		printf 'No files found\n' ; return 0
 	fi
 	## Capped and said so: a truncated list reads as the complete set of matches.
 	toolBytes="$( wc -c < "$harnessScratch/glob.out" | tr -d ' ' )"
-	if [ "$toolBytes" -gt 100000 ] ; then
-		head -c 100000 "$harnessScratch/glob.out"
-		printf '\n... TRUNCATED at 100000 of %s bytes ...\n' "$toolBytes"
+	if [ "$toolBytes" -gt "$harnessReadCap" ] ; then
+		AgentsHarnessReadRange "$harnessScratch/glob.out" 1 "" "" "narrow the pattern or path to see the rest"
 	else
 		cat "$harnessScratch/glob.out"
 	fi
@@ -897,9 +1181,8 @@ AgentsHarnessToolGrep(){
 	grep "${grepFlags[@]}" -- "$toolPattern" "$toolPath" > "$harnessScratch/grep.out" 2>&1 || :
 	## Capped and said so: a truncated search reads as "there are no further matches".
 	toolBytes="$( wc -c < "$harnessScratch/grep.out" | tr -d ' ' )"
-	if [ "$toolBytes" -gt 100000 ] ; then
-		head -c 100000 "$harnessScratch/grep.out"
-		printf '\n... TRUNCATED at 100000 of %s bytes ...\n' "$toolBytes"
+	if [ "$toolBytes" -gt "$harnessReadCap" ] ; then
+		AgentsHarnessReadRange "$harnessScratch/grep.out" 1 "" "" "narrow the pattern or path to see the rest"
 	else
 		cat "$harnessScratch/grep.out"
 	fi
@@ -1119,7 +1402,7 @@ AgentsHarnessToolWebFetch(){
 AgentsHarnessToolSendMessage(){
 	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" sendRc=0
 	if [ -z "$harnessAgent" ] ; then
-		printf 'ERROR: this harness was started without --agent, so it has no team identity to send under, and one is never guessed here. Nothing was sent. Report this rather than working around it.\n' ; return 0
+		printf 'ERROR: this harness was started without --agent, so it has no team identity to send under, and one is never guessed here. Nothing was sent. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
 	if [ -z "$toolTarget" ] || [ -z "$toolMessage" ] ; then
 		printf 'ERROR: both to and message are required, and one of them was empty. Nothing was sent.\n' ; return 0
@@ -1144,38 +1427,18 @@ AgentsHarnessToolSendMessage(){
 	cat "$harnessScratch/send.out"
 }
 
-## No central registry of running sessions exists in this estate -- measured against the
-## team data store, not assumed. What the store does record is one dispatch board item
-## per spawned session, carrying that session's own id, owner and status, so that is
-## what this reads. A store it cannot reach is an ERROR, never an empty list.
+## The spawned-sessions registry is what enumerates agents: every spawn has a sandbox, created
+## even when empty, so a session with no tracking document and no board item is still listed.
+## Rebuilt from the sandbox roots on each call, with liveness measured for this host's rows.
 AgentsHarnessToolListAgents(){
-	local listFile listTotal=0 listShown=0
-	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
-		printf 'ERROR: MDAT_DATA_ROOT is not set in this process, so the team data store holding the running-session records cannot be located. Nothing was listed, and no session is implied to be absent.\n' ; return 0
+	local listRegistries="$harnessHere/AgentsTools.Registries.include"
+	if [ -z "${MMDAPP:-}" ] ; then
+		printf 'ERROR: MMDAPP is not set in this process, so the spawn sandbox roots cannot be located. Nothing was listed, and no session is implied to be absent.\n' ; return 0
 	fi
-	if [ ! -d "$MDAT_DATA_ROOT/board/running" ] ; then
-		printf 'ERROR: the team data store at %s carries no board/running directory, so no running-session record could be read. Nothing was listed, and no session is implied to be absent.\n' "$MDAT_DATA_ROOT" ; return 0
+	if [ ! -f "$listRegistries" ] ; then
+		printf 'ERROR: the registry reader is missing at %s, so nothing was listed, and no session is implied to be absent.\n' "$listRegistries" ; return 0
 	fi
-	for listFile in "$MDAT_DATA_ROOT"/board/running/*.md ; do
-		[ -f "$listFile" ] || continue
-		listTotal=$(( listTotal + 1 ))
-		case "${listFile##*/}" in
-			dispatch-*) ;;
-			*) continue ;;
-		esac
-		listShown=$(( listShown + 1 ))
-		printf '%s\n' "${listFile##*/}"
-		LC_ALL=C awk '
-			NR == 1 { if ($0 != "---") exit ; next ; }
-			$0 == "---" { exit ; }
-			/^(session-id|owner|status|started-at|outcome):/ {
-				fieldLine = $0
-				if (length(fieldLine) > 200) fieldLine = substr(fieldLine, 1, 200) " ... [cut at 200 of " length($0) " characters]"
-				print "  " fieldLine ;
-			}
-		' "$listFile"
-	done
-	printf '(%s running agent session(s) listed, out of %s board item(s) in the running state)\n' "$listShown" "$listTotal"
+	( . "$listRegistries" ; AgentsToolsRegistryRenderSpawnedSessions ) 2>&1
 }
 
 ## The wait happens HERE, in this process, inside one tool call: the model spends
@@ -1193,7 +1456,7 @@ AgentsHarnessToolListAgents(){
 AgentsHarnessToolWait(){
 	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" waitRc=0 waitSource
 	if [ -z "$harnessAgent" ] ; then
-		printf 'ERROR: this harness was started without --agent, so it has no team identity to wait as, and one is never guessed here. Nothing was waited on.\n' ; return 0
+		printf 'ERROR: this harness was started without --agent, so it has no team identity to wait as, and one is never guessed here. Nothing was waited on.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
 	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
 		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s, and no other wait path exists here. Nothing was waited on.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
@@ -1263,9 +1526,9 @@ AgentsHarnessBareName(){ ## candidate
 }
 
 ## Where the spawn proxy records a session: one dispatch item per spawn, in whichever
-## board state holds it. Both handles taken here -- the item filename and the session
-## id -- are values ListAgents already prints, so nothing mints an identifier of its
-## own. Prints the item path, or nothing.
+## board state holds it. Both handles taken here already exist -- the session id, which
+## ListAgents prints, and the item filename, which Agent's result names -- so nothing
+## mints an identifier of its own. Prints the item path, or nothing.
 AgentsHarnessDispatchItemPath(){ ## handle
 	local handleText="$1" dispatchState dispatchFile
 	local dispatchFiles=()
@@ -1361,8 +1624,8 @@ AgentsHarnessSessionPids(){ ## session id
 ## not a spawn, and TaskOutput and TaskStop are how the caller follows up.
 ##
 ## --dispatch-doc:create is the whole point and is not optional here. It is what writes
-## the board item carrying the session id, and that item is what ListAgents reads, what
-## TaskOutput resolves and what TaskStop acts on. A spawn made without it leaves a
+## the board item carrying the session id, and that item is what TaskOutput resolves and
+## what TaskStop acts on; ListAgents lists the spawn's sandbox, which the spawn creates too. A spawn made without it leaves a
 ## helper nothing can list, read or end, which is the failure this tool exists to close.
 ##
 ## The brief goes in on stdin, never argv, so no shell parses it. Output to a file
@@ -1371,7 +1634,7 @@ AgentsHarnessSessionPids(){ ## session id
 AgentsHarnessToolAgent(){ ## agent name, prompt, cli service
 	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" spawnRc=0
 	if [ -z "$harnessAgent" ] ; then
-		printf 'ERROR: this harness was started without --agent, so it has no team identity to spawn under, and one is never guessed here. Nothing was spawned. Report this rather than working around it.\n' ; return 0
+		printf 'ERROR: this harness was started without --agent, so it has no team identity to spawn under, and one is never guessed here. Nothing was spawned. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
 	if [ -z "$toolAgentName" ] || [ -z "$toolPrompt" ] ; then
 		printf 'ERROR: both agent and prompt are required, and one of them was empty. Nothing was spawned.\n' ; return 0
@@ -1457,8 +1720,8 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 	if [ -n "$toolLimit" ] && { ! AgentsHarnessWholeNumber "$toolLimit" || [ "$toolLimit" -lt 1 ] ; } ; then
 		printf 'ERROR: limit must be a whole number of bytes above zero, got: %s\n' "$toolLimit" ; return 0
 	fi
-	[ -n "$toolLimit" ] || toolLimit=100000
-	[ "$toolLimit" -le 100000 ] || toolLimit=100000
+	[ -n "$toolLimit" ] || toolLimit="$harnessReadCap"
+	[ "$toolLimit" -le "$harnessReadCap" ] || toolLimit="$harnessReadCap"
 	if [ -n "$toolOutputFile" ] ; then
 		## Confined to the team data store: this parameter would otherwise be a read of
 		## any path at all, around the access roots that bound Read, Glob and Grep.
@@ -1476,7 +1739,7 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 		logPath="$toolOutputFile" ; logHow="the output_file given"
 	else
 		if [ -z "$toolHandle" ] ; then
-			printf 'ERROR: handle is required: the dispatch item filename or the session id, both of which ListAgents prints. Nothing was read.\n' ; return 0
+			printf 'ERROR: handle is required: the session id, which ListAgents prints, or the dispatch item filename, which the Agent result names as DISPATCH_ITEM. Nothing was read.\n' ; return 0
 		fi
 		itemPath="$( AgentsHarnessDispatchItemPath "$toolHandle" )"
 		if [ -z "$itemPath" ] ; then
@@ -1556,7 +1819,7 @@ AgentsHarnessToolTaskStop(){ ## handle, force
 		printf 'ERROR: MDAT_DATA_ROOT is not set in this process, so the dispatch records naming a helper session cannot be located. Nothing was signalled, and no session is implied to be absent.\n' ; return 0
 	fi
 	if [ -z "$toolHandle" ] ; then
-		printf 'ERROR: handle is required: the dispatch item filename or the session id, both of which ListAgents prints. Nothing was signalled.\n' ; return 0
+		printf 'ERROR: handle is required: the session id, which ListAgents prints, or the dispatch item filename, which the Agent result names as DISPATCH_ITEM. Nothing was signalled.\n' ; return 0
 	fi
 	case "$toolForce" in
 		true|1|yes) forceWanted=yes ;;
@@ -1675,8 +1938,8 @@ AgentsHarnessToolMonitor(){ ## command, cwd, handle, byte offset, byte limit
 	if [ -n "$toolLimit" ] && { ! AgentsHarnessWholeNumber "$toolLimit" || [ "$toolLimit" -lt 1 ] ; } ; then
 		printf 'ERROR: limit must be a whole number of bytes above zero, got: %s\n' "$toolLimit" ; return 0
 	fi
-	[ -n "$toolLimit" ] || toolLimit=100000
-	[ "$toolLimit" -le 100000 ] || toolLimit=100000
+	[ -n "$toolLimit" ] || toolLimit="$harnessReadCap"
+	[ "$toolLimit" -le "$harnessReadCap" ] || toolLimit="$harnessReadCap"
 	monitorTotal="$( wc -c < "$monitorLog" | tr -d ' ' )"
 	monitorPid=""
 	read -r monitorPid < "$harnessScratch/monitor-$toolHandle.pid" 2>/dev/null || monitorPid=""
@@ -1804,12 +2067,21 @@ AgentsHarnessToolSubagentHandback(){
 	if [ -z "$toolOutcome" ] ; then
 		printf 'ERROR: SubagentHandback: outcome is required and was empty. A handback carrying no outcome reports nothing, so nothing was sent.\n' ; return 0
 	fi
+	## Answers to this session's questions nobody waited on are collected by the tooling
+	## before it hands back, so none is left unread (AgentsTools.PendingReplyCollect.include).
+	local toolCollected="" toolCollectSession
+	toolCollectSession="$( AgentsHarnessSessionKey )"
+	if [ -n "$toolCollectSession" ] ; then
+		toolCollected="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect \
+			--session-id "$toolCollectSession" --context SubagentHandback 2>/dev/null | LC_ALL=C grep -v '^COLLECT: ' )" || toolCollected=""
+	fi
 	toolBody="$( {
 		printf 'Handback\n\n'
 		AgentsHarnessFormalField 'Task as given:' "$toolTask"
 		AgentsHarnessFormalField 'Outcome:' "$toolOutcome"
 		AgentsHarnessFormalField 'Findings:' "$toolFindings"
 		AgentsHarnessFormalField 'Unfinished, and what was not checked:' "$toolUnfinished"
+		AgentsHarnessFormalField 'Answers collected, and questions still open:' "$toolCollected"
 	} )"
 	AgentsHarnessFormalSend SubagentHandback "$toolTo" "$toolAsBot" "$toolBody"
 }
@@ -1890,13 +2162,17 @@ AgentsHarnessToolArtifact(){
 ## Neither helper can fail this tool. A question that was genuinely asked must be
 ## reported as asked even where recording it did not work, so a failure here degrades
 ## to no record and a warning, never to a wrong outcome line.
-AgentsHarnessPendingReplyOpen(){ ## conversation id, question body
-	local openTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" openId=""
+AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typed-question metadata: kind, address_to, channel, question ts, thread ts, addressees, asking accounts, refusal id, options, then the thread tag and the question key
+	local openTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" openId="" openSession
 	[ -x "$openTools" ] || return 0
 	[ -n "$harnessAgent" ] || return 0
+	openSession="$( AgentsHarnessSessionKey )"
 	openId="$( printf '%s' "$2" | "$openTools" --intern-op-pending-reply-open "$harnessAgent" \
 		--to "$1" \
-		${MDAT_SPAWN_SESSION_ID:+--session-id "$MDAT_SPAWN_SESSION_ID"} \
+		${openSession:+--session-id "$openSession"} \
+		${3:+--kind "$3"} ${4:+--address-to "$4"} ${5:+--channel "$5"} ${6:+--question-ts "$6"} ${7:+--thread-ts "$7"} \
+		${8:+--addressees "$8"} ${9:+--asking-accounts "$9"} ${10:+--refusal-id "${10}"} ${11:+--options "${11}"} \
+		${12:+--question-tag "${12}"} ${13:+--question-key "${13}"} \
 		--context AskUserQuestion 2>"$harnessScratch/pending-open.err" )" || openId=""
 	if [ -z "$openId" ] ; then
 		printf 'WARNING: AskUserQuestion: the question was posted but NOT recorded as a pending reply, so nothing will resume or re-ask it later. What the operation reported follows:\n' >&2
@@ -1906,30 +2182,190 @@ AgentsHarnessPendingReplyOpen(){ ## conversation id, question body
 	printf '%s\n' "$openId"
 }
 
-AgentsHarnessPendingReplyClose(){ ## pending reply id, status
+AgentsHarnessPendingReplyClose(){ ## pending reply id, status, optional verdict, optional ts of the reply taken as the answer
 	local closeTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	[ -n "$1" ] || return 0
 	[ -x "$closeTools" ] || return 0
-	"$closeTools" --intern-op-pending-reply-close "$1" --status "$2" --context AskUserQuestion >/dev/null 2>&1 || {
-		printf 'WARNING: AskUserQuestion: pending reply %s could not be closed as %s, so it still reads as waiting.\n' "$1" "$2" >&2
-	}
+	## Only while still open: a record another closer (a collect, a settle) closed first is left as it is.
+	local closeRc=0
+	"$closeTools" --intern-op-pending-reply-close "$1" --if-open --status "$2" ${3:+--verdict "$3"} ${4:+--answer-ts "$4"} --context AskUserQuestion >/dev/null 2>&1 || closeRc=$?
+	case "$closeRc" in
+		0|3) ;;
+		*) printf 'WARNING: AskUserQuestion: pending reply %s could not be closed as %s, so it still reads as waiting.\n' "$1" "$2" >&2 ;;
+	esac
 	return 0
+}
+
+## A typed question's verdict, read and applied by the team's escalation operation.
+## Prints its result lines; nothing at all when there is no record to read.
+AgentsHarnessEscalationRead(){ ## pending reply id
+	[ -n "$1" ] && [ -n "$harnessAgent" ] || return 0
+	"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-escalation-read "$harnessAgent" "$1" \
+		> "$harnessScratch/escalation-read.out" 2> /dev/null || :
+	LC_ALL=C grep -E '^(ESCALATION|VERDICT|VERDICT-TEXT|VERDICT-REASON|ANSWERED-BY|GRANT): ' "$harnessScratch/escalation-read.out" 2>/dev/null || :
 }
 
 AgentsHarnessToolAskUserQuestion(){
 	local toolTo="$1" toolQuestion="$2" toolOptions="$3" toolContext="$4" toolWait="$5" toolTimeout="$6" toolSource="$7" toolAsBot="$8" toolAddressTo="$9"
+	local toolKind="${10:-question}" toolUnderstood="${11}" toolFrom="${12}" toolWillDo="${13}" toolRefusalId="${14}" toolReason="${15}" toolTaskRef="${16}" toolPendingId="${17}"
 	local askBody askSent askWaitOut askFirst askOutcome askPendingId=""
 	local askChannel="" askTs="" askThreadTs="" askAddressees=""
 	local askRounds=0
-	local askAsk="" askOpen="" askOpenTs=""
+	local askAsk="" askOpen="" askOpenTs="" askSelfIds=" " askSendOut askRecordOnly=""
+	local askSession="" askRecord="" askRecordLine askRefusedTool="" askRefusedTarget="" askRefusedOwner=""
+	local askTag="" askKey="" askWhere="" askReuseChannel="" askReuseThread="" askDupId="" askDupOwner="" askDupSession="" askLock=""
+	## A re-wait: the question is already posted and recorded, so everything it is judged
+	## against comes from its open record, and nothing is posted again.
+	if [ -n "$toolPendingId" ] ; then
+		local rewaitRecord="" rewaitStatus="" rewaitSession="" rewaitLine
+		AgentsHarnessBareName "$toolPendingId" && rewaitRecord="$MMDAPP/.local/agents/pending/$toolPendingId.md"
+		if [ -z "$rewaitRecord" ] || [ ! -f "$rewaitRecord" ] ; then
+			printf 'ERROR: AskUserQuestion: pending_id %s names no pending reply in this workspace, so there is nothing to wait on. Nothing was posted.\n' "$toolPendingId" ; return 0
+		fi
+		toolKind="question" ; toolTo="" ; toolAddressTo="" ; toolOptions=""
+		while IFS= read -r rewaitLine ; do
+			case "$rewaitLine" in
+				'status: '*) rewaitStatus="${rewaitLine#status: }" ;;
+				'session-id: '*) rewaitSession="${rewaitLine#session-id: }" ;;
+				'kind: '*) toolKind="${rewaitLine#kind: }" ;;
+				'communication-channel-id: slack:'*) toolTo="${rewaitLine#communication-channel-id: slack:}" ;;
+				'address-to: '*) toolAddressTo="${rewaitLine#address-to: }" ;;
+				'channel: '*) askChannel="${rewaitLine#channel: }" ;;
+				'question-ts: '*) askTs="${rewaitLine#question-ts: }" ;;
+				'thread-ts: '*) askThreadTs="${rewaitLine#thread-ts: }" ;;
+				'addressees: '*) askAddressees="${rewaitLine#addressees: }" ;;
+				'asking-accounts: '*) askSelfIds=" ${rewaitLine#asking-accounts: } " ;;
+				'refusal-id: '*) toolRefusalId="${rewaitLine#refusal-id: }" ;;
+				'question-tag: '*) askTag="${rewaitLine#question-tag: }" ;;
+				'# '*) break ;;
+			esac
+		done < "$rewaitRecord"
+		## The verdict feeds grants keyed to the asking session, so no other session collects it.
+		if [ -n "$rewaitSession" ] && [ "$rewaitSession" != "$( AgentsHarnessSessionKey )" ] ; then
+			printf 'ERROR: AskUserQuestion: pending reply %s belongs to session %s, not this one, so this session may not wait on it. Nothing was posted.\n' "$toolPendingId" "$rewaitSession" ; return 0
+		fi
+		if [ "$rewaitStatus" != "reply-pending" ] ; then
+			printf 'ERROR: AskUserQuestion: pending reply %s is closed (status %s), so there is nothing to wait on. Nothing was posted.\n' "$toolPendingId" "${rewaitStatus:-none}" ; return 0
+		fi
+		[ ! -f "${rewaitRecord%.md}.options" ] || toolOptions="$( cat "${rewaitRecord%.md}.options" )"
+		askPendingId="$toolPendingId"
+		toolWait="true"
+		askSent="(re-wait on pending reply $toolPendingId: nothing was posted)"
+	else
 	if [ -z "$toolTo" ] ; then
 		printf 'ERROR: AskUserQuestion: to is required and was empty, so there is nobody to ask. Nothing was sent.\n' ; return 0
+	fi
+	## The thread numbers its questions itself, so a number the asker put in front of the
+	## text ("Q1: ...", "q2) ...", "Q3 - ...") would show beside it as a second one.
+	local askLabel='^[Qq][0-9]+[[:space:]]*[-:.)][[:space:]]*'
+	if [[ "$toolQuestion" =~ $askLabel ]] ; then
+		toolQuestion="${toolQuestion:${#BASH_REMATCH[0]}}"
 	fi
 	if [ -z "$toolQuestion" ] ; then
 		printf 'ERROR: AskUserQuestion: question is required and was empty. Nothing was sent.\n' ; return 0
 	fi
+	## A typed kind is refused before anything is sent when a field it needs is missing.
+	case "$toolKind" in
+		question) ;;
+		readback)
+			[ -n "$toolUnderstood" ] && [ -n "$toolFrom" ] && [ -n "$toolWillDo" ] || {
+				printf 'ERROR: AskUserQuestion: kind readback needs understood, source and will_do, and one was empty. Nothing was sent.\n' ; return 0
+			}
+		;;
+		decision)
+			[ -n "$toolOptions" ] || {
+				printf 'ERROR: AskUserQuestion: kind decision needs options, one per line, each starting with the word that answers it. Nothing was sent.\n' ; return 0
+			}
+			## Two options answered by the same word would make the verdict a guess.
+			if [ -n "$( printf '%s\n' "$toolOptions" | LC_ALL=C awk '{ sub( /^- /, "" ) ; optionWord = tolower( $1 ) ; if ( optionWord != "" && seenWord[optionWord]++ ) { print optionWord ; exit ; } ; }' )" ] ; then
+				printf 'ERROR: AskUserQuestion: kind decision needs each option to start with a different word, and two start with the same one. Nothing was sent.\n' ; return 0
+			fi
+		;;
+		permission)
+			[ -n "$toolRefusalId" ] && [ -n "$toolReason" ] && [ -n "$toolTaskRef" ] || {
+				printf 'ERROR: AskUserQuestion: kind permission needs refusal_id, reason and task_ref, and one was empty. Nothing was sent.\n' ; return 0
+			}
+			askSession="$( AgentsHarnessSessionKey )"
+			AgentsHarnessBareName "$toolRefusalId" && [ -n "$askSession" ] && askRecord="$MMDAPP/.local/agents/sessions/$askSession/$toolRefusalId.md"
+			if [ -z "$askRecord" ] || [ ! -f "$askRecord" ] ; then
+				printf 'ERROR: AskUserQuestion: no refusal %s is recorded for this session, so there is nothing to ask permission for. Nothing was sent.\n' "$toolRefusalId" ; return 0
+			fi
+			## The refused call is shown from the record, never from the asker's words.
+			while IFS= read -r askRecordLine ; do
+				case "$askRecordLine" in
+					'owner: '*) askRefusedOwner="${askRecordLine#owner: }" ;;
+					'tool: '*) askRefusedTool="${askRecordLine#tool: }" ;;
+					'target: '*) askRefusedTarget="${askRecordLine#target: }" ;;
+					'# '*) break ;;
+				esac
+			done < "$askRecord"
+		;;
+		*)
+			printf 'ERROR: AskUserQuestion: kind must be question, readback, decision or permission, got: %s. Nothing was sent.\n' "$toolKind" ; return 0
+		;;
+	esac
+	if [ -z "$toolAddressTo" ] ; then
+		case "$toolTo" in
+			*:*) ;;
+			*) toolAddressTo="$toolTo" ;;
+		esac
+	fi
+	## Where the question goes (AgentsTools.AskThread.include): an identical open question
+	## to the same addressee is not asked again, and one open thread to a person carries
+	## every later question to them, each tagged Q<n> so an answer names which it answers.
+	askTag="Q1"
+	askKey="$( printf '%s' "$toolQuestion" | LC_ALL=C tr -s ' \t\n' '   ' | LC_ALL=C sed 's/^ //;s/ $//' | cksum )"
+	askKey="${askKey// /-}"
+	type AgentsToolsAskThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskThread.include" 2> /dev/null || :
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include" 2> /dev/null || :
+	if [ -n "$toolAddressTo" ] && type AgentsToolsAskThreadFind > /dev/null 2>&1 ; then
+		## Finding, posting and recording are one step per addressee, so two askers at once
+		## never count the same thread and post under the same tag. Given back on every way
+		## out below, up to the record being written.
+		if type AgentsToolsLocalLockTake > /dev/null 2>&1 && AgentsToolsLocalLockTake "ask-thread-$( printf '%s' "$toolAddressTo" | LC_ALL=C tr -c 'A-Za-z0-9._-' '_' )" 60 "the question thread to $toolAddressTo" ; then
+			askLock="$agentsLocalLockPath"
+		else
+			printf 'WARNING: AskUserQuestion: the question-thread lock for %s could not be taken, so this question opens a thread of its own rather than risk sharing a tag.\n' "$toolAddressTo" >&2
+		fi
+		askWhere="$( AgentsToolsAskThreadFind "$toolTo" "$toolAddressTo" "$askKey" )"
+		[ -n "$askLock" ] || case "$askWhere" in REUSE$'\t'*) askWhere="NEW"$'\t'"Q1" ;; esac
+	fi
+	case "$askWhere" in
+		DUPLICATE$'\t'*)
+			[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
+			IFS=$'\t' read -r _ askDupId askDupOwner askDupSession <<< "$askWhere"
+			## Asking again is not how an answer is found: its thread is read first, and an
+			## answer already there closes the record and is returned, with nothing posted.
+			local askDupCollected=""
+			askDupCollected="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect \
+				--id "$askDupId" --context AskUserQuestion 2>/dev/null | LC_ALL=C grep '^ANSWERED ' )" || askDupCollected=""
+			if [ -n "$askDupCollected" ] ; then
+				printf 'ASK-RESULT: RECEIVED\nThe same question to %s was already asked as pending reply %s, and its thread already holds the answer, so nothing was posted and the record is now closed. What the tooling collected, as `ANSWERED <id> <tag> | <question> | <answer>`:\n%s\n' "$toolAddressTo" "$askDupId" "$askDupCollected"
+				return 0
+			fi
+			printf 'ASK-RESULT: ALREADY-OPEN\nThe same question to %s is already open as pending reply %s, asked by %s%s, so it was not posted again.\n' "$toolAddressTo" "$askDupId" "${askDupOwner:-an unknown member}" "${askDupSession:+ in session $askDupSession}"
+			[ -z "$askDupSession" ] || [ "$askDupSession" != "$( AgentsHarnessSessionKey )" ] || printf 'AskUserQuestion pending_id=%s\n' "$askDupId"
+			return 0
+		;;
+		REUSE$'\t'*)
+			IFS=$'\t' read -r _ askReuseChannel askReuseThread askTag <<< "$askWhere"
+		;;
+	esac
 	askBody="$(
-		printf '# ❓ Question\n\n%s\n\n' "$toolQuestion"
+		case "$toolKind" in
+			(readback) printf '# 🔁 Readback %s\n\n%s\n\n' "$askTag" "$toolQuestion" ;;
+			(decision) printf '# 🧭 Decision %s\n\n%s\n\n' "$askTag" "$toolQuestion" ;;
+			(permission) printf '# 🔐 Permission %s\n\n%s\n\n' "$askTag" "$toolQuestion" ;;
+			(*) printf '# ❓ Question %s\n\n%s\n\n' "$askTag" "$toolQuestion" ;;
+		esac
+		AgentsHarnessFormalField '**📥 What I understood**' "$toolUnderstood"
+		AgentsHarnessFormalField '**📎 Where it came from**' "$toolFrom"
+		AgentsHarnessFormalField '**▶️ What I will do if confirmed**' "$toolWillDo"
+		if [ "$toolKind" = "permission" ] ; then
+			printf '**🚫 Refused call**\n- tool: %s\n- target: %s\n- refused for: %s\n- refusal: %s\n\n' "$askRefusedTool" "$askRefusedTarget" "$askRefusedOwner" "$toolRefusalId"
+		fi
+		AgentsHarnessFormalField '**❔ Why this task needs it**' "$toolReason"
+		AgentsHarnessFormalField '**🗂 Task**' "$toolTaskRef"
 		if [ -n "$toolOptions" ] ; then
 			printf '**📋 Options**\n'
 			printf '%s\n' "$toolOptions" | while IFS= read -r bodyOption ; do
@@ -1948,8 +2384,25 @@ AgentsHarnessToolAskUserQuestion(){
 		fi
 		AgentsHarnessFormalField '**⚙ Context**' "$toolContext"
 		printf '**✅ How to answer**\n'
-		printf -- '- react on this message with any emoji, which is the fastest answer\n'
-		printf -- '- or reply in this thread\n'
+		case "$toolKind" in
+			(readback)
+				printf -- '- reply `yes` to confirm, `no` to stop, or `correct` followed by the correction\n'
+				printf -- '- or react with :white_check_mark: for yes, :x: for no\n'
+			;;
+			(decision)
+				printf -- '- reply with the first word of the option you choose\n'
+			;;
+			(permission)
+				printf -- '- reply `deny`, `allow-once` for this one call, or `allow-session` for this session\n'
+				printf -- '- or react with :x: to deny\n'
+			;;
+			(*)
+				printf -- '- react on this message with any emoji, which is the fastest answer\n'
+				printf -- '- or reply in this thread\n'
+			;;
+		esac
+		## A plain reply answers the latest question above it; an earlier one is named by number.
+		[ "$askTag" = "Q1" ] || printf -- '- to answer an earlier question in this thread instead, start your reply with its number, for example `Q1 yes`\n'
 	)"
 	if [ -z "$toolAddressTo" ] ; then
 		case "$toolTo" in
@@ -1964,19 +2417,22 @@ AgentsHarnessToolAskUserQuestion(){
 		printf 'ERROR: AskUserQuestion: `to` names one message (%s) rather than a party, so address_to is required and was empty. An answer is recognised by who wrote it, so a question addressed to nobody could be answered by anybody. Nothing was sent.\n' "$toolTo" ; return 0
 	fi
 	askAsk="$toolTo"
-	case "$toolTo" in
+	[ -z "$askReuseThread" ] || askAsk="$askReuseChannel:$askReuseThread"
+	[ -n "$askReuseThread" ] || case "$toolTo" in
 		*:*)
 		;;
 		*)
 			askOpen="$( AgentsHarnessToolSendMessage "$toolTo" "❓ $toolQuestion"$'\n\n'"The full question and how to answer it are in this thread." "$toolAsBot" "$toolAddressTo" )"
 			case "$askOpen" in
 				ERROR:*)
+					[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
 					printf 'ERROR: AskUserQuestion: the thread this question needed could not be opened, so the question was never posted and nobody was asked. THE QUESTION DOES NOT EXIST. The opener repeats the question, so a refusal naming an output-style predicate means the question sits below the plain-language floor this team holds, which is written out in %s/magic-team/magic-team.shared.md -- rewrite the question to that standard and ask it again. What the send reported follows:\n%s\n' "${MDAT_SKILLSET_ROOT:-}" "$askOpen"
 					return 0
 				;;
 			esac
 			askOpenTs="$( printf '%s\n' "$askOpen" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
 			if [ -z "$askOpenTs" ] ; then
+				[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
 				printf 'ERROR: AskUserQuestion: the opener was posted to %s and the send could not name its ts, so there is no thread to put the question in and the question was NOT posted. Nobody was asked. What the send reported follows:\n%s\n' "$toolTo" "$askOpen"
 				return 0
 			fi
@@ -1986,6 +2442,7 @@ AgentsHarnessToolAskUserQuestion(){
 	askSent="$( AgentsHarnessToolSendMessage "$askAsk" "$askBody" "$toolAsBot" "$toolAddressTo" )"
 	case "$askSent" in
 		ERROR:*)
+			[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
 			printf 'ERROR: AskUserQuestion: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. THE QUESTION DOES NOT EXIST: this is not a question that went unanswered, and it will not be answered later. A refusal naming an output-style predicate means the text sits below the plain-language floor this team holds, which is written out in %s/magic-team/magic-team.shared.md -- rewrite the question to that standard and ask it again. What the send reported follows:\n%s\n' "${MDAT_SKILLSET_ROOT:-}" "$askSent"
 			return 0
 		;;
@@ -1996,45 +2453,93 @@ AgentsHarnessToolAskUserQuestion(){
 	## two never reading alike. The record is what lets a reply resume the work, or an
 	## unanswered question be re-asked, after this session is gone -- so it is written
 	## whether or not anybody waits here.
-	askPendingId="$( AgentsHarnessPendingReplyOpen "$toolTo" "$askBody" )"
+	askChannel="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
+	askTs="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+	askThreadTs="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
+	askAddressees="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
+	## The account this question was posted under never answers it, whatever address_to said.
+	askSelfIds=" $( for askSendOut in "$askOpen" "$askSent" ; do printf '%s\n' "$askSendOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" 2>/dev/null ; done | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )"
+	askPendingId="$( AgentsHarnessPendingReplyOpen "$toolTo" "$askBody" "$toolKind" "$toolAddressTo" "$askChannel" "$askTs" "$askThreadTs" "$askAddressees" "$askSelfIds" "$toolRefusalId" "$toolOptions" "$askTag" "$askKey" )"
+	[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
+	fi ## end of the posting path
+	## An escalation is answered before the work goes on, so a typed kind always waits.
+	local askWaitNote=""
+	case "$toolKind:$toolWait" in
+		question:*) ;;
+		*:false|*:0|*:no)
+			askWaitNote="wait=false was ignored: a $toolKind question is an escalation, and it always waits for its answer."
+			toolWait="true"
+		;;
+	esac
 	case "$toolWait" in
 		false|0|no)
 			printf 'ASK-RESULT: POSTED\nThe question is posted to %s and no wait was asked for, so no answer was collected here. It stands and stays answerable, and can be picked up later%s. What the send reported follows:\n%s\n' "$toolTo" "${askPendingId:+ -- recorded as pending reply $askPendingId}" "$askSent"
 			return 0
 		;;
 	esac
-	askChannel="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
-	askTs="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
-	askThreadTs="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
-	askAddressees="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
 	if [ -z "$toolSource" ] ; then
 		if [ -z "$askChannel" ] || [ -z "$askThreadTs" ] || [ -z "$askTs" ] ; then
 			printf 'ASK-RESULT: POSTED\nThe question is posted to %s%s and NO WAIT WAS PERFORMED. The send could not name the thread it landed in, so there is no one thread to watch. Widening to the whole conversation is refused here: anything found there would not be known to answer this. Nothing is known about whether it was answered. What the send reported follows:\n%s\n' "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId}" "$askSent"
 			return 0
 		fi
-		if [ -z "$askAddressees" ] ; then
+		## An escalation to a member with no Slack account is answered through the team
+		## operation, which closes its record, so the record itself is what is watched.
+		if [ -z "$askAddressees" ] && [ "$toolKind" != "question" ] && [ -n "$askPendingId" ] && AgentsHarnessBareName "$toolAddressTo" ; then
+			askRecordOnly=1
+			askTs=""
+			toolSource="file:$MMDAPP/.local/agents/pending/$askPendingId.md"
+		fi
+		if [ -z "$askAddressees" ] && [ -z "$askRecordOnly" ] ; then
 			printf 'ASK-RESULT: POSTED\nThe question is posted to %s%s and NO WAIT WAS PERFORMED. Nobody resolved as its addressee, so no arrival could be told apart from an unrelated message, or from our own next post. Nothing is known about whether it was answered. Ask again naming address_to. What the send reported follows:\n%s\n' "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId}" "$askSent"
 			return 0
 		fi
-		toolSource="slack:$askChannel:$askThreadTs"
+		[ -n "$askRecordOnly" ] || toolSource="slack:$askChannel:$askThreadTs"
 	fi
 	if AgentsHarnessWholeNumber "$toolTimeout" && [ "$toolTimeout" -lt 1 ] ; then
 		toolTimeout="$harnessWaitTimeout"
 	fi
+	## An escalation answered through the team operation is seen between rounds, so its rounds stay short.
+	if [ "$toolKind" != "question" ] && { ! AgentsHarnessWholeNumber "$toolTimeout" || [ "$toolTimeout" -gt 60 ] ; } ; then
+		toolTimeout=60
+	fi
+	local askNeverRead="" askAnsweredElsewhere=""
 	while : ; do
 		askRounds=$(( askRounds + 1 ))
 		askWaitOut="$( AgentsHarnessToolWait "$toolSource" "$toolTimeout" "" "$askTs" "$askAddressees" )"
 		case "${askWaitOut%%$'\n'*}" in
 			*TIMEOUT*)
+				## A round that never read the thread is not a quiet thread, so it ends the wait.
+				askNeverRead="${askWaitOut#*$'\n'WAIT-NEVER-READ: }"
+				if [ "$askNeverRead" != "$askWaitOut" ] ; then
+					askNeverRead="${askNeverRead%%$'\n'*}"
+					case "$askNeverRead" in
+						*"[$toolSource]"*) break ;;
+					esac
+				fi
+				askNeverRead=""
+				if [ "$toolKind" != "question" ] ; then
+					case "$( AgentsHarnessEscalationRead "$askPendingId" )" in
+						*"ESCALATION: $askPendingId answered"*) askAnsweredElsewhere=1 ; break ;;
+					esac
+				fi
+			;;
+			*RECEIVED*)
+				## Any filtered arrival ends the wait: a reply that classifies nothing goes back to
+				## the agent as UNCLASSIFIED with the record open, and the agent may re-wait on it.
+				break
 			;;
 			*)
 				break
 			;;
 		esac
 	done
+	if [ -n "$askNeverRead" ] ; then
+		printf 'ERROR: AskUserQuestion: the question WAS posted to %s%s, and then its thread could not be read at all, so NOTHING is known about whether it was answered. Its silence must not be read as quiet. What the wait reported follows:\n%s\n' "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId, still open}" "$askWaitOut"
+		return 0
+	fi
 	case "$askWaitOut" in
 		ERROR:*)
-			printf 'ERROR: AskUserQuestion: the question WAS posted to %s, and then the wait for an answer could not be performed -- so the question stands and NOTHING is known about whether it was answered. Its silence must not be read as quiet. What the wait reported follows:\n%s\n' "$toolTo" "$askWaitOut"
+			printf 'ERROR: AskUserQuestion: the question WAS posted to %s%s, and then the wait for an answer could not be performed -- so the question stands and NOTHING is known about whether it was answered. Its silence must not be read as quiet. What the wait reported follows:\n%s\n' "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId, still open}" "$askWaitOut"
 			return 0
 		;;
 	esac
@@ -2049,16 +2554,47 @@ AgentsHarnessToolAskUserQuestion(){
 		*ERROR*)    askOutcome="ERROR" ;;
 		*)          askOutcome="UNCLASSIFIED" ;;
 	esac
+	[ -z "$askAnsweredElsewhere" ] || askOutcome="RECEIVED"
 	## Two of the four close the record and two deliberately leave it open. A received
 	## answer is done with; a timeout is a question still standing, so it closes as
 	## timed-out and stays in the store for the re-ask. An ERROR or an UNCLASSIFIED
 	## wait means nothing whatever is known about whether anybody answered, and
 	## recording either as unanswered would assert exactly what was not learned.
-	case "$askOutcome" in
-		RECEIVED) AgentsHarnessPendingReplyClose "$askPendingId" reply-received ;;
-		TIMEOUT)  AgentsHarnessPendingReplyClose "$askPendingId" reply-timeout ;;
+	## A typed kind's verdict is read and applied by the escalation operation, the one place that does it.
+	local askVerdict="" askReadLines="" askReason=""
+	if [ "$toolKind" != "question" ] && [ "$askOutcome" = "RECEIVED" ] ; then
+		askReadLines="$( AgentsHarnessEscalationRead "$askPendingId" )"
+		askVerdict="$( printf '%s\n' "$askReadLines" | LC_ALL=C sed -n 's/^VERDICT: //p' | head -1 )"
+		askReason="$( printf '%s\n' "$askReadLines" | LC_ALL=C sed -n 's/^VERDICT-REASON: //p' | head -1 )"
+		[ -n "$askVerdict" ] || askVerdict="UNCLASSIFIED"
+	fi
+	## In a thread several questions share, a reply with no number that came after the latest
+	## question above it was already answered answers none of them: it goes back
+	## unclassified, with the record open, as a typed kind's would.
+	if [ "$toolKind" = "question" ] && [ "$askOutcome" = "RECEIVED" ] \
+		&& printf '%s\n' "$askWaitOut" | LC_ALL=C grep -q '^UNMATCHED-REPLY ' \
+		&& ! printf '%s\n' "$askWaitOut" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' ; then
+		askVerdict="UNCLASSIFIED"
+		askReason="a reply with no question number came after the latest question above it was already answered, so it answers none -- a reply to this question starts with the plain text ${askTag:-its number}"
+	fi
+	case "$askOutcome:$toolKind:$askVerdict" in
+		RECEIVED:question:)
+			## The reply taken as the answer, so the close can mark it :eyes:.
+			AgentsHarnessPendingReplyClose "$askPendingId" reply-received "" \
+				"$( printf '%s\n' "$askWaitOut" | LC_ALL=C sed -n -E 's/^([0-9]+\.[0-9]+) \| .*/\1/p' | head -1 )"
+		;;
+		TIMEOUT:*)  AgentsHarnessPendingReplyClose "$askPendingId" reply-timeout ;;
 	esac
-	printf 'ASK-RESULT: %s\nThe question was posted to %s%s, and its own thread was watched over %s wait round(s). What the wait returned follows verbatim.\n%s\n' "$askOutcome" "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId}" "$askRounds" "$askWaitOut"
+	printf 'ASK-RESULT: %s\n' "$askOutcome"
+	[ -z "$askVerdict" ] || printf 'VERDICT: %s\n' "$askVerdict"
+	[ -z "$askReadLines" ] || printf '%s\n' "$askReadLines" | LC_ALL=C grep -E '^(VERDICT-TEXT|ANSWERED-BY|GRANT): ' || :
+	[ -z "$askWaitNote" ] || printf '%s\n' "$askWaitNote"
+	if [ "$askVerdict" = "UNCLASSIFIED" ] ; then
+		printf 'VERDICT-REASON: %s\n' "${askReason:-the reply names none of the answers this kind takes}"
+		printf 'No verdict is taken, and record %s stays open. You may post more in the same thread, then wait again with the call on the last line; it posts nothing.\n' "${askPendingId:-<none>}"
+	fi
+	printf 'The question was posted to %s%s, and its own thread was watched over %s wait round(s). What the wait returned follows verbatim.\n%s\n' "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId}" "$askRounds" "$askWaitOut"
+	[ "$askVerdict" != "UNCLASSIFIED" ] || [ -z "$askPendingId" ] || printf 'AskUserQuestion pending_id=%s\n' "$askPendingId"
 }
 
 ## The three MCP resource tools reach the same servers this run already enumerated,
@@ -2298,6 +2834,32 @@ AgentsHarnessToolReadMcpResourceDirTool(){ ## server, uri_prefix, limit
 	printf '... read %s of the %s matching resource(s); the bound on this call was %s ...\n' "$dirRead" "$dirMatched" "$toolLimit"
 }
 
+## Holds no catalogue: the floor is rendered by the mirror on every call, so both wires
+## search one literal, and the MCP entries are this round's $harnessMcpToolsJson,
+## each already carrying its separating comma.
+AgentsHarnessToolToolSearch(){ ## query, max_results
+	local toolQuery="$1" toolMax="$2" searchFloor="" searchRc=0
+	if [ -z "$toolQuery" ] ; then
+		printf 'ERROR: ToolSearch: query is required and was empty. Nothing was searched.\n' ; return 0
+	fi
+	if [ -n "$toolMax" ] ; then
+		if ! AgentsHarnessWholeNumber "$toolMax" || [ "$toolMax" -lt 1 ] ; then
+			printf 'ERROR: ToolSearch: max_results must be a whole number of tools, at least 1, got: %s\n' "$toolMax" ; return 0
+		fi
+	else
+		toolMax=5
+	fi
+	searchFloor="$( bash "$harnessHere/AgentsHarnessMcpMirror.sh" )" || searchRc=$?
+	case "$searchRc:$searchFloor" in
+		'0:['*']') ;;
+		*)
+			printf 'ERROR: ToolSearch: the harness tool declarations did not render (rc=%s), so nothing was searched. The renderer names the declaration at fault on stderr.\n' "$searchRc" ; return 0
+		;;
+	esac
+	printf '%s' "${searchFloor%]}${harnessMcpToolsJson:-}]" | MDAT_TOOLSEARCH_QUERY="$toolQuery" MDAT_TOOLSEARCH_MAX="$toolMax" LC_ALL=C awk -f "$harnessHere/AgentsHarnessToolSearch.awk" || searchRc=$?
+	[ "$searchRc" = 0 ] || printf 'ERROR: ToolSearch: the tool catalogue could not be read (rc=%s), so nothing is implied about which tools exist. The reader names the declaration at fault on stderr.\n' "$searchRc"
+}
+
 ## Explicit character enumeration rather than a bracket range, which is collation-
 ## dependent: `[a-z]` has matched `A` on this estate.
 AgentsHarnessSkillSegmentOk(){ ## one path segment
@@ -2316,6 +2878,25 @@ AgentsHarnessSkillSegmentOk(){ ## one path segment
 	done
 }
 
+## The first candidate whose folder is named for the skill, or whose frontmatter name is
+## the skill, wins. A candidate glob that matched nothing is a path getline cannot open.
+AgentsHarnessSkillLocate(){ ## skill name, then candidate SKILL.md paths in search order -- prints the folder
+	printf '%s\n' "${@:2}" | LC_ALL=C awk -v wantName="$1" '
+		{
+			candFile = $0 ; candDir = candFile ; sub(/\/[^\/]*$/, "", candDir) ;
+			dirName = candDir ; sub(/^.*\//, "", dirName) ;
+			frontName = "" ; readCount = 0
+			while ( ( getline candLine < candFile ) > 0 ) {
+				readCount++
+				if ( readCount == 1 && candLine != "---" ) break
+				if ( readCount > 1 && candLine == "---" ) break
+				if ( candLine ~ /^name:/ ) { frontName = candLine ; sub(/^name:[ \t]*/, "", frontName) ; sub(/[ \t]+$/, "", frontName) ; gsub(/^["\047]|["\047]$/, "", frontName) ; }
+			}
+			close(candFile)
+			if ( readCount > 0 && ( dirName == wantName || frontName == wantName ) ) { print candDir ; exit ; }
+		}'
+}
+
 ## Reaches the skillset directly and DELIBERATELY NOT through AgentsHarnessPathAllowed.
 ## A member folder under the skillset root is a SYMLINK into whatever source tree owns
 ## it, so resolving a candidate with `cd ... && pwd -P` and prefix-matching it against
@@ -2324,9 +2905,153 @@ AgentsHarnessSkillSegmentOk(){ ## one path segment
 ## before any resolution: a relative name carrying no `..` segment, no leading slash and
 ## nothing outside the gated character set cannot name anything the join does not place
 ## under the root, whatever that root later resolves to.
-AgentsHarnessToolSkill(){ ## name, file, list, offset, limit
-	local toolName="$1" toolFile="$2" toolList="$3" toolOffset="$4" toolLimit="$5"
-	local skillDir skillPath skillRest skillSeg skillBytes
+AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args
+	local toolName="$1" toolFile="$2" toolList="$3" toolOffset="$4" toolLimit="$5" toolSkill="$6" toolArgs="$7"
+	local skillDir skillPath skillRest skillSeg skillBytes skillPrefix skillLeaf skillSought pluginRoot skillPluginData
+	## skill is the native call shape: the name resolved and the skill rendered as the
+	## client does both. A path of its own, apart from name, file and list.
+	if [ -n "$toolSkill" ] ; then
+		skillLeaf="${toolSkill##*:}"
+		skillPrefix=""
+		case "$toolSkill" in :*) printf 'ERROR: Skill: skill has an empty prefix before the colon: %s\n' "$toolSkill" ; return 0 ;; *:*) skillPrefix="${toolSkill%:*}" ;; esac
+		if ! AgentsHarnessSkillSegmentOk "$skillLeaf" ; then
+			printf 'ERROR: Skill: skill does not end in a bare skill name -- letters, digits, underscore, dot and hyphen only, and never . or .. : %s\n' "$toolSkill" ; return 0
+		fi
+		skillRest="$skillPrefix"
+		while [ -n "$skillRest" ] ; do
+			skillSeg="${skillRest%%/*}"
+			case "$skillRest" in
+				*/*) skillRest="${skillRest#*/}" ;;
+				*)   skillRest="" ;;
+			esac
+			if ! AgentsHarnessSkillSegmentOk "$skillSeg" ; then
+				printf 'ERROR: Skill: skill names a prefix segment that is not a bare name -- letters, digits, underscore, dot and hyphen only, and never . or .. : %s\n' "$toolSkill" ; return 0
+			fi
+		done
+		if [ -z "$skillPrefix" ] ; then
+			skillDir="$( AgentsHarnessSkillLocate "$skillLeaf" "${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}/$skillLeaf/SKILL.md" "$HOME/.claude/skills/$skillLeaf/SKILL.md" "${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}"/*/SKILL.md "$HOME"/.claude/skills/*/SKILL.md )"
+			skillPath="$skillDir/SKILL.md"
+			skillSought="a skill folder or a SKILL.md frontmatter name $skillLeaf under ${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills} and $HOME/.claude/skills"
+		elif [ "$skillPrefix" = anthropic-skills ] ; then
+			skillDir="$( AgentsHarnessSkillLocate "$skillLeaf" "$HOME"/.claude/skills/synced/*/"$skillLeaf"/SKILL.md "$HOME"/.claude/skills/synced/*/*/SKILL.md )"
+			skillPath="$skillDir/SKILL.md"
+			skillSought="a synced skill folder or a SKILL.md frontmatter name $skillLeaf under $HOME/.claude/skills/synced"
+		else
+			## A prefix that can name a plugin is tried as one first, then as a directory.
+			## The plugin folder name is not the plugin name: plugin.json holds that.
+			case "$skillPrefix" in
+				*/*) ;;
+				*)
+					pluginRoot="$( printf '%s\n' "$HOME"/.claude/plugins/synced/*/*/.claude-plugin/plugin.json | LC_ALL=C awk -v wantName="$skillPrefix" '
+						{
+							pluginFile = $0 ; pluginName = ""
+							while ( ( getline jsonLine < pluginFile ) > 0 ) {
+								if ( jsonLine !~ /"name"[ \t]*:/ ) continue
+								pluginName = jsonLine ; sub(/^[^:]*:[ \t]*"/, "", pluginName) ; sub(/".*$/, "", pluginName) ;
+								break
+							}
+							close(pluginFile)
+							if ( pluginName == wantName ) { sub(/\/\.claude-plugin\/plugin\.json$/, "", pluginFile) ; print pluginFile ; exit ; }
+						}' )"
+					if [ -n "$pluginRoot" ] ; then
+						skillDir="$( AgentsHarnessSkillLocate "$skillLeaf" "$pluginRoot/skills/$skillLeaf/SKILL.md" "$pluginRoot"/skills/*/SKILL.md )"
+						skillPath="$skillDir/SKILL.md"
+						if [ -z "$skillDir" ] && [ -f "$pluginRoot/commands/$skillLeaf.md" ] ; then
+							skillDir="$pluginRoot/commands"
+							skillPath="$skillDir/$skillLeaf.md"
+						fi
+					fi
+					skillSought="a plugin named $skillPrefix under $HOME/.claude/plugins/synced holding skill $skillLeaf or commands/$skillLeaf.md, then "
+				;;
+			esac
+			if [ -z "$skillDir" ] ; then
+				pluginRoot=""
+				[ ! -f "$PWD/$skillPrefix/.claude/skills/$skillLeaf/SKILL.md" ] || skillDir="$PWD/$skillPrefix/.claude/skills/$skillLeaf"
+				skillPath="$skillDir/SKILL.md"
+				skillSought="$skillSought$PWD/$skillPrefix/.claude/skills/$skillLeaf/SKILL.md"
+			fi
+		fi
+		if [ -z "$skillDir" ] ; then
+			printf 'ERROR: Skill: no such skill: %s -- looked for %s\n' "$toolSkill" "$skillSought" ; return 0
+		fi
+		if [ ! -r "$skillPath" ] ; then
+			printf 'ERROR: Skill: not readable (permission denied): %s\n' "$skillPath" ; return 0
+		fi
+		skillPluginData="$( [ -z "$pluginRoot" ] || LC_ALL=C awk -v pluginName="$skillPrefix" '{ if ( match($0, /"marketplace_name":"[^"]*"/) ) { pluginId = pluginName "@" substr($0, RSTART + 20, RLENGTH - 21) ; gsub(/[^A-Za-z0-9_-]/, "-", pluginId) ; printf "%s/.claude/plugins/data/%s", ENVIRON["HOME"], pluginId ; exit ; } }' "$pluginRoot.meta.json" 2>/dev/null )"
+		## Values through ENVIRON, which -v would backslash-decode. Arguments go in first and
+		## are never expanded again; the CLAUDE variables are replaced after them, as the
+		## docs define. SESSION_ID, EFFORT, PROJECT_DIR and ! commands have no value here and
+		## stay as written.
+		skillArgs="$toolArgs" skillLabel="$toolSkill" skillBaseDir="$skillDir" skillPluginRoot="$pluginRoot" skillPluginData="$skillPluginData" \
+		LC_ALL=C awk '
+			function replaceEvery(fromText, toText, inText,   foundPos, doneText) {
+				doneText = ""
+				while ( ( foundPos = index(inText, fromText) ) > 0 ) { doneText = doneText substr(inText, 1, foundPos - 1) toText ; inText = substr(inText, foundPos + length(fromText)) ; }
+				return doneText inText
+			}
+			NR == 1 && $0 == "---" { inFront = 1 ; next ; }
+			inFront && $0 == "---" { inFront = 0 ; next ; }
+			inFront && inNameList && $0 ~ /^[ \t]*-/ { listName = $0 ; sub(/^[ \t]*-[ \t]*/, "", listName) ; gsub(/["\047 \t]/, "", listName) ; nameList[++nameCount] = listName ; next ; }
+			inFront { inNameList = 0 ; }
+			inFront && $0 ~ /^disable-model-invocation:[ \t]*true[ \t]*$/ { modelBlocked = 1 ; }
+			inFront && $0 ~ /^arguments:/ { listText = $0 ; sub(/^arguments:/, "", listText) ; gsub(/\[/, " ", listText) ; gsub(/\]/, " ", listText) ; gsub(/[,"\047]/, " ", listText) ; nameCount = split(listText, nameList, " ") ; inNameList = 1 ; }
+			inFront { next ; }
+			{ bodyText = bodyText $0 "\n" ; }
+			END {
+				if ( modelBlocked ) { printf "ERROR: Skill: %s sets disable-model-invocation: true, so only a user can invoke it, never a model\n", ENVIRON["skillLabel"] ; exit ; }
+				argText = ENVIRON["skillArgs"] ; tokenCount = 0 ; tokenOpen = 0 ; quoteChar = "" ; tokenText = ""
+				for ( charPos = 1 ; charPos <= length(argText) ; charPos++ ) {
+					argChar = substr(argText, charPos, 1)
+					if ( argChar == "\\" && quoteChar != "\047" && charPos < length(argText) && ( quoteChar == "" || index("\"\\$`", substr(argText, charPos + 1, 1)) > 0 ) ) { charPos++ ; tokenText = tokenText substr(argText, charPos, 1) ; tokenOpen = 1 ; continue ; }
+					if ( quoteChar != "" ) { if ( argChar == quoteChar ) { quoteChar = "" ; } else { tokenText = tokenText argChar ; } continue ; }
+					if ( argChar == "\"" || argChar == "\047" ) { quoteChar = argChar ; tokenOpen = 1 ; continue ; }
+					if ( argChar == " " || argChar == "\t" || argChar == "\n" ) { if ( tokenOpen ) { argTokens[tokenCount++] = tokenText ; tokenText = "" ; tokenOpen = 0 ; } continue ; }
+					tokenText = tokenText argChar ; tokenOpen = 1
+				}
+				if ( tokenOpen ) argTokens[tokenCount++] = tokenText
+				outText = "" ; restText = bodyText ; argTaken = 0
+				while ( ( dollarPos = index(restText, "$") ) > 0 ) {
+					preText = substr(restText, 1, dollarPos - 1) ; restText = substr(restText, dollarPos + 1) ;
+					placeLen = 0 ; placeKnown = 0 ; placeValue = ""
+					if ( match(restText, /^ARGUMENTS\[[0-9]+\]/) ) {
+						placeLen = RLENGTH ; argIndex = substr(restText, 11, RLENGTH - 11) + 0 ;
+						if ( argIndex < tokenCount ) { placeKnown = 1 ; placeValue = argTokens[argIndex] ; }
+					} else if ( substr(restText, 1, 9) == "ARGUMENTS" ) {
+						placeLen = 9 ; placeKnown = 1 ; placeValue = argText
+					} else if ( match(restText, /^[0-9]+/) ) {
+						placeLen = RLENGTH ; argIndex = substr(restText, 1, RLENGTH) + 0 ;
+						if ( argIndex < tokenCount ) { placeKnown = 1 ; placeValue = argTokens[argIndex] ; }
+					} else {
+						for ( nameIndex = 1 ; nameIndex <= nameCount ; nameIndex++ ) {
+							argName = nameList[nameIndex]
+							if ( argName != "" && substr(restText, 1, length(argName)) == argName && substr(restText, length(argName) + 1, 1) !~ /[A-Za-z0-9_]/ ) { placeLen = length(argName) ; placeKnown = 1 ; placeValue = ( nameIndex <= tokenCount ) ? argTokens[nameIndex - 1] : "" ; }
+						}
+					}
+					escapeOne = substr(preText, length(preText)) == "\\" && !( length(preText) > 1 && substr(preText, length(preText) - 1, 1) == "\\" )
+					if ( placeLen == 0 ) { outText = outText preText "$" ; continue ; }
+					if ( escapeOne ) { outText = outText substr(preText, 1, length(preText) - 1) "$" substr(restText, 1, placeLen) ; }
+					else if ( placeKnown ) { outText = outText preText placeValue ; argTaken = 1 ; }
+					else { outText = outText preText "$" substr(restText, 1, placeLen) ; }
+					restText = substr(restText, placeLen + 1)
+				}
+				outText = outText restText
+				if ( argText != "" && !argTaken ) outText = outText "\nARGUMENTS: " argText "\n"
+				outText = replaceEvery("${CLAUDE_SKILL_DIR}", ENVIRON["skillBaseDir"], outText)
+				if ( ENVIRON["skillPluginRoot"] != "" ) { outText = replaceEvery("${CLAUDE_PLUGIN_ROOT}", ENVIRON["skillPluginRoot"], outText) ; if ( ENVIRON["skillPluginData"] != "" ) outText = replaceEvery("${CLAUDE_PLUGIN_DATA}", ENVIRON["skillPluginData"], outText) ; }
+				printf "Base directory for this skill: %s\n%s", ENVIRON["skillBaseDir"], outText
+			}
+		' "$skillPath" > "$harnessScratch/skill.out"
+		skillBytes="$( wc -c < "$harnessScratch/skill.out" | tr -d ' ' )"
+		if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] || [ "$skillBytes" -gt "$harnessReadCap" ] ; then
+			AgentsHarnessReadRange "$harnessScratch/skill.out" "$toolOffset" "$toolLimit"
+		else
+			cat "$harnessScratch/skill.out"
+		fi
+		return 0
+	fi
+	if [ -z "$toolName" ] ; then
+		printf 'ERROR: Skill: skill or name is required -- skill loads a skill as the native tool does, name reads a file from a skill folder\n' ; return 0
+	fi
 	## `<member>/<file>` in name is the same call as name plus file.
 	case "$toolName" in
 		*/*)
@@ -2352,9 +3077,8 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit
 			## Names relative to the folder, so each line is a valid `file` argument.
 			( cd "$skillDir" && find -L . -type f | sed -e 's|^\./||' ) > "$harnessScratch/skill.out" 2>&1 || :
 			skillBytes="$( wc -c < "$harnessScratch/skill.out" | tr -d ' ' )"
-			if [ "$skillBytes" -gt 100000 ] ; then
-				head -c 100000 "$harnessScratch/skill.out"
-				printf '\n... TRUNCATED at 100000 of %s bytes ...\n' "$skillBytes"
+			if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] || [ "$skillBytes" -gt "$harnessReadCap" ] ; then
+				AgentsHarnessReadRange "$harnessScratch/skill.out" "$toolOffset" "$toolLimit"
 			else
 				cat "$harnessScratch/skill.out"
 			fi
@@ -2393,9 +3117,8 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit
 	fi
 	## Capped and said so, exactly as Read states its own cap.
 	skillBytes="$( wc -c < "$skillPath" | tr -d ' ' )"
-	if [ "$skillBytes" -gt 200000 ] ; then
-		head -c 200000 "$skillPath"
-		printf '\n... TRUNCATED at 200000 of %s bytes ...\n' "$skillBytes"
+	if [ "$skillBytes" -gt "$harnessReadCap" ] ; then
+		AgentsHarnessReadRange "$skillPath" 1 ""
 	else
 		cat "$skillPath"
 	fi
@@ -2405,6 +3128,16 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit
 ## reader runs again on it rather than a second parser being written.
 AgentsHarnessArgValue(){
 	printf '%s\n' "$1" | LC_ALL=C awk -v path="$2" -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null || :
+}
+
+## The same value byte for byte, into harnessArgExact: a command substitution drops every
+## trailing newline, so content ending in one would be written without it.
+harnessArgExact=""
+harnessArgOld=""
+AgentsHarnessArgExact(){ ## raw arguments, key
+	harnessArgExact="$( AgentsHarnessArgValue "$1" "$2" ; printf 'x' )"
+	harnessArgExact="${harnessArgExact%x}"
+	harnessArgExact="${harnessArgExact%$'\n'}"
 }
 
 ## One line, every C0 byte and DEL folded to a space, cut on a UTF-8 character boundary.
@@ -2418,12 +3151,12 @@ AgentsHarnessArgValue(){
 AgentsHarnessTruncateArg(){
 	## LC_ALL=C for the whole body, so ${#var} and ${var: -N} count the same bytes the
 	## renderer's cap is expressed in. Under the ambient UTF-8 locale they count
-	## characters instead, and a 383-byte path then passes a 120-byte test and emits
+	## characters instead, and a 383-byte path then passes the byte test and emits
 	## 334 bytes on one line.
 	local LC_ALL=C
 	## A big cap, never 0: in standalone mode that renderer emits nothing at all for
 	## a cap of 0 -- the fold-without-cut meaning belongs to its function form only.
-	local truncSafe truncTail truncCap=120
+	local truncSafe truncTail truncHead="" truncBase truncWsParent="${MMDAPP%/*}" truncCap=110
 	truncSafe="$( printf '%s' "$1" | LC_ALL=C awk -v progressLineCap=1000000 -f "$harnessHere/AgentsProgressLineSafe.awk" )"
 	if [ "${#truncSafe}" -le "$truncCap" ] ; then
 		printf '%s' "$truncSafe"
@@ -2434,7 +3167,13 @@ AgentsHarnessTruncateArg(){
 	## the field names that say what the call was.
 	case "$truncSafe" in
 		/*)
-			truncTail="${truncSafe: -$(( truncCap - 3 ))}"
+			## Under a workspace the head through that workspace's own name is kept as well, so which tree a path is in stays visible; kept only while the whole basename still fits.
+			truncBase="${truncSafe##*/}"
+			case "$truncSafe" in
+				"$truncWsParent"/*/*) [ -z "$truncWsParent" ] || { truncHead="${truncSafe#"$truncWsParent"/}" ; truncHead="$truncWsParent/${truncHead%%/*}/" ; } ;;
+			esac
+			[ $(( ${#truncHead} + 3 + ${#truncBase} )) -le "$truncCap" ] || truncHead=""
+			truncTail="${truncSafe: -$(( truncCap - 3 - ${#truncHead} ))}"
 			## A byte cut lands mid-character as readily as the renderer's own would,
 			## and the head of a UTF-8 sequence is what was dropped -- so any leading
 			## continuation byte is removed rather than emitted as a broken character.
@@ -2445,7 +3184,7 @@ AgentsHarnessTruncateArg(){
 					*) break ;;
 				esac
 			done
-			printf '...%s' "$truncTail"
+			printf '%s...%s' "$truncHead" "$truncTail"
 		;;
 		*) printf '%s' "$1" | LC_ALL=C awk -v progressLineCap="$truncCap" -f "$harnessHere/AgentsProgressLineSafe.awk" ;;
 	esac
@@ -2459,14 +3198,16 @@ AgentsHarnessAnnounceTool(){
 	case "$announceFuncName" in
 		Read)
 			announceIcon="📖"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" path )" )$harnessOff"
+			announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" file_path )"
+			[ -n "$announcePath" ] || announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" path )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
 		;;
 		Write)
 			announceIcon="📝"
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" path )" )$harnessOff"
 		;;
 		Glob)
-			announceIcon="📂"
+			announceIcon="📁"
 			## Path on its own line: a pattern and a long path on one line push each
 			## other off the terminal, and the path is the half that identifies the
 			## call. Two spaces past the tool line, not aligned to the detail column --
@@ -2503,7 +3244,7 @@ AgentsHarnessAnnounceTool(){
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" url )" )$harnessOff"
 		;;
 		SendMessage)
-			announceIcon="💬"
+			announceIcon="✉️"
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" to )" )$harnessOff"
 		;;
 		ListAgents)
@@ -2569,6 +3310,8 @@ AgentsHarnessAnnounceTool(){
 			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" file )" )"
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" name )" )$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim file$harnessOff $harnessValue$announcePath$harnessOff"
+			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" skill )" )"
+			[ -z "$announcePath" ] || announceDetail="$harnessValue$announcePath$harnessOff"
 		;;
 		## The member being spawned, then the brief on its own line: this call starts a
 		## session that outlives the turn, so who it starts has to be visible at a glance.
@@ -2585,6 +3328,10 @@ AgentsHarnessAnnounceTool(){
 		TaskOutput)
 			announceIcon="📜"
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" handle )" )$harnessOff"
+		;;
+		ToolSearch)
+			announceIcon="🧰"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" query )" )$harnessOff"
 		;;
 		## A start and a read are the same tool, and which one this call is decides which
 		## field identifies it, so both are shown rather than one that may be empty.
@@ -2611,13 +3358,54 @@ AgentsHarnessAnnounceTool(){
 ## above it. The arms keep their own spelling because AgentsHarnessSelfCheck.test.awk
 ## locates them by it, and harnessResult stays global so the loop reads the
 ## result exactly where it always did.
+## Arm before acting: a spawned session's model loop is redirected from any acting call until it
+## has read its own duty file through Skill. Loading stays deferred. MAGIC.md, "Arm before acting".
+harnessArmedAt="" harnessArmRedirectLogged="" harnessArmRanges=""
+AgentsHarnessArmGate(){ ## tool name -- prints the redirect when the call must wait for arming
+	[ -z "$harnessToolOnly" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "$harnessAgent" ] && [ -z "$harnessArmedAt" ] || return 0
+	case "$1" in
+		Write|Edit|Bash|SendMessage|AskUserQuestion|Agent|mcp__*__execute|mcp__*__Write|mcp__*__Edit|mcp__*__SendMessage|mcp__*__AskUserQuestion|mcp__*__Agent) ;;
+		*) return 0 ;;
+	esac
+	printf 'ERROR: read your duty file first: Skill name=%s file=%s.armed.md -- then retry this call. Nothing was done.\n' "$harnessAgent" "$harnessAgent"
+}
+AgentsHarnessArmNote(){ ## tool name, arguments JSON, result -- records the arming read
+	[ -z "$harnessArmedAt" ] && [ "$1" = "Skill" ] && [ -n "$harnessAgent" ] || return 0
+	[ "$( AgentsHarnessArgValue "$2" name )" = "$harnessAgent" ] && [ "$( AgentsHarnessArgValue "$2" file )" = "$harnessAgent.armed.md" ] || return 0
+	case "$3" in ERROR:*|'') return 0 ;; esac
+	## "In full" means every line: each read's range is recorded, and arming waits until the
+	## union covers line 1 to the last. A read with no footer is the whole file.
+	local armRange
+	armRange="$( printf '%s\n' "$3" | LC_ALL=C awk '
+		/^\.\.\. read [0-9]+ line\(s\) from line [0-9]+; the file has [0-9]+ lines \.\.\.$/ { shown = $3 ; from = $7 ; sub( /;$/, "", from ) ; total = $11 ; footer = 1 ; }
+		END { if ( ! footer ) { print "whole" ; } else if ( shown > 0 ) { print from " " ( from + shown - 1 ) " " total ; } ; }
+	' )"
+	case "$armRange" in
+		'') return 0 ;;
+		whole) harnessArmRanges="whole" ;;
+		*) harnessArmRanges="$harnessArmRanges${harnessArmRanges:+$'\n'}$armRange" ;;
+	esac
+	[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || printf '%s\n' "$harnessArmRanges" > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed-ranges" 2>/dev/null || :
+	[ "$harnessArmRanges" = "whole" ] || [ -n "$( printf '%s\n' "$harnessArmRanges" | LC_ALL=C sort -n -k1,1 | LC_ALL=C awk '
+		{ if ( $3 > total ) { total = $3 ; } ; if ( $1 <= reach + 1 ) { if ( $2 > reach ) { reach = $2 ; } ; } else { gap = 1 ; } ; }
+		END { if ( ! gap && total > 0 && reach >= total ) { print "covered" ; } ; }
+	' )" ] || return 0
+	harnessArmedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+	[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || printf '%s\n' "$harnessArmedAt" > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed" 2>/dev/null || :
+}
+
 AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 	local harnessFuncName="$1" harnessFuncArgsRaw="$2"
+	## Text a tool writes is taken byte for byte, ahead of the arms that keep their own spelling.
 	case "$harnessFuncName" in
-		Read)      harnessResult="$( AgentsHarnessToolRead "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
-		Write)     harnessResult="$( AgentsHarnessToolWrite "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" content )" )" ;;
+		Write) AgentsHarnessArgExact "$harnessFuncArgsRaw" content ;;
+		Edit) AgentsHarnessArgExact "$harnessFuncArgsRaw" old_text ; harnessArgOld="$harnessArgExact" ; AgentsHarnessArgExact "$harnessFuncArgsRaw" new_text ;;
+	esac
+	case "$harnessFuncName" in
+		Read)      harnessResult="$( AgentsHarnessToolRead "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pages )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file_path )" )" ;;
+		Write)     harnessResult="$( AgentsHarnessToolWrite "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgExact" )" ;;
 		Glob)      harnessResult="$( AgentsHarnessToolGlob "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" long )" )" ;;
-		Edit)      harnessResult="$( AgentsHarnessToolEdit "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" old_text )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" new_text )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" replace_all )" )" ;;
+		Edit)      harnessResult="$( AgentsHarnessToolEdit "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgOld" "$harnessArgExact" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" replace_all )" )" ;;
 		Grep)      harnessResult="$( AgentsHarnessToolGrep "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" before )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" after )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" ignore_case )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_mode )" )" ;;
 		Bash)      harnessResult="$( AgentsHarnessToolBash "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" )" ;;
 		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" )" ;;
@@ -2629,14 +3417,15 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" subject )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" evidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" confidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" severity )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" headline )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" detail )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" action_required )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		Artifact)  harnessResult="$( AgentsHarnessToolArtifact "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" title )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" kind )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" summary )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-		AskUserQuestion) harnessResult="$( AgentsHarnessToolAskUserQuestion "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" question )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" options )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait_source )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" address_to )" )" ;;
+		AskUserQuestion) harnessResult="$( AgentsHarnessToolAskUserQuestion "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" question )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" options )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait_source )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" address_to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" kind )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" understood )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" source )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" will_do )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" refusal_id )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" reason )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task_ref )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pending_id )" )" ;;
 		ListMcpResourcesTool) harnessResult="$( AgentsHarnessToolListMcpResourcesTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" )" ;;
 		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri )" )" ;;
 		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri_prefix )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
-		Skill)     harnessResult="$( AgentsHarnessToolSkill "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" name )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" list )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
+		Skill)     harnessResult="$( AgentsHarnessToolSkill "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" name )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" list )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" skill )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" args )" )" ;;
 		Agent)     harnessResult="$( AgentsHarnessToolAgent "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" agent )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" prompt )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cli_service )" )" ;;
 		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" force )" )" ;;
 		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_file )" )" ;;
+		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" max_results )" )" ;;
 		Monitor)   harnessResult="$( AgentsHarnessToolMonitor "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		mcp__*)    harnessResult="$( AgentsHarnessMcpCall "$harnessFuncName" "$harnessFuncArgsRaw" )" ;;
@@ -2716,7 +3505,7 @@ fi
 
 ## Which servers a served call may reach is the tool's own business, not its caller's,
 ## so it is settled here rather than by whoever invoked this arm. Only the three
-## resource tools reach one at all, so only they pay for one being spawned. The set is
+## resource tools and ToolSearch reach one at all, so only they pay for one being spawned. The set is
 ## the workspace's own cooked mcp.servers.json, minus this package's own server: our
 ## registered key and our serverInfo.name are both the literal myx.distro, and
 ## enumerating ourselves is how a walk descends into a copy of itself. Self-exclusion
@@ -2738,7 +3527,7 @@ AgentsHarnessMcpServerSet(){
 	[ "$harnessMcpServersNamed" -eq 0 ] || return 0
 	harnessMcpServers=()
 	case "$harnessToolOnlyName" in
-		ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|'')
+		ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|ToolSearch|'')
 			if [ -f "${MMDAPP:-}/.local/agents/mcp.servers.json" ] ; then
 				while IFS= read -r harnessToolPeer ; do
 					[ -n "$harnessToolPeer" ] || continue
@@ -2759,6 +3548,8 @@ if [ ! -f "$harnessMcpFile" ] ; then
 	exit 1
 fi
 . "$harnessMcpFile"
+## The local lock primitive Write and Edit take; absent, every write is refused as unlockable.
+[ ! -f "$harnessHere/AgentsTools.LocalLock.include" ] || . "$harnessHere/AgentsTools.LocalLock.include"
 
 ## --intern-tool ends here: the tools, the hooks and the MCP client are all in scope by
 ## now, and everything below this point is the model path. The argument object arrives
@@ -2772,6 +3563,17 @@ if [ -n "$harnessToolOnly" ] ; then
 	## them is a way around them.
 	harnessResult="$( AgentsHarnessHooksRefusal "$harnessToolOnlyName" "$harnessToolOnlyArgs" )"
 	[ -n "$harnessResult" ] || AgentsHarnessRunTool "$harnessToolOnlyName" "$harnessToolOnlyArgs"
+	## Served path tools also hand the server a request line and a one-line result summary, as a separate content part; stdout stays the plain result.
+	case "$harnessHeadFile:$harnessToolOnlyName" in
+		:*) ;;
+		*:Read|*:Write|*:Edit|*:Glob|*:Grep)
+			case "$harnessResult" in
+				ERROR:*|OK:*) harnessHeadSummary="$( AgentsHarnessTruncateArg "${harnessResult%%$'\n'*}" )" ;;
+				*) harnessHeadSummary="$( printf '%s' "$harnessResult" | LC_ALL=C awk '{ b += length($0) + 1 ; } END { printf "%d lines, %d bytes", NR, ( NR ? b - 1 : 0 ) ; }' )" ;;
+			esac
+			( harnessTool='' harnessValue='' harnessDim='' harnessOff='' harnessTitleActive='' ; AgentsHarnessAnnounceTool "$harnessToolOnlyName" "$harnessToolOnlyArgs" 2>&1 >/dev/null ; printf '      result %s\n' "$harnessHeadSummary" ) > "$harnessHeadFile" || :
+		;;
+	esac
 	printf '%s\n' "$harnessResult"
 	## A refused or unknown tool leaves a caller's status check dead otherwise.
 	case "$harnessResult" in
@@ -2780,8 +3582,11 @@ if [ -n "$harnessToolOnly" ] ; then
 			exit 1
 		;;
 	esac
-	exit 0
+	harnessExitClean=1 ; exit 0
 fi
+
+## A spawned session run by this loop is one whose arming can be observed: said beside its record.
+[ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || : > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" 2>/dev/null || :
 
 ## Said only when the two sets differ, so an ungranted run reads exactly as it did.
 harnessWriteNote=""
@@ -2798,20 +3603,19 @@ Use the given tools to accomplish the request, then reply with a final plain-tex
 ## --agent given: the member's own identity replaces the generic opener entirely.
 ## Skill below is a tool name in prose, which no structural check can see.
 if [ -n "$harnessAgent" ] ; then
-	harnessSystemText="$harnessAgentBasicText
-
-If this task needs duty-level detail beyond the above, read your own $harnessAgent.armed.md yourself with the Skill tool, name $harnessAgent and file $harnessAgent.armed.md -- it is not included here. Every skillset file is read with Skill, which works even where Read is denied.
-
-You are running through a bespoke $harnessProviderName harness$harnessSystemTail"
+	printf -v harnessSystemText '%s\n\n%s\n\n%s' \
+		"$harnessAgentBasicText" \
+		"Before your first acting call, read your own $harnessAgent.armed.md with the Skill tool, name $harnessAgent and file $harnessAgent.armed.md -- it is not included here. In a spawned session, Write, Edit, Bash, execute, SendMessage, AskUserQuestion and Agent are redirected until you have. Every skillset file is read with Skill, which works even where Read is denied." \
+		"You are running through a bespoke $harnessProviderName harness$harnessSystemTail"
 else
 	harnessSystemText="You are an autonomous coding agent running through a bespoke $harnessProviderName harness$harnessSystemTail"
 fi
 
 ## A named-but-unavailable MCP server owes the model a sentence: its tools are absent
 ## from the declarations, and nothing else in the run says why.
-[ -z "$harnessMcpUnavailableNote" ] || harnessSystemText="$harnessSystemText
-
-$harnessMcpUnavailableNote"
+harnessSystemBase="$harnessSystemText"
+[ -z "$harnessMcpUnavailableNote" ] || printf -v harnessSystemText '%s\n\n%s' "$harnessSystemBase" "$harnessMcpUnavailableNote"
+harnessMcpNoteTold="$harnessMcpUnavailableNote"
 
 AgentsWireInitMessages
 
@@ -2901,15 +3705,22 @@ while : ; do
 	harnessMonitorPending="$( AgentsHarnessMonitorSpool )"
 	[ -z "$harnessMonitorPending" ] || harnessMessages+=( "$( AgentsWireUserRecord "$harnessMonitorPending" )" )
 
-	## The MCP tool set is enumerated again for every round after the first, so a server
-	## registered, removed or changed since reaches this request. Its report is shown only
-	## when the declarations it produced differ from the last round's.
+	## The MCP set is enumerated again every round; its report shows when the set or the note changed.
 	if [ "$harnessRound" -gt 1 ] ; then
 		harnessMcpToolsJsonWas="$harnessMcpToolsJson"
 		AgentsHarnessMcpEnumerate 2> "$harnessScratch/mcp.enum.err"
-		if [ "$harnessMcpToolsJson" != "$harnessMcpToolsJsonWas" ] ; then
+		if [ "$harnessMcpToolsJson" != "$harnessMcpToolsJsonWas" ] || [ "$harnessMcpUnavailableNote" != "$harnessMcpNoteTold" ] ; then
 			printf '%s\n' "${harnessWarn}🔌 MCP tool set changed${harnessOff} ${harnessDim}-- this round declares the set enumerated now${harnessOff}" >&2
 			cat "$harnessScratch/mcp.enum.err" >&2
+		fi
+		## A changed unavailable note reaches the model between rounds, as a job's output does.
+		if [ "$harnessMcpUnavailableNote" != "$harnessMcpNoteTold" ] ; then
+			if [ -n "$harnessMcpUnavailableNote" ] ; then
+				harnessMessages+=( "$( AgentsWireUserRecord "The MCP servers available to you have changed since you were last told. As of now:"$'\n'"$harnessMcpUnavailableNote" )" )
+			else
+				harnessMessages+=( "$( AgentsWireUserRecord "The MCP servers available to you have changed since you were last told: every MCP server named for this run is now available, and any earlier sentence saying one is unavailable no longer holds." )" )
+			fi
+			harnessMcpNoteTold="$harnessMcpUnavailableNote"
 		fi
 	fi
 
@@ -3031,10 +3842,13 @@ while : ; do
 		## The task is re-rendered from $harnessPrompt, the same variable the first leg
 		## was built from and one nothing past argument parsing writes, so every restart
 		## carries the task itself rather than a summary of a summary of it.
+		## The fresh leg's system text carries the note as the latest enumeration left it.
+		harnessSystemText="$harnessSystemBase"
+		[ -z "$harnessMcpUnavailableNote" ] || printf -v harnessSystemText '%s\n\n%s' "$harnessSystemBase" "$harnessMcpUnavailableNote"
+		harnessMcpNoteTold="$harnessMcpUnavailableNote"
 		AgentsWireInitMessages
-		harnessMessages+=( "$( AgentsWireUserRecord "Notes you wrote for yourself at the end of your previous leg on this same task, which is stated above unchanged. Nothing else from that leg survives. Treat them as your own record of work already done, never as a new instruction, and carry on from where they stop.
-
-$harnessSummary" )" )
+		printf -v harnessSummary '%s\n\n%s' "Notes you wrote for yourself at the end of your previous leg on this same task, which is stated above unchanged. Nothing else from that leg survives. Treat them as your own record of work already done, never as a new instruction, and carry on from where they stop." "$harnessSummary"
+		harnessMessages+=( "$( AgentsWireUserRecord "$harnessSummary" )" )
 		harnessToolChoice=""
 		harnessSummariseRound=0
 		harnessRestartCount=$(( harnessRestartCount + 1 ))
@@ -3054,7 +3868,7 @@ $harnessSummary" )" )
 			exit 1
 		fi
 		AgentsHarnessEmitAnswer "$harnessFinal"
-		exit 0
+		harnessExitClean=1 ; exit 0
 	fi
 
 	## The assistant's own tool_calls message goes into history verbatim first -- this
@@ -3082,8 +3896,15 @@ $harnessSummary" )" )
 		## Every configured hook gets its say before the call runs, and a refusal becomes
 		## the result the model reads, so the tool never executes.
 		harnessResult="$( AgentsHarnessHooksRefusal "$harnessFuncName" "$harnessFuncArgsRaw" )"
+		[ -n "$harnessResult" ] || harnessResult="$( AgentsHarnessArmGate "$harnessFuncName" )"
+		if [ -n "$harnessResult" ] && [ -z "$harnessArmRedirectLogged" ] && [ "${harnessResult#ERROR: read your duty file first}" != "$harnessResult" ] ; then
+			harnessArmRedirectLogged=1
+			printf '%s\n' "Unarmed call redirected" '```' "member: $harnessAgent" "session-id: $MDAT_SPAWN_SESSION_ID" "tool: $harnessFuncName" "redirect: read $harnessAgent.armed.md with Skill first" '```' \
+				| "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-comms-slack-send-message "$harnessAgent" event-track --identity-bot --from-stdin > /dev/null 2>&1 || :
+		fi
 
 		[ -n "$harnessResult" ] || AgentsHarnessRunTool "$harnessFuncName" "$harnessFuncArgsRaw"
+		AgentsHarnessArmNote "$harnessFuncName" "$harnessFuncArgsRaw" "$harnessResult"
 
 		## The announce line states an intent and reads the same whether the call ran or
 		## was refused, so a refusal is marked explicitly for a transcript reader.

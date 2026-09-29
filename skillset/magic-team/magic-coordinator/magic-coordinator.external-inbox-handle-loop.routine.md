@@ -20,7 +20,7 @@ Doesn't do: anything `magic-team.process-inbox.routine` already covers for actin
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — `magic-coordinator`'s own mail only; the non-acting-owner content sitting in that same inbox is **work-the-loop**'s job, not this step's.
 2. **work-the-loop**: pick one of five actions per item, by its own real history — not a fixed rotation.

@@ -160,10 +160,10 @@ case "$1" in
 		fi
 
 		local targetDir="$inboxDirResolved/processed"
-		if [ ! -d "$targetDir" ] ; then
-			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: no such inbox processed directory: $targetDir" >&2
+		mkdir -p "$targetDir" || {
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: can't create inbox processed directory: $targetDir" >&2
 			set +e ; return 1
-		fi
+		}
 		local targetPath="$targetDir/$itemName"
 		if [ -e "$targetPath" ] ; then
 			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: processed target already exists, refusing to overwrite: $targetPath (source left in place: $sourcePath)" >&2

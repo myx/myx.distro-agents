@@ -21,6 +21,25 @@
 ## performed leaves the record open rather than closing it as unanswered.
 ##
 
+## One resolved mark on one message: under the identity the question was posted with
+## first, then the bot, since which identity may react differs by conversation.
+## `already_reacted` is a success of the react op. A failure is logged and changes nothing.
+AgentsToolsPendingReplyReact(){ ## member, <channel>:<ts>, emoji, pending id
+	DistroAgentsTools --member-comms-slack-react "$1" "$2" "$3" > /dev/null 2>&1 \
+		|| DistroAgentsTools --member-comms-slack-react "$1" "$2" "$3" --identity-bot > /dev/null 2>&1 \
+		|| echo "$MDSC_CMD: ⚠️ WARNING: $4 is closed, but :$3: was not added on $2" >&2
+	return 0
+}
+
+## True while any question in that thread still waits.
+AgentsToolsPendingReplyThreadHasOpen(){ ## channel, thread ts
+	local openFile
+	while IFS= read -r openFile ; do
+		LC_ALL=C grep -q -x -F "channel: $1" "$openFile" && LC_ALL=C grep -q -x -F "status: reply-pending" "$openFile" && return 0
+	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' "thread-ts: $2" "$MMDAPP/.local/agents/pending" 2>/dev/null )
+	return 1
+}
+
 case "$1" in
 
 	--intern-op-pending-reply-open)
@@ -30,8 +49,22 @@ case "$1" in
 		local pendingOwner="$1"
 		shift || true
 		local pendingTo="" pendingSession="" pendingBlockedOn=""
+		local pendingKind="" pendingAddressTo="" pendingChannel="" pendingQuestionTs="" pendingThreadTs="" pendingAddressees="" pendingAsking="" pendingRefusal="" pendingOptions="" pendingTag="" pendingKey=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				## A typed question's own facts, kept so an answer can be classified and applied later.
+				--kind) pendingKind="${2:-}" ; shift 2 ;;
+				--address-to) pendingAddressTo="${2:-}" ; shift 2 ;;
+				--channel) pendingChannel="${2:-}" ; shift 2 ;;
+				--question-ts) pendingQuestionTs="${2:-}" ; shift 2 ;;
+				--thread-ts) pendingThreadTs="${2:-}" ; shift 2 ;;
+				--addressees) pendingAddressees="${2:-}" ; shift 2 ;;
+				--asking-accounts) pendingAsking="${2:-}" ; shift 2 ;;
+				--refusal-id) pendingRefusal="${2:-}" ; shift 2 ;;
+				--options) pendingOptions="${2:-}" ; shift 2 ;;
+				## Its tag within a thread several questions share, and the key a duplicate is found by.
+				--question-tag) pendingTag="${2:-}" ; shift 2 ;;
+				--question-key) pendingKey="${2:-}" ; shift 2 ;;
 				--to)
 					pendingTo="${2:-}"
 					[ -n "$pendingTo" ] || { echo "$MDSC_CMD: ⛔ ERROR: --to requires <conversation-id>" >&2 ; set +e ; return 1 ; }
@@ -85,6 +118,16 @@ case "$1" in
 			printf 'communication-channel-id: slack:%s\n' "$pendingTo"
 			printf 'blocked-on: %s\n' "$pendingBlockedOn"
 			[ -z "$pendingSession" ] || printf 'session-id: %s\n' "$pendingSession"
+			[ -z "$pendingKind" ] || printf 'kind: %s\n' "${pendingKind//$'\n'/ }"
+			[ -z "$pendingAddressTo" ] || printf 'address-to: %s\n' "${pendingAddressTo//$'\n'/ }"
+			[ -z "$pendingChannel" ] || printf 'channel: %s\n' "${pendingChannel//$'\n'/ }"
+			[ -z "$pendingQuestionTs" ] || printf 'question-ts: %s\n' "${pendingQuestionTs//$'\n'/ }"
+			[ -z "$pendingThreadTs" ] || printf 'thread-ts: %s\n' "${pendingThreadTs//$'\n'/ }"
+			[ -z "$pendingAddressees" ] || printf 'addressees: %s\n' "${pendingAddressees//$'\n'/ }"
+			[ -z "$pendingAsking" ] || printf 'asking-accounts: %s\n' "${pendingAsking//$'\n'/ }"
+			[ -z "$pendingRefusal" ] || printf 'refusal-id: %s\n' "${pendingRefusal//$'\n'/ }"
+			[ -z "$pendingTag" ] || printf 'question-tag: %s\n' "${pendingTag//$'\n'/ }"
+			[ -z "$pendingKey" ] || printf 'question-key: %s\n' "${pendingKey//$'\n'/ }"
 			printf 'asked-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 			printf '%s\n' "---"
 			printf '\n# Question asked\n\n'
@@ -93,6 +136,8 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: can't write the pending-reply record: $pendingRoot/$pendingId.md" >&2
 			set +e ; return 1
 		}
+		## A decision's options beside the record, raw, because a verdict is read against them.
+		[ -z "$pendingOptions" ] || printf '%s\n' "$pendingOptions" > "$pendingRoot/$pendingId.options" || :
 		## The id on stdout, because the caller closes this record by it and has no
 		## other way to learn it.
 		printf '%s\n' "$pendingId"
@@ -105,11 +150,39 @@ case "$1" in
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
 		local pendingId="$1"
 		shift || true
-		local pendingStatus=""
+		local pendingStatus="" pendingVerdict="" pendingAnsweredBy="" pendingIfOpen="" pendingAnswerTs="" pendingMark=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				## The ts of the reply taken as the answer, marked :eyes: once the record is closed.
+				--answer-ts)
+					pendingAnswerTs="${2:-}"
+					shift 2
+				;;
+				## How the question is marked once closed: `answered` (the default) or `settled`.
+				--resolved-as)
+					case "${2:-}" in
+						answered) pendingMark="white_check_mark" ;;
+						settled) pendingMark="ballot_box_with_check" ;;
+						*) echo "$MDSC_CMD: ⛔ ERROR: --resolved-as must be answered|settled: ${2:-}" >&2 ; set +e ; return 1 ;;
+					esac
+					shift 2
+				;;
+				## Closes only a record still waiting: of two closers racing on one record (a
+				## live wait and a collect), the second finds it closed and says so, rc 3.
+				--if-open)
+					pendingIfOpen=1
+					shift
+				;;
 				--status)
 					pendingStatus="${2:-}"
+					shift 2
+				;;
+				--verdict)
+					pendingVerdict="${2:-}"
+					shift 2
+				;;
+				--answered-by)
+					pendingAnsweredBy="${2:-}"
 					shift 2
 				;;
 				--context)
@@ -141,23 +214,175 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record: $pendingFile" >&2
 			set +e ; return 1
 		fi
+		## Every close holds the record's own lock across its read and its write, so two
+		## closers never interleave on one record.
+		local pendingLock="" pendingNow=""
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
+		if ! AgentsToolsLocalLockTake "pending-reply-$pendingId" 30 ; then
+			echo "$MDSC_CMD: ⛔ ERROR: the lock on $pendingId could not be taken, so the record was left unchanged" >&2
+			set +e ; return 1
+		fi
+		pendingLock="$agentsLocalLockPath"
+		if [ -n "$pendingIfOpen" ] ; then
+			pendingNow="$( LC_ALL=C awk -F': ' 'NR > 1 && $0 == "---" { exit ; } $1 == "status" { print substr($0, 9) ; exit ; }' "$pendingFile" )"
+			if [ "$pendingNow" != "reply-pending" ] ; then
+				AgentsToolsLocalLockGive "$pendingLock"
+				printf 'ALREADY-CLOSED %s %s\n' "$pendingId" "${pendingNow:-unknown}"
+				set +e ; return 3
+			fi
+		fi
 		## Applied by this package's own header writer, so no second frontmatter
 		## parser exists and a failure leaves the record exactly as it was -- an open
 		## record is recoverable by a rescan, a truncated one is not.
 		local pendingOps pendingBody
-		pendingOps="$MMDAPP/.local/temp/mdat-pending-reply-ops.$$"
-		mkdir -p "$MMDAPP/.local/temp" || { set +e ; return 1 ; }
+		pendingOps="$MMDAPP/.local/temp/mdat-pending-reply-ops.$$.$RANDOM"
+		mkdir -p "$MMDAPP/.local/temp" || { AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
 		{
 			printf 'upsert\tstatus\t%s\n' "$pendingStatus"
 			printf 'upsert\tresolved-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
-		} > "$pendingOps" || { set +e ; return 1 ; }
+			## The same moment in epoch seconds, which a reply's Slack ts compares with: a
+			## plain reply after this question was closed answers nothing (AgentsTools.AskThread.include).
+			printf 'upsert\tresolved-epoch\t%s\n' "$( date +%s )"
+			[ -z "$pendingVerdict" ] || printf 'upsert\tverdict\t%s\n' "${pendingVerdict//$'\n'/ }"
+			[ -z "$pendingAnsweredBy" ] || printf 'upsert\tanswered-by\t%s\n' "${pendingAnsweredBy//$'\n'/ }"
+		} > "$pendingOps" || { rm -f "$pendingOps" ; AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
 		pendingBody="$( LC_ALL=C awk -v opsFile="$pendingOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$pendingFile" )" || pendingBody=""
 		rm -f "$pendingOps"
 		if [ -z "$pendingBody" ] ; then
+			AgentsToolsLocalLockGive "$pendingLock"
 			echo "$MDSC_CMD: ⚠️ WARNING: the record was left unchanged: $pendingFile" >&2
 			set +e ; return 1
 		fi
-		printf '%s\n' "$pendingBody" > "$pendingFile" || { set +e ; return 1 ; }
+		printf '%s\n' "$pendingBody" > "$pendingFile" || { AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
+		AgentsToolsLocalLockGive "$pendingLock"
+		## A resolved question shows it where people look: :eyes: on the reply taken as its
+		## answer, a mark on the question in its thread (:white_check_mark: answered,
+		## :ballot_box_with_check: settled), and :white_check_mark: on the thread's opener in
+		## the conversation once no question in that thread is open. Best effort, after the
+		## record is closed: a reaction that fails is logged and never undoes the close. Never
+		## an answer either: only an addressee's reaction answers.
+		if [ "$pendingStatus" = "reply-received" ] ; then
+			local reactOwner="" reactChannel="" reactQuestion="" reactThread="" reactTo="" reactKey reactValue
+			while IFS=$'\t' read -r reactKey reactValue ; do
+				case "$reactKey" in
+					owner) reactOwner="$reactValue" ;;
+					channel) reactChannel="$reactValue" ;;
+					question-ts) reactQuestion="$reactValue" ;;
+					thread-ts) reactThread="$reactValue" ;;
+					communication-channel-id) reactTo="${reactValue#slack:}" ;;
+				esac
+			done < <( LC_ALL=C awk '
+				$0 == "---" { dashes++ ; if ( dashes == 2 ) { exit ; } next ; }
+				dashes == 1 {
+					colon = index($0, ": ") ;
+					if ( colon > 1 ) { printf "%s\t%s\n", substr($0, 1, colon - 1), substr($0, colon + 2) ; }
+				}
+			' "$pendingFile" )
+			if [ -n "$reactOwner" ] && [ -n "$reactChannel" ] ; then
+				[ -z "$pendingAnswerTs" ] || AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$pendingAnswerTs" eyes "$pendingId"
+				[ -z "$reactQuestion" ] || AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$reactQuestion" "${pendingMark:-white_check_mark}" "$pendingId"
+				## The opener is ours only where the question opened its own thread; a question
+				## asked inside someone's thread (<channel>:<ts>) leaves that thread's root alone.
+				case "$reactTo" in
+					*:*) ;;
+					*)
+						if [ -n "$reactThread" ] && ! AgentsToolsPendingReplyThreadHasOpen "$reactChannel" "$reactThread" ; then
+							AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$reactThread" white_check_mark "$pendingId"
+						fi
+					;;
+				esac
+			fi
+		fi
+		return 0
+	;;
+
+	## Collects answers to open plain questions nobody is waiting on
+	## (AgentsTools.PendingReplyCollect.include). --session-id: that session's records,
+	## and --mark-ended marks the ones still open for the main loop. --ended: the marked
+	## records, each answer found going to its asker's inbox as a note. --id: one record.
+	--intern-op-pending-reply-collect)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-collect"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyCollect.include"
+		local collectSession="" collectEnded="" collectId="" collectMark=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --session-id requires a value (<id>)" >&2 ; set +e ; return 1 ; }
+					collectSession="$2" ; shift 2
+				;;
+				--id)
+					[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: --id requires a value (<pending-id>)" >&2 ; set +e ; return 1 ; }
+					collectId="$2" ; shift 2
+				;;
+				--ended) collectEnded=1 ; shift ;;
+				--mark-ended) collectMark=1 ; shift ;;
+				--context) shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$collectSession$collectEnded$collectId" ] || { [ -n "$collectMark" ] && [ -z "$collectSession" ] ; } ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is --session-id <id> [--mark-ended] | --ended | --id <pending-id>" >&2
+			set +e ; return 1
+		fi
+		[ -z "$collectId" ] || AgentsToolsAssertBareName "$collectId" "<pending-id>" pending-reply-collect || { set +e ; return 1 ; }
+		mkdir -p "$MMDAPP/.local/temp" || { set +e ; return 1 ; }
+		local collectStore="$MMDAPP/.local/agents/pending" collectFile collectFiles=() collectAnswered=0 collectUnmatched=0 collectOpen=0 collectUnreadable=0
+		## Found by grep over whole header lines, so a pass costs one scan however the store grows.
+		if [ -n "$collectId" ] ; then
+			[ ! -f "$collectStore/$collectId.md" ] || collectFiles=( "$collectStore/$collectId.md" )
+		elif [ -n "$collectSession" ] ; then
+			while IFS= read -r collectFile ; do collectFiles+=( "$collectFile" ) ; done \
+				< <( LC_ALL=C grep -r -l -x -F --include='*.md' "session-id: $collectSession" "$collectStore" 2>/dev/null )
+		else
+			while IFS= read -r collectFile ; do collectFiles+=( "$collectFile" ) ; done \
+				< <( LC_ALL=C grep -r -l -x -F --include='*.md' "collect: ended" "$collectStore" 2>/dev/null )
+		fi
+		local collectOutcome collectAnswer collectLine collectOwner collectNoteId
+		for collectFile in "${collectFiles[@]}" ; do
+			[ -f "$collectFile" ] || continue
+			collectLine="$( AgentsToolsPendingReplyCollectOne "$collectFile" )"
+			collectOutcome="${collectLine%% *}"
+			case "$collectOutcome" in
+				''|SKIPPED) continue ;;
+			esac
+			printf '%s\n' "$collectLine"
+			case "$collectOutcome" in
+				ANSWERED)
+					collectAnswered=$(( collectAnswered + 1 ))
+					if [ -n "$collectEnded" ] ; then
+						## Its session is gone, so the answer goes to whoever next runs as the asker.
+						collectOwner="$( AgentsToolsPendingReplyCollectFieldOf "$collectFile" owner )"
+						collectNoteId="${collectFile##*/}" ; collectNoteId="${collectNoteId%.md}"
+						{
+							printf -- '---\nmember: %s\ndate: %s\n---\n\n' "$collectOwner" "$( date -u +%Y-%m-%d )"
+							printf '# Note: an answer arrived after your session ended\n\n'
+							printf 'Pending reply `%s` is answered, and its record is closed. What the tooling collected:\n\n' "$collectNoteId"
+							printf -- '- %s\n' "${collectLine#ANSWERED }"
+						} | DistroAgentsTools --intern-op-member-inbox-upsert "$collectOwner" "note-$( date -u +%Y%m%dT%H%M%SZ )-answer-${collectNoteId%%-*}.md" \
+							--context "$MDSC_CMD" > /dev/null 2>&1 \
+							|| echo "⚠️ WARNING: $MDSC_CMD: $collectNoteId is answered and closed, but the note to $collectOwner's inbox was not written" >&2
+					fi
+				;;
+				UNMATCHED) collectUnmatched=$(( collectUnmatched + 1 )) ;;
+				UNREADABLE) collectUnreadable=$(( collectUnreadable + 1 )) ;;
+				OPEN) collectOpen=$(( collectOpen + 1 )) ;;
+			esac
+			## A record still open when its session ends is marked, so the main loop collects it.
+			if [ -n "$collectMark" ] ; then
+				case "$collectOutcome" in
+					UNMATCHED|UNREADABLE|OPEN)
+						collectNoteId="${collectFile##*/}"
+						AgentsToolsPendingReplyMarkEnded "${collectNoteId%.md}" "$collectFile" 2>/dev/null || :
+					;;
+				esac
+			fi
+		done
+		printf 'COLLECT: answered=%s unmatched=%s open=%s unreadable=%s\n' "$collectAnswered" "$collectUnmatched" "$collectOpen" "$collectUnreadable"
 		return 0
 	;;
 

@@ -5,6 +5,9 @@
 ## the caller's own scope and reads the caller's own "$@", the same shape as
 ## SystemContext.UseStandardOptions.include. The caller sets its own MDSC_CMD first.
 
+## No Python run by this tooling leaves bytecode in the source tree (no sh-lib/__pycache__).
+export PYTHONDONTWRITEBYTECODE=1
+
 if ! type AgentsToolsAssertBareName >/dev/null 2>&1 ; then
 	## The bare-name gate for the whole family: one path segment of letters, digits, '.', '_', '-'.
 	## Reports and returns 1, never exits. Never a [a-z] range -- bracket ranges are collation-dependent.
@@ -85,5 +88,10 @@ if [ "$1" != "--agents-config-option" ] ; then
 			## setting is an override, for workspaces that share team data.
 			export MDAT_DATA_ROOT="$MMDAPP/.local/agents/team-data-root"
 		fi
+	fi
+	## One site for every op: a remote set and no local board yet clones before any writer touches it.
+	if [ ! -e "$MDAT_DATA_ROOT/.git" ] ; then
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataEnsureClone "${1:-DistroAgentsTools}"
 	fi
 fi

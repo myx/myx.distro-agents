@@ -19,7 +19,7 @@ Doesn't do: guess at unstated intent, rush an ambiguous ask straight to a task f
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — ideas and asks already queued there awaiting ingest, so this session settles them alongside the one it was invoked for rather than writing a duplicate task-description.
 2. **gather-and-agree**: interactively gather and agree with the requester, one topic at a time, until the content is actually settled — don't rush to a task write while real ambiguity remains. Same pacing discipline `magic-team.interview.routine` uses for its own gathering step: small, minimal-assumption-gap questions, iterative; once something is genuinely clear and agreed, move on rather than re-confirming it in smaller pieces.

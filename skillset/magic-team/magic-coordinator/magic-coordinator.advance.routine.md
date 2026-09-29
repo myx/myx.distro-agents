@@ -49,7 +49,7 @@ The board isn't trustworthy between daily/grooming cycles — sessions die mid-w
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate, or fail loud.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **advance-acquire-lock**: Acquire this routine's own lock — a single `--magic-advance-lock-acquire` call, before anything else in this routine runs. `ACQUIRED`, or a reclaim of a dead holder's lock, means go. Contention means another `magic-coordinator.advance.routine` is live: this pass does not start, and nothing below runs.
 2. **advance-process-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — the whole inbox, not `check-pending-comms-actions`'s narrow slice. New items get handled this pass, not only already-decided moves (a landed approval, a finished or stalled dispatch).
@@ -57,11 +57,23 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - goal: keep this pass's own tracking document current — the tactical status, and whatever the next iteration needs to continue.
    - rule: holding the lock across a long pass is a separate obligation from writing content — call `--magic-advance-lock-refresh` periodically.
    - step: write the note via the `--magic-advance-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close.
-4. **advance-process-comms**: run `magic-coordinator.communication-sweep.routine`'s own Steps in full, inline, this same pass, against this pass's own board read from **advance-read-board-state** — messages can't be assessed without the current process-flow state, so this step never runs before the board is loaded. Reused by reference, not duplicated logic, steps:
+4. **advance-reconcile-sessions**: compare the scan's registries with the board, before any further work this pass. Each handler states its outcome in this pass's run output, steps:
+   - **reconcile-read**: read the spawned-sessions and pending-replies registries the scan carries, with the liveness it measured, and match each `board-running` item to its session by its `session-id`.
+   - **reconcile-dead-session**: a `board-running` item whose session the registry shows as not live is a failed spawn, steps:
+     - record the registry reading in its `execution-receipt`
+     - it declares `restart-session`: respawn that group at the item's recorded state — outcome `respawned`
+     - otherwise: move it to `board-blocked` with `condition:` naming the dead session — outcome `flagged-once`
+   - **reconcile-untracked-session**: a live session with no board item is flagged, never adopted — whether it becomes tracked work is a judgement, not a decided move. Post it to `event-track` once per session, naming its session id, member and sandbox, and create no item — outcome `flagged-once`.
+   - **reconcile-lost-reply**: a `board-blocked` item waiting on a reply the pending-replies registry no longer holds open, steps:
+     - read the item's own `communication-channel-id` thread
+     - an addressee's answer is there: apply it as the reply, and continue the item
+     - no answer is there: re-ask in that same thread with `AskUserQuestion`, to the same party, and keep the item blocked — outcome `nudged`
+     - a missing record is never consent and never a deny
+5. **advance-process-comms**: run `magic-coordinator.communication-sweep.routine`'s own Steps in full, inline, this same pass, against this pass's own board read from **advance-read-board-state** — messages can't be assessed without the current process-flow state, so this step never runs before the board is loaded. Reused by reference, not duplicated logic, steps:
    - **check** (`--magic-sweep-input-scan`, every live platform, board-tracked threads plus every open thread)
    - **process-each-message** (every found message, one at a time, ascending timestamp order, cross-referenced against this pass's own board state, including the mandatory `conversations.replies` check on every open thread)
-5. **advance-run-process-board**: Run the `check-process-board` procedure (`magic-coordinator.armed.md`) against this pass's own read.
-6. **advance-run-execute-board**: Run the `check-execute-board` procedure (below) against this pass's own read.
+6. **advance-run-process-board**: Run the `check-process-board` procedure (`magic-coordinator.armed.md`) against this pass's own read.
+7. **advance-run-execute-board**: Run the `check-execute-board` procedure (below) against this pass's own read.
 
 # Closure steps
 
@@ -292,6 +304,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-advance-input-scan <team-member>` (**advance-read-board-state**: read the in-scope board state; also `check-process-board`'s own **board-recompute-dependencies**, on the same already-loaded read)
 - `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board`'s own never-started-`board-pending`-items step: basic-task start)
 - `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board` fallback when spawn is required but cannot execute in this pass)
+- `--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:...]...` (**reconcile-dead-session**: a `board-running` item whose session is dead and which declares no `restart-session`, moved with `condition:` naming that session)
 - `--magic-advance-lock-acquire <team-member> <owner-label>` (**advance-acquire-lock**: take this routine's lock before anything else runs)
 - `--magic-advance-lock-refresh <team-member>` (hold the lock across a long pass)
 - `--magic-advance-close-state-and-unlock <team-member>` (**advance-close-state-and-unlock**: release, setting `state: advance-finished`)

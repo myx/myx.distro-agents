@@ -6,11 +6,9 @@
 ## Read-only. Emits the MECHANICAL parts of a spawn-prepare-brief that a
 ## dispatch brief currently hand-carries, so agent-carried config moves into
 ## tooling ("handle most by tooling, simpler life for the agent"):
-##   - tool-routing:    the constant standard value for this team's tooling
-##   - execution-gate:  derived from the target member's own .armed.md
-##                      (a `<!-- execution-gate: <value> -->` marker; none
-##                      declared -> `execution-gate: none`)
-##   - open warning-*:  a filtered board read of the currently-open warning set
+## The text is the skillset template magic-team/templates/spawn-brief.document.format.md;
+## this op fills its slots: the member, the gate (first line of <member>.execution-gate.md,
+## or none) and the open warning-* set read from the board.
 ## The spawning agent still supplies the JUDGEMENT parts (which warnings are
 ## relevant, held-context, checked). No writes, no side effects.
 ## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
@@ -58,30 +56,60 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## execution-gate: derived from the target's own .armed.md marker.
-		## Absent -> none (the receiving member's rules put no gate on the work).
-		local executionGate
-		executionGate="$( grep -o '<!--[[:space:]]*execution-gate:[^>]*' "$armedFile" 2>/dev/null | head -1 | sed 's/.*execution-gate:[[:space:]]*//; s/[[:space:]-]*$//' )"
-		[ -n "$executionGate" ] || executionGate="none"
+		## The brief's text is the skillset's own template; this op only fills its slots.
+		local briefTemplate="$MDAT_SKILLSET_ROOT/magic-team/templates/spawn-brief.document.format.md"
+		if [ ! -f "$briefTemplate" ] ; then
+			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: the brief template is missing: $briefTemplate" >&2
+			set +e ; return 1
+		fi
 
-		printf 'SPAWN-PREPARE-BRIEF: %s\n' "$targetMember"
-		printf 'tool-routing: mcp__myx_distro__execute only, never Bash/direct execution\n'
-		printf 'execution-gate: %s\n' "$executionGate"
+		## execution-gate: the first line of the member's own gate file; absent -> none.
+		local executionGate="" gateFile="$MDAT_SKILLSET_ROOT/$targetMember/$targetMember.execution-gate.md"
+		[ ! -f "$gateFile" ] || executionGate="$( LC_ALL=C awk 'NR == 1 { sub( /[ \t\r]+$/, "" ) ; print ; exit ; }' "$gateFile" )"
+		[ -n "$executionGate" ] || executionGate="none"
 
 		## open warning-* set: the currently-open board warnings only (active
 		## states, never processed/archived/retained). The agent filters these
 		## for relevance itself -- this emits the raw open set to filter from.
-		printf '## open warning-* items\n'
-		local warnState warnFile warnBase warnCount=0
+		local warnState warnFile warnLines=""
 		for warnState in backlog pending running blocked parked ; do
 			for warnFile in "$MDAT_DATA_ROOT/board/$warnState"/warning-*.md ; do
 				[ -e "$warnFile" ] || continue
-				warnBase="$( basename "$warnFile" )"
-				printf -- '- %s [%s]\n' "$warnBase" "$warnState"
-				warnCount=$(( warnCount + 1 ))
+				warnLines="$warnLines- ${warnFile##*/} [$warnState]"$'\n'
 			done
 		done
-		[ "$warnCount" -gt 0 ] || printf '(none open)\n'
+		[ -n "$warnLines" ] || warnLines="(none open)"$'\n'
+
+		## The Skeleton block, verbatim, with each slot filled; a template without one is refused.
+		local briefText
+		## Values travel through the environment, not -v, which would decode backslashes in them.
+		briefText="$( BRIEF_MEMBER="$targetMember" BRIEF_GATE="$executionGate" BRIEF_WARNINGS="${warnLines%$'\n'}" LC_ALL=C awk '
+			## Slots are replaced by position, never gsub, so & and \ in a value pass through literally.
+			function fill( text, slot, value,    slotPos, done ) {
+				done = "" ;
+				while ( ( slotPos = index( text, slot ) ) > 0 ) {
+					done = done substr( text, 1, slotPos - 1 ) value ;
+					text = substr( text, slotPos + length( slot ) ) ;
+				}
+				return done text ;
+			}
+			BEGIN { member = ENVIRON["BRIEF_MEMBER"] ; gate = ENVIRON["BRIEF_GATE"] ; warnings = ENVIRON["BRIEF_WARNINGS"] ; }
+			/^# Skeleton[ \t]*$/ { inSection = 1 ; next ; }
+			inSection && /^# / { exit ; }
+			inSection && /^```/ { if ( inBlock ) { done = 1 ; exit ; } inBlock = 1 ; next ; }
+			inBlock {
+				line = $0 ;
+				if ( line == "{{open-warnings}}" ) { print warnings ; next ; }
+				line = fill( line, "{{member}}", member ) ;
+				line = fill( line, "{{execution-gate}}", gate ) ;
+				print line ;
+			}
+			END { if ( ! done ) { exit 3 ; } ; }
+		' "$briefTemplate" )" || {
+			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: the brief template has no complete Skeleton block: $briefTemplate" >&2
+			set +e ; return 1
+		}
+		printf '%s\n' "$briefText"
 		return 0
 	;;
 
