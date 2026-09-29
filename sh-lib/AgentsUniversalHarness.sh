@@ -1303,6 +1303,8 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 	toolBytes="$( wc -c < "$harnessScratch/grep.out" | tr -d ' ' )"
 	if [ "$toolBytes" -gt "$harnessReadCap" ] ; then
 		AgentsHarnessReadRange "$harnessScratch/grep.out" 1 "" "" "narrow the pattern or path to see the rest"
+	elif [ ! -s "$harnessScratch/grep.out" ] ; then
+		printf 'No matches found\n'
 	else
 		cat "$harnessScratch/grep.out"
 	fi

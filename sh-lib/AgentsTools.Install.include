@@ -2119,33 +2119,19 @@ case "$1" in
 
 		echo "# workspace: $workspace" >&2
 
-		local mcpRoot="" mcpRootFound=""
-		if [ -n "$MYXROOT" ] && [ -f "$MYXROOT/bin/lib/agentMcpServer.Common" ] ; then
-			mcpRootFound="$MYXROOT"
-			[ -x "$MYXROOT/bin/lib/agentMcpServer.Common" ] && mcpRoot="$MYXROOT"
-		fi
-		if [ -z "$mcpRoot" ] && command -v myx.common >/dev/null 2>&1 ; then
-			local root
-			root="$( myx.common which lib/catMarkdown 2>/dev/null )"
-			root="${root%/bin/lib/catMarkdown*}"
-			if [ -n "$root" ] && [ -f "$root/bin/lib/agentMcpServer.Common" ] ; then
-				[ -n "$mcpRootFound" ] || mcpRootFound="$root"
-				[ -x "$root/bin/lib/agentMcpServer.Common" ] && mcpRoot="$root"
-			fi
-		fi
-
-		local serverScript=""
-		[ -z "$mcpRoot" ] || serverScript="$mcpRoot/bin/lib/agentMcpServer.Common"
+		## The workspace's own installed myx.common, never $MYXROOT: that follows the console's origin.
+		local mcpRoot="$workspace/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common" serverScript=""
+		[ ! -x "$mcpRoot/bin/lib/agentMcpServer.Common" ] || serverScript="$mcpRoot/bin/lib/agentMcpServer.Common"
 
 		local vscodeMcpDir="$workspace/.vscode"
 		mkdir -p "$vscodeMcpDir"
 
 		if [ -z "$serverScript" ] ; then
-			if [ -n "$mcpRootFound" ] ; then
-				echo "⛔ ERROR: mcp-server-path found but not executable: $mcpRootFound/bin/lib/agentMcpServer.Common" >&2
-				echo "   fix with: chmod +x $mcpRootFound/bin/lib/agentMcpServer.Common" >&2
+			if [ -f "$mcpRoot/bin/lib/agentMcpServer.Common" ] ; then
+				echo "⛔ ERROR: mcp-server-path found but not executable: $mcpRoot/bin/lib/agentMcpServer.Common" >&2
+				echo "   fix with: chmod +x $mcpRoot/bin/lib/agentMcpServer.Common" >&2
 			else
-				echo "⛔ ERROR: mcp-server-path unresolved (bin/lib/agentMcpServer.Common not found under workspace/.local, workspace source, or a globally installed myx.common)" >&2
+				echo "⛔ ERROR: mcp-server-path unresolved (bin/lib/agentMcpServer.Common not found under $mcpRoot)" >&2
 			fi
 			failed=1
 		else

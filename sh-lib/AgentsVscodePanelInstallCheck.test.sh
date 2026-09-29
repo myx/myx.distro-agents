@@ -156,6 +156,7 @@ echo "-- --workspace X, not MMDAPP --"
 rigWsM="$rigTmp/wsM" rigWsX="$rigTmp/wsX"
 mkdir -p "$rigWsM/.local" "$rigWsX/.local/myx/myx.distro-.local/sh-lib" "$rigWsX/.local/.vscode/browse"
 : > "$rigWsX/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
+ln -s "$rigTmp/origin/myx/myx.common" "$rigWsX/.local/myx/myx.common"
 printf 'rig-mmdapp-file\n' > "$rigWsM/${rigWsM##*/}.code-workspace"
 cat > "$rigWsX/DistroSourceConsole.sh" <<'RIG_CONSOLE'
 #!/usr/bin/env bash

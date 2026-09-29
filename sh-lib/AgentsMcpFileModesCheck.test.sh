@@ -4,7 +4,7 @@
 ## --owner-credential-store-self-test passes on those modes, fails naming a file at the
 ## wrong one, and states a file that is absent. Temp HOME and workspace only; every call
 ## goes through one `env -i` whose child refuses to run outside this rig's mktemp tree.
-## The rig workspace carries no package copy, so the installer ends rc 1 on its own
+## The rig workspace carries no myx.distro-agents copy, so the installer ends rc 1 on its own
 ## distro-path check; the files it writes before that are what this rig reads.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -40,6 +40,7 @@ rigScenario(){ ## name -- a workspace that passes the set-up check, and an empty
 	rigDir="$rigTmp/$1"
 	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/home" "$rigDir/ws/.local/myx/myx.distro-.local/sh-lib"
 	ln -s "$rigLocalContext" "$rigDir/ws/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
+	ln -s "$MDLT_ORIGIN/myx/myx.common" "$rigDir/ws/.local/myx/myx.common"
 }
 rigRun(){ ## umask, result file, op and arguments...
 	local runMask="$1" runOut="$2" ; shift 2
