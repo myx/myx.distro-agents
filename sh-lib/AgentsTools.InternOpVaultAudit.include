@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpVaultAudit.include -- the --intern-op-vault-* and
+## --intern-op-audit-* families: the implementation behind the member stubs
+## --member-vault-item-read and --member-audit-item-read (AgentsTools.Member.include).
+## The stubs check who is asking; these resolve and read. Both stores are read through
+## --intern-op-data-read today, and a later back end of the vault (a Confluence or Google
+## Docs one, for example) is a change here, never in a stub or a caller.
+##
+## Sourced lazily from DistroAgentsTools.fn.sh's `--intern-op-vault-*|--intern-op-audit-*`
+## arm. Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
+##
+
+## The optional line range both reads take, as a complete pair. Sets rangeArgs.
+AgentsToolsVaultAuditRange(){ ## op name, arguments...
+	local rangeOp="$1" rangeStart="" rangeEnd=""
+	shift
+	rangeArgs=()
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--start-line)
+				[ $# -ge 2 ] || { echo "⛔ ERROR: $MDSC_CMD $rangeOp: --start-line requires a value (<N>)" >&2 ; return 1 ; }
+				rangeStart="$2" ; shift 2
+			;;
+			--end-line)
+				[ $# -ge 2 ] || { echo "⛔ ERROR: $MDSC_CMD $rangeOp: --end-line requires a value (<N>)" >&2 ; return 1 ; }
+				rangeEnd="$2" ; shift 2
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $rangeOp: invalid option: $1" >&2
+				return 1
+			;;
+		esac
+	done
+	if [ -n "$rangeStart" ] || [ -n "$rangeEnd" ] ; then
+		if [ -z "$rangeStart" ] || [ -z "$rangeEnd" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $rangeOp: --start-line and --end-line must be provided together" >&2
+			return 1
+		fi
+		rangeArgs=( --start-line "$rangeStart" --end-line "$rangeEnd" )
+	fi
+	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD $rangeOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
+	return 0
+}
+
+case "$1" in
+
+	## One vault item by bare filename, with an optional line range. Any bare name: the
+	## vault's document types are left open.
+	--intern-op-vault-item-read)
+		shift
+		local itemName="${1:-}" rangeArgs=()
+		shift || true
+		if [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-vault-item-read: syntax is <item-name> [--start-line <N> --end-line <N>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$itemName" "<item-name>" intern-op-vault-item-read || { set +e ; return 1 ; }
+		AgentsToolsVaultAuditRange --intern-op-vault-item-read "$@" || { set +e ; return 1 ; }
+		DistroAgentsTools --intern-op-data-read "$itemName" --context --intern-op-vault-item-read --lookup-folder "$MDAT_DATA_ROOT/vault" ${rangeArgs[@]+"${rangeArgs[@]}"}
+		return $?
+	;;
+
+	## One audit document by bare filename, with an optional line range. Only transcript-*
+	## names, found in its month folder first, then the audit root.
+	--intern-op-audit-item-read)
+		shift
+		local documentName="${1:-}" rangeArgs=() auditRoot yearMonth readArgs folder
+		shift || true
+		if [ -z "$documentName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-audit-item-read: syntax is <document-name> [--start-line <N> --end-line <N>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$documentName" "<document-name>" intern-op-audit-item-read || { set +e ; return 1 ; }
+		case "$documentName" in
+			transcript-*) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-audit-item-read: only transcript-* documents are allowed: $documentName" >&2
+				set +e ; return 1
+			;;
+		esac
+		AgentsToolsVaultAuditRange --intern-op-audit-item-read "$@" || { set +e ; return 1 ; }
+		auditRoot="$MDAT_DATA_ROOT/audit"
+		readArgs=( --intern-op-data-read "$documentName" --context --intern-op-audit-item-read )
+		case "$documentName" in
+			transcript-[0-9][0-9][0-9][0-9]-[0-9][0-9]-*)
+				yearMonth="$( printf '%s' "$documentName" | sed -E 's/^transcript-([0-9]{4})-([0-9]{2})-.*/\1-\2/' )"
+				readArgs+=( --lookup-folder "$auditRoot/$yearMonth" )
+			;;
+		esac
+		readArgs+=( --lookup-folder "$auditRoot" )
+		DistroAgentsTools "${readArgs[@]}" ${rangeArgs[@]+"${rangeArgs[@]}"}
+		return $?
+	;;
+
+	*)
+		echo "⛔ ERROR: $MDSC_CMD: invalid operation: $1" >&2
+		set +e ; return 1
+	;;
+esac

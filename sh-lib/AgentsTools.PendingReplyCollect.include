@@ -47,7 +47,8 @@ AgentsToolsPendingReplyMarkEnded(){ ## pending id, record file
 	if [ "$( AgentsToolsPendingReplyCollectFieldOf "$2" status )" = "reply-pending" ] ; then
 		printf 'upsert\tcollect\tended\n' > "$markOps" \
 			&& markBody="$( LC_ALL=C awk -v opsFile="$markOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$2" )" \
-			&& [ -n "$markBody" ] && printf '%s\n' "$markBody" > "$2"
+			&& [ -n "$markBody" ] && printf '%s\n' "$markBody" > "$2.$$" && mv -f "$2.$$" "$2"
+		rm -f "$2.$$"
 	fi
 	rm -f "$markOps"
 	AgentsToolsLocalLockGive "$markLock"

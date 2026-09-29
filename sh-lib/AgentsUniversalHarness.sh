@@ -143,7 +143,9 @@ harnessCredentialNames="${HARNESS_CREDENTIAL_NAMES:-}"
 harnessToolOnly=""
 harnessToolOnlyName=""
 ## Read and Skill return whole lines up to this many bytes; a served result stays under the MCP client's own limit.
-harnessReadCap=200000
+## Both values are stated once, in AgentsHarnessReadCap.include, which also fills them into the descriptions.
+. "$harnessHere/AgentsHarnessReadCap.include"
+harnessReadCap="$agentsReadCapWire"
 if [ "${1:-}" = --intern-tool ] ; then
 	if [ -z "${2:-}" ] ; then
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: --intern-tool: tool name required" >&2
@@ -154,7 +156,7 @@ if [ "${1:-}" = --intern-tool ] ; then
 	## Read once and unset, so no child this harness starts can overwrite the caller's head or image file.
 	harnessHeadFile="${MDAT_MCP_RESULT_HEAD_FILE:-}" ; unset MDAT_MCP_RESULT_HEAD_FILE
 	harnessImageFile="${MDAT_MCP_RESULT_IMAGE_FILE:-}" ; unset MDAT_MCP_RESULT_IMAGE_FILE
-	harnessReadCap=48000
+	harnessReadCap="$agentsReadCapMcp"
 	shift 2
 	## The wire IS needed, and reaching an endpoint is not why: AgentsHarnessMcpClient.sh
 	## builds its declarations through the wire's own AgentsWireToolDeclaration, so the
@@ -2408,7 +2410,9 @@ AgentsHarnessToolAskUserQuestion(){
 			;;
 		esac
 		## A plain reply answers the latest question above it; an earlier one is named by number.
-		[ "$askTag" = "Q1" ] || printf -- '- to answer an earlier question in this thread instead, start your reply with its number, for example `Q1 yes`\n'
+		## Only a question joining a thread has earlier ones there; its first question has none,
+		## whatever its number, since numbers are counted per person.
+		[ -z "$askReuseThread" ] || printf -- '- to answer an earlier question in this thread instead, start your reply with its number, for example `Q1 yes`\n'
 	)"
 	if [ -z "$toolAddressTo" ] ; then
 		case "$toolTo" in
@@ -3448,6 +3452,8 @@ if [ ! -f "$harnessWireFile" ] ; then
 	exit 1
 fi
 . "$harnessWireFile"
+## The declarations a hosted model is given state the cap this process applies.
+[ -z "${harnessToolsJson:-}" ] || harnessToolsJson="$( printf '%s\n' "$harnessToolsJson" | AgentsReadCapFill "$harnessReadCap" )"
 
 ## The bearer the auth header is built from. With no exchange declared it is the stored
 ## credential, seeded once here, and no exchange code runs anywhere in this process.

@@ -132,12 +132,21 @@ case "$1" in
 			printf '%s\n' "---"
 			printf '\n# Question asked\n\n'
 			cat
-		} > "$pendingRoot/$pendingId.md" || {
+		} > "$pendingRoot/.$pendingId.md.$$" || {
+			rm -f "$pendingRoot/.$pendingId.md.$$"
 			echo "$MDSC_CMD: ⛔ ERROR: can't write the pending-reply record: $pendingRoot/$pendingId.md" >&2
 			set +e ; return 1
 		}
 		## A decision's options beside the record, raw, because a verdict is read against them.
+		## Written first, so a record a reader can see already has its options there.
 		[ -z "$pendingOptions" ] || printf '%s\n' "$pendingOptions" > "$pendingRoot/$pendingId.options" || :
+		## Written aside and moved into place in one rename, so a reader never sees a record
+		## half written: status first, with the thread fields still to come.
+		mv -f "$pendingRoot/.$pendingId.md.$$" "$pendingRoot/$pendingId.md" || {
+			rm -f "$pendingRoot/.$pendingId.md.$$" "$pendingRoot/$pendingId.options"
+			echo "$MDSC_CMD: ⛔ ERROR: can't put the pending-reply record in place: $pendingRoot/$pendingId.md" >&2
+			set +e ; return 1
+		}
 		## The id on stdout, because the caller closes this record by it and has no
 		## other way to learn it.
 		printf '%s\n' "$pendingId"
@@ -253,7 +262,9 @@ case "$1" in
 			echo "$MDSC_CMD: ⚠️ WARNING: the record was left unchanged: $pendingFile" >&2
 			set +e ; return 1
 		fi
-		printf '%s\n' "$pendingBody" > "$pendingFile" || { AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
+		## Aside, then one rename: the lock orders closers, but a reader takes no lock.
+		{ printf '%s\n' "$pendingBody" > "$pendingFile.$$" && mv -f "$pendingFile.$$" "$pendingFile" ; } \
+			|| { rm -f "$pendingFile.$$" ; AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
 		AgentsToolsLocalLockGive "$pendingLock"
 		## A resolved question shows it where people look: :eyes: on the reply taken as its
 		## answer, a mark on the question in its thread (:white_check_mark: answered,

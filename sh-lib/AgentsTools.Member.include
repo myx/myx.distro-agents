@@ -185,139 +185,45 @@ case "$1" in
 		return 0
 	;;
 
-	--member-read-audit-item)
+	## One audit document, by bare filename. A stub: it checks who is asking, and
+	## --intern-op-audit-item-read resolves and reads (AgentsTools.InternOpVaultAudit.include).
+	--member-audit-item-read)
 		shift
-		local memberName="$1"
+		local memberName="${1:-}"
 		shift || true
-		local documentName="$1"
+		local documentName="${1:-}"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$documentName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: syntax is <team-member> <document-name> [--start-line <N> --end-line <N>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-audit-item-read: syntax is <team-member> <document-name> [--start-line <N> --end-line <N>]" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$memberName" "<team-member>" member-read-audit-item || { set +e ; return 1 ; }
-		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
-		if [ ! -d "$memberDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: no such member skill directory: $memberDir" >&2
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-audit-item-read || { set +e ; return 1 ; }
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-audit-item-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$documentName" "<document-name>" member-read-audit-item || { set +e ; return 1 ; }
-		case "$documentName" in
-			transcript-*)
-			;;
-			*)
-				echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: only transcript-* documents are allowed: $documentName" >&2
-				set +e ; return 1
-			;;
-		esac
-
-		local startLine="" endLine=""
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--start-line)
-					[ $# -ge 2 ] || { echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: --start-line requires a value (<N>)" >&2 ; set +e ; return 1 ; }
-					startLine="$2"
-					shift 2
-				;;
-				--end-line)
-					[ $# -ge 2 ] || { echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: --end-line requires a value (<N>)" >&2 ; set +e ; return 1 ; }
-					endLine="$2"
-					shift 2
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-
-		if [ -n "$startLine" ] || [ -n "$endLine" ] ; then
-			if [ -z "$startLine" ] || [ -z "$endLine" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: --start-line and --end-line must be provided together" >&2
-				set +e ; return 1
-			fi
-		fi
-		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --member-read-audit-item: MDAT_DATA_ROOT is not set" >&2
-			set +e ; return 1
-		}
-		local auditRoot="$MDAT_DATA_ROOT/audit"
-		local lookupFolders=()
-		local yearMonth=""
-		case "$documentName" in
-			transcript-[0-9][0-9][0-9][0-9]-[0-9][0-9]-*)
-				yearMonth="$( printf '%s' "$documentName" | sed -E 's/^transcript-([0-9]{4})-([0-9]{2})-.*/\1-\2/' )"
-				lookupFolders+=( "$auditRoot/$yearMonth" )
-			;;
-		esac
-		lookupFolders+=( "$auditRoot" )
-		local readArgs=( --intern-op-data-read "$documentName" --context --member-read-audit-item )
-		local folder
-		for folder in "${lookupFolders[@]}" ; do
-			readArgs+=( --lookup-folder "$folder" )
-		done
-
-		if [ -n "$startLine" ] ; then
-			readArgs+=( --start-line "$startLine" --end-line "$endLine" )
-			DistroAgentsTools "${readArgs[@]}"
-		else
-			DistroAgentsTools "${readArgs[@]}"
-		fi
+		DistroAgentsTools --intern-op-audit-item-read "$documentName" "$@"
 		return $?
 	;;
 
-	## Read one vault item by bare filename, with optional line range: the audit read's
-	## shape, over vault/. Any bare name -- the vault's document types are left open.
-	--member-read-vault-item)
+	## One vault item, by bare filename. A stub: it checks who is asking, and
+	## --intern-op-vault-item-read resolves and reads (AgentsTools.InternOpVaultAudit.include).
+	--member-vault-item-read)
 		shift
-		local memberName="$1"
+		local memberName="${1:-}"
 		shift || true
-		local itemName="$1"
+		local itemName="${1:-}"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-read-vault-item: syntax is <team-member> <item-name> [--start-line <N> --end-line <N>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-vault-item-read: syntax is <team-member> <item-name> [--start-line <N> --end-line <N>]" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$memberName" "<team-member>" member-read-vault-item || { set +e ; return 1 ; }
-		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
-		if [ ! -d "$memberDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-read-vault-item: no such member skill directory: $memberDir" >&2
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-vault-item-read || { set +e ; return 1 ; }
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-vault-item-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$itemName" "<item-name>" member-read-vault-item || { set +e ; return 1 ; }
-
-		local startLine="" endLine=""
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--start-line)
-					[ $# -ge 2 ] || { echo "⛔ ERROR: $MDSC_CMD --member-read-vault-item: --start-line requires a value (<N>)" >&2 ; set +e ; return 1 ; }
-					startLine="$2"
-					shift 2
-				;;
-				--end-line)
-					[ $# -ge 2 ] || { echo "⛔ ERROR: $MDSC_CMD --member-read-vault-item: --end-line requires a value (<N>)" >&2 ; set +e ; return 1 ; }
-					endLine="$2"
-					shift 2
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --member-read-vault-item: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		if [ -n "$startLine" ] || [ -n "$endLine" ] ; then
-			if [ -z "$startLine" ] || [ -z "$endLine" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-read-vault-item: --start-line and --end-line must be provided together" >&2
-				set +e ; return 1
-			fi
-		fi
-		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --member-read-vault-item: MDAT_DATA_ROOT is not set" >&2
-			set +e ; return 1
-		}
-		local readArgs=( --intern-op-data-read "$itemName" --context --member-read-vault-item --lookup-folder "$MDAT_DATA_ROOT/vault" )
-		[ -z "$startLine" ] || readArgs+=( --start-line "$startLine" --end-line "$endLine" )
-		DistroAgentsTools "${readArgs[@]}"
+		DistroAgentsTools --intern-op-vault-item-read "$itemName" "$@"
 		return $?
 	;;
 

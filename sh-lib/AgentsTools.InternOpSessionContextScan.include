@@ -804,8 +804,8 @@ case "$1" in
 
 				## Every work path here is unique by mktemp, never by $$: scans of several
 				## accounts run concurrently in one process tree and share its $$.
-				local dmIdentityMapFile
-				dmIdentityMapFile="$( mkdir -p "$MMDAPP/.local/temp" && mktemp "$MMDAPP/.local/temp/mdat-sweep-dm-identity.XXXXXX" )" || { set +e ; return 1 ; }
+				## The DM-to-identity map is no work path: a variable, complete before any thread worker forks.
+				local dmIdentityMap="" dmIdentityRows
 
 				## Per-conversation resume points, `label<TAB>channel<TAB>identity<TAB>ts<TAB>origin`,
 				## collected as the loop resolves each source and handed to the
@@ -822,8 +822,8 @@ case "$1" in
 				## runs in its own subshell: it installs an EXIT trap, which must not
 				## replace the caller's.
 				local sourcePrefetchDir
-				sourcePrefetchDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-sweep-sources.XXXXXX" )" \
-					|| { rm -f "$dmIdentityMapFile" ; set +e ; return 1 ; }
+				sourcePrefetchDir="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-sweep-sources.XXXXXX" )" \
+					|| { set +e ; return 1 ; }
 				AgentsSessionContextSourceFetchOne(){ ## index into slackSourceSpecs
 					local fetchSpec="${slackSourceSpecs[$1]}" fetchIdentity fetchTarget fetchResolved fetchChannel fetchRc=0
 					fetchIdentity="${fetchSpec%%|*}"
@@ -924,7 +924,7 @@ case "$1" in
 						imAnySourceFailed="true"
 					fi
 					slackJson="$( printf '%s\n' "$slackRaw" | sed '1d' )"
-					printf '%s\n' "$slackJson" | LC_ALL=C awk '
+					dmIdentityRows="$( printf '%s\n' "$slackJson" | LC_ALL=C awk '
 						/^## dm=/ {
 							rest = $0
 							sub(/^## dm=/, "", rest)
@@ -945,7 +945,8 @@ case "$1" in
 							}
 							if (id != "" && idn != "") print id, idn
 						}
-					' | sort -u >> "$dmIdentityMapFile"
+					' | sort -u )"
+					[ -z "$dmIdentityRows" ] || dmIdentityMap="$dmIdentityMap$dmIdentityRows"$'\n'
 					slackBlocks="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v kind=slack -v source="$slackName" -v channel="$slackChannel" -f "$commsItemsAwk" )" || {
 						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, response was an API failure, not an empty channel"$'\n'
 						imAnySourceFailed="true"
@@ -1004,7 +1005,7 @@ case "$1" in
 
 				local threadFetchWorkDir
 				threadFetchWorkDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-sweep-threads.XXXXXX" )" \
-					|| { rm -f "$dmIdentityMapFile" ; set +e ; return 1 ; }
+					|| { set +e ; return 1 ; }
 
 				local threadTrimAwkFile="$threadFetchWorkDir/trim.awk"
 				printf '%s\n' "$commsCutoffTrimAwkProgram" > "$threadTrimAwkFile"
@@ -1021,15 +1022,15 @@ case "$1" in
 				## Real function, not inline, only because a backgrounded job
 				## needs a callable unit -- single-consumer otherwise.
 				AgentsSessionContextThreadFetchOne(){
-					local memberName="$1" dt="$2" cutoffEpoch="$3" ctxBefore="$4" commsItemsAwkFile="$5" trimAwkFile="$6" workDir="$7" memberScopeOnly="$8" identityMapFile="$9"
+					local memberName="$1" dt="$2" cutoffEpoch="$3" ctxBefore="$4" commsItemsAwkFile="$5" trimAwkFile="$6" workDir="$7" memberScopeOnly="$8" identityMap="$9"
 					local dtChannel="${dt%%:*}"
 					local outBase
 					outBase="$( printf '%s' "$dt" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )"
 					local blocksFile="$workDir/blocks.$outBase" statusFile="$workDir/status.$outBase"
 					local fetchRaw fetchJson fetchBlocks
 					local dtIdentity=""
-					if [ -n "$identityMapFile" ] && [ -f "$identityMapFile" ] ; then
-						dtIdentity="$( LC_ALL=C awk -v ch="$dtChannel" '$1 == ch { print $2 ; exit }' "$identityMapFile" )"
+					if [ -n "$identityMap" ] ; then
+						dtIdentity="$( LC_ALL=C awk -v ch="$dtChannel" '$1 == ch { print $2 ; exit }' <<< "$identityMap" )"
 					fi
 					## Same paging bound as the watched-source read above: a long
 					## thread is paged to its end, but only back as far as this
@@ -1075,7 +1076,7 @@ case "$1" in
 					while [ "$( jobs -pr | wc -l | tr -d '[:space:]' )" -ge "$threadFetchWorkers" ] ; do
 						sleep 0.2
 					done
-					AgentsSessionContextThreadFetchOne "$actingMember" "$dt" "$cutoffEpoch" "$sessionContextThreadContextBefore" "$commsItemsAwk" "$threadTrimAwkFile" "$threadFetchWorkDir" "$commsMemberScopeOnly" "$dmIdentityMapFile" &
+					AgentsSessionContextThreadFetchOne "$actingMember" "$dt" "$cutoffEpoch" "$sessionContextThreadContextBefore" "$commsItemsAwk" "$threadTrimAwkFile" "$threadFetchWorkDir" "$commsMemberScopeOnly" "$dmIdentityMap" &
 				done <<< "$uniqueThreads"
 				wait
 
@@ -1102,7 +1103,6 @@ case "$1" in
 				done <<< "$uniqueThreads"
 
 				rm -rf "$threadFetchWorkDir"
-				rm -f "$dmIdentityMapFile"
 				unset -f AgentsSessionContextThreadFetchOne
 				unset COMMS_USER_HANDLES
 

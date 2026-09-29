@@ -51,9 +51,9 @@ Named procedure blocks. Steps above call them by name. Not separate routines - n
 A predicate runs at generation when a member calls it, and at emit in every operation that emits text. Naming a site rather than those two moments dates the rule as the list widens. Where a predicate records or refuses, the entry it writes is a landed change to a real file, so this routine's own change-is-the-only-trigger rule reaches it as written, with no amendment.
 
 Steps:
-1. Read the declarations log through `--member-read-audit-item`, by document name. Never by path — the audit layer is abstracted, and a member holding a resolved path has already left the abstraction.
+1. Read the declarations log through `--member-audit-item-read`, by document name. Never by path — the audit layer is abstracted, and a member holding a resolved path has already left the abstraction.
 2. **This step cannot run today. Three things block it, not one, and all three are recorded.** A gap recorded as one thing when it is three reads as nearly closed.
-   - The type policy: `--member-read-audit-item` "currently permits only transcript-* file names, enforcing the type policy directly from the filename" (its own `--help` entry), so it refuses a `declaration-*` or `refusal-*` name outright.
+   - The type policy: `--member-audit-item-read` "currently permits only transcript-* file names, enforcing the type policy directly from the filename" (its own `--help` entry), so it refuses a `declaration-*` or `refusal-*` name outright.
    - The folder resolver: it derives the year-month folder from a hyphenated date inside the filename, and matches `transcript-` only. Admitting the new type at the policy alone yields an accessor that permits the name and then cannot find the file.
    - The date convention: the compact `YYYYMMDD'T'HHmm'Z'` form the team rule requires is not the hyphenated form the resolver reads. That conflict is `magic-librarian`'s to settle and is open.
    Until all three close, the after-send half of the floor is unenforced. Report it as required and missing; never substitute a path read.
@@ -87,7 +87,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 `override-queue-read` uses one operation. Every other step reads and compares real files and reports findings, using none.
 
-- `--member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]` — read-only accessor for one audit document by logical identity, never by path. It resolves the document's location itself and fails loud if the document is missing or ambiguous. It currently permits only `transcript-*` names, so it cannot yet read the declarations log — see `override-queue-read` step 2.
+- `--member-audit-item-read <team-member> <document-name> [--start-line <N> --end-line <N>]` — read-only accessor for one audit document by logical identity, never by path. It resolves the document's location itself and fails loud if the document is missing or ambiguous. It currently permits only `transcript-*` names, so it cannot yet read the declarations log — see `override-queue-read` step 2.
 
 A member is not authorised to use this operation unless its own `.armed.md` or the current routine's rules allow it. This section is that grant for a member running `override-queue-read` inline.
 

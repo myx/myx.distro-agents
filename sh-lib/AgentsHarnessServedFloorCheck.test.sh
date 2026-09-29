@@ -203,6 +203,15 @@ rigAskSchema="$( LC_ALL=C awk '
 		if ( schemaAt > 0 && ( nextAt == 0 || schemaAt < nextAt ) ) { print substr( askRest, schemaAt, ( nextAt == 0 ? length( askRest ) : nextAt ) - schemaAt ) ; }
 	}
 ' "$rigTmp/list" )"
+## The read cap the descriptions state is the one the served path applies, filled from the
+## one constant (AgentsHarnessReadCap.include), never restated by hand.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessReadCap.include"
+rigAssert "the served Read and Skill state the MCP cap" \
+	"$( LC_ALL=C grep -o -F "Content over the ${agentsReadCapMcp}-byte cap is cut" "$rigTmp/list" | wc -l | tr -d ' ' )" "2"
+rigAssert "no unfilled cap placeholder is served" \
+	"$( LC_ALL=C grep -c -F '{{READ_CAP_BYTES}}' "$rigTmp/list" )" "0"
+rigAssert "a hosted wire's rendering states the wire cap" \
+	"$( MDAT_READ_CAP_BYTES="$agentsReadCapWire" bash "$rigMirror" 2>/dev/null | LC_ALL=C grep -o -F "Content over the ${agentsReadCapWire}-byte cap is cut" | wc -l | tr -d ' ' )" "2"
 for rigAskField in kind refusal_id reason task_ref understood source will_do pending_id ; do
 	rigAssert "the served AskUserQuestion carries '$rigAskField'" \
 		"$( printf '%s' "$rigAskSchema" | LC_ALL=C grep -q -F "\"$rigAskField\":{" && printf 'yes' || printf 'no' )" "yes"

@@ -24,17 +24,17 @@ AgentsToolsEscalationField(){ ## record file, field
 
 ## Upserts header fields through this package's own header writer. Pairs of key, value.
 AgentsToolsEscalationUpsert(){ ## record file, key, value, ...
-	local upsertFile="$1" upsertOps upsertBody
+	local upsertFile="$1" upsertOps="" upsertBody
 	shift
-	upsertOps="$MMDAPP/.local/temp/mdat-escalation-ops.$$"
-	mkdir -p "$MMDAPP/.local/temp" || return 1
-	: > "$upsertOps" || return 1
 	while [ $# -ge 2 ] ; do
-		printf 'upsert\t%s\t%s\n' "$1" "${2//$'\n'/ }" >> "$upsertOps"
+		upsertOps="${upsertOps}upsert"$'\t'"$1"$'\t'"${2//$'\n'/ }"$'\n'
 		shift 2
 	done
-	upsertBody="$( LC_ALL=C awk -v opsFile="$upsertOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$upsertFile" )" || upsertBody=""
-	rm -f "$upsertOps"
+	## The header writer opens its operations by path, so they take a file of their own, gone with the subshell.
+	upsertBody="$( mkdir -p "$MMDAPP/.local/temp" && opsFile="$( mktemp "$MMDAPP/.local/temp/mdat-escalation-ops.XXXXXX" )" || exit 1
+		trap 'rm -f "$opsFile"' EXIT
+		printf '%s' "$upsertOps" > "$opsFile" || exit 1
+		LC_ALL=C awk -v opsFile="$opsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$upsertFile" )" || upsertBody=""
 	[ -n "$upsertBody" ] || return 1
 	printf '%s\n' "$upsertBody" > "$upsertFile"
 }
@@ -285,20 +285,16 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: $forwardId is not open, so there is nothing to forward" >&2
 			set +e ; return 1
 		fi
-		forwardOut="$MMDAPP/.local/temp/mdat-escalation-forward.$$"
-		mkdir -p "$MMDAPP/.local/temp" || { set +e ; return 1 ; }
-		{
+		forwardOut="$( {
 			printf 'Forwarded by %s. The answer in this thread is the verdict for request %s.\n\n' "$forwardBy" "$forwardId"
 			LC_ALL=C awk 'seenBody { print ; next } /^# Question asked$/ { seenBody = 1 }' "$forwardFile"
-		} | DistroAgentsTools --member-comms-slack-send-message "$forwardBy" human-owner --identity-bot --address-to human-owner --from-stdin > "$forwardOut" 2>&1 || {
-			echo "$MDSC_CMD: ⛔ ERROR: the forward could not be posted, so $forwardId is still answered only where it was asked: $( LC_ALL=C grep -m1 '⛔' "$forwardOut" )" >&2
-			rm -f "$forwardOut"
+		} | DistroAgentsTools --member-comms-slack-send-message "$forwardBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
+			echo "$MDSC_CMD: ⛔ ERROR: the forward could not be posted, so $forwardId is still answered only where it was asked: $( LC_ALL=C grep -m1 '⛔' <<< "$forwardOut" )" >&2
 			set +e ; return 1
 		}
-		forwardChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' "$forwardOut" | head -1 )"
-		forwardTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' "$forwardOut" | head -1 )"
-		forwardAddressees="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' "$forwardOut" | head -1 )"
-		rm -f "$forwardOut"
+		forwardChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' <<< "$forwardOut" | head -1 )"
+		forwardTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' <<< "$forwardOut" | head -1 )"
+		forwardAddressees="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' <<< "$forwardOut" | head -1 )"
 		if [ -z "$forwardChannel" ] || [ -z "$forwardTs" ] || [ -z "$forwardAddressees" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: the forward was posted but its thread or addressee could not be named, so its answer could not be recognised" >&2
 			set +e ; return 1

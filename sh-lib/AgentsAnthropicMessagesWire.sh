@@ -16,7 +16,7 @@
 ## this wire's envelope differs from that only in the schema key's spelling.
 ## The rename is sed, not ${var//}: bash 3.2 substitutes over a string this long slowly
 ## enough to stall the start by minutes.
-agentsWireToolsJson="$( bash "$harnessHere/AgentsHarnessMcpMirror.sh" )" || {
+agentsWireToolsJson="$( MDAT_READ_CAP_BYTES="${harnessReadCap:-}" bash "$harnessHere/AgentsHarnessMcpMirror.sh" )" || {
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the tool floor did not render for the Anthropic Messages wire -- the mirror's own error is above" >&2
 	exit 1
 }

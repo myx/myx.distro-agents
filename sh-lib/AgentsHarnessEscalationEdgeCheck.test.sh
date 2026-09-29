@@ -151,6 +151,9 @@ rigAsk(){ ## target path
 			[ -f "$rigPendingFile" ] || continue
 			case "$rigBefore" in *" ${rigPendingFile##*/} "*) continue ;; esac
 			LC_ALL=C grep -q '^status: reply-pending$' "$rigPendingFile" || continue
+			## Only a complete record: its header closed and its body begun.
+			LC_ALL=C grep -q -x -F '# Question asked' "$rigPendingFile" || continue
+			[ "$( LC_ALL=C grep -c -x -F -- '---' "$rigPendingFile" )" -ge 2 ] || continue
 			rigPending="${rigPendingFile##*/}" ; rigPending="${rigPending%.md}"
 		done
 	done

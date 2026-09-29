@@ -150,15 +150,12 @@ AgentsToolsVscodeFolderLinks(){
 		elif [ "$linkSlot" -ef "$linkTarget" ] ; then
 			linkKept="$linkKept." ; continue
 		elif [ -L "$linkSlot" ] ; then
-			if [ "$( readlink "$linkSlot" )" = "$linkTarget" ] ; then
-				linkKept="$linkKept." ; continue
-			fi
-			echo "⛔ ERROR: $MDSC_CMD --$linkContext: $linkSlot is a symlink to $( readlink "$linkSlot" ), not to $linkTarget -- will not overwrite" >&2
-			linkHadError="true" ; continue
+			echo "🙋 WARNING: $MDSC_CMD --$linkContext: $linkSlot is a symlink to $( readlink "$linkSlot" ), not to $linkTarget -- will not overwrite" >&2
+			continue
 		fi
 		if [ -e "$linkSlot" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --$linkContext: real content at $linkSlot, will not overwrite" >&2
-			linkHadError="true" ; continue
+			echo "🙋 WARNING: $MDSC_CMD --$linkContext: real content at $linkSlot, will not overwrite" >&2
+			continue
 		fi
 		if ! { mkdir -p "${linkSlot%/*}" && ln -s "$linkTarget" "$linkSlot" ; } ; then
 			echo "⛔ ERROR: $MDSC_CMD --$linkContext: failed to create symlink: $linkSlot" >&2
@@ -1045,13 +1042,14 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions registry busy, lock not acquired after $regWait attempts: $regLock -- no grant was reconciled for workspace $workspaceName" >&2
 			set +e ; return 1
 		fi
-		[ -f "$permissionsRegistry" ] || : > "$permissionsRegistry"
 
 		local grantsFile="$MMDAPP/.local/temp/mdat-claude-permissions-grants.$$"
-		mkdir -p "$MMDAPP/.local/temp" || { rmdir "$regLock" 2>/dev/null ; set +e ; return 1 ; }
 		(
-			## The trap is this subshell's own, so it can never disarm the caller's.
-			trap 'rmdir "$regLock" 2>/dev/null || true' EXIT
+			## The trap is this subshell's own, so it can never disarm the caller's. The path is
+			## baked in: an `exit` here drops the function's locals first (bash 3.2, sourced or eval'd).
+			trap "rmdir $( printf '%q' "$regLock" ) 2>/dev/null || true" EXIT
+			mkdir -p "$MMDAPP/.local/temp" || exit 1
+			[ -f "$permissionsRegistry" ] || : > "$permissionsRegistry" || exit 1
 
 			## What the registry claimed BEFORE this run. An entry here but not in the
 			## post-rewrite projection is one this workspace has just given up, and is

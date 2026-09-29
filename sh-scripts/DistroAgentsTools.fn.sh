@@ -250,6 +250,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--intern-op-vault-*|--intern-op-audit-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpVaultAudit.include"
+			return $?
+		;;
+
 		--intern-op-pending-reply-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPendingReply.include"
 			return $?

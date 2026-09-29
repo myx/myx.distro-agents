@@ -136,8 +136,8 @@ rm -f "$rigWs/.local/.vscode/status/.vscode/extensions/magic-team-panel"
 mkdir -p "$rigWs/.local/.vscode/status/.vscode/extensions/magic-team-panel"
 : > "$rigWs/.local/.vscode/status/.vscode/extensions/magic-team-panel/rig-own.txt"
 rigRun
-rigAssert "it is reported"                                "$( LC_ALL=C grep -c 'real content at .*/status/.vscode/extensions/magic-team-panel, will not overwrite' "$rigTmp/err" )" 1
-rigAssert "and the op says so, rc 1"                      "$rigRc" 1
+rigAssert "it is warned about"                            "$( LC_ALL=C grep -c 'WARNING: .*real content at .*/status/.vscode/extensions/magic-team-panel, will not overwrite' "$rigTmp/err" )" 1
+rigAssert "and the op still succeeds, rc 0"               "$rigRc" 0
 rigAssert "the content is left alone"                     "$( [ -f "$rigWs/.local/.vscode/status/.vscode/extensions/magic-team-panel/rig-own.txt" ] && [ ! -L "$rigWs/.local/.vscode/status/.vscode/extensions/magic-team-panel" ] && echo alone || echo touched )" alone
 rigAssert "the other folders keep their links"            "$( rigResolving )" 2
 
@@ -208,12 +208,12 @@ echo "-- a slot already reaching X's root copy is kept --"
 rm -rf "$rigXFolder/.claude" "$rigXFolder/.vscode"
 ln -s ../../../.claude "$rigXFolder/.claude" ; ln -s ../../../.vscode "$rigXFolder/.vscode"
 rigRunX
-rigAssert "a dir and a file slot through a parent link: no refusal" "$( LC_ALL=C grep 'ERROR' "$rigTmp/x.err" | LC_ALL=C grep -c -e 'browse/.claude/skills' -e 'browse/.vscode/mcp.json' )" 0
+rigAssert "a dir and a file slot through a parent link: no refusal" "$( LC_ALL=C grep -e 'ERROR' -e 'WARNING' "$rigTmp/x.err" | LC_ALL=C grep -c -e 'browse/.claude/skills' -e 'browse/.vscode/mcp.json' )" 0
 rigAssert "both count as already linked"                   "$( LC_ALL=C grep -c -e '.claude/skills: 0 folder(s) newly linked, 1 already linked' -e '.vscode/mcp.json: 0 folder(s) newly linked, 1 already linked' "$rigTmp/x.err" )" 2
 rigAssert "the parent links are left as they were"         "$( readlink "$rigXFolder/.claude" ) $( readlink "$rigXFolder/.vscode" )" "../../../.claude ../../../.vscode"
 rm -f "$rigXFolder/.claude" ; mkdir -p "$rigXFolder/.claude" ; ln -s ../../../../.claude/skills "$rigXFolder/.claude/skills"
 rigRunX
-rigAssert "a differently spelled link to it: no refusal"   "$( LC_ALL=C grep 'ERROR' "$rigTmp/x.err" | LC_ALL=C grep -c 'browse/.claude/skills' )" 0
+rigAssert "a differently spelled link to it: no refusal"   "$( LC_ALL=C grep -e 'ERROR' -e 'WARNING' "$rigTmp/x.err" | LC_ALL=C grep -c 'browse/.claude/skills' )" 0
 rigAssert "and it is kept as spelled"                      "$( readlink "$rigXFolder/.claude/skills" )" ../../../../.claude/skills
 
 if [ "$rigFailCount" -ne 0 ] ; then

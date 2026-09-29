@@ -53,6 +53,11 @@ mirrorToolsJson="$( LC_ALL=C awk -v q="'" '
 	inLiteral { print ; }
 ' "$mirrorWire" )"
 
+## The read cap stated in the descriptions is the one applied on the path being served:
+## an MCP client's unless the caller names another (a wire the harness hosts).
+. "$mirrorHere/AgentsHarnessReadCap.include"
+mirrorToolsJson="$( printf '%s\n' "$mirrorToolsJson" | AgentsReadCapFill "${MDAT_READ_CAP_BYTES:-$agentsReadCapMcp}" )"
+
 if [ -z "$mirrorToolsJson" ] ; then
 	printf '%s\n' "AgentsHarnessMcpMirror: ⛔ ERROR: no harnessToolsJson literal was extracted from ${mirrorWire##*/} -- an extraction that matched nothing must never read as a clean run" >&2
 	printf '%s\n' "  fix:  check that the literal still opens with harnessToolsJson='[" >&2

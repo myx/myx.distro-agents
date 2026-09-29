@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsHarnessReadCap.include -- the byte cap of the harness's Read and Skill, stated
+## once. Two values, because the two ways a result is served differ in what they carry:
+## a model the harness itself hosts takes the larger, and an MCP client, whose own
+## result limit is lower, the smaller. Sourced by the harness, which applies the cap, and
+## by every place that renders the tool declarations, which fill it into the descriptions
+## through the {{READ_CAP_BYTES}} placeholder, so the stated number is the applied one.
+##
+
+agentsReadCapWire=200000
+agentsReadCapMcp=48000
+
+## Fills the placeholder in the declarations on stdin with <cap>.
+AgentsReadCapFill(){ ## cap in bytes
+	LC_ALL=C sed "s/{{READ_CAP_BYTES}}/$1/g"
+}

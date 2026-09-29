@@ -95,8 +95,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-trash <member> <item-filename>
-📘 syntax: DistroAgentsTools.fn.sh --member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]
-📘 syntax: DistroAgentsTools.fn.sh --member-read-vault-item <team-member> <item-name> [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsTools.fn.sh --member-audit-item-read <team-member> <document-name> [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsTools.fn.sh --member-vault-item-read <team-member> <item-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-read-board-item <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path>
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <path>
@@ -2771,7 +2771,7 @@
 			<item-filename> must carry one of the four legitimate
 			personal-inbox type prefixes -- note-/inquiry-/reflection-/
 			warning- -- enforcing the type policy directly from the
-			filename, the same way --member-read-audit-item restricts to
+			filename, the same way --member-audit-item-read restricts to
 			transcript-* names. Optional line range is supported via
 			--start-line/--end-line and must be provided as a complete pair.
 
@@ -2813,7 +2813,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-read-audit-item <team-member> <document-name> [--start-line <N> --end-line <N>]
+		--member-audit-item-read <team-member> <document-name> [--start-line <N> --end-line <N>]
 			Read-only accessor for one audit document by logical identity,
 			not by caller-provided filesystem path. The caller provides only
 			<team-member> and a bare <document-name> filename. The operation
@@ -2827,7 +2827,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-read-vault-item <team-member> <item-name> [--start-line <N> --end-line <N>]
+		--member-vault-item-read <team-member> <item-name> [--start-line <N> --end-line <N>]
 			Read-only accessor for one vault item -- a verbatim document or
 			fact under the team-data store's vault/ -- by bare <item-name>
 			filename, never by caller-provided path. The operation validates
@@ -4458,27 +4458,19 @@
 			reuses the board item it already names as its tracking
 			document: NO new item is written, and the call prints
 			`DISPATCH_DOC=reuse` with `TRACKING_ITEM=<name>`. A
-			stdin/--from-file call — the main-loop relay path — creates NO
-			dispatch document at all: it prints `DISPATCH_DOC=none` and no
-			item key (this is what cleared the board-running
-			`dispatch-*-spawn-proxy` pile-up), and it writes nothing at all
-			under `$MDAT_DATA_ROOT`: a --wait call sends the spawned
-			session's own stdout and stderr to this caller's own stderr, so
-			a failed iteration is read where it happened, and an async call
-			— whose caller has already returned and has no stderr left to
-			read — keeps them in a file under `$MMDAPP/.local/temp/`
-			instead. The primitive also offers a
-			`create` mode — a fresh `dispatch-*` board-item in
-			board-running up front (verbatim prompt as its own "## Brief",
-			under a frontmatter block carrying `owner`, `status` and
-			`session-id`), updated in place on completion (a `status:`
-			moving from `dispatch-started` to
+			stdin/--from-file call — the main-loop relay path — names no
+			tracking item, so one is created: it prints
+			`DISPATCH_DOC=create` with `DISPATCH_ITEM=<name>`. That item is
+			a fresh `dispatch-*` board-item in board-running (verbatim
+			prompt as its own "## Brief", under a frontmatter block
+			carrying `owner`, `status` and `session-id`). On completion it
+			is updated (a `status:` moving from `dispatch-started` to
 			`dispatch-succeeded`/`dispatch-failed`, `resolved-at` stamped,
-			a "## Result" section appended), printed as
-			`DISPATCH_ITEM=<name>`, with async spawns closing it from a
-			background subshell once the child exits — but this relay never
-			selects `create`; that is for a stub crafted to want a fresh
-			dispatch document.
+			a "## Result" section appended) and moved from board-running
+			to board-pending. Async spawns close it from a background
+			subshell once the child exits. The primitive also offers a
+			`none` mode, with no dispatch document and nothing under
+			`$MDAT_DATA_ROOT`, but this relay never selects it.
 
 			--session-thread:event-track|magic-team chooses the thread the
 			spawned session is handed as session_thread_ts. magic-team, the
@@ -4497,10 +4489,8 @@
 			and by EXIT_CODE and LAUNCHED on the --wait path; and
 			OUTPUT_FILE wherever a file is actually written — the spawned
 			process's own raw stdout/stderr, under
-			`$MDAT_DATA_ROOT/audit/<YYYY-MM>/` for create and reuse and
-			under `$MMDAPP/.local/temp/` for an async none-mode call. A
-			--wait none-mode call writes no such file and prints no
-			OUTPUT_FILE. Two more are conditional,
+			`$MDAT_DATA_ROOT/audit/<YYYY-MM>/`, the only place this relay
+			writes it. Two more are conditional,
 			both on the --wait path: SETUP_STATUS=cli-not-configured when
 			the console reports rc 5 because this workspace selects no
 			external CLI, SETUP_STATUS=cli-not-authenticated when it
@@ -4887,10 +4877,10 @@
 		`DistroAgentsTools.fn.sh --member-append-session-transcript magic-coordinator --speaker human-owner --timestamp 2026-07-26T12:34:56Z --message "Approved. Proceed." --transcript-name transcript-2026-07-26-example.md --workspace-root /path/to/workspace --create`
 
 		# Read a transcript audit document by filename (no raw path argument)
-		`DistroAgentsTools.fn.sh --member-read-audit-item magic-coordinator transcript-2026-07-26-example.md`
+		`DistroAgentsTools.fn.sh --member-audit-item-read magic-coordinator transcript-2026-07-26-example.md`
 
 		# Read only a selected line range from the same audit document
-		`DistroAgentsTools.fn.sh --member-read-audit-item magic-coordinator transcript-2026-07-26-example.md --start-line 10 --end-line 25`
+		`DistroAgentsTools.fn.sh --member-audit-item-read magic-coordinator transcript-2026-07-26-example.md --start-line 10 --end-line 25`
 
 		# Read a board item by filename (search all board states)
 		`DistroAgentsTools.fn.sh --member-read-board-item magic-coordinator task-example.md`

@@ -1063,8 +1063,8 @@ case "$1" in
 				## resumable sweep does not re-page an entire channel history
 				## every pass while still being allowed to see thread parents
 				## older than its own cut-off. IGNORED for a thread target: a
-				## thread is read in one call, and conversations.replies pages
-				## forwards, so a backwards bound has no meaning against it.
+				## thread is read in one call (the header above says why), so
+				## a paging bound has no meaning against it.
 				--page-until)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: slack-check: ⛔ ERROR: --page-until: value required (<epoch>[.<micros>])" >&2
@@ -1237,17 +1237,21 @@ case "$1" in
 
 			if [ "$pretty" = "true" ] ; then
 				if [ -n "$legMerged" ] ; then
-					## Tested, and it decides the verdict: a failure of the pipeline's last stage is never reported as both DMs read.
-					LC_ALL=C sort -t "$tabChar" -k1,1 -k2,2n -k3,3n <<< "${legMerged%$'\n'}" \
-						| LC_ALL=C awk -F "$tabChar" '
+					## Each stage is tested on its own and decides the verdict: a failed sort or render is never reported as DMs read.
+					local legSorted=""
+					legSorted="$( LC_ALL=C sort -t "$tabChar" -k1,1 -k2,2n -k3,3n <<< "${legMerged%$'\n'}" )" || {
+						echo "$MDSC_CMD: slack-check: ⛔ ERROR: the DM lines read could not be sorted into one chronological conversation (sort rc=$?). Nothing was printed as the conversation, and nothing is concluded from this call." >&2
+						set +e ; return 1
+					}
+					LC_ALL=C awk -F "$tabChar" '
 							{
 								body = $6;
 								for ( i = 7 ; i <= NF ; i++ ) { body = body "\t" $i; }
 								if ( $5 == "H" ) { print $4 " | " body; }
 								else { print body; }
 							}
-						' || {
-						echo "$MDSC_CMD: slack-check: ⛔ ERROR: both DMs were read but the two could not be merged into one chronological conversation, so what is above is not the answer. Nothing is concluded from a merge that failed." >&2
+						' <<< "$legSorted" || {
+						echo "$MDSC_CMD: slack-check: ⛔ ERROR: the DM lines read were sorted but could not be rendered, so what is above is not the answer. Nothing is concluded from this call." >&2
 						set +e ; return 1
 					}
 				fi

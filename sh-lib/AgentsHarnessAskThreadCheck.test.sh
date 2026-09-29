@@ -166,8 +166,12 @@ rigAssert "Q1 is still waited on"                         "$rigKilled" yes
 echo "-- Q2 answered: a later plain reply answers nothing, and says so --"
 rigStrayTs="$(( $( date +%s ) + 120 )).000300"
 rigReplies "" ",{\"ts\":\"1700000001.000200\",\"user\":\"URIGOWNER\",\"text\":\"yes\",\"thread_ts\":\"1700000001.000101\"},{\"ts\":\"$rigStrayTs\",\"user\":\"URIGOWNER\",\"text\":\"yes\",\"thread_ts\":\"1700000001.000101\"}"
+rigStrayPosts="$( rigPosts )"
 rigAsk wait1c 20 "{\"pending_id\":\"$rigQ1Id\"}"
+rigAssert "the wait returns rather than keeps waiting"    "$rigKilled" no
+rigAssert "nothing is posted for it"                      "$(( $( rigPosts ) - rigStrayPosts ))" 0
 rigAssert "Q1 gets UNCLASSIFIED"                          "$( LC_ALL=C grep -m1 '^VERDICT: ' "$rigScenarioDir/wait1c" )" "VERDICT: UNCLASSIFIED"
+rigAssert "naming the record to re-wait on"               "$( LC_ALL=C grep -c -x -F "AskUserQuestion pending_id=$rigQ1Id" "$rigScenarioDir/wait1c" )" 1
 rigAssert "with a reason naming the plain text Q1"        "$( rigHolds "$rigScenarioDir/wait1c" 'starts with the plain text Q1' )" yes
 rigAssert "and never saying tag"                          "$( LC_ALL=C grep -c -i -E '(^|[^a-z])(un)?tag(ged)?([^a-z]|$)' "$rigScenarioDir/wait1c" )" 0
 rigAssert "and its record stays open"                     "$( rigStatus "$rigQ1Id" )" reply-pending
@@ -218,6 +222,7 @@ mkdir -p "$rigScenarioDir/ws/.local/agents/pending"
 printf -- '---\nstatus: reply-received\nowner: magic-tester\naddress-to: human-owner\nquestion-tag: Q7\n---\n\n# Question asked\n' > "$rigScenarioDir/ws/.local/agents/pending/33333333-0000-0000-0000-000000000007.md"
 rigAsk ask1 20 "{\"to\":\"human-owner\",\"question\":\"$rigQ1\",\"wait\":false}"
 rigAssert "the next question is Q8"                       "$( rigHolds "$rigScenarioDir/post.2" 'Question Q8' )" yes
+rigAssert "a thread's first question has no earlier-question line" "$( rigHolds "$rigScenarioDir/post.2" 'earlier question' )" no
 
 echo "-- only the thread numbers a question, and no post says tag --"
 rigStart numbering

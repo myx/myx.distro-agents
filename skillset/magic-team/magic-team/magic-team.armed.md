@@ -716,7 +716,7 @@ Every `magic-tooling` operation `magic-team`'s own text genuinely names or invok
 - `--member-inbox-reflection-upsert`
 - `--member-append-session-transcript`
 - `--member-inbox-item-read`
-- `--member-read-audit-item`
+- `--member-audit-item-read`
 - `--member-read-board-item`
 - `--member-work-session-input-scan`
 - `--owner-workspace-list` / `--owner-workspace-upsert` / `--owner-workspace-forget`
