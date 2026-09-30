@@ -181,8 +181,8 @@ AgentsToolsRegistryPendingSessionOpen(){ ## session-id
 	## out any board item whose own blocked-on has cleared), so its mere
 	## presence with source board-item is itself the open condition.
 	LC_ALL=C awk -v want="$wantSession" '
-		$3 == want && ( ( $2 == "ask" && $5 == "reply-pending" ) || $2 == "board-item" ) { found = 1 ; exit }
-		END { exit ( found ? 0 : 1 ) }
+		$3 == want && ( ( $2 == "ask" && $5 == "reply-pending" ) || $2 == "board-item" ) { found = 1 ; exit ; }
+		END { exit ( found ? 0 : 1 ) ; }
 	' "$pendingFile"
 }
 
@@ -299,45 +299,11 @@ AgentsToolsRegistryRenderPendingReplies(){
 ## Sessions view: the same extended rows (tracking session parent host owner status
 ## exit spawn agentlog sessionthread workspace live state), grouped by session-id.
 ## No new registry -- grouped at render time only.
-AgentsToolsRegistryRenderSpawnedSessionsGrouped(){ ## extended rows text
-	local sourceRows="$1"
+AgentsToolsRegistryRenderSpawnedSessionsGrouped(){ ## extended rows text, state filter
+	local sourceRows="$1" filterState="${2:-}"
 	printf '%s\n' "columns: session-id workspace host owner agent-count session-thread state-tally"
 	printf '%s\n\n' "state-tally: state=count pairs for every agent row in this session, comma-joined -- a session has no single state of its own, its agents do. workspace/host read \"mixed\" where a session's own rows disagree."
-	printf '%s\n' "$sourceRows" | LC_ALL=C awk '
-		$1 == "" { next }
-		{
-			sid = $2 ; ws = $11 ; host = $4 ; owner = $5 ; thread = $10 ; state = $13
-			if ( !(sid in seen) ) { order[++orderTotal] = sid ; seen[sid] = 1 }
-			count[sid]++
-			if ( workspace[sid] == "" ) { workspace[sid] = ws }
-			else if ( workspace[sid] != ws ) { workspace[sid] = "mixed" }
-			if ( hostOf[sid] == "" ) { hostOf[sid] = host }
-			else if ( hostOf[sid] != host ) { hostOf[sid] = "mixed" }
-			if ( thread != "-" && threadOf[sid] == "" ) { threadOf[sid] = thread }
-			if ( index( "," ownerSeen[sid] "," , "," owner "," ) == 0 ) {
-				ownerSeen[sid] = ( ownerSeen[sid] == "" ) ? owner : ownerSeen[sid] "," owner
-			}
-			key = sid SUBSEP state
-			stateCount[key]++
-			if ( !(state in stateSeen) ) { stateOrder[++stateTotal] = state ; stateSeen[state] = 1 }
-		}
-		END {
-			if ( orderTotal == 0 ) { print "**NOTE:** no spawned sessions -- the sandbox root exists and holds none" ; exit }
-			for ( i = 1 ; i <= orderTotal ; i++ ) {
-				sid = order[i]
-				tally = ""
-				for ( j = 1 ; j <= stateTotal ; j++ ) {
-					st = stateOrder[j]
-					key = sid SUBSEP st
-					if ( key in stateCount ) {
-						tally = ( tally == "" ) ? st "=" stateCount[key] : tally "," st "=" stateCount[key]
-					}
-				}
-				threadVal = ( threadOf[sid] == "" ) ? "-" : threadOf[sid]
-				printf "%s %s %s %s %s %s %s\n", sid, workspace[sid], hostOf[sid], ownerSeen[sid], count[sid], threadVal, tally
-			}
-		}
-	'
+	printf '%s\n' "$sourceRows" | LC_ALL=C awk -v filterState="$filterState" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRegistrySessionsGrouped.awk"
 	printf '\n'
 	return 0
 }
@@ -351,9 +317,10 @@ AgentsToolsRegistryRenderSpawnedSessionsGrouped(){ ## extended rows text
 ##
 ## view: "agents" (default) -- one row per spawn-id, today's shape plus two trailing
 ## columns (workspace, state). "sessions" -- the same rows grouped by session-id,
-## one row per coworking session. session-id filter narrows either view; state filter
-## only ever narrows the agents view, because a session row is a tally across states,
-## never one state of its own.
+## one row per coworking session. session-id filter narrows either view; a state
+## filter narrows the sessions view to sessions holding at least one agent in that
+## state, keeping each matching session's own full state-tally rather than trimming
+## it to the filtered state alone.
 AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state filter
 	local viewWanted="${1:-agents}" filterSession="${2:-}" filterState="${3:-}"
 	local registryFile psText thisHost thisWorkspace
@@ -402,7 +369,7 @@ AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state fi
 "
 	done < "$registryFile"
 	if [ "$viewWanted" = "sessions" ] ; then
-		AgentsToolsRegistryRenderSpawnedSessionsGrouped "$extendedRows"
+		AgentsToolsRegistryRenderSpawnedSessionsGrouped "$extendedRows" "$filterState"
 		return 0
 	fi
 	printf '%s\n' "columns: tracking-name session-id parent-session-id host owner status exit-code spawn-id agent-log-thread session-thread workspace live state"
