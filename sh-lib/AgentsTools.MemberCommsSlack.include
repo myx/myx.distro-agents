@@ -1594,6 +1594,15 @@ case "$1" in
 		local target="$1"
 		shift || true
 
+		## No target named: default to the caller's own coworking session thread,
+		## where one exists. One shared by every entry point that reaches this
+		## operation, harness and MCP twin alike, since the default lives here and
+		## not above it. An ad-hoc/solo spawn holding none keeps today's explicit-
+		## target requirement exactly -- the error just below fires as it always has.
+		if [ -z "$target" ] ; then
+			type AgentsToolsSessionThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+			target="$( AgentsToolsSessionThreadFind 2>/dev/null )" || target=""
+		fi
 		if [ -z "$target" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: <target> missing" >&2
 			set +e ; return 1
