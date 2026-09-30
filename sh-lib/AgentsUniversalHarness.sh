@@ -818,20 +818,7 @@ AgentsHarnessReadRange(){ ## path, offset, limit, optional numbered
 		printf 'ERROR: limit must be a whole number of lines, at least 1, got: %s\n' "$rangeLimit" ; return 0
 	fi
 	## Digits by the checks above and the mode a literal, so there is nothing here for -v to backslash-decode.
-	LC_ALL=C awk -v fromLine="$rangeOffset" -v lineLimit="${rangeLimit:-0}" -v byteCap="$harnessReadCap" -v numberLines="$4" -v restHint="$5" '
-		NR >= fromLine && ( lineLimit == 0 || NR < fromLine + lineLimit ) {
-			shownLine = ( numberLines == "" ) ? $0 : sprintf("%6d\t%s", NR, $0)
-			rangeBytes = rangeBytes + length(shownLine) + 1
-			if ( rangeBytes <= byteCap ) { print shownLine ; shownCount = shownCount + 1 ; shownBytes = rangeBytes ; }
-		}
-		END {
-			if ( rangeBytes > byteCap && shownCount == 0 ) printf "... line %d alone is over the %d-byte cap of this reader, so it cannot be returned here ...\n", fromLine, byteCap
-			else if ( rangeBytes > byteCap && restHint != "" ) printf "... TRUNCATED: showed %d of %d bytes; %s ...\n", shownBytes, rangeBytes, restHint
-			else if ( rangeBytes > byteCap ) printf "... TRUNCATED: showed %d of %d bytes in the requested range; continue with offset %d ...\n", shownBytes, rangeBytes, fromLine + shownCount
-			else if ( numberLines != "" && lineLimit > 0 && NR >= fromLine + lineLimit ) printf "... TRUNCATED: showed %d of %d lines; continue with offset %d ...\n", shownCount, NR - fromLine + 1, fromLine + shownCount
-			printf "... read %d line(s) from line %d; the file has %d lines ...\n", shownCount, fromLine, NR
-		}
-	' "$1"
+	LC_ALL=C awk -v fromLine="$rangeOffset" -v lineLimit="${rangeLimit:-0}" -v byteCap="$harnessReadCap" -v numberLines="$4" -v restHint="$5" -f "$harnessHere/AgentsHarnessReadRange.awk" "$1"
 }
 
 AgentsHarnessToolRead(){
@@ -884,24 +871,7 @@ AgentsHarnessToolRead(){
 				ERROR:*) printf '%s\n' "$pdfText" ; return 0 ;;
 			esac
 			## One record per page; validated above, so nothing here for -v to decode.
-			printf '%s' "$pdfText" | LC_ALL=C awk -v RS='\f' -v firstPage="$pdfFirst" -v pagesAsked="$toolPages" -v byteCap="$harnessReadCap" '
-				{
-					sub(/\n+$/, "")
-					pageNo = firstPage + NR - 1
-					lineTotal = split("--- page " pageNo " ---\n" $0, pageLines, "\n")
-					for ( lineNo = 1 ; lineNo <= lineTotal ; lineNo++ ) {
-						textBytes = textBytes + length(pageLines[lineNo]) + 1
-						if ( textBytes <= byteCap ) shownText = shownText pageLines[lineNo] "\n"
-						else if ( !cutPage ) cutPage = pageNo
-					}
-				}
-				END {
-					if ( pagesAsked == "" && NR > 10 ) { print "ERROR: this PDF has more than 10 pages, so pages is required -- pass a range such as 1-5, at most 20 pages per request" ; exit ; }
-					printf "%s", shownText
-					if ( cutPage && cutPage == firstPage ) printf "... page %d alone is over the %d-byte cap of this reader, so the rest of it cannot be returned here ...\n", cutPage, byteCap
-					else if ( cutPage ) printf "... TRUNCATED at page %d: continue with pages %d-%d ...\n", cutPage, cutPage, firstPage + NR - 1
-				}
-			'
+			printf '%s' "$pdfText" | LC_ALL=C awk -v RS='\f' -v firstPage="$pdfFirst" -v pagesAsked="$toolPages" -v byteCap="$harnessReadCap" -f "$harnessHere/AgentsHarnessPdfPageRead.awk"
 			return 0
 		;;
 		*.[iI][pP][yY][nN][bB])
@@ -1110,30 +1080,7 @@ AgentsHarnessToolGlob(){
 	## A pattern holding a slash is matched against the root-relative path as an anchored ERE, built here; ENVIRON, never -v.
 	case "$toolPattern" in
 		'')  find -L "$toolPath/" -maxdepth 1 -exec stat "${globStat[@]}" {} + || : ;;
-		*/*) find -L "$toolPath/" -type f | GLOB_ROOT="$toolPath/" GLOB_PATTERN="$toolPattern" LC_ALL=C awk '
-				BEGIN {
-					globRoot = ENVIRON["GLOB_ROOT"] ; globText = ENVIRON["GLOB_PATTERN"] ; globRegex = "^" ; braceDepth = 0 ;
-					for ( charPos = 1 ; charPos <= length(globText) ; charPos++ ) {
-						globChar = substr(globText, charPos, 1)
-						if ( substr(globText, charPos, 3) == "**/" ) { globRegex = globRegex "(.*/)?" ; charPos = charPos + 2 ; }
-						else if ( substr(globText, charPos) == "**" ) { globRegex = globRegex ".*" ; charPos = charPos + 1 ; }
-						else if ( globChar == "*" ) globRegex = globRegex "[^/]*"
-						else if ( globChar == "?" ) globRegex = globRegex "[^/]"
-						else if ( globChar == "{" && index(substr(globText, charPos), "}") > 0 ) { globRegex = globRegex "(()" ; braceDepth = braceDepth + 1 ; }
-						else if ( globChar == "," && braceDepth > 0 ) globRegex = globRegex "|()"
-						else if ( globChar == "}" && braceDepth > 0 ) { globRegex = globRegex ")" ; braceDepth = braceDepth - 1 ; }
-						else if ( globChar == "[" && ( classLength = index(substr(globText, charPos + 2), "]") ) > 0 ) { classText = substr(globText, charPos + 1, classLength) ; if ( substr(classText, 1, 1) == "!" ) classText = "^" substr(classText, 2) ; globRegex = globRegex "[" classText "]" ; charPos = charPos + classLength + 1 ; }
-						else if ( index("\\.+()|^$[]{}", globChar) > 0 ) globRegex = globRegex "\\" globChar
-						else globRegex = globRegex globChar
-					}
-					globRegex = globRegex "$"
-				}
-				{
-					relPath = ( index($0, globRoot) == 1 ) ? substr($0, length(globRoot) + 1) : $0
-					sub(/^\/+/, "", relPath)
-					if ( relPath != "" && relPath ~ globRegex ) print ;
-				}
-			' | LC_ALL=C tr '\n' '\000' | xargs -0 -r stat "${globStat[@]}" ;;
+		*/*) find -L "$toolPath/" -type f | GLOB_ROOT="$toolPath/" GLOB_PATTERN="$toolPattern" LC_ALL=C awk -f "$harnessHere/AgentsHarnessGlobFilterInline.awk" | LC_ALL=C tr '\n' '\000' | xargs -0 -r stat "${globStat[@]}" ;;
 		*)   find -L "$toolPath/" -type f -name "$toolPattern" -exec stat "${globStat[@]}" {} + || : ;;
 	esac 2> "$harnessScratch/glob.err" | LC_ALL=C sort -n | LC_ALL=C awk '{ sub(/^[0-9]+\t/, "") ; print ; }' > "$harnessScratch/glob.out"
 	## find -ls over the sorted paths, in slices well under any argv limit; every path is absolute, so none reads as an expression.
@@ -1180,32 +1127,7 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 		printf 'ERROR: no such path: %s\n' "$toolPath" ; return 0
 	fi
 	## ripgrep class escapes become POSIX classes; an escaped backslash and every other escape pass through untouched.
-	toolRegex="$( GREP_PATTERN="$toolPattern" LC_ALL=C awk 'BEGIN {
-		patternText = ENVIRON["GREP_PATTERN"] ; outText = "" ; inBracket = 0 ; charPos = 1 ; patternLength = length(patternText) ;
-		while ( charPos <= patternLength ) {
-			thisChar = substr(patternText, charPos, 1) ; nextChar = substr(patternText, charPos + 1, 1) ;
-			if ( !inBracket && thisChar == "[" ) {
-				outText = outText thisChar ; charPos++ ; inBracket = 1 ;
-				if ( substr(patternText, charPos, 1) == "^" ) { outText = outText "^" ; charPos++ ; }
-				if ( substr(patternText, charPos, 1) == "]" ) { outText = outText "]" ; charPos++ ; }
-				continue ;
-			}
-			if ( inBracket && thisChar == "[" && nextChar != "" && index(":=.", nextChar) > 0 && ( closePos = index(substr(patternText, charPos + 2), nextChar "]") ) > 0 ) {
-				outText = outText substr(patternText, charPos, closePos + 3) ; charPos = charPos + closePos + 3 ; continue ;
-			}
-			if ( inBracket && thisChar == "]" ) { outText = outText thisChar ; charPos++ ; inBracket = 0 ; continue ; }
-			if ( thisChar == "\\" && nextChar != "" ) {
-				classIndex = index("dswDSW", nextChar) ;
-				if ( classIndex == 0 ) { outText = outText thisChar nextChar ; charPos = charPos + 2 ; continue ; }
-				className = ( classIndex % 3 == 1 ) ? "[:digit:]" : ( ( classIndex % 3 == 2 ) ? "[:space:]" : "[:alnum:]_" ) ;
-				if ( inBracket && classIndex > 3 ) { print "ERROR: \\" nextChar " cannot stand inside a [...] bracket expression here, because POSIX has no negated class inside one. Use [^...] instead. Nothing was searched." ; exit 3 ; }
-				outText = outText ( inBracket ? className : ( classIndex > 3 ? "[^" className "]" : "[" className "]" ) ) ;
-				charPos = charPos + 2 ; continue ;
-			}
-			outText = outText thisChar ; charPos++ ;
-		}
-		print outText ;
-	}' )" || { printf '%s\n' "$toolRegex" ; return 0 ; }
+	toolRegex="$( GREP_PATTERN="$toolPattern" LC_ALL=C awk -f "$harnessHere/AgentsHarnessGrepPatternToPosix.awk" )" || { printf '%s\n' "$toolRegex" ; return 0 ; }
 	## The mode picks the output shape; -E, -C/-B/-A, -i, -o, -H and --include are carried by BSD and GNU grep alike.
 	case "$toolMode" in
 		content)            grepFlags=( -rE ) ;;
@@ -1272,32 +1194,7 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 	{
 		case "$toolGlob" in
 			*/*)
-				find "$toolPath" -type f 2>&3 | GLOB_ROOT="${toolPath%/}/" GLOB_PATTERN="$toolGlob" LC_ALL=C awk '
-					function globRegex(globText,   regexText, charPos, globChar, braceDepth, classLength, classText) {
-						regexText = "^" ; braceDepth = 0 ;
-						for ( charPos = 1 ; charPos <= length(globText) ; charPos++ ) {
-							globChar = substr(globText, charPos, 1)
-							if ( substr(globText, charPos, 3) == "**/" ) { regexText = regexText "(.*/)?" ; charPos = charPos + 2 ; }
-							else if ( substr(globText, charPos) == "**" ) { regexText = regexText ".*" ; charPos = charPos + 1 ; }
-							else if ( globChar == "*" ) regexText = regexText "[^/]*"
-							else if ( globChar == "?" ) regexText = regexText "[^/]"
-							else if ( globChar == "{" && index(substr(globText, charPos), "}") > 0 ) { regexText = regexText "(()" ; braceDepth = braceDepth + 1 ; }
-							else if ( globChar == "," && braceDepth > 0 ) regexText = regexText "|()"
-							else if ( globChar == "}" && braceDepth > 0 ) { regexText = regexText ")" ; braceDepth = braceDepth - 1 ; }
-							else if ( globChar == "[" && ( classLength = index(substr(globText, charPos + 2), "]") ) > 0 ) { classText = substr(globText, charPos + 1, classLength) ; if ( substr(classText, 1, 1) == "!" ) classText = "^" substr(classText, 2) ; regexText = regexText "[" classText "]" ; charPos = charPos + classLength + 1 ; }
-							else if ( index("\\.+()|^$[]{}", globChar) > 0 ) regexText = regexText "\\" globChar
-							else regexText = regexText globChar
-						}
-						return regexText "$"
-					}
-					BEGIN { globRoot = ENVIRON["GLOB_ROOT"] ; globMatch = globRegex(ENVIRON["GLOB_PATTERN"]) ; }
-					{
-						relPath = ( index($0, globRoot) == 1 ) ? substr($0, length(globRoot) + 1) : $0
-						sub(/^\/+/, "", relPath)
-						if ( relPath == "" ) { relPath = $0 ; sub(/^.*\//, "", relPath) ; }
-						if ( relPath ~ globMatch ) { print ; }
-					}
-				' | LC_ALL=C tr '\n' '\000' | xargs -0 -r grep "${grepFlags[@]}" -H -- "$toolRegex" 2>&1 || :
+				find "$toolPath" -type f 2>&3 | GLOB_ROOT="${toolPath%/}/" GLOB_PATTERN="$toolGlob" LC_ALL=C awk -f "$harnessHere/AgentsHarnessGlobFilterFunction.awk" | LC_ALL=C tr '\n' '\000' | xargs -0 -r grep "${grepFlags[@]}" -H -- "$toolRegex" 2>&1 || :
 			;;
 			*) grep "${grepFlags[@]}" -- "$toolRegex" "$toolPath" 2>&1 || : ;;
 		esac
@@ -1404,16 +1301,7 @@ AgentsHarnessSearchTopics(){ ## response JSON, array path, heading, cap, allowed
 			topicsSkipped=$(( topicsSkipped + 1 ))
 			continue
 		fi
-		if ! SEARCH_URL="$topicsUrl" SEARCH_ALLOWED="$5" SEARCH_BLOCKED="$6" SEARCH_ALWAYS="$( WEB_URL="$topicsUrl" WEB_ALLOW="$8" WEB_DENY="$7" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk 'BEGIN {
-			urlHost = tolower(ENVIRON["SEARCH_URL"]) ; sub(/^[a-z][a-z0-9+.-]*:\/\//, "", urlHost) ; sub(/[\/?#].*$/, "", urlHost) ; sub(/^.*@/, "", urlHost) ; sub(/:[0-9]*$/, "", urlHost) ; sub(/\.$/, "", urlHost) ;
-			allowCount = split(tolower(ENVIRON["SEARCH_ALLOWED"]), allowList, "\n") ; blockCount = split(tolower(ENVIRON["SEARCH_BLOCKED"]), blockList, "\n") ;
-			keepIt = 1 ; allowSeen = 0 ; allowHit = 0 ;
-			for ( listIndex = 1 ; listIndex <= allowCount ; listIndex++ ) { domainName = allowList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; allowSeen = 1 ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { allowHit = 1 ; } ; }
-			if ( ENVIRON["SEARCH_ALWAYS"] == "allowed" ) { allowHit = 1 ; }
-			if ( allowSeen && !allowHit ) { keepIt = 0 ; }
-			for ( listIndex = 1 ; listIndex <= blockCount ; listIndex++ ) { domainName = blockList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { keepIt = 0 ; } ; }
-			exit ( keepIt ? 0 : 1 ) ;
-		}' ; then
+		if ! SEARCH_URL="$topicsUrl" SEARCH_ALLOWED="$5" SEARCH_BLOCKED="$6" SEARCH_ALWAYS="$( WEB_URL="$topicsUrl" WEB_ALLOW="$8" WEB_DENY="$7" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlDomainFilter.awk" ; then
 			topicsDropped=$(( topicsDropped + 1 ))
 			continue
 		fi
@@ -1503,16 +1391,7 @@ AgentsHarnessToolWebSearch(){ ## query, raw arguments
 	searchAbstractUrl="$( AgentsHarnessSearchField "$searchBody" AbstractURL )"
 	if [ -n "$searchAbstract" ] ; then
 		searchEmitted=$(( searchEmitted + 1 ))
-		if [ -n "$searchAbstractUrl" ] && ! SEARCH_URL="$searchAbstractUrl" SEARCH_ALLOWED="$searchAllowed" SEARCH_BLOCKED="$searchBlocked" SEARCH_ALWAYS="$( WEB_URL="$searchAbstractUrl" WEB_ALLOW="$searchDefaults" WEB_DENY="$searchDenied" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk 'BEGIN {
-			urlHost = tolower(ENVIRON["SEARCH_URL"]) ; sub(/^[a-z][a-z0-9+.-]*:\/\//, "", urlHost) ; sub(/[\/?#].*$/, "", urlHost) ; sub(/^.*@/, "", urlHost) ; sub(/:[0-9]*$/, "", urlHost) ; sub(/\.$/, "", urlHost) ;
-			allowCount = split(tolower(ENVIRON["SEARCH_ALLOWED"]), allowList, "\n") ; blockCount = split(tolower(ENVIRON["SEARCH_BLOCKED"]), blockList, "\n") ;
-			keepIt = 1 ; allowSeen = 0 ; allowHit = 0 ;
-			for ( listIndex = 1 ; listIndex <= allowCount ; listIndex++ ) { domainName = allowList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; allowSeen = 1 ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { allowHit = 1 ; } ; }
-			if ( ENVIRON["SEARCH_ALWAYS"] == "allowed" ) { allowHit = 1 ; }
-			if ( allowSeen && !allowHit ) { keepIt = 0 ; }
-			for ( listIndex = 1 ; listIndex <= blockCount ; listIndex++ ) { domainName = blockList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { keepIt = 0 ; } ; }
-			exit ( keepIt ? 0 : 1 ) ;
-		}' ; then
+		if [ -n "$searchAbstractUrl" ] && ! SEARCH_URL="$searchAbstractUrl" SEARCH_ALLOWED="$searchAllowed" SEARCH_BLOCKED="$searchBlocked" SEARCH_ALWAYS="$( WEB_URL="$searchAbstractUrl" WEB_ALLOW="$searchDefaults" WEB_DENY="$searchDenied" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlDomainFilter.awk" ; then
 			printf 'Abstract: dropped by allowed_domains or blocked_domains\n'
 		else
 			printf 'Abstract%s: %s\n' "${searchAbstractSource:+ ($searchAbstractSource)}" "$searchAbstract"
@@ -1529,16 +1408,7 @@ AgentsHarnessToolWebSearch(){ ## query, raw arguments
 	searchDefinitionUrl="$( AgentsHarnessSearchField "$searchBody" DefinitionURL )"
 	if [ -n "$searchDefinition" ] ; then
 		searchEmitted=$(( searchEmitted + 1 ))
-		if [ -n "$searchDefinitionUrl" ] && ! SEARCH_URL="$searchDefinitionUrl" SEARCH_ALLOWED="$searchAllowed" SEARCH_BLOCKED="$searchBlocked" SEARCH_ALWAYS="$( WEB_URL="$searchDefinitionUrl" WEB_ALLOW="$searchDefaults" WEB_DENY="$searchDenied" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk 'BEGIN {
-			urlHost = tolower(ENVIRON["SEARCH_URL"]) ; sub(/^[a-z][a-z0-9+.-]*:\/\//, "", urlHost) ; sub(/[\/?#].*$/, "", urlHost) ; sub(/^.*@/, "", urlHost) ; sub(/:[0-9]*$/, "", urlHost) ; sub(/\.$/, "", urlHost) ;
-			allowCount = split(tolower(ENVIRON["SEARCH_ALLOWED"]), allowList, "\n") ; blockCount = split(tolower(ENVIRON["SEARCH_BLOCKED"]), blockList, "\n") ;
-			keepIt = 1 ; allowSeen = 0 ; allowHit = 0 ;
-			for ( listIndex = 1 ; listIndex <= allowCount ; listIndex++ ) { domainName = allowList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; allowSeen = 1 ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { allowHit = 1 ; } ; }
-			if ( ENVIRON["SEARCH_ALWAYS"] == "allowed" ) { allowHit = 1 ; }
-			if ( allowSeen && !allowHit ) { keepIt = 0 ; }
-			for ( listIndex = 1 ; listIndex <= blockCount ; listIndex++ ) { domainName = blockList[listIndex] ; sub(/^\*?\./, "", domainName) ; sub(/\.$/, "", domainName) ; if ( domainName == "" ) { continue ; } ; if ( urlHost == domainName || substr(urlHost, length(urlHost) - length(domainName)) == "." domainName ) { keepIt = 0 ; } ; }
-			exit ( keepIt ? 0 : 1 ) ;
-		}' ; then
+		if [ -n "$searchDefinitionUrl" ] && ! SEARCH_URL="$searchDefinitionUrl" SEARCH_ALLOWED="$searchAllowed" SEARCH_BLOCKED="$searchBlocked" SEARCH_ALWAYS="$( WEB_URL="$searchDefinitionUrl" WEB_ALLOW="$searchDefaults" WEB_DENY="$searchDenied" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlPolicy.awk" )" LC_ALL=C awk -f "$harnessHere/AgentsHarnessUrlDomainFilter.awk" ; then
 			printf 'Definition: dropped by allowed_domains or blocked_domains\n'
 		else
 			printf 'Definition: %s\n' "$searchDefinition"
@@ -3175,20 +3045,7 @@ AgentsHarnessSkillSegmentOk(){ ## one path segment
 ## The first candidate whose folder is named for the skill, or whose frontmatter name is
 ## the skill, wins. A candidate glob that matched nothing is a path getline cannot open.
 AgentsHarnessSkillLocate(){ ## skill name, then candidate SKILL.md paths in search order -- prints the folder
-	printf '%s\n' "${@:2}" | LC_ALL=C awk -v wantName="$1" '
-		{
-			candFile = $0 ; candDir = candFile ; sub(/\/[^\/]*$/, "", candDir) ;
-			dirName = candDir ; sub(/^.*\//, "", dirName) ;
-			frontName = "" ; readCount = 0
-			while ( ( getline candLine < candFile ) > 0 ) {
-				readCount++
-				if ( readCount == 1 && candLine != "---" ) break
-				if ( readCount > 1 && candLine == "---" ) break
-				if ( candLine ~ /^name:/ ) { frontName = candLine ; sub(/^name:[ \t]*/, "", frontName) ; sub(/[ \t]+$/, "", frontName) ; gsub(/^["\047]|["\047]$/, "", frontName) ; }
-			}
-			close(candFile)
-			if ( readCount > 0 && ( dirName == wantName || frontName == wantName ) ) { print candDir ; exit ; }
-		}'
+	printf '%s\n' "${@:2}" | LC_ALL=C awk -v wantName="$1" -f "$harnessHere/AgentsHarnessSkillLocate.awk"
 }
 
 ## Reaches the skillset directly and DELIBERATELY NOT through AgentsHarnessPathAllowed.
@@ -3236,17 +3093,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args
 			case "$skillPrefix" in
 				*/*) ;;
 				*)
-					pluginRoot="$( printf '%s\n' "$HOME"/.claude/plugins/synced/*/*/.claude-plugin/plugin.json | LC_ALL=C awk -v wantName="$skillPrefix" '
-						{
-							pluginFile = $0 ; pluginName = ""
-							while ( ( getline jsonLine < pluginFile ) > 0 ) {
-								if ( jsonLine !~ /"name"[ \t]*:/ ) continue
-								pluginName = jsonLine ; sub(/^[^:]*:[ \t]*"/, "", pluginName) ; sub(/".*$/, "", pluginName) ;
-								break
-							}
-							close(pluginFile)
-							if ( pluginName == wantName ) { sub(/\/\.claude-plugin\/plugin\.json$/, "", pluginFile) ; print pluginFile ; exit ; }
-						}' )"
+					pluginRoot="$( printf '%s\n' "$HOME"/.claude/plugins/synced/*/*/.claude-plugin/plugin.json | LC_ALL=C awk -v wantName="$skillPrefix" -f "$harnessHere/AgentsHarnessPluginNameLocate.awk" )"
 					if [ -n "$pluginRoot" ] ; then
 						skillDir="$( AgentsHarnessSkillLocate "$skillLeaf" "$pluginRoot/skills/$skillLeaf/SKILL.md" "$pluginRoot"/skills/*/SKILL.md )"
 						skillPath="$skillDir/SKILL.md"
@@ -3277,64 +3124,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args
 		## docs define. SESSION_ID, EFFORT, PROJECT_DIR and ! commands have no value here and
 		## stay as written.
 		skillArgs="$toolArgs" skillLabel="$toolSkill" skillBaseDir="$skillDir" skillPluginRoot="$pluginRoot" skillPluginData="$skillPluginData" \
-		LC_ALL=C awk '
-			function replaceEvery(fromText, toText, inText,   foundPos, doneText) {
-				doneText = ""
-				while ( ( foundPos = index(inText, fromText) ) > 0 ) { doneText = doneText substr(inText, 1, foundPos - 1) toText ; inText = substr(inText, foundPos + length(fromText)) ; }
-				return doneText inText
-			}
-			NR == 1 && $0 == "---" { inFront = 1 ; next ; }
-			inFront && $0 == "---" { inFront = 0 ; next ; }
-			inFront && inNameList && $0 ~ /^[ \t]*-/ { listName = $0 ; sub(/^[ \t]*-[ \t]*/, "", listName) ; gsub(/["\047 \t]/, "", listName) ; nameList[++nameCount] = listName ; next ; }
-			inFront { inNameList = 0 ; }
-			inFront && $0 ~ /^disable-model-invocation:[ \t]*true[ \t]*$/ { modelBlocked = 1 ; }
-			inFront && $0 ~ /^arguments:/ { listText = $0 ; sub(/^arguments:/, "", listText) ; gsub(/\[/, " ", listText) ; gsub(/\]/, " ", listText) ; gsub(/[,"\047]/, " ", listText) ; nameCount = split(listText, nameList, " ") ; inNameList = 1 ; }
-			inFront { next ; }
-			{ bodyText = bodyText $0 "\n" ; }
-			END {
-				if ( modelBlocked ) { printf "ERROR: Skill: %s sets disable-model-invocation: true, so only a user can invoke it, never a model\n", ENVIRON["skillLabel"] ; exit ; }
-				argText = ENVIRON["skillArgs"] ; tokenCount = 0 ; tokenOpen = 0 ; quoteChar = "" ; tokenText = ""
-				for ( charPos = 1 ; charPos <= length(argText) ; charPos++ ) {
-					argChar = substr(argText, charPos, 1)
-					if ( argChar == "\\" && quoteChar != "\047" && charPos < length(argText) && ( quoteChar == "" || index("\"\\$`", substr(argText, charPos + 1, 1)) > 0 ) ) { charPos++ ; tokenText = tokenText substr(argText, charPos, 1) ; tokenOpen = 1 ; continue ; }
-					if ( quoteChar != "" ) { if ( argChar == quoteChar ) { quoteChar = "" ; } else { tokenText = tokenText argChar ; } continue ; }
-					if ( argChar == "\"" || argChar == "\047" ) { quoteChar = argChar ; tokenOpen = 1 ; continue ; }
-					if ( argChar == " " || argChar == "\t" || argChar == "\n" ) { if ( tokenOpen ) { argTokens[tokenCount++] = tokenText ; tokenText = "" ; tokenOpen = 0 ; } continue ; }
-					tokenText = tokenText argChar ; tokenOpen = 1
-				}
-				if ( tokenOpen ) argTokens[tokenCount++] = tokenText
-				outText = "" ; restText = bodyText ; argTaken = 0
-				while ( ( dollarPos = index(restText, "$") ) > 0 ) {
-					preText = substr(restText, 1, dollarPos - 1) ; restText = substr(restText, dollarPos + 1) ;
-					placeLen = 0 ; placeKnown = 0 ; placeValue = ""
-					if ( match(restText, /^ARGUMENTS\[[0-9]+\]/) ) {
-						placeLen = RLENGTH ; argIndex = substr(restText, 11, RLENGTH - 11) + 0 ;
-						if ( argIndex < tokenCount ) { placeKnown = 1 ; placeValue = argTokens[argIndex] ; }
-					} else if ( substr(restText, 1, 9) == "ARGUMENTS" ) {
-						placeLen = 9 ; placeKnown = 1 ; placeValue = argText
-					} else if ( match(restText, /^[0-9]+/) ) {
-						placeLen = RLENGTH ; argIndex = substr(restText, 1, RLENGTH) + 0 ;
-						if ( argIndex < tokenCount ) { placeKnown = 1 ; placeValue = argTokens[argIndex] ; }
-					} else {
-						for ( nameIndex = 1 ; nameIndex <= nameCount ; nameIndex++ ) {
-							argName = nameList[nameIndex]
-							if ( argName != "" && substr(restText, 1, length(argName)) == argName && substr(restText, length(argName) + 1, 1) !~ /[A-Za-z0-9_]/ ) { placeLen = length(argName) ; placeKnown = 1 ; placeValue = ( nameIndex <= tokenCount ) ? argTokens[nameIndex - 1] : "" ; }
-						}
-					}
-					escapeOne = substr(preText, length(preText)) == "\\" && !( length(preText) > 1 && substr(preText, length(preText) - 1, 1) == "\\" )
-					if ( placeLen == 0 ) { outText = outText preText "$" ; continue ; }
-					if ( escapeOne ) { outText = outText substr(preText, 1, length(preText) - 1) "$" substr(restText, 1, placeLen) ; }
-					else if ( placeKnown ) { outText = outText preText placeValue ; argTaken = 1 ; }
-					else { outText = outText preText "$" substr(restText, 1, placeLen) ; }
-					restText = substr(restText, placeLen + 1)
-				}
-				outText = outText restText
-				if ( argText != "" && !argTaken ) outText = outText "\nARGUMENTS: " argText "\n"
-				outText = replaceEvery("${CLAUDE_SKILL_DIR}", ENVIRON["skillBaseDir"], outText)
-				if ( ENVIRON["skillPluginRoot"] != "" ) { outText = replaceEvery("${CLAUDE_PLUGIN_ROOT}", ENVIRON["skillPluginRoot"], outText) ; if ( ENVIRON["skillPluginData"] != "" ) outText = replaceEvery("${CLAUDE_PLUGIN_DATA}", ENVIRON["skillPluginData"], outText) ; }
-				printf "Base directory for this skill: %s\n%s", ENVIRON["skillBaseDir"], outText
-			}
-		' "$skillPath" > "$harnessScratch/skill.out"
+		LC_ALL=C awk -f "$harnessHere/AgentsHarnessSkillArgumentsFill.awk" "$skillPath" > "$harnessScratch/skill.out"
 		skillBytes="$( wc -c < "$harnessScratch/skill.out" | tr -d ' ' )"
 		if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] || [ "$skillBytes" -gt "$harnessReadCap" ] ; then
 			AgentsHarnessReadRange "$harnessScratch/skill.out" "$toolOffset" "$toolLimit"

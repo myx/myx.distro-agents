@@ -162,24 +162,7 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: Trello members/me failed as $memberName (curl rc=$trelloRc) -- the acting identity is UNKNOWN, not absent; curl's own error is on the line above" >&2
 				set +e ; return "$trelloRc"
 			fi
-			printf '%s\n' "$trelloMe" | LC_ALL=C awk '
-				function field(k,   v) {
-					if (!match(body, "\"" k "\"[ \t]*:[ \t]*\"[^\"]*\"")) return ""
-					v = substr(body, RSTART, RLENGTH)
-					sub(/^"[^"]*"[ \t]*:[ \t]*"/, "", v)
-					sub(/"$/, "", v)
-					return v
-				}
-				{ body = body $0 ; }
-				END {
-					id = field("id") ; user = field("username")
-					if (id == "" || user == "") {
-						printf("⛔ ERROR: --member-comms-trello-whoami: members/me carried no id/username -- the acting identity is UNKNOWN, not absent\n") > "/dev/stderr"
-						exit 1
-					}
-					printf("TRELLO_USER_ID=%s\nTRELLO_USERNAME=%s\n", id, user)
-				}
-			' || { set +e ; return 1 ; }
+			printf '%s\n' "$trelloMe" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMemberCommsTrelloWhoami.awk" || { set +e ; return 1 ; }
 			return 0
 		;;
 

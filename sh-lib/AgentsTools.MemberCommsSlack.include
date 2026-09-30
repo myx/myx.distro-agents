@@ -43,18 +43,7 @@ AgentsToolsCommsSlackFileInfoEmitField(){
 AgentsToolsCommsSlackMemberMarks(){
 	local marksFile="$MDAT_SKILLSET_ROOT/$1/$1.basic.md"
 	[ -f "$marksFile" ] || return 1
-	LC_ALL=C awk -F": " -v who="$1" '
-		icon  == "" && /^- \*\*Slack shortcode\*\*:/	{ icon  = $2 ; }
-		emoji == "" && /^- \*\*Unicode character\*\*:/	{ emoji = $2 ; }
-		alias == "" && /^- \*\*Alias\*\*:/		{ alias = $2 ; }
-		END {
-			if ( icon == "" ) { icon = emoji ; }
-			gsub( /`/, "", icon )  ; sub( /[[:space:]].*$/, "", icon ) ;
-			gsub( /`/, "", alias ) ; sub( /[[:space:]].*$/, "", alias ) ; sub( /\.$/, "", alias ) ;
-			if ( alias !~ /^[A-Za-z0-9._-]+$/ ) { alias = who ; }
-			printf "%s\t%s\n", icon, alias ;
-		}
-	' "$marksFile"
+	LC_ALL=C awk -F": " -v who="$1" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsToolsCommsSlackMemberMarks.awk" "$marksFile"
 }
 
 ## One member's Slack user id, for a real mention element; nothing at all when

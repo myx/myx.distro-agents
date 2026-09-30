@@ -190,25 +190,7 @@ AgentsToolsFinalGcDependedNames(){
 		done
 	done
 	if [ "${#depFiles[@]}" -eq 0 ] ; then return 0 ; fi
-	gcDependedNames="$LF$( LC_ALL=C awk '
-		FNR == 1 { fmDepth = 0 ; }
-		$0 == "---" { fmDepth++ ; next ; }
-		fmDepth != 1 { next ; }
-		/^blocked-by: |^spawned-by: / {
-			value = $0 ;
-			sub(/^blocked-by: |^spawned-by: /, "", value) ;
-			sub(/^\[/, "", value) ;
-			sub(/\]$/, "", value) ;
-			count = split(value, parts, ",") ;
-			for (i = 1 ; i <= count ; i++) {
-				name = parts[i] ;
-				gsub(/^[ \t]+|[ \t]+$/, "", name) ;
-				if (name == "") { continue ; }
-				if (name !~ /\.md$/) { name = name ".md" ; }
-				print name ;
-			}
-		}
-	' "${depFiles[@]}" | sort -u )$LF"
+	gcDependedNames="$LF$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsToolsFinalGcDependedNames.awk" "${depFiles[@]}" | sort -u )$LF"
 	return 0
 }
 

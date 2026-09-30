@@ -31,22 +31,7 @@
 ##           below exactly when the note's shape is unexpected, the one case
 ##           where that guard matters most.
 AgentsMagicSweepStateWatermark(){
-	LC_ALL=C awk '
-		BEGIN { want = "last_swept_ts:" ; }
-		NR == 1 && $0 == "---" { inFront = 1 ; sawFront = 1 ; next ; }
-		inFront && $0 == "---" { inFront = 0 ; next ; }
-		inFront && index($0, want) == 1 {
-			value = substr($0, length(want) + 1)
-			gsub(/^[ \t]+|[ \t]+$/, "", value)
-			gsub(/^"|"$/, "", value)
-			if ( value != "" ) { found = value ; }
-		}
-		END {
-			if ( ! sawFront ) { exit 1 ; }
-			if ( found == "" ) { exit 3 ; }
-			print found
-		}
-	'
+	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMagicSweepStateWatermark.awk"
 }
 
 ## True when $1 is not older than $2. Both are Slack `ts` values: ten digits of
@@ -59,30 +44,7 @@ AgentsMagicSweepStateWatermark(){
 ## not source that one, so depending on it would make a watermark write depend on
 ## the Slack file having been loaded first.
 AgentsMagicSweepStateTsNotOlder(){
-	LC_ALL=C awk -v candidate="$1" -v floorTs="$2" '
-		function secOf(v) {
-			sub(/\..*$/, "", v)
-			if ( v == "" ) { v = "0" ; }
-			return v + 0
-		}
-		function fracOf(v,   f) {
-			f = v
-			if ( f !~ /\./ ) { return "000000" ; }
-			sub(/^[^.]*\./, "", f)
-			while ( length(f) < 6 ) { f = f "0" ; }
-			return substr(f, 1, 6)
-		}
-		BEGIN {
-			candidateSec = secOf(candidate)
-			floorSec = secOf(floorTs)
-			if ( candidateSec > floorSec ) { exit 0 ; }
-			if ( candidateSec < floorSec ) { exit 1 ; }
-			candidateFrac = fracOf(candidate)
-			floorFrac = fracOf(floorTs)
-			if ( candidateFrac < floorFrac ) { exit 1 ; }
-			exit 0
-		}
-	'
+	LC_ALL=C awk -v candidate="$1" -v floorTs="$2" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMagicSweepStateTsNotOlder.awk"
 }
 
 case "$1" in

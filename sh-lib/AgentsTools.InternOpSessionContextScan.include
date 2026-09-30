@@ -924,28 +924,7 @@ case "$1" in
 						imAnySourceFailed="true"
 					fi
 					slackJson="$( printf '%s\n' "$slackRaw" | sed '1d' )"
-					dmIdentityRows="$( printf '%s\n' "$slackJson" | LC_ALL=C awk '
-						/^## dm=/ {
-							rest = $0
-							sub(/^## dm=/, "", rest)
-							id = rest ; sub(/ .*/, "", id)
-							## `identity=` IS OPTIONAL ON THIS MARKER -- the same
-							## optionality AgentsSessionContextCommsItems.awk already
-							## honours at its own copy of this rule. Without this
-							## positive test the sub() below simply does not match,
-							## `idn` keeps the whole remainder, and the first word of
-							## it -- the channel id itself -- is recorded as though it
-							## were an identity name. That mapping is then non-empty,
-							## so the follow-up thread read takes the "some identity
-							## was mapped" branch and silently reads under the member
-							## token where it had been reading under the bot token.
-							idn = ""
-							if (rest ~ /identity=/) {
-								idn = rest ; sub(/^.*identity=/, "", idn) ; sub(/ .*/, "", idn)
-							}
-							if (id != "" && idn != "") print id, idn
-						}
-					' | sort -u )"
+					dmIdentityRows="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSessionContextDmIdentityMap.awk" | sort -u )"
 					[ -z "$dmIdentityRows" ] || dmIdentityMap="$dmIdentityMap$dmIdentityRows"$'\n'
 					slackBlocks="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v kind=slack -v source="$slackName" -v channel="$slackChannel" -f "$commsItemsAwk" )" || {
 						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, response was an API failure, not an empty channel"$'\n'
@@ -980,22 +959,7 @@ case "$1" in
 
 				if [ "$commsMemberScopeOnly" != "true" ] && [ ${#matchedFiles[@]} -gt 0 ] ; then
 					local boardThreads
-					boardThreads="$( LC_ALL=C awk '
-						function strip(v) {
-							sub(/^[^:]*:[ \t]*/, "", v)
-							gsub(/^[ \t]+|[ \t]+$/, "", v)
-							gsub(/^"|"$/, "", v)
-							return v
-						}
-						function flush(   n, f) {
-							n = split(val, f, ":")
-							if (n == 3 && f[1] == "slack" && f[2] != "" && f[3] != "") { print f[2] ":" f[3]; }
-							val = ""
-						}
-						FNR == 1 { flush(); }
-						/^communication-channel-id:/ { val = strip($0); next; }
-						END { flush(); }
-					' "${matchedFiles[@]}" )" || boardThreads=""
+					boardThreads="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSessionContextBoardThreadIds.awk" "${matchedFiles[@]}" )" || boardThreads=""
 					[ -z "$boardThreads" ] || boardThreads="$( printf '%s\n' "$boardThreads" | sort -u )"
 					while IFS= read -r dt ; do
 						[ -n "$dt" ] || continue
@@ -1291,124 +1255,7 @@ case "$1" in
 						"$imSourcesScanned" "$imSourcesTotal" "$imInstrument"
 				else
 					local imRendered=""
-					imRendered="$( printf '%s' "$imBlocks" | IM_SOURCE_RESUME="$imSourceResume" LC_ALL=C awk -v cap="$sessionContextCapIm" '
-							## Deliberately the same key function as the per-thread trim above:
-							## two orderings that must agree are not two implementations.
-							function tskey(v,   d, sec, frac) {
-								gsub(/^[ \t]+|[ \t\r]+$/, "", v)
-								d = index(v, ".")
-								if (d == 0) { sec = v ; frac = "" ; }
-								else { sec = substr(v, 1, d - 1) ; frac = substr(v, d + 1) ; }
-								if (sec !~ /^[0-9]+$/ || length(sec) > 16) return ""
-								frac = substr(frac "000000", 1, 6)
-								if (frac !~ /^[0-9]+$/) return ""
-								while (length(sec) < 16) sec = "0" sec
-								return sec frac
-							}
-							function trim(v) {
-								gsub(/^[ \t]+|[ \t\r]+$/, "", v)
-								return v
-							}
-							## Resume points arrive through the ENVIRONMENT, never `-v`:
-							## one-true-awk rejects a newline inside a `-v` value outright
-							## ("awk: newline in string ... at source line 1", measured), so
-							## a multi-line map cannot be passed that way at all.
-							function loadResume(   raw, nl, i, f) {
-								raw = ENVIRON["IM_SOURCE_RESUME"]
-								nl = split(raw, rl, "\n")
-								for (i = 1; i <= nl; i++) {
-									if (rl[i] == "") continue
-									split(rl[i], f, "\t")
-									resumeChannel[f[1]] = f[2]
-									resumeIdentity[f[1]] = f[3]
-									resumeTs[f[1]] = f[4]
-									resumeOrigin[f[1]] = f[5]
-								}
-							}
-							function flush(   i, t, g) {
-								if (nb == 0) return
-								t = ""
-								for (i = 1; i <= nb; i++) t = t blk[i] "\n"
-								body[++nblk] = t
-								bkey[nblk] = curKey
-								g = (curSource == "" ? "(source unstated)" : curSource)
-								bsrc[nblk] = g
-								if (!(g in gseen)) { gseen[g] = 1 ; gname[++ng] = g ; gmax[g] = "" ; gn[g] = 0 ; }
-								gn[g]++
-								## An undatable conversation ranks HIGHEST, so the cap never
-								## deletes one whose recency could not be established. "~"
-								## (0x7E) sorts above any digit under LC_ALL=C.
-								if (curKey == "") { gmax[g] = "~" ; }
-								else if (gmax[g] != "~" && curKey > gmax[g]) { gmax[g] = curKey ; }
-								nb = 0 ; curKey = "" ; curSource = "" ;
-							}
-							/^## / { flush() ; }
-							{ if ($0 != "") blk[++nb] = $0 ; }
-							/^ts:/     { if (curKey == "")    curKey    = tskey(substr($0, index($0, ":") + 1)) ; }
-							/^source:/ { if (curSource == "") curSource = trim(substr($0, index($0, ":") + 1)) ; }
-							END {
-								flush()
-								loadResume()
-								## ONE comparator drives both stages: a conversation is ranked by
-								## its own NEWEST message, SELECTION keeps the top `cap` of that
-								## ranking and PRESENTATION renders that same window ascending.
-								for (i = 1; i <= ng; i++) gord[i] = i
-								for (x = 2; x <= ng; x++) {
-									v = gord[x] ; j = x - 1
-									while (j >= 1 && gmax[gname[gord[j]]] > gmax[gname[v]]) { gord[j + 1] = gord[j] ; j-- ; }
-									gord[j + 1] = v
-								}
-								## gord ascends by recency, so the cap keeps the TAIL, never the head.
-								keepFrom = ng - cap + 1
-								if (keepFrom < 1) keepFrom = 1
-								printf("conversations: %d shown of %d\n", ng - keepFrom + 1, ng)
-								## Truncation is never silent: a dropped conversation WAS read and
-								## still counts toward sources-scanned, and each one is named.
-								if (keepFrom > 1) {
-									dropped = ""
-									for (x = 1; x < keepFrom; x++) {
-										g = gname[gord[x]]
-										dropped = dropped (dropped == "" ? "" : ", ") g " (" gn[g] " messages)"
-									}
-									printf("**NOTE:** truncated -- %d conversations found, capped at %d; %d dropped as least-recently-active. Their sources WERE read and are counted in sources-scanned above -- this is a display cap, not an unread source. Dropped: %s\n", ng, cap, keepFrom - 1, dropped)
-								}
-								printf("\n")
-								for (x = keepFrom; x <= ng; x++) {
-									g = gname[gord[x]]
-									## ONE HEADING PER CORRESPONDENT, naming who this is, which
-									## conversation it is, which persona read it, and where THIS
-									## pass started in it. The resume point per conversation is
-									## what makes the document auditable at all: with one shared
-									## cut-off a reader could not tell one source apart from
-									## another, and thirty conversations rendered as one flat
-									## stream of opaque ids can only be handled in bulk -- which
-									## is exactly what forces a DM-specific rule. Grouping is
-									## what lets the ORDINARY handling rules apply per message
-									## without conflating whose message is whose.
-									##
-									## `### ` deliberately, not `## `: every block scanner in
-									## this pipeline keys on a literal "## " and none of them
-									## matches a third hash.
-									if (g in resumeChannel) {
-										printf("### %s -- conversation %s, read as %s, resumed from %s (%s)\n\n", \
-											g, resumeChannel[g], resumeIdentity[g], resumeTs[g], resumeOrigin[g])
-									}
-									## A `thread:` group has no heading and needs none: a
-									## thread is DISCOVERED inside a source that already has
-									## one, and does not carry a pointer of its own. Printing
-									## "resume point not recorded" against every one of them
-									## would bury the sources that do carry one.
-									m = 0
-									for (i = nblk; i >= 1; i--) if (bsrc[i] == g) ord[++m] = i
-									for (y = 2; y <= m; y++) {
-										v = ord[y] ; j = y - 1
-										while (j >= 1 && bkey[ord[j]] > bkey[v]) { ord[j + 1] = ord[j] ; j-- ; }
-										ord[j + 1] = v
-									}
-									for (y = 1; y <= m; y++) printf("%s\n", body[ord[y]])
-								}
-							}
-					' )" || {
+					imRendered="$( printf '%s' "$imBlocks" | IM_SOURCE_RESUME="$imSourceResume" LC_ALL=C awk -v cap="$sessionContextCapIm" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSessionContextImRender.awk" )" || {
 						imRendered=""
 						printf 'conversations: unknown -- the grouping/cap filter failed\n'
 						printf '**NOTE:** partial -- the conversation grouping/cap filter failed; IM item blocks are omitted from this document, though their sources WERE read and are counted in sources-scanned above\n\n'
@@ -1661,47 +1508,7 @@ case "$1" in
 			if [ ${#headers[@]} -eq 0 ] ; then
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrint.awk" "$f"
 			else
-				LC_ALL=C awk -v headers="$headersJoined" '
-					BEGIN {
-						n = split(headers, order, "\034")
-						for (i = 1; i <= n; i++) {
-							vals[order[i]] = ""
-							fallback[order[i]] = ""
-						}
-					}
-					!seen_fm && $0 == "---" {
-						seen_fm = 1
-						in_fm = 1
-						next
-					}
-					in_fm && $0 == "---" {
-						in_fm = 0
-						closed_fm = 1
-						next
-					}
-					closed_fm { next ; }
-					{
-						pos = index($0, ": ")
-						if (pos > 0) {
-							key = substr($0, 1, pos - 1)
-							if (key in vals) {
-								if (in_fm) {
-									if (vals[key] == "") vals[key] = substr($0, pos + 2)
-								} else {
-									if (fallback[key] == "") fallback[key] = substr($0, pos + 2)
-								}
-							}
-						}
-					}
-					END {
-						for (i = 1; i <= n; i++) {
-							key = order[i]
-							val = vals[key]
-							if (!seen_fm && val == "") val = fallback[key]
-							printf "%s: %s\n", key, val
-						}
-					}
-				' "$f"
+				LC_ALL=C awk -v headers="$headersJoined" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrintSelected.awk" "$f"
 			fi
 			printf '\n'
 		done

@@ -179,46 +179,7 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 			printf 'armed: unknown\n'
 		fi
 		printf 'resolved-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
-		[ -z "$closeLog" ] || [ ! -f "$closeLog" ] || LC_ALL=C awk '
-			function clip( text,    cutAt ) {
-				gsub( /[[:cntrl:]]/, " ", text ) ;
-				gsub( /`/, "", text ) ;
-				if ( length( text ) <= 200 ) { return text ; }
-				cutAt = 200 ;
-				while ( cutAt > 0 && substr( text, cutAt + 1, 1 ) >= "\200" && substr( text, cutAt + 1, 1 ) < "\300" ) { cutAt-- ; }
-				return substr( text, 1, cutAt ) "..." ;
-			}
-			BEGIN {
-				classTotal = split( "⛔ ERROR:|🚫 refused:|🔁 RETRY:|🙋 WARNING: DistroAgentsConsole:|⚠️  round cap reached|⚠️  context threshold reached|♻️  context threshold reached|⚠️  no token usage", classList, "|" ) ;
-			}
-			{ line = $0 ; sub( /^[[:space:]]+/, "", line ) ; }
-			index( line, "🔗 session " ) == 1 && sessionLine == "" { sessionLine = clip( line ) ; }
-			index( line, "🤖 " ) == 1 && modelLine == "" { modelLine = clip( line ) ; }
-			index( line, "DISTRO_CONSOLE_EXEC=" ) == 1 && execLine == "" { execLine = clip( line ) ; }
-			line == "session started" { startedLine = line ; }
-			index( line, "── round " ) == 1 { roundLine = clip( line ) ; }
-			index( line, "<- tool result (error)" ) == 1 { toolErrors++ ; }
-			{
-				for ( classIndex = 1 ; classIndex <= classTotal ; classIndex++ ) {
-					## The harness prints its errors at column 1 only, so that class is
-					## matched on the raw line and every other class on the stripped one.
-					matchText = ( classIndex == 1 ) ? $0 : line ;
-					if ( index( matchText, classList[classIndex] ) == 1 && ++classCount[classIndex] <= 3 ) { kept[++keptTotal] = clip( line ) ; }
-				}
-			}
-			$0 ~ /^[^[:space:]]+: line [0-9]+: / && ++shellErrorCount <= 3 { kept[++keptTotal] = clip( $0 ) ; }
-			END {
-				if ( sessionLine != "" ) { print sessionLine ; }
-				if ( modelLine != "" ) { print modelLine ; }
-				if ( execLine != "" ) { print execLine ; }
-				if ( startedLine != "" ) { print startedLine ; }
-				if ( roundLine != "" ) { print "last " roundLine ; }
-				for ( keptIndex = 1 ; keptIndex <= keptTotal ; keptIndex++ ) { print kept[keptIndex] ; }
-				for ( classIndex = 1 ; classIndex <= classTotal ; classIndex++ ) {
-					if ( classCount[classIndex] > 3 ) { print classList[classIndex] " total " classCount[classIndex] ; }
-				}
-				if ( startedLine != "" ) { print "tool-result-errors: " ( toolErrors + 0 ) ; }
-			}' < "$closeLog"
+		[ -z "$closeLog" ] || [ ! -f "$closeLog" ] || LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInternOpAgentSpawnProxyClip.awk" < "$closeLog"
 		printf '%s\n' '```'
 	} | DistroAgentsTools --member-comms-slack-send-message "$closeMember" "$closeThread" --identity-bot --from-stdin 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track close not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \

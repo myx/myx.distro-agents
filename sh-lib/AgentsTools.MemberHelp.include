@@ -93,38 +93,7 @@ case "$1" in
 		fi
 
 		ExtractOpNames(){
-			LC_ALL=C awk '
-				/^## DistroAgentsTools magic-tooling operations/ { inBlock=1; next; }
-				inBlock && /^## / { inBlock=0; }
-				inBlock && /^- `--/ {
-					## Every backtick-quoted op on the bullet, not just the
-					## first. The previous form cut the line at its first
-					## closing backtick, so a bullet naming two or more ops
-					## yielded only the leading one -- against the real
-					## magic-team.armed.md that silently dropped three
-					## (--owner-workspace-upsert, --owner-workspace-forget,
-					## --magic-heartbeat-state-upsert) from the set a member is
-					## told it may use, while members are instructed to execute
-					## nothing outside that set. Under-reporting here does not
-					## fail loudly; it quietly narrows the mandate a member
-					## believes it has.
-					##
-					## NOTE for future editors: this comment sits INSIDE a
-					## single-quoted AWK program. An apostrophe here closes
-					## that quote and breaks the file -- keep this block
-					## apostrophe-free.
-					line=$0;
-					while (match(line, /`--[^`]*`/)) {
-						tok = substr(line, RSTART + 1, RLENGTH - 2);
-						## Trim any argument spec carried inside the backticks
-						## (e.g. `--member-help <team-member>`) -- the op name
-						## is the first whitespace-delimited word.
-						sub(/[ \t].*$/, "", tok);
-						if (tok != "") { print tok; };
-						line = substr(line, RSTART + RLENGTH);
-					}
-				}
-			' "$1"
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMemberHelpExtractOpNames.awk" "$1"
 		}
 
 		local ownOpNames
@@ -151,65 +120,11 @@ case "$1" in
 
 
 		export MDAT_MEMBER_HELP_NAMES="$allNames"
-		LC_ALL=C awk '
-			BEGIN {
-				count = split(ENVIRON["MDAT_MEMBER_HELP_NAMES"], arr, "\n");
-				for (i = 1; i <= count; i++) { if (arr[i] != "") nameList[arr[i]] = 1; };
-			}
-			{
-				msg = $0;
-				sub(/^echo "/, "", msg);
-				sub(/" >&2$/, "", msg);
-				for (nm in nameList) {
-					matched = 0;
-					if (substr(nm, length(nm), 1) == "*") {
-						prefix = substr(nm, 1, length(nm) - 1);
-						if (index(msg, "DistroAgentsTools.fn.sh " prefix) > 0) { matched = 1; };
-					} else {
-						needle = "DistroAgentsTools.fn.sh " nm;
-						pos = index(msg, needle);
-						if (pos > 0) {
-							after = substr(msg, pos + length(needle), 1);
-							if (after == " " || after == "") { matched = 1; };
-						};
-					};
-					if (matched) { break; };
-				};
-				if (matched && !(msg in seen)) { print msg; seen[msg] = 1; };
-			}
-		' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
+		LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMemberHelpToolingLinesFilter.awk" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
 
 		echo >&2
 
-		LC_ALL=C awk '
-			BEGIN {
-				count = split(ENVIRON["MDAT_MEMBER_HELP_NAMES"], arr, "\n");
-				for (i = 1; i <= count; i++) { if (arr[i] != "") nameList[arr[i]] = 1; };
-			}
-			## An entry is a run of syntax lines and the text under them. Its text
-			## shows when any of those syntax lines shows.
-			/^## / { inBlock = 0; inHeaders = 0; inOptions = ($0 ~ /^##  Options:/); }
-			/^\t\t--/ && inOptions {
-				tmp = $0;
-				sub(/^\t\t/, "", tmp);
-				split(tmp, parts, " ");
-				opName = parts[1];
-				if (!inHeaders) { entryCount++; inBlock = 0; };
-				inHeaders = 1;
-				lineShown = 0;
-				for (nm in nameList) {
-					if (substr(nm, length(nm), 1) == "*") {
-						prefix = substr(nm, 1, length(nm) - 1);
-						if (index(opName, prefix) == 1) { lineShown = 1; break; };
-					} else if (opName == nm) { lineShown = 1; break; };
-				};
-				if (lineShown && (opName in printed) && printed[opName] != entryCount) { lineShown = 0; };
-				if (lineShown) { printed[opName] = entryCount; inBlock = 1; print; };
-				next;
-			}
-			{ inHeaders = 0; }
-			inBlock { print; }
-		' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md"
+		LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMemberHelpEntriesRender.awk" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md"
 
 		return 0
 	;;
