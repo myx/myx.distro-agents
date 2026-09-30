@@ -229,6 +229,32 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 	return 0
 }
 
+## Batched per-operation lines to the event-track thread, for the length of a
+## --wait spawn. Polls the growing OUTPUT_FILE for lines starting "-> tool: "
+## -- the marker AgentsClaudeStreamJsonFormat.awk already prints for every real
+## tool call -- and posts whatever is new as one Slack message per interval.
+## Silent when no thread was opened. The caller kills this once the child
+## exits, so it never outlives the spawn it reports on, and never posts the
+## same line twice because lastLineCount only moves forward.
+AgentsToolsSpawnProxyEventTrackBatch(){ ## thread, member, output file
+	local batchThread="$1" batchMember="$2" batchLog="$3"
+	local batchIntervalSeconds=20 lastLineCount=0 totalLineCount newLines
+	[ -n "$batchThread" ] || return 0
+	while : ; do
+		sleep "$batchIntervalSeconds"
+		[ -f "$batchLog" ] || continue
+		## awk counts records, not newlines -- unlike wc -l, it doesn't miss a
+		## final line that has no trailing newline yet.
+		totalLineCount="$( LC_ALL=C awk 'END{ print NR + 0 }' "$batchLog" 2>/dev/null )"
+		[ -n "$totalLineCount" ] || totalLineCount=0
+		[ "$totalLineCount" -gt "$lastLineCount" ] || continue
+		newLines="$( LC_ALL=C awk -v fromLine="$(( lastLineCount + 1 ))" 'NR >= fromLine && index( $0, "-> tool: " ) == 1' "$batchLog" )"
+		lastLineCount="$totalLineCount"
+		[ -n "$newLines" ] || continue
+		printf '%s\n' "$newLines" | DistroAgentsTools --member-comms-slack-send-message "$batchMember" "$batchThread" --identity-bot --from-stdin > /dev/null 2>&1 || :
+	done
+}
+
 case "$1" in
 
 	--intern-op-agent-spawn-proxy)
@@ -802,6 +828,13 @@ case "$1" in
 
 		if [ "$waitMode" = "true" ] ; then
 			local exitCode spawnPid watchPid timedOut waitTimeoutSeconds
+			## Live-visibility pair, for a spawn whose stdout/stderr went to
+			## outputFile rather than to this call's own &2: a background reader
+			## of that file (console echo, event-track batching) and its PID, so
+			## the caller can stop it the moment the child ends. Empty means
+			## neither was started -- the outputFile-less branches below already
+			## write straight to &2, so there is nothing to tail.
+			local tailPid="" batchPid=""
 			set +e
 			## 0, the default, is no bound: the wait lasts as long as the spawn does. A hung
 			## one stays visible to ListAgents and TaskOutput, and Ctrl-C still reaches it.
@@ -826,14 +859,28 @@ case "$1" in
 				env MMDAPP="$MMDAPP" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 &
 				spawnPid=$!
 			fi
+			## Nothing to read until the child is actually running: started right
+			## after spawnPid is captured, so as little of the run as possible is
+			## missed. Only where outputFile hid the child's own stream -- the two
+			## branches above with no outputFile already write straight to &2.
+			if [ -n "$outputFile" ] ; then
+				tail -n +1 -f "$outputFile" >&2 &
+				tailPid=$!
+				AgentsToolsSpawnProxyEventTrackBatch "$eventTrackThread" "$callerName" "$outputFile" &
+				batchPid=$!
+			fi
 			## An interactive Ctrl-C (or an external TERM sent to this call) must
 			## reach the real spawned console process immediately -- without this,
 			## only the timeout watcher below ever signals $spawnPid, so a live
 			## interrupt just interrupts this block's own `wait` (bash's own special
 			## case for that builtin) and leaves the spawn running underneath it.
-			## Cleared once this call's own waiting is done, so it never lingers
-			## past this op's own scope.
-			trap 'kill -TERM "$spawnPid" 2>/dev/null' INT TERM
+			## Also covers tailPid/batchPid: a live `tail -f` or batch loop left
+			## running past this call's own end holds the caller's own stdout/stderr
+			## open, which is exactly the orphan a signal arriving here must not
+			## create. Cleared only once every reader is actually stopped, below --
+			## not right after $spawnPid is reaped -- so it stays live for the gap
+			## that would otherwise leave them behind.
+			trap '[ -z "$spawnPid" ] || kill -TERM "$spawnPid" 2>/dev/null ; [ -z "$tailPid" ] || kill -TERM "$tailPid" 2>/dev/null ; [ -z "$batchPid" ] || kill -TERM "$batchPid" 2>/dev/null' INT TERM
 			## The bound, where SPAWN_WAIT_TIMEOUT_SECONDS sets one. TERM first so the CLI
 			## reaps its own children; KILL after a grace period for one that ignores TERM.
 			## The watcher's own exit status is how the foreground learns it fired -- a
@@ -859,10 +906,18 @@ case "$1" in
 				exitCode=0
 				wait "$spawnPid" 2>/dev/null || exitCode=$?
 			done
-			trap - INT TERM
 			wait "$watchPid" 2>/dev/null
 			timedOut=$?
 			set -e
+			## Stopped now, not left to die with the process group: the child is
+			## already gone, so anything either reader picks up after this point
+			## is stale, and the close steps below are about to read outputFile's
+			## own final content directly. The trap above is still live through
+			## this -- cleared only once both readers are confirmed stopped, so a
+			## signal landing in this exact gap still reaches them.
+			[ -z "$tailPid" ] || { kill "$tailPid" 2>/dev/null ; wait "$tailPid" 2>/dev/null ; }
+			[ -z "$batchPid" ] || { kill "$batchPid" 2>/dev/null ; wait "$batchPid" 2>/dev/null ; }
+			trap - INT TERM
 			local spawnOutcome
 			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )"
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"

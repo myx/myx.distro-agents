@@ -686,7 +686,13 @@ if [ -n "$MDAT_SPAWN_AGENT" ] ; then
 		DAGC_AGENT_ARGS=( --agent "$MDAT_SPAWN_AGENT" )
 	else
 		case "$DAGC_CLI" in
-			claude)
+			## claude-native joins claude's own arm, never a copy of it: its BINARY
+			## is claude (DAGC_CLI_EXEC="claude", set above), so the same
+			## --agents/--agent pair the vendor CLI accepts under the "claude" name
+			## is accepted under this name too. Before this fix MDAT_SPAWN_AGENT hit
+			## the `*)` warning arm here, so a claude-native spawn's hooks reported
+			## the generic agent type instead of the real member name.
+			claude|claude-native)
 				DAGC_AGENT_ARGS=(
 					--agents "{\"$MDAT_SPAWN_AGENT\":{\"description\":\"magic-team member $MDAT_SPAWN_AGENT\",\"prompt\":\"You are $MDAT_SPAWN_AGENT, a magic-team member. Read your own skill files before acting.\"}}"
 					--agent "$MDAT_SPAWN_AGENT"
