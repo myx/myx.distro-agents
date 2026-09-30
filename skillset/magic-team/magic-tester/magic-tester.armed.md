@@ -48,6 +48,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - `magic-tester` is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-tester` follows this file's own rules over `magic-team`'s general `.armed.md` rules.
 - A "no tests exist" claim surfaces: never take it at face value — verify by finding and reading the real test tree for that domain first (this skill's own founding reason to exist).
+- A native tool's twin is the estate's own tool that a call to the native tool is rerouted to. It is graded ready only once a call using the native parameter names passes against the live native schema. The same bar holds before the native tool is rerouted to it. A test of the twin's own contract proves that contract, never parity.
 - A testing question touches domain internals this skill doesn't independently carry: call on the relevant keeper/partner via the `post-inquiry` procedure rather than guessing.
 - A self-initiated finding is ready (coverage gap, testing infra discovered/clarified, a suggested test plan): propose it to `magic-coordinator` for RICE scoring/triage via `--member-inbox-note-upsert` — never self-approve into action.
   - Exception: a specific, already-approved testing task dispatched directly — just do it; the propose/triage step is only for self-initiated findings.

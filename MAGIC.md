@@ -128,6 +128,7 @@ Team-owned notes for the magic-* team.
 - A registration change takes effect only once the MCP host restarts. A `.mcp.json` entry additionally waits on the human's own trust prompt.
 - A host launches its server once per session and every tool call inherits that one process's environment. Workspace variables arrive unset, and the working directory is the agent host's project directory rather than the workspace root. A server resolves its own environment at its own entry; an `env` object in a registration fixes the value at install time and goes stale silently when the workspace's settings change.
 - A registered command whose path carries a `myx.common` directory component is pruned as a duplicate by the myx.common writers. Any other server's binary stays outside that component.
+- The `myx.common` entry points at the workspace's own installed `myx.common`, under `.local/myx/myx.common/`, never at `$MYXROOT`, which follows the console's origin. A workspace without that installed copy gets no `myx.common` registration, and the install reports an error.
 
 ## `sh-lib/AgentsMcpServerJsonUpsert.awk`
 
@@ -1796,6 +1797,12 @@ The rendered skill loses its frontmatter and opens with `Base directory for this
 **A tool description is shell code before it is prose.** The whole tools JSON is one bash single-quoted literal, so an ordinary English possessive -- `harness's`, `team's` -- closes it and the harness dies before its first request. Rewrite the possessive rather than escape it: `the team's own X` becomes `the X this team owns`. `AgentsHarnessSelfCheck.test.awk` matches text and does not parse, so it reports OK over a file in this state; `HARNESS_PARSES` is the check that sees it.
 
 **The literal carries a SECOND hazard, and it is the mirror of that one -- neither check above reaches it.** A break INSIDE the JSON, a missing comma between two declarations being the ordinary case, leaves `bash -n` clean precisely because the literal is single-quoted and the shell never parses its contents, while `AgentsHarnessSelfCheck.test.awk` matches the envelope as text and reports `OK (N tools, four sites each)` over the same file. Measured, both of them, on a fixture. The defect then surfaces only as a 400 from the live endpoint, which the harness prints as a refused request -- so it reads as an API or credential fault rather than as a local edit. `HARNESS_TOOLS_JSON` is the check that sees it, and the two counts it compares are the whole mechanism: a merge leaves the TEXT count (what the site check sees) unchanged while the PARSED count (what the endpoint sees) drops. **A change that adds or rewrites a declaration is not checked until that assertion has run over it.**
+
+**A search that finds nothing says so in words.** `Grep` answers `No matches found` and `Glob` answers `No files found`, never empty output. The MCP server marks a clean exit with no output as an error, because every harness tool prints a result line. An empty one leaves unknown whether the tool ran.
+
+**`Grep` runs `grep -E`, with ripgrep's class escapes translated.** `\d`, `\s` and `\w`, and their negations `\D`, `\S` and `\W`, become POSIX classes before the search. A negated escape inside a `[...]` bracket is refused, since POSIX has no negated class inside one. `multiline` is refused too, and nothing is searched.
+
+**`WebFetch` fetches only under an allowed URL prefix.** The built-in prefixes are `https://wikipedia.org/` and `https://freebsd.org/`. The `magic-team` scope adds prefixes with `WEB_ALLOW_PREFIXES` and removes them with `WEB_DENY_PREFIXES`, a name not yet approved. A deny match wins over every allow. A prefix covers its host, that host's subdomains and every path starting with its own path. A prefix naming a scheme covers that scheme only. A refused URL gets a refusal naming which case it hit, a deny match or no allow match, and a refusal id to ask permission by. A policy that cannot be read fetches nothing, and a redirect to another host is not followed.
 
 ## MCP enumeration -- at startup and again before every round
 
