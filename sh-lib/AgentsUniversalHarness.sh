@@ -550,6 +550,14 @@ if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
 	harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" )"$'\n'
 fi
 
+## The CLI's per-session scratchpad joins both sets, glob-matched since its path encoding is not ours.
+[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || [ -z "${CLAUDE_CODE_SESSION_ID:-}" ] || for harnessScratchpadDir in "/tmp/claude-$UID"/*/"$CLAUDE_CODE_SESSION_ID"/scratchpad ; do
+	[ -d "$harnessScratchpadDir" ] || continue
+	harnessScratchpadDir="$( AgentsHarnessResolveDir "$harnessScratchpadDir" )"
+	harnessRoots="${harnessRoots}${harnessScratchpadDir}"$'\n'
+	harnessWriteRoots="${harnessWriteRoots}${harnessScratchpadDir}"$'\n'
+done
+
 ## Claude Code saves a tool result too large to return under its own session folder and
 ## tells the agent to read it there, so that folder joins the read set only, after writes.
 [ -z "${CLAUDE_CODE_SESSION_ID:-}" ] || for harnessSessionResults in "$HOME/.claude/projects"/*/"$CLAUDE_CODE_SESSION_ID"/tool-results ; do
@@ -1561,7 +1569,7 @@ AgentsHarnessToolListAgents(){
 	esac
 	case "$toolState" in
 		''|running|waiting|finished) ;;
-		*) printf 'ERROR: state must be running, waiting or finished, got: %s\n' "$toolState" ; return 0 ;;
+		*) printf 'ERROR: state must be running, waiting or finished, got: %s. running also includes waiting rows.\n' "$toolState" ; return 0 ;;
 	esac
 	( . "$listRegistries" ; AgentsToolsRegistryRenderSpawnedSessions "$toolView" "$toolSessionId" "$toolState" ) 2>&1
 }

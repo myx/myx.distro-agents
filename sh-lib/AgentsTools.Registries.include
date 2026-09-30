@@ -357,7 +357,12 @@ AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state fi
 	while IFS= read -r registryRow ; do
 		[ -n "$registryRow" ] || continue
 		rowState="${registryRow##* }"
-		[ -z "$filterState" ] || [ "$rowState" = "$filterState" ] || continue
+		## running also keeps waiting rows -- a waiting agent is still in flight.
+		case "$filterState" in
+			"") ;;
+			running) [ "$rowState" = "running" ] || [ "$rowState" = "waiting" ] || continue ;;
+			*) [ "$rowState" = "$filterState" ] || continue ;;
+		esac
 		sawRow="true"
 		printf '%s\n' "$registryRow"
 	done <<< "$extendedRows"

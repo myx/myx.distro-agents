@@ -22,7 +22,10 @@ END {
 	printedTotal = 0
 	for ( i = 1 ; i <= orderTotal ; i++ ) {
 		sid = order[i]
-		if ( filterState != "" && !( (sid SUBSEP filterState) in stateCount ) ) { continue ; }
+		# running also keeps sessions with a waiting row -- a waiting agent is still in flight.
+		if ( filterState == "running" ) {
+			if ( !( (sid SUBSEP "running") in stateCount ) && !( (sid SUBSEP "waiting") in stateCount ) ) { continue ; }
+		} else if ( filterState != "" && !( (sid SUBSEP filterState) in stateCount ) ) { continue ; }
 		printedTotal++
 		tally = ""
 		for ( j = 1 ; j <= stateTotal ; j++ ) {
