@@ -13,13 +13,13 @@
 
 ## One value made safe for one field of a one-line entry: %, newline, CR, comma,
 ## colon and edge whitespace are %-escaped, and nothing is ever decoded back.
-AgentsToolsPermissionEscape(){ ## value
+AgentsToolsPermissionEscape(){ ## value, [keep-colons]
 	local escValue="$1" escLead="" escTail="" escChar
 	escValue="${escValue//%/%25}"
 	escValue="${escValue//$'\n'/%0A}"
 	escValue="${escValue//$'\r'/%0D}"
 	escValue="${escValue//,/%2C}"
-	escValue="${escValue//:/%3A}"
+	[ "${2:-}" = "keep-colons" ] || escValue="${escValue//:/%3A}"
 	while : ; do
 		escChar="${escValue%"${escValue#?}"}"
 		case "$escChar" in
@@ -104,7 +104,7 @@ AgentsToolsPermissionPlannedIgnored(){ ## member, session id, dispatch item, ent
 ## A value made safe inside the event-track post's code fence, where a backtick ends it.
 AgentsToolsPermissionFenceSafe(){ ## value
 	local fenceValue
-	fenceValue="$( AgentsToolsPermissionEscape "$1" )"
+	fenceValue="$( AgentsToolsPermissionEscape "$1" keep-colons )"
 	printf '%s' "${fenceValue//\`/%60}"
 }
 
