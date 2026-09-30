@@ -176,6 +176,15 @@ Neither outcome was a bucket, so neither could appear. Draw the categories from
 the subject before the rule exists, or read the instances themselves. A count is
 evidence only where a disconfirming bucket was available to it.
 
+**The same failure appears one level earlier than bucketing, in how the candidate
+population is built.** A check on a naming convention — `--intern-op-*` or
+`board-ops-*` naming, tested by grepping for names already shaped like the
+pattern under test — can find no violation: anything not shaped like the rule was
+never a candidate. Build the population by a method that does not presuppose the
+rule — a full listing, a broader grep, the schema itself — then test membership
+against the rule, never search for the rule's own shape to build the set being
+tested.
+
 **A measurement's scope and the claim's scope are one sentence, or the number is
 wrong.** A count taken inside one package and reported as a property of the
 family is not an approximation of the family's number. It is a different

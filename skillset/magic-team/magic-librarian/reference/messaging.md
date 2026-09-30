@@ -129,6 +129,12 @@ Measured on both sides, not argued:
   modifier and has no opposite, so a member whose read acts as bot cannot ask for a user-identity read.
   Where a send goes out as user, its own read-back is structurally unavailable rather than merely
   awkward.
+- **A send's fallback identity can differ by address form, for a member with no user token of its
+  own.** Observed and reproduced: a bare `human-owner` alias fell back to one real DM channel, an
+  explicit `<channel>:<ts>` address fell back to a different one, and both fell back silently — a
+  passive stdout warning only, no error. The mechanism behind the difference is inferred from that
+  symptom and the warning text, not read from the send path's own source, and is stated here as
+  inferred, not confirmed.
 - **The failure wears the wrong name.** An unauthorised reader is told `channel_not_found`, which reads
   as a bad target. So it looks like a mistyped id, gets retried, and never gets investigated. A reader
   who knows this stops retrying and asks which identity is acting.
