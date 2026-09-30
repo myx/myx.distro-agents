@@ -29,6 +29,16 @@
 ## nor the return code; a caller watching one thread reads it to tell a quiet
 ## thread from one it could not see at all.
 ##
+## RECEIVED on a thread source (slack:<channel>:<ts>, or its :conversation form)
+## also names the newest message it just printed:
+##
+##     WAIT-LAST-TS: <ts>
+##
+## Pass that ts back as the next call's --wait-since-utime to keep reading
+## forward without re-parsing the body for it. Absent on a bare conversation or
+## file source: neither prints one message per line, so neither has a single
+## ts this line could name.
+##
 ## SOURCE ADAPTERS -- the extension point.
 ##
 ## A source is named `<kind>:<target>`. The kind selects a probe function by
@@ -538,6 +548,18 @@ case "$1" in
 				echo "# --- what that source holds now follows ---"
 				cat "$waitHitFile"
 				echo "# --- end ---"
+				## Only a thread rendering carries one "<ts> | ..." message head per line,
+				## in ts order (AgentsSlackThreadAnswers.awk keeps that order). A bare
+				## conversation source renders raw Slack JSON instead, and a file source
+				## carries no per-message ts at all -- neither has a single "newest
+				## message" this line could name, so neither gets one.
+				case "$waitHitSource" in
+					slack:*:*)
+						local waitLastTs
+						waitLastTs="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1; } END { if (ts != "") print ts; }' "$waitHitFile" )"
+						[ -z "$waitLastTs" ] || echo "WAIT-LAST-TS: $waitLastTs"
+					;;
+				esac
 			;;
 			*)
 				## A read is claimed only for a source read at least once, so the text differs by which were.

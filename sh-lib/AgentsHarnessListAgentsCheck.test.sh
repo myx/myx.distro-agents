@@ -35,7 +35,11 @@ rigSession="rig-sess-$$-live"
 mkdir -p "$rigSpawned/rig-empty/input" "$rigWs/data/board/running"
 rigRecord(){ ## tracking name, session id, host
 	mkdir -p "$rigSpawned/$1/input"
-	printf -- '---\nsession-id: %s\ntracking-name: %s\nhost: %s\nowner: rig-member\nstatus: started\n---\n' "$2" "$1" "$3" > "$rigSpawned/$1/$2.md"
+	## spawn-id, not just session-id: liveness is matched on spawn-id since the
+	## id split, and a lone spawn's own spawn-id equals its session-id, the same
+	## shape this fixture already gives session-id. Missing this made every row
+	## read no-spawn-id regardless of a real live process.
+	printf -- '---\nsession-id: %s\nspawn-id: %s\ntracking-name: %s\nhost: %s\nowner: rig-member\nstatus: started\n---\n' "$2" "$2" "$1" "$3" > "$rigSpawned/$1/$2.md"
 }
 rigRecord rig-local "$rigSession" "$rigThisHost"
 rigRecord rig-remote rig-sess-remote rig-elsewhere
@@ -52,7 +56,9 @@ rigList(){ ## result file, then env assignments for this call
 		' > "$listOut" 2> "$listOut.err"
 }
 rigRow(){ ## result file, tracking name -- that row's live column, or none
-	LC_ALL=C awk -v wantName="$2" '$1 == wantName { print $NF ; found = 1 ; } END { if ( ! found ) print "no-row" ; }' "$1"
+	## live is second-to-last: state (section 12) was appended after it, so the
+	## column this rig actually asserts on moved from the last field to $(NF-1).
+	LC_ALL=C awk -v wantName="$2" '$1 == wantName { print $(NF-1) ; found = 1 ; } END { if ( ! found ) print "no-row" ; }' "$1"
 }
 
 echo "-- with a live process carrying the session id --"
@@ -60,7 +66,10 @@ echo "-- with a live process carrying the session id --"
 rigSleepPid=$!
 sleep 1
 rigList "$rigTmp/l1" MMDAPP="$rigWs"
-rigAssert "an empty sandbox is listed with no session record" "$( LC_ALL=C grep -c -x 'rig-empty - - - no-session-record - no-session-id' "$rigTmp/l1" || : )" 1
+## Full row, all thirteen fields: the empty-sandbox row's own columns, then
+	## live (no-spawn-id, since it carries no spawn-id at all) and state
+	## (unclosed: not finished, not running/other-host, no open ask to wait on).
+	rigAssert "an empty sandbox is listed with no session record" "$( LC_ALL=C grep -c -x 'rig-empty - - - - no-session-record - - - - - no-spawn-id unclosed' "$rigTmp/l1" || : )" 1
 rigAssert "this host's record with its process is running" "$( rigRow "$rigTmp/l1" rig-local )" running
 rigAssert "another host's record is other-host"        "$( rigRow "$rigTmp/l1" rig-remote )" other-host
 rigAssert "a board item alone is not a listed session" "$( rigRow "$rigTmp/l1" dispatch-rig-board-only.md )" no-row

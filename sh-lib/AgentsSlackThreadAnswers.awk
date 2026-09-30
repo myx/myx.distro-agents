@@ -187,7 +187,11 @@ function reactedByAddressee(ann,   userList, userCount, userIdx, reactUser) {
 
 END {
 	if ( badUsage ) { exit 2 ; }
-	if ( rootSeen ) { exit 0 ; }
+	## Conversation mode's own floor is often "now", picked with no post of ours to
+	## name -- never a message this thread is required to carry. The read itself
+	## already succeeded by the time this runs, which is all rootSeen ever stood in
+	## for outside the question-and-answer case.
+	if ( rootSeen || conversationMode ) { exit 0 ; }
 	print "AgentsSlackThreadAnswers.awk: this thread rendering carries no message with ts=" rootTs " -- so it is not known to be that message thread, and whether anybody answered it is unknown. Refusing to print an empty answer set, which would read as an answer that has not arrived." > "/dev/stderr"
 	exit 1
 }

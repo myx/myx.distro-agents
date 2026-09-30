@@ -1673,7 +1673,11 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 ## The spawned-sessions registry is what enumerates agents: every spawn has a sandbox, created
 ## even when empty, so a session with no tracking document and no board item is still listed.
 ## Rebuilt from the sandbox roots on each call, with liveness measured for this host's rows.
+##
+## view/session_id/state are optional filters onto that same registry -- see
+## AgentsToolsRegistryRenderSpawnedSessions's own header for what each composes with.
 AgentsHarnessToolListAgents(){
+	local toolView="${1:-agents}" toolSessionId="$2" toolState="$3"
 	local listRegistries="$harnessHere/AgentsTools.Registries.include"
 	if [ -z "${MMDAPP:-}" ] ; then
 		printf 'ERROR: MMDAPP is not set in this process, so the spawn sandbox roots cannot be located. Nothing was listed, and no session is implied to be absent.\n' ; return 0
@@ -1681,7 +1685,15 @@ AgentsHarnessToolListAgents(){
 	if [ ! -f "$listRegistries" ] ; then
 		printf 'ERROR: the registry reader is missing at %s, so nothing was listed, and no session is implied to be absent.\n' "$listRegistries" ; return 0
 	fi
-	( . "$listRegistries" ; AgentsToolsRegistryRenderSpawnedSessions ) 2>&1
+	case "$toolView" in
+		agents|sessions) ;;
+		*) printf 'ERROR: view must be agents or sessions, got: %s\n' "$toolView" ; return 0 ;;
+	esac
+	case "$toolState" in
+		''|running|waiting|finished) ;;
+		*) printf 'ERROR: state must be running, waiting or finished, got: %s\n' "$toolState" ; return 0 ;;
+	esac
+	( . "$listRegistries" ; AgentsToolsRegistryRenderSpawnedSessions "$toolView" "$toolSessionId" "$toolState" ) 2>&1
 }
 
 ## The wait happens HERE, in this process, inside one tool call: the model spends
@@ -1860,10 +1872,10 @@ AgentsHarnessDispatchReceipt(){ ## item filename
 	printf 'spawn-proxy-%s-%s' "${nameText%%-spawn-proxy-*}" "${nameText##*-spawn-proxy-}"
 }
 
-## The live processes carrying a session id in their own command line. The console
-## passes --session-id to the CLI, so the id the dispatch item already records is also
-## an OS handle -- which is what lets a stop reach a helper that is cooperating in no
-## way. The id travels in the environment, never in argv, so this never matches itself.
+## The live processes carrying a spawn id in their own command line. The console
+## passes --session-id to the CLI as this spawn's own id, so the spawn-id the dispatch
+## item records is also an OS handle -- which is what lets a stop reach a helper that
+## is cooperating in no way. The id travels in the environment, never in argv, so this never matches itself.
 ## -ww defeats the width truncation that would otherwise cut the id off a long CLI line.
 AgentsHarnessSessionPids(){ ## session id
 	export MDAT_HARNESS_WANT_SESSION="$1"
@@ -2005,7 +2017,11 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 		fi
 		itemName="${itemPath##*/}"
 		itemStatus="$( AgentsHarnessDispatchField "$itemPath" status )"
-		sessionId="$( AgentsHarnessDispatchField "$itemPath" session-id )"
+		## spawn-id is this process's own OS handle; session-id is the shared
+		## coworking id since session-id and spawn-id were split apart, so an item
+		## written before that carries no spawn-id and session-id is still its own.
+		sessionId="$( AgentsHarnessDispatchField "$itemPath" spawn-id )"
+		[ -n "$sessionId" ] || sessionId="$( AgentsHarnessDispatchField "$itemPath" session-id )"
 		if [ -n "$sessionId" ] ; then
 			if [ -n "$( AgentsHarnessSessionPids "$sessionId" )" ] ; then liveNow=yes ; else liveNow=no ; fi
 		fi
@@ -2088,7 +2104,11 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 	fi
 	itemName="${itemPath##*/}"
 	itemStatus="$( AgentsHarnessDispatchField "$itemPath" status )"
-	sessionId="$( AgentsHarnessDispatchField "$itemPath" session-id )"
+	## spawn-id is this process's own OS handle; session-id is the shared
+	## coworking id since session-id and spawn-id were split apart, so an item
+	## written before that carries no spawn-id and session-id is still its own.
+	sessionId="$( AgentsHarnessDispatchField "$itemPath" spawn-id )"
+	[ -n "$sessionId" ] || sessionId="$( AgentsHarnessDispatchField "$itemPath" session-id )"
 	if [ -z "$sessionId" ] ; then
 		printf 'ERROR: dispatch item %s carries no session-id, so there is no handle on any process and NOTHING was signalled. Status recorded on the item: %s\n' "$itemName" "${itemStatus:-<none>}" ; return 0
 	fi
@@ -3694,7 +3714,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" "$harnessFuncArgsRaw" )" ;;
 		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" )" ;;
 		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" message )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-		ListAgents) harnessResult="$( AgentsHarnessToolListAgents )" ;;
+		ListAgents) harnessResult="$( AgentsHarnessToolListAgents "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" view )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" session_id )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" state )" )" ;;
 		Wait)      harnessResult="$( AgentsHarnessToolWait "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" sources )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" poll_interval )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" since_utime )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" addressee )" )" ;;
 		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" outcome )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" unfinished )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" subject )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" evidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" confidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;

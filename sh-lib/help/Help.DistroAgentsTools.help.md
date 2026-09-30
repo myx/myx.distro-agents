@@ -3940,6 +3940,9 @@
 			party's reply, and this member's own posts never count as
 			an arrival, matched against the sender its own sends already
 			carry (see --member-comms-slack-send-message's `--metadata`).
+			The --wait-since-utime value need not name a real message
+			here, unlike an ordinary thread source -- a bare call defaults
+			it to the current time, as a synthetic floor.
 
 			A source kind this build does not carry is an ERROR at
 			second zero, naming the kinds that exist -- never a source
@@ -3957,6 +3960,18 @@
 			claims a read only for the sources that were read: none
 			read says that nothing is known at all, and a mix names
 			which sources were read and which never were.
+
+			On a thread source (`slack:<channel>:<ts>`, or its
+			`:conversation` form), RECEIVED also ends with a line naming
+			the newest message it just showed:
+
+			    WAIT-LAST-TS: <ts>
+
+			Pass that ts back as the next call's --wait-since-utime to
+			keep reading forward without re-parsing the body for it.
+			Absent on a bare conversation or file source: neither prints
+			one message per line, so neither has a single ts this line
+			could name.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
@@ -4523,7 +4538,7 @@
 			`DISPATCH_DOC=create` with `DISPATCH_ITEM=<name>`. That item is
 			a fresh `dispatch-*` board-item in board-running (verbatim
 			prompt as its own "## Brief", under a frontmatter block
-			carrying `owner`, `status` and `session-id`). On completion it
+			carrying `owner`, `status`, `session-id` and `spawn-id`). On completion it
 			is updated (a `status:` moving from `dispatch-started` to
 			`dispatch-succeeded`/`dispatch-failed`, `resolved-at` stamped,
 			a "## Result" section appended) and moved from board-running

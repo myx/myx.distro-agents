@@ -653,6 +653,18 @@ case "$1" in
 		## inherit it, and the console decides what the selected CLI can use.
 		export MDAT_SPAWN_AGENT="$callerName"
 
+		## The coworking session's own id, settled here -- before the dispatch item
+		## below, which needs it too -- rather than only later beside where its own
+		## thread gets opened. --session-thread:event-track pins it to this spawn's
+		## own id, the main loop's own solitary pass. An inherited id means this
+		## spawn joins that session. Neither means this spawn starts one, and its
+		## session-id is its own spawn-id, the same shape a lone spawn already had.
+		local sessionId="$MDAT_SPAWN_SESSION_ID"
+		if [ "$sessionThreadMode" != "event-track" ] && [ -n "$inheritedSessionId" ] ; then
+			sessionId="$inheritedSessionId"
+		fi
+		export MDAT_SESSION_ID="$sessionId"
+
 		## No dispatch document, nothing in the team data tree: a waiting caller reads
 		## the child's streams on its own stderr, an async one keeps them in scratch.
 		local auditDir outputFile=""
@@ -697,7 +709,8 @@ case "$1" in
 				--upsert-from-stdin \
 				--header:upsert:owner:"$callerName" \
 				--header:upsert:status:dispatch-started \
-				--header:upsert:session-id:"$MDAT_SPAWN_SESSION_ID" \
+				--header:upsert:session-id:"$sessionId" \
+				--header:upsert:spawn-id:"$MDAT_SPAWN_SESSION_ID" \
 				${trackedItemName:+--header:upsert:tracks:"${trackedItemName%.md}"} \
 				--log-verb:created || {
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: could not create dispatch tracking item $dispatchItemName" >&2
@@ -726,7 +739,8 @@ case "$1" in
 						DistroAgentsTools --intern-op-board-upsert-move-edit "$trackedItemState" "$trackedItemName" \
 							--from-state:"$trackedItemState" \
 							--context "$opContext" \
-							--header:upsert:session-id:"$MDAT_SPAWN_SESSION_ID" \
+							--header:upsert:session-id:"$sessionId" \
+							--header:upsert:spawn-id:"$MDAT_SPAWN_SESSION_ID" \
 							--header:upsert:status:dispatch-started \
 							--log-verb:updated \
 							|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: could not mark tracking item $trackedItemName as started" >&2
@@ -779,13 +793,24 @@ case "$1" in
 		## sandbox tracking file below so that file can carry it from the start,
 		## and pulled out of the subshell so the same text is available afterward
 		## to the CLI-update poller that later edits this same post in place.
+		## workspaceName is a basename, never a path -- the same convention the
+		## team-members registry's own workspace column already uses. Computed once,
+		## here, because both the event-track post below and the sandbox tracking
+		## file further down want it.
+		local workspaceName
+		workspaceName="$( basename "$MMDAPP" 2>/dev/null )" || workspaceName=""
+		[ -n "$workspaceName" ] || workspaceName="unknown"
+		## The human-owner's own correction: this post's output-file line used to be
+		## a full machine path. It names the workspace and the file, never the path.
+		local outputFileDisplay="none"
+		[ -z "$outputFile" ] || outputFileDisplay="$workspaceName/${outputFile##*/}"
 		local eventTrackBody=""
 		eventTrackBody="$( printf '%s\n' "Spawn started for $callerName" '```' \
-			"spawn-id: $MDAT_SPAWN_SESSION_ID" "parent-session-id: ${parentSessionId:-none}" \
-			"tracking-name: $sandboxName" "host: $( hostname -s 2>/dev/null || echo unknown )" \
+			"session-id: $sessionId" "spawn-id: $MDAT_SPAWN_SESSION_ID" "parent-session-id: ${parentSessionId:-none}" \
+			"tracking-name: $sandboxName" "host: $( hostname -s 2>/dev/null || echo unknown )" "workspace: $workspaceName" \
 			"execution-receipt: $receiptId" "context: $opContext" "wait: $waitMode" \
 			"dispatch-doc: $dispatchDocMode${dispatchItemName:+ $dispatchItemName}${trackedItemName:+ $trackedItemName}" \
-			"cli-requested: ${spawnCliService:-configured} of $callerName" "output-file: ${outputFile:-none}" \
+			"cli-requested: ${spawnCliService:-configured} of $callerName" "output-file: $outputFileDisplay" \
 			"started-at: $( date +"%Y-%m-%d %H:%M %z" )" '```' )"
 		local eventTrackThread=""
 		eventTrackThread="$(
@@ -813,23 +838,25 @@ case "$1" in
 		## opens nothing; none means this spawn STARTS one, session-id becomes its own
 		## spawn-id, and its own opening post goes to magic-team, titled by
 		## --session-name-or-comment or else the session id.
-		local sessionId sessionThread
+		## sessionId itself is already settled, above, before the dispatch item was
+		## created -- only its thread is decided here.
+		local sessionThread
 		if [ "$sessionThreadMode" = "event-track" ] ; then
-			sessionId="$MDAT_SPAWN_SESSION_ID"
 			sessionThread="$eventTrackThread"
 		elif [ -n "$inheritedSessionId" ] ; then
-			sessionId="$inheritedSessionId"
 			sessionThread="$inheritedSessionThread"
 		else
-			sessionId="$MDAT_SPAWN_SESSION_ID"
+			## Human-owner's own correction: the team-channel root is not the tooling
+			## thread. One short human line, titled by --session-name-or-comment or
+			## else the session id -- no id block, no host, no timestamps. That detail
+			## already lives in the agent-log-thread's own Spawn started post above.
 			## Built with printf's own %s substitution, never string concatenation:
 			## sessionNameOrComment is free text a caller chose, and a stray '%' or
 			## backslash in it must reach Slack as itself, never read as a
 			## conversion or an escape.
 			local sessionOpenBody=""
-			sessionOpenBody="$( printf 'Session started for %s: %s\n```\nsession-id: %s\nspawn-id: %s\ntracking-name: %s\nhost: %s\nstarted-at: %s\n```\n' \
-				"$callerName" "${sessionNameOrComment:-$sessionId}" "$sessionId" "$MDAT_SPAWN_SESSION_ID" \
-				"$sandboxName" "$( hostname -s 2>/dev/null || echo unknown )" "$( date +"%Y-%m-%d %H:%M %z" )" )"
+			sessionOpenBody="$( printf 'Session started for %s: %s\n' \
+				"$callerName" "${sessionNameOrComment:-$sessionId}" )"
 			sessionThread="$(
 				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 				AgentsToolsResolveSlackBotToken "$callerName" > /dev/null 2>&1 || exit 0
@@ -848,7 +875,6 @@ case "$1" in
 		## Handed to a further nested spawn this process makes through this same
 		## proxy, the same way MDAT_SPAWN_SESSION_ID/MDAT_SPAWN_AGENT already are --
 		## a child inherits both rather than starting its own session.
-		export MDAT_SESSION_ID="$sessionId"
 		export MDAT_SESSION_THREAD="$sessionThread"
 
 		## The session tracking file, in the ROOT and never in input/ or output/: the root
@@ -887,6 +913,7 @@ case "$1" in
 			## estate's own machine identity -- the same value a team-member declare's
 			## host glob is matched against.
 			printf 'host: %s\n' "$( hostname -s 2>/dev/null || echo unknown )"
+			printf 'workspace: %s\n' "$workspaceName"
 			printf 'owner: %s\n' "$callerName"
 			printf 'status: %s\n' "spawn-started"
 			printf 'started-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
