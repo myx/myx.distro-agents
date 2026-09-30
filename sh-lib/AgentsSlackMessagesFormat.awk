@@ -15,11 +15,12 @@
 # naming the latest reply's author, and `reply_users` is not parsed at all.
 #
 # Lives here (myx.distro-agents/sh-lib, not myx.common) because it's
-# Slack/DistroAgentsTools-specific: the only consumers are the two
-# `--intern-op-slack-check` call sites in
-# sh-lib/AgentsTools.CommsSlack.include (per-DM fan-out leg,
-# single-conversation path). NOT --magic-sweep-input-scan, which never
-# invokes this file -- that op feeds AgentsSessionContextCommsItems.awk.
+# Slack/DistroAgentsTools-specific. Consumers, by call site: the two
+# `--intern-op-slack-check` reads in sh-lib/AgentsTools.CommsSlack.include
+# (per-DM fan-out leg, single-conversation path), the escalation-thread
+# read in sh-lib/AgentsTools.MemberEscalation.include, and the Wait thread
+# probe in sh-lib/AgentsTools.MemberWait.include. NOT --magic-sweep-input-scan,
+# which never invokes this file -- that op feeds AgentsSessionContextCommsItems.awk.
 #
 # Parsing engine (skipws/hex2dec/utf8enc/parseString/parseValue/
 # parseObject/parseArray) is copied verbatim from myx.common's
@@ -139,6 +140,11 @@ function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afte
 
 	if (afterIdx == "reply_count") { replyCountOf[idx] = val; return; }
 	if (afterIdx == "latest_reply") { latestReplyOf[idx] = val; return; }
+	## `chat.postMessage`'s own `metadata.event_payload.sender` field, present
+	## only when the sender asked for it and the read asked `include_all_metadata`
+	## back. Absent for every message that carries neither, so this adds nothing
+	## to a rendering with no such message.
+	if (afterIdx == "metadata.event_payload.sender") { senderOf[idx] = val; return; }
 	if (index(afterIdx, "reactions.") == 1) {
 		afterReactions = substr(afterIdx, length("reactions.") + 1)
 		j = afterReactions
@@ -260,6 +266,8 @@ END {
 	for (emitPos = 0; emitPos < msgCount; emitPos++) {
 		i = orderOf[emitPos]
 		annotations = ""
+
+		if (i in senderOf) annotations = annotations sprintf(" [sender: %s]", senderOf[i])
 
 		if (i in reactionCountPerMsg) {
 			for (j = 0; j < reactionCountPerMsg[i]; j++) {

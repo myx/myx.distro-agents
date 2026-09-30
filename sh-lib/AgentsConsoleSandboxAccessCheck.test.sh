@@ -60,6 +60,20 @@ rigAssert "no command is missing"                      "$( LC_ALL=C grep -c 'com
 rigAssert "claude gets --add-dir for input/"           "$( rigAdded "$rigTmp/sandbox/input" )" yes
 rigAssert "and for output/"                            "$( rigAdded "$rigTmp/sandbox/output" )" yes
 
+echo "-- the harness path with a sandbox root --"
+mkdir -p "$rigTmp/skills/rig-member"
+printf '# rig armed\n' > "$rigTmp/skills/rig-member/rig-member.basic.md"
+rigHarnessTool(){ ## tool, argument object
+	( cd "$rigWs" && printf '%s' "$2" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/sandbox" \
+		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$1" ) \
+		> "$rigTmp/harness.out" 2> "$rigTmp/harness.err"
+}
+rigHarnessTool Write "{\"path\":\"$rigTmp/sandbox/output/x.txt\",\"content\":\"x\"}"
+rigAssert "the harness write into output/ is not refused" "$( LC_ALL=C grep -c 'not in the allowed' "$rigTmp/harness.out" || : )" 0
+rigHarnessTool Read "{\"path\":\"$rigTmp/sandbox/input/x.txt\"}"
+rigAssert "the harness read from input/ is not refused"   "$( LC_ALL=C grep -c 'not in the allowed' "$rigTmp/harness.out" || : )" 0
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ CONSOLE SANDBOX ACCESS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

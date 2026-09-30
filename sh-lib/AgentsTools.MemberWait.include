@@ -98,9 +98,15 @@ agentsWaitSourceKinds="slack file"
 ## only throw away.
 AgentsWaitProbeSlack(){
 	local probeMember="$1" probeTarget="$2" probeSince="$3" probeOut="$4" probeAddressee="$5" probeRc=0
-	local probeArgs probeThread="false"
+	local probeArgs probeThread="false" probeMode=""
 	probeArgs=( "$probeMember" )
 	case "$probeTarget" in
+		*:*:conversation)
+			probeThread="true"
+			probeMode="conversation"
+			probeTarget="${probeTarget%:conversation}"
+			probeArgs=( "${probeArgs[@]}" "$probeTarget" --thread )
+		;;
 		*:*)
 			probeThread="true"
 			probeArgs=( "${probeArgs[@]}" "$probeTarget" --thread )
@@ -129,13 +135,15 @@ AgentsWaitProbeSlack(){
 	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessagesFormat.awk" \
 		< "$probeOut.read" > "$probeOut.rendered" 2>> "$probeOut.err" || probeRc=$?
 	## A thread several questions share answers each by its tag (AgentsTools.AskThread.include).
-	local probeStanding=""
-	type AgentsToolsAskThreadStanding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskThread.include"
-	probeStanding="$( AgentsToolsAskThreadStanding "${probeTarget%%:*}" "$probeSince" )"
-	local probeOthers=""
-	[ "${probeStanding#*$'\t'}" = "0" ] || [ "${probeStanding#*$'\t'}" = "1" ] || probeOthers="$( AgentsToolsAskThreadOthers "${probeTarget%%:*}" "$probeSince" )"
+	## Conversation mode has no question to tag, so it skips this lookup entirely.
+	local probeStanding="" probeOthers=""
+	if [ "$probeMode" != "conversation" ] ; then
+		type AgentsToolsAskThreadStanding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskThread.include"
+		probeStanding="$( AgentsToolsAskThreadStanding "${probeTarget%%:*}" "$probeSince" )"
+		[ "${probeStanding#*$'\t'}" = "0" ] || [ "${probeStanding#*$'\t'}" = "1" ] || probeOthers="$( AgentsToolsAskThreadOthers "${probeTarget%%:*}" "$probeSince" )"
+	fi
 	if [ "$probeRc" = "0" ] ; then
-		LC_ALL=C awk -v rootTs="$probeSince" -v fromUsers="$probeAddressee" -v tag="${probeStanding%%$'\t'*}" -v threadCount="${probeStanding#*$'\t'}" -v others="$probeOthers" \
+		LC_ALL=C awk -v rootTs="$probeSince" -v fromUsers="$probeAddressee" -v tag="${probeStanding%%$'\t'*}" -v threadCount="${probeStanding#*$'\t'}" -v others="$probeOthers" -v mode="$probeMode" -v callerName="$probeMember" \
 			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackThreadAnswers.awk" \
 			< "$probeOut.rendered" > "$probeOut" 2>> "$probeOut.err" || probeRc=$?
 	fi
@@ -283,10 +291,25 @@ case "$1" in
 			return 0
 		fi
 
-		## Defaults. The two team conversations every member already watches, so a
-		## bare call is the common "tell me when anyone says anything to me" case.
+		## Defaults. A caller inside a coworking session defaults to that session's
+		## own thread, any post but its own -- the common "tell me when this session
+		## moves" case. One shared by every entry point that reaches this operation,
+		## harness and MCP twin alike, since the default lives here and not above it.
+		## Absent a session thread, the two team conversations every member already
+		## watches: the common "tell me when anyone says anything to me" case.
 		if [ -z "$waitSources" ] ; then
-			waitSources="slack:magic-team slack:human-owner "
+			type AgentsToolsSessionThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+			local defaultSessionThread=""
+			defaultSessionThread="$( AgentsToolsSessionThreadFind 2>/dev/null )" || defaultSessionThread=""
+			if [ -n "$defaultSessionThread" ] ; then
+				waitSources="slack:$defaultSessionThread:conversation "
+				## A thread source needs a floor. No explicit one was given, so
+				## right now is the only sensible reading of "wait for updates" --
+				## everything already in the thread is not what a bare call means.
+				[ -n "$waitSince" ] || waitSince="$( date +%s )"
+			else
+				waitSources="slack:magic-team slack:human-owner "
+			fi
 		fi
 		[ -n "$waitTimeout" ] || waitTimeout=300
 		[ -n "$waitPoll" ] || waitPoll=15
@@ -348,10 +371,16 @@ case "$1" in
 		## answer is qualified by the message it came after and the party it came from.
 		## A thread source missing either of those, or sharing its wait with another
 		## source, is refused here rather than waited on.
-		local checkThreads=0 checkCount=0
+		## `slack:<channel>:<ts>:conversation` is the "any new post" thread mode:
+		## no addressee, sibling to today's named `slack:magic-team` etc. targets.
+		local checkThreads=0 checkCount=0 checkConversation=0
 		for checkSource in $waitSources ; do
 			checkCount=$(( checkCount + 1 ))
 			case "$checkSource" in
+				slack:*:*:conversation)
+					checkThreads=$(( checkThreads + 1 ))
+					checkConversation=$(( checkConversation + 1 ))
+				;;
 				slack:*:*)
 					checkThreads=$(( checkThreads + 1 ))
 				;;
@@ -367,9 +396,14 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a thread source needs --wait-since-utime carrying the ts of our own message in that thread, because an answer is what arrives AFTER it. Without that floor every message already in the thread would count as an answer, our own included. Nothing was waited on." >&2
 			set +e ; return 1
 		fi
-		if [ "$checkThreads" -gt 0 ] && [ -z "$waitAddressee" ] ; then
+		if [ "$checkConversation" = "0" ] && [ "$checkThreads" -gt 0 ] && [ -z "$waitAddressee" ] ; then
 			echo "WAIT-RESULT: ERROR"
 			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a thread source needs --wait-addressee carrying the Slack account the question was addressed to, because an answer is what that party wrote. Without it an unrelated message in the same thread would count as the answer, and so would our own next post. Nothing was waited on." >&2
+			set +e ; return 1
+		fi
+		if [ "$checkConversation" -gt 0 ] && [ -n "$waitAddressee" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a :conversation thread source takes no --wait-addressee, because any new post counts, not just one party's reply. Nothing was waited on." >&2
 			set +e ; return 1
 		fi
 		if [ "$checkThreads" = "0" ] && [ -n "$waitAddressee" ] ; then

@@ -21,7 +21,7 @@ The MCP-routing rule below applies from the very first action after invocation. 
 
 Explicit MCP use:
 - `DistroAgentsTools.fn.sh` always executes via `mcp__myx_distro__execute`, whether or not a Keep-Alive Console Session is open — that channel is what establishes the workspace environment the call needs. Full mechanics: `magic-team/magic-team.armed.md`'s "Execution mechanisms" section.
-- `DistroAgentsTools.fn.sh` lives at `$MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh` (sibling `myx.distro-*` packages live alongside it under `$MMDAPP/.local/myx/`); if `$MMDAPP` is unset/empty in a session's environment, it resolves to the VSCode/harness workspace root directory — not a value that needs pre-exporting fresh each session.
+- `DistroAgentsTools` is invoked by its bare form — `mcp__myx_distro__execute` already defines it as a shell function in every call; no path lookup is needed.
 
 In the ChatUI interface, live tool-permission is the confirm/refuse channel. It is interface-specific, not tied to any one operating mode among those actually licensed to hold it.
 

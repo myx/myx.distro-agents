@@ -52,6 +52,9 @@ BEGIN {
 	tagNum = tag
 	sub(/^[Qq]/, "", tagNum)
 	shared = ( tag != "" && threadCount + 0 > 1 )
+	## conversation mode: any new post counts, so the addressee check below is
+	## skipped -- everyone posts through one shared Slack account today.
+	conversationMode = ( mode == "conversation" )
 	otherCount = 0
 	otherWords = split(others, otherWord, " ")
 	for ( otherIdx = 1 ; otherIdx <= otherWords ; otherIdx++ ) {
@@ -88,6 +91,27 @@ function newerThan(candidate, floorTs) {
 	return 0
 }
 
+## The formatter's own `[sender: X]` annotation for one rendered line, or "" where
+## the message carries none -- absence is never read as a match, only an actual
+## name is. Conversation mode uses this to skip the caller's own post by identity
+## rather than by timestamp, since the caller's own next post is still newer than
+## its own floor.
+function lineSender(line,   rest, ann, val) {
+	rest = line
+	sub(/^[^|]*\| [^|]*\|/, "", rest)
+	while ( match(rest, /^ \[[^]]*\]/) ) {
+		ann = substr(rest, RSTART + 1, RLENGTH - 1)
+		rest = substr(rest, RSTART + RLENGTH)
+		if ( ann ~ /^\[sender: / ) {
+			val = ann
+			sub(/^\[sender: /, "", val)
+			sub(/\]$/, "", val)
+			return val
+		}
+	}
+	return ""
+}
+
 ## A reaction answers only when one of its users is an addressee, the same rule a reply
 ## is held to. The users are the formatter's "(U1,U2)" tail of the annotation.
 function reactedByAddressee(ann,   userList, userCount, userIdx, reactUser) {
@@ -122,7 +146,8 @@ function reactedByAddressee(ann,   userList, userCount, userIdx, reactUser) {
 	}
 	inRoot = 0
 	if ( ! newerThan(msgTs, rootTs) ) { inOlder = 1 ; next ; }
-	if ( ! index( " " fromUsers " ", " " $3 " " ) ) { inOlder = 1 ; next ; }
+	if ( ! conversationMode && ! index( " " fromUsers " ", " " $3 " " ) ) { inOlder = 1 ; next ; }
+	if ( conversationMode && callerName != "" && lineSender($0) == callerName ) { inOlder = 1 ; next ; }
 	inOlder = 0
 	if ( shared ) {
 		replyText = $0

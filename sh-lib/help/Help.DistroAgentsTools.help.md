@@ -5,9 +5,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [text...]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [--metadata <json>] [text...]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>]
@@ -317,7 +317,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--text-group report|brief|relay]
+		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
 			Posts a message, attributed to <team-member>, to one of:
 			magic-team, human-owner, event-track, event-alert, a bare
 			<conversation-id> (posted as a NEW TOP-LEVEL message in that
@@ -343,6 +343,14 @@
 			magic-coordinator's, with the member named in the message
 			header and a warning on stderr. If neither token is configured
 			the send fails.
+
+			Every send carries Slack's own `metadata` object by default,
+			identifying <team-member> as the acting sender -- this is what
+			tells one member's post from another's under the one shared
+			bot account, and `--member-wait-for-input`'s `peer:` source
+			reads it back. `--metadata <json>` (one JSON object) replaces
+			it outright; a caller supplying its own value takes on keeping
+			`peer:` working for that message.
 
 			<team-member> must already exist as a real member skill
 			directory, or the send is refused. A name prefixed `routine-*`
@@ -3901,7 +3909,9 @@
 			repeatable. Given none, the sources are `slack:magic-team`
 			and `slack:human-owner`. `slack:<conversation>` waits on a
 			conversation, `slack:<channel>:<ts>` on that one message's
-			thread, and `file:<absolute-path>` on a local drop path,
+			thread, `slack:<channel>:<ts>:conversation` on any new post
+			in that thread that is not this member's own, and
+			`file:<absolute-path>` on a local drop path,
 			file or directory alike -- an absent path is a state, not
 			a failure, and a drop appearing later is exactly the
 			arrival being waited for. --wait-list-sources prints the
@@ -3924,6 +3934,12 @@
 			--wait-since-utime set to the question's own ts. Only a
 			reply from one of those accounts, or its reaction on the
 			question, is an arrival; no message text decides it.
+			`slack:<channel>:<ts>:conversation` is a thread source too --
+			same only-source and --wait-since-utime requirement -- but
+			takes no --wait-addressee: any new post counts, not just one
+			party's reply, and this member's own posts never count as
+			an arrival, matched against the sender its own sends already
+			carry (see --member-comms-slack-send-message's `--metadata`).
 
 			A source kind this build does not carry is an ERROR at
 			second zero, naming the kinds that exist -- never a source
@@ -4473,7 +4489,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--wait]
+		--magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--wait]
 			Heartbeat/advance spawn relay: executes a spawn prompt through
 			DistroAgentsConsole.sh. Prompt body source is stdin (default),
 			--from-file, --from-board, --from-vault, or --from-audit
@@ -4516,13 +4532,9 @@
 			`none` mode, with no dispatch document and nothing under
 			`$MDAT_DATA_ROOT`, but this relay never selects it.
 
-			--session-thread:event-track|magic-team chooses the thread the
-			spawned session is handed as session_thread_ts. magic-team, the
-			default, opens a new thread in the team channel. event-track
-			hands over the spawn's own event-track thread and posts nothing
-			to the team channel; where no event-track thread was opened, the
-			team-channel thread is opened as for magic-team. The main loop
-			passes event-track.
+			The spawned session is handed its own coworking session's
+			thread as session_thread_ts -- a separate thread from the
+			event-track one below; see there for how it is opened.
 
 			Default mode is async (returns STATUS=started + PID); --wait
 			blocks for completion and returns non-zero on failure. Printed
@@ -4573,13 +4585,16 @@
 			owner health checks; it is no longer what decides success.
 
 			Every spawn also opens one tooling-maintained thread in the
-			event-track channel, posted under the bot identity, when
-			magic-team's SLACK_CHANNEL_EVENT_TRACK is set and a bot
-			token resolves; with either missing it is skipped silently and
-			the spawn is unaffected. The opening message carries the
-			session id, the parent session id, the tracking name, host,
-			RECEIPT_ID, context, wait mode, dispatch document, requested
-			CLI, output file and start time. One threaded reply closes it
+			event-track channel (the agent-log thread), posted under the
+			bot identity, when magic-team's SLACK_CHANNEL_EVENT_TRACK is
+			set and a bot token resolves; with either missing it is
+			skipped silently and the spawn is unaffected. The opening
+			message carries the spawn id, the parent session id, the
+			tracking name, host, RECEIPT_ID, context, wait mode, dispatch
+			document, requested CLI together with the member it was
+			chosen for, output file and start time. Once the real CLI is known, that same field
+			is edited in place to name it, still paired with the member,
+			never posted as a second message. One threaded reply closes it
 			when the child exits: status, exit code, LAUNCHED, the CLI
 			actually executed, the timeout and cli-not-configured facts
 			where they apply, and -- only when OUTPUT_FILE exists -- a
@@ -4591,17 +4606,26 @@
 			of this reaches stdout; a failed post or reaction is one
 			stderr warning each and never fails the spawn.
 
-			Every spawn also opens the spawned session's own thread in
-			magic-team, posted under the bot identity and addressed to the
-			spawned member rather than `@here`: the opening message
-			carries the session id, tracking name, host and start time. The
-			brief the session receives ends with a "## Your session thread"
-			section carrying `session_thread_ts: <channel>:<ts>`, a value
-			--member-comms-slack-send-message takes as its target and
-			--member-comms-slack-read takes with --thread, as it stands. A
-			failed post is one stderr warning (`session thread not
-			opened`), the spawn still starts, and the section carries
-			`session_thread_ts: none` instead.
+			Separately, every spawn belongs to a coworking session, whose
+			thread is distinct from the agent-log thread above. Inheriting
+			a session id from its parent joins that session silently --
+			nothing is opened. Starting one instead opens a thread in
+			magic-team, addressed to the member, titled by
+			--session-name-or-comment when given or by the session id
+			otherwise. --session-thread:event-track pins the session
+			thread to this spawn's own agent-log thread instead and skips
+			the magic-team post; the main loop's own spawns use it so a
+			solitary pass never opens a coworking thread it has no other
+			member to share. magic-team, the default, is the ordinary
+			join-or-start behaviour just described.
+
+			The brief the session receives ends with a "## Your session thread"
+			section carrying `session_thread_ts: <channel>:<ts>` for that
+			coworking-session thread, a value --member-comms-slack-send-message
+			takes as its target and --member-comms-slack-read takes with
+			--thread, as it stands. Where the opening post failed, the section
+			carries `session_thread_ts: none -- the opening post failed, so
+			post a new thread in magic-team yourself` instead.
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 

@@ -544,6 +544,12 @@ if [ "${#harnessWriteAccessRoots[@]}" -gt 0 ] ; then
 fi
 [ -n "$harnessWriteRoots" ] || harnessWriteRoots="$harnessRoots"
 
+## The spawn's own sandbox is added here, after the write set is final.
+if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
+	harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/input" )"$'\n'"$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" )"$'\n'
+	harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" )"$'\n'
+fi
+
 ## Claude Code saves a tool result too large to return under its own session folder and
 ## tells the agent to read it there, so that folder joins the read set only, after writes.
 [ -z "${CLAUDE_CODE_SESSION_ID:-}" ] || for harnessSessionResults in "$HOME/.claude/projects"/*/"$CLAUDE_CODE_SESSION_ID"/tool-results ; do
@@ -1633,6 +1639,13 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to send under, and one is never guessed here. Nothing was sent. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
+	## No target named: default to this session's own coworking thread, where one
+	## exists. An ad-hoc/solo spawn holding none keeps today's explicit-target
+	## requirement exactly -- the error just below fires precisely as it always has.
+	if [ -z "$toolTarget" ] ; then
+		type AgentsToolsSessionThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		toolTarget="$( AgentsToolsSessionThreadFind 2>/dev/null )" || toolTarget=""
+	fi
 	if [ -z "$toolTarget" ] || [ -z "$toolMessage" ] ; then
 		printf 'ERROR: both to and message are required, and one of them was empty. Nothing was sent.\n' ; return 0
 	fi
@@ -1712,6 +1725,16 @@ AgentsHarnessToolWait(){
 		if [ "$toolSince" != "${toolSince#*.}" ] && ! AgentsHarnessWholeNumber "${toolSince#*.}" ; then
 			printf 'ERROR: since_utime must be epoch seconds, or a Slack message ts written <epoch>.<micros>, got: %s\n' "$toolSince" ; return 0
 		fi
+	fi
+	## No source named: default to this session's own coworking thread, any post
+	## but the caller's own, where a session thread exists. An ad-hoc/solo spawn
+	## holding none keeps today's default exactly -- magic-team and human-owner,
+	## resolved below by --member-wait-for-input itself from an empty sources list.
+	if [ -z "$toolSources" ] ; then
+		type AgentsToolsSessionThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		local waitDefaultThread=""
+		waitDefaultThread="$( AgentsToolsSessionThreadFind 2>/dev/null )" || waitDefaultThread=""
+		[ -z "$waitDefaultThread" ] || toolSources="slack:$waitDefaultThread:conversation"
 	fi
 	## Built as argv, so a source naming a thread stays one token rather than a
 	## quoted fragment, and an empty sources string adds no flag at all.
@@ -1861,8 +1884,8 @@ AgentsHarnessSessionPids(){ ## session id
 ## The brief goes in on stdin, never argv, so no shell parses it. Output to a file
 ## rather than a capture: the operation backgrounds a child, and a capture returns on
 ## pipe EOF rather than on the command it ran.
-AgentsHarnessToolAgent(){ ## agent name, prompt, cli service
-	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" spawnRc=0
+AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or comment
+	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" toolSessionNameOrComment="$4" spawnRc=0
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to spawn under, and one is never guessed here. Nothing was spawned. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
@@ -1881,6 +1904,11 @@ AgentsHarnessToolAgent(){ ## agent name, prompt, cli service
 	set -- "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-agent-spawn-proxy "$toolAgentName" \
 		--from-stdin --dispatch-doc:create --context Agent
 	[ -z "$toolCliService" ] || set -- "$@" --spawn-cli-service "$toolCliService"
+	## Absent: this spawn joins the caller's own coworking session where one is
+	## inherited, or runs ad-hoc/solo where none is. Present: this spawn starts a
+	## session of its own, titled by this text -- passed as a genuine argv token,
+	## never folded into any format string the proxy builds from it.
+	[ -z "$toolSessionNameOrComment" ] || set -- "$@" --session-name-or-comment "$toolSessionNameOrComment"
 	printf '%s' "$toolPrompt" | "$@" >"$harnessScratch/spawn.out" 2>&1 || spawnRc=$?
 	if [ "$spawnRc" != "0" ] ; then
 		printf 'ERROR: the spawn failed (rc=%s) and NO helper session is running. What the operation reported follows:\n' "$spawnRc"
@@ -2482,6 +2510,13 @@ AgentsHarnessToolAskUserQuestion(){
 		toolWait="true"
 		askSent="(re-wait on pending reply $toolPendingId: nothing was posted)"
 	else
+	## No target named: default to this session's own coworking thread, where one
+	## exists -- same rule and same reason as SendMessage's own default. An ad-hoc/
+	## solo spawn holding none keeps today's explicit-target requirement exactly.
+	if [ -z "$toolTo" ] ; then
+		type AgentsToolsSessionThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		toolTo="$( AgentsToolsSessionThreadFind 2>/dev/null )" || toolTo=""
+	fi
 	if [ -z "$toolTo" ] ; then
 		printf 'ERROR: AskUserQuestion: to is required and was empty, so there is nobody to ask. Nothing was sent.\n' ; return 0
 	fi
@@ -3306,7 +3341,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args
 	skillDir="${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}/$toolName"
 	[ -d "$skillDir" ] || skillDir="$HOME/.claude/skills/$toolName"
 	if [ ! -d "$skillDir" ] ; then
-		printf 'ERROR: Skill: no such skill folder: %s\n' "$skillDir" ; return 0
+		printf 'ERROR: Skill: no such skill folder: %s\n' "$toolName" ; return 0
 	fi
 	case "$toolList" in
 		true|1|yes)
@@ -3343,12 +3378,12 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args
 	done
 	skillPath="$skillDir/$toolFile"
 	if [ ! -f "$skillPath" ] ; then
-		printf 'ERROR: Skill: no such file in the %s skill folder: %s -- call this again with list set true to see what that folder holds\n' "$toolName" "$skillPath" ; return 0
+		printf 'ERROR: Skill: no such file in the %s skill folder: %s -- call this again with list set true to see what that folder holds\n' "$toolName" "$toolFile" ; return 0
 	fi
 	## Existence is not readability, and the two are refused separately: without this the
 	## size test below compares an empty value and emits shell noise, not an answer.
 	if [ ! -r "$skillPath" ] ; then
-		printf 'ERROR: Skill: not readable (permission denied): %s\n' "$skillPath" ; return 0
+		printf 'ERROR: Skill: not readable (permission denied): %s\n' "$toolName/$toolFile" ; return 0
 	fi
 	if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] ; then
 		AgentsHarnessReadRange "$skillPath" "$toolOffset" "$toolLimit"
@@ -3670,7 +3705,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri )" )" ;;
 		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri_prefix )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
 		Skill)     harnessResult="$( AgentsHarnessToolSkill "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" name )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" list )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" skill )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" args )" )" ;;
-		Agent)     harnessResult="$( AgentsHarnessToolAgent "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" agent )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" prompt )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cli_service )" )" ;;
+		Agent)     harnessResult="$( AgentsHarnessToolAgent "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" agent )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" prompt )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cli_service )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" session_name_or_comment )" )" ;;
 		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" force )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task_id )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" shell_id )" )" ;;
 		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_file )" )" ;;
 		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" max_results )" )" ;;
@@ -3769,9 +3804,11 @@ fi
 ## from mcp.servers.json again on every enumeration -- the client enumerates on load
 ## and again before every round -- so a server registered or removed there reaches the
 ## next round rather than the next run.
-if [ -n "$harnessToolOnly" ] ; then
-	export MDAT_MCP_SERVED_MARKER=1
-fi
+case "$harnessToolOnlyName" in
+	ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|ToolSearch)
+		export MDAT_MCP_SERVED_MARKER=1
+	;;
+esac
 harnessMcpServersNamed="${#harnessMcpServers[@]}"
 AgentsHarnessMcpServerSet(){
 	[ "$harnessMcpServersNamed" -eq 0 ] || return 0

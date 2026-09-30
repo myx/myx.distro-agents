@@ -469,6 +469,14 @@ AgentsToolsSlackResolveWorkspaceForScope(){
 	return 0
 }
 
+## A value made safe inside a Slack message's fenced code block: a backtick
+## ends the fence, and a newline or CR could open a spoofed extra label line.
+AgentsToolsSlackFenceSafeValue(){ ## value
+	local fenceValue="$1"
+	fenceValue="${fenceValue//$'\n'/%0A}"
+	fenceValue="${fenceValue//$'\r'/%0D}"
+	printf '%s' "${fenceValue//\`/%60}"
+}
 
 ## ===========================================================================
 ## OPERATIONS -- one arm each, in the order the dispatcher routes them.

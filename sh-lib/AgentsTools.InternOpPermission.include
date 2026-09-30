@@ -13,13 +13,13 @@
 
 ## One value made safe for one field of a one-line entry: %, newline, CR, comma,
 ## colon and edge whitespace are %-escaped, and nothing is ever decoded back.
-AgentsToolsPermissionEscape(){ ## value, [keep-colons]
+AgentsToolsPermissionEscape(){ ## value
 	local escValue="$1" escLead="" escTail="" escChar
 	escValue="${escValue//%/%25}"
 	escValue="${escValue//$'\n'/%0A}"
 	escValue="${escValue//$'\r'/%0D}"
 	escValue="${escValue//,/%2C}"
-	[ "${2:-}" = "keep-colons" ] || escValue="${escValue//:/%3A}"
+	escValue="${escValue//:/%3A}"
 	while : ; do
 		escChar="${escValue%"${escValue#?}"}"
 		case "$escChar" in
@@ -97,15 +97,8 @@ AgentsToolsPermissionPlannedIgnored(){ ## member, session id, dispatch item, ent
 	ignoredKey="$( printf '%s' "$4" | LC_ALL=C cksum | LC_ALL=C tr ' ' '-' )" || return 0
 	mkdir "$ignoredDir/planned-ignored-$ignoredKey" 2>/dev/null || return 0
 	AgentsToolsPermissionEventTrack "$1" "$ignoredDir" "$( printf '%s\n' "Planned allow ignored for $1" '```' \
-		"dispatch: $3" "entry: $( AgentsToolsPermissionFenceSafe "$4" )" "why: $5" '```' )"
+		"dispatch: $3" "entry: $( AgentsToolsSlackFenceSafeValue "$4" )" "why: $5" '```' )"
 	return 0
-}
-
-## A value made safe inside the event-track post's code fence, where a backtick ends it.
-AgentsToolsPermissionFenceSafe(){ ## value
-	local fenceValue
-	fenceValue="$( AgentsToolsPermissionEscape "$1" keep-colons )"
-	printf '%s' "${fenceValue//\`/%60}"
 }
 
 ## A path resolved exactly as the harness gate resolves it (AgentsHarnessPathAllowed in
@@ -221,6 +214,7 @@ case "$1" in
 		shift
 		MDSC_CMD="$MDSC_CMD --intern-op-permission-refusal-log"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 		local refusalOwner="$1"
 		shift || true
 		local refusalSession="" refusalTool="" refusalTarget="" refusalReason=""
@@ -277,8 +271,8 @@ case "$1" in
 		printf '%s\n' "$refusalId"
 		AgentsToolsPermissionEventTrack "$refusalOwner" "$refusalDir" "$( printf '%s\n' "Permission refused for $refusalOwner" '```' \
 			"refusal-id: $refusalId" "session-id: $refusalSession" "tool: $refusalTool" \
-			"target: $( AgentsToolsPermissionFenceSafe "$refusalTarget" )" \
-			"reason: $( AgentsToolsPermissionFenceSafe "${refusalReason:-none}" )" '```' )"
+			"target: $( AgentsToolsSlackFenceSafeValue "$refusalTarget" )" \
+			"reason: $( AgentsToolsSlackFenceSafeValue "${refusalReason:-none}" )" '```' )"
 		return 0
 	;;
 
@@ -350,6 +344,7 @@ case "$1" in
 		shift
 		MDSC_CMD="$MDSC_CMD --intern-op-permission-grant-read"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 		local readMember="$1"
 		shift || true
 		local readSession="" readTool="" readTarget=""

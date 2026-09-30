@@ -99,6 +99,24 @@ AgentsToolsSpawnSandboxCleanInput(){ ## sandbox root
 	return 0
 }
 
+## This caller's own coworking-session thread, from the one-line pointer file the
+## spawn proxy writes beside event-track.thread in the sandbox root -- prints
+## "channel:ts" and returns 0 when it exists and holds a value, prints nothing and
+## returns 1 otherwise (no coworking session, or the file is not written yet).
+## Keyed on $MDAT_SPAWN_SESSION_ID, the sandbox root's own name in the common case
+## today -- a caller spawned with an explicit --tracking-name can diverge from that,
+## and settling which id the sandbox folder is actually named for is keeper-myx's
+## own open item, not decided here.
+AgentsToolsSessionThreadFind(){
+	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 1
+	local threadFile="$MMDAPP/.local/agents/spawned/$MDAT_SPAWN_SESSION_ID/session.thread"
+	local threadLine=""
+	[ -f "$threadFile" ] && IFS= read -r threadLine < "$threadFile" || return 1
+	[ -n "$threadLine" ] || return 1
+	printf '%s\n' "$threadLine"
+	return 0
+}
+
 ## Empties input/ of every sandbox on this host with no live session, and says which.
 ## A sandbox recorded on another host, or with any session still running, is never touched.
 AgentsToolsSpawnSandboxSweep(){ ## where
@@ -116,7 +134,10 @@ AgentsToolsSpawnSandboxSweep(){ ## where
 			[ -f "$sweepRecord" ] || continue
 			sweepLive=""
 			if [ -n "$( find "$sweepRecord" -mmin -10 2>/dev/null )" ] ; then sweepLive="launching" ; break ; fi
-			sweepSession="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$sweepRecord" )"
+			## spawn-id, not session-id: session-id is now the coworking session's own
+			## shared identifier, which a joined spawn's own process never carries in
+			## its argv, where spawn-id (this process's own identity) always does.
+			sweepSession="$( LC_ALL=C awk '/^spawn-id: /{ print substr($0, 11) ; exit ; }' "$sweepRecord" )"
 			sweepHost="$( LC_ALL=C awk '/^host: /{ print substr($0, 7) ; exit ; }' "$sweepRecord" )"
 			if [ "$sweepHost" != "$thisHost" ] ; then sweepLive="other-host" ; break ; fi
 			case "$psText" in *"$sweepSession"*) sweepLive="running" ; break ;; esac

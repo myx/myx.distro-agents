@@ -223,10 +223,15 @@ case "$1" in
 			fi
 			if [ "$wantThread" = "true" ] ; then
 				echo "# $MDSC_CMD --member-comms-slack-read: GET conversations.replies channel=$channel ts=$threadTs (full thread, acting member $memberName)" >&2
+				## Slack drops a message's own metadata.event_payload from this
+				## endpoint's reply unless this form field asks for it -- live-
+				## verified in this workspace: event_type alone survives without
+				## it, event_payload only with it.
 				DistroAgentsTools --intern-op-slack-call "$memberName" \
 					--api conversations.replies \
 					--resolve-target "$channel" \
 					--form "ts=$threadTs" \
+					--form "include_all_metadata=true" \
 					"${identityArgs[@]}" \
 					--context "--member-comms-slack-read" || { set +e ; return 1 ; }
 			else
@@ -236,6 +241,7 @@ case "$1" in
 					--api conversations.replies \
 					--resolve-target "$channel" \
 					--form "ts=$threadTs" \
+					--form "include_all_metadata=true" \
 					"${identityArgs[@]}" \
 					--context "--member-comms-slack-read" )" || callRc=$?
 				if [ "$callRc" != "0" ] ; then
@@ -1642,10 +1648,29 @@ case "$1" in
 		## A reply into a thread also shown in the conversation itself (Slack's
 		## reply_broadcast), so it is seen where it would otherwise sit buried.
 		local replyBroadcast="false"
+		## Slack's own chat.postMessage `metadata` object. Every send carries
+		## one identifying its own acting member, read back by
+		## AgentsSlackMessagesFormat.awk's `[sender: X]` annotation -- this is
+		## what tells one member's post from another's under the one shared
+		## bot account. An explicit --metadata below replaces it outright;
+		## bareness of $memberName is already asserted above, so it never
+		## needs JSON-escaping here.
+		local sendMetadata="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$memberName\"}}"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--identity-bot)
 					identityAsBot="true" ; shift
+				;;
+				--metadata)
+					if [ $# -lt 2 ] || [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --metadata value missing (a JSON object: {\"event_type\":...,\"event_payload\":{...}})" >&2
+						set +e ; return 1
+					fi
+					if ! printf '%s' "$2" | DistroAgentsTools --intern-validate-json ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --metadata is not valid JSON" >&2
+						set +e ; return 1
+					fi
+					sendMetadata="$2" ; shift 2
 				;;
 				--reply-broadcast)
 					replyBroadcast="true" ; shift
@@ -2074,13 +2099,14 @@ blocks|verbatim|caller|stdin file"
 
 		## The sender goes INTO the header just built, never above it as a
 		## second line -- blocksJson starts with headerOpen by construction,
-		## so stripping that prefix is what opens the slot. The identity swap
-		## below repeats these two lines, and its own guard keeps a relayed
-		## send from taking both and inserting the sender twice.
-		if [ "$sendIdentity" = "bot" ] || [ "$relayedForMember" = "true" ] ; then
-			rawText="$fromText$rawText"
-			[ -z "$blocksJson" ] || blocksJson="$headerOpen$fromElems${blocksJson#"$headerOpen"}"
-		fi
+		## so stripping that prefix is what opens the slot. Always shown, no
+		## exception for a member's own "user" identity: a coworking-session
+		## reviewer must not have to know which member happens to hold a
+		## real Slack account. The identity swap below repeats these two
+		## lines, and its own guard keeps a relayed send from taking both
+		## and inserting the sender twice.
+		rawText="$fromText$rawText"
+		[ -z "$blocksJson" ] || blocksJson="$headerOpen$fromElems${blocksJson#"$headerOpen"}"
 
 		if [ -z "$rawText" ] && [ -z "$blocksJson" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no text/blocks content given" >&2
@@ -2104,6 +2130,7 @@ blocks|verbatim|caller|stdin file"
 		[ -z "$threadTs" ] || payload="$payload,\"thread_ts\":\"$threadTs\""
 		[ -z "$threadTs" ] || [ "$replyBroadcast" != "true" ] || payload="$payload,\"reply_broadcast\":true"
 		[ -z "$blocksJson" ] || payload="$payload,\"blocks\":$blocksJson"
+		[ -z "$sendMetadata" ] || payload="$payload,\"metadata\":$sendMetadata"
 		payload="$payload}"
 
 		local tokenLabel
@@ -2228,19 +2255,9 @@ blocks|verbatim|caller|stdin file"
 					sendIdentity="bot"
 					token="$botToken"
 					authHeader="Authorization: Bearer $token"
-					## Attribution only under the shared bot -- a member's own bot is already itself.
-					## A relayed send already carries the sender, and reaches here still
-					## marked user identity, so without this guard it would get it twice.
-					if [ "$swapTokenSource" = "shared-bot-token" ] && [ "$relayedForMember" != "true" ] ; then
-						rawText="$fromText$rawText"
-						[ -z "$blocksJson" ] || blocksJson="$headerOpen$fromElems${blocksJson#"$headerOpen"}"
-						escapedText="$( printf '%s' "$rawText" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
-						payload="{\"channel\":\"$channel\",\"text\":\"$escapedText\""
-						[ -z "$threadTs" ] || payload="$payload,\"thread_ts\":\"$threadTs\""
-						[ -z "$threadTs" ] || [ "$replyBroadcast" != "true" ] || payload="$payload,\"reply_broadcast\":true"
-						[ -z "$blocksJson" ] || payload="$payload,\"blocks\":$blocksJson"
-						payload="$payload}"
-					fi
+					## The sender is already in rawText/payload from the unconditional
+					## build above, under either identity, so this swap changes only
+					## the token and resends the same payload -- nothing to re-add here.
 					echo "# $MDSC_CMD --member-comms-slack-send-message: the acting user identity cannot reach this conversation, retrying once under bot identity -- $response" >&2
 					continue
 				fi
