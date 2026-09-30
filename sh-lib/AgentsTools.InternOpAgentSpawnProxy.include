@@ -247,11 +247,11 @@ AgentsToolsSpawnProxyEventTrackCliUpdate(){ ## thread, member, marker file, orig
 	## block the send call prepended, and nothing else. cliBody always
 	## starts with this exact literal line, so its own start is the boundary.
 	cliHeader="$( printf '%s' "$cliCurrent" | LC_ALL=C awk -v marker="Spawn started for" '
-		{ pos = index( $0, marker ) ; if ( pos > 1 ) { print substr( $0, 1, pos - 1 ) ; } exit }
+		{ pos = index( $0, marker ) ; if ( pos > 1 ) { print substr( $0, 1, pos - 1 ) ; } exit ; }
 	' )"
 	cliNewBody="$( printf '%s\n' "$cliBody" | LC_ALL=C awk -v real="$cliReal" -v member="$cliMember" '
-		index( $0, "cli-requested: " ) == 1 { print "cli-requested: " real " of " member ; next }
-		{ print }
+		index( $0, "cli-requested: " ) == 1 { print "cli-requested: " real " of " member ; next ; }
+		{ print ; }
 	' )"
 	printf '%s\n%s\n' "$cliHeader" "$cliNewBody" | DistroAgentsTools --member-comms-slack-edit-message "$cliMember" "$cliThread" --identity-bot --from-stdin 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track cli-requested update not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
@@ -1024,9 +1024,9 @@ case "$1" in
 			## own final content directly. The trap above is still live through
 			## this -- cleared only once both readers are confirmed stopped, so a
 			## signal landing in this exact gap still reaches them.
-			[ -z "$tailPid" ] || { kill "$tailPid" 2>/dev/null ; wait "$tailPid" 2>/dev/null ; }
-			[ -z "$batchPid" ] || { kill "$batchPid" 2>/dev/null ; wait "$batchPid" 2>/dev/null ; }
-			[ -z "$cliUpdatePid" ] || { kill "$cliUpdatePid" 2>/dev/null ; wait "$cliUpdatePid" 2>/dev/null ; }
+			[ -z "$tailPid" ] || { kill "$tailPid" 2>/dev/null || : ; wait "$tailPid" 2>/dev/null || : ; }
+			[ -z "$batchPid" ] || { kill "$batchPid" 2>/dev/null || : ; wait "$batchPid" 2>/dev/null || : ; }
+			[ -z "$cliUpdatePid" ] || { kill "$cliUpdatePid" 2>/dev/null || : ; wait "$cliUpdatePid" 2>/dev/null || : ; }
 			trap - INT TERM
 			local spawnOutcome
 			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )"

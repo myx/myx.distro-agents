@@ -1,24 +1,10 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-## The three registries, all one pattern: a prepared columnar list over a store that
-## already holds the state, rebuilt from it rather than maintained beside it. Each is
-## a cache and may be deleted at any time, because the next rescan rebuilds it.
-##
-## Built as the distro's own indices are built: records only with no banner and no
-## comment lines, whitespace-separated columns read the way a shell reads $1 $2 $3,
-## written whole to a temporary name and renamed into place, living beside what they
-## index under `.local/`. The same shape `.local/source-cache/all-projects.index.txt`
-## and its siblings have.
-##
-## A missing value is written as `-` and never as an empty field, or every column
-## after it shifts left. No registry carries a date: a start time, a last-update
-## time, a blocked-since are detail, and detail lives in the record each row came
-## from. No registry carries liveness either -- a stored alive flag is wrong the
-## moment it is written, so it is measured when a pass runs and appears in the
-## rendered output only.
-##
-## Each registry names the store it is built from, and none of them is that store:
+## Three registries, one pattern: a columnar cache rebuilt from a store, never
+## maintained beside it, built like the distro's own indices -- whitespace columns,
+## temp name renamed into place. A missing value is always `-`, never empty. No
+## registry stores a date or liveness, both measured live.
 ##   team-members      <- the skillset's own linked-members index, machine-wide
 ##   spawned-sessions  <- the spawn sandbox roots in this workspace
 ##   pending-replies   <- the questions AskUserQuestion posted, and the board items
@@ -105,15 +91,9 @@ AgentsToolsRegistryTeamMembersRebuild(){
 ## Columns: tracking-name session-id parent-session-id host owner status exit-code
 ##          spawn-id agent-log-thread session-thread workspace
 ##
-## session-id is the coworking session's own shared identifier -- equal to spawn-id
-## for a lone, session-starting spawn, shared across every spawn that joined the same
-## one otherwise. spawn-id is this row's own spawn, never confused with session-id
-## again now that the two are split. The four trailing columns are appended, not
-## inserted, so a reader keyed by position on the first seven is unaffected.
+## session-id is the session's own shared id (spawn-id for a lone spawn); spawn-id is this row's own spawn. The four trailing columns are appended, never inserted.
 ##
-## workspace is a basename, never a path -- the same convention the
-## team-members registry's own workspace column already uses
-## (AgentsTools.Install.include, workspaceName="$( basename "$workspace" )").
+## workspace is a basename, never a path -- same convention as team-members' own workspace column (AgentsTools.Install.include).
 ##
 ## The sandbox roots are the store. A sandbox tree is synced between machines, so a
 ## record found here did not necessarily run here -- which is why the host it ran on

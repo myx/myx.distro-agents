@@ -20,8 +20,7 @@ index( line, "── round " ) == 1 { roundLine = clip( line ) ; }
 index( line, "<- tool result (error)" ) == 1 { toolErrors++ ; }
 {
 	for ( classIndex = 1 ; classIndex <= classTotal ; classIndex++ ) {
-		## The harness prints its errors at column 1 only, so that class is
-		## matched on the raw line and every other class on the stripped one.
+		## The harness prints errors at column 1 only -- every other error class matches the stripped line instead.
 		matchText = ( classIndex == 1 ) ? $0 : line ;
 		if ( index( matchText, classList[classIndex] ) == 1 && ++classCount[classIndex] <= 3 ) { kept[++keptTotal] = clip( line ) ; }
 	}

@@ -4,8 +4,7 @@ BEGIN {
 	count = split(ENVIRON["MDAT_MEMBER_HELP_NAMES"], arr, "\n");
 	for (i = 1; i <= count; i++) { if (arr[i] != "") nameList[arr[i]] = 1; };
 }
-## An entry is a run of syntax lines and the text under them. Its text
-## shows when any of those syntax lines shows.
+## An entry is a run of syntax lines plus the text under them -- its text shows when any of those syntax lines shows.
 /^## / { inBlock = 0; inHeaders = 0; inOptions = ($0 ~ /^##  Options:/); }
 /^\t\t--/ && inOptions {
 	tmp = $0;
