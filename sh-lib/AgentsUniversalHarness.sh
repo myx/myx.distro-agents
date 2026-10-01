@@ -558,11 +558,10 @@ fi
 	harnessWriteRoots="${harnessWriteRoots}${harnessScratchpadDir}"$'\n'
 done
 
-## Claude Code saves a tool result too large to return under its own session folder and
-## tells the agent to read it there, so that folder joins the read set only, after writes.
-[ -z "${CLAUDE_CODE_SESSION_ID:-}" ] || for harnessSessionResults in "$HOME/.claude/projects"/*/"$CLAUDE_CODE_SESSION_ID"/tool-results ; do
-	[ ! -d "$harnessSessionResults" ] || harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessSessionResults" )"$'\n'
-done
+## Claude Code saves a tool result too large to return under its own session folder, outside
+## every workspace root -- member folders live inside the workspace only, so no grant reaches
+## there. AgentsHarnessDeniedHint below names the real fix on that one refusal: reread the
+## original tool with a narrower offset/limit.
 
 harnessScratch="$( mktemp -d "${TMPDIR:-/tmp}/AgentsUniversalHarness.XXXXXX" )" || {
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: could not create a scratch directory" >&2
@@ -726,6 +725,19 @@ AgentsHarnessPathAllowed(){
 	return 1
 }
 
+## Appended to the generic access-root refusal for one path shape: Claude Code's own
+## oversized-tool-result dump under ~/.claude/projects, which carries no grant (see the
+## removed tool-results loop above). Empty for every other denied path, so the generic
+## message there stays exactly as it was.
+##   $1 = the path that was denied
+AgentsHarnessDeniedHint(){
+	case "$1" in
+		"$HOME"/.claude/projects/*/*/tool-results/*)
+			printf -- ' -- this looks like a saved oversized tool result; reread the original tool with a narrower offset/limit instead'
+		;;
+	esac
+}
+
 ## Unattended unless a person is known to be there: this harness's own model loop always
 ## is; a served call is attended only from an interactive Claude Code client (its
 ## CLAUDE_CODE_ENTRYPOINT is cli or claude-vscode) with no unattended marker and no spawn
@@ -835,7 +847,7 @@ AgentsHarnessToolRead(){
 		printf 'ERROR: file_path is required and was empty. Nothing was read.\n' ; return 0
 	fi
 	if ! AgentsHarnessPathAllowed "$toolPath" ; then
-		printf 'ERROR: path not in the allowed access-root set: %s\n' "$toolPath" ; return 0
+		printf 'ERROR: path not in the allowed access-root set: %s%s\n' "$toolPath" "$( AgentsHarnessDeniedHint "$toolPath" )" ; return 0
 	fi
 	toolPath="$harnessResolvedPath"
 	if [ -d "$toolPath" ] ; then
@@ -1068,7 +1080,7 @@ AgentsHarnessToolEdit(){
 AgentsHarnessToolGlob(){
 	local toolPattern="$1" toolPath="${2:-$PWD}" toolLong="$3" toolBytes globStat globLine globSlice
 	if ! AgentsHarnessPathAllowed "$toolPath" ; then
-		printf 'ERROR: path not in the allowed access-root set: %s\n' "$toolPath" ; return 0
+		printf 'ERROR: path not in the allowed access-root set: %s%s\n' "$toolPath" "$( AgentsHarnessDeniedHint "$toolPath" )" ; return 0
 	fi
 	toolPath="$harnessResolvedPath"
 	if [ ! -d "$toolPath" ] ; then
@@ -1128,7 +1140,7 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 		*) toolGlob="${toolGlob#\*\*/}" ;;
 	esac
 	if ! AgentsHarnessPathAllowed "$toolPath" ; then
-		printf 'ERROR: path not in the allowed access-root set: %s\n' "$toolPath" ; return 0
+		printf 'ERROR: path not in the allowed access-root set: %s%s\n' "$toolPath" "$( AgentsHarnessDeniedHint "$toolPath" )" ; return 0
 	fi
 	toolPath="$harnessResolvedPath"
 	if [ ! -e "$toolPath" ] ; then
@@ -1587,7 +1599,7 @@ AgentsHarnessToolListAgents(){
 ## the operation's own WAIT-RESULT line is passed through untouched, so the model
 ## reads TIMEOUT and ERROR as the different things they are.
 AgentsHarnessToolWait(){
-	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" waitRc=0 waitSource
+	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitSource
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to wait as, and one is never guessed here. Nothing was waited on.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
@@ -1636,6 +1648,9 @@ AgentsHarnessToolWait(){
 	[ -z "$toolPoll" ] || set -- "$@" --wait-poll-interval "$toolPoll"
 	[ -z "$toolSince" ] || set -- "$@" --wait-since-utime "$toolSince"
 	[ -z "$toolAddressee" ] || set -- "$@" --wait-addressee "$toolAddressee"
+	case "$toolIncludeOwn" in
+		true|1|yes) set -- "$@" --wait-include-own ;;
+	esac
 	"$@" >"$harnessScratch/wait.out" 2>"$harnessScratch/wait.err" || waitRc=$?
 	if [ "$waitRc" != "0" ] ; then
 		printf 'ERROR: the wait could not be performed (rc=%s), so NOTHING is known about those sources -- this is not a wait that found nothing, and their silence must not be read as quiet. What the operation reported follows:\n' "$waitRc"
@@ -1774,8 +1789,8 @@ AgentsHarnessSessionPids(){ ## session id
 ## The brief goes in on stdin, never argv, so no shell parses it. Output to a file
 ## rather than a capture: the operation backgrounds a child, and a capture returns on
 ## pipe EOF rather than on the command it ran.
-AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or comment
-	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" toolSessionNameOrComment="$4" spawnRc=0
+AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or comment, session id to join
+	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" toolSessionNameOrComment="$4" toolSessionId="$5" spawnRc=0
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to spawn under, and one is never guessed here. Nothing was spawned. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
@@ -1788,6 +1803,9 @@ AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or co
 	if [ -n "$toolCliService" ] && ! AgentsHarnessBareName "$toolCliService" ; then
 		printf 'ERROR: cli_service must be a bare service name, got: %s. Nothing was spawned.\n' "$toolCliService" ; return 0
 	fi
+	if [ -n "$toolSessionId" ] && ! AgentsHarnessBareName "$toolSessionId" ; then
+		printf 'ERROR: session_id must be a bare id, the SESSION_ID= an earlier spawn printed, got: %s. Nothing was spawned.\n' "$toolSessionId" ; return 0
+	fi
 	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
 		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s, and no other spawn path exists here. Nothing was spawned.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
 	fi
@@ -1799,6 +1817,10 @@ AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or co
 	## session of its own, titled by this text -- passed as a genuine argv token,
 	## never folded into any format string the proxy builds from it.
 	[ -z "$toolSessionNameOrComment" ] || set -- "$@" --session-name-or-comment "$toolSessionNameOrComment"
+	## Joins an existing coworking session instead of starting one: the proxy
+	## itself resolves the thread and refuses rather than starting a new
+	## session silently when the id names none.
+	[ -z "$toolSessionId" ] || set -- "$@" --session-id "$toolSessionId"
 	printf '%s' "$toolPrompt" | "$@" >"$harnessScratch/spawn.out" 2>&1 || spawnRc=$?
 	if [ "$spawnRc" != "0" ] ; then
 		printf 'ERROR: the spawn failed (rc=%s) and NO helper session is running. What the operation reported follows:\n' "$spawnRc"
@@ -3513,7 +3535,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" )" ;;
 		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" message )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		ListAgents) harnessResult="$( AgentsHarnessToolListAgents "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" view )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" session_id )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" state )" )" ;;
-		Wait)      harnessResult="$( AgentsHarnessToolWait "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" sources )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" poll_interval )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" since_utime )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" addressee )" )" ;;
+		Wait)      harnessResult="$( AgentsHarnessToolWait "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" sources )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" poll_interval )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" since_utime )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" addressee )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" include_own )" )" ;;
 		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" outcome )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" unfinished )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" subject )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" evidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" confidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" severity )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" headline )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" detail )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" action_required )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
@@ -3523,7 +3545,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri )" )" ;;
 		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri_prefix )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
 		Skill)     harnessResult="$( AgentsHarnessToolSkill "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" name )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" list )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" skill )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" args )" )" ;;
-		Agent)     harnessResult="$( AgentsHarnessToolAgent "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" agent )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" prompt )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cli_service )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" session_name_or_comment )" )" ;;
+		Agent)     harnessResult="$( AgentsHarnessToolAgent "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" agent )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" prompt )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cli_service )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" session_name_or_comment )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" session_id )" )" ;;
 		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" force )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task_id )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" shell_id )" )" ;;
 		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_file )" )" ;;
 		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" max_results )" )" ;;

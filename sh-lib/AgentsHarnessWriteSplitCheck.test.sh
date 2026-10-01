@@ -140,14 +140,15 @@ echo "-- no write root is given, so writes stay exactly as wide as reads --"
 rigAssert "with no write root, a read root accepts a write" \
 	"$( rigVerdict "$( rigWrite "$rigTmp/READABLE/y.txt" "${rigNoWriteFlag[@]}" )" )" "wrote"
 
-echo "-- the Claude Code session's own tool-results folder is readable and never writable --"
-## Claude Code saves a tool result too large to return there and tells the agent to read
-## it from there. HOME is the fixture's, so no real session folder is involved.
+echo "-- the Claude Code session's own tool-results folder is never readable, member folders stay inside the workspace --"
+## Claude Code saves an oversized tool result there, outside every workspace root, so no
+## grant reaches it -- the real fix is a narrower reread, which AgentsHarnessDeniedHint's
+## message names. HOME is the fixture's, so no real session folder is involved.
 mkdir -p "$rigTmp/home/.claude/projects/rig-project/rig-session/tool-results" "$rigTmp/home/.claude/projects/rig-project/rig-other/tool-results"
 printf 'rig-seed\n' > "$rigTmp/home/.claude/projects/rig-project/rig-session/tool-results/big.txt"
 printf 'rig-seed\n' > "$rigTmp/home/.claude/projects/rig-project/rig-other/tool-results/big.txt"
-rigAssert "this session's tool result is readable" \
-	"$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID=rig-session rigRead "$rigTmp/home/.claude/projects/rig-project/rig-session/tool-results/big.txt" "${rigNoWriteFlag[@]}" )" "read"
+rigAssert "this session's own tool result is not readable either" \
+	"$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID=rig-session rigRead "$rigTmp/home/.claude/projects/rig-project/rig-session/tool-results/big.txt" "${rigNoWriteFlag[@]}" )" "refused-not-granted"
 rigAssert "and refuses a write, with no write root given at all" \
 	"$( rigVerdict "$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID=rig-session rigWrite "$rigTmp/home/.claude/projects/rig-project/rig-session/tool-results/x.txt" "${rigNoWriteFlag[@]}" )" )" "refused-not-writable"
 ## The controls that can return zero: another session's folder, and no session at all.

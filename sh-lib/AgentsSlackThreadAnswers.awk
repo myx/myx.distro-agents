@@ -95,7 +95,8 @@ function newerThan(candidate, floorTs) {
 ## the message carries none -- absence is never read as a match, only an actual
 ## name is. Conversation mode uses this to skip the caller's own post by identity
 ## rather than by timestamp, since the caller's own next post is still newer than
-## its own floor.
+## its own floor. -v includeOwn=1 lifts that skip, for a caller that wants its own
+## posts back; 0 or unset keeps today's default.
 function lineSender(line,   rest, ann, val) {
 	rest = line
 	sub(/^[^|]*\| [^|]*\|/, "", rest)
@@ -147,7 +148,7 @@ function reactedByAddressee(ann,   userList, userCount, userIdx, reactUser) {
 	inRoot = 0
 	if ( ! newerThan(msgTs, rootTs) ) { inOlder = 1 ; next ; }
 	if ( ! conversationMode && ! index( " " fromUsers " ", " " $3 " " ) ) { inOlder = 1 ; next ; }
-	if ( conversationMode && callerName != "" && lineSender($0) == callerName ) { inOlder = 1 ; next ; }
+	if ( conversationMode && callerName != "" && ! includeOwn && lineSender($0) == callerName ) { inOlder = 1 ; next ; }
 	inOlder = 0
 	if ( shared ) {
 		replyText = $0

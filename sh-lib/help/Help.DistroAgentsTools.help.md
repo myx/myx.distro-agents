@@ -130,7 +130,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-data-commit-pending <team-member> [--commit-message <message>] [--no-push]
-📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>]
+📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own]
 📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> --wait-list-sources
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read <team-member> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer <team-member> <request-id> <verdict> [text]
@@ -3888,7 +3888,7 @@
 
 			**note**: A team member is not authorised to use this operation, unless explicitly allowed in "on-duty state" instruction rules (see `<team-member>.armed.md`) or in rules of current routine activity the team-member is participating in.
 
-		--member-wait-for-input <team-member> [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>]
+		--member-wait-for-input <team-member> [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own]
 		--member-wait-for-input <team-member> --wait-list-sources
 			Waits on a list of input sources and returns as soon as
 			any of them changes, or when the timeout expires.
@@ -3939,7 +3939,12 @@
 			takes no --wait-addressee: any new post counts, not just one
 			party's reply, and this member's own posts never count as
 			an arrival, matched against the sender its own sends already
-			carry (see --member-comms-slack-send-message's `--metadata`).
+			carry (see --member-comms-slack-send-message's `--metadata`),
+			unless --wait-include-own is given. That flag only changes
+			anything on this one source shape, where it lifts the default
+			skip of this member's own posts; on every other source they
+			already count, so the flag is refused there rather than
+			silently doing nothing.
 			The --wait-since-utime value need not name a real message
 			here, unlike an ordinary thread source -- a bare call defaults
 			it to the current time, as a synthetic floor.
@@ -4553,7 +4558,9 @@
 
 			Default mode is async (returns STATUS=started + PID); --wait
 			blocks for completion and returns non-zero on failure. Printed
-			keys in full: RECEIPT_ID (a correlation id) always; DISPATCH_DOC
+			keys in full: RECEIPT_ID (a correlation id) always; SESSION_ID
+			(the coworking session this spawn ran under) and SESSION_THREAD
+			(its thread, or none) always; DISPATCH_DOC
 			(create|reuse|none) always; then TRACKING_ITEM on the reuse
 			path or DISPATCH_ITEM on the create path (none-mode prints
 			neither); STATUS always, accompanied by PID on the async path
@@ -4623,8 +4630,11 @@
 
 			Separately, every spawn belongs to a coworking session, whose
 			thread is distinct from the agent-log thread above. Inheriting
-			a session id from its parent joins that session silently --
-			nothing is opened. Starting one instead opens a thread in
+			a session id from its parent joins that session: no thread is
+			opened. The start line is posted as a reply in the inherited
+			thread. Where that thread is unknown, or the post fails, one
+			stderr warning is printed and the spawn goes on. Starting one
+			instead opens a thread in
 			magic-team, addressed to the member, titled by
 			--session-name-or-comment when given or by the session id
 			otherwise. --session-thread:event-track pins the session

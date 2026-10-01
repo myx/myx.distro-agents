@@ -6,7 +6,8 @@
 ## instead of erroring, leaves that report byte-identical to a clean one. This one
 ## RUNS the operation and the tool -- early return, the TIMEOUT/ERROR split, an
 ## unknown kind, a failing source among several, the --wait-since-utime baseline,
-## and the source listing -- and then runs the marker back through the real harness
+## the source listing, the --wait-include-own mismatch refusal, and the own-post
+## filter it governs -- and then runs the marker back through the real harness
 ## to prove it reaches the model as what it was. Offline by construction: a fake
 ## `curl` is first on PATH and refuses every request that is not one of this
 ## check's own canned model rounds, every source used is a `file:` source under
@@ -516,6 +517,54 @@ rigAssert "it states that nothing was waited on"         "$( rigHolds "$rigScena
 rigAssert "no wait was performed at all"                 "$( rigHolds "$rigScenarioDir/result" 'WAIT-RESULT' )" no
 rigAssert "the round carried on to an answer"            "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
 rigVerdict "the Wait tool with no --agent -- refused before any wait, and never under a guessed name"
+
+## ---------------------------------------------------------------------------
+## 8. --wait-include-own only changes anything on a :conversation source: refused
+##    everywhere else, with its own same-call control proving the flag is what
+##    gets refused -- the control succeeds on the identical source with only the
+##    flag dropped.
+## ---------------------------------------------------------------------------
+rigDropH="$rigTmp/dropH.txt"
+: > "$rigDropH"
+rigOp include-own-mismatch "$rigMember" --wait-source "file:$rigDropH" --wait-timeout 2 --wait-poll-interval 1 --wait-include-own
+rigAssert "the marker line opens stdout"                 "$( rigMarker "$rigOpOut" )" "WAIT-RESULT: ERROR"
+rigAssert "A REFUSED COMBINATION RETURNS 1"               "$rigOpStatus" 1
+rigAssert "it refused at second zero, not at the bound"   "$( rigWithin "$rigOpElapsed" 10 )" "within-10"
+rigAssert "the diagnostic names the flag"                 "$( rigHolds "$rigOpErr" '--wait-include-own' )" yes
+rigAssert "nothing was reported as waited on"             "$( rigHolds "$rigOpOut" '# waited:' )" no
+
+rigOp include-own-mismatch-control "$rigMember" --wait-source "file:$rigDropH" --wait-timeout 2 --wait-poll-interval 1
+rigAssert "control: the same source, flag dropped, completes" "$( rigMarker "$rigOpOut" )" "WAIT-RESULT: TIMEOUT"
+rigAssert "control: it returns 0"                         "$rigOpStatus" 0
+rigAssert "control: no mismatch diagnostic"               "$( rigHolds "$rigOpErr" 'wait-include-own' )" no
+rigVerdict "--wait-include-own on a source where it has no effect -- refused, with a same-source control"
+
+## ---------------------------------------------------------------------------
+## 9. AgentsSlackThreadAnswers.awk itself -- the default skips the caller's own
+##    post on a :conversation rendering, and -v includeOwn=1 brings it back. The
+##    same two-line rendering both times, so the flag is the only variable between
+##    the primary and its control -- and the other member's post counts in both,
+##    which is what proves this is a filter and not a wipe.
+## ---------------------------------------------------------------------------
+rigAnswersAwk="$rigHere/AgentsSlackThreadAnswers.awk"
+rigRenderFile="$rigTmp/render.conversation.txt"
+cat > "$rigRenderFile" <<RIG_RENDER
+1700000002.000001 | U100 | [sender: $rigMember] RIG-OWN-POST
+1700000003.000001 | U200 | [sender: some-other-member] RIG-OTHER-POST
+RIG_RENDER
+
+rigAnswersDefault="$rigTmp/answers.default.out"
+LC_ALL=C awk -v rootTs=1700000001.000000 -v fromUsers="" -v tag="" -v threadCount=0 -v others="" -v mode="conversation" -v callerName="$rigMember" -v includeOwn=0 \
+	-f "$rigAnswersAwk" < "$rigRenderFile" > "$rigAnswersDefault" 2>/dev/null
+rigAssert "default: the caller's own post is excluded"    "$( rigHolds "$rigAnswersDefault" 'RIG-OWN-POST' )" no
+rigAssert "default: the other member's post still counts" "$( rigHolds "$rigAnswersDefault" 'RIG-OTHER-POST' )" yes
+
+rigAnswersIncluded="$rigTmp/answers.included.out"
+LC_ALL=C awk -v rootTs=1700000001.000000 -v fromUsers="" -v tag="" -v threadCount=0 -v others="" -v mode="conversation" -v callerName="$rigMember" -v includeOwn=1 \
+	-f "$rigAnswersAwk" < "$rigRenderFile" > "$rigAnswersIncluded" 2>/dev/null
+rigAssert "control: includeOwn=1 brings the own post back" "$( rigHolds "$rigAnswersIncluded" 'RIG-OWN-POST' )" yes
+rigAssert "control: the other member's post still counts"  "$( rigHolds "$rigAnswersIncluded" 'RIG-OTHER-POST' )" yes
+rigVerdict "AgentsSlackThreadAnswers.awk -- the own-post skip is real, and includeOwn=1 lifts exactly it"
 
 ## ---------------------------------------------------------------------------
 ## The offline claim, asserted rather than stated. Every request any part of this

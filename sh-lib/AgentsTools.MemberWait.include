@@ -74,6 +74,11 @@
 ## adapter does not ignore it: on a thread it is what makes a reply an answer,
 ## together with our own message being the floor it must come after.
 ##
+## The sixth argument is INCLUDE OWN POSTS -- true on a :conversation thread source
+## lifts this operation's own default skip of the caller's own posts there. An
+## adapter with no such skip ignores it, same as an adapter that cannot tell one
+## author from another ignores the fifth.
+##
 ## ONE THREAD PER WAIT. A thread source must be the only source of its wait, and it
 ## must carry both of those values. A question and its answer are one thread, and a
 ## wait fanned out over a conversation is the shape that returned the sending
@@ -107,7 +112,7 @@ agentsWaitSourceKinds="slack file"
 ## the narrowing server-side rather than this operation pulling history it would
 ## only throw away.
 AgentsWaitProbeSlack(){
-	local probeMember="$1" probeTarget="$2" probeSince="$3" probeOut="$4" probeAddressee="$5" probeRc=0
+	local probeMember="$1" probeTarget="$2" probeSince="$3" probeOut="$4" probeAddressee="$5" probeIncludeOwn="$6" probeRc=0
 	local probeArgs probeThread="false" probeMode=""
 	probeArgs=( "$probeMember" )
 	case "$probeTarget" in
@@ -153,7 +158,11 @@ AgentsWaitProbeSlack(){
 		[ "${probeStanding#*$'\t'}" = "0" ] || [ "${probeStanding#*$'\t'}" = "1" ] || probeOthers="$( AgentsToolsAskThreadOthers "${probeTarget%%:*}" "$probeSince" )"
 	fi
 	if [ "$probeRc" = "0" ] ; then
-		LC_ALL=C awk -v rootTs="$probeSince" -v fromUsers="$probeAddressee" -v tag="${probeStanding%%$'\t'*}" -v threadCount="${probeStanding#*$'\t'}" -v others="$probeOthers" -v mode="$probeMode" -v callerName="$probeMember" \
+		## 0|1, never true|false: a bare digit needs no quoting -v could mangle, and
+		## the awk guard below reads it as the strnum truth value it already is.
+		local probeIncludeOwnFlag=0
+		[ "$probeIncludeOwn" != "true" ] || probeIncludeOwnFlag=1
+		LC_ALL=C awk -v rootTs="$probeSince" -v fromUsers="$probeAddressee" -v tag="${probeStanding%%$'\t'*}" -v threadCount="${probeStanding#*$'\t'}" -v others="$probeOthers" -v mode="$probeMode" -v callerName="$probeMember" -v includeOwn="$probeIncludeOwnFlag" \
 			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackThreadAnswers.awk" \
 			< "$probeOut.rendered" > "$probeOut" 2>> "$probeOut.err" || probeRc=$?
 	fi
@@ -225,7 +234,7 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		local waitSources="" waitTimeout="" waitPoll="" waitSince="" waitListOnly="false" waitAddressee=""
+		local waitSources="" waitTimeout="" waitPoll="" waitSince="" waitListOnly="false" waitAddressee="" waitIncludeOwn="false"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--wait-source)
@@ -278,6 +287,10 @@ case "$1" in
 				;;
 				--wait-list-sources)
 					waitListOnly="true"
+					shift
+				;;
+				--wait-include-own)
+					waitIncludeOwn="true"
 					shift
 				;;
 				*)
@@ -421,6 +434,16 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-addressee qualifies an answer inside the thread the question was posted in, and this wait names no thread source. Over a whole conversation there is no message for an answer to come after. Nothing was waited on: name the thread as slack:<channel>:<ts>." >&2
 			set +e ; return 1
 		fi
+		## --wait-include-own only changes anything on a :conversation thread source,
+		## the one place this operation skips the caller's own posts by default (see
+		## AgentsSlackThreadAnswers.awk). Everywhere else already includes them, so the
+		## flag would be a silent no-op there -- refused instead, same shape as the
+		## --wait-addressee mismatch checks above.
+		if [ "$waitIncludeOwn" = "true" ] && [ "$checkConversation" = "0" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-include-own only changes anything on a slack:<channel>:<ts>:conversation source, which already includes this member's own posts everywhere else. Nothing was waited on: name a :conversation source, or drop the flag." >&2
+			set +e ; return 1
+		fi
 		## mktemp, never `$$`: this operation is a shell function inside a long-lived
 		## process, so every call in that process shares one PID. Two concurrent waits
 		## by one member then share a directory, and the first to finish removes the
@@ -475,7 +498,7 @@ case "$1" in
 				roundFn="$( AgentsWaitProbeFunctionName "$roundKind" )"
 
 				roundRc=0
-				"$roundFn" "$memberName" "$roundTarget" "$waitReadFloor" "$waitDir/now.$roundIndex" "${waitAddressee% }" || roundRc=$?
+				"$roundFn" "$memberName" "$roundTarget" "$waitReadFloor" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" || roundRc=$?
 				if [ "$roundRc" != "0" ] ; then
 					## A probe that cannot run is reported, and the wait carries on
 					## over the sources that can: one unreachable source must not

@@ -187,7 +187,7 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
 
 ### Clarification and correction handling
 
-Every confirmation this section asks for comes through the chain of command: session participants, then the session's `magic-coordinator`, which settles it or takes it on, per `magic-team.armed.md`'s "Consent reaches a member through the chain of command".
+Every confirmation this section asks for comes through the chain of command: session participants, then the session's `magic-coordinator`, which settles it or takes it on, per `magic-team.armed.md`'s "Consent reaches a member through the chain of command". The ask itself is posted and waited on per `magic-team.shared.md`'s "Nothing stops on its own" — never only written to a log or note and left there.
 
 19. **rephrase-and-confirm-before-acting**: Rephrase-and-confirm before acting on correction.
    State one-line understanding before action. Skip only for trivial, low-stakes, unambiguous corrections.

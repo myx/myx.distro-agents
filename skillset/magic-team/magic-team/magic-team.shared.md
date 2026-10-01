@@ -498,7 +498,7 @@ A major sub-operation is a third thing again, and it is short where an option is
 
 ## Conflicts and ambiguities go to the human-owner
 
-Any conflict or ambiguity between two instruction files or conventions goes to the human-owner for the decision. That covers real ambiguity about what the rules mean or how they apply, not only literally contradictory text. Dispatching a member to investigate one is fine. That dispatch is never authorization to reconcile it. A member's own review of a conflict never stands in for his decision. Both sides stay intact, unedited, until he rules.
+Any conflict, ambiguity, or contradiction goes to the human-owner for the decision. That spans two instruction files or conventions, and an instruction against what is actually observed. That covers real ambiguity about what the rules mean or how they apply, not only literally contradictory text. Dispatching a member to investigate one is fine. That dispatch is never authorization to reconcile it. A member's own review of a conflict never stands in for his decision. Both sides stay intact, unedited, until he rules.
 
 ## Readback-confirm and propose-approve, in any process
 
@@ -559,17 +559,18 @@ Send path: `human-owner`'s own `reach-human-owner` procedure.
 
 ## Nothing stops on its own: log, escalate, resolve
 
-A refusal, a failed mechanism, a missing operation or grant, or an unverified source never ends a task by itself. It never changes the task's scope either.
+A refusal, a failed mechanism, a missing operation or grant, an unverified source, an open question, or a finding needing confirmation never ends a task by itself. None of these is ever only written to a log, transcript, or note and left there. It never changes the task's scope either.
 
 - The tooling logs a refusal in the session's own event-track thread, and prints its `REFUSAL-ID:`. A refusal is a fact, never a verdict.
-- The member escalates only when the task needs the refused thing. Otherwise it carries on with nothing to raise.
-- An escalation is an `AskUserQuestion` ask with the `kind` that fits it. It goes to the member or session that can decide it, addressed and tagged. It is posted in the session's own thread or the addressee's direct conversation. It never travels as chat relay.
-- An escalation is synchronous. The member asks with the wait on and waits for the resolution. Getting access and approving a spawn or a dispatch are escalations.
-- A matter that does not block the work is not an escalation. The member files it as an `inquiry-*` to `magic-coordinator` or to the member it concerns, per `magic-team.armed.md`'s `post-inquiry`, and carries on. It is handled later as its own task.
+- The member escalates every refusal, whether or not the task needs the refused thing.
+- An escalation is an `AskUserQuestion` ask addressed to the session's `magic-coordinator`, never a peer. It is posted in the session's own thread, tagged to that instance. The coordinator answers it, or forwards it to the human-owner by `AskUserQuestion` in the thread or a new DM. It never travels as chat relay.
+- An escalation is synchronous. A plain question posts with `wait` false, then waits on that thread with `Wait` in rounds under 120 seconds, reading the thread after each return. A typed ask — readback, decision, permission — always waits inside its own call, so the member does nothing else meanwhile. The member never ends its turn on a question, an unconfirmed finding, or a refusal. A quiet round is not a verdict — it waits again, or re-asks the coordinator. Getting access and approving a spawn or a dispatch are escalations.
+- A problem or a contradiction is escalated even where it does not block the work. Another non-blocking matter is filed as an `inquiry-*` to `magic-coordinator` or to the member it concerns, per `magic-team.armed.md`'s `post-inquiry`, and the member carries on.
 - Answers to filed inquiries are collected once the member's work is done, before its closure steps are decided.
 - The gated part stays open until a verdict arrives. No answer is not a verdict.
 - A deny is a verdict. The member reports that part as denied and still open. It never drops it, narrows the task around it, or works around it.
 - A verdict comes back through the tooling, which matched the answer to its addressee. The member acts on it as returned, with no text marker and no re-check.
+- A member ends its run only by calling the `SubagentHandback` tool, once every open question, finding or refusal has been escalated and answered. The tooling reports a run that ends without it, into the session's own thread.
 
 The kinds, fields and verdicts are in `magic-team/templates/escalation.document.format.md`. A permission ask follows `magic-team.armed.md`'s missing-grant rule. Who the ask goes to follows "Anything needing the human-owner to act" above.
 

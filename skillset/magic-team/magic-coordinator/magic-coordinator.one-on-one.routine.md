@@ -34,9 +34,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - The UI/chat instance steps back from execution: it relays the user's conversation turns to the spawned instance via `SendMessage` and surfaces what comes back, for the session's whole duration, independent of whether the UI/chat session stays open or the human stays present.
    - A `SendMessage` relay attempt gets no response within a bounded window: surface this to the user directly ("the one-on-one session appears to have died — restart it?") rather than waiting indefinitely.
    - Open a dedicated `slack-magic-team` thread, every session, no exception by size. Floor, never skipped: post a `one-on-one session started` marker and a `one-on-one session ended` marker. Beyond the floor: live notes/resolutions and the member's own public reflection notes may also go into the thread as it progresses, gated by the same public-vs-DM content-sensitivity judgment call `magic-coordinator.communication-sweep.routine`'s Reply step uses — genuinely private phrasing goes to a DM instead.
-   - The session ends up waiting on a reply, so it resumes cleanly from any future session (never hold an ephemeral agent conversation open instead), steps:
-     - persist its context as a real task/board record
-     - save it to auto-memory
+   - The session ends up waiting on a reply, so it resumes cleanly from any future session (never hold an ephemeral agent conversation open instead): persist its context as a real task/board record.
 
 # Closure steps
 
