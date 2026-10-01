@@ -97,10 +97,13 @@ Used to check this file's own definitions against its own goals when it is updat
 
 # Contract
 
-- Frontmatter: `executors:`, `maintainers:`, `invitees:`.
-- No `SKILL.md`.
-- No `.basic.md`/`.armed.md` split.
-- No separate `.access.md`/`.reference.md`/`.librarian.md`.
+- Frontmatter: `executors:`, `maintainers:`, `invitees:`, `default-for-session-kind:` (optional).
+- `default-for-session-kind:` (optional)
+  - A single session-kind word naming this routine as the spawner's standing default for that kind, used
+    only when nothing more specific was asked for.
+  - At most one routine file in the whole skillset carries a given value.
+  - `executors:` on the same file already states the default member identity the spawner boots for that
+    session.
 - `# <owning-member>.<short-name>.routine — the actual procedure`
   - The file's own title line, before `# Summary` — every existing routine file carries one.
   - The title is the file's own name minus `.md`: a routine is named by its file, never by an identity of its own.
