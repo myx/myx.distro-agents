@@ -113,7 +113,6 @@ File set:
   - `<name>.basic.md`
   - `<name>.armed.md`
   - optionally `<name>.shared.md`, under the gated condition below. It is not a routine per-member option.
-  - optionally `<name>.execution-gate.md`, whose first line is the execution gate this member puts on work dispatched to it. Absent means no gate.
   - zero or more `<name>.<short-name>.routine.md`. Each one is self-contained, and describes one procedure or activity this member owns, never its own folder.
 
 Every acting member's skill folder under `<skillset>/` contains what follows. Careful: such a folder may be a symlink into the real source tree rather than the canonical location itself. Anyone editing resolves the real path first.

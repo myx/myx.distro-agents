@@ -8,8 +8,7 @@ resolution — collection, convergence, or otherwise. Distinct from `magic-team.
 governs single-exchange message/reaction/correction form; this file governs topic/queue management across
 many exchanges. Shared base for any interview-like or convergence-oriented routine.
 
-Referenced from: `magic-team.interview.routine`, `magic-team.discuss.routine`, `magic-coordinator/magic-coordinator.harness.md`'s inline
-interview-like mode, and any future routine handling multiple open topics.
+Referenced from: `magic-team.interview.routine`, `magic-team.discuss.routine`, `magic-coordinator/magic-coordinator.root-harness.routine`'s **interview-like-sessions-inline** local procedure, and any future routine handling multiple open topics.
 
 Owner: `magic-librarian`.
 Maintainers (`quorum-all-agree`): `magic-coordinator` + `magic-librarian` + `magic-architect`.

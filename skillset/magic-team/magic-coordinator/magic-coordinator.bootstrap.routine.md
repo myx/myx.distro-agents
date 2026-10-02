@@ -216,7 +216,8 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-coordinator.armed.md`'s "Routines (index)" section.
-- `magic-coordinator.harness.md` — the bootstrap state an instance starts in before mode selection.
+- `magic-coordinator.root-harness.routine` — the bootstrap state the root instance starts in before mode
+  selection.
 - `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — `--member-comms-slack-send-message`, the sole sanctioned Slack-posting mechanism.
 
 ### Conventions

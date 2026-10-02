@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on --intern-op-spawn-prepare-brief (3288): the brief is the skillset
-## template's Skeleton with its slots filled. No gate file gives `execution-gate: none`;
-## a gate file's first line lands byte for byte; the old armed.md marker is never read;
-## open warnings come from the five active board states only; a missing or unclosed
-## template is a stated refusal. Temp skillset and data roots, under one `env -i` guard.
+## template's Skeleton with its slots filled. Open warnings come from the five active board
+## states only; a missing or unclosed template is a stated refusal. Temp skillset and data
+## roots, under one `env -i` guard.
 ## RIG_OLD_BRIEF, when set, names a file holding the pre-template output for the no-gate
 ## case, which the new output must equal byte for byte.
 set -u
@@ -50,7 +49,7 @@ echo "-- no gate file, no warnings --"
 rigBrief "$rigTmp/b1"
 printf '%s\n' "SPAWN-PREPARE-BRIEF: rig-member" "tool-routing: use the tools and MCP this session was given, in the ways your instructions prescribe. Read --member-help rig-member when unsure how a tool works. Follow what a refused call says: the tool to use instead, or the REFUSAL-ID to escalate by. Report a blockage the prescribed way, so the tooling can be polished. Never hack around it. Do not research source code unless it is the task." \
 	"scratchpad: your own files go in the output/ folder this dispatch's own \"## Your sandbox\" section names" \
-	"execution-gate: none" "## open warning-* items" "(none open)" > "$rigTmp/b1.want"
+	"## open warning-* items" "(none open)" > "$rigTmp/b1.want"
 rigAssert "the brief is the filled Skeleton, byte for byte" "$( cmp -s "$rigTmp/b1" "$rigTmp/b1.want" && printf same || printf differs )" same
 rigAssert "no slot is left unfilled"                   "$( LC_ALL=C grep -c '{{' "$rigTmp/b1" )" 0
 rigAssert "the header names the member"                "$( LC_ALL=C grep -c -x -F 'SPAWN-PREPARE-BRIEF: rig-member' "$rigTmp/b1" )" 1
@@ -58,17 +57,6 @@ rigAssert "and so does the tool-routing line"          "$( LC_ALL=C grep '^tool-
 if [ -n "${RIG_OLD_BRIEF:-}" ] ; then
 	rigAssert "and equals the pre-template output"      "$( cmp -s "$rigTmp/b1" "$RIG_OLD_BRIEF" && printf same || printf differs )" same
 fi
-
-echo "-- a gate file --"
-printf '%s\n' 'A & B \ C' 'second line is not the gate' > "$rigSkills/rig-member/rig-member.execution-gate.md"
-rigBrief "$rigTmp/b2"
-rigAssert "its first line lands byte for byte"         "$( LC_ALL=C sed -n 's/^execution-gate: //p' "$rigTmp/b2" )" 'A & B \ C'
-rm -f "$rigSkills/rig-member/rig-member.execution-gate.md"
-
-echo "-- the old marker only --"
-printf '# rig armed\n<!-- execution-gate: rig-old-marker -->\n' > "$rigSkills/rig-member/rig-member.armed.md"
-rigBrief "$rigTmp/b3"
-rigAssert "the marker is never read"                   "$( LC_ALL=C sed -n 's/^execution-gate: //p' "$rigTmp/b3" )" none
 
 echo "-- open warnings --"
 for rigState in backlog pending running blocked parked processed ; do

@@ -42,7 +42,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - State the outcome in this pass's own output.
    - **On failure**: `sleep 15`, then exit — no further steps run this cycle, nothing else touched.
    - **On success**: continue.
-   - **An anomaly here (an undocumented lock state, an unexpected owner/meta) is assess→investigate work**: governed by `magic-coordinator.harness.md`'s `harness-session-rules`, not restated here.
+   - **An anomaly here (an undocumented lock state, an unexpected owner/meta) is assess→investigate work**: governed by `magic-coordinator.root-harness.routine`'s **apply-harness-session-rules** step, not restated here.
 3. **use-direct-tooling-calls**: no console session — this `next-iteration`'s own execution model, per `magic-team/magic-team.armed.md`'s process-flow rule: no Keep-Alive Console Session opens, none is assumed.
    - Every `DistroAgentsTools.fn.sh` call from here on goes through `mcp__myx_distro__execute`, which is what puts the workspace environment the call needs in place.
    - Every `heartbeat-state-note` update goes through `--magic-heartbeat-state-upsert` via `mcp__myx_distro__execute` — never the Edit/Write tools, never a raw shell redirect, never a raw Bash call.

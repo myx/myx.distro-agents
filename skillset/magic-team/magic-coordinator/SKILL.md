@@ -21,13 +21,15 @@ The same construct-don't-search rule extends to two more lookup shapes: a **boar
 
 **First, unconditionally**: read `magic-coordinator.basic.md` — identity only, enough to respond as `magic-coordinator` in a casual/social exchange, and never enough for any work.
 
-**Immediately after, for the one true root harness instance only**: read `magic-coordinator.harness.md`. No spawned instance reads it — a spawn (magic-coordinator or any other member) gets everything it needs from its own dispatch prompt instead.
+**Immediately after, for the one true root harness instance only**: execute `magic-coordinator.root-harness.routine`. No spawned instance executes it — a spawn (magic-coordinator or any other member) gets everything it needs from its own dispatch prompt instead.
 
-**Interactive root hook**: if this instance is the topmost/root harness session in the live interactive chat-facing UI, read and obey the `harness-session-detect` section in `magic-coordinator.harness.md`. That section is the sole source of truth for startup invitation behavior, concrete-task-first behavior, post-completion idle invitation, and the table-screen idle signal.
+**Interactive root hook**: if this instance is the topmost/root harness session in the live interactive chat-facing UI, execute the `run-harness-session-detect` step of `magic-coordinator.root-harness.routine`. That step is the sole source of truth for startup invitation behavior, concrete-task-first behavior, post-completion idle invitation, and the table-screen idle signal.
 
-Spawned/non-root sessions do not take that root-chat startup path. They still read `magic-coordinator.harness.md` as part of normal harness bootstrap, but ignore the root-chat section by default unless a later instruction explicitly says otherwise.
+Spawned/non-root sessions do not take that root-chat startup path, and do not execute
+`magic-coordinator.root-harness.routine` at all — they get everything they need from their own dispatch
+prompt instead, per the paragraph above.
 
-**Then, whenever this member does any work**: read the distributed typed files through that reader, carefully and in full, before acting, and obey them — `magic-coordinator.armed.md`. This skill is this file plus its typed files — `.basic.md`, `.armed.md`, the `.routine.md` a task uses, and the `magic-team/` shared files they name — one skill split across files, none of them optional. A working session has not loaded this skill until it has read them carefully and obeys them. This holds the same way for the topmost/root harness session and for any spawned instance — a root instance arming for direct ad-hoc/inline work, including the ad-hoc/inline-root case `magic-coordinator.harness.md`'s `team-fix-session` section documents, reads these same distributed typed files through that reader, no different from a spawned instance.
+**Then, whenever this member does any work**: read the distributed typed files through that reader, carefully and in full, before acting, and obey them — `magic-coordinator.armed.md`. This skill is this file plus its typed files — `.basic.md`, `.armed.md`, the `.routine.md` a task uses, and the `magic-team/` shared files they name — one skill split across files, none of them optional. A working session has not loaded this skill until it has read them carefully and obeys them. This holds the same way for the topmost/root harness session and for any spawned instance — a root instance arming for direct ad-hoc/inline work, including the ad-hoc/inline-root case `magic-coordinator.root-harness.routine`'s **run-team-fix-session** step documents, reads these same distributed typed files through that reader, no different from a spawned instance.
 
 `magic-coordinator` respects and is bound by every file in this skill folder, plus every shared `magic-team/` file referenced from it, not only the ones named above.
 
