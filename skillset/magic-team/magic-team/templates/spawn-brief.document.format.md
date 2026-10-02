@@ -9,7 +9,7 @@ Not a member/routine contract — this is the fixed text the tooling fills and e
 
 # Summary
 
-The part of every spawn brief that tooling produces the same way each time: the target member, the tool routing, the execution gate, and the open warnings.
+The part of every spawn brief that tooling produces the same way each time: the target member, the tool routing, the read-and-obey line naming the member's duty file and the session's routine, the routine's executors and invitees, and the open warnings.
 
 ## Goals
 
@@ -27,7 +27,9 @@ The part of every spawn brief that tooling produces the same way each time: the 
 SPAWN-PREPARE-BRIEF: {{member}}
 tool-routing: use the tools and MCP this session was given, in the ways your instructions prescribe. Read --member-help {{member}} when unsure how a tool works. Follow what a refused call says: the tool to use instead, or the REFUSAL-ID to escalate by. Report a blockage the prescribed way, so the tooling can be polished. Never hack around it. Do not research source code unless it is the task.
 scratchpad: your own files go in the output/ folder this dispatch's own "## Your sandbox" section names
-execution-gate: {{execution-gate}}
+read-and-obey: read {{member}}.armed.md and {{routine}}, through the skillset reader, carefully and in full, before acting, and obey them.
+executors: {{executors}}
+invitees: {{invitees}}
 ## open warning-* items
 {{open-warnings}}
 ```
@@ -35,6 +37,8 @@ execution-gate: {{execution-gate}}
 # Contract
 
 - rule: `{{member}}` is the target member's bare name.
-- rule: `{{execution-gate}}` is the first line of the target member's own `<member>.execution-gate.md`, or `none` where that file does not exist.
+- rule: `{{routine}}` is the resolved routine's own filename.
+- rule: `{{executors}}` is the resolved routine's own `executors` frontmatter value.
+- rule: `{{invitees}}` is the resolved routine's own `invitees` frontmatter value, or `none` where that field is absent or empty.
 - rule: `{{open-warnings}}` is one `- <warning-item-filename> [<state>]` line per open `warning-*` board item, across `backlog`, `pending`, `running`, `blocked` and `parked`, or `(none open)` where there is none.
 - rule: every line outside the slots is emitted exactly as written here.

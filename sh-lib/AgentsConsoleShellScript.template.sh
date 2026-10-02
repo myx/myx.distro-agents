@@ -463,6 +463,7 @@ DagcAccessAppend(){
 		;;
 	esac
 }
+: "${MDAT_SPAWN_AGENT:=magic-coordinator}"
 if [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
 	## The include reaches the config store through this name. This console otherwise
 	## calls the tool by path, so without this the machine's own extra read roots are

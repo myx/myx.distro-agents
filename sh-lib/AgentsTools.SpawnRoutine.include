@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SpawnRoutine.include -- the routine a spawn brief names: resolving a
+## --routine selector to one routine file, reading that file's own executors/maintainers/
+## invitees frontmatter, and the contract check a resolved file must pass before those
+## values are trusted. Sourced, never run. Functions only. Contract: MAGIC.md, "Routine
+## resolution for a spawn brief".
+##
+
+## --routine-default's own resolution, for the coworking session kind: the one routine
+## file, among every *.routine.md under the skillset root's member folders, whose own
+## frontmatter carries the key default-for-session-kind with the value "coworking" (the
+## routine contract template's own optional field -- at most one routine file per value,
+## across the whole skillset). No routine name is hardcoded here; every call re-scans the
+## skillset root's routine files fresh. Prints the resolved file's own basename on success,
+## the same shape AgentsToolsSpawnRoutineResolve expects as a --routine selector. Zero or
+## more than one match is refused, naming the key, the value, and how many routine files
+## carry it.
+AgentsToolsSpawnRoutineDefaultName(){
+	local routineDefaultKind="coworking" routineRoot routineFile routineDefaultValue
+	local routineDefaultMatches=()
+	routineRoot="${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}"
+	for routineFile in "$routineRoot"/*/*.routine.md ; do
+		[ -f "$routineFile" ] || continue
+		routineDefaultValue="$( LC_ALL=C awk -v headers="default-for-session-kind" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrintSelected.awk" "$routineFile" )"
+		routineDefaultValue="${routineDefaultValue#default-for-session-kind: }"
+		[ "$routineDefaultValue" = "$routineDefaultKind" ] && routineDefaultMatches+=( "$routineFile" )
+	done
+	if [ "${#routineDefaultMatches[@]}" -eq 1 ] ; then
+		printf '%s\n' "${routineDefaultMatches[0]##*/}"
+		return 0
+	fi
+	echo "⛔ ERROR: --routine-default: default-for-session-kind: $routineDefaultKind: ${#routineDefaultMatches[@]} routine file(s) under $routineRoot carry it, exactly 1 required" >&2
+	return 1
+}
+
+## Resolves a --routine selector (a full routine filename or part of one) to exactly one
+## *.routine.md file under the skillset root's member folders. Prints that file's own
+## absolute path on success. Zero or more than one match is refused, with the candidates
+## named for a reader to narrow the selector by.
+AgentsToolsSpawnRoutineResolve(){ ## selector
+	local routineSelector="$1" routineRoot routineFile routineMatches=()
+	routineRoot="${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}"
+	for routineFile in "$routineRoot"/*/*.routine.md ; do
+		[ -f "$routineFile" ] || continue
+		case "${routineFile##*/}" in
+			*"$routineSelector"*) routineMatches+=( "$routineFile" ) ;;
+		esac
+	done
+	case "${#routineMatches[@]}" in
+		0)
+			echo "⛔ ERROR: --routine $routineSelector: matches no routine file under $routineRoot" >&2
+			return 1
+		;;
+		1)
+			printf '%s\n' "${routineMatches[0]}"
+			return 0
+		;;
+		*)
+			echo "⛔ ERROR: --routine $routineSelector: matches more than one routine file:" >&2
+			local routineMatch
+			for routineMatch in "${routineMatches[@]}" ; do
+				echo "  ${routineMatch##*/}" >&2
+			done
+			return 1
+		;;
+	esac
+}
+
+## Reads executors/maintainers/invitees out of a routine file's own frontmatter, through
+## AgentsBoardItemFrontmatterPrintSelected.awk, unchanged. One "key: value" line per key,
+## in that fixed order; an absent or empty value reads as an empty string after the colon.
+AgentsToolsSpawnRoutineFrontmatter(){ ## routine file path
+	LC_ALL=C awk -v headers="executors"$'\034'"maintainers"$'\034'"invitees" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrintSelected.awk" "$1"
+}
+
+## The contract a resolved routine file must satisfy before its brief slots are trusted:
+## opens with a frontmatter block, and executors/maintainers are both non-empty. Prints
+## three lines on success -- executors, maintainers, invitees -- with invitees reading the
+## literal "none" where that field is absent or empty. Prints nothing and returns 1 on
+## failure, with the reason on stderr.
+AgentsToolsSpawnRoutineContractCheck(){ ## routine file path
+	local routineFile="$1" routineFirstLine=""
+	IFS= read -r routineFirstLine < "$routineFile" 2>/dev/null || :
+	if [ "$routineFirstLine" != "---" ] ; then
+		echo "⛔ ERROR: $routineFile: does not open with a frontmatter block" >&2
+		return 1
+	fi
+	local routineFm routineExecutorsLine routineMaintainersLine routineInviteesLine
+	routineFm="$( AgentsToolsSpawnRoutineFrontmatter "$routineFile" )"
+	{
+		IFS= read -r routineExecutorsLine
+		IFS= read -r routineMaintainersLine
+		IFS= read -r routineInviteesLine
+	} <<< "$routineFm"
+	local routineExecutors="${routineExecutorsLine#executors: }"
+	local routineMaintainers="${routineMaintainersLine#maintainers: }"
+	local routineInvitees="${routineInviteesLine#invitees: }"
+	if [ -z "$routineExecutors" ] || [ -z "$routineMaintainers" ] ; then
+		echo "⛔ ERROR: $routineFile: executors and maintainers must both be non-empty" >&2
+		return 1
+	fi
+	printf 'executors: %s\n' "$routineExecutors"
+	printf 'maintainers: %s\n' "$routineMaintainers"
+	printf 'invitees: %s\n' "${routineInvitees:-none}"
+	return 0
+}
+
+## Pulls the executors/invitees values back out of AgentsToolsSpawnRoutineContractCheck's
+## own fixed-order 3-line output -- executors, maintainers, invitees -- by plain parameter
+## expansion, the same "read into fixed positions, strip the key: prefix" shape
+## AgentsToolsSpawnRoutineContractCheck itself uses on the frontmatter just above, never a
+## forked printf/awk pipeline. Both call sites that need these two values share this one
+## function instead of each re-deriving the extraction. Prints two lines on success:
+## executors then invitees.
+AgentsToolsSpawnRoutineContractExecutorsInvitees(){ ## contract-check output (its 3 lines)
+	local routineContractOut="$1"
+	local ceExecutorsLine ceMaintainersLine ceInviteesLine
+	{
+		IFS= read -r ceExecutorsLine
+		IFS= read -r ceMaintainersLine
+		IFS= read -r ceInviteesLine
+	} <<< "$routineContractOut"
+	printf '%s\n' "${ceExecutorsLine#executors: }"
+	printf '%s\n' "${ceInviteesLine#invitees: }"
+}

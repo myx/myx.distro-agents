@@ -158,6 +158,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire <team-memb
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-status <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [<team-member>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2

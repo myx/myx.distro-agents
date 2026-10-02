@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MagicSpawnSession.include -- --magic-spawn-session. Starts a coworking
+## session and spawns its initial members in one call, each one carrying the resolved
+## routine's own automatic brief (AgentsTools.InternOpAgentSpawnProxy.include's --routine/
+## --routine-default). The first member spawned starts the session; every further one
+## joins it by the session id the first spawn reports. Help pairing: MAGIC.md,
+## "--magic-spawn-session: starting a routine's own initial members".
+##
+
+case "$1" in
+
+	--magic-spawn-session)
+		shift
+		local routineSelector="" routineDefault="false" sessionNameOrComment=""
+		local spawnMembers=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--routine)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: --routine requires <selector>" >&2
+						set +e ; return 1
+					fi
+					routineSelector="$2"
+					shift 2
+				;;
+				--routine-default)
+					routineDefault="true"
+					shift
+				;;
+				--session-name-or-comment)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: --session-name-or-comment requires <text>" >&2
+						set +e ; return 1
+					fi
+					sessionNameOrComment="$2"
+					shift 2
+				;;
+				--*)
+					echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [<team-member>...]" >&2
+					set +e ; return 1
+				;;
+				*)
+					spawnMembers+=( "$1" )
+					shift
+				;;
+			esac
+		done
+		if [ -n "$routineSelector" ] && [ "$routineDefault" = "true" ] ; then
+			echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: use only one of --routine <selector> | --routine-default" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$routineSelector" ] && [ "$routineDefault" != "true" ] ; then
+			echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: exactly one of --routine <selector> | --routine-default is required" >&2
+			set +e ; return 1
+		fi
+
+		## The task text, read once so every spawned member gets the same stdin;
+		## emptiness is each spawn's own --intern-op-agent-spawn-proxy call to judge.
+		local spawnTaskText
+		spawnTaskText="$( cat )"
+
+		## Resolved once, so every member spawned from this one call carries the same
+		## routine file even if the tree changes mid-call -- a selector re-resolved
+		## per spawn could otherwise split one session across two routine files.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnRoutine.include"
+		if [ "$routineDefault" = "true" ] ; then
+			routineSelector="$( AgentsToolsSpawnRoutineDefaultName )" || { set +e ; return 1 ; }
+		fi
+		local resolvedRoutineFile
+		resolvedRoutineFile="$( AgentsToolsSpawnRoutineResolve "$routineSelector" )" || { set +e ; return 1 ; }
+		local routineContract
+		routineContract="$( AgentsToolsSpawnRoutineContractCheck "$resolvedRoutineFile" )" || { set +e ; return 1 ; }
+		local resolvedRoutineName="${resolvedRoutineFile##*/}"
+
+		## No positional members: fall back to the routine's own executors line. A
+		## value that is not a plain comma-separated list of existing members --
+		## "magic-team"/"*" (this file's own "any member" shorthand, per
+		## magic-team.shared.md) or prose -- names no spawnable roster and is
+		## refused, asking for explicit members instead of guessing one.
+		if [ ${#spawnMembers[@]} -eq 0 ] ; then
+			local routineExecutorsLine routineInviteesLine executorsTrim execCandidate execOk="true" execList
+			{
+				IFS= read -r routineExecutorsLine
+				IFS= read -r routineInviteesLine
+			} <<< "$( AgentsToolsSpawnRoutineContractExecutorsInvitees "$routineContract" )"
+			executorsTrim="$( printf '%s' "$routineExecutorsLine" | LC_ALL=C awk '{ gsub(/^[ \t]+|[ \t]+$/, "") ; print ; }' )"
+			case "$executorsTrim" in
+				''|'*'|'magic-team')
+					execOk="false"
+				;;
+				*)
+					IFS=',' read -r -a execList <<< "$executorsTrim"
+					for execCandidate in "${execList[@]}" ; do
+						execCandidate="${execCandidate#"${execCandidate%%[![:space:]]*}"}"
+						execCandidate="${execCandidate%"${execCandidate##*[![:space:]]}"}"
+						if [ -z "$execCandidate" ] || [ ! -d "$MDAT_SKILLSET_ROOT/$execCandidate" ] ; then
+							execOk="false"
+							break
+						fi
+						spawnMembers+=( "$execCandidate" )
+					done
+				;;
+			esac
+			if [ "$execOk" != "true" ] || [ ${#spawnMembers[@]} -eq 0 ] ; then
+				echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: $resolvedRoutineName's own executors ('$routineExecutorsLine') is not a plain comma-separated list of existing members -- pass explicit <team-member>... instead" >&2
+				set +e ; return 1
+			fi
+		fi
+
+		## The first spawn starts the session; every further one joins it by the
+		## session id the first spawn's own output reports. An executor commands
+		## only the members it spawned itself (magic-team.coworking.routine's own
+		## rule), which is why this call never spawns the routine's invitees.
+		local spawnSessionId="" spawnMember spawnOut
+		local spawnFirst="true"
+		for spawnMember in "${spawnMembers[@]}" ; do
+			AgentsToolsAssertBareName "$spawnMember" "<team-member>" magic-spawn-session || { set +e ; return 1 ; }
+			if [ ! -d "$MDAT_SKILLSET_ROOT/$spawnMember" ] ; then
+				echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: no such team member: $spawnMember" >&2
+				set +e ; return 1
+			fi
+			local spawnArgs=( "$spawnMember" --dispatch-doc:create )
+			if [ "$routineDefault" = "true" ] ; then
+				spawnArgs+=( --routine-default )
+			else
+				spawnArgs+=( --routine "$routineSelector" )
+			fi
+			[ -z "$sessionNameOrComment" ] || spawnArgs+=( --session-name-or-comment "$sessionNameOrComment" )
+			if [ "$spawnFirst" = "true" ] ; then
+				spawnOut="$( printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context --magic-spawn-session )" || { set +e ; return 1 ; }
+				spawnSessionId="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
+				if [ -z "$spawnSessionId" ] ; then
+					echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: the first spawn ($spawnMember) reported no SESSION_ID -- refusing to spawn the rest into no session" >&2
+					set +e ; return 1
+				fi
+				spawnFirst="false"
+			else
+				spawnArgs+=( --session-id "$spawnSessionId" )
+				printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context --magic-spawn-session > /dev/null || { set +e ; return 1 ; }
+			fi
+		done
+		echo "SESSION_ID=$spawnSessionId"
+		echo "ROUTINE=$resolvedRoutineName"
+		echo "MEMBERS=${spawnMembers[*]}"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

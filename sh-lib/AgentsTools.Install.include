@@ -120,9 +120,12 @@ AgentsToolsInstallClassifyTarget(){
 ## --install-skillset-symlinks' own: a dangling link is reclaimed, a link already to the
 ## authoritative path is kept, and a link elsewhere or real content is reported and never
 ## overwritten. Args: workspace, authoritative path, slot relative to each folder, context
-## for messages. Returns 1 when any slot could not be settled, each stated.
+## for messages, and an optional 5th arg -- any non-empty value also links the slot into the
+## workspace root itself, by the same per-slot rules, for a caller whose own target is read
+## from the workspace root regardless of which listed folder is open (e.g. start.sh's own
+## --extensions-dir). Returns 1 when any slot could not be settled, each stated.
 AgentsToolsVscodeFolderLinks(){
-	local linkWorkspace="$1" linkTarget="$2" linkRelative="$3" linkContext="$4"
+	local linkWorkspace="$1" linkTarget="$2" linkRelative="$3" linkContext="$4" linkAlsoRoot="$5"
 	local linkWsFile="$linkWorkspace/${linkWorkspace##*/}.code-workspace"
 	if [ ! -f "$linkWsFile" ] ; then
 		echo "🙋 WARNING: $MDSC_CMD --$linkContext: no generated workspace file at $linkWsFile, so no VS Code folder gets $linkRelative yet -- the next integrations run links them" >&2
@@ -171,7 +174,7 @@ AgentsToolsVscodeFolderLinks(){
 			linkHadError="true" ; continue
 		fi
 		linkNew="$linkNew." ; echo "🔗 linked: $linkSlot" >&2
-	done < <( LC_ALL=C awk '{ t = $0 ; while ( match( t, /"path"[ \t]*:[ \t]*"[^"]*"/ ) ) { v = substr( t, RSTART, RLENGTH ) ; sub( /^"path"[ \t]*:[ \t]*"/, "", v ) ; sub( /"$/, "", v ) ; print v ; t = substr( t, RSTART + RLENGTH ) ; } ; }' "$linkWsFile" )
+	done < <( { [ -z "$linkAlsoRoot" ] || printf '%s\n' "$linkWorkspace" ; LC_ALL=C awk '{ t = $0 ; while ( match( t, /"path"[ \t]*:[ \t]*"[^"]*"/ ) ) { v = substr( t, RSTART, RLENGTH ) ; sub( /^"path"[ \t]*:[ \t]*"/, "", v ) ; sub( /"$/, "", v ) ; print v ; t = substr( t, RSTART + RLENGTH ) ; } ; }' "$linkWsFile" ; } )
 	echo "# $MDSC_CMD --$linkContext: $linkRelative: ${#linkNew} folder(s) newly linked, ${#linkKept} already linked" >&2
 	[ "$linkHadError" = "false" ]
 }
@@ -1787,8 +1790,10 @@ case "$1" in
 
 	## Installs the Magic-Team VS Code panel: one authoritative unpacked copy in the
 	## workspace's own .local/agents/vscode-magic-team-panel/, linked into every folder the
-	## generated .code-workspace lists as <folder>/.vscode/extensions/magic-team-panel -- VS
-	## Code's local workspace extension, offered however the workspace is opened. Links follow
+	## generated .code-workspace lists, and into the workspace root too, as
+	## <folder>/.vscode/extensions/magic-team-panel -- VS Code's local workspace extension.
+	## The root link is this slot's own exception to "the workspace root is never a VS Code
+	## folder" (MAGIC.md): it is the folder start.sh's own --extensions-dir reads. Links follow
 	## --install-skillset-symlinks' own form. Needs no VS Code. Internal step of
 	## --install-vscode-integrations, out of help. See MAGIC.md.
 	--install-vscode-magic-team-panel)
@@ -1839,8 +1844,8 @@ case "$1" in
 			fi
 			echo "🧩 Magic-Team panel written: ${panelHome#"$panelWorkspace"/}" >&2
 		fi
-		## Every folder the generated workspace file lists gets the link.
-		if ! AgentsToolsVscodeFolderLinks "$panelWorkspace" "$panelHome" ".vscode/extensions/magic-team-panel" install-vscode-magic-team-panel ; then
+		## Every folder the generated workspace file lists, and the workspace root, get the link.
+		if ! AgentsToolsVscodeFolderLinks "$panelWorkspace" "$panelHome" ".vscode/extensions/magic-team-panel" install-vscode-magic-team-panel also-root ; then
 			set +e ; return 1
 		fi
 		return 0

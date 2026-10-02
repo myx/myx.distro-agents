@@ -52,6 +52,14 @@
 #                            "text" and the target in "url". Both consumed in
 #                            ONE step, so the url's own "_" and "*" never
 #                            open a delimiter run and the label is verbatim.
+#   "http://…" / "https://…" -> a real rich_text `link` element, scanned to
+#                            the next space/tab and trimmed of trailing
+#                            punctuation; the URL check runs first, so
+#                            "https://user@host/path" stays one link.
+#   "local@domain"          -> a real rich_text `link` element with a
+#                            "mailto:" url and the typed address as its
+#                            label; a span already prefixed "mailto:" is
+#                            left unchanged.
 #   "*x*" / "_x_"          -> italic; "**x**" / "__x__" -> bold. CommonMark
 #                            emphasis, not an invented subset: delimiter
 #                            runs and the left/right-flanking predicates, in
@@ -151,8 +159,9 @@ function mentionElem(userId) {
 
 ## A real Slack link: the structured "link" element, target in "url" and
 ## visible label in "text". Both are optional to Slack and neither is optional
-## here -- an element with no label renders as the bare url, which is what
-## Slack's own auto-linkification already produces from plain text.
+## here -- an element with no label renders as the bare url. Slack does not
+## auto-link a plain url or address inside a rich_text block, so this
+## converter is what turns one into a real link element.
 function linkElem(labelText, targetUrl) {
 	return "{\"type\":\"link\",\"url\":\"" jsonEscapeLine(targetUrl) "\",\"text\":\"" jsonEscapeLine(labelText) "\"}"
 }
@@ -302,7 +311,9 @@ function emitTokens(   t, out, curText, curB, curI) {
 ## Block Kit representation, so it flattens into a combined style set.
 function parseInlineStyles(line,   n, i, j, k, c, closeIdx, spanText, mname, runLen,
                                    prevCh, nextCh, beforeSp, beforePu, afterSp, afterPu, lf, rf,
-                                   labelEnd, urlEnd, parenDepth, linkLabel, linkTarget) {
+                                   labelEnd, urlEnd, parenDepth, linkLabel, linkTarget,
+                                   closeChar, openChar, nestDepth, atSign, domainPart, lastDot,
+                                   domainEnd, domainEndOk) {
 	n = length(line)
 	nTok = 0
 	split("", tkType) ; split("", tkText) ; split("", tkChar)
@@ -380,6 +391,54 @@ function parseInlineStyles(line,   n, i, j, k, c, closeIdx, spanText, mname, run
 			}
 			addTok("text", c, "", 0) ; i++
 			continue
+		}
+		## Bare URL ("http://"/"https://") and bare e-mail address
+		## ("local@domain"), read as one same-shaped span: scanned to the
+		## next space or tab, trimmed of trailing punctuation and of a
+		## trailing closing bracket that has no unmatched opener earlier in
+		## the span, then classified. The URL check runs first, so
+		## "https://user@host/path" is claimed whole -- its own "@" is
+		## already past by the time the outer scan would otherwise have
+		## reached it as a mention. An address-like span already prefixed
+		## "mailto:" is left alone, unchanged from today.
+		if (i == 1 || index("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789", substr(line, i - 1, 1)) == 0) {
+			k = i
+			while (k <= n && !isSpaceCh(substr(line, k, 1))) k++
+			spanText = substr(line, i, k - i)
+			while (length(spanText) > 0 && index(".,:!?'\"", substr(spanText, length(spanText), 1)) > 0) spanText = substr(spanText, 1, length(spanText) - 1)
+			closeChar = (length(spanText) > 0) ? substr(spanText, length(spanText), 1) : ""
+			if (closeChar == ")" || closeChar == "]") {
+				openChar = (closeChar == ")") ? "(" : "["
+				nestDepth = 0
+				for (j = 1; j < length(spanText); j++) {
+					if (substr(spanText, j, 1) == openChar) nestDepth++
+					else if (substr(spanText, j, 1) == closeChar) nestDepth--
+				}
+				if (nestDepth <= 0) spanText = substr(spanText, 1, length(spanText) - 1)
+			}
+			if (substr(spanText, 1, 7) == "http://" || substr(spanText, 1, 8) == "https://") {
+				addTok("link", spanText, "", 0) ; tkUrl[nTok] = spanText
+				i += length(spanText)
+				continue
+			}
+			atSign = index(spanText, "@")
+			if (atSign > 1 && atSign < length(spanText) && substr(spanText, 1, 7) != "mailto:") {
+				domainPart = substr(spanText, atSign + 1)
+				lastDot = 0
+				for (j = length(domainPart); j >= 1; j--) {
+					if (substr(domainPart, j, 1) == ".") { lastDot = j ; break ; }
+				}
+				domainEnd = (lastDot > 0) ? substr(domainPart, lastDot + 1) : ""
+				domainEndOk = (domainEnd != "")
+				for (j = 1; domainEndOk && j <= length(domainEnd); j++) {
+					if (index("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", substr(domainEnd, j, 1)) == 0) domainEndOk = 0
+				}
+				if (lastDot > 0 && domainEndOk) {
+					addTok("link", spanText, "", 0) ; tkUrl[nTok] = "mailto:" spanText
+					i += length(spanText)
+					continue
+				}
+			}
 		}
 		if (c == "*" || c == "_") {
 			j = i

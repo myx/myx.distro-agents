@@ -410,6 +410,10 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--magic-spawn-session)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicSpawnSession.include"
+			return $?
+		;;
 
 		## --help-setup-<domain> is routed by glob, so a domain gaining its own
 		## setup document becomes readable without an arm being added here.

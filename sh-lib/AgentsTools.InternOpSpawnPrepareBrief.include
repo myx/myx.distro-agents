@@ -7,8 +7,8 @@
 ## dispatch brief currently hand-carries, so agent-carried config moves into
 ## tooling ("handle most by tooling, simpler life for the agent"):
 ## The text is the skillset template magic-team/templates/spawn-brief.document.format.md;
-## this op fills its slots: the member, the gate (first line of <member>.execution-gate.md,
-## or none) and the open warning-* set read from the board.
+## this op fills its slots: the member, the resolved routine's own filename/executors/
+## invitees, and the open warning-* set read from the board.
 ## The spawning agent still supplies the JUDGEMENT parts (which warnings are
 ## relevant, held-context, checked). No writes, no side effects.
 ## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
@@ -22,15 +22,29 @@ case "$1" in
 		local targetMember="$1"
 		shift || true
 		if [ -z "$targetMember" ] ; then
-			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: syntax is <target-member> [--context <ctx>]" >&2
+			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: syntax is <target-member> (--routine <selector>|--routine-default) [--context <ctx>]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$targetMember" "<target-member>" spawn-prepare-brief || { set +e ; return 1 ; }
 
-		## Only --context is accepted after the member; anything else is a
-		## malformed call and fails cleanly rather than being absorbed silently.
+		## Exactly one of --routine/--routine-default is required; --context is the
+		## only other option. Anything else is a malformed call and fails cleanly
+		## rather than being absorbed silently.
+		local routineSelector="" routineDefault="false"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				--routine)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: --routine requires <selector>" >&2
+						set +e ; return 1
+					fi
+					routineSelector="$2"
+					shift 2
+				;;
+				--routine-default)
+					routineDefault="true"
+					shift
+				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: --context: value required" >&2
@@ -39,11 +53,19 @@ case "$1" in
 					shift 2
 				;;
 				*)
-					echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: invalid option: $1 -- syntax is <target-member> [--context <ctx>]" >&2
+					echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: invalid option: $1 -- syntax is <target-member> (--routine <selector>|--routine-default) [--context <ctx>]" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
+		if [ -n "$routineSelector" ] && [ "$routineDefault" = "true" ] ; then
+			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: use only one of --routine <selector> | --routine-default" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$routineSelector" ] && [ "$routineDefault" != "true" ] ; then
+			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: exactly one of --routine <selector> | --routine-default is required" >&2
+			set +e ; return 1
+		fi
 
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
 			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
@@ -63,10 +85,23 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## execution-gate: the first line of the member's own gate file; absent -> none.
-		local executionGate="" gateFile="$MDAT_SKILLSET_ROOT/$targetMember/$targetMember.execution-gate.md"
-		[ ! -f "$gateFile" ] || executionGate="$( LC_ALL=C awk 'NR == 1 { sub( /[ \t\r]+$/, "" ) ; print ; exit ; }' "$gateFile" )"
-		[ -n "$executionGate" ] || executionGate="none"
+		## Resolve the routine, by selector or by the standing default, then run its
+		## contract check -- a routine file that fails either is refused rather than
+		## printing a brief with unfilled or untrustworthy routine slots.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnRoutine.include"
+		if [ "$routineDefault" = "true" ] ; then
+			routineSelector="$( AgentsToolsSpawnRoutineDefaultName )" || { set +e ; return 1 ; }
+		fi
+		local routineFile
+		routineFile="$( AgentsToolsSpawnRoutineResolve "$routineSelector" )" || { set +e ; return 1 ; }
+		local routineContract
+		routineContract="$( AgentsToolsSpawnRoutineContractCheck "$routineFile" )" || { set +e ; return 1 ; }
+		local routineExecutors routineInvitees
+		{
+			IFS= read -r routineExecutors
+			IFS= read -r routineInvitees
+		} <<< "$( AgentsToolsSpawnRoutineContractExecutorsInvitees "$routineContract" )"
+		local routineName="${routineFile##*/}"
 
 		## open warning-* set: the currently-open board warnings only (active
 		## states, never processed/archived/retained). The agent filters these
@@ -83,7 +118,7 @@ case "$1" in
 		## The Skeleton block, verbatim, with each slot filled; a template without one is refused.
 		local briefText
 		## Values travel through the environment, not -v, which would decode backslashes in them.
-		briefText="$( BRIEF_MEMBER="$targetMember" BRIEF_GATE="$executionGate" BRIEF_WARNINGS="${warnLines%$'\n'}" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSpawnPrepareBriefFill.awk" "$briefTemplate" )" || {
+		briefText="$( BRIEF_MEMBER="$targetMember" BRIEF_WARNINGS="${warnLines%$'\n'}" BRIEF_ROUTINE="$routineName" BRIEF_EXECUTORS="$routineExecutors" BRIEF_INVITEES="$routineInvitees" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSpawnPrepareBriefFill.awk" "$briefTemplate" )" || {
 			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: the brief template has no complete Skeleton block: $briefTemplate" >&2
 			set +e ; return 1
 		}

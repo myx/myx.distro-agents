@@ -550,20 +550,27 @@ if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
 	harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" )"$'\n'
 fi
 
-## The CLI's per-session scratchpad joins both sets, glob-matched since its path encoding is not ours.
-[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || [ -z "${CLAUDE_CODE_SESSION_ID:-}" ] || for harnessScratchpadDir in "/tmp/claude-$UID"/*/"$CLAUDE_CODE_SESSION_ID"/scratchpad ; do
-	[ -d "$harnessScratchpadDir" ] || continue
-	harnessScratchpadDir="$( AgentsHarnessResolveDir "$harnessScratchpadDir" )"
-	harnessRoots="${harnessRoots}${harnessScratchpadDir}"$'\n'
-	harnessWriteRoots="${harnessWriteRoots}${harnessScratchpadDir}"$'\n'
-done
+## A parent session reads its children's output and writes their input, by parent-session-id.
+harnessParentKey="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
+	while IFS= read -r harnessChildRecord ; do
+		[ -n "$harnessChildRecord" ] || continue
+		harnessChildRoot="${harnessChildRecord%/*}"
+		harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessChildRoot/output" )"$'\n'
+		harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$harnessChildRoot/input" )"$'\n'
+	done <<< "$( LC_ALL=C grep -l -x -F "parent-session-id: $harnessParentKey" "$MMDAPP"/.local/agents/spawned/*/*.md 2>/dev/null )"
+fi
 
 ## Claude Code saves a tool result too large to return under its own session folder, outside
 ## every workspace root -- member folders live inside the workspace only, so no grant reaches
 ## there. AgentsHarnessDeniedHint below names the real fix on that one refusal: reread the
 ## original tool with a narrower offset/limit.
 
-harnessScratch="$( mktemp -d "${TMPDIR:-/tmp}/AgentsUniversalHarness.XXXXXX" )" || {
+harnessScratchBase="${TMPDIR:-/tmp}"
+if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && mkdir -p "$MDAT_SPAWN_SANDBOX_ROOT/tmp" 2>/dev/null ; then
+	harnessScratchBase="$MDAT_SPAWN_SANDBOX_ROOT/tmp"
+fi
+harnessScratch="$( mktemp -d "$harnessScratchBase/AgentsUniversalHarness.XXXXXX" )" || {
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: could not create a scratch directory" >&2
 	exit 1
 }

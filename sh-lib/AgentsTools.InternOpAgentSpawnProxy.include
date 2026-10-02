@@ -341,6 +341,11 @@ case "$1" in
 		## bare name: this reaches a printf argument position, never its format
 		## string, so a caller's apostrophe or '%' cannot corrupt anything.
 		local sessionNameOrComment=""
+		## Which routine's own spawn-prepare-brief block is prepended ahead of the
+		## spawn context, below -- a selector (full routine filename or part of one)
+		## or the standing default. Never both; neither is the default behaviour of
+		## every caller before these options existed.
+		local routineSelector="" routineDefault="false"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-file)
@@ -427,6 +432,18 @@ case "$1" in
 					sessionNameOrComment="$2"
 					shift 2
 				;;
+				--routine)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --routine requires <selector>" >&2
+						set +e ; return 1
+					fi
+					routineSelector="$2"
+					shift 2
+				;;
+				--routine-default)
+					routineDefault="true"
+					shift
+				;;
 				## The spelling this package already uses for the same thing: the
 				## owner-setup option that writes SPAWN_CLI_SERVICE is spelled
 				## --spawn-cli-service, so a per-spawn override of that same setting
@@ -495,7 +512,11 @@ case "$1" in
 			esac
 		done
 		if [ -z "$callerName" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--wait]" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--routine <selector>|--routine-default] [--wait]" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$routineSelector" ] && [ "$routineDefault" = "true" ] ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: use only one of --routine <selector> | --routine-default" >&2
 			set +e ; return 1
 		fi
 		local sourceCount=0
@@ -590,6 +611,23 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+
+		## The brief for the resolved routine, built ahead of the spawn context in
+		## every source mode -- this is what makes the brief automatic rather than a
+		## caller's own hand-carried text. Refusing here (a bad selector, a routine
+		## file that fails its own contract) refuses the whole spawn, the same as any
+		## other malformed input this far in.
+		if [ -n "$routineSelector" ] || [ "$routineDefault" = "true" ] ; then
+			local routineBriefArgs=( --intern-op-spawn-prepare-brief "$callerName" )
+			if [ "$routineDefault" = "true" ] ; then
+				routineBriefArgs+=( --routine-default )
+			else
+				routineBriefArgs+=( --routine "$routineSelector" )
+			fi
+			local routineBriefBlock
+			routineBriefBlock="$( DistroAgentsTools "${routineBriefArgs[@]}" --context "$opContext" )" || { set +e ; return 1 ; }
+			spawnContext="$( printf '%s\n\n%s\n' "$routineBriefBlock" "$spawnContext" )"
+		fi
 
 		if [ -z "$dispatchDocMode" ] ; then
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --dispatch-doc:create|reuse|none is required (each stub passes its own; no default)" >&2
@@ -799,7 +837,7 @@ case "$1" in
 		## A tracking document's name is deliberately NOT consulted: the name is
 		## identified before any such document exists, and a spawn may have none.
 		local sandboxName="$trackingName"
-		[ -n "$sandboxName" ] || sandboxName="$MDAT_SPAWN_SESSION_ID"
+		[ -n "$sandboxName" ] || sandboxName="$sessionId"
 		local sandboxRoot="$MMDAPP/.local/agents/spawned/$sandboxName"
 		## An existing sandbox is joined, never refused -- continuing an existing
 		## effort is what a caller-supplied tracking name is for. Said out loud,
@@ -811,7 +849,7 @@ case "$1" in
 		## Created even when nothing fills them: the directory's own presence is this
 		## spawn's registry entry, so an empty sandbox is a listed session rather than
 		## a missing one.
-		mkdir -p "$sandboxRoot/input" "$sandboxRoot/output" || {
+		mkdir -p "$sandboxRoot/input" "$sandboxRoot/output" "$sandboxRoot/output/$callerName" || {
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create the spawn sandbox: $sandboxRoot" >&2
 			set +e ; return 1
 		}
@@ -992,7 +1030,8 @@ case "$1" in
 			"## Your sandbox" \
 			"" \
 			"Read-only input: $sandboxRoot/input" \
-			"Writable output, for deliverables and working files: $sandboxRoot/output" )"
+			"Writable output, for deliverables and working files: $sandboxRoot/output" \
+			"Your own scratch inside it: $sandboxRoot/output/$callerName" )"
 		## input/ gets what the task reads: the brief as given, its board item, MAGIC.md copies, routines, pointers.
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
 		local sandboxItem=""

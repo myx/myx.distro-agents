@@ -2,6 +2,7 @@
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: magic-team
+default-for-session-kind: coworking
 ---
 # magic-team.coworking.routine — the actual procedure
 

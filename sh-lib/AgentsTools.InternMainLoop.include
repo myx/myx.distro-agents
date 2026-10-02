@@ -2,8 +2,8 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## Caller-less daemon loop: spawns magic-coordinator.heartbeat.routine's own
-## next-iteration pass, sleeps, repeats forever, no cap. Sourced from
+## Caller-less daemon loop: spawns magic-coordinator.root-harness.routine's own
+## start, sleeps, repeats forever, no cap. Sourced from
 ## DistroAgentsTools.fn.sh's `--intern-main-loop` arm; needs $1/$@/$MDSC_CMD
 ## from dot-sourcing. Mirrors --intern-mcp-server's own shape: usage blurb
 ## on no flag, set +e/set -e discipline.
@@ -21,14 +21,14 @@ case "$1" in
 			--one) mainLoopMode='--one' ;;
 		esac
 		if [ -z "$mainLoopMode" ] ; then
-			printf '%s\n' "$MDSC_CMD --intern-main-loop -- spawns and keeps magic-coordinator.heartbeat.routine's own next-iteration cycle running forever, normal daemon/respawn-loop, no cap." >&2
+			printf '%s\n' "$MDSC_CMD --intern-main-loop -- spawns and keeps magic-coordinator.root-harness.routine's own start running forever, normal daemon/respawn-loop, no cap." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "  $MDSC_CMD --intern-main-loop --run" >&2
-			printf '%s\n' "      Spawn one heartbeat next-iteration, sleep, repeat -- forever, until killed." >&2
+			printf '%s\n' "      Spawn one root-harness-routine start, sleep, repeat -- forever, until killed." >&2
 			printf '%s\n' "      This is the basement layer that RUNS own-service mode, not merely gated behind it already being up." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "  $MDSC_CMD --intern-main-loop --one" >&2
-			printf '%s\n' "      Spawn exactly one heartbeat next-iteration and return its status. No sleep, no repeat." >&2
+			printf '%s\n' "      Spawn exactly one root-harness-routine start and return its status. No sleep, no repeat." >&2
 			printf '%s\n' "      Runs the same readiness check, so it is also how that gate is exercised by hand." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "Runs a short readiness check first and prints a compact report; the loop is entered only when all required settings are present." >&2
@@ -128,7 +128,7 @@ case "$1" in
 		## the code, so this is a startup failure, checked once here, never a
 		## per-iteration test that would turn a permanent misconfiguration into
 		## an endless backoff.
-		local mainLoopBriefFile="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/dispatches/main-loop-next-iteration.prompt-packet.verbatim.md"
+		local mainLoopBriefFile="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/dispatches/root-harness-session-start.prompt-packet.verbatim.md"
 		if [ ! -r "$mainLoopBriefFile" ] || [ ! -s "$mainLoopBriefFile" ] ; then
 			echo "$MDSC_CMD: main-loop $mainLoopMode: ⛔ ERROR: spawn brief missing, empty or unreadable: $mainLoopBriefFile" >&2
 			return 1
@@ -239,7 +239,7 @@ case "$1" in
 			return 0
 		}
 
-		## One heartbeat pass, spawn to reaped child, leaving the child's status in $spawnRc.
+		## One root-harness-routine start, spawn to reaped child, leaving the child's status in $spawnRc.
 		AgentsToolsMainLoopIteration() {
 			mainLoopPassTimedOut=""
 			AgentsToolsMainLoopSyncTeamData
@@ -247,7 +247,7 @@ case "$1" in
 			AgentsToolsSpawnSandboxSweep "--intern-main-loop"
 			## Answers to questions whose session has ended, collected by the tooling before
 			## anything is spawned, each going to its asker's inbox. The result is kept as a
-			## file the heartbeat pass only reads (--magic-heartbeat-input-scan); no model
+			## file the pass only reads (--magic-heartbeat-input-scan); no model
 			## does the collecting.
 			mkdir -p "$MMDAPP/.local/agents" \
 				&& DistroAgentsTools --intern-op-pending-reply-collect --ended --context --intern-main-loop \
@@ -351,7 +351,8 @@ case "$1" in
 			echo "# $MDSC_CMD --intern-main-loop: interrupted, stopping" >&2
 		}
 
-		## One look: same iteration, no sleep, no loop to leave.
+		## One look: same iteration, no sleep, no loop to leave -- starting the
+		## root-harness session is itself a one-off, never a respawn loop.
 		if [ '--one' = "$mainLoopMode" ] ; then
 			AgentsToolsMainLoopIteration
 			trap - INT TERM
