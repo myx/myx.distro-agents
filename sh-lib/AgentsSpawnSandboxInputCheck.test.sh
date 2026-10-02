@@ -96,6 +96,23 @@ rigAssert "a fresh one is skipped"                     "$( rigLeft fresh )" 1
 rigAssert "one with no record is skipped"              "$( rigLeft norecord )" 1
 rigAssert "another host's is skipped"                  "$( rigLeft otherhost )" 1
 
+echo "-- a session-joining spawn uses the session's own sandbox, not a fresh uuid --"
+rigSessionId="rig-session-$$"
+printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > "%s/join-dispatch.txt"\necho deliverable > "$MDAT_SPAWN_SANDBOX_ROOT/output/result.txt"\n' \
+	"$rigTmp" > "$rigWs/DistroAgentsConsole.sh"
+printf 'Work on rigrepo/rigpkg/file.sh following magic-team.rig.routine.md and rig-member.armed.md.\n' \
+	| env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SESSION_ID="$rigSessionId" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
+		bash -c '
+			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
+			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MDAT_DATA_ROOT outside the rig tree" >&2 ; exit 99 ;; esac
+			cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-agent-spawn-proxy rig-member --dispatch-doc:create --wait
+		' > "$rigTmp/join.out" 2> "$rigTmp/join.err"
+rigJoinSandbox="$rigWs/.local/agents/spawned/$rigSessionId"
+rigAssert "the session's own sandbox folder is used"      "$( rigYes test -d "$rigJoinSandbox" )" yes
+rigAssert "output/<member> exists under it"                "$( rigYes test -d "$rigJoinSandbox/output/rig-member" )" yes
+rigAssert "the dispatch text names the own-scratch line"   "$( rigYes env LC_ALL=C grep -q -F "Your own scratch inside it: $rigJoinSandbox/output/rig-member" "$rigTmp/join-dispatch.txt" )" yes
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SPAWN SANDBOX INPUT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

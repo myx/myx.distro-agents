@@ -114,6 +114,7 @@ rigAssert "the copy holds its payload"                    "$( ls -A "$rigHome" |
 	".payload-sum extension.js instructions.md magic-team.basic.md package.json the-conclave.mark.svg "
 rigAssert "the team text copy matches its source"         "$( cmp -s "$rigHome/magic-team.basic.md" "$rigBasic" && echo same || echo differs )" same
 rigAssert "every listed folder links to it"               "$( rigResolving )" 3
+rigAssert "the workspace root also links to it"           "$( [ -L "$rigWs/.vscode/extensions/magic-team-panel" ] && [ "$( cd "$rigWs/.vscode/extensions/magic-team-panel" && pwd -P )" = "$( cd "$rigHome" && pwd -P )" ] && echo resolves || echo other )" resolves
 rigAssert "no build sibling is left"                      "$( ls -A "$rigWs/.local/agents" | tr '\n' ' ' )" "vscode-magic-team-panel "
 
 echo "-- a re-run changes nothing --"
@@ -121,7 +122,7 @@ echo "-- a re-run changes nothing --"
 rigRun
 rigAssert "it says unchanged"                             "$( LC_ALL=C grep -c 'panel unchanged' "$rigTmp/err" )" 1
 rigAssert "the copy is the same one"                      "$( [ -f "$rigHome/.rig-touch" ] && echo kept || echo rewritten )" kept
-rigAssert "no link is newly made"                         "$( LC_ALL=C grep -c '0 folder(s) newly linked, 3 already linked' "$rigTmp/err" )" 1
+rigAssert "no link is newly made"                         "$( LC_ALL=C grep -c '0 folder(s) newly linked, 4 already linked' "$rigTmp/err" )" 1
 rm -f "$rigHome/.rig-touch"
 
 echo "-- control: a changed team text rewrites the copy, same version --"
@@ -198,7 +199,7 @@ rigAssert ".claude/skills links to X's root copy"          "$( rigLinksTo .claud
 rigAssert ".vscode/mcp.json links to X's root copy"        "$( rigLinksTo .vscode/mcp.json "$rigWsX/.vscode/mcp.json" )" resolves
 rigAssert "the panel links to X's authoritative copy"      "$( rigLinksTo .vscode/extensions/magic-team-panel "$rigWsX/.local/agents/vscode-magic-team-panel" )" resolves
 rigRunX
-rigAssert "a re-run links nothing new"                     "$( LC_ALL=C grep -c 'newly linked' "$rigTmp/x.err" ) $( LC_ALL=C grep -c ': 0 folder(s) newly linked, 1 already linked' "$rigTmp/x.err" )" "4 4"
+rigAssert "a re-run links nothing new"                     "$( LC_ALL=C grep -c 'newly linked' "$rigTmp/x.err" ) $( LC_ALL=C grep -c ': 0 folder(s) newly linked, 1 already linked' "$rigTmp/x.err" ) $( LC_ALL=C grep -c ': 0 folder(s) newly linked, 2 already linked' "$rigTmp/x.err" )" "4 3 1"
 rm -f "$rigXFolder/.claude/skills" ; mkdir -p "$rigXFolder/.claude/skills" ; : > "$rigXFolder/.claude/skills/rig-own"
 rigRunX
 rigAssert "real content in a slot is removed"              "$( LC_ALL=C grep -c -x -F "# DistroAgentsTools --install-vscode-integrations: removed: $rigXFolder/.claude/skills" "$rigTmp/x.err" )" 1

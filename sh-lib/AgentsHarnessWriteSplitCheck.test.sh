@@ -38,7 +38,7 @@ rigRefuse(){
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
 
 rigTmp="$( mktemp -d -t AgentsHarnessWriteSplitCheck )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap 'rm -rf -- "$rigTmp" ; [ -z "${rigScratchProject:-}" ] || rm -rf -- "/tmp/claude-$UID/$rigScratchProject"' EXIT
 
 ## READABLE is granted for reading only; WRITABLE for both; OUTSIDE is granted on
 ## neither side. Write refuses an ungranted path and a read-only path with the SAME
@@ -156,6 +156,28 @@ rigAssert "another session's tool result is not readable" \
 	"$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID=rig-session rigRead "$rigTmp/home/.claude/projects/rig-project/rig-other/tool-results/big.txt" "${rigNoWriteFlag[@]}" )" "refused-not-granted"
 rigAssert "with no session, no tool-results folder is readable" \
 	"$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID="" rigRead "$rigTmp/home/.claude/projects/rig-project/rig-session/tool-results/big.txt" "${rigNoWriteFlag[@]}" )" "refused-not-granted"
+
+echo "-- the CLI's own per-session scratchpad, with no root flag at all, as the MCP server calls the harness --"
+## MDAT_SPAWN_SESSION_ID unset is the MCP server's own call shape: no root flag either. The
+## fixture sits under the literal /tmp/claude-$UID path the harness globs, not under $rigTmp,
+## so this block creates it and the trap above removes it on exit, the one scratch location
+## this file is allowed to touch.
+rigScratchProject="rig-project-$$-$RANDOM"
+rigScratchSession="rig-session-$$-$RANDOM"
+rigScratchDir="/tmp/claude-$UID/$rigScratchProject/$rigScratchSession/scratchpad"
+mkdir -p "$rigScratchDir"
+printf 'rig-seed\n' > "$rigScratchDir/seed.txt"
+
+rigAssert "with no root flag, the CLI scratchpad is not readable" \
+	"$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID="$rigScratchSession" MDAT_SPAWN_SESSION_ID="" rigRead "$rigScratchDir/seed.txt" )" "refused-not-granted"
+rigAssert "with no root flag, the CLI scratchpad refuses a write" \
+	"$( rigVerdict "$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID="$rigScratchSession" MDAT_SPAWN_SESSION_ID="" rigWrite "$rigScratchDir/x.txt" )" )" "refused-not-writable"
+## The controls that can return zero: granting the directory outright still reads it, so the
+## fixture is real; and with no CLAUDE_CODE_SESSION_ID at all the same path is refused too.
+rigAssert "granting the scratchpad directly proves the fixture is real" \
+	"$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID="$rigScratchSession" MDAT_SPAWN_SESSION_ID="" rigRead "$rigScratchDir/seed.txt" --access-read-root "$rigScratchDir" )" "read"
+rigAssert "with no CLAUDE_CODE_SESSION_ID at all, the scratchpad is not readable" \
+	"$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID="" MDAT_SPAWN_SESSION_ID="" rigRead "$rigScratchDir/seed.txt" )" "refused-not-granted"
 
 echo "-- no root flag at all, as the MCP server calls it: writes narrow the way the console's do --"
 ## HOME is the fixture's, so its skills root and permissions registry are this rig's own.
