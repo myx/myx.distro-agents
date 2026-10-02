@@ -21,11 +21,13 @@ rigRefuse(){
 
 rigTmp="$( mktemp -d -t "AgentsSpawnProxyRoutineCheck-XXXXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## A filled sandbox input/ loses its write bits (AgentsToolsSpawnSandboxFillInput's own
+## read-only-by-mode contract), reached now that --intern-root-harness spawns for real.
+trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigSkills="$rigTmp/skills"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team/templates" "$rigSkills/keeper-myx" "$rigData/board/backlog"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team/templates" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator" "$rigData/board/backlog"
 
 cp "$rigHere/check-fixtures/slack-send-identity-check.curl.test.sh" "$rigTmp/bin/curl" \
 	|| rigRefuse "the fake curl fixture is missing from the package: $rigHere/check-fixtures/slack-send-identity-check.curl.test.sh"
@@ -45,6 +47,11 @@ chmod +x "$rigWs/DistroAgentsConsole.sh"
 ## enough for --intern-op-spawn-prepare-brief to resolve a real, complete brief block.
 cp "$rigRealTemplate" "$rigSkills/magic-team/templates/spawn-brief.document.format.md"
 printf '# rig armed\n' > "$rigSkills/keeper-myx/keeper-myx.armed.md"
+## --intern-root-harness's own caller, hardcoded magic-coordinator, needs its own
+## basic.md (the real-member check --address-to's own send validates against) and
+## armed.md (required by --intern-op-spawn-prepare-brief itself), same as keeper-myx above.
+printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
+printf '# rig armed\n' > "$rigSkills/magic-coordinator/magic-coordinator.armed.md"
 printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\ndefault-for-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
 	> "$rigSkills/magic-team/magic-team.coworking.routine.md"
 ## A board item for the --from-board source mode.
@@ -62,6 +69,19 @@ rigSpawn(){ ## stdin content, then extra --intern-op-agent-spawn-proxy args...
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-agent-spawn-proxy keeper-myx --dispatch-doc:none --wait --context rig-spawn-routine "$@"
 		' rig-spawn-wrapper "$@" <<< "$rigStdin" 2>&1
+}
+
+## --intern-root-harness never reads external stdin itself -- it pipes its own static
+## brief file into the spawn proxy internally -- so this helper gives none, unlike rigSpawn.
+rigRootHarness(){ ## extra --intern-root-harness args...
+	: > "$rigTmp/brief"
+	env -i HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
+		bash -c '
+			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
+			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
+			cd "$MMDAPP" && exec bash "$RIG_FN" --intern-root-harness "$@"
+		' rig-root-harness-wrapper "$@" < /dev/null 2>&1
 }
 
 ## True when the file's own "(none open)" line (the brief block's own last line) is
@@ -86,8 +106,9 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-## Posting succeeds, so a launch is never also blocked on Slack config.
-printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+## Posting succeeds, so a launch is never also blocked on Slack config. Both channels:
+## --intern-root-harness picks magic-team when interactive, event-track when not.
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 
 echo "-- --routine-default, stdin source: block, one blank line, then the task text --"
 rigOut="$( rigSpawn "RIG-TASK-TEXT" --routine-default )"
@@ -131,6 +152,22 @@ echo "-- --routine with no value: refused with the one shared wording --"
 rigOut="$( rigSpawn "RIG-TASK-TEXT" --routine )"
 rigAssert "is refused"                                   "$( printf '%s\n' "$rigOut" | grep -c 'routine requires <selector>' )" 1
 rigAssert "the console never ran"                        "$( [ -s "$rigTmp/brief" ] && echo ran || echo did-not-run )" did-not-run
+
+echo "-- --intern-root-harness: routine given, interactive by default --"
+rigOut="$( rigRootHarness --routine coworking --wait )"
+grep -q 'INTERACTION-MODE:' "$rigTmp/brief" || rigRefuse "the fake console never received the brief: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
+rigAssert "the launch succeeded"                         "$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' )" 1
+rigAssert "the routine brief block opens the context"    "$( head -1 "$rigTmp/brief" )" "SPAWN-PREPARE-BRIEF: magic-coordinator"
+rigAssert "the read-and-obey line names the given routine" \
+	"$( grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief" )" 1
+rigAssert "interactive by default"                        "$( grep -c -x -F 'INTERACTION-MODE: interactive -- keep looping, with a dedicated Slack thread for interaction.' "$rigTmp/brief" )" 1
+
+echo "-- --intern-root-harness: routine absent, --non-interactive switch --"
+rigOut="$( rigRootHarness --non-interactive --wait )"
+grep -q 'INTERACTION-MODE:' "$rigTmp/brief" || rigRefuse "the fake console never received the brief: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
+rigAssert "the launch succeeded"                         "$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' )" 1
+rigAssert "no routine brief block is prepended"          "$( grep -c '^SPAWN-PREPARE-BRIEF:' "$rigTmp/brief" )" 0
+rigAssert "the mode line opens the context, unchanged"   "$( head -1 "$rigTmp/brief" )" "INTERACTION-MODE: non-interactive -- run one loop, then exit."
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SPAWN PROXY ROUTINE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

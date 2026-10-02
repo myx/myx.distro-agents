@@ -294,6 +294,13 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## Harness-layer sibling to --intern-main-loop above: bootstraps a root-harness
+		## instance, interactive or not, with an optional payload routine to run meanwhile.
+		--intern-root-harness)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternRootHarness.include"
+			return $?
+		;;
+
 		--intern-mcp-execute)
 			shift
 			case "$1" in

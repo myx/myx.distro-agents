@@ -9,15 +9,20 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/templates/spawn-brief.document.format.md"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
+[ -f "$rigRealTemplate" ] || rigRefuse "the brief template is not in the package: $rigRealTemplate"
 rigTmp="$( mktemp -d -t AgentsMainLoopPassBoundCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLoopPid=""
-trap '[ -z "$rigLoopPid" ] || kill -KILL -- "-$rigLoopPid" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+## A filled sandbox input/ loses its write bits (AgentsToolsSpawnSandboxFillInput's own
+## read-only-by-mode contract), reached now that a pass's own spawn-prepare-brief
+## resolves -- restored before any removal, final cleanup included.
+trap '[ -z "$rigLoopPid" ] || kill -KILL -- "-$rigLoopPid" 2>/dev/null ; chmod -R u+w -- "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 ## A rig stopped from outside still takes its loop with it.
 trap 'exit 1' INT TERM
 
@@ -35,14 +40,23 @@ rigAssert(){ ## what is asserted, got, want
 ## call only, and a Slack-shaped curl that keeps every posted body.
 rigScenario(){ ## name, pass timeout seconds, first-pass seconds
 	rigDir="$rigTmp/$1"
-	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/data" "$rigDir/bin" "$rigDir/home/.claude/skills/magic-coordinator"
+	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/data" "$rigDir/bin" "$rigDir/home/.claude/skills/magic-coordinator" "$rigDir/home/.claude/skills/magic-team/templates"
 	## The sender is resolved from its skill folder, so the event-track post needs one.
 	printf '# magic-coordinator\n' > "$rigDir/home/.claude/skills/magic-coordinator/SKILL.md"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.basic.md"
+	## --intern-root-harness's own --routine heartbeat is now unconditional (main-loop
+	## always names it), so spawn-prepare-brief needs an armed.md, a resolvable routine
+	## file whose name carries "heartbeat", and the real brief template to fill.
+	printf '# rig armed\n' > "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.armed.md"
+	printf -- '---\nexecutors: magic-coordinator (light)\nmaintainers: rig\n---\n# rig heartbeat routine fixture\n' \
+		> "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.heartbeat.routine.md"
+	cp "$rigRealTemplate" "$rigDir/home/.claude/skills/magic-team/templates/spawn-brief.document.format.md"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-not-a-token\nSPAWN_CLI_SERVICE=rig-cli\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'MAIN_LOOP_RESTART_DELAY_SECONDS=2\nMAIN_LOOP_PASS_TIMEOUT_SECONDS=%s\n' "$2" > "$rigDir/ws/.local/.agents/magic-coordinator.agent.env"
-	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\nrigCall=$( ls "%s"/call.* 2>/dev/null | wc -l | tr -d " " )\n: > "%s/call.$$"\necho "start $$" >> "%s/console.log"\nif [ "$rigCall" = 0 ] ; then sleep %s ; fi\necho "end $$" >> "%s/console.log"\n' \
-		"$rigDir" "$rigDir" "$rigDir" "$3" "$rigDir" > "$rigDir/ws/DistroAgentsConsole.sh"
+	## stdin capture, keyed by the console's own PID, so the brief --intern-root-harness
+	## pipes it survives on disk for the routine-naming assertions below.
+	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > "%s/console.stdin.$$"\nrigCall=$( ls "%s"/call.* 2>/dev/null | wc -l | tr -d " " )\n: > "%s/call.$$"\necho "start $$" >> "%s/console.log"\nif [ "$rigCall" = 0 ] ; then sleep %s ; fi\necho "end $$" >> "%s/console.log"\n' \
+		"$rigDir" "$rigDir" "$rigDir" "$rigDir" "$3" "$rigDir" > "$rigDir/ws/DistroAgentsConsole.sh"
 	printf '#!/bin/sh\ncat > /dev/null\nfor a in "$@" ; do case "$a" in @-) ;; *@/*) cat "/${a#*@/}" >> "%s/posted" ; echo >> "%s/posted" ;; esac ; done\necho "$*" >> "%s/curl.log"\nprintf %s\n' \
 		"$rigDir" "$rigDir" "$rigDir" "'{\"ok\":true,\"channel\":\"CRIG00001\",\"ts\":\"1700000001.000100\",\"message\":{\"ts\":\"1700000001.000100\"}}\n'" > "$rigDir/bin/curl"
 	chmod +x "$rigDir/ws/DistroAgentsConsole.sh" "$rigDir/bin/curl"
@@ -67,6 +81,21 @@ rigLoopStart(){
 rigLoopStop(){
 	{ kill -TERM -- "-$rigLoopPid" ; sleep 2 ; kill -KILL -- "-$rigLoopPid" ; wait "$rigLoopPid" ; } 2>/dev/null
 	rigLoopPid=""
+}
+## --one is a single, non-backgrounded iteration: run it in the foreground and
+## keep its own exit code, same guard rails as rigLoopStart's env -i wrapper.
+rigOneRun(){
+	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" TMPDIR="$rigDir" \
+		MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+		MDAT_SKILLSET_ROOT="$rigDir/home/.claude/skills" \
+		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
+		bash -c '
+			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree: $MMDAPP" >&2 ; exit 99 ;; esac
+			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MDAT_DATA_ROOT outside the rig tree: $MDAT_DATA_ROOT" >&2 ; exit 99 ;; esac
+			! command -v claude > /dev/null 2>&1 || { echo "RIG-GUARD: an agent CLI is on PATH" >&2 ; exit 99 ; }
+			cd "$MMDAPP" && exec bash "$RIG_FN" --intern-main-loop --one
+		' > "$rigDir/one.out" 2> "$rigDir/one.err"
+	rigOneRc=$?
 }
 rigWaitFor(){ ## seconds, test command...
 	local waitLeft="$1" ; shift
@@ -118,6 +147,24 @@ rigAssert "no running line"                            "$( LC_ALL=C grep -c 'hea
 rigAssert "no ending"                                  "$( LC_ALL=C grep -c 'ending it (TERM, then KILL)' "$rigDir/loop.err" )" 0
 rigAssert "and no timed-out state"                     "$( LC_ALL=C grep -q 'timed-out' "$rigDir/ws/.local/agents/main-loop.state" 2>/dev/null && printf yes || printf no )" no
 rigLoopStop
+
+echo "-- --run names heartbeat as the routine to run, non-interactively --"
+rigScenario routine-run 0 1
+rigLoopStart
+rigWaitFor 60 rigAtLeast 1 rigStarts || { cat "$rigDir/loop.err" >&2 ; rigRefuse "the loop never started a pass" ; }
+rigLoopStop
+rigAssert "told INTERACTION-MODE: non-interactive" \
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'INTERACTION-MODE: non-interactive -- run one loop, then exit.' )" 1
+rigAssert "names heartbeat as the routine to run" \
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-coordinator.heartbeat.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' )" 1
+
+echo "-- --one names heartbeat as the routine to run, non-interactively --"
+rigScenario routine-one 0 1
+rigOneRun
+rigAssert "told INTERACTION-MODE: non-interactive" \
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'INTERACTION-MODE: non-interactive -- run one loop, then exit.' )" 1
+rigAssert "names heartbeat as the routine to run" \
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-coordinator.heartbeat.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' )" 1
 
 rigAssert "no request left for a real host"            "$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C grep -v -c 'slack.com/api/' || : )" 0
 

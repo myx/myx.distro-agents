@@ -2,11 +2,12 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## Caller-less daemon loop: spawns magic-coordinator.root-harness.routine's own
-## start, sleeps, repeats forever, no cap. Sourced from
-## DistroAgentsTools.fn.sh's `--intern-main-loop` arm; needs $1/$@/$MDSC_CMD
-## from dot-sourcing. Mirrors --intern-mcp-server's own shape: usage blurb
-## on no flag, set +e/set -e discipline.
+## Caller-less daemon loop: calls --intern-root-harness non-interactively with
+## heartbeat as its named routine, sleeps, repeats forever, no cap. Never
+## knows what a routine is itself -- that is the harness layer's own job.
+## Sourced from DistroAgentsTools.fn.sh's `--intern-main-loop` arm; needs
+## $1/$@/$MDSC_CMD from dot-sourcing. Mirrors --intern-mcp-server's own shape:
+## usage blurb on no flag, set +e/set -e discipline.
 ##
 
 case "$1" in
@@ -119,18 +120,6 @@ case "$1" in
 			esac
 		} | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMainLoopReadinessReport.awk" >&2
 		if [ 0 -ne "${PIPESTATUS[1]}" ] ; then
-			return 1
-		fi
-
-		## The spawn brief is a real file now, so it can be missing, empty or
-		## unreadable -- which the spawn proxy only reports further down, as
-		## "empty spawn context". The path is a constant and the file ships with
-		## the code, so this is a startup failure, checked once here, never a
-		## per-iteration test that would turn a permanent misconfiguration into
-		## an endless backoff.
-		local mainLoopBriefFile="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/dispatches/root-harness-session-start.prompt-packet.verbatim.md"
-		if [ ! -r "$mainLoopBriefFile" ] || [ ! -s "$mainLoopBriefFile" ] ; then
-			echo "$MDSC_CMD: main-loop $mainLoopMode: ⛔ ERROR: spawn brief missing, empty or unreadable: $mainLoopBriefFile" >&2
 			return 1
 		fi
 
@@ -272,7 +261,7 @@ case "$1" in
 			mkdir -p "$MMDAPP/.local/temp"
 			## Its own process group, so a bound that fires reaches every process of the pass.
 			set -m
-			cat "$mainLoopBriefFile" | DistroAgentsTools --magic-heartbeat-spawn-proxy magic-coordinator --session-thread:event-track --wait > "$mainLoopStatusFile" &
+			DistroAgentsTools --intern-root-harness --routine heartbeat --non-interactive --wait > "$mainLoopStatusFile" &
 			mainLoopSpawnPid=$!
 			set +m
 			## Polled, never a bare wait: a pass running is said at the loop's own pace, and

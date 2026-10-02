@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## Caller-less harness-layer spawn: one magic-coordinator.root-harness.routine
+## session, interactive by default with its own Slack thread, or one
+## non-interactive loop-once pass when asked. Sourced from
+## DistroAgentsTools.fn.sh's `--intern-root-harness` arm; needs $1/$@/$MDSC_CMD
+## from dot-sourcing. Sibling of --intern-main-loop: that operation is the
+## daemon layer and never names a payload; this one is the harness layer and
+## never knows about sleep/retry/backoff.
+##
+
+case "$1" in
+
+	--intern-root-harness)
+		shift
+
+		local rootHarnessRoutineSelector="" rootHarnessInteractive="true" rootHarnessWaitFlag=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--routine)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD --intern-root-harness: ⛔ ERROR: --routine requires <selector>" >&2
+						set +e ; return 1
+					fi
+					rootHarnessRoutineSelector="$2"
+					shift 2
+				;;
+				--non-interactive)
+					rootHarnessInteractive="false"
+					shift
+				;;
+				--wait)
+					rootHarnessWaitFlag="true"
+					shift
+				;;
+				*)
+					printf '%s\n' "$MDSC_CMD --intern-root-harness -- spawns magic-coordinator.root-harness.routine's own start. Interactive by default, with a dedicated Slack thread; --non-interactive runs one loop and exits." >&2
+					printf '%s\n' "" >&2
+					printf '%s\n' "  $MDSC_CMD --intern-root-harness [--routine <selector>] [--non-interactive] [--wait]" >&2
+					printf '%s\n' "      --routine <selector> names the routine to run meanwhile, between root-harness's own loop iterations (for example: heartbeat). Omitted: no payload routine." >&2
+					printf '%s\n' "      --non-interactive: one loop, then exit, posting to the event-track channel. Omitted: interactive, keeps looping, posts to the magic-team channel." >&2
+					printf '%s\n' "      --wait: block for the spawned session's own completion and return its status, same contract --intern-op-agent-spawn-proxy already gives." >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		set +e
+
+		## The spawn brief is a real file, shipped with the code and read
+		## unchanged -- a payload routine's own brief block is generated and
+		## prepended by the spawn proxy itself (its own --routine handling),
+		## so this file never varies per invocation and stays a plain cat.
+		local rootHarnessBriefFile="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/dispatches/root-harness-session-start.prompt-packet.verbatim.md"
+		if [ ! -r "$rootHarnessBriefFile" ] || [ ! -s "$rootHarnessBriefFile" ] ; then
+			echo "$MDSC_CMD --intern-root-harness: ⛔ ERROR: spawn brief missing, empty or unreadable: $rootHarnessBriefFile" >&2
+			return 1
+		fi
+
+		## The one fact this op adds ahead of the static brief: whether this
+		## particular start is interactive. root-harness.routine's own Steps
+		## read it to pick their interactive/non-interactive branch.
+		local rootHarnessModeLine rootHarnessSessionThread
+		if [ "$rootHarnessInteractive" = "true" ] ; then
+			rootHarnessModeLine="INTERACTION-MODE: interactive -- keep looping, with a dedicated Slack thread for interaction."
+			rootHarnessSessionThread="magic-team"
+		else
+			rootHarnessModeLine="INTERACTION-MODE: non-interactive -- run one loop, then exit."
+			rootHarnessSessionThread="event-track"
+		fi
+
+		local rootHarnessSpawnArgs=( --magic-heartbeat-spawn-proxy magic-coordinator "--session-thread:$rootHarnessSessionThread" )
+		[ -z "$rootHarnessRoutineSelector" ] || rootHarnessSpawnArgs+=( --routine "$rootHarnessRoutineSelector" )
+		[ -z "$rootHarnessWaitFlag" ] || rootHarnessSpawnArgs+=( --wait )
+
+		{ printf '%s\n\n' "$rootHarnessModeLine" ; cat "$rootHarnessBriefFile" ; } | DistroAgentsTools "${rootHarnessSpawnArgs[@]}"
+		return $?
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+esac
