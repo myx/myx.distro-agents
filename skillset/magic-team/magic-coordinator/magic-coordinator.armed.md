@@ -383,7 +383,7 @@ Current, authoritative index of what's built:
 - `magic-coordinator.root-harness.routine` - Routine description is in `magic-coordinator.root-harness.routine` file.
 Four of these are structured routines: `magic-coordinator.daily.routine`, `magic-coordinator.retro.routine`, `magic-team.grooming.routine` (`magic-coordinator` + `magic-librarian` + `magic-architect` jointly), `magic-coordinator.one-on-one.routine`.
 
-The board is the sole live backlog/status source (folder-state model — `board-backlog`/`board-pending`/`board-running`/`board-blocked`/`board-parked`/`board-processed`/`board-archived`/`board-retained` — defined in `magic-team/magic-team.board.md`, not restated here).
+The board is the sole live backlog/status source (folder-state model — `board-backlog`/`board-pending`/`board-running`/`board-review`/`board-blocked`/`board-parked`/`board-processed`/`board-archived`/`board-retained` — defined in `magic-team/magic-team.board.md`, not restated here).
 
 Per-platform sweep state (check markers, capability gaps) lives as structured fields in the `sweep-state-note`, read via the `--magic-sweep-state-read` operation and rewritten via `--magic-sweep-state-upsert`; open/closed thread tracking lives on the owning `board-item`s directly (`communication-channel-id`). `magic-coordinator.communication-sweep.routine` reads/writes those, same ownership (`magic-librarian`).
 

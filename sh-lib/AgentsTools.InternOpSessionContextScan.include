@@ -60,7 +60,7 @@ case "$1" in
 						set +e ; return 1
 					fi
 					case "$2" in
-						backlog|pending|running|blocked|parked|processed|archived|retained)
+						backlog|pending|running|review|blocked|parked|processed|archived|retained)
 						;;
 						*)
 							echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --state: invalid state: $2" >&2
@@ -292,11 +292,11 @@ case "$1" in
 			owner="$actingMember"
 			local boardRelatedStates=()
 			if [ "$doBoardRelatedAll" = "true" ] ; then
-				boardRelatedStates=( backlog pending running blocked parked processed archived retained )
-				boardRelatedStatesText="backlog|pending|running|blocked|parked|processed|archived|retained"
+				boardRelatedStates=( backlog pending running review blocked parked processed archived retained )
+				boardRelatedStatesText="backlog|pending|running|review|blocked|parked|processed|archived|retained"
 			else
-				boardRelatedStates=( backlog pending running blocked parked )
-				boardRelatedStatesText="backlog|pending|running|blocked|parked"
+				boardRelatedStates=( backlog pending running review blocked parked )
+				boardRelatedStatesText="backlog|pending|running|review|blocked|parked"
 			fi
 			if [ ${#states[@]} -gt 0 ] ; then
 				local statesGiven="" statesWanted="" sg

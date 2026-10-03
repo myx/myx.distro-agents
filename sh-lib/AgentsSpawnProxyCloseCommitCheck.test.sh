@@ -3,6 +3,8 @@
 ## clean, on every way a spawn ends: a failing child, an interrupt while waiting, and the
 ## async branch once its subshell finishes. A fake DistroAgentsConsole.sh stands in for
 ## the CLI; MDAT_DATA_ROOT is a temp git store this rig creates -- never the real data.
+## Also covers board-review: a created dispatch item's close destination, a reused item's
+## no-move, and the review-by header's two forms (bare session-id, or absent).
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigFn="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -46,10 +48,33 @@ rigLogCommitted(){ ## proxy stdout file
 	case "$logPath" in audit/*/*.output.log) ;; *) printf "not-under-audit: $logPath" ; return 0 ;; esac
 	[ -n "$( git -C "$rigStore" ls-files -- "$logPath" )" ] && printf committed || printf "not-committed: $logPath"
 }
+## The dispatch item's own name, as the proxy reported it on --dispatch-doc:create.
+rigDispatchItem(){ ## proxy stdout file
+	LC_ALL=C sed -n 's/^DISPATCH_ITEM=//p' "$1" | head -1
+}
+## Which board/<state>/ folder, if any, actually holds a named item right now.
+rigItemBoardState(){ ## item filename
+	local stateDir
+	for stateDir in "$rigStore"/board/*/ ; do
+		[ -f "$stateDir$1" ] && { basename "$stateDir" ; return 0 ; }
+	done
+	printf 'not-found'
+}
 rigProxy(){ ## child behaviour, stdout file, extra proxy args...
 	local proxyChild="$1" proxyOut="$2" ; shift 2
-	printf 'rig context' | ( cd "$rigTmp/ws" && env -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID RIG_CHILD="$proxyChild" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigStore" \
+	## RIG_PARENT_SESSION, unset/empty by default, feeds MDAT_SPAWN_SESSION_ID below --
+	## empty and unset read the same to the proxy's own "${VAR:-...}" default. Both it
+	## and CLAUDE_CODE_SESSION_ID are covered: an ambient one must never leak into a rig
+	## meant to control parentSessionId itself (the review-by cases further down do).
+	printf 'rig context' | ( cd "$rigTmp/ws" && env -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_SESSION_ID RIG_CHILD="$proxyChild" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigStore" \
+		MDAT_SPAWN_SESSION_ID="${RIG_PARENT_SESSION:-}" \
 		bash "$rigFn" --intern-op-agent-spawn-proxy magic-tester --dispatch-doc:create "$@" ) > "$proxyOut" 2> "$proxyOut.err"
+}
+## Same shape, --dispatch-doc:reuse against an item already sitting in some board state.
+rigProxyReuse(){ ## stdout file, item filename, extra proxy args...
+	local proxyOut="$1" proxyItem="$2" ; shift 2
+	printf 'rig context' | ( cd "$rigTmp/ws" && env -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigStore" \
+		bash "$rigFn" --intern-op-agent-spawn-proxy magic-tester --dispatch-doc:reuse --from-board "$proxyItem" "$@" ) > "$proxyOut" 2> "$proxyOut.err"
 }
 
 echo "-- a failing child, waited on --"
@@ -57,6 +82,26 @@ rigProxy fail "$rigTmp/f" --wait
 rigAssert "the proxy reports the failure"              "$( LC_ALL=C grep -c '^EXIT_CODE=3$' "$rigTmp/f" )" 1
 rigAssert "its output log is committed"                "$( rigLogCommitted "$rigTmp/f" )" committed
 rigAssert "and the store is clean"                     "$( rigClean )" clean
+rigAssert "a created dispatch item closes into board/review" \
+	"$( rigItemBoardState "$( rigDispatchItem "$rigTmp/f" )" )" review
+
+echo "-- a reused tracking item: the close never moves it --"
+mkdir -p "$rigStore/board/blocked"
+printf -- '---\ntype: task\nowner: rig\n---\n\nreuse me\n' > "$rigStore/board/blocked/task-rig-reuse.md"
+git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "seed reused item"
+rigProxyReuse "$rigTmp/r" task-rig-reuse.md --wait
+rigAssert "the reuse close reports no error"           "$( LC_ALL=C grep -c '^TRACKING_ITEM=task-rig-reuse\.md$' "$rigTmp/r" )" 1
+rigAssert "the reused item stays in its own state"      "$( rigItemBoardState task-rig-reuse.md )" blocked
+rigAssert "and the store is clean"                     "$( rigClean )" clean
+
+echo "-- review-by: bare session-id when the parent session is set --"
+RIG_PARENT_SESSION="rig-parent-session-uuid-1234" rigProxy fail "$rigTmp/pb" --wait
+rigAssert "review-by carries the parent session id"    "$( LC_ALL=C grep -c -x -F 'review-by: rig-parent-session-uuid-1234' "$rigStore/board/review/$( rigDispatchItem "$rigTmp/pb" )" )" 1
+
+echo "-- review-by: absent when the parent session is empty --"
+unset RIG_PARENT_SESSION
+rigProxy fail "$rigTmp/pe" --wait
+rigAssert "no review-by header is written"             "$( LC_ALL=C grep -c '^review-by:' "$rigStore/board/review/$( rigDispatchItem "$rigTmp/pe" )" )" 0
 
 echo "-- an interrupt while waiting --"
 set -m

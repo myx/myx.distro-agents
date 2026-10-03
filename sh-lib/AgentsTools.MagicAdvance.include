@@ -133,7 +133,7 @@ case "$1" in
 		## reflections and the client-* inboxes are read by --magic-grooming-input-scan.
 		printf '\n%s\n\n' "## board digest"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
-			--state pending --state running --state blocked --state parked \
+			--state pending --state running --state review --state blocked --state parked \
 			--all-types \
 			--no-inbox-inquiry \
 			--no-inbox-reflections \

@@ -64,7 +64,7 @@ AgentsToolsSpawnProxyAnnounceCli(){
 ## as a side effect of spawning.
 AgentsToolsSpawnProxyBoardStateOf(){ ## item-filename
 	local stateName
-	for stateName in running pending backlog blocked parked processed archived retained ; do
+	for stateName in running pending review backlog blocked parked processed archived retained ; do
 		if [ -f "$MDAT_DATA_ROOT/board/$stateName/$1" ] ; then
 			printf '%s' "$stateName"
 			return 0
@@ -81,11 +81,12 @@ AgentsToolsSpawnProxyCloseDispatch(){
 	## Where the closed item rests, named by the caller rather than derived here.
 	## Defaults to no move, so a caller naming no target keeps what it had: a
 	## REUSED document belongs to a caller and is never relocated by a spawn
-	## closing. One this op created itself moves to `pending`, so `running` holds
-	## only sessions that are actually running. It stops at `pending` and not at
+	## closing. One this op created itself moves to `review`, so `running` holds
+	## only sessions that are actually running. It stops at `review` and not at
 	## `processed` because grooming owns entry to that state -- human-owner ruling,
 	## 2026-09-23: "grooming owns the state - but spawn moves to pending - ok? so
-	## grooming sees". This op marks and parks; it never adjudicates the close.
+	## grooming sees" -- board-review now sits between them, entered here and left
+	## only by a reviewer's own reject/accept. This op marks and parks; it never adjudicates the close.
 	local itemTargetState="${7:-$itemState}"
 	local currentBody resultBody
 	currentBody="$( DistroAgentsTools --intern-op-data-read "$itemName" \
@@ -374,7 +375,7 @@ case "$1" in
 				;;
 				--board-state)
 					case "$2" in
-						backlog|pending|running|blocked|parked|processed|archived|retained)
+						backlog|pending|running|review|blocked|parked|processed|archived|retained)
 							boardStates+=( "$2" )
 						;;
 						*)
@@ -577,7 +578,7 @@ case "$1" in
 				trackedItemName="$fromBoardName"
 				AgentsToolsAssertBareName "$fromBoardName" "<board-item-name>" agent-spawn-proxy || { set +e ; return 1 ; }
 				if [ ${#boardStates[@]} -eq 0 ] ; then
-					boardStates=( backlog pending running blocked parked processed archived retained )
+					boardStates=( backlog pending running review blocked parked processed archived retained )
 				fi
 				local readArgs=( --intern-op-data-read "$fromBoardName" --context "$opContext" ) boardState
 				for boardState in "${boardStates[@]}" ; do
@@ -776,6 +777,10 @@ case "$1" in
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
 				set +e ; return 1
 			}
+			## review-by, bare session-id form only: parentSessionId is who asked for this
+			## spawn, not who it runs as. Empty means this op cannot name a requester -- no
+			## header is written rather than guessing one (open question, not yet answered:
+			## how a caller with no parent session passes one).
 			printf '%s\n' "$dispatchBriefBody" | DistroAgentsTools --intern-op-board-upsert-move-edit running "$dispatchItemName" \
 				--create \
 				--context "$opContext" \
@@ -785,6 +790,7 @@ case "$1" in
 				--header:upsert:session-id:"$sessionId" \
 				--header:upsert:spawn-id:"$MDAT_SPAWN_SESSION_ID" \
 				${trackedItemName:+--header:upsert:tracks:"${trackedItemName%.md}"} \
+				${parentSessionId:+--header:upsert:review-by:"$parentSessionId"} \
 				--log-verb:created || {
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: could not create dispatch tracking item $dispatchItemName" >&2
 				set +e ; return 1
@@ -1161,7 +1167,7 @@ case "$1" in
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$spawnOutcome" "$exitCode"
 			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile"
 			if [ "$dispatchDocMode" = "create" ] ; then
-				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running pending
+				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running review
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
 				## The item's own state, never `running`: closing a spawn must not move
 				## a caller's backlog or parked item into the running column.
@@ -1239,7 +1245,7 @@ case "$1" in
 				--context --intern-op-agent-spawn-proxy 2>/dev/null )" || spawnCollected=""
 			AgentsToolsSpawnProxyOpenQuestionWarn "$sessionThread" "$callerName" "$spawnCollected"
 			if [ "$dispatchDocMode" = "create" ] ; then
-				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running pending
+				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running review
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$bgExitCode" "$outputFile" "$bgOutcome" "$trackedItemState"
 			fi

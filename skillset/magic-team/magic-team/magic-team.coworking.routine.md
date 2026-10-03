@@ -39,6 +39,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - actively keeps the session's own goal on track
    - redirects when the work's shape drifts
    - makes the real-time judgment calls a solo dispatch would otherwise leave to whichever single member was assigned
+   - carries a participant's own stuck point through to a real outcome, never leaving it for that participant alone to solve
 5. **work-the-shared-task**: however the actual collaboration shape needs to happen for this specific goal — sequential handoffs, parallel sub-pieces reconciled at the end, live back-and-forth — this step is deliberately not prescriptive about the *mechanics* of collaborating, since that's genuinely task-dependent.
 6. **batch-then-test-knowledge-changes**: batch-then-test floor, specifically for magic-team knowledge changes (routines/skills/rules/process-flow files — `SKILL.md` and its typed siblings, shared team docs; not a ceiling on how a session may work, a minimum for this specific kind of change): accumulate a batch of related knowledge changes first, rather than treating every single minor edit mid-session as its own tested unit. Between batches, steps:
    - close out any sub-spawned sessions from the finishing batch

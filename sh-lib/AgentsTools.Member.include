@@ -261,7 +261,7 @@ case "$1" in
 			case "$1" in
 				--board-state)
 					case "$2" in
-						backlog|pending|running|blocked|parked|processed|archived|retained)
+						backlog|pending|running|review|blocked|parked|processed|archived|retained)
 							boardStates+=( "$2" )
 						;;
 						*)
@@ -293,7 +293,7 @@ case "$1" in
 			fi
 		fi
 		if [ ${#boardStates[@]} -eq 0 ] ; then
-			boardStates=( backlog pending running blocked parked processed archived retained )
+			boardStates=( backlog pending running review blocked parked processed archived retained )
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
 			echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: MDAT_DATA_ROOT is not set" >&2
@@ -471,7 +471,7 @@ case "$1" in
 
 		## Every non-terminal state, owner-filtered, and the member's whole own inbox: the item's own terms.
 		DistroAgentsTools --intern-op-session-context-scan "$memberName" \
-			--state backlog --state pending --state running --state blocked --state parked \
+			--state backlog --state pending --state running --state review --state blocked --state parked \
 			--all-types --filter-owner "$memberName" \
 			--do-inbox-reflections \
 			--do-inbox-notes \

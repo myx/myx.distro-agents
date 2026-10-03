@@ -2120,7 +2120,7 @@
 		--magic-grooming-input-scan <team-member>
 			Read-only: lists board items as `<state>/<item-filename>`,
 			one per line, with every frontmatter field. Always scans
-			backlog/pending/running/blocked/parked. Use this to find
+			backlog/pending/running/review/blocked/parked. Use this to find
 			an item's actual current state before calling
 			`--magic-grooming-to-*`. Also returns routine-grooming's
 			own state-and-lock note content ahead of the board rows
@@ -2137,8 +2137,8 @@
 			into a client inbox.
 
 		--magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]
-			Read-only combined check: backlog/pending/running/blocked
-			board items (not parked), the calling member's own
+			Read-only combined check: backlog/pending/running/review/
+			blocked board items (not parked), the calling member's own
 			watched sources, and every client-* member's own
 			sources, each under that member's own credentials.
 			Returns only items whose channel id is the
@@ -2475,7 +2475,7 @@
 			nothing in it, a not-yet-created inbox/ included, prints a note
 			saying so, not an error. Inquiries and
 			other inbox items are not returned. Then its board items:
-			pending/running/blocked, restricted to the items owned by
+			pending/running/review/blocked, restricted to the items owned by
 			<team-member>, every board-item type, every frontmatter field,
 			no body; where it owns none, this part prints nothing.
 			<team-member> must be a real member skill directory,
@@ -2564,7 +2564,7 @@
 		--magic-advance-input-scan <team-member>
 			Read-only: routine-advance's own board scan (the same scan
 			routine-update-board and routine-heartbeat read). Scans
-			pending/running/blocked/parked, every board-item type, every
+			pending/running/review/blocked/parked, every board-item type, every
 			frontmatter field -- not backlog, which is
 			--magic-grooming-input-scan's. Each row is labelled
 			`<state>/<item-filename>`; a caller needing a narrower view
@@ -2774,8 +2774,8 @@
 			member's own identity — recorded in the git-commit message once
 			team-data is git-tracked, otherwise unused;
 			<board-state> is the item's current real board state
-			(backlog/pending/running/blocked/parked/processed/archived/
-			retained); <item-name> is a bare filename. Thin wrapper.
+			(backlog/pending/running/review/blocked/parked/processed/
+			archived/retained); <item-name> is a bare filename. Thin wrapper.
 
 			--untrash restores instead: on a store with no git, it moves
 			trash/<item-name> back into board/<board-state>/, and refuses

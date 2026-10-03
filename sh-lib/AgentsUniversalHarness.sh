@@ -1700,12 +1700,12 @@ AgentsHarnessDispatchItemPath(){ ## handle
 	case "$handleText" in
 		''|*/*|*..*) return 0 ;;
 	esac
-	for dispatchState in running pending blocked parked processed archived retained backlog ; do
+	for dispatchState in running pending review blocked parked processed archived retained backlog ; do
 		[ -f "$MDAT_DATA_ROOT/board/$dispatchState/$handleText" ] || continue
 		printf '%s' "$MDAT_DATA_ROOT/board/$dispatchState/$handleText"
 		return 0
 	done
-	for dispatchState in running pending blocked parked processed archived retained backlog ; do
+	for dispatchState in running pending review blocked parked processed archived retained backlog ; do
 		for dispatchFile in "$MDAT_DATA_ROOT"/board/"$dispatchState"/dispatch-*.md ; do
 			[ -f "$dispatchFile" ] || continue
 			dispatchFiles+=( "$dispatchFile" )

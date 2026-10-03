@@ -107,7 +107,7 @@ case "$1" in
 		## states, never processed/archived/retained). The agent filters these
 		## for relevance itself -- this emits the raw open set to filter from.
 		local warnState warnFile warnLines=""
-		for warnState in backlog pending running blocked parked ; do
+		for warnState in backlog pending running review blocked parked ; do
 			for warnFile in "$MDAT_DATA_ROOT/board/$warnState"/warning-*.md ; do
 				[ -e "$warnFile" ] || continue
 				warnLines="$warnLines- ${warnFile##*/} [$warnState]"$'\n'

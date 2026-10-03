@@ -86,7 +86,7 @@ case "$1" in
 
 		local phaseAOutput
 		phaseAOutput="$( DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
-			--state backlog --state pending --state running --state blocked \
+			--state backlog --state pending --state running --state review --state blocked \
 			--header communication-channel-id \
 			--all-types \
 			--no-slack --no-email --no-trello \
@@ -114,7 +114,7 @@ case "$1" in
 		## own partial note rather than reporting silence.
 		local commsArgs=( --do-all --do-slack-tags "${commsCutoffArgs[@]}" )
 
-		local phaseBArgs=( --state backlog --state pending --state running --state blocked ) n
+		local phaseBArgs=( --state backlog --state pending --state running --state review --state blocked ) n
 		while IFS= read -r n ; do
 			if [ -n "$n" ] ; then phaseBArgs+=( --item "$n" ) ; fi
 		done < <( sort -u <<< "$survivorNames" )

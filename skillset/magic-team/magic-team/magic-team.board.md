@@ -13,7 +13,7 @@ This file's own content is binding and obligatory on every team member who reads
 
 **`magic-coordinator`'s write authority is exclusive over the board — full stop.** Same structural shape as the "sole mandated channel to the human-owner" rule (`magic-coordinator/magic-coordinator.armed.md`'s Local rules). Covers:
 - Creating a `board-item`.
-- Moving one between states: `board-running`, `board-blocked`, `board-parked`, `board-processed`, `board-archived`, `board-retained`.
+- Moving one between states: `board-running`, `board-review`, `board-blocked`, `board-parked`, `board-processed`, `board-archived`, `board-retained`.
 - Scoring one (RICE).
 - This file itself.
 
@@ -89,12 +89,20 @@ All four are equally valid; none is the "real" or "canonical" one. **Not the sam
   - Re-visited periodically (typically at grooming) to check whether the trigger condition has arrived — that check is itself passive (has it happened yet?), not an active push; if the team decides it never will, that's when it moves to `board-archived`, not before.
   - **Not the same as `board-blocked`**: parked items aren't waiting on anyone else, the team is simply choosing not to work them yet.
   - Reachable from `board-running` directly (a fresh deferral decision), or from `board-blocked` (the team stops actively chasing a resolution and decides to just wait instead — same destination, different starting point).
+- **`board-review`**
+  - Sits in the flow `board-running` → `board-review` → `board-processed`. Entered when a dispatch's spawn-proxy close marks the dispatch finished — that close now targets `board-review` instead of `board-pending`.
+  - Carries the `review-by` header, written by the proxy at create time. Four forms: the literal `human-owner`, a bare `<team-member>` name, a bare `<session-id>` uuid, or `<session-id>:<team-member>` together.
+  - **No staleness check, unlike `board-blocked`/`board-parked`.** Entering this state fires one notice, once, to whoever `review-by` names (planned, not yet built). Nothing polls it afterward — only the reviewer's own move below resolves it.
+  - **review-rejection** — moves the item back to `board-running`, with the reviewer's own comments appended to that same item's body.
+  - **review-acceptance** — moves the item to `board-processed`. Nothing further is wanted from this dispatch.
+  - No `review-verdict` header, or any other stored verdict — the outcome is which of the two moves above actually happened, never a stored field.
 - **`board-processed`**
   - Terminal, resolved state. Covers both successfully-completed items *and* denied items — there is no separate `done/` folder.
   - Both get grooming's resolution text appended plus a substantive reply logged (as many reply rounds as actually happened over the item's life).
   - Reached either:
     - Directly — a quick denial matching an obvious rule in `magic-coordinator/magic-coordinator.armed.md`'s "Dispatch & delegation" section, no deep work needed.
     - Via `board-running`'s own testing round — a testing round confirms a completion claim clean, and either no human-owner approval is warranted, or the human-owner has since approved a `board-blocked` item that was awaiting exactly that (see `board-running` above) — then the item moves here and statuses update.
+    - Via `board-review`'s own review-acceptance — the item's own reviewer accepted it; see `board-review` above.
   - **Before filing anything here (or into any archive-style migration), verify it's actually closed — don't mechanically relocate content just because it's old.** Ask concretely: does this content describe work that's actually finished, or does it just happen to be old? If any part is still open/actionable, that part needs its own live tracked item (`board-running`/`board-blocked`-equivalent), not just a historical note — even when most of the surrounding content really is closed. Don't trust a dispatch instruction's mention of this check to have been followed just because it was written in the prompt — verify it was actually applied, especially across a bulk/repetitive migration where the same mistake can repeat silently many times.
 - **Ignored** items do not go to `board-processed` — removed from the board entirely instead, no resolution text, nothing else kept.
 - **`board-archived`** — terminal, with two distinct populations:

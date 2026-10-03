@@ -519,6 +519,12 @@ The human-owner's requirement: all logical moving operations stamp their operati
 - `--magic-grooming-*` stamps `owner`, `groomed-at`, `groomed-from` and `track`. A create arm stamps no `groomed-from`: a created item moved from nowhere, and a sentinel there records a transition that never happened.
 - `--magic-grooming-to-processed`/`-create-processed` stamp `processed-at`, which records when the item entered `board-processed`. `groomed-at` is not that fact — a same-state patch re-stamps it, so it drifts forward and cannot answer how long an item has been processed.
 
+## `board-review` is entered by the spawn-proxy only, never by a caller-facing mover
+
+- `AgentsToolsSpawnProxyCloseDispatch`'s two create-mode call sites in `AgentsTools.InternOpAgentSpawnProxy.include` pass `review` as `itemTargetState` where they used to pass `pending`. Human-owner ruling, 2026-10-03: one new state, one new header, nothing else — so no `--magic-board-to-review`/`--magic-grooming-to-review` stub exists or is wanted. `--intern-op-board-upsert-move-edit` accepts `review` as both `--to-state` and `--from-state`, which is what lets every existing mover already reachable from `running` or into `processed` carry a review item without a dedicated op.
+- `review-by` is written by the same create-mode call, only when `parentSessionId` is non-empty, as the bare session-id form. An empty `parentSessionId` writes no `review-by` and invents no default, matching this package's own "absence of evidence is kept, not guessed at" habit — how a caller with no parent session identifies itself is still an open question.
+- Exception to "grooming owns entry to `processed`" (the ruling the comment above `AgentsToolsSpawnProxyCloseDispatch` already records): a reviewer's accept moves `board-review` straight to `board-processed`, human-owner ruling, 2026-10-03. Reject moves it back to `board-running` instead, with the reviewer's comments appended to the same item. There is no `review-verdict` header; which action was taken is the only record of the outcome.
+
 ## A routine's own lock note, and why its header order is load-bearing
 
 - Every routine locks against its own fixed note, whose filename is hardcoded in that routine's own stub and is never a caller argument, so no caller can point one routine's lock at another's.

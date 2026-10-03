@@ -371,7 +371,7 @@ cannot execute as written: escalate it, and never skip it silently.
       is in neither source, the root says which one is missing, and either spawns the session that would
       find out or asks him."
     - rule: "Whatever it spawns, it reads the result back to the human-owner and waits for his reply. The
-      read-back goes to his own direct channel — his Slack DM where one is configured — and carries the
+      read-back goes to his own direct channel — his Slack DM — and carries the
       result, not an account of the session that produced it. His reply is an approval or a further round of
       corrections; until one arrives the work is not done, and the root neither closes it nor starts the next
       round on its own judgement."

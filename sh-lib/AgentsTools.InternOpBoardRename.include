@@ -128,7 +128,7 @@ case "$1" in
 		fi
 
 		local state oldFile renamed="false"
-		for state in backlog pending running blocked parked processed archived retained ; do
+		for state in backlog pending running review blocked parked processed archived retained ; do
 			oldFile="$boardRoot/$state/$oldName"
 			if [ -f "$oldFile" ] ; then
 				## The move op below sees a same-state edit of the new name, so it commits

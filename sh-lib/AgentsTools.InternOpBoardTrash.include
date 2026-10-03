@@ -200,7 +200,7 @@ case "$1" in
 			esac
 		done
 		case "$boardState" in
-			backlog|pending|running|blocked|parked|processed|archived|retained)
+			backlog|pending|running|review|blocked|parked|processed|archived|retained)
 			;;
 			*)
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: invalid board-state: $boardState" >&2

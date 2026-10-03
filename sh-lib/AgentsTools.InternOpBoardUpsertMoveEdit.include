@@ -33,7 +33,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		case "$toState" in
-			backlog|pending|running|blocked|parked|processed|archived|retained)
+			backlog|pending|running|review|blocked|parked|processed|archived|retained)
 			;;
 			*)
 				echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: invalid to-state: $toState" >&2
@@ -59,7 +59,7 @@ case "$1" in
 				--from-state:*)
 					fromState="${1#--from-state:}"
 					case "$fromState" in
-						backlog|pending|running|blocked|parked|processed|archived|retained)
+						backlog|pending|running|review|blocked|parked|processed|archived|retained)
 						;;
 						*)
 							echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --from-state: invalid state: $fromState" >&2

@@ -172,7 +172,7 @@ AgentsToolsFinalGcDivertBoardItem(){
 ## `blocked-by`/`spawned-by` frontmatter. One awk pass over all live states at
 ## once, `.md`-normalised there (both fields carry bare names, with or without
 ## the extension) and `sort -u`'d.
-## Live is board/{backlog,pending,running,blocked,parked,archived}. processed/
+## Live is board/{backlog,pending,running,review,blocked,parked,archived}. processed/
 ## and retained/ are excluded BY SPECIFICATION, not by omission: a pointer from
 ## a concluded or already-diverted item never qualifies, which is what stops two
 ## concluded items retaining each other forever. Built once per run, before the
@@ -184,7 +184,7 @@ AgentsToolsFinalGcDependedNames(){
 	local boardRoot="$1"
 	local depState depFile depFiles=()
 	gcDependedNames="$LF$LF"
-	for depState in backlog pending running blocked parked archived ; do
+	for depState in backlog pending running review blocked parked archived ; do
 		for depFile in "$boardRoot/$depState"/*.md ; do
 			[ -f "$depFile" ] && depFiles+=( "$depFile" )
 		done
