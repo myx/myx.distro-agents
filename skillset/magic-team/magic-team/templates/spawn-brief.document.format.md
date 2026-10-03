@@ -28,6 +28,7 @@ SPAWN-PREPARE-BRIEF: {{member}}
 tool-routing: use the tools and MCP this session was given, in the ways your instructions prescribe. Read --member-help {{member}} when unsure how a tool works. Follow what a refused call says: the tool to use instead, or the REFUSAL-ID to escalate by. Report a blockage the prescribed way, so the tooling can be polished. Never hack around it. Do not research source code unless it is the task.
 scratchpad: your own files go in the output/ folder this dispatch's own "## Your sandbox" section names
 read-and-obey: read {{member}}.armed.md and {{routine}}, through the skillset reader, carefully and in full, before acting, and obey them.
+Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.
 executors: {{executors}}
 invitees: {{invitees}}
 ## open warning-* items

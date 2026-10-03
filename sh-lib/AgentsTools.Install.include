@@ -1793,8 +1793,9 @@ case "$1" in
 	## generated .code-workspace lists, and into the workspace root too, as
 	## <folder>/.vscode/extensions/magic-team-panel -- VS Code's local workspace extension.
 	## The root link is this slot's own exception to "the workspace root is never a VS Code
-	## folder" (MAGIC.md): it is the folder start.sh's own --extensions-dir reads. Links follow
-	## --install-skillset-symlinks' own form. Needs no VS Code. Internal step of
+	## folder" (MAGIC.md): it is the folder start.sh's own --extensions-dir reads. Also linked
+	## into $HOME, since a .code-workspace file is opened directly, without start.sh. Links
+	## follow --install-skillset-symlinks' own form. Needs no VS Code. Internal step of
 	## --install-vscode-integrations, out of help. See MAGIC.md.
 	--install-vscode-magic-team-panel)
 		shift
@@ -1847,6 +1848,30 @@ case "$1" in
 		## Every folder the generated workspace file lists, and the workspace root, get the link.
 		if ! AgentsToolsVscodeFolderLinks "$panelWorkspace" "$panelHome" ".vscode/extensions/magic-team-panel" install-vscode-magic-team-panel also-root ; then
 			set +e ; return 1
+		fi
+		## Also linked into $HOME: a .code-workspace file is opened directly, without start.sh (MAGIC.md).
+		local panelHomeSlot="$HOME/.vscode/extensions/magic-team-panel"
+		mkdir -p "$HOME/.vscode/extensions" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-magic-team-panel: cannot create $HOME/.vscode/extensions" >&2
+			set +e ; return 1
+		}
+		if [ -L "$panelHomeSlot" ] && [ ! -e "$panelHomeSlot" ] ; then
+			echo "# $MDSC_CMD --install-vscode-magic-team-panel: $panelHomeSlot is a dangling symlink (points at $( readlink "$panelHomeSlot" ), which does not exist) -- reclaiming the slot" >&2
+			rm -f "$panelHomeSlot" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-vscode-magic-team-panel: failed to remove dangling symlink: $panelHomeSlot" >&2
+				set +e ; return 1
+			}
+		fi
+		if [ "$panelHomeSlot" -ef "$panelHome" ] ; then
+			echo "# $MDSC_CMD --install-vscode-magic-team-panel: $panelHomeSlot already linked" >&2
+		elif [ -e "$panelHomeSlot" ] || [ -L "$panelHomeSlot" ] ; then
+			echo "🙋 WARNING: $MDSC_CMD --install-vscode-magic-team-panel: real content at $panelHomeSlot, left untouched (outside the workspace)" >&2
+		else
+			ln -s "$panelHome" "$panelHomeSlot" || {
+				echo "⛔ ERROR: $MDSC_CMD --install-vscode-magic-team-panel: failed to create symlink: $panelHomeSlot" >&2
+				set +e ; return 1
+			}
+			echo "🔗 linked: $panelHomeSlot" >&2
 		fi
 		return 0
 	;;

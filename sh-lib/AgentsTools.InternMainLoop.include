@@ -163,10 +163,10 @@ case "$1" in
 		## (bash's own special case for that builtin) and the loop sails on to
 		## the next iteration -- forwarded to $mainLoopSpawnPid (empty during
 		## the sleep below, where a plain foreground `sleep` just dies on the
-		## signal by itself); that PID's own trap (the spawn-proxy's --wait
-		## block) forwards further down the real child chain, same pattern as
-		## the console script's own claude-streaming fix.
-		trap 'mainLoopInterrupted="true" ; [ -z "$mainLoopSpawnPid" ] || kill -TERM "$mainLoopSpawnPid" 2>/dev/null' INT TERM
+		## signal by itself); process-group, not single-pid, since the real
+		## spawn-proxy process is one more pipe-hop inside --intern-root-harness
+		## now, same reach as the pass-timeout kill further down.
+		trap 'mainLoopInterrupted="true" ; [ -z "$mainLoopSpawnPid" ] || kill -TERM -- "-$mainLoopSpawnPid" 2>/dev/null' INT TERM
 
 		## Health reporting must never kill what it reports on, so every step is swallowed:
 		## set -e is in force and a failing mktemp, write, chmod or mv would end the loop.

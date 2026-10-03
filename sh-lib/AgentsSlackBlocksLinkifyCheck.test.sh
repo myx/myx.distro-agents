@@ -68,8 +68,10 @@ rigAssert "both the opening and the stripped closing bracket stay as literal tex
 
 echo "-- valid address recognised, invalid-domain address left alone --"
 rigJson="$( rigConvert 'Contact myx@meloscope.com for help' )"
-rigAssert "a valid address becomes a mailto: link, text equal to the typed address" \
-	"$( rigHas "$rigJson" '{"type":"link","url":"mailto:myx@meloscope.com","text":"myx@meloscope.com"}' )" yes
+rigAssert "a valid address becomes bold plain text, text equal to the typed address" \
+	"$( rigHas "$rigJson" '{"type":"text","text":"myx@meloscope.com","style":{"bold":true}}' )" yes
+rigAssert "a valid address never becomes a mailto link" \
+	"$( rigHas "$rigJson" 'mailto:' )" no
 rigJson="$( rigConvert 'Try foo@localhost, nothing else' )"
 rigAssert "an address with no dot in its domain stays literal, not a link" \
 	"$( rigHas "$rigJson" '"type":"link"' )" no

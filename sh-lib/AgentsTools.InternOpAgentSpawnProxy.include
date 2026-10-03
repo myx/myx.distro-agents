@@ -1234,6 +1234,10 @@ case "$1" in
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode"
 			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile"
+			local spawnCollected=""
+			spawnCollected="$( DistroAgentsTools --intern-op-pending-reply-collect --session-id "$MDAT_SPAWN_SESSION_ID" --mark-ended \
+				--context --intern-op-agent-spawn-proxy 2>/dev/null )" || spawnCollected=""
+			AgentsToolsSpawnProxyOpenQuestionWarn "$sessionThread" "$callerName" "$spawnCollected"
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running pending
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then

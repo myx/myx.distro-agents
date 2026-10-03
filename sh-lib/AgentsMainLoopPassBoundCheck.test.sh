@@ -127,6 +127,18 @@ rigWaitFor 60 rigAtLeast 2 rigStarts
 rigAssert "the next pass proceeds"                     "$( [ "$( rigStarts )" -ge 2 ] && printf yes || printf no )" yes
 rigLoopStop
 
+echo "-- Ctrl-C interrupts the loop: no child of the spawned pass survives --"
+## No internal bound here -- only the Ctrl-C trap's own forwarding may end the pass.
+## A plain kill of its own PID, not its process group, leaves what it forked behind.
+## rigLoopStop delivers the same signal the trap handles (INT TERM share one handler),
+## to the loop's own process group, same as a real terminal's Ctrl-C would.
+rigScenario sigint 0 90
+rigLoopStart
+rigWaitFor 60 rigAtLeast 1 rigStarts || { cat "$rigDir/loop.err" >&2 ; rigRefuse "the loop never started a pass" ; }
+rigFirstPid="$( LC_ALL=C sed -n '1s/^start //p' "$rigDir/console.log" )"
+rigLoopStop
+rigAssert "a Ctrl-C style interrupt leaves no surviving child of the spawned pass" "$( kill -0 "$rigFirstPid" 2>/dev/null && printf alive || printf gone )" gone
+
 echo "-- no bound: a long pass is reported, never ended --"
 rigScenario unbounded 0 66
 rigLoopStart
@@ -157,6 +169,8 @@ rigAssert "told INTERACTION-MODE: non-interactive" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'INTERACTION-MODE: non-interactive -- run one loop, then exit.' )" 1
 rigAssert "names heartbeat as the routine to run" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-coordinator.heartbeat.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' )" 1
+rigAssert "names the shared.md sections" \
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' )" 1
 
 echo "-- --one names heartbeat as the routine to run, non-interactively --"
 rigScenario routine-one 0 1
@@ -165,6 +179,8 @@ rigAssert "told INTERACTION-MODE: non-interactive" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'INTERACTION-MODE: non-interactive -- run one loop, then exit.' )" 1
 rigAssert "names heartbeat as the routine to run" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-coordinator.heartbeat.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' )" 1
+rigAssert "names the shared.md sections" \
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' )" 1
 
 rigAssert "no request left for a real host"            "$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C grep -v -c 'slack.com/api/' || : )" 0
 

@@ -8,9 +8,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [--metadata <json>] [text...]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--format markdown|text] [--in-reply-to <message-id>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--format markdown|text] [--in-reply-to <message-id>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--format markdown|text] [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]
@@ -220,27 +220,26 @@
 ##  Options:
 
 		--console-start
-			Starts (or, for an already-alive channel on the same workspace +
-			console, reuses) a Keep-Alive console session. Prints
-			CHANNEL/CHANNEL_DIR/FIFO/LOG/CONSOLE/WORKSPACE/HOLDER_PID/CONSOLE_PID
-			to stdout. A channel dir that exists but has no live processes is
-			wiped and recreated rather than reused.
+			Starts (or reuses, for an already-alive channel on the
+			same workspace+console) a Keep-Alive console session.
+			Prints CHANNEL/CHANNEL_DIR/FIFO/LOG/CONSOLE/WORKSPACE/
+			HOLDER_PID/CONSOLE_PID to stdout. A channel dir that
+			exists with no live processes is wiped and recreated.
 
 			--override-workspace <path>
-				Target a workspace other than this tool's own ($MMDAPP). Accepted
-				by both --console-start and --console-list; the two must agree on
-				what "own workspace" means, so pass it identically to both.
+				Target a workspace other than this tool's own
+				($MMDAPP). Accepted by both --console-start and
+				--console-list; pass it identically to both.
 
 			--console DistroSourceConsole.sh|DistroDeployConsole.sh
-				Pick which console script to start. Default: whichever of
-				DistroSourceConsole.sh / DistroDeployConsole.sh exists (executable)
-				in the workspace root, tried in that order. DistroLocalConsole.sh
-				and DistroRemoteConsole.sh are not supported.
+				Which console script to start. Default: whichever
+				of the two exists executable in the workspace
+				root, tried in that order. DistroLocalConsole.sh/
+				DistroRemoteConsole.sh not supported.
 
 			--ttl <seconds>
-				Lifetime of the FIFO-holder process, i.e. how long the channel
-				stays open with no traffic before its holder exits and the console
-				sees EOF. Default: 3600.
+				Lifetime of the FIFO-holder process before the
+				channel closes on no traffic. Default: 3600.
 
 		--console-send <channel> [-- <command...>]
 			Sends one command line into an open channel's FIFO. With a
@@ -302,167 +301,99 @@
 			for those.
 
 		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
-			Posts a message, attributed to <team-member>, to one of:
-			magic-team, human-owner, event-track, event-alert, a bare
-			<conversation-id>, or <channel>:<ts> (threaded reply).
-			Resolved in that order: `:` in the target means
-			<channel>:<ts>; one of the four alias words resolves to
-			its conversation; else a token of uppercase letters and
-			digits, starting with a letter, 9+ characters, is a
-			literal conversation id. Anything else is refused,
-			nothing sent. Content comes from exactly one of: trailing
-			text args, --from-stdin, or --from-file <path>
-			(--message-from-stdin aliases --from-stdin).
-			--reply-broadcast also shows a threaded reply in the
-			channel; no effect on a top-level post.
+			Posts <text> to magic-team, human-owner, event-track,
+			event-alert, a <channel>:<ts> thread, or a bare
+			conversation id, attributed to <team-member>. Target is
+			read in that order; anything else is refused. Content is
+			exactly one of: trailing text args, --from-stdin, or
+			--from-file <path>.
 
-			--identity-bot posts as the team bot. Without it: the
-			member's own identity if it has one, else the team bot —
-			except a send to human-owner, always a user identity (the
-			member's own token, or magic-coordinator's with the
-			member named in the header and a stderr warning). Fails
-			if neither token is configured.
+			--identity-bot posts as the team bot; default is the
+			member's own identity if configured, else the bot -- a
+			send to human-owner always uses a user identity. Refused
+			if neither token is configured. <team-member> must be a
+			real member directory or the send is refused; a
+			routine-* name sends as the bot and skips that check.
 
-			Every send carries Slack metadata identifying
-			<team-member> as sender; --member-wait-for-input's peer:
-			source reads it back. --metadata <json> replaces it —
-			caller then owns keeping peer: working.
+			**Hazard: trailing text args are shell argv.** A
+			shell-meaningful character (quote, backtick, $,
+			semicolon) breaks the call before anything sends. Use
+			--from-stdin for any body that isn't a bare literal.
 
-			<team-member> must be a real member skill directory or
-			the send is refused. A name prefixed routine-* sends as
-			the team bot and skips that check (human-owner exception
-			still applies). An unrecognised --flag is refused rather
-			than read as text; literal text starting with -- must go
-			through --from-stdin or --from-file.
+			--format markdown (default) or blocks; blocks needs a
+			Block Kit JSON array via --from-stdin/--from-file only.
+			Malformed JSON, an unsupported block type, or a
+			structural rejection is refused before sending, naming
+			the problem. **Hazard: structure-only validation** --
+			Slack's own 50-block-per-message cap, 150-character
+			header limit, and each block's required fields are not
+			checked here and can still fail a validated send.
 
-			**Hazard: trailing text args are shell argv, not a safe
-			text channel.** A shell-meaningful character (apostrophe,
-			quote, backtick, $, semicolon) breaks the call with a
-			shell error before this operation runs. Use --from-stdin
-			for any body that is not a punctuation-free literal.
+			A markdown body (not blocks) is checked against the
+			team's plain-language floor first: refused, nothing
+			sent, for a sentence over 25 words, a semicolon, or a
+			listless paragraph over 150 words -- the error names the
+			finding and the sentence. Any other finding goes to
+			stderr and the send still goes through. Code
+			fences/spans and `>` quoted lines are exempt.
+			--text-group report|brief|relay narrows what's measured
+			(ignored for blocks): report/brief drop the paragraph
+			check, relay skips measurement; refused if the value is
+			unknown or the post is under the shared bot account.
 
-			--format selects the body: markdown (default) or blocks.
-			Any other value is refused, naming the accepted set.
-			blocks takes a Block Kit JSON array via
-			--from-stdin/--from-file only, never a trailing argument.
-			Malformed JSON or an unsupported block type is refused
-			before anything is sent, naming the problem.
+			--reply-broadcast also surfaces a threaded reply in the
+			channel; no effect on a top-level post. Default metadata
+			marks <team-member> as sender, read back by
+			--member-wait-for-input's peer: source; --metadata
+			<json> replaces it, caller then owns keeping peer:
+			working. --message-text/--message-text-from-file sets a
+			blocks message's plain-text fallback; omitted, one is
+			generated from the blocks. --address-to
+			<member|user-id|conversation-id|email>, repeatable,
+			names who the message is for: a member name mentions
+			that member (unknown name fails the send, no alias falls
+			back to its name), a U-id becomes a mention, a C/D/G-id
+			is used as given, an email is recorded but not
+			mentioned.
 
-			Both formats are validated before sending; a rejection
-			names its path in the array and nothing is sent. Not
-			every Slack rejection is caught this way: the
-			50-block-per-message cap, the 150-character header
-			limit, and each block type's own required fields are
-			Slack's own checks, not this operation's.
+			Every message opens `[<from> ]→ <to>. ` -- <to> is
+			always shown (`@here` with no --address-to), <from> only
+			when posting as someone other than the member. One ASCII
+			line: cut at the first `. ` and split on `→`.
 
-			A send Slack itself refuses (e.g. invalid_blocks), or an
-			unreachable or archived conversation, is not retried and
-			sends no stuck-comms email. Only a send that exhausts its
-			transport retries triggers that email — a notice, never a
-			delivery — and the exit status always reports whether
-			Slack got the message.
-
-			**A markdown body is checked against the team's
-			plain-language floor before sending (a blocks body is
-			not).** Refused, nothing posted, for: a sentence over 25
-			words, a semicolon, or a listless paragraph over 150
-			words. The error names the finding and the sentence it
-			fired on. Any other finding goes to stderr and the send
-			still goes through. Code fences, code spans and `>`
-			quoted lines are exempt.
-
-			--text-group report|brief|relay changes what is measured
-			in a markdown body (ignored for blocks): report and
-			brief drop the paragraph check only; relay skips
-			measurement. Refused, nothing posted, if the declaration
-			can't be recorded, the post is under the shared team-bot
-			account (text-group always refused there), or the value
-			names no group.
-
-			--message-text <text> / --message-text-from-file <path>
-			set the text version of a blocks message, optional:
-			omitted, one is generated from the blocks; given, used
-			verbatim. Give what the message says, in plain text.
-
-			The generated text version keeps every structured
-			element as text: a mention as <@Uxxx>, a broadcast as
-			<!here>, a channel as <#Cxxx>, an emoji as its character,
-			a link as its visible text. An element with no text form
-			shows a placeholder and a stderr note.
-
-			--address-to <member|user-id|conversation-id>,
-			repeatable, names who the message is for, separate from
-			the target. Read from the argument: a team member name
-			carries that member's identity marks into both versions;
-			a U… id becomes a user mention; a C…/D…/G… id is used as
-			given; an email address is recorded but not mentioned.
-			An unknown member name fails the send; a member with no
-			or malformed alias falls back to its name and still
-			sends.
-
-			**Every message opens with a one-line header:**
-
-				[<from> ]→ <to>. <body>
-
-			Each field reads `<icon> <team-member> @<alias>`;
-			several addressees join with `; `. <to> is always shown —
-			plain `→ @here` with no --address-to given. <from> is
-			shown only when the posting account is not the member's
-			own. The header is one ASCII line, so a caller can cut it
-			at the first `. ` and split on `→`.
-
-			**In-body mentions.** A bare `@name` anywhere in a
-			markdown body resolves to a real mention when the name
-			matches, else stays literal, and never fails the send;
-			inside a code span or fenced block it stays literal too.
-			The token runs from `@` to whitespace, so a trailing
+			A bare `@name` in a markdown body becomes a real mention
+			if it matches a member, else stays literal (same inside
+			a code span or fenced block), and never fails the send.
+			The token runs to the next whitespace, so a trailing
 			comma or a space in the display name breaks the match.
 
-			**Markdown body: CommonMark emphasis.** One delimiter
-			(`*x*`/`_x_`) is italic, two is bold, both together bold
-			italic. `_` will not open inside a word. Nested emphasis
-			flattens to one combined style. Backtick, apostrophe and
-			double quote do not act as emphasis boundaries; a
-			backtick-quoted span is always verbatim. A backslash
-			escapes the punctuation right after it (`\*`, `` \` ``,
-			`\@`, `\[`, `\|` for a literal pipe in a table cell) —
-			elsewhere left as written.
+			Markdown: `*x*`/`_x_` is italic, doubled is bold, both
+			is bold italic; nested emphasis flattens; backtick/quote
+			marks aren't emphasis boundaries; `\` escapes the
+			punctuation after it (`\|` for a literal pipe in a table
+			cell). `[text](url)` and a bare URL become real links; a
+			bare email becomes bold text, never a link; anything
+			malformed stays literal; links are inert in code/fenced
+			text or a `#` header. A GitHub-style pipe table becomes
+			a real Slack table (`:---`/`:---:`/`---:` set
+			alignment); a ragged table is padded, never refused; a
+			`|` inside a code span still splits the cell, use `\|`.
+			**Hazard**: Slack's own table limits -- 100 rows, 20
+			cells per row, 10,000 characters -- are checked before
+			sending and fail the send by name.
 
-			`[text](url)` becomes a real link. A bare
-			`http://`/`https://` url or bare email also auto-links
-			(email becomes `mailto:`), each read to the next
-			whitespace and trimmed of trailing punctuation — url
-			matched first, so `https://user@host/path` stays one
-			link. Anything malformed stays literal text rather than
-			failing the send. A link is inert inside a code span,
-			fenced block, or `# ` header.
+			Prints SENT_MESSAGE_CHANNEL, SENT_MESSAGE_TS,
+			SENT_MESSAGE_THREAD_TS, SENT_MESSAGE_ADDRESSEES to
+			stderr (stdout is the raw response body). The first
+			three print empty with a `#` comment if the response
+			carries no readable channel+ts -- the message still
+			sent. SENT_MESSAGE_ADDRESSEES is empty when no addressee
+			resolved.
 
-			A GitHub-style pipe table (header row, `|---|---|` row,
-			data rows) becomes a real Slack table;
-			`:---`/`:---:`/`---:` set column alignment. A ragged
-			table is padded to its widest row, never refused. A cell
-			splits on `|` before inline styles are parsed, so a `|`
-			inside a code span still ends the cell — use `\|` for a
-			literal pipe. Slack's own table limits — 100 rows, 20
-			cells per row, 10,000 characters total — are checked
-			before sending and fail the send by name.
-
-			**Prints SENT_MESSAGE_CHANNEL, SENT_MESSAGE_TS,
-			SENT_MESSAGE_THREAD_TS and SENT_MESSAGE_ADDRESSEES to
-			stderr; stdout stays the raw response body.**
-			SENT_MESSAGE_THREAD_TS is the thread this message
-			belongs to (its own ts if it started one). The first
-			three print empty, with a `#` comment, when the response
-			carries no readable channel+ts — the message still sent.
-			SENT_MESSAGE_ADDRESSEES is always printed, empty when no
-			addressee resolved to a Slack id.
-
-			Each send's outcome is appended, tab-separated, to
-			`.local/agents/comms-slack-send.log`: time, member,
-			target, channel, identity, ok/failed, and a reason. Never
-			holds the message body, a token, or Slack's response, and
-			adds no commit. A log-write failure never changes the
-			send's own result.
+			**Hazard**: a send Slack itself refuses, or an
+			unreachable/archived conversation, is not retried and
+			raises no stuck-comms alert -- only a send that exhausts
+			its transport retries does.
 
 		--magic-contact-digest-send <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>
 		--member-contact-digest-send <team-member> (--resolved|--needs-ruling) <text...>
@@ -483,422 +414,349 @@
 			conversation with him. --needs-ruling goes to his own Slack
 			DM, where he replies.
 
-		--member-comms-email-send <team-member> <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>) [--in-reply-to <message-id>] [--text-group report|brief|relay]
-			`<team-member>` is the member this send acts as, and it comes
-			first, ahead of the recipients. It is required, and it is strict:
-			the credentials the send authenticates with are that member's own,
-			with no fallback to another member's scope, so a member without a
-			mailbox of its own fails here rather than quietly sending from
-			someone else's address.
+		--member-comms-email-send <team-member> <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>) [--format markdown|text] [--in-reply-to <message-id>] [--text-group report|brief|relay]
+			`<team-member>` is who the send authenticates as --
+			strict, no fallback to another member's mailbox; a
+			member without one fails here. It comes first, ahead
+			of recipients, and is required.
 
-			Real, standalone SMTP send. Multiple recipients
-			accepted before the first `--`; subject is everything between the
-			two `--` separators; everything after the second `--` becomes the
-			body, one line per remaining argument -- OR
-			`--from-stdin` in place of trailing body argv reads the whole body
-			from stdin instead. `--from-file <path>`
-			reads the body from a file instead.
-			Giving more than one of `--from-stdin`/`--from-file`/trailing body argv
-			together is refused -- exactly one body source is required.
+			Real standalone SMTP send. Recipients go before the
+			first `--`; the subject is between the two `--`; the
+			body is after the second `--`, one line per argument
+			-- or `--from-stdin`/`--from-file <path>` in its
+			place. Exactly one body source is required; more than
+			one is refused.
 
-			Also refused before anything is sent: a <team-member> that is not
-			a real member skill directory (a `routine-*` name is exempt), no
-			recipient, an empty subject, a missing --from-file, and an
-			unrecognised `--`-prefixed first body argument -- literal body
-			text starting with `--` goes through --from-stdin or --from-file.
+			`--format markdown|text` picks how the body renders
+			in the HTML part (default markdown); any other value
+			is refused.
 
-			**The team's plain-language floor can refuse the send.** The
-			subject and the body are each measured before anything is sent.
-			Three findings refuse it:
-			- a sentence over 25 words
-			- a semicolon
-			- a paragraph over 150 words that carries no list
+			**Sends multipart/alternative.** text/plain carries
+			the body verbatim; text/html is built from it, UTF-8
+			both. In either mode a bare URL becomes a real link
+			(same URL-before-email precedence as
+			--member-comms-slack-send-message); a bare email
+			becomes bold text, never a link. `markdown` mode also
+			honours `[text](url)`, code spans/fences, and
+			`*x*`/`_x_` emphasis (nested, real HTML tags); a link
+			is inert inside a code span or fence. `text` mode only
+			escapes and linkifies.
 
-			A refused send sends nothing and fails. Its error names each
-			finding and the sentence it fired on. Rewrite the text and send
-			again. Any other finding is reported on stderr and does not stop
-			the send. Code fences, code spans and `>` quoted lines are not
-			measured, so mark a long quoted sentence as a quote.
+			Also refused before anything sends: a <team-member>
+			that isn't a real member (routine-* exempt), no
+			recipient, an empty subject, a missing --from-file, or
+			an unrecognised `--`-prefixed first body argument --
+			use --from-stdin/--from-file for literal `--`-leading
+			text.
 
-			`--text-group report|brief|relay` declares that the subject and
-			body are not an ordinary message. Without it they are measured
-			as a message.
-			- `report` and `brief` drop the paragraph finding and keep the
-			  other two.
-			- `relay` carries someone else's words and is not measured at
-			  all.
+			**The team's plain-language floor can refuse the
+			send** -- subject and body are each measured; refused,
+			nothing sent, for a sentence over 25 words, a
+			semicolon, or a paragraph over 150 words with no list.
+			The error names the finding and the sentence. Any
+			other finding goes to stderr only. Code fences/spans
+			and `>` quoted lines aren't measured.
 
-			The send is refused, with nothing sent, when the declaration
-			cannot be recorded, and when the value names no group.
+			`--text-group report|brief|relay`: without it, subject
+			and body are measured as an ordinary message.
+			report/brief drop the paragraph check only; relay
+			skips measurement entirely. Refused, nothing sent, if
+			the declaration can't be recorded or the value names
+			no group.
 
-			`--in-reply-to <message-id>`: use this when the send is a reply to
-			an earlier message, so the recipient's own mail client threads it
-			under that message instead of showing it as unrelated. Pass exactly
-			the parent message's own `Message-Id` header value, angle brackets
-			included -- the same value visible on a message fetched via
-			`--member-comms-email-read`. Optional. Single-level
-			threading only: the value is placed on both `In-Reply-To` and
-			`References`, not accumulated into a multi-message chain.
+			`--in-reply-to <message-id>` threads the reply under
+			an earlier message in the recipient's client -- the
+			parent's own Message-Id, angle brackets included
+			(visible via --member-comms-email-read). Optional,
+			single-level only: placed on In-Reply-To and
+			References, not accumulated.
 
 		--member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
-			`<team-member>` is who this search acts as — always a user
-			token, so whose account runs the search decides what it
-			can see. Finds messages in ONE conversation since a
-			cut-off, including **thread replies whose parent message
-			is older than that cut-off** — a thread is reported by
-			its PARENT, so a long-running thread whose parent
-			predates the cut-off is invisible here no matter how
-			recently it was replied to.
+			`<team-member>` is who the search runs as -- a user
+			token, so its own visibility applies. Finds messages
+			in ONE conversation since a cut-off, but **a thread is
+			reported by its PARENT message** -- a reply to a
+			pre-cut-off parent is invisible here regardless of
+			when it was posted.
 
-			Target grammar matches the rest of the family —
-			`magic-team`/`human-owner`/`event-track`/`event-alert`,
-			an explicit channel, or a bare `<conversation-id>`. **A
-			`<channel>:<ts>` target is refused**, not silently
-			accepted with the `<ts>` dropped — read one message or
-			thread with --member-comms-slack-read instead. There is
-			no free-text query form: the target is the whole address.
+			Target grammar matches the family --
+			magic-team/human-owner/event-track/event-alert, an
+			explicit channel, or a bare conversation id. **A
+			`<channel>:<ts>` target is refused** -- read one
+			message or thread with --member-comms-slack-read
+			instead. No free-text query form; the target is the
+			whole address.
 
-			A cut-off is **required** -- `--comms-since-date-time
-			<YYYY-MM-DD...>` or `--comms-since-utime <epoch-seconds>`,
-			mutually exclusive, neither repeatable -- applied to each
-			message's own timestamp at full precision. In the summary
-			line, `after=` is one day before the cut-off and `cutoff=`
-			is the real boundary. Nothing older than the cut-off is
-			ever printed.
+			A cut-off is required: --comms-since-date-time
+			(`YYYY-MM-DD...`) or --comms-since-utime (epoch
+			seconds), mutually exclusive. Nothing older than it is
+			ever printed; the summary's `cutoff=` is the real
+			boundary, `after=` one day earlier.
 
-			**`--identity-bot` is refused by this operation** — Slack's
-			message search is available to a user identity only. A
-			conversation only the team bot can see is not reachable
-			here at all.
+			**--identity-bot is refused** -- Slack search needs a
+			user identity; a bot-only conversation is unreachable
+			here.
 
-			`--max-pages <n>` bounds how many result pages are read
-			(default 10; each page up to 100 messages). The read
-			stops on its own once it reaches back past the cut-off,
-			so the bound only matters for a genuinely large window.
-			**Hitting the bound is reported as its own outcome, never
-			returned as a complete read** -- see the exit codes below.
+			--max-pages <n> bounds pages read (default 10, up to
+			100/page); the read stops on its own once past the
+			cut-off. **Hitting the bound is its own outcome, never
+			a complete read** -- see exit codes.
 
 			Exit code:
 			0 matches found, whole window read.
-			3 no matches, whole window read -- a real, complete
-			answer, deliberately not 0 so absence can't be read as
-			presence by a caller that ignores status.
-			4 incomplete -- `--max-pages` reached before the cut-off,
-			so what printed is the newest matches only, a prefix.
-			Nothing in it supports concluding a message is absent.
-			Raise `--max-pages` or move the cut-off forward and read
-			again.
-			1 the search could not be performed; nothing is known
-			about presence or absence.
+			3 no matches, whole window read -- complete, not
+			absence via a 0.
+			4 incomplete: --max-pages hit first, printed matches
+			are a newest-first prefix only. Raise --max-pages or
+			move the cut-off forward and read again.
+			1 the search could not be performed.
 
-			**Pretty-formatted by default**, oldest first, one line
-			per message as `ts | user | text`, with
-			` [thread-reply of <parent-ts>]` appended to a threaded
-			message -- that parent ts is what a follow-up
-			`--member-comms-slack-read <team-member> <channel>:<ts> --thread`
-			needs. Line breaks in a message are flattened to spaces.
-			`--raw` returns the full API responses instead, each
-			labelled with its own page. A `##` summary line reports
-			match and thread-reply counts, pages read, and the
-			cut-off applied.
+			**Pretty-formatted by default**, oldest first, one
+			line per message as `ts | user | text`, threaded
+			messages tagged ` [thread-reply of <parent-ts>]`
+			(feed that ts to --member-comms-slack-read ...
+			--thread). Line breaks flatten to spaces. --raw
+			returns the full API responses per page. A `##`
+			summary line gives match/thread-reply counts, pages
+			read, and the cut-off.
 
-			**This search reads Slack's own index, which lags live
-			posting by about five minutes with no known upper
-			bound** -- a just-posted message may be missing, not
-			evidence of absence. For anything recent, read the
-			conversation directly with --member-comms-slack-read
-			instead. Two further gaps are unverified here: a
-			bot-posted message is sometimes reported missing from
-			search elsewhere, and search may honour the acting
-			identity's own Slack search-preference settings. A
-			zero-match result on a known-busy conversation is worth
-			checking with a direct read.
+			**Hazard: Slack's own index lags live posting by
+			about five minutes, no known upper bound** -- a
+			just-posted message may be missing. For anything
+			recent, read the conversation directly instead. A
+			bot-posted message is sometimes reported missing
+			elsewhere, and a zero-match result on a known-busy
+			conversation is worth a direct-read check.
 
 		--magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
-			General coordinator comms-id resolver. Authenticates as one
-			specific team-member identity (uses the same credential
-			resolution as --member-comms-slack-send-message), then reports:
-			(1) auth identity (`AUTH_USER_ID`, `AUTH_USER_NAME`),
-			(2) requested user-name and channel-name matches with resolved IDs,
-			(3) configured alias reachability for `magic-team`, `human-owner`,
-			`event-track`, `event-alert`, and
-			(4) best-known reachable human-owner target for this identity.
+			General coordinator comms-id resolver. Authenticates as
+			one team-member identity (same credential resolution as
+			--member-comms-slack-send-message), then reports: auth
+			identity (`AUTH_USER_ID`, `AUTH_USER_NAME`); requested
+			user-name/channel-name matches with resolved IDs;
+			configured alias reachability for magic-team/human-owner/
+			event-track/event-alert; and the best-known reachable
+			human-owner target.
 
-			Human-owner target resolution order is explicit and fail-loud:
-			first the configured `human-owner` alias id, then (if not reachable)
-			a DM open attempt using `--human-owner-hint`
-			(default `myx`) matched against the workspace's user list.
+			Human-owner resolution order: the configured `human-owner`
+			alias id first, then (if unreachable) a DM-open attempt
+			using --human-owner-hint (default `myx`) against the
+			workspace's user list.
 
-			Use `--user-name`/`--channel-name` repeatedly to resolve concrete
-			names to ids in one pass. `--raw` includes the full underlying
-			API payloads for diagnostics.
+			--user-name/--channel-name repeat to resolve several names
+			in one pass. --raw includes the full API payloads.
 
-			Exit code:
-			0 when a reachable human-owner target is confirmed,
-			1 when unresolved/unreachable.
+			Exit code: 0 a reachable human-owner target is confirmed,
+			1 unresolved/unreachable.
 
 		--magic-comms-slack-conversations-roster <team-member> [--identity user|bot|both] [--types <csv>]
-			Read-only: which conversations exist for that member RIGHT NOW,
-			per identity, asked of Slack on every call. `conversations.list`
-			is paged to exhaustion and joined with `users.list` so each row
-			carries a handle, not just an id.
+			Read-only: which conversations exist for that member
+			RIGHT NOW, per identity, asked of Slack fresh every call
+			-- `conversations.list` paged to exhaustion, joined with
+			`users.list` for a handle per row.
 
-			Default `--identity both` reports the member's own user-token
-			persona and the bot identity it acts as; `--types` defaults to
-			`im,mpim` and takes any `conversations.list` types= csv.
+			Default --identity both reports the user-token persona
+			and the bot identity; --types defaults to `im,mpim`, any
+			`conversations.list` types= csv.
 
-			Output is line-oriented:
-			`IDENTITY|identity=|auth=|handle=|status=|conversations=` once per
-			identity, then `CONV|identity=|auth=|id=|kind=|counterparty=|handle=|counterparty-deleted=`
-			per conversation, then `USER|<id>|<handle>` for each party the
-			roster named, then `ROSTER_STATUS=`.
+			Output: `IDENTITY|identity=|auth=|handle=|status=|
+			conversations=` once per identity, then
+			`CONV|identity=|auth=|id=|kind=|counterparty=|handle=|
+			counterparty-deleted=` per conversation, then
+			`USER|<id>|<handle>` per party, then `ROSTER_STATUS=`.
 
-			`status=no-token` on the user leg means that member holds no
-			`SLACK_USER_TOKEN` -- a configuration fact, not a failure, and the
-			call still succeeds.
+			`status=no-token` on the user leg means no
+			SLACK_USER_TOKEN configured -- a config fact, not a
+			failure.
 
-			No cache and no dormancy skip-list: every call asks Slack
-			fresh, so a correspondent writing for the first time, or the
-			first time in a year, is never missed.
+			No cache, no dormancy skip-list -- every call asks fresh.
 
-			Exit code:
-			0 every requested identity was enumerated,
-			3 at least one was and at least one failed (partial -- what came
-			back is real but is NOT known to be all of it),
-			4 none was (the inventory is UNKNOWN, never empty),
-			1 usage.
+			Exit code: 0 every identity enumerated, 3 some enumerated
+			some failed (partial, not known-complete), 4 none
+			enumerated (UNKNOWN, never empty), 1 usage.
 
 		--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
-			<team-member> is the acting identity: the reaction is posted BY
-			that member, a bare team-member name whose skill directory
-			already exists (`routine-*` exempt). Identity rule this whole
-			family follows: the member's own user token when it has one,
-			the team bot when it does not, `--identity-bot` to force the
-			bot.
+			<team-member> is the acting identity -- a bare, existing
+			member directory (routine-* exempt). Identity rule for
+			this whole family: member's own user token when it has
+			one, else the team bot, --identity-bot to force the bot.
 
-			Posts one Slack reaction to a specific message --
-			<channel>:<ts> only, same target grammar as --member-comms-slack-read (no
-			magic-team/human-owner shortcut, since a reaction always targets one
-			exact message, not a channel). <emoji-name> has no colons (matches
-			Slack's own `name` field, e.g. `white_check_mark`, not
-			`:white_check_mark:`). A direct conversation belongs to one
-			identity, so `--identity-bot` also decides which conversation
-			the reaction can reach; channels are unaffected.
+			Posts one reaction to a specific message --
+			`<channel>:<ts>` only, no magic-team/human-owner
+			shortcut. `<emoji-name>` has no colons (Slack's own
+			`name` field, e.g. `white_check_mark`). A direct
+			conversation belongs to one identity, so --identity-bot
+			also decides which conversation the reaction can reach;
+			channels are unaffected.
 
-			Three outcomes, kept distinct. **Added**: the reaction was posted
-			by this call -- raw API response printed, returns 0.
-			**Already present**: the acting identity had already added that
-			emoji to that message, so the end state asked for holds and this
-			call posted nothing -- reported as its own outcome with a `#`
-			note, returns 0, never folded into "added" and never an error.
-			**Could not react**: anything else, Slack's own error code
-			included -- returns 1 and nothing about the message's existing
-			reactions is known from it. Reactions are per identity, so
-			"already present" speaks only for the identity this call acted
-			as; the same reaction under another identity is a normal result,
-			not a duplicate.
+			Three distinct outcomes. **Added**: posted by this call,
+			raw response printed, returns 0. **Already present**: the
+			identity had already added that emoji -- its own outcome
+			with a `#` note, returns 0, never an error. **Could not
+			react**: anything else, Slack's error included, returns 1
+			-- nothing is known about existing reactions. "Already
+			present" speaks only for the acting identity; the same
+			reaction under another identity is a normal, separate
+			result.
 
 		--member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]
 			Same identity rule as --member-comms-slack-react; here it
-			also decides whether the call can succeed at all (see the
+			also decides whether the call can succeed (see the
 			authorship rule below).
 
-			Deletes one specific Slack message -- <channel>:<ts> only, same
-			target grammar as --member-comms-slack-react (no
-			magic-team/human-owner shortcut, since a deletion always targets
-			one exact message, not a channel). There is no channel-wide or
-			"delete all" form: every target is named explicitly, every time.
-			Uses the same credential resolution as
-			--member-comms-slack-send-message; `--identity-bot` acts as the team
-			bot instead of this member's own identity.
+			Deletes one specific Slack message -- `<channel>:<ts>`
+			only, no channel-wide or "delete all" form; same
+			credential resolution as --member-comms-slack-send-message,
+			--identity-bot acts as the team bot.
 
-			**More than one target may be given, and each one reports its
-			own result.** Targets are attempted in order, a failure on one
-			never stops the rest, and stdout carries a
-			`DELETE_TARGET=<as given>` line followed by a `DELETE_STATE=` line
-			for every single target: `deleted` (the raw API response follows
-			it), `refused-on-authorship`, `could-not-call`,
-			`unresolvable-target`, or `no-message-ts`. A partial failure is
-			therefore visible per target rather than collapsed into one
-			verdict. The exit status is 0 only when EVERY target was deleted;
-			a non-zero exit never means the whole run failed, and the targets
-			reporting `DELETE_STATE=deleted` really were deleted. A closing
-			`#` note on stderr states how many of how many were deleted.
+			**Multiple targets may be given; each reports its own
+			result**, attempted in order, one failure never stopping
+			the rest. stdout carries `DELETE_TARGET=<as given>` then
+			`DELETE_STATE=` per target: `deleted` (raw response
+			follows), `refused-on-authorship`, `could-not-call`,
+			`unresolvable-target`, or `no-message-ts`. Exit 0 only
+			when EVERY target was deleted; a non-zero exit never
+			means the whole run failed, and any `deleted` target
+			really was. A closing `#` note on stderr states how many
+			of how many.
 
-			**Slack permits deleting only a message the acting identity
-			itself authored**, so this call succeeds or fails on who is
-			asking. A refusal on that basis is reported as an authorship
-			refusal naming the acting member and identity, distinct from a
-			call that could not complete at all, and the raw Slack error is
-			printed alongside it. The other identity is never retried
-			automatically -- ask for it explicitly with `--identity-bot`
-			instead.
+			**Slack permits deleting only a message the acting
+			identity itself authored.** A refusal on that basis names
+			the acting member/identity, with Slack's raw error
+			alongside; the other identity is never retried
+			automatically -- use --identity-bot explicitly.
 
 		--member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] [text...|--from-stdin|--from-file <path>] [--text-group report|brief|relay]
 			Same identity rule as --member-comms-slack-react; as on
-			--member-comms-slack-delete-message it decides whether the
-			call can succeed at all -- Slack permits editing only what
-			that identity itself authored.
+			--member-comms-slack-delete-message it decides whether
+			the call can succeed -- Slack permits editing only what
+			that identity authored.
 
-			Replaces the text of one specific Slack message -- same
-			<channel>:<ts> target grammar as --member-comms-slack-delete-message. The
-			replacement text comes from the same three input forms
-			--member-comms-slack-send-message accepts: trailing argv,
-			`--from-stdin`, or
-			`--from-file <path>`. `--message-from-stdin` is accepted as an
-			alias of `--from-stdin`. `--format` is not offered here: this op
-			edits plain text only. Empty replacement text is refused rather
-			than applied, since that would blank the message. Re-running the
-			same edit is safe -- it leaves the message as the first run left
-			it.
+			Replaces the text of one message -- same `<channel>:<ts>`
+			grammar as --member-comms-slack-delete-message. Text
+			comes from the same three forms as
+			--member-comms-slack-send-message (trailing argv,
+			--from-stdin, --from-file; --message-from-stdin aliases
+			--from-stdin); no --format, plain text only. Empty
+			replacement text is refused. Re-running the same edit is
+			safe.
 
-			**The replacement text is measured against the same
-			plain-language floor as --member-comms-slack-send-message, and
-			takes the same `--text-group` values.** A refused edit changes
-			nothing and fails, naming each finding and the sentence it fired
-			on.
+			**Measured against the same plain-language floor as
+			--member-comms-slack-send-message, same --text-group
+			values.** A refused edit changes nothing, naming each
+			finding and sentence.
 
-			**Slack permits editing only a message the acting identity
-			itself authored**, exactly as for --member-comms-slack-delete-message above:
-			an authorship refusal is reported as such, naming the acting
-			identity, with the raw Slack error alongside it, and the other
-			identity is never retried automatically. Prints the raw API
-			response and returns 0 on `ok:true`; any refusal or failure
-			returns 1 and leaves the message unchanged.
+			**Slack permits editing only a message the acting
+			identity itself authored** -- an authorship refusal names
+			the identity, with Slack's raw error alongside; the other
+			identity is never retried automatically. Prints the raw
+			API response, returns 0 on `ok:true`; any refusal or
+			failure returns 1, message unchanged.
 
 		--member-comms-slack-file-info <team-member> <file-id> [--identity-bot] [--raw]
-			<team-member> is the acting identity and is load-bearing:
-			which identity asks decides whether the file is visible at
-			all (see exit code 3). Bare member name (`routine-*`
-			exempt); member's own user token when it has one, else the
-			team bot; `--identity-bot` forces the bot.
+			<team-member> is the acting identity and decides whether
+			the file is visible at all (see exit code 3). Bare member
+			name (routine-* exempt); member's own user token when it
+			has one, else the team bot; --identity-bot forces the
+			bot.
 
-			Reports metadata of one Slack file (`files.info`) so a
-			caller can decide whether it's worth retrieving. <file-id>
-			is `F` followed by uppercase letters and digits, from a
-			message's own file object `id` field -- a permalink,
-			filename or <channel>:<ts> is refused before any call.
+			Reports metadata of one Slack file (files.info) to decide
+			whether it's worth retrieving. <file-id> is `F` +
+			uppercase letters/digits, from a message's own file
+			object `id` -- a permalink, filename or <channel>:<ts> is
+			refused before any call.
 
-			**Tells you ABOUT a file and never fetches its bytes.** The
-			URLs it prints are metadata like any other field; reading
-			them is a separate authenticated download.
+			**Tells you ABOUT a file, never fetches its bytes** -- the
+			URLs printed are metadata; reading them is a separate
+			authenticated download.
 
-			Stable `KEY=value` lines, each preceded by its own
+			Stable `KEY=value` lines, each preceded by
 			`<KEY>_STATE=present|absent|present-multiline`. Keys:
-			`FILE_INFO_STATE`, `FILE_ID`, `NAME`, `TITLE`, `MIMETYPE`,
-			`FILETYPE`, `SIZE`, `TIMESTAMP`, `AUTHOR_USER_ID`,
-			`URL_PRIVATE*`, `THUMB_*`. `--raw` prints the unparsed
-			files.info response instead.
+			FILE_INFO_STATE, FILE_ID, NAME, TITLE, MIMETYPE, FILETYPE,
+			SIZE, TIMESTAMP, AUTHOR_USER_ID, URL_PRIVATE*, THUMB_*.
+			--raw prints the unparsed response instead.
 
 			Exit 0 metadata found. 3 `file_not_found` -- no file with
-			that id, or this identity can't see it; never auto-retried
-			under another identity. 4 `file_deleted` -- final for
-			every identity. 1 the call did not complete; nothing
-			concluded about the file's existence.
+			that id, or this identity can't see it; never
+			auto-retried under another identity. 4 `file_deleted` --
+			final for every identity. 1 the call did not complete;
+			nothing concluded about existence.
 
 		--member-comms-slack-file-fetch <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite]
-			<team-member> is the acting identity, used for BOTH steps --
-			the metadata read and the authenticated byte fetch -- so the
-			two never run as different identities. Same identity
-			resolution and <file-id> validation as
-			--member-comms-slack-file-info.
+			<team-member> is the acting identity for both the
+			metadata read and the byte fetch -- never split across
+			identities. Same identity resolution and <file-id>
+			validation as --member-comms-slack-file-info.
 
-			Retrieves one Slack file's bytes to <destination-path>. All
-			three arguments are required; there is no default location
-			and the credential store is refused as a destination. The
-			parent directory must already exist. An existing file there
-			is left untouched unless `--overwrite`.
+			Retrieves one Slack file's bytes to <destination-path>;
+			all three arguments required, no default location, the
+			credential store refused as a destination. The parent
+			directory must exist; an existing file there is left
+			untouched unless --overwrite.
 
-			**A successful-looking fetch is not accepted on its own.**
-			An unauthenticated or under-scoped request can get HTTP 200
-			and a sign-in page back, indistinguishable from the file
-			without checking. The result is verified before delivery --
-			not a web page, byte count matching exactly -- so a failed
-			fetch never leaves a wrong or partial file at the
-			destination.
+			**A successful-looking fetch is verified before delivery,
+			not accepted on its own** -- an unauthenticated/
+			under-scoped request can return HTTP 200 and a sign-in
+			page, so the result is checked (not a web page, exact
+			byte count) before anything is written; a failed fetch
+			never leaves a wrong or partial file.
 
-			`--identity-bot` runs as the team bot. Seeing a file is
-			per-conversation, not per-workspace: invisible to another
-			identity's DM, reported rather than silently worked around.
+			--identity-bot runs as the team bot; seeing a file is
+			per-conversation, not per-workspace -- invisible to
+			another identity's DM, reported rather than worked
+			around.
 
-			Stable `KEY=value` lines: `FETCH_STATE`, `FILE_ID`,
-			`DESTINATION`, `VERIFIED_BYTES` (the count actually
-			checked), `MIMETYPE`, `SOURCE_URL_KIND`.
+			Prints `FETCH_STATE`, `FILE_ID`, `DESTINATION`,
+			`VERIFIED_BYTES`, `MIMETYPE`, `SOURCE_URL_KIND`.
 
-			Same four exit codes as --member-comms-slack-file-info. 0
-			fetched and verified. 3 `file_not_found`. 4 `file_deleted`.
-			1 did not complete, or completed and the result wasn't the
-			file. Every non-zero code leaves the destination exactly as
-			it was.
+			Same four exit codes as --member-comms-slack-file-info: 0
+			fetched and verified, 3 `file_not_found`, 4
+			`file_deleted`, 1 did not complete or the result wasn't
+			the file. Every non-zero code leaves the destination
+			unchanged.
 
 		--member-comms-slack-file-share <team-member> <target> --from-file <path> [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
 		--member-comms-slack-file-share <team-member> <target> --from-stdin [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
 			Shares a file into a conversation, attributed to
-			`<team-member>`. Use this for content too big for a message
-			body; the message carries the ask, the file carries the
-			material.
+			`<team-member>`, for content too big for a message
+			body.
 
 			`<target>` takes the same forms as
-			--member-comms-slack-send-message. A target resolving to a
-			party rather than a conversation is opened as a direct
-			conversation first, under the acting identity. A target
-			matching no form is REJECTED before anything is uploaded,
-			so a failed target never leaves a file behind.
+			--member-comms-slack-send-message; a target resolving
+			to a party opens a direct conversation first. An
+			invalid target is REJECTED before anything uploads --
+			no orphan file.
 
-			A `<channel>:<ts>` target shares into that thread. The `<ts>`
-			may be any message in it: a reply's own `<ts>` is resolved to
-			the thread's parent. A `<ts>` whose thread cannot be read is an
-			error, never a share posted somewhere else.
+			A `<channel>:<ts>` target shares into that thread;
+			`<ts>` may be any message in it (resolved to the
+			thread's parent). An unreadable thread `<ts>` is an
+			error, never posted elsewhere.
 
-			Content comes from `--from-file <path>` or `--from-stdin`,
-			exactly one; naming both is an error, as it is on
-			--member-comms-slack-send-message. There is no trailing-text
-			form: the point of this operation is that the content is too
-			big to be an argument. `--from-stdin` is buffered to a
-			temporary file before the share begins, because the size in
-			BYTES has to be known up front -- a character count is not a
-			byte count, and content carrying em dashes or emoji differs in
-			the two.
-
-			`--snippet-type <v>` selects how the shared content is
-			rendered. A value that is not supported is REJECTED, naming
-			what was passed -- never quietly replaced with a different
-			one.
-
-			`--title <v>` names the file as it appears in the
-			conversation. Without it the name is the `--from-file`
-			basename.
-
-			`--comment <text>` is the message posted alongside the file.
-			It is posted as its own message AFTER the share, through the
-			ordinary message path, so two visible items appear in the
-			thread rather than one.
-
-			`--identity-bot` shares as the team bot instead of this
-			member's own identity.
-
-			A share is visible only to the conversation it was shared
+			Content is exactly one of --from-file <path> or
+			--from-stdin; no trailing-text form. --snippet-type
+			<v> rejects an unsupported value by name, never
+			substituted. --title <v> names the file in the
+			conversation; default is the --from-file basename.
+			--comment <text> posts as its own message AFTER the
+			share -- two visible items, not one. --identity-bot
+			shares as the team bot instead of this member's
+			identity. Visible only to the conversation shared
 			into.
 
-			On success, the completion response on stdout, plus
-			`SHARE_FILE_ID`, `SHARE_CONVERSATION` and `SHARE_BYTES` as
-			`KEY=value` lines on stderr. `SHARE_BYTES` is the byte count
-			that was actually sent.
+			On success: the completion response on stdout, plus
+			`SHARE_FILE_ID`, `SHARE_CONVERSATION`, `SHARE_BYTES`
+			(bytes actually sent) on stderr.
 
 			**failure**: not finished until both the file and its
-			accompanying message are there. Two steps done and the third
-			failed is a FAILURE, not a partial success -- a file shared
-			with no accompanying message is a failed operation however
-			much of it you can see in the conversation. An upload begun
-			and not completed is abandoned by the platform; there is
-			nothing left to clean up.
+			comment exist -- two steps done and the third failed
+			is a FAILURE, not a partial success.
 
-			**mentions**: this operation takes no addressee argument --
-			addressing a message is --member-comms-slack-send-message's
-			own. A bare `@name` written inside `--comment` is recognised
-			from the `@` to the next whitespace or end of line, so a
-			display name containing a space cannot be written this way --
-			address it by id instead.
+			**mentions**: no addressee argument -- that's
+			--member-comms-slack-send-message's own. A bare
+			`@name` inside --comment is recognised `@` to the next
+			whitespace or end of line; a display name containing
+			a space can't be mentioned this way, use its id
+			instead.
 
 		--member-comms-slack-profile-get <team-member> [--raw]
 			Reads the Slack profile, presence, do-not-disturb state and
@@ -921,44 +779,42 @@
 			not a full report. A failed facet is unknown, never unset.
 
 		--member-comms-slack-profile-set <team-member> {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
-			`<team-member>` is both the acting identity and the account
-			written: sets that member's own Slack display name, title,
-			custom status, presence and do-not-disturb state. Persona
-			identity only: acts under the member's own user token
-			always; `--identity-bot` and a `routine-*` name are
-			refused. A member with no user token fails loud rather
-			than silently writing under the shared bot.
+			`<team-member>` is both the acting identity and the
+			account written: sets that member's own display name,
+			title, custom status, presence and do-not-disturb state.
+			Persona identity only -- always that member's own user
+			token; --identity-bot and a routine-* name are refused. No
+			token: fails loud, never silently under the shared bot.
 
-			At least one field is required. Empty `--display-name`,
-			`--title`, `--status-text` and `--status-emoji` each count
-			as a value, not an absence; `--status-expiry` (epoch
-			seconds, 0 for no expiry), `--avatar` (a path), `--presence`
-			(`auto`/`away`) and `--snooze` (whole minutes) do not accept
-			empty. `--snooze`/`--snooze-end` are mutually exclusive, no
-			field flag is repeatable.
+			At least one field is required. Empty --display-name,
+			--title, --status-text, --status-emoji each count as a
+			value, not an absence; --status-expiry (epoch seconds, 0
+			= no expiry), --avatar (a path), --presence (auto/away)
+			and --snooze (whole minutes) do not accept empty.
+			--snooze/--snooze-end are mutually exclusive; no field
+			flag is repeatable.
 
-			`--title` is backed by a workspace-defined custom field: a
+			--title is backed by a workspace-defined custom field: a
 			workspace that disallows it answers `"ok":true` and leaves
-			the field empty. Read the result back with
-			--member-comms-slack-profile-get rather than taking the
-			applied facet as proof it landed.
+			the field empty -- read the result back with
+			--member-comms-slack-profile-get rather than trusting the
+			applied facet.
 
 			**A custom status is cleared by both status flags
-			together.** Slack refuses an empty `--status-text` alone
-			with `must_clear_both_status_text_and_status_emoji` -- pass
-			`--status-text '' --status-emoji ''`.
+			together.** Slack refuses an empty --status-text alone
+			with `must_clear_both_status_text_and_status_emoji` --
+			pass `--status-text '' --status-emoji ''`.
 
-			`--avatar <path>` replaces the account's photo; Slack has
-			no "clear" call, so a photo is replaced, never unset. The
-			path must exist, be a regular file, and contain neither `;`
-			nor `,` (multipart syntax reads either as metadata, not
-			filename) -- checked before any request leaves the host.
+			--avatar <path> replaces the account's photo; Slack has no
+			"clear" call. The path must exist, be a regular file, and
+			contain neither `;` nor `,` (multipart syntax reads either
+			as metadata) -- checked before any request leaves the
+			host.
 
-			Up to four API calls, one per facet:
-			`PROFILE_SET_FACET=profile|avatar|presence|dnd` then
-			`PROFILE_SET_STATE=applied|failed|not-requested` and the
-			raw response for each applied facet. The photo is always
-			its own call. A failed facet is UNKNOWN, not
+			Up to four API calls, one per facet: `PROFILE_SET_FACET=
+			profile|avatar|presence|dnd` then `PROFILE_SET_STATE=
+			applied|failed|not-requested` and the raw response per
+			applied facet. A failed facet is UNKNOWN, not
 			known-unchanged; nothing is rolled back or retried under
 			another identity. 0 every requested facet applied, 1 any
 			did not -- the facets reported applied really were.
@@ -1036,47 +892,26 @@
 
 		--member-comms-google-file-find <team-member> <search-term> [--full-text] [--include-trashed] [--limit <n>]
 		--member-comms-google-file-find <team-member> <drive-query> --raw-query [--limit <n>]
-			`<team-member>` is the member this search acts as: results
-			are what that member's own identity can see in Drive, never
-			another member's, with no fallback. The entry point for
-			this family, since every other Google operation needs a
-			file id and this is what produces one.
+			`<team-member>` is the member this search acts as --
+			results are only what that member's own identity can see,
+			no fallback. The entry point for this family: every other
+			Google operation needs a file id and this produces one.
 
-			**`<search-term>` is a plain term, not a query.** Drive's own `q`
-			parameter is a structured query language rather than a search
-			box — a bare word such as `ADR` is a syntax error there, not a
-			match-anything — so this operation builds the query around the
-			term for you: `name contains '<term>' and trashed=false`. An
-			apostrophe in the term (`Bob's notes` is an ordinary filename) is
-			escaped before it reaches the API rather than breaking the query.
-			An empty term is refused rather than silently listing the whole
-			Drive.
+			`<search-term>` is a plain term, not a query: built into
+			`name contains '<term>' and trashed=false`; an apostrophe
+			is escaped automatically. An empty term is refused.
 
-			`--full-text` also matches text inside document bodies, not just
-			names. Off by default: it is markedly slower and returns hits
-			from inside unrelated files, which is not what a search by name
-			expects.
+			--full-text also matches document body text, not just
+			names (off by default). --include-trashed keeps deleted
+			files in results (excluded by default). --raw-query
+			forwards the argument verbatim as a complete Drive query
+			instead; refused together with --full-text/
+			--include-trashed. --limit defaults to 50, must be a
+			positive whole number.
 
-			`--include-trashed` keeps deleted files in the results. By
-			default they are excluded, because a trashed file is otherwise
-			indistinguishable from a live one and a caller may act on
-			something already in the bin.
-
-			`--raw-query` forwards the argument verbatim as a complete Drive
-			query instead, for structured searches such as
-			`mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`.
-			It cannot be combined with `--full-text` or `--include-trashed`:
-			with `--raw-query` the argument is the whole query and those
-			flags would have nothing to shape, so the combination is refused
-			rather than silently ignored.
-
-			`--limit` defaults to 50 and must be a positive whole number.
-
-			Emits one TSV row per file: id, name, mimeType, modifiedTime.
-			A search that completed and matched nothing prints no rows and
-			returns zero; a search that could not be performed returns
-			non-zero and says so — those are different outcomes and are never
-			rendered the same way.
+			Emits one TSV row per file: id, name, mimeType,
+			modifiedTime. No matches: no rows, exit 0. Could not
+			search: non-zero, says so -- never the same as empty.
 
 		--member-comms-google-sheet-info <team-member> <sheet-id>
 			`<team-member>` is the member this read acts as, and it is
@@ -1091,68 +926,52 @@
 			`COLUMNS`.
 
 		--member-comms-google-sheet-read <team-member> <sheet-id> <a1-range> [--unformatted]
-			`<team-member>` is the member this read acts as: a
-			spreadsheet is readable only by identities it is shared
-			with, read strictly from that member's own scope, no
-			fallback.
+			`<team-member>` is the member this read acts as -- a
+			spreadsheet is readable only by identities it's shared
+			with, no fallback.
 
-			Cell values for one A1 range, emitted as TSV rather than the
-			API's own JSON `values` arrays — a range is tabular, and every
-			other operation in this tool is shell-consumable.
+			Cell values for one A1 range as TSV, not the API's JSON
+			`values` arrays.
 
-			Two conversion rules the caller can rely on:
+			- **Rows are padded to the requested range's width** --
+			  Sheets omits trailing empty cells, so a positional
+			  consumer (`awk -F'\t' '{print $4}'`) would silently
+			  read the wrong column otherwise. A range with no fixed
+			  width (a bare tab name) uses the widest row returned.
+			- **Tab, newline, CR and backslash in a cell are escaped**
+			  as `\t`/`\n`/`\r`/`\\`, reversible (undo `\\` last).
 
-			- **Rows are padded to the width of the requested range.** Sheets
-			  omits trailing empty cells, so `A1:D10` would otherwise return
-			  two fields for a row whose last two are blank, and every
-			  positional consumer (`awk -F'\t' '{print $4}'`) would read the
-			  wrong column with no error at all. Where the range does not fix
-			  a width (a bare tab name), the widest row returned is used.
-			- **Tab, newline, carriage return and backslash inside a cell are
-			  escaped** as `\t`, `\n`, `\r` and `\\`. A cell may legitimately
-			  contain any of them, and emitted raw a tab becomes a new column
-			  and a newline a new row. The escape is reversible — undo `\\`
-			  last.
+			Values render as `FORMATTED_VALUE` by default (what a
+			human sees); --unformatted returns the raw value (a date
+			becomes its serial number).
 
-			Values render as `FORMATTED_VALUE` by default: what a human
-			reading the sheet sees. `--unformatted` returns the underlying
-			value instead, so a date becomes its serial number.
-
-			A range that is genuinely empty prints no rows and returns zero.
-			A range that could not be read returns non-zero and says the
-			values are UNKNOWN — never the same rendering as empty. A range
-			outside the sheet's grid limits is an error, not an empty result.
+			An empty range: no rows, exit 0. A range that couldn't be
+			read: non-zero, values UNKNOWN -- never the same as empty.
+			A range outside the sheet's grid limits is an error, not
+			an empty result.
 
 		--member-comms-google-sheet-write <team-member> <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>)
-			`<team-member>` is the member this write acts as, and it comes
-			first: the credentials the write authenticates with are that
-			member's own, strictly, with no fallback to another member's
-			scope.
+			`<team-member>` is the member this write acts as, first --
+			credentials are strictly that member's own, no fallback.
 
-			Writes TSV into one A1 range. **The input format is exactly what
-			`--member-comms-google-sheet-read` emits**, so a range can be
-			read, edited in a shell pipeline, and written straight back — the
-			round trip is byte-exact, including cells that contain tabs,
-			newlines or backslashes (written as `\t`, `\n`, `\r`, `\\`).
+			Writes TSV into one A1 range; **the input format is
+			exactly what --member-comms-google-sheet-read emits**, so
+			a range round-trips byte-exact (tabs/newlines/backslashes
+			as `\t`/`\n`/`\r`/`\\`) through a shell pipeline.
 
-			Content comes from `--from-stdin` or `--from-file` and never from
-			trailing text arguments, because a range is tabular and a shell
-			word is not. Exactly one source is required; giving both is an
-			error rather than a silent precedence.
+			Content is --from-stdin or --from-file, never trailing
+			args (a range is tabular, a shell word isn't); exactly one
+			source, both given is an error. --append adds rows after
+			existing data instead of overwriting.
 
-			`--append` adds rows after the existing data instead of
-			overwriting the range.
+			**Values are stored RAW by default, a safety decision** --
+			under --user-entered Google parses each value as typed,
+			so a cell starting with `=` becomes a live formula; use
+			--user-entered only when a formula or locale-parsed date
+			is intended.
 
-			**Values are stored RAW by default, and that is a safety
-			decision.** Under `--user-entered` Google parses each value as
-			though a person had typed it, so any caller-supplied cell
-			beginning with `=` becomes a live formula in a document real
-			people will open. RAW stores exactly what was given. Use
-			`--user-entered` only where a formula or a locale-parsed date is
-			genuinely intended.
-
-			On failure, whether anything was changed is UNKNOWN and must not
-			be assumed to be nothing.
+			On failure, whether anything changed is UNKNOWN -- never
+			assume nothing.
 
 		--member-comms-google-sheet-clear <team-member> <sheet-id> <a1-range>
 			`<team-member>` is the member this write acts as, and it comes
@@ -1292,25 +1111,24 @@
 			stdout.
 
 		--magic-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. A page is editable only by identities it is shared
-			with.
+			Runs only as `magic-coordinator`; any other name is
+			refused with 1. A page is editable only by identities it
+			is shared with.
 
-			`<n>` is the version this caller already read, from
-			page-read's stderr diagnostic; this operation submits `<n>+1`,
-			so a page changed since that read is refused rather than
-			overwritten.
+			`<n>` is the version already read, from page-read's
+			stderr diagnostic; this operation submits `<n>+1`, so a
+			page changed since that read is refused, not overwritten.
 
-			**FULL-RESOURCE REPLACE, not a patch.** `--title` and
-			`--status` are required on every call and are overwritten
-			with whatever is passed -- an edit touching only the body
-			must still resubmit the unchanged title and status, or they
-			are lost. `--space-id` is accepted but not required.
+			**FULL-RESOURCE REPLACE, not a patch.** --title and
+			--status are required every call and overwritten with
+			whatever is passed -- a body-only edit must still
+			resubmit the unchanged title/status, or they're lost.
+			--space-id is accepted but not required.
 
-			**HTTP 409 means the version submitted is stale** -- exit 5,
-			never folded into a generic UNKNOWN. Re-read the page for the
+			**HTTP 409 means the submitted version is stale** -- exit
+			5, never a generic UNKNOWN. Re-read the page for the
 			current version/title/body before deciding whether to
-			reapply. Never resubmit version+1 unchanged.
+			reapply; never resubmit version+1 unchanged.
 
 		--magic-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
 			Runs only as `magic-coordinator`; any other name is refused
@@ -1323,25 +1141,25 @@
 
 		--magic-comms-confluence-page-delete <team-member> <page-id>
 			Runs only as `magic-coordinator`; any other name, or a
-			missing `<team-member>`/`<page-id>`, is refused with 1,
-			naming the missing parameter. The page is deleted under that
-			identity, and only where it may delete it. `<page-id>` must
-			be numeric.
+			missing <team-member>/<page-id>, is refused with 1,
+			naming the missing parameter. Deletes under that
+			identity, only where it may. <page-id> must be numeric.
 
-			This never purges a page -- a deleted page reads back as
+			Never purges a page -- a deleted page reads back as
 			status 8 (a 404 under the default view); nothing here
 			restores a page.
 
-			Returns 0 when deleted, nothing on stdout. **3**: the outcome
-			is UNKNOWN -- the delete may still have taken effect; read the
-			page before acting again, never repeat the deletion blindly.
-			**9**: the site refused -- not deleted, and retrying the same
-			request won't change that. Every other status also means not
-			deleted. A 404 (status 8) does NOT establish the page is
-			absent -- it also covers a page this account may not delete.
+			Returns 0 when deleted, nothing on stdout. **3**: UNKNOWN
+			-- the delete may still have taken effect; read the page
+			before acting again, never repeat blindly. **9**:
+			refused -- not deleted, retrying won't help. Every other
+			status also means not deleted. A 404 (status 8) does NOT
+			establish absence -- it also covers a page this account
+			may not delete.
 
-			A failure prints one stderr line: the mark, this operation's
-			name, the status, and Confluence's body verbatim.
+			A failure prints one stderr line: the mark, this
+			operation's name, the status, and Confluence's body
+			verbatim.
 
 		--client-comms-confluence-space-list <team-member> [--cursor <value>]
 			Runs only as a `client-*` member, under that member's own
@@ -1507,27 +1325,26 @@
 			`--member-comms-jira-sprint-issue-search` describes.
 
 		--magic-comms-jira-issue-search <team-member> <jql> [--limit <n>]
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. The entry point for the issue operations, since they
-			need an issue key and this produces one.
+			Runs only as `magic-coordinator`; any other name is
+			refused with 1. The entry point for the issue operations
+			-- they need an issue key, this produces one.
 
 			<jql> is passed through as given; Jira refuses an
-			unrestricted query, so it must name at least one restriction,
-			e.g. `project = DATA ORDER BY updated DESC`.
+			unrestricted query, so it must name at least one
+			restriction, e.g. `project = DATA ORDER BY updated DESC`.
 
 			**An empty result is not evidence that nothing matches.**
-			Jira answers a query naming a non-existent project, or
-			invalid JQL, with success and an empty page rather than an
-			error -- a zero-row result only means this exact query
-			matched nothing; re-check it. Stated on stderr whenever rows
-			are zero.
+			Jira answers a nonexistent-project or invalid-JQL query
+			with success and an empty page, not an error -- a
+			zero-row result only means this exact query matched
+			nothing. Stated on stderr whenever rows are zero.
 
-			TSV rows: `ISSUE_KEY`, `TYPE`, `STATUS`, `ASSIGNEE`,
-			`UPDATED`, `SUMMARY`. `--limit` defaults to 25. Completeness
-			on stderr: `more: no`/`more: yes`/`more: unknown` as
-			board-list describes; this endpoint reports no total, so
-			after `more: yes` raise `--limit` or narrow the query. Exit
-			statuses as `--member-comms-jira-board-list` lists them.
+			TSV rows: ISSUE_KEY, TYPE, STATUS, ASSIGNEE, UPDATED,
+			SUMMARY. --limit defaults to 25. Completeness on stderr
+			as board-list describes (more: no/yes/unknown); this
+			endpoint reports no total, so after more: yes raise
+			--limit or narrow the query. Exit statuses as
+			--member-comms-jira-board-list lists them.
 
 		--magic-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
 			Runs only as `magic-coordinator`; any other name is refused
@@ -1550,84 +1367,83 @@
 			`--member-comms-jira-board-list` lists them.
 
 		--magic-comms-jira-issue-create <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. The issue is created under that identity, only in a
+			Runs only as `magic-coordinator`; any other name is
+			refused with 1. Created under that identity, only in a
 			project it can see.
 
-			`--project`, `--issuetype`, `--summary` always required.
-			Anything else a project's create screen demands (e.g. a
-			subtask's `fields.parent.key`) goes through `--fields-json`,
-			merged into the request's own `fields`. No createmeta
+			--project, --issuetype, --summary always required;
+			anything else a project's create screen demands (e.g. a
+			subtask's fields.parent.key) goes through --fields-json,
+			merged into the request's fields. No createmeta
 			validation call is made -- for an unfamiliar project/
 			issuetype, read
-			`/rest/api/3/issue/createmeta/{project}/issuetypes/{issueTypeId}`
-			yourself first.
+			/rest/api/3/issue/createmeta/{project}/issuetypes/
+			{issueTypeId} yourself first.
 
-			`--description-adf`/`-from-stdin`/`-from-file <path>` is the
-			same ADF JSON `--member-comms-jira-issue-read --format adf`
-			emits for `fields.description`, passed straight through.
+			--description-adf/-from-stdin/-from-file <path> is the
+			same ADF JSON --member-comms-jira-issue-read --format adf
+			emits for fields.description, passed straight through.
 
-			**Never retry a create whose outcome came back UNKNOWN** (a
-			timeout, a 5xx) -- Jira's create has no idempotency key, so a
-			blind retry can leave two issues behind. HTTP 400 (a real
-			field-validation rejection, with Atlassian's `errors` object
-			in the diagnostic) and a transport UNKNOWN share one exit
-			code -- read the diagnostic to tell them apart.
+			**Never retry a create whose outcome came back UNKNOWN**
+			(a timeout, a 5xx) -- Jira's create has no idempotency
+			key, a blind retry can leave two issues behind. HTTP 400
+			(a real field-validation rejection, Atlassian's `errors`
+			object in the diagnostic) and a transport UNKNOWN share
+			one exit code -- read the diagnostic to tell them apart.
 
-			The created issue's response (its new key included) goes to
-			stdout.
+			The created issue's response (its new key included) goes
+			to stdout.
 
 		--magic-comms-jira-issue-update <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. An issue is editable only by identities its project is
-			shared with.
+			Runs only as `magic-coordinator`; any other name is
+			refused with 1. Editable only by identities its project
+			is shared with.
 
-			At least one of two write shapes is required. `--fields-json
-			<json>` is the WHOLE `fields` object, plain set-semantics --
-			an array field such as `labels` is a full replace, not an
-			append, so adding one label means reading the current array
-			first; there is no read-before-write here. `--update-json
-			<json>` is Jira's own `{"field":[{"add":...}/{"remove":...}/
-			{"set":...}]}` shape for precise add/remove. Both may be
-			given together.
+			At least one of two write shapes required. --fields-json
+			<json> is the WHOLE fields object, plain set-semantics --
+			an array field like labels is a full replace, not an
+			append (read the current array first to add one).
+			--update-json <json> is Jira's own
+			{"field":[{"add"/"remove"/"set":...}]} shape for precise
+			add/remove. Both may be given together.
 
-			`fields.status`/`update.status` are refused locally, before
+			fields.status/update.status are refused locally, before
 			any call -- move status through
-			`--magic-comms-jira-issue-transition` instead.
+			--magic-comms-jira-issue-transition instead.
 
-			`notifyUsers` defaults `false` here (the opposite of Jira's
-			own API default), to avoid spamming watchers on an automated
-			edit. `--notify-users` opts back in.
+			notifyUsers defaults false here (opposite of Jira's own
+			API default), to avoid spamming watchers on an automated
+			edit; --notify-users opts back in.
 
 			HTTP 400 means an invalid or read-only field for that
 			project's screen; HTTP 404 means the issue is absent or
 			invisible.
 
 		--magic-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. An issue is editable only by identities its project is
-			shared with.
+			Runs only as `magic-coordinator`; any other name is
+			refused with 1. Editable only by identities its project
+			is shared with.
 
-			**The transition id is never caller-supplied.** This always
-			runs its own `GET .../transitions` immediately before the
-			`POST`, every call.
+			**The transition id is never caller-supplied** -- this
+			always runs its own GET .../transitions immediately
+			before the POST, every call.
 
-			`--to-status <name>` is matched exactly against each
-			transition CURRENTLY AVAILABLE from the issue's own status,
-			by that transition's destination status name (`to.name`) --
-			never by its action label, which can read differently (a
-			button "Start Progress" landing on status "In Progress").
-			Zero or more than one match is a loud, local failure before
-			any `POST`, listing the transitions actually available.
+			--to-status <name> is matched exactly against each
+			transition CURRENTLY AVAILABLE from the issue's own
+			status, by destination status name (to.name) -- never by
+			its action label (a button "Start Progress" can land on
+			status "In Progress"). Zero or more than one match is a
+			loud, local failure before any POST, listing the
+			transitions actually available.
 
-			`--fields-json` passes into the transition's own `fields` --
-			some workflows require one on a specific transition screen.
-			`--comment-adf`/`-from-stdin`/`-from-file <path>` adds a
+			--fields-json passes into the transition's own fields --
+			some workflows require one on a specific screen.
+			--comment-adf/-from-stdin/-from-file <path> adds a
 			comment in the same call.
 
-			HTTP 400 on the `POST` itself usually means the issue moved
-			again between lookup and write, or the target transition's
-			screen required a field not supplied -- re-run to re-resolve.
+			HTTP 400 on the POST itself usually means the issue moved
+			again between lookup and write, or the target screen
+			required a field not supplied -- re-run to re-resolve.
 
 		--magic-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
 			Runs only as `magic-coordinator`; any other name is refused
@@ -1642,23 +1458,23 @@
 		--magic-comms-jira-issue-delete <team-member> <issue-key>
 			Runs only as `magic-coordinator`; any other name, or a
 			missing `<team-member>`/`<issue-key>`, is refused with 1,
-			naming the missing parameter. The issue is deleted under that
+			naming the missing parameter. Deleted under that
 			identity, only where its project allows it.
 
-			**An issue with subtasks is refused -- subtasks are never
-			deleted.** Jira answers HTTP 400; no operation here restores
-			a deleted issue.
+			**An issue with subtasks is refused -- subtasks are
+			never deleted.** Jira answers HTTP 400; nothing here
+			restores a deleted issue.
 
-			Returns 0 when deleted, nothing on stdout. **3**: outcome
-			UNKNOWN -- the delete may still have taken effect; read the
-			issue before acting again, never repeat blindly. **9**: site
-			refused -- not deleted, retry won't change that (the subtask
-			refusal arrives this way, HTTP 400 in the line). Every other
-			status also means not deleted. A 404 (status 8) does NOT
-			establish the issue is absent.
+			Returns 0 when deleted, nothing on stdout. **3**: UNKNOWN
+			-- the delete may still have taken effect; read the issue
+			before acting again, never repeat blindly. **9**:
+			refused -- not deleted, retry won't help (the subtask
+			refusal arrives this way, HTTP 400 in the line). Every
+			other status also means not deleted. A 404 (status 8)
+			does NOT establish absence.
 
-			A failure prints one stderr line: the mark, this operation's
-			name, the status, and Jira's body verbatim.
+			A failure prints one stderr line: the mark, this
+			operation's name, the status, and Jira's body verbatim.
 
 		--client-comms-jira-board-list <team-member> [--start-at <n>]
 			Runs only as a `client-*` member, under that member's own
@@ -1811,26 +1627,27 @@
 			won't restore it. Treat every call as final.
 
 		--librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			Moves one item out of `<team-member>`'s own live inbox root
-			into that inbox's `processed/`, deleting the original.
-			`<item-filename>` must be a bare name ending `.md`. No
-			`--from-inbox:<member>` here -- the source is always the
-			acting member's own inbox; `--from-state:`/`--from-inbox:`
-			are both rejected if given. `--header:*` and the three body-
-			input modes behave as on the `--magic-board-to-*` family.
+			Moves one item out of `<team-member>`'s own live inbox
+			root into that inbox's `processed/`, deleting the
+			original. `<item-filename>` must be a bare name ending
+			`.md`. No `--from-inbox:<member>` here -- the source is
+			always the acting member's own inbox; `--from-state:`/
+			`--from-inbox:` are both rejected if given. `--header:*`
+			and the three body-input modes behave as on the
+			`--magic-board-to-*` family.
 
-			Auto-stamps `processed-at` on the drained item unless: the
-			caller gives `--header:<op>:processed-at` (including
+			Auto-stamps `processed-at` on the drained item unless:
+			the caller gives `--header:<op>:processed-at` (including
 			`:remove:` for no stamp); the body already carries
-			`processed-at` in its own frontmatter; or the body has no
-			complete frontmatter block to stamp into.
+			`processed-at`; or the body has no complete frontmatter
+			block to stamp into.
 
-			Refuses rather than overwrites if `processed/` already holds
-			that basename, leaving the source in place -- a refused call
-			is safe to fix and re-run.
+			Refuses rather than overwrites if `processed/` already
+			holds that basename, leaving the source in place -- a
+			refused call is safe to fix and re-run.
 
-			**ONE-WAY** -- the original is deleted once the processed/
-			copy is written. Treat every call as final.
+			**ONE-WAY** -- the original is deleted once the
+			processed/ copy is written. Treat every call as final.
 
 		--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a note into `<member>`'s own
@@ -1963,210 +1780,194 @@
 			path" in one call.
 
 		--owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]
-			Reports, and where supported carries out, the setup of one
-			macro part of a working installation. `<domain>` is open and
-			grows; `claude`, `copilot`, `grok`, `slack`, `storage` and
-			`scaleway` exist today; a domain with no defined check set
-			says so rather than inventing one.
+			Reports, and where supported carries out, setup of one
+			macro part of an installation. <domain> is open-ended;
+			`claude`, `copilot`, `grok`, `slack`, `storage` and
+			`scaleway` exist today. A domain with no defined checks
+			says so.
 
-			Options and their values come first, then at most one sub-operation
-			LAST -- anything after a sub-operation is an error, and so is an
-			option whose meaning depends on a sub-operation that is absent.
+			Options and values come first, then at most one
+			sub-operation last -- anything after it, or an option
+			whose meaning needs a sub-operation that's absent, is an
+			error. <config-option> is per domain, listed below.
+			--print-apply-command lists a domain's options even if
+			not listed below; a domain with none declared is
+			refused, not answered empty.
 
-			`<config-option>` stands for this domain's own configuration
-			options, which differ per domain and so are listed per domain
-			below rather than on the family line. The flags after it are
-			family-wide and mean the same thing for every domain.
-			--print-apply-command writes the list for any domain that declares
-			options, so one not listed below is still readable at runtime. A
-			domain that declares none is refused, not answered with an empty
-			list.
+			A value to store -- a config option, --access-root, or
+			--values-from-stdin (KEY=VALUE lines) -- is accepted
+			only with --apply, refused otherwise. --workspace-root
+			(which workspace this call is about) is accepted by
+			every sub-operation.
 
-			A value the setup would store -- one of this domain's own
-			configuration options, --access-root, or --values-from-stdin, which
-			reads a set of them as KEY=VALUE lines -- is accepted only together
-			with --apply, and refused rather than taken and dropped anywhere
-			else. --workspace-root is not one of these: it names which
-			workspace a call is about rather than a value to store, so every
-			sub-operation takes it.
+			No sub-operation: status for the current workspace plus
+			the command to finish setup, asking only for what's
+			REQUIRED and missing. --check: full per-setting detail.
+			--apply: carries setup out, non-interactively.
+			--print-apply-command: the full command for every
+			option, required and optional, as a stdin-fed form when
+			a secret is involved (a secret never sits on a command
+			line); changes nothing, exits 0. --wizard: not built
+			yet.
 
-			With no sub-operation, writes a readable status for the current
-			workspace and names the command that sets the domain up. What
-			it asks for is only what the domain REQUIRES and does not yet
-			have; an optional setting is left to --print-apply-command,
-			named once nothing required is left waiting. --check
-			writes the per-setting detail instead. --apply carries the setup
-			out, non-interactively, for a domain that implements it.
-			--print-apply-command writes the command that would carry it out,
-			naming every option this domain declares, required and optional,
-			set or not, with a placeholder per value and a short line per
-			option saying where that value comes from. A domain whose options
-			are all plain gets one command line; a domain carrying a secret
-			gets a stdin-fed form instead -- its secrets as KEY=<placeholder>
-			lines piped into --values-from-stdin --apply -- so no secret is
-			written on a command line. It changes nothing and exits 0; --check
-			is the sub-operation that reports whether the domain is set up.
-			--wizard is the interactive form and is not built yet.
-
-			--all-workspaces widens a report from the current workspace to every
-			workspace the skillset installer has registered. Accepted only by a
-			domain whose diagnosis spans workspaces, and never combined with
-			--apply, which changes exactly one workspace, or with
-			--print-apply-command, which writes the command for exactly one.
-
-			--set-as-default points the domain's service selection at this
-			domain. Without it, an apply takes the selection only when nothing
-			is selected at all, so an existing selection is never overwritten by
-			accident. Accepted only by a domain that owns a selection, and only
-			together with --apply.
+			--all-workspaces widens a report to every registered
+			workspace; only a domain whose diagnosis spans
+			workspaces, never with --apply or --print-apply-command
+			(each is single-workspace). --set-as-default points the
+			domain's service selection here; without it an apply
+			only fills an unset selection. Only with --apply, and
+			only a domain that owns a selection.
 
 			Configuration options, `claude`:
-			  --workspace-root <path>   the workspace to set up. Its own
-			      basic setting: it defaults to $MMDAPP, and a path that is
-			      not a workspace root is an error rather than a fallback.
-			  --access-root <path>      an extra directory a spawned agent
-			      may read and write, beyond the member and source roots the
-			      installer already grants. Repeatable. Optional.
+			  --workspace-root <path>  workspace to set up.
+			      Default $MMDAPP; a non-root path is an error.
+			  --access-root <path>     extra read/write dir for a
+			      spawned agent, beyond the defaults. Repeatable,
+			      optional.
 
 			Configuration options, `slack`:
-			  SLACK_CHANNEL_MAGIC_TEAM   the team channel id. Required.
-			  SLACK_CHANNEL_HUMAN_OWNER  the human-owner's own member id.
+			  SLACK_CHANNEL_MAGIC_TEAM   team channel id. Required.
+			  SLACK_CHANNEL_HUMAN_OWNER  human-owner's member id.
 			      Required.
-			  SLACK_BOT_TOKEN            the team bot's token. Optional, but
-			      given only together with SLACK_WORKSPACE_DOMAIN.
-			  SLACK_WORKSPACE_DOMAIN     the workspace subdomain. Optional,
-			      given only together with SLACK_BOT_TOKEN.
-			  SLACK_CHANNEL_EVENT_TRACK  the activity-log channel id.
-			      Optional: unset, that traffic goes to the team channel.
-			  SLACK_CHANNEL_EVENT_ALERT  the alert channel id. Optional:
-			      unset, that traffic goes to the team channel.
-			  A member's own user token is not a workspace setting, so this
-			  domain does not ask for it.
+			  SLACK_BOT_TOKEN            team bot token. Optional,
+			      only with SLACK_WORKSPACE_DOMAIN.
+			  SLACK_WORKSPACE_DOMAIN     workspace subdomain.
+			      Optional, only with SLACK_BOT_TOKEN.
+			  SLACK_CHANNEL_EVENT_TRACK  activity-log channel.
+			      Optional: unset goes to the team channel.
+			  SLACK_CHANNEL_EVENT_ALERT  alert channel. Optional:
+			      unset goes to the team channel.
+			  A member's own user token is not a workspace
+			  setting -- not asked for here.
 
 			Configuration options, `storage`:
-			  TEAM_DATA_DIRECTORY   where the team data lives. Optional:
-			      unset, it is the workspace's own team-data root.
-			  TEAM_DATA_GIT_REMOTE  the team-data repository to push to.
+			  TEAM_DATA_DIRECTORY       team data location.
+			      Optional: unset is the workspace's own
+			      team-data root.
+			  TEAM_DATA_GIT_REMOTE      team-data repo to push to.
 			      Optional.
-			  TEAM_DATA_BRANCH      the branch that repository tracks.
-			      Optional: unset, "main".
-			  TEAM_DATA_GIT_USER_NAME   the author name on the team-data
-			      commits the tooling makes. Optional: unset, git's own
-			      identity stands.
-			  TEAM_DATA_GIT_USER_EMAIL  the author email on those commits.
-			      Optional: unset, git's own identity stands.
-			  A missing or empty store is cloned from TEAM_DATA_GIT_REMOTE
-			  before anything writes into it, at most once per operation;
-			  after a failed clone the main loop's own sync retries it.
-			  `--apply` also makes the
-			  store a repository: cloned when a remote is set, initialised
-			  when none is. A store holding content that is not a clone of
-			  a set remote is left alone, with a warning. The two identity
-			  keys, when set, are written into the store repository's own
-			  config; a repository with no author identity is a failed
-			  check, naming both keys.
+			  TEAM_DATA_BRANCH          tracked branch. Optional:
+			      unset "main".
+			  TEAM_DATA_GIT_USER_NAME   commit author name.
+			      Optional: unset uses git's own identity.
+			  TEAM_DATA_GIT_USER_EMAIL  commit author email.
+			      Optional: unset uses git's own identity.
+			  A missing/empty store is cloned from
+			  TEAM_DATA_GIT_REMOTE before the first write; a failed
+			  clone is retried by the main loop. --apply makes the
+			  store a repository, cloned or initialised; content
+			  that isn't a clone of a set remote is left alone,
+			  with a warning. A repository with no author identity
+			  fails its check, naming both keys.
 
-			Exit status is non-zero when a check fails, so it is usable as a
-			readiness gate. A setting is judged by its value where that value is
-			used, never by a config file existing.
+			Exit status is non-zero on a failed check, usable as a
+			readiness gate. A setting is judged by its value where
+			used, never by a file merely existing.
 
-			`claude`, `claude-native` and `copilot` each diagnose a workspace
-			with the same per-workspace rows, and `WORKSPACE_HOOK_SCRIPTS`
-			(readable row `Workspace hooks`) is one of them. It fails when a
-			command hook that workspace's `.claude/settings.json` registers
-			runs a `"$CLAUDE_PROJECT_DIR"/.claude/hooks/<script>` that is
-			missing or not executable, naming each such entry. Its `fix:` is
-			`--make-workspace-integrations`, which removes an entry for a hook
-			this package retired. An entry left after that is not this
-			package's hook: restore its script or remove the entry.
+			`claude`, `claude-native` and `copilot` share a
+			WORKSPACE_HOOK_SCRIPTS row (`Workspace hooks`): fails
+			naming each missing or non-executable hook script a
+			workspace's `.claude/settings.json` registers; fix:
+			--make-workspace-integrations (also drops a retired
+			hook entry -- anything left after that isn't this
+			package's, restore or remove it yourself).
 
-			`claude` and `claude-native` also carry two rows `copilot` does
-			not. `MCP_REGISTRATION` (readable row `MCP servers`) fails when the
-			workspace's `.mcp.json` lacks the myx.common or myx.distro entry,
-			when `$HOME/.claude/settings.json` does not enable both in
-			`enabledMcpjsonServers`, or when `$HOME/.claude.json` has no
-			myx.common in that workspace's project `mcpServers`.
-			`CLAUDE_PERMISSIONS` (readable row `Claude permissions`) fails when
-			`$HOME/.claude/settings.json` lacks any of the fixed grants in
-			`permissions.allow` or `permissions.deny`. Both name
-			`--make-workspace-integrations` as their `fix:`. A settings file
-			that does not parse fails its row with `fix: repair the JSON`; an
-			unparseable or absent `$HOME/.claude.json`, or an empty MYXROOT,
-			leaves `MCP_REGISTRATION` undetermined, a warning.
+			`claude`/`claude-native` only, two more rows:
+			MCP_REGISTRATION (`MCP servers`) fails when
+			`.mcp.json` lacks the myx.common/myx.distro entry,
+			`enabledMcpjsonServers` doesn't enable both, or
+			`.claude.json` has no myx.common for that workspace.
+			CLAUDE_PERMISSIONS (`Claude permissions`) fails when
+			`settings.json` lacks a fixed grant. Both fix:
+			--make-workspace-integrations. An unparseable settings
+			file fails with `fix: repair the JSON`; an
+			unparseable/absent `.claude.json` or empty MYXROOT
+			leaves MCP_REGISTRATION a warning, undetermined.
 
 		--install-claude-permissions
-			Merges this package's mandatory Claude Code permission grants
-			into `$HOME/.claude/settings.json` (`permissions.allow`/
-			`permissions.deny`) -- additive, never a blind overwrite:
-			existing entries this op did not add are kept. `--workspace
-			<path>` (default `$MMDAPP`) selects which workspace's rows
-			are reconciled.
+			Merges this package's mandatory Claude Code permission
+			grants into `$HOME/.claude/settings.json`
+			(`permissions.allow`/`permissions.deny`) -- additive,
+			existing entries this op didn't add are kept.
+			`--workspace <path>` (default `$MMDAPP`) selects which
+			workspace's rows are reconciled. A revoked grant can
+			still apply while another workspace still records it.
 
-			Upserts the fixed grants (`mcp__myx_common`, `mcp__myx_distro`,
-			`Agent`, `Task`, `SendMessage`, and one `Edit(<path>/**)` per
-			acting team member's skillset directory) and denies `Bash`
-			and the native Slack MCP server (`mcp__claude_ai_Slack`)
-			unconditionally -- route shell commands through
-			`mcp__myx_distro__execute`/`Monitor`, and Slack through the
-			team's own `--member-comms-slack-*` ops instead. Sets
-			`enabledMcpjsonServers` to `myx.common` and `myx.distro`.
+			Upserts the fixed grants (`mcp__myx_common`,
+			`mcp__myx_distro`, `Agent`, `Task`, `SendMessage`, one
+			`Edit(<path>/**)` per acting team member's skillset
+			directory) and denies `Bash` and the native Slack MCP
+			server (`mcp__claude_ai_Slack`) unconditionally -- route
+			shell through `mcp__myx_distro__execute`/`Monitor`, Slack
+			through the team's own `--member-comms-slack-*` ops.
+			Sets `enabledMcpjsonServers` to `myx.common` and
+			`myx.distro`. Not purely additive: it also drops every
+			prior board grant and every prior `Write` grant a
+			member held.
 
-			A scan failure or an empty workspace suppresses revocation
-			rather than reading as "every grant disappeared" -- existing
-			grants are left in place and the reason is reported. Fails
-			loud and leaves the file untouched on any other failure. A
-			run that changes nothing is reported as such.
+			A scan failure or empty workspace suppresses revocation
+			rather than reading as "every grant disappeared" --
+			existing grants stay, the reason is reported. Any other
+			failure fails loud, file untouched. A no-op run is
+			reported as such.
 
 		--install-workspace-restrictions [--workspace <path>]
 			Installs Claude Code WORKSPACE-level permission rules (a
-			standing Read allow-grant, deny rules, and `PreToolUse`
-			hooks) into the target workspace's own `.claude/settings.json`
-			-- distinct from `--install-claude-permissions`, which is
-			$HOME-scoped. Default target is the current shell directory;
+			standing Read allow-grant, deny rules, `PreToolUse`
+			hooks) into the target workspace's own
+			`.claude/settings.json` -- distinct from
+			`--install-claude-permissions`, which is $HOME-scoped.
+			Default target is the current shell directory;
 			`--workspace <path>` overrides it.
 
-			Refuses (exit 1, nothing written) when `<workspace>` is not a
-			genuine workspace root (no `<workspace>/.local`), naming a
-			likely correct ancestor root when one is found.
+			Also grants `Read` on any path listed in the
+			workspace's own `CLIENT_ACCESS_ROOTS_EXTRA` config
+			key, for access outside the workspace.
 
-			Idempotent: merges into existing files rather than
-			overwriting, and a run that changes nothing is reported as
-			such. Installs two fixed hook scripts (denying native-tool
-			calls the team routes elsewhere, and denying `Read` on the
-			memory system's `MEMORY.md`) and denies `Bash` outright. Also
-			maintains a `.claude` symlink per namespace root under the
-			workspace, kept in sync with the workspace's own namespace
-			list.
+			Refuses (exit 1, nothing written) when `<workspace>`
+			isn't a genuine workspace root (no `<workspace>/.local`),
+			naming a likely correct ancestor root when found.
 
-			Before reporting success, re-reads the written settings file
-			and confirms every expected hook is wired and every hook
-			script referenced by any command hook actually exists and is
-			executable -- reports each `OK`/`MISSING` by name, and any
-			`MISSING` fails the run (exit 1).
+			Idempotent: merges into existing files, a no-op run
+			reported as such. Installs two fixed hook scripts
+			(denying native-tool calls the team routes elsewhere,
+			denying `Read` on the memory system's `MEMORY.md`) and
+			denies `Bash` outright. Also maintains a `.claude`
+			symlink per namespace root under the workspace, kept in
+			sync with the workspace's own namespace list. Real
+			content found at a target is deleted and replaced by
+			the link.
+
+			Before reporting success, re-reads the written settings
+			and confirms every expected hook is wired and every
+			referenced hook script exists and is executable --
+			reports each `OK`/`MISSING` by name; any `MISSING` fails
+			the run (exit 1).
 
 		--install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
 			Installs skillset-link integration: symlinks every bundle
 			member and every project-declared team-member into the
 			scope's hidden skills directories (`.agents/skills`,
-			`.claude/skills`, `.copilot/skills` as applicable), creating
-			them if missing.
+			`.claude/skills`, `.copilot/skills` as applicable),
+			creating them if missing.
 
-			`--scope workspace` targets `<workspace>/.agents/skills` and
-			`<workspace>/.claude/skills`; `--scope user-home` targets
-			`$HOME/.agents/skills`, `$HOME/.copilot/skills` and
-			`$HOME/.claude/skills`. Default: workspace, falling back to
-			user-home if the resolved workspace isn't a set-up myx.distro
-			workspace and `--scope` wasn't given explicitly -- an
-			explicit `--scope workspace` on such a workspace is an
-			error. Default workspace is the current shell directory;
+			`--scope workspace` targets `<workspace>/.agents/skills`
+			and `<workspace>/.claude/skills`; `--scope user-home`
+			targets `$HOME/.agents/skills`, `$HOME/.copilot/skills`
+			and `$HOME/.claude/skills`. Default: workspace, falling
+			back to user-home if the resolved workspace isn't a
+			set-up myx.distro workspace and `--scope` wasn't given
+			explicitly (an explicit `--scope workspace` there is an
+			error). Default workspace is the current shell directory;
 			`--workspace <path>` overrides it.
 
-			A member declared by more than one project becomes a merged
-			composite; a name both bundled and declared keeps the
-			bundled copy, with the declared source shadowed and warned
-			about, never silently overwritten. Idempotent: an already-
-			correct link is left alone, and a run that changes nothing
-			is reported as such.
+			A member declared by more than one project becomes a
+			merged composite; a name both bundled and declared keeps
+			the bundled copy, the declared source shadowed and warned
+			about, never silently overwritten. Idempotent: an
+			already-correct link is left alone, a no-op run reported
+			as such. Real content already at a target is deleted
+			and replaced by the link.
 
 		--install-vscode-integrations [--workspace <path>]
 			Installs/updates baseline VS Code + Claude Code MCP
@@ -2319,64 +2120,59 @@
 		--magic-grooming-input-scan <team-member>
 			Read-only: lists board items as `<state>/<item-filename>`,
 			one per line, with every frontmatter field. Always scans
-			backlog/pending/running/blocked/parked. Use this to find an
-			item's actual current state before calling
-			`--magic-grooming-to-*`. Also returns routine-grooming's own
-			state-and-lock note content ahead of the board rows (content
-			only, never evaluates the lock; absent is reported as
-			nothing to report, not an error), and the team roster cache
-			as its own section (same content-only, not-an-error-if-
-			absent terms) -- no need to call `--magic-team-roster-read`
-			separately after this. `<team-member>` is the only
-			argument.
+			backlog/pending/running/blocked/parked. Use this to find
+			an item's actual current state before calling
+			`--magic-grooming-to-*`. Also returns routine-grooming's
+			own state-and-lock note content ahead of the board rows
+			(content only, absent reported as nothing to report, not
+			an error), and the team roster cache as its own section
+			(same terms) -- no need to call `--magic-team-roster-read`
+			separately. `<team-member>` is the only argument.
 
-			Inbox scope is `<team-member>`'s own inbox PLUS every
-			`client-*` member that exists as a skill directory, each in
-			its own "Additional Inbox -- <member>" group. Widening the
-			read is all it does: the acting identity stays
-			`<team-member>`, no client credential or comms source is
-			read, and nothing
-			is written into a client inbox.
+			Inbox scope is `<team-member>`'s own inbox plus every
+			`client-*` member, each in its own "Additional Inbox --
+			<member>" group. Widening the read is all it does: the
+			acting identity stays `<team-member>`, no client
+			credential or comms source is read, nothing is written
+			into a client inbox.
 
 		--magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]
-			Read-only combined check pass: backlog/pending/running/blocked
-			board items (not parked), the calling member's own watched
-			sources, and every client-* member's own sources, each under
-			that member's own credentials. Returns only items whose
-			communication-channel-id is the three-field
-			`slack:<channel>:<ts>` form -- a live, reply-pending Slack
-			thread; a bare `slack:<channel>` or a non-slack service is
-			not one. An empty result is a normal, clean outcome, not an
-			error. No --state/--header override.
+			Read-only combined check: backlog/pending/running/blocked
+			board items (not parked), the calling member's own
+			watched sources, and every client-* member's own
+			sources, each under that member's own credentials.
+			Returns only items whose channel id is the
+			three-field `slack:<channel>:<ts>` form -- a live,
+			reply-pending thread; a bare `slack:<channel>` or
+			non-slack service is not one. An empty result is
+			normal, not an error. No --state/--header override.
 
-			One document covers everyone swept. A client member's own
-			part matches what --client-sweep-input-scan returns on its
-			own, with its own `# Incoming Communications Sweep --
-			<member>` heading and `member:`/`member-kind:` lines. A
-			client member whose own sweep recorded no coverage still
-			gets a block saying `no scan was made`, so it never reads as
-			a member with nothing new, and is never silently missing.
+			One document covers everyone swept. Each client
+			member's own block matches
+			--client-sweep-input-scan's own output (its `#
+			Incoming Communications Sweep -- <member>` heading,
+			`member:`/`member-kind:` lines); a client with no
+			coverage still gets a `no scan was made` block --
+			never silently missing.
 
-			An optional cut-off narrows the read: --comms-since-utime
-			(epoch seconds, fractional part optional) or
-			--comms-since-date-time (YYYY-MM-DD-leading), mutually
-			exclusive, neither repeatable -- passed unchanged to every
-			client member's own sweep.
+			An optional cut-off narrows the read:
+			--comms-since-utime or --comms-since-date-time,
+			mutually exclusive, passed unchanged to every client
+			member's own sweep.
 
-			**Not a workspace-wide mention search:** a conversation or
-			mention outside the already-watched sources stays
-			undiscoverable here.
+			**Hazard: not a workspace-wide mention search** -- a
+			conversation or mention outside the already-watched
+			sources stays undiscoverable here.
 
-			Exit code, the combined verdict over the calling member and
-			every client member swept, as one document -- the body
-			reports the same coverage in `sources-scanned: N of M` and
-			`NOT SCANNED`/partial markers, matching the exit code:
-			0 every one of them scanned every source.
-			3 some sources read, some not -- partial, never complete.
-			4 none of them read anything.
+			Exit code, the combined verdict over everyone swept --
+			matched in the body by `sources-scanned: N of M` and
+			`NOT SCANNED`/partial markers:
+			0 every source scanned.
+			3 some scanned, some not.
+			4 none scanned.
 			1 failed before producing a document.
-			A client member's own failure counts as 4, never 1, once a
-			document exists.
+			A client member's own failure counts as 4, never 1,
+			once a document exists.
 
 		--magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) routine-communication-sweep's own
@@ -2434,209 +2230,174 @@
 
 		--magic-team-data-commit-pending <team-member> [--commit-message <message>] [--no-push]
 			Commits everything pending under the team-data store in one
-			commit -- new, changed and deleted paths -- and pushes it the
-			way --intern-op-item-upsert does, with one retry on a network
-			failure. Every other team-data op commits only the paths it
-			writes itself; this one is for work left uncommitted.
-			<team-member> must be magic-coordinator. Nothing outside
-			$MDAT_DATA_ROOT is staged or committed, even when the store
-			sits inside a larger repository.
+			commit (new/changed/deleted paths) and pushes it the way
+			--intern-op-item-upsert does, with one retry on a network
+			failure; every other team-data op commits only what it
+			writes, this one catches the rest. <team-member> must be
+			magic-coordinator. Nothing outside $MDAT_DATA_ROOT is
+			staged or committed.
 
-			Prints `TEAM-DATA-NOTHING-PENDING: <store>` when there is
-			nothing to commit. Otherwise it prints
-			`TEAM-DATA-COMMITTED: <commit> <n> path(s) under <store>`,
-			then one `<status><TAB><path>` line per path (A, M, D, R...),
-			then one of `TEAM-DATA-PUSHED: <commit> to origin, read back as
-			origin/<branch> = <full-sha>` (the remote branch is read back
-			after the push and must name this commit, or the op exits 1),
-			`TEAM-DATA-NOT-PUSHED: no TEAM_DATA_GIT_REMOTE is configured`
-			or `TEAM-DATA-NOT-PUSHED: --no-push`. It also does not push,
-			and says why, when the store is inside a larger repository
-			rather than its own root, or when that repository's origin is
-			not TEAM_DATA_GIT_REMOTE: a push sends the whole branch. A
-			failed push prints `TEAM-DATA-NOT-PUSHED: the push failed;
-			...`, and the op exits 1 with the commit kept locally. A store
-			that is not in a git repository is refused. So is one showing
-			an interrupted operation -- an index.lock, or a merge,
-			cherry-pick, revert or rebase in progress: it prints
+			Prints `TEAM-DATA-NOTHING-PENDING: <store>` when there's
+			nothing to commit. Otherwise: `TEAM-DATA-COMMITTED:
+			<commit> <n> path(s) under <store>`, then one
+			`<status><TAB><path>` line per path, then one of
+			`TEAM-DATA-PUSHED: <commit> to origin, read back as
+			origin/<branch> = <full-sha>` (exits 1 if the readback
+			doesn't match), `TEAM-DATA-NOT-PUSHED: no
+			TEAM_DATA_GIT_REMOTE is configured`, or
+			`TEAM-DATA-NOT-PUSHED: --no-push`. It also skips the push,
+			and says why, when the store sits inside a larger
+			repository or that repo's origin isn't
+			TEAM_DATA_GIT_REMOTE -- a push would send the whole
+			branch. A failed push prints `TEAM-DATA-NOT-PUSHED: the
+			push failed; ...` and exits 1 with the commit kept
+			locally. Refused: a store not in a git repository, or one
+			showing an interrupted operation (index.lock,
+			merge/cherry-pick/revert/rebase in progress) --
 			`TEAM-DATA-REFUSED: the repository shows an interrupted
-			operation: <which>`, exits 1 and repairs nothing. Commits
+			operation: <which>`, exits 1, repairs nothing. Commits
 			already ahead of origin go out with the push.
 
-			Run it when no routine holds the advance or heartbeat lock: it
-			takes no lock, so a file another op is writing at that moment
-			could be committed half-written.
+			**Hazard**: takes no lock -- run it only when no routine
+			holds the advance or heartbeat lock, or a file another op
+			is writing could be committed half-written.
 
 		--client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]
-			Read-only: one client-* member's own incoming
-			external communications -- Slack, email and Trello -- read as
-			that member, under that member's own credentials, from that
-			member's own configured sources. Use it to sweep one external
-			relationship's traffic; use --magic-sweep-input-scan for the
-			team's own.
+			Read-only: one client-* member's own incoming external
+			comms -- Slack, email, Trello -- read as that member,
+			under its own credentials and configured sources. Use
+			for one external relationship; use
+			--magic-sweep-input-scan for the team's own.
 
-			The member name is the only required argument, and it must be
-			a client-* one -- a partner-* member is not accepted. The
-			document's entire scope is that one member; no other
-			member's traffic is in it. Each section states our own side
-			of that source
-			(`identity: slack <id> (config: <member>)`, and the same for
-			email and Trello), and board items are limited to the ones
-			that member owns.
+			The member name is required and must be client-* (a
+			partner-* is not accepted); the whole document is that
+			one member's scope, each section stating our own side
+			(`identity: slack <id> (config: <member>)`, same for
+			email/Trello), board items limited to ones it owns.
 
-			A source that could not be read is reported as not scanned, in
-			that section's `sources-scanned: N of M` line and its
-			`**NOTE:** partial` marker, and counts against the exit status.
-			It is never read under any other member's or the team's
-			credentials.
+			A source that couldn't be read is `sources-scanned: N
+			of M` + `**NOTE:** partial`, and counts against the
+			exit status -- never read under another member's or
+			the team's credentials. An OPTIONAL source this member
+			holds no credentials for (email, Trello) is different:
+			never contacted, no `sources-scanned:` line, not
+			counted, not partial -- its own `**NOTE:** no scan
+			was made` names the unset keys. This is the only way
+			an unconfigured source is told apart from an
+			unreachable one.
 
-			An OPTIONAL source this member holds no credentials of its own
-			for -- email, Trello -- is a separate case: it was never
-			contacted, so it carries no `sources-scanned:` line, enters no
-			source total, and does not make the scan partial. Its section
-			says so in its own `**NOTE:** no scan was made` line, naming
-			the keys that are unset. Only that way is an unconfigured
-			source distinguishable from an unreachable one.
+			Slack sources come from this member's own
+			`SLACK_CONVERSATIONS` config (ids or `<channel>:<ts>`,
+			whitespace/comma-separated); none configured reports
+			nothing scanned, no team-scoped fallback.
 
-			Slack sources come from this member's own `SLACK_CONVERSATIONS`
-			config value -- conversation ids or `<channel>:<ts>` targets,
-			whitespace- or comma-separated. With none configured, the
-			Slack section reports that nothing was scanned rather than
-			falling back to any team-scoped conversation.
+			A cut-off (--comms-since-utime or
+			--comms-since-date-time, mutually exclusive) is
+			optional to pass but never absent from the call: given
+			neither, this operation defaults to
+			`--comms-since-utime 0` itself, so a first-time sweep
+			isn't reported empty. The cut-off actually used is in
+			each section's own `instrument:` line.
 
-			A cut-off narrows the read: --comms-since-utime takes
-			epoch seconds, with or without a fractional part;
-			--comms-since-date-time takes a YYYY-MM-DD-leading value.
-			Mutually exclusive, neither repeatable -- one cut-off, one
-			spelling. Optional to pass, never absent from the call: with
-			neither given this operation supplies
-			`--comms-since-utime 0` itself, so a member swept for the first
-			time is not reported empty by a defaulted recent window. The
-			cut-off actually used is stated in each section's own
-			`instrument:` line.
-
-			Exit code: 0 when every source was scanned, 3 when some were
-			and some could not be, 4 when none could be, 1 when the
-			operation failed before producing a document.
+			Exit code: 0 every source scanned, 3 some scanned and
+			some not, 4 none scanned, 1 failed before producing a
+			document.
 
 		--member-wait-for-input <team-member> [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own]
 		--member-wait-for-input <team-member> --wait-list-sources
-			Waits on a list of input sources and returns as soon as
-			any of them changes, or when the timeout expires.
+			Waits on a list of input sources, returns as soon as one
+			changes or the timeout expires.
 
-			stdout ALWAYS opens with exactly one marker line:
-			`WAIT-RESULT: RECEIVED` -- something arrived, and what
-			that source holds now follows; `WAIT-RESULT: TIMEOUT` --
-			the bound expired with nothing new; `WAIT-RESULT: ERROR`
-			-- the wait could not be performed, see stderr. RECEIVED
-			and TIMEOUT both exit 0, because both are answers; ERROR
-			exits 1. A TIMEOUT is a COMPLETE, SUCCESSFUL wait, not a
-			failure and not an error: those sources were read and held
-			nothing new. What to do after a quiet wait -- wait again,
-			look elsewhere, or escalate -- is the caller's own
-			escalation rules, never this operation's.
+			stdout always opens with one marker line:
+			`WAIT-RESULT: RECEIVED` (something arrived, that
+			source's new content follows), `WAIT-RESULT: TIMEOUT`
+			(bound expired, nothing new), or `WAIT-RESULT: ERROR`
+			(wait could not run, see stderr). RECEIVED and TIMEOUT
+			both exit 0 -- a TIMEOUT is a complete, successful
+			wait, not a failure; ERROR exits 1.
 
-			A source is `<kind>:<target>` and --wait-source is
-			repeatable. Given none, the sources are `slack:magic-team`
-			and `slack:human-owner`. `slack:<conversation>` waits on a
-			conversation, `slack:<channel>:<ts>` on that one message's
-			thread, `slack:<channel>:<ts>:conversation` on any new post
-			in that thread that is not this member's own, and
-			`file:<absolute-path>` on a local drop path,
-			file or directory alike -- an absent path is a state, not
-			a failure, and a drop appearing later is exactly the
-			arrival being waited for. --wait-list-sources prints the
-			source kinds this build carries and waits on nothing.
+			A source is `<kind>:<target>`, --wait-source is
+			repeatable; given none, defaults to `slack:magic-team`
+			and `slack:human-owner`. `slack:<conversation>` waits
+			on a conversation; `slack:<channel>:<ts>` on that
+			message's thread; `slack:<channel>:<ts>:conversation`
+			on any new post in that thread not from this member;
+			`file:<absolute-path>` on a local path (file or dir)
+			-- an absent path is a state, not a failure.
+			--wait-list-sources prints the source kinds this
+			build carries and waits on nothing.
 
-			--wait-timeout is the bound in whole seconds, default 300.
-			--wait-poll-interval is whole seconds between probes,
-			default 15, minimum 1 -- it never changes the outcome,
-			only how soon within the bound an arrival is noticed.
-			--wait-since-utime takes epoch seconds: give it when
-			waiting for something at or after a moment already known,
-			such as a message just posted, so a reply already sitting
-			there returns immediately rather than reading as part of
-			the scenery. Without it the first probe is the baseline
-			and only a later change counts.
+			--wait-timeout: bound in whole seconds, default 300.
+			--wait-poll-interval: whole seconds between probes,
+			default 15, minimum 1 -- only affects how soon an
+			arrival is noticed. --wait-since-utime: epoch seconds;
+			give it to catch something already posted (e.g. a
+			message just sent) so it counts as an immediate
+			arrival; without it, the first probe is the baseline.
 
 			--wait-addressee names the Slack accounts whose answer
-			counts, and is required with a `slack:<channel>:<ts>` thread
-			source, which must then be the only source and needs
-			--wait-since-utime set to the question's own ts. Only a
-			reply from one of those accounts, or its reaction on the
-			question, is an arrival; no message text decides it.
-			`slack:<channel>:<ts>:conversation` is a thread source too --
-			same only-source and --wait-since-utime requirement -- but
-			takes no --wait-addressee: any new post counts, not just one
-			party's reply, and this member's own posts never count as
-			an arrival, matched against the sender its own sends already
-			carry (see --member-comms-slack-send-message's `--metadata`),
-			unless --wait-include-own is given. That flag only changes
-			anything on this one source shape, where it lifts the default
-			skip of this member's own posts; on every other source they
-			already count, so the flag is refused there rather than
-			silently doing nothing.
-			The --wait-since-utime value need not name a real message
-			here, unlike an ordinary thread source -- a bare call defaults
-			it to the current time, as a synthetic floor.
+			counts; required with a `slack:<channel>:<ts>` thread
+			source, which must then be the only source, with
+			--wait-since-utime set to the question's own ts --
+			only a reply from those accounts, or a reaction on the
+			question, is an arrival. `slack:<channel>:<ts>:
+			conversation` has the same only-source/
+			--wait-since-utime requirement but takes no
+			--wait-addressee: any new post counts, and this
+			member's own posts never do unless --wait-include-own
+			is given (refused on every other source, where posts
+			already count). On this source shape only,
+			--wait-since-utime need not name a real message -- a
+			bare call defaults it to the current time.
 
-			A source kind this build does not carry is an ERROR at
-			second zero, naming the kinds that exist -- never a source
-			that silently never fires for the length of the bound. A
-			probe that cannot run is named in the body and the wait
-			carries on over the remaining sources; a TIMEOUT body then
-			states that nothing is known about those sources either
-			way, so their silence must not be read as quiet.
+			An unsupported source kind is an ERROR at second zero,
+			naming the kinds that exist. A probe that can't run is
+			named in the body and the wait continues on the rest;
+			a TIMEOUT body then says nothing is known about those
+			sources either way.
 
-			A source that was never read once during the wait is also
-			named on a second line, right after the marker:
-			`WAIT-NEVER-READ: [<kind>:<target>] ...`. The line is
-			absent when every source was read at least once. It never
-			changes the outcome or the exit code. The TIMEOUT text
-			claims a read only for the sources that were read: none
-			read says that nothing is known at all, and a mix names
-			which sources were read and which never were.
+			`WAIT-NEVER-READ: [<kind>:<target>] ...` names, right
+			after the marker, any source never read during the
+			wait -- absent when every source was read at least
+			once; never changes the outcome or exit code.
 
-			On a thread source (`slack:<channel>:<ts>`, or its
-			`:conversation` form), RECEIVED also ends with a line naming
-			the newest message it just showed:
+			On a thread source (`slack:<channel>:<ts>` or its
+			`:conversation` form), RECEIVED ends with:
 
 			    WAIT-LAST-TS: <ts>
 
-			Pass that ts back as the next call's --wait-since-utime to
-			keep reading forward without re-parsing the body for it.
-			Absent on a bare conversation or file source: neither prints
-			one message per line, so neither has a single ts this line
-			could name.
+			Pass that back as the next call's --wait-since-utime
+			to keep reading forward. Absent on a bare conversation
+			or file source -- neither has a single ts to name.
 
 		--member-escalation-read <team-member> <request-id>
 			The verdict of one escalation: an AskUserQuestion of kind
 			readback, decision or permission. <request-id> is the
-			pending-reply id the question printed ("recorded as pending
-			reply <id>"). An answered one prints
+			pending-reply id the question printed ("recorded as
+			pending reply <id>"). Answered: prints
 			`ESCALATION: <id> answered`, then `VERDICT:`,
-			`VERDICT-TEXT:` for a readback correction, `ANSWERED-BY:`
-			and, for an allow, `GRANT:`. One not answered yet is read
-			now: the question's own thread, then a forward's thread.
-			An answer from an addressee there is applied exactly as a
-			waiting question applies it. With none it prints
-			`ESCALATION: <id> open` and `VERDICT: UNCLASSIFIED`, with
+			`VERDICT-TEXT:` (readback correction), `ANSWERED-BY:`,
+			and for an allow, `GRANT:`. Not yet answered: read now
+			from the question's own thread, then a forward's thread;
+			an answer from an addressee there applies exactly as a
+			waiting question applies it. With none:
+			`ESCALATION: <id> open` + `VERDICT: UNCLASSIFIED`, with
 			`VERDICT-REASON:` when an answer was seen and not taken.
 			An answer from the account that asked is never taken.
 
 			While a typed escalation waits, the first reply from an
-			addressee ends the wait. It is judged against every reply
-			since the question, and the asker's own posts never count.
-			A reply that names no valid answer returns to the asking
-			agent as `VERDICT: UNCLASSIFIED`, with its reason and the
-			reply text, and the record stays open. Nothing is posted
-			for it automatically. The result's last line is the exact
-			re-wait call, `AskUserQuestion pending_id=<request-id>`. It
-			posts nothing and waits on the same thread again, and only
-			the session that asked may make it. An older record with no
-			session id can be re-waited on from any session, but for a
-			permission it grants nothing there, because the grant is
-			keyed to the record's own session.
+			addressee ends the wait, judged against every reply since
+			the question (the asker's own posts never count). A
+			reply naming no valid answer returns
+			`VERDICT: UNCLASSIFIED` to the asking agent with its
+			reason and the reply text; the record stays open, nothing
+			is posted automatically. The result's last line is the
+			exact re-wait call, `AskUserQuestion pending_id=
+			<request-id>` -- posts nothing, waits on the same thread
+			again, and only the session that asked may make it. An
+			older record with no session id can be re-waited from any
+			session, but for a permission it grants nothing there --
+			the grant is keyed to the record's own session.
 
 		--member-escalation-answer <team-member> <request-id> <verdict> [text]
 			Answers one open escalation as <team-member>, which must be
@@ -2758,30 +2519,29 @@
 
 		--magic-heartbeat-config-check
 			Read-only, no arguments -- routine-heartbeat's step-0
-			upfront config gate. Checks magic-coordinator's own config
-			for TEAM_DATA_DIRECTORY and the EMAIL_*/TRELLO_* keys below,
+			config gate. Checks magic-coordinator's own config for
+			TEAM_DATA_DIRECTORY and the EMAIL_*/TRELLO_* keys below,
 			and magic-team's for the four SLACK_CHANNEL_* keys,
 			SLACK_BOT_TOKEN and TEAM_DATA_GIT_REMOTE.
 
 			Prints one `<KEY>: OK`/`WARN`/`FAIL`/`SKIP` line per key
-			(name only, never the value). OK is set; WARN is set but
-			suspect; FAIL is required and unset, and is the only token
-			that gates the exit code; SKIP is optional and unset. Keys
-			checked: TEAM_DATA_DIRECTORY, SLACK_CHANNEL_EVENT_TRACK,
+			(name only, never the value). OK = set; WARN = set but
+			suspect; FAIL = required and unset, the only token
+			gating the exit code; SKIP = optional and unset. Keys:
+			TEAM_DATA_DIRECTORY, SLACK_CHANNEL_EVENT_TRACK,
 			SLACK_CHANNEL_EVENT_ALERT, SLACK_CHANNEL_MAGIC_TEAM,
 			SLACK_CHANNEL_HUMAN_OWNER, EMAIL_IMAP_HOST, EMAIL_USER,
 			EMAIL_APP_PASSWORD, TRELLO_KEY, TRELLO_TOKEN.
-			TEAM_DATA_DIRECTORY is optional and never SKIP: unset, it
-			reads OK and names the workspace's own default. Required:
-			the four SLACK_CHANNEL_* keys -- any missing also prints a
-			fix command and returns 1. The other five, plus
-			SLACK_BOT_TOKEN and TEAM_DATA_GIT_REMOTE, are optional --
-			unset they read SKIP, print their own fix command, and never
-			affect the exit code. For the credential-bearing keys
-			(EMAIL_APP_PASSWORD, TRELLO_KEY, TRELLO_TOKEN,
-			SLACK_BOT_TOKEN) that fix command is the
-			`--upsert-from-stdin` form, so following it never puts a
-			secret in argv.
+			TEAM_DATA_DIRECTORY is optional and never SKIP: unset
+			reads OK, naming the workspace's own default. Required:
+			the four SLACK_CHANNEL_* keys -- any missing prints a fix
+			command and returns 1. The rest (plus SLACK_BOT_TOKEN,
+			TEAM_DATA_GIT_REMOTE) are optional -- unset reads SKIP,
+			prints its own fix command, never affects the exit code.
+			For credential-bearing keys (EMAIL_APP_PASSWORD,
+			TRELLO_KEY, TRELLO_TOKEN, SLACK_BOT_TOKEN) that fix
+			command is the `--upsert-from-stdin` form, so a secret
+			never lands in argv.
 
 		--magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]...
 			Records a per-pass outcome (nudged/respawned/redispatched/
@@ -2936,35 +2696,33 @@
 		--magic-grooming-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
 		--magic-daily-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
 		--magic-retro-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
-			Releases the lock in routine closure, setting the note's own
-			`state: advance-finished`, `state: grooming-finished`,
-			`state: daily-finished` or `state: retro-finished`
-			respectively. Prints `RELEASED` and returns 0 always.
+			Releases the lock in routine closure, setting
+			`state: advance-finished`/`grooming-finished`/
+			`daily-finished`/`retro-finished`. Prints `RELEASED`,
+			returns 0 always.
 
-			Closing content is optional. Given, it is written into the SAME
-			upsert call that sets the finished state and releases the lock
-			-- one call closes a pass, not two: a caller no longer writes
-			closing content via `--magic-*-state-and-lock-upsert` first and
-			then calls this op second. Omitted, the note's existing body is
-			preserved unchanged, only headers/lock change. A narrower subset
-			of the sibling `--magic-*-state-and-lock-upsert` ops' three body
-			sources -- no `--upsert-from-stdin` here, closing content is
-			expected prepared rather than typed inline.
+			Closing content is optional, written in the SAME upsert
+			call that sets the finished state and releases the lock --
+			one call closes a pass, not two. Omitted, the note's body
+			is preserved, only headers/lock change. Narrower than the
+			sibling --magic-*-state-and-lock-upsert ops: no
+			--upsert-from-stdin, closing content is expected prepared.
 
 			--from-file <path>
-				Replace the whole note, frontmatter included, with this
-				file's contents -- a field the file does not carry is gone
-				from the note. `session-id` is the exception: it is carried
-				forward, so a body-replacing write cannot orphan the lock.
+				Replaces the whole note, frontmatter included -- a
+				field the file omits is gone from the note.
+				`session-id` is carried forward regardless, so the
+				lock is never orphaned.
 
 			--edit-patch-from-stdin
-				Apply a JSON array of {"old","new","replace_all"} patches to
-				the existing body. Mutually exclusive with --from-file.
+				Applies a JSON array of {"old","new","replace_all"}
+				patches to the existing body. Mutually exclusive
+				with --from-file.
 
-			--magic-advance-close-state-and-unlock only, and only with
-			TEAM_DATA_GIT_REMOTE set: after the unlock commit it pushes,
-			then resyncs the board. A failure of either warns on stderr
-			and still returns 0 -- the lock is released either way.
+			--magic-advance-close-state-and-unlock only, with
+			TEAM_DATA_GIT_REMOTE set: pushes after the unlock commit,
+			then resyncs the board. A failure of either warns on
+			stderr and still returns 0 -- the lock releases either way.
 
 		--magic-advance-lock-status <team-member>
 		--magic-grooming-lock-status <team-member>
@@ -2980,28 +2738,31 @@
 		--magic-grooming-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 		--magic-daily-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 		--magic-retro-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-			Writes the calling routine's own fixed state-and-lock note --
-			its session tracking document between iterations, not a
-			transcript. Prefer referencing TEAM-DATA over copying it.
-			`state` and `recheck-date` are stamped by the operation itself
-			(+10 minutes for advance, +30 for grooming, daily and retro);
-			pass `--header:upsert:state:<routine>-finished` to close.
+			Writes the calling routine's own fixed state-and-lock
+			note -- its session tracking document between
+			iterations, not a transcript. Prefer referencing
+			TEAM-DATA over copying it. `state` and `recheck-date` are
+			stamped by the operation itself (+10 minutes for advance,
+			+30 for grooming, daily and retro); pass
+			`--header:upsert:state:<routine>-finished` to close.
 
 			--header:<upsert|append|remove>:name[:value]
-				Frontmatter field operations, applied in order. A repeated
-				upsert on one field takes the last value. `recheck-date` is
-				always re-stamped by the operation and cannot be overridden.
+				Frontmatter field operations, applied in order. A
+				repeated upsert on one field takes the last value.
+				`recheck-date` is always re-stamped, cannot be
+				overridden.
 
 			--from-file <path>
-				Replace the whole note, frontmatter included, with this
-				file's contents -- a field the file does not carry is gone
-				from the note. `session-id` is the exception: it is carried
-				forward, so a body-replacing write cannot orphan the lock.
+				Replaces the whole note, frontmatter included -- an
+				omitted field is gone. `session-id` is the
+				exception, carried forward so the lock can't be
+				orphaned.
 
 			--edit-patch-from-stdin
-				Apply a JSON array of {"old","new","replace_all"} patches to
-				the existing body. Mutually exclusive with --from-file.
-				Given neither, the existing body is preserved.
+				Applies a JSON array of {"old","new","replace_all"}
+				patches to the existing body. Mutually exclusive
+				with --from-file. Given neither, the body is
+				preserved.
 
 		--magic-advance-sleep-run
 			Read-only, no arguments -- a fixed-duration pacing operation in
@@ -3025,105 +2786,105 @@
 			from it, and the coordinator is the one to ask.
 
 		--magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--wait]
-			Heartbeat/advance spawn relay: executes a spawn prompt
-			through DistroAgentsConsole.sh. Body source is stdin
-			(default), --from-file, --from-board, --from-vault, or
-			--from-audit (exactly one when used); empty body is
-			rejected. A bare call with nothing piped in fails
-			immediately with "empty spawn context" -- stdin is already
-			at EOF for a non-interactive caller. Use --from-file where
-			redirecting is awkward. Keep no secret in a spawn brief: the
-			console puts it on the CLI's own command line, visible in
-			`ps` on the host.
+			Heartbeat/advance spawn relay: executes a spawn prompt via
+			DistroAgentsConsole.sh. Body is stdin (default),
+			--from-file, --from-board, --from-vault, or
+			--from-audit (exactly one); empty body is rejected,
+			failing immediately with "empty spawn context".
+			**Hazard: no secret belongs in a spawn brief** -- the
+			console puts it on the CLI's own command line, visible
+			in `ps` on the host.
 
-			A --from-board/--from-vault/--from-audit call reuses that
-			item as its tracking document and prints `DISPATCH_DOC=
-			reuse` with `TRACKING_ITEM=<name>`. A stdin/--from-file call
-			creates a fresh `dispatch-*` board-item in board-running and
-			prints `DISPATCH_DOC=create` with `DISPATCH_ITEM=<name>`: the
-			verbatim prompt as its own "## Brief", `status:
-			dispatch-started` in its frontmatter. On completion `status:`
-			moves to `dispatch-succeeded`/`dispatch-failed`, a "## Result"
-			section is appended, and the item moves to board-pending. No
-			`RECEIPT_FILE` key is ever written on any path.
+			A --from-board/--from-vault/--from-audit call reuses
+			that item as its tracking document, printing
+			`DISPATCH_DOC=reuse` + `TRACKING_ITEM=<name>`. A
+			stdin/--from-file call creates a fresh `dispatch-*`
+			board-item in board-running, printing `DISPATCH_DOC=
+			create` + `DISPATCH_ITEM=<name>`: the prompt becomes
+			its "## Brief", frontmatter `status: dispatch-started`.
+			On completion, `status:` moves to
+			`dispatch-succeeded`/`dispatch-failed`, a "## Result"
+			section is appended, and the item moves to
+			board-pending. No `RECEIPT_FILE` key is ever written.
 
-			The spawned session is handed its own coworking session's
-			thread as `session_thread_ts`, separate from the event-track
-			thread below.
+			The spawned session gets its own coworking session's
+			thread as `session_thread_ts`, separate from the
+			event-track thread below.
 
-			Default mode is async (`STATUS=started` + `PID`); `--wait`
-			blocks for completion and returns non-zero on failure.
-			Printed keys: `RECEIPT_ID`, `SESSION_ID`, `SESSION_THREAD`,
-			`DISPATCH_DOC` and `TRACKING_ITEM`/`DISPATCH_ITEM` always;
-			`STATUS` always, with `PID` (async) or `EXIT_CODE`+`LAUNCHED`
-			(`--wait`); `OUTPUT_FILE` wherever a file is written (under
-			`$MDAT_DATA_ROOT/audit/<YYYY-MM>/`). On `--wait`:
-			`SETUP_STATUS=cli-not-configured` when this workspace selects
-			no external CLI, `SETUP_STATUS=cli-not-authenticated` when
-			the selected CLI is present but not signed in and no API key
-			is configured, `SETUP_STATUS=console-stale` when the deployed
-			console is too old to start or signal a spawn (refused before
-			anything is spawned), and `TIMEOUT_SECONDS=<seconds>` when the
-			wait bound fired. The wait is unbounded unless magic-team's
-			`SPAWN_WAIT_TIMEOUT_SECONDS` sets one (0 = none). A harness
-			leg is started with `--tier <value>` when magic-team's
-			`SPAWN_HARNESS_TIER` holds one (`light`, `normal` or `heavy`);
+			Default mode is async (`STATUS=started` + `PID`);
+			--wait blocks for completion, returns non-zero on
+			failure. Printed keys: `RECEIPT_ID`, `SESSION_ID`,
+			`SESSION_THREAD`, `DISPATCH_DOC`,
+			`TRACKING_ITEM`/`DISPATCH_ITEM` always; `STATUS`
+			always, with `PID` (async) or `EXIT_CODE`+`LAUNCHED`
+			(--wait); `OUTPUT_FILE` wherever a file is written
+			(under `$MDAT_DATA_ROOT/audit/<YYYY-MM>/`). On --wait:
+			`SETUP_STATUS=cli-not-configured` (no external CLI
+			selected), `=cli-not-authenticated` (CLI present, not
+			signed in, no API key), `=console-stale` (deployed
+			console too old, refused before spawning), and
+			`TIMEOUT_SECONDS=<seconds>` when the wait bound fired.
+			Wait is unbounded unless magic-team's
+			`SPAWN_WAIT_TIMEOUT_SECONDS` sets one (0 = none). A
+			harness leg gets `--tier <value>` when
+			`SPAWN_HARNESS_TIER` holds one (light/normal/heavy);
 			unset, no tier is passed.
 
-			On `--wait`, `STATUS=succeeded` means the child exited 0,
-			the wait bound did not fire, and a launch actually
-			happened; anything else is `STATUS=failed`.
-			`LAUNCHED=true|false` prints separately and is a `--wait`-
-			only key, so a real failure and a silent no-launch are never
-			confused.
+			On --wait, `STATUS=succeeded` means the child exited
+			0, the wait bound didn't fire, and a launch happened;
+			anything else is `STATUS=failed`.
+			`LAUNCHED=true|false` is --wait-only, so a real
+			failure and a silent no-launch aren't confused.
 
-			Every spawn also opens a tooling-maintained thread in
-			event-track (when `SLACK_CHANNEL_EVENT_TRACK` and a bot
-			token are set; otherwise skipped silently), closed with the
-			result when the child exits. Nothing of this reaches
-			stdout; a failed post never fails the spawn.
+			Every spawn opens a tooling-maintained thread in
+			event-track (when `SLACK_CHANNEL_EVENT_TRACK` and a
+			bot token are set, else skipped silently), closed with
+			the result on exit -- never reaches stdout, and a
+			failed post never fails the spawn.
 
-			Separately, every spawn belongs to a coworking session.
-			Inheriting a session id from its parent joins that session
-			with no new thread opened; otherwise one opens in
-			magic-team, titled by `--session-name-or-comment` or the
-			session id. `--session-thread:event-track` pins it to the
-			agent-log thread instead and skips the magic-team post --
-			used by the main loop's own solitary spawns.
+			Every spawn also belongs to a coworking session:
+			inheriting one from its parent joins it with no new
+			thread. Where that thread is unknown, or the post
+			fails, one stderr warning is printed and the spawn
+			goes on. Otherwise one opens in magic-team, titled by
+			--session-name-or-comment or the session id.
+			--session-thread:event-track pins it to the agent-log
+			thread instead and skips the magic-team post -- used
+			by the main loop's own solitary spawns.
 
 			The brief ends with a "## Your session thread" section
-			carrying `session_thread_ts: <channel>:<ts>` -- the value
-			`--member-comms-slack-send-message` takes as its target and
-			`--member-comms-slack-read` takes with `--thread`. If the
-			opening post failed, it instead says so and asks the session
-			to post its own thread.
+			carrying `session_thread_ts: <channel>:<ts>` -- the
+			value --member-comms-slack-send-message takes as
+			target and --member-comms-slack-read takes with
+			--thread. If the opening post failed, it says so and
+			asks the session to post its own thread.
 
 		--magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [<team-member>...]
-			Starts a coworking session and spawns its initial members in
-			one call. Task text comes from stdin. Exactly one of
-			`--routine <selector>` | `--routine-default` is required --
-			the selector is a full routine filename or part of one,
-			resolved once so every member spawned here carries the same
-			routine file; that spawn's own spawn-prepare-brief block is
-			then automatic ahead of the task text.
+			Starts a coworking session and spawns its initial members
+			in one call. Task text comes from stdin. Exactly one of
+			`--routine <selector>` | `--routine-default` is required
+			-- the selector is a full routine filename or part of
+			one, resolved once so every spawned member carries the
+			same routine file; that spawn's own spawn-prepare-brief
+			block is then automatic ahead of the task text.
 
-			Given no `<team-member>...` positional names, the members
-			spawned are read from the resolved routine's own `executors`
-			frontmatter line, which must be a plain comma-separated list
-			of real members. A value that is not one -- `magic-team`/`*`
-			(any-member shorthand) or free prose -- names no spawnable
-			roster and is refused, asking for explicit
-			`<team-member>...` instead of guessing one.
+			Given no `<team-member>...` names, the spawned members
+			come from the resolved routine's own `executors`
+			frontmatter line, a plain comma-separated list of real
+			members. Anything else -- `magic-team`/`*` (any-member
+			shorthand) or free prose -- names no spawnable roster and
+			is refused, asking for explicit `<team-member>...`
+			instead.
 
-			The first member spawned starts the session; every further
-			one joins it by the session id the first spawn's own output
-			reports. A routine's own `invitees` are never spawned here --
-			the session's own executor invites them separately.
+			The first member spawned starts the session; every
+			further one joins it by the session id the first spawn's
+			own output reports. A routine's own `invitees` are never
+			spawned here -- the session's own executor invites them
+			separately.
 
-			Prints `SESSION_ID` (the id every further spawn into this
-			session joins by), `ROUTINE` (the resolved routine's own
-			filename) and `MEMBERS` (the spawned members, space-
-			separated).
+			Prints `SESSION_ID` (what further spawns join by),
+			`ROUTINE` (the resolved filename), `MEMBERS` (spawned
+			members, space-separated).
 
 		--magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) routine-heartbeat's own state
@@ -3175,82 +2936,60 @@
 			help.
 
 		--member-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
-			`<team-member>` is the member this read acts as: the acting
-			member decides which conversation this call can see at all.
+			`<team-member>` is the member this read acts as -- decides
+			which conversation this call can see at all.
 
-			Full detail for one specific message (default) or its whole
-			thread (--thread) -- all meta-info, reactions, formatting,
-			files/attachments, exactly as Slack's own API returns them.
-			Always returns full raw JSON, never pretty-formatted. A `<ts>`
-			naming a thread reply reads back that reply, same as a thread
-			parent or a plain message.
+			Full detail for one message (default) or its whole thread
+			(--thread): all meta-info, reactions, formatting,
+			files/attachments, raw JSON exactly as Slack returns it,
+			never pretty-formatted. A `<ts>` naming a thread reply reads
+			that reply like any other message.
 
-			**A target with no `:<ts>` names a conversation, and reads that
-			conversation's own messages** -- pretty-formatted, newest first,
-			paged to the end. Use this form when the `<ts>` is itself the
-			thing being looked for. `--oldest <epoch>[.<micros>]` puts a
-			floor under how far back the paging walks; a busy channel needs
-			one, since a conversation longer than the page cap is a hard
-			failure rather than a truncated answer. `--thread` belongs to
-			the `<channel>:<ts>` form only, and `--oldest` to the
+			A target with no `:<ts>` names a conversation instead,
+			reading its own messages pretty-formatted, newest first,
+			paged to the end; --oldest <epoch> floors how far back
+			paging walks (needed on a busy channel -- past the page cap
+			is a hard failure, not a truncated answer). --thread is for
+			the `<channel>:<ts>` form only, --oldest for the
 			conversation form only.
 
-			**This, not --member-comms-slack-search-messages, is what finds
-			something posted moments ago** -- search reads Slack's own
-			index, which lags posting; this read goes to the conversation
-			itself and sees a message as soon as it is there.
+			**Use this, not --member-comms-slack-search-messages, for
+			something posted moments ago** -- search lags on Slack's
+			own index; this reads the conversation directly.
 
-			Uses the same credential resolution as
-			--member-comms-slack-send-message; `--identity-bot` reads as the team
-			bot instead of this member's own identity. A direct
-			conversation belongs to one identity, so the identity this call
-			acts as decides WHICH conversation it can see: the bot's direct
-			conversation with a person and a member's own are two different
-			conversations, and neither can read the other. Channels are
-			unaffected by it.
+			Same credential resolution as --member-comms-slack-send-message;
+			--identity-bot reads as the team bot. A direct conversation
+			belongs to one identity -- the bot's DM with someone and a
+			member's own are different conversations, neither readable
+			from the other. Channels are unaffected.
 
-			**An empty result is never an answer from this operation.** A
-			call that could not see the message it was asked for fails with
-			a non-zero status and names the requested `<ts>`. Nothing this
-			operation returns ever supports concluding "there is no such
-			message" or "nobody replied yet" -- that conclusion needs a
-			successful read, not an empty one.
+			**An empty result is never an answer here.** A call that
+			can't see the requested message fails non-zero, naming the
+			`<ts>` -- never read as "no such message" or "nobody
+			replied yet".
 
 		--member-comms-email-read <team-member> <uid> [--seen]
-			`<team-member>` is the member this read acts as: the mailbox
-			read is that member's own, with no fallback. A UID only
-			means anything inside one mailbox, so the same `<uid>`
-			under a different member names a different message, or none
-			at all.
+			`<team-member>` is the member this read acts as -- the mailbox
+			is that member's own, no fallback; the same `<uid>` under a
+			different member names a different message, or none.
 
-			Full RFC822 message (headers + body + MIME multipart,
-			attachments included as their raw MIME parts) for one specific
-			email by IMAP UID -- contrast with --member-comms-email-check's
-			STATUS-only unread count.
+			Full RFC822 message (headers + body + MIME, attachments as
+			raw MIME parts) for one email by IMAP UID -- contrast with
+			--member-comms-email-check's STATUS-only count.
 
-			**Reading does not mark the message read.** The mailbox is
-			opened read-only for the fetch, so the server cannot set \Seen
-			on it at all; the fetch also asks for BODY.PEEK[]. \Seen is
-			left exactly as it was found. Reading is not a decision about
-			the message; marking it read is, and that decision is made
-			separately -- either by --member-comms-email-mark-seen, or inline with
-			--seen below.
+			**Reading does not mark the message read** -- opened
+			read-only, BODY.PEEK[], \Seen left exactly as found; mark it
+			with --member-comms-email-mark-seen or --seen below.
 
-			**An empty result is never an answer from this operation.** A
-			call that could not return the message it was asked for fails
-			with a non-zero status; empty stdout is never a successful
-			answer. Four non-zero codes. **1**: no `<uid>` argument was
-			given. **2**: `<uid>` is malformed, or the mailbox could not be
-			reached or logged into. **3**: the server refused the fetch.
-			**4**: no message with that `<uid>` exists in the mailbox --
-			the not-found case, distinct from every failure above, so
-			"there is no such message" is a conclusion this operation
-			states itself rather than one a caller infers from silence.
+			**An empty result is never an answer here.** A call that
+			can't return the message fails non-zero; empty stdout is
+			never success. Exit 1 no `<uid>` given. 2 `<uid>` malformed,
+			or mailbox unreachable/not logged in. 3 server refused the
+			fetch. 4 no message with that `<uid>` exists -- stated
+			directly, not inferred from silence.
 
-			--seen marks the message \Seen after a successful read, for
-			the case where a caller reads and immediately concludes. It
-			runs only once the read has succeeded -- a failed read
-			leaves the message untouched.
+			--seen marks \Seen after a successful read only; a failed
+			read leaves the message untouched.
 
 		--member-comms-trello-read <team-member> <notification-id>
 			`<team-member>` is the member this read acts as, and it comes

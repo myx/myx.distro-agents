@@ -14,6 +14,9 @@
 ##   whose console step needs a live origin), regenerates a --workspace X through X's own
 ##   console, and links X's root .agents/skills, .claude/skills and .vscode/mcp.json, with the
 ##   panel, into every folder X lists, by the one link helper.
+## - the home-folder slot, $HOME/.vscode/extensions/magic-team-panel, gets the same link, since
+##   a .code-workspace file is opened directly, without start.sh: dangling reclaimed,
+##   already-correct kept, real content warned about and left alone, never removed.
 ## What this cannot show: VS Code offering the panel. Only a real open shows that.
 ## Offline: the whole tree, TMPDIR included, under the workspace's own .local/temp, and a
 ## temp origin copy.
@@ -104,6 +107,11 @@ rigResolving(){
 	done <<< "$rigFolders"
 	echo "$rigCount"
 }
+rigHomeSlot="$rigTmp/home/.vscode/extensions/magic-team-panel"
+## Whether the home-folder slot itself resolves to the authoritative copy.
+rigHomeLinkResolves(){
+	[ -L "$rigHomeSlot" ] && [ "$( cd "$rigHomeSlot" && pwd -P )" = "$( cd "$rigHome" && pwd -P )" ] && echo resolves || echo other
+}
 
 echo "-- the panel: one authoritative copy, linked into every listed folder --"
 rigRun
@@ -115,6 +123,10 @@ rigAssert "the copy holds its payload"                    "$( ls -A "$rigHome" |
 rigAssert "the team text copy matches its source"         "$( cmp -s "$rigHome/magic-team.basic.md" "$rigBasic" && echo same || echo differs )" same
 rigAssert "every listed folder links to it"               "$( rigResolving )" 3
 rigAssert "the workspace root also links to it"           "$( [ -L "$rigWs/.vscode/extensions/magic-team-panel" ] && [ "$( cd "$rigWs/.vscode/extensions/magic-team-panel" && pwd -P )" = "$( cd "$rigHome" && pwd -P )" ] && echo resolves || echo other )" resolves
+## start.sh was never run in this section (rigLaunchCalls above is untouched here, and the
+## "no code call was made" assertion holds) -- the home slot still reaches the panel, which is
+## the whole point: a .code-workspace opened directly, without start.sh, still finds it.
+rigAssert "the home-folder slot links to it too"          "$( rigHomeLinkResolves )" resolves
 rigAssert "no build sibling is left"                      "$( ls -A "$rigWs/.local/agents" | tr '\n' ' ' )" "vscode-magic-team-panel "
 
 echo "-- a re-run changes nothing --"
@@ -123,6 +135,8 @@ rigRun
 rigAssert "it says unchanged"                             "$( LC_ALL=C grep -c 'panel unchanged' "$rigTmp/err" )" 1
 rigAssert "the copy is the same one"                      "$( [ -f "$rigHome/.rig-touch" ] && echo kept || echo rewritten )" kept
 rigAssert "no link is newly made"                         "$( LC_ALL=C grep -c '0 folder(s) newly linked, 4 already linked' "$rigTmp/err" )" 1
+rigAssert "the home-folder slot still resolves"           "$( rigHomeLinkResolves )" resolves
+rigAssert "and says already linked, not relinked"         "$( LC_ALL=C grep -c -x -F "# DistroAgentsTools --install-vscode-magic-team-panel: $rigHomeSlot already linked" "$rigTmp/err" )" 1
 rm -f "$rigHome/.rig-touch"
 
 echo "-- control: a changed team text rewrites the copy, same version --"
@@ -140,6 +154,26 @@ rigRun
 rigAssert "it is removed"                                 "$( LC_ALL=C grep -c -x -F "# DistroAgentsTools --install-vscode-magic-team-panel: removed: $rigWs/.local/.vscode/status/.vscode/extensions/magic-team-panel" "$rigTmp/err" )" 1
 rigAssert "and the op succeeds, rc 0"                     "$rigRc" 0
 rigAssert "and every folder links to the copy again"      "$( rigResolving )" 3
+
+echo "-- a dangling home-folder slot is reclaimed --"
+mkdir -p "$( dirname "$rigHomeSlot" )"
+rm -f "$rigHomeSlot"
+ln -s "$rigTmp/home/.vscode/extensions/rig-gone" "$rigHomeSlot"
+rigRun
+rigAssert "it is reclaimed"                               "$( LC_ALL=C grep -c -F "$rigHomeSlot is a dangling symlink" "$rigTmp/err" )" 1
+rigAssert "and it resolves to the authoritative copy"     "$( rigHomeLinkResolves )" resolves
+
+echo "-- real content in the home-folder slot is warned about, never removed --"
+rm -f "$rigHomeSlot"
+mkdir -p "$rigHomeSlot"
+: > "$rigHomeSlot/rig-own.txt"
+rigRun
+rigAssert "it is warned about"                            "$( LC_ALL=C grep -c -F "WARNING: DistroAgentsTools --install-vscode-magic-team-panel: real content at $rigHomeSlot, left untouched (outside the workspace)" "$rigTmp/err" )" 1
+rigAssert "and left in place, not removed"                "$( [ -f "$rigHomeSlot/rig-own.txt" ] && [ ! -L "$rigHomeSlot" ] && echo kept || echo gone )" kept
+rigAssert "and the op still succeeds, rc 0"                "$rigRc" 0
+rm -rf "$rigHomeSlot"
+rigRun
+rigAssert "it links again once the real content is gone"  "$( rigHomeLinkResolves )" resolves
 
 echo "-- --install-vscode-integrations reaches it --"
 rigWs2="$rigTmp/ws2"

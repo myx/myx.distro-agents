@@ -201,7 +201,7 @@ case "$1" in
 					fi
 				;;
 			esac
-			local recipients subject bodyLines state="recipients" bodyFromStdin="false" bodyFromFile="false" inReplyTo="" textGroup=""
+			local recipients subject bodyLines state="recipients" bodyFromStdin="false" bodyFromFile="false" inReplyTo="" textGroup="" format="markdown"
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					## The floor applies with no argument at all. This names the shape
@@ -212,6 +212,15 @@ case "$1" in
 							set +e ; return 1
 						fi
 						textGroup="$2" ; shift 2
+					;;
+					## The body is read as Markdown by default. markdown is what every
+					## send carries without this flag.
+					--format)
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --format value missing -- markdown or text, and markdown is what every send carries without it" >&2
+							set +e ; return 1
+						fi
+						format="$2" ; shift 2
 					;;
 					--)
 						if [ "$state" = "recipients" ] ; then state="subject"
@@ -318,6 +327,13 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: <subject> missing" >&2
 				set +e ; return 1
 			fi
+			case "$format" in
+				markdown|text) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: unrecognized --format '$format' -- accepted: markdown|text" >&2
+					set +e ; return 1
+				;;
+			esac
 
 			## Email reaches the human-owner and it reaches counterparties, so it
 			## carries the same floor the Slack operations do. The subject is a
@@ -357,6 +373,16 @@ case "$1" in
 				mkdir -p "$MMDAPP/.local/temp" && : > "$msgFile" || exit 1
 				trap 'rm -f "$msgFile"' EXIT
 				chmod 600 "$msgFile" || exit 1
+
+				## HTML part beside the plain part, same body, through
+				## AgentsEmailHtmlBuild.awk -- the Slack path's bare-URL/
+				## bare-address and cheap-markdown rules, re-aimed at HTML.
+				## No credential, no network: safe to run before the
+				## build-only check below, and that is what makes this
+				## callable offline.
+				htmlPartBody=""
+				htmlPartBody="$( printf '%s' "$bodyLines" | LC_ALL=C awk -v format="$format" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEmailHtmlBuild.awk" )" || exit 1
+				mimeBoundary="mdat-comms-email-boundary-$$-$RANDOM"
 				{
 					printf 'From: %s\n' "$emailUser"
 					printf 'To: %s\n' "$( printf '%s' "$recipients" | tr ' ' ',' )"
@@ -365,9 +391,36 @@ case "$1" in
 						printf 'In-Reply-To: %s\n' "$inReplyTo"
 						printf 'References: %s\n' "$inReplyTo"
 					fi
+					printf 'MIME-Version: 1.0\n'
+					printf 'Content-Type: multipart/alternative; boundary="%s"\n' "$mimeBoundary"
+					printf '\n'
+					## Plain part first, exactly as the agent wrote it --
+					## unmodified from today's one-part message.
+					printf -- '--%s\n' "$mimeBoundary"
+					printf 'Content-Type: text/plain; charset=UTF-8\n'
+					printf 'Content-Transfer-Encoding: 8bit\n'
 					printf '\n'
 					printf '%s\n' "$bodyLines"
+					printf '\n'
+					## HTML part second, same body, converted.
+					printf -- '--%s\n' "$mimeBoundary"
+					printf 'Content-Type: text/html; charset=UTF-8\n'
+					printf 'Content-Transfer-Encoding: 8bit\n'
+					printf '\n'
+					printf '<html><body>\n%s\n</body></html>\n' "$htmlPartBody"
+					printf '\n'
+					printf -- '--%s--\n' "$mimeBoundary"
 				} > "$msgFile" || exit 1
+
+				## Build-only escape hatch for an offline test: the message
+				## file above is already complete and correct, so this is the
+				## earliest point a caller can take it without ever reaching
+				## curl or a real credential. A real send never sets this,
+				## and everything below it is unchanged.
+				if [ "${AGENTS_EMAIL_SEND_BUILD_ONLY:-false}" = "true" ] ; then
+					cat "$msgFile"
+					exit 0
+				fi
 
 				## Password on curl's stdin, never argv and never the disk.
 				netrcLine=""

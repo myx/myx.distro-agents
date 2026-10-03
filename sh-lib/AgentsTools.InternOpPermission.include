@@ -11,15 +11,18 @@
 ## .local/agents/sessions/<session-id>/, beside the pending-reply store.
 ##
 
-## One value made safe for one field of a one-line entry: %, newline, CR, comma,
-## colon and edge whitespace are %-escaped, and nothing is ever decoded back.
-AgentsToolsPermissionEscape(){ ## value
+## A value is always natural. Storing it is a presentation like any other, so each
+## format escapes only what that format itself needs, and reading it back
+## materialises the natural value (AgentsHarnessRefusedTargetDecode, in
+## AgentsUniversalHarness.sh, for the refusal record).
+## The refusal record is a one-line-per-field front-matter file read by a person:
+## it needs only %, newline, CR and edge whitespace escaped, so a colon or a comma
+## stays as it is and a URL reads as a URL.
+AgentsToolsPermissionEscapeRecord(){ ## value
 	local escValue="$1" escLead="" escTail="" escChar
 	escValue="${escValue//%/%25}"
 	escValue="${escValue//$'\n'/%0A}"
 	escValue="${escValue//$'\r'/%0D}"
-	escValue="${escValue//,/%2C}"
-	escValue="${escValue//:/%3A}"
 	while : ; do
 		escChar="${escValue%"${escValue#?}"}"
 		case "$escChar" in
@@ -39,6 +42,21 @@ AgentsToolsPermissionEscape(){ ## value
 		escValue="${escValue%?}"
 	done
 	printf '%s' "$escLead$escValue$escTail"
+}
+
+## The grants file is a colon-delimited line with the target as one field, so that
+## format also needs the comma and the colon escaped. Takes a value already in the
+## record form, a stored record's target included, so it never double-escapes.
+AgentsToolsPermissionRecordToGrantField(){ ## record-form value
+	local grantField="$1"
+	grantField="${grantField//,/%2C}"
+	grantField="${grantField//:/%3A}"
+	printf '%s' "$grantField"
+}
+
+## A natural value serialised for the grants file; what a grant match compares.
+AgentsToolsPermissionEscape(){ ## value
+	AgentsToolsPermissionRecordToGrantField "$( AgentsToolsPermissionEscapeRecord "$1" )"
 }
 
 ## The session's own directory in the store, created on first use. Prints it.
@@ -258,7 +276,7 @@ case "$1" in
 			printf 'host: %s\n' "$( hostname -s 2>/dev/null || echo unknown )"
 			printf 'session-id: %s\n' "$refusalSession"
 			printf 'tool: %s\n' "$refusalTool"
-			printf 'target: %s\n' "$( AgentsToolsPermissionEscape "$refusalTarget" )"
+			printf 'target: %s\n' "$( AgentsToolsPermissionEscapeRecord "$refusalTarget" )"
 			printf 'refused-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 			printf '%s\n' "---"
 			printf '\n# Refused\n\n%s\n' "${refusalReason:-no reason given}"
@@ -332,6 +350,9 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: $grantBy asked for this call and cannot grant it to itself, so nothing is granted" >&2
 			set +e ; return 1
 		fi
+		## The record's target is in record form and the grants line is colon-delimited, so it
+		## becomes a grants field here.
+		grantTarget="$( AgentsToolsPermissionRecordToGrantField "$grantTarget" )"
 		printf '%s:%s:%s:%s:%s:%s\n' "$grantKind" "$grantTool" "$grantTarget" "$grantBy" "$( date -u +%Y%m%dT%H%MZ )" "$grantRefusal" >> "$grantDir/grants" || {
 			echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $grantRefusal, so nothing is granted" >&2
 			set +e ; return 1

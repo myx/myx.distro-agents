@@ -80,6 +80,7 @@ while [ "$( rigLogCommitted "$rigTmp/a" )" != committed ] && [ "$rigLeft" -gt 0 
 sleep 2
 rigAssert "its output log is committed after the subshell ends" "$( rigLogCommitted "$rigTmp/a" )" committed
 rigAssert "and the store is clean"                     "$( rigClean )" clean
+rigAssert "the async branch's new pending-reply close call reports no error" "$( LC_ALL=C grep -c ':no_entry:' "$rigTmp/a.err" )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SPAWN PROXY CLOSE COMMIT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

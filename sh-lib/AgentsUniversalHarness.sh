@@ -2229,6 +2229,24 @@ AgentsHarnessFormalField(){ ## label, value
 	printf '%s\n%s\n\n' "$1" "$2"
 }
 
+## The exact inverse of AgentsTools.InternOpPermission.include's
+## AgentsToolsPermissionEscapeRecord, applied when a refused call's target is read
+## back out of the record. The record serialises %, newline, CR and edge whitespace
+## as %XX so it stays one safe line. Reading the target back materialises the
+## natural value again, and this is that step. % is decoded last, after every other code, so a %25 that
+## reconstructs a literal "%" can never land in front of two hex digits left
+## from another code and be misread as one. Any other %XX, or a bare %, is not
+## one of this escaper's own codes and passes through exactly as given.
+AgentsHarnessRefusedTargetDecode(){ ## value
+	local decValue="$1"
+	decValue="${decValue//%0A/$'\n'}"
+	decValue="${decValue//%0D/$'\r'}"
+	decValue="${decValue//%20/ }"
+	decValue="${decValue//%09/$'\t'}"
+	decValue="${decValue//%25/%}"
+	printf '%s' "$decValue"
+}
+
 ## The four report tools below are SendMessage with a fixed shape and NOT a second
 ## delivery path -- one mechanism, four stubs over it, which is the shape the
 ## specification asks for. This is the one place that shape is applied: the target
@@ -2487,7 +2505,7 @@ AgentsHarnessToolAskUserQuestion(){
 				case "$askRecordLine" in
 					'owner: '*) askRefusedOwner="${askRecordLine#owner: }" ;;
 					'tool: '*) askRefusedTool="${askRecordLine#tool: }" ;;
-					'target: '*) askRefusedTarget="${askRecordLine#target: }" ;;
+					'target: '*) askRefusedTarget="$( AgentsHarnessRefusedTargetDecode "${askRecordLine#target: }" )" ;;
 					'# '*) break ;;
 				esac
 			done < "$askRecord"

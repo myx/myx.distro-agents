@@ -103,11 +103,17 @@ AgentsToolsSpawnSandboxCleanInput(){ ## sandbox root
 ## spawn proxy writes beside event-track.thread in the sandbox root -- prints
 ## "channel:ts" and returns 0 when it exists and holds a value, prints nothing and
 ## returns 1 otherwise (no coworking session, or the file is not written yet).
-## Keyed on $MDAT_SPAWN_SESSION_ID, the sandbox root's own name in the common case
-## today -- a caller spawned with an explicit --tracking-name can diverge from that,
-## and settling which id the sandbox folder is actually named for is keeper-myx's
-## own open item, not decided here.
+## Falls back to a key on $MDAT_SPAWN_SESSION_ID, the sandbox root's own name, only
+## once $MDAT_SESSION_THREAD is unset -- a caller spawned with an explicit --tracking-name
+## can diverge from that, and settling which id the sandbox folder is actually named for
+## is keeper-myx's own open item, not decided here.
 AgentsToolsSessionThreadFind(){
+	## MDAT_SESSION_THREAD is exported directly by spawn-proxy at launch, correct
+	## for every participant alike -- founding or joining a coworking session.
+	## Preferred over the file lookup below, which keys off MDAT_SPAWN_SESSION_ID,
+	## a value that is this spawn's own spawn-id, not the shared session folder,
+	## for every participant after the session's first.
+	[ -z "${MDAT_SESSION_THREAD:-}" ] || { printf '%s\n' "$MDAT_SESSION_THREAD" ; return 0 ; }
 	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 1
 	local threadFile="$MMDAPP/.local/agents/spawned/$MDAT_SPAWN_SESSION_ID/session.thread"
 	local threadLine=""

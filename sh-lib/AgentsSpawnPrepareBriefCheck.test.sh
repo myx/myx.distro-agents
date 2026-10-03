@@ -69,6 +69,7 @@ rigBrief "$rigTmp/b1" --routine-default
 printf '%s\n' "SPAWN-PREPARE-BRIEF: rig-member" "tool-routing: use the tools and MCP this session was given, in the ways your instructions prescribe. Read --member-help rig-member when unsure how a tool works. Follow what a refused call says: the tool to use instead, or the REFUSAL-ID to escalate by. Report a blockage the prescribed way, so the tooling can be polished. Never hack around it. Do not research source code unless it is the task." \
 	"scratchpad: your own files go in the output/ folder this dispatch's own \"## Your sandbox\" section names" \
 	"read-and-obey: read rig-member.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them." \
+	"Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel." \
 	"executors: magic-coordinator" "invitees: magic-team" \
 	"## open warning-* items" "(none open)" > "$rigTmp/b1.want"
 rigAssert "the brief is the filled Skeleton, byte for byte" "$( cmp -s "$rigTmp/b1" "$rigTmp/b1.want" && printf same || printf differs )" same
@@ -77,6 +78,8 @@ rigAssert "the header names the member"                "$( LC_ALL=C grep -c -x -
 rigAssert "and so does the tool-routing line"          "$( LC_ALL=C grep '^tool-routing: ' "$rigTmp/b1" | LC_ALL=C grep -c -F -- '--member-help rig-member ' )" 1
 rigAssert "the read-and-obey line names the duty file and routine" \
 	"$( LC_ALL=C grep -c -x -F 'read-and-obey: read rig-member.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/b1" )" 1
+rigAssert "names the shared.md sections" \
+	"$( LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' "$rigTmp/b1" )" 1
 if [ -n "${RIG_OLD_BRIEF:-}" ] ; then
 	rigAssert "and equals the pre-routine-slots output"  "$( cmp -s "$rigTmp/b1" "$RIG_OLD_BRIEF" && printf same || printf differs )" same
 fi
@@ -96,6 +99,8 @@ rigBrief "$rigTmp/b5" --routine alphabeta
 rigAssert "the brief lands"                            "$( cat "$rigTmp/b5.rc" )" 0
 rigAssert "the read-and-obey line names the matched routine" \
 	"$( LC_ALL=C grep -c -x -F 'read-and-obey: read rig-member.armed.md and rig-member.alphabeta.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/b5" )" 1
+rigAssert "names the shared.md sections" \
+	"$( LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' "$rigTmp/b5" )" 1
 rigAssert "its executors fill the slot"                "$( LC_ALL=C grep -c -x -F 'executors: rig-member' "$rigTmp/b5" )" 1
 rigAssert "an absent invitees field reads none"        "$( LC_ALL=C grep -c -x -F 'invitees: none' "$rigTmp/b5" )" 1
 

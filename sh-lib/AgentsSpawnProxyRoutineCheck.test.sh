@@ -117,6 +117,8 @@ rigAssert "the launch succeeded"                         "$( printf '%s\n' "$rig
 rigAssert "the brief block opens the context"            "$( head -1 "$rigTmp/brief" )" "SPAWN-PREPARE-BRIEF: keeper-myx"
 rigAssert "the read-and-obey line names the default routine" \
 	"$( grep -c -x -F 'read-and-obey: read keeper-myx.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief" )" 1
+rigAssert "names the shared.md sections" \
+	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' "$rigTmp/brief" )" 1
 rigAssert "one blank line separates the block from the task text" "$( rigBlankGapThenContent "$rigTmp/brief" )" ok
 rigAssert "the task text itself follows"                 "$( grep -c -x -F 'RIG-TASK-TEXT' "$rigTmp/brief" )" 1
 
@@ -160,6 +162,8 @@ rigAssert "the launch succeeded"                         "$( printf '%s\n' "$rig
 rigAssert "the routine brief block opens the context"    "$( head -1 "$rigTmp/brief" )" "SPAWN-PREPARE-BRIEF: magic-coordinator"
 rigAssert "the read-and-obey line names the given routine" \
 	"$( grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief" )" 1
+rigAssert "names the shared.md sections" \
+	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' "$rigTmp/brief" )" 1
 rigAssert "interactive by default"                        "$( grep -c -x -F 'INTERACTION-MODE: interactive -- keep looping, with a dedicated Slack thread for interaction.' "$rigTmp/brief" )" 1
 
 echo "-- --intern-root-harness: routine absent, --non-interactive switch --"

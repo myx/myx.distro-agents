@@ -56,10 +56,11 @@
 #                            the next space/tab and trimmed of trailing
 #                            punctuation; the URL check runs first, so
 #                            "https://user@host/path" stays one link.
-#   "local@domain"          -> a real rich_text `link` element with a
-#                            "mailto:" url and the typed address as its
-#                            label; a span already prefixed "mailto:" is
-#                            left unchanged.
+#   "local@domain"          -> a bold rich_text `text` element, not a
+#                            `link` element -- Slack's rich_text has no
+#                            colour field, so bold is the only emphasis
+#                            this side can add; a span already prefixed
+#                            "mailto:" is left unchanged.
 #   "*x*" / "_x_"          -> italic; "**x**" / "__x__" -> bold. CommonMark
 #                            emphasis, not an invented subset: delimiter
 #                            runs and the left/right-flanking predicates, in
@@ -434,7 +435,7 @@ function parseInlineStyles(line,   n, i, j, k, c, closeIdx, spanText, mname, run
 					if (index("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", substr(domainEnd, j, 1)) == 0) domainEndOk = 0
 				}
 				if (lastDot > 0 && domainEndOk) {
-					addTok("link", spanText, "", 0) ; tkUrl[nTok] = "mailto:" spanText
+					addTok("text", spanText, "", 0) ; tkB[nTok] = 1
 					i += length(spanText)
 					continue
 				}

@@ -10,7 +10,8 @@ default-for-session-kind: root
 
 Routine-root-harness is the bootstrap and standing-duty procedure for the root interactive harness
 session: the one true root `magic-coordinator` instance between the human-owner and everything spawned
-below it.
+below it. It is also the procedure a spawned `--intern-root-harness` instance executes for its own
+interactive or non-interactive harness loop (Steps 14 through 16).
 
 ## Goals
 
@@ -26,6 +27,10 @@ below it.
     root-only harness modes (`harness-session-detect`, `team-fix-session`).
   - Cover the `coordination-session` operating-mode loop body.
   - Execute solely on the root instance — this routine's own scope is root-only.
+  - Also cover a spawned `--intern-root-harness` instance's own interactive/non-interactive harness loop
+    (Steps 14 through 16) — a second entry shape this routine now executes under, alongside the one true
+    root. "Root-only" above means no other routine or caller invokes it, not that only the ChatUI-facing
+    instance may.
 - Doesn't:
   - Touch `magic-team.coworking.routine.md`, the spawn-brief template, or the brief tooling — those belong
     to other sessions' work.
@@ -40,6 +45,12 @@ cannot execute as written: escalate it, and never skip it silently.
      between the human-owner and everything spawned below it — starts in harness-session mode."
    - "The root instance executes this routine on invocation, unconditionally — not gated behind
      active-work-duty."
+   - "A spawned `--intern-root-harness` instance also executes this routine. Its own dispatch brief
+     carries one context line ahead of the unchanged packet body: `INTERACTION-MODE: interactive -- keep
+     looping, with a dedicated Slack thread for interaction.` or `INTERACTION-MODE: non-interactive -- run
+     one loop, then exit.` That line is the fork: present, this instance skips Steps 2 through 13 below —
+     the one true ChatUI-facing root's own mode-selection and harness-mode machinery — and runs Step 14
+     instead. Absent, Steps 2 through 13 apply exactly as written, unaffected by this bullet."
 
 2. **route-execution-channel**: MCP-routing rule plus ChatUI `Edit`/`Write` live-permission mechanics.
    - "The MCP-routing rule below applies from the very first action after invocation. That includes this
@@ -454,6 +465,35 @@ cannot execute as written: escalate it, and never skip it silently.
     execute `magic-coordinator.coordination-session.routine`. `armed-mode` has no cycle to run — Step 3's
     own bullet is the whole of it.
 
+14. **branch-on-interaction-mode**: dispatch-context fork for an `--intern-root-harness` spawn, conditional
+    on Step 1's own bullet finding an `INTERACTION-MODE` line.
+    - "Reads the `INTERACTION-MODE` context line `--intern-root-harness` prepends ahead of its dispatch
+      brief."
+    - "`INTERACTION-MODE: interactive -- keep looping, with a dedicated Slack thread for interaction.` —
+      proceed to Step 15."
+    - "`INTERACTION-MODE: non-interactive -- run one loop, then exit.` — proceed to Step 16."
+
+15. **run-interactive-harness-loop**: interactive `--intern-root-harness` spawn — keep looping, repeat the
+    named routine, interact over a dedicated Slack thread.
+    - "Opens, or continues, this instance's own dedicated Slack thread — its interaction surface, separate
+      from the one true ChatUI root's own chat."
+    - "Each loop iteration runs the routine named by the dispatch's `--routine` parameter as that
+      iteration's own payload, then interacts over the Slack thread above before the next iteration."
+    - "Keeps looping. Stops only on an explicit instruction over its own Slack thread, or the standard
+      escalation path any long-running session already uses."
+    - "This loop is this instance's own — separate from `coordination-session`'s own cycle (Step 13 above),
+      which stays the one true ChatUI root's own standing mode."
+
+16. **run-non-interactive-harness-pass**: non-interactive `--intern-root-harness` spawn — one pass, then
+    exit.
+    - "Runs the routine named by the dispatch's `--routine` parameter exactly once, as this one pass's own
+      payload."
+    - "No internal loop: this step runs once, then this instance exits. Repetition is the outer caller's own
+      job — `--intern-main-loop`'s own sleep/retry/backoff cycle, never this routine's."
+    - "Still keeps a Slack thread, same as Step 15's — for escalation only, not standing interaction."
+    - "`interaction-channel` for this pass is `headless`, per Step 8 above — no live relay, `magic-tooling`
+      operations only."
+
 # Closure steps
 
 1. **close-idle-housekeeping**: "Before going idle: append the session-transcript (if started) and update
@@ -529,7 +569,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-comms-slack-send-message <team-member> <target> [text...]` (Step 9's Slack-posting floor; Step
-  10's read-back to the human-owner)
+  10's read-back to the human-owner; Steps 15 and 16's own Slack thread)
 
 # Maintainer Notes
 
@@ -553,6 +593,7 @@ resolved against the whole skillset, not this file alone. **IMPORTANT**: not app
   a report a spawned session sent it, and what it writes is a dispatch, never a file.
 - A spawn is watched while it runs and its result is read back to the human-owner, so nothing the root
   spawned closes on the root's own judgement.
+- "Update root-harness routine to: distinct steps by interactive/non-interactive."
 
 ## Verbatim-tests (benchmarks)
 
@@ -573,6 +614,8 @@ resolved against the whole skillset, not this file alone. **IMPORTANT**: not app
 - A spawned session reports and the root carries it to the human-owner. The message opens "From <session>,
   for you:" and carries the report verbatim. An uncaptioned or paraphrased read-back fails, however
   accurate.
+- "make root-harness not loop but exit after first loop in non-interactive" — a non-interactive
+  `--intern-root-harness` spawn runs Step 16 once and exits; it never re-enters Step 15's loop.
 
 ## Librarian Comments
 
@@ -590,4 +633,6 @@ resolved against the whole skillset, not this file alone. **IMPORTANT**: not app
 ### Conventions
 
 - Built under the rule "move text, never redefine it" — every quoted line above is the source's own
-  wording, except the root-only reductions the human-owner directed at Steps 1 and 4-5.
+  wording, except the root-only reductions the human-owner directed at Steps 1 and 4-5, and Steps 14
+  through 16, plus their own Step 1 and Scope bullets — newly authored for Q79, not migrated, kept in the
+  same quoted style as the rest of this file's body text.
