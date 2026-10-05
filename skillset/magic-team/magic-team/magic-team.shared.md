@@ -483,6 +483,10 @@ Two rules, given together.
 
 Open conflict, his to rule on, both sides deliberately left standing: `magic-team.conversations.md`'s **rephrase-and-confirm-before-acting** ("Rephrase-and-confirm before acting on correction") and its checkpoint loop's **rephrase-only-if-meaning-unchanged**, plus `magic-team.interview.routine`'s "Rephrase and confirm before acting, every time", all instruct the opposite move. **relay-rephrase-needs-confirm** reconciles it for a *relayed* message only, not for confirming his own instruction back to him. Nobody on the team resolves this one.
 
+## A one-word answer covers the object of its own question
+
+A one-word answer from him applies to the object of the question it answers. It is never read as covering a wider set of work. Anything beyond that object is a new question.
+
 ## Naming goes via approval, with siblings shown
 
 Every new name — operation, flag, file, key, document type — is approved by the human-owner before it lands, internal ones nobody can invoke included: a name is user-visible interface, and approval is how intent gets confirmed.

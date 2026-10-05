@@ -34,6 +34,11 @@ timeout in `magic-developer/reference/shell.md`'s reusable patterns. It needs
 only the shell, where a Perl one-liner adds a dependency the team does not use. Unconfirmed whether this gap is host-specific or general across
 the estate's dev machines — don't assume either way without checking.
 
+**The full offline set takes tens of minutes, past the `execute` default
+600-second foreground limit.** Run it as a background job and wait on its rc
+file. A whole-workspace `grep -r` also times out: scope searches to `source/`
+and exclude `.git`, `incoming` and `todo-sketchpad`.
+
 ## Know the codebase's verbose-tracing lever before reaching for ad hoc debugging
 
 For diagnosing exactly where a pipeline stalls, check whether the codebase

@@ -416,3 +416,22 @@ tree makes the code around it read as finished work. Where a cited line number d
 not carry what a report said it carried, treat that as the coordinates having moved
 under an active edit, and re-measure by content rather than by line — not as the
 finding being false.
+
+## Where a package's checks live, and how a row is shown able to fail
+
+- **A package's checks live in its own `sh-test/`, fixtures in
+  `sh-test/check-fixtures/`, named `<check>.<command>.test.sh`.** A check finds
+  its package from its own location, with an override variable for a mutated
+  copy, and does not assume `MDLT_ORIGIN` points at the package.
+- **A row is shown able to fail on a copy.** Copy the package tree to a
+  temporary directory (siblings symlinked, no `.git`), break the one line the row
+  guards, and run the same check against the copy, once per behaviour.
+- **A reader for words, dates or names proves only that those patterns are
+  absent.** Each pattern needs a sample that trips it. An allowance is
+  structural, never a hand-written list: a name inside backticks is a value, for
+  example.
+- **A rig that runs a tool on a copied tree puts the copy under a scratch
+  workspace used as `MMDAPP`**, because a path outside the workspace and the
+  access roots is refused by design. Run `chmod -R u+w` before `rm -rf` when the
+  tree holds `u=rX` files. Never copy `ssh/`, secrets or keys into a scratch
+  tree: use dummy files.

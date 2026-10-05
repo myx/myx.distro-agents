@@ -265,3 +265,9 @@ selector pattern, not a collision. Read duplicates off plain `ListDistroProvides
 `--all-provides --no-cache --no-index` form is refused outright, which is easy to misread as the query
 finding nothing. The duplicate set differs per workspace, so a result names the workspace it was taken
 in — the same name that is deliberate in one tree may be absent from another.
+
+## Reaching one target, and checking a generated installer
+
+- **A single target is reached with `ListSshTargets` or `ExecuteSequence --select-projects <instance>`**, using the FreeBSD instance names from the inventory. The inventory keyword is the only OS marker for an instance.
+- **A parse check is `cat file | sh -n`, plus a deliberately broken control file.** `sh -c 'sh -n; echo $?'` reported a false rc 0.
+- **macOS bash 3.2 rejects the generated installer's `eval "$( cat << BLK` wrapper**, which FreeBSD `sh` and bash 5 accept.
