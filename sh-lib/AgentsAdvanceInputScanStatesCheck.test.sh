@@ -607,10 +607,10 @@ rigCheck "Monitor: its log file has no stderr"                            "$( LC
 rigCheck "Monitor: nothing of it on the server's own stderr"              "$( LC_ALL=C grep -c -x errmon "$rigMd/server.err" || : )" 0
 rigMcpClose
 
-echo "-- stage 2, batch 0: with MDAT_MCP_STDERR_MERGE=false the outermost call copies every stderr line to stdout --"
-echo "   bash: $( bash --version | head -1 ) (the rig runs every script below under this bash; /bin/bash is $( /bin/bash --version | head -1 | LC_ALL=C sed 's/.*version \([0-9.]*\).*/\1/' ))"
-## A copy of this package's own tree, with five throwaway ops added to its dispatcher, so that order, nesting and
-## the daemon line are measured through the real entry point. Nothing outside this rig's own tree is touched.
+echo "-- stage 2: the daemon line, exit codes in both merge modes, and the withdrawn filter's names --"
+echo "   bash: $( bash --version | head -1 ) (the rig runs every script below under this bash)"
+## A copy of this package's own tree with one throwaway op in its dispatcher, so the daemon line is measured
+## through the real entry point. Nothing outside this rig's own tree is touched.
 rigO2="$rigTmp/s2origin"
 mkdir -p "$rigO2/myx"
 for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigO2/${rigEntry##*/}" ; done
@@ -620,126 +620,91 @@ mkdir "$rigO2/myx/myx.distro-agents"
 rigTool2="$rigO2/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigArms="$rigTmp/s2arms.txt"
 cat > "$rigArms" <<'RIGARMS'
-		--rig-alternate) for rigI in 1 2 3 ; do echo "out$rigI" ; echo "err$rigI" >&2 ; done ; return 0 ;;
-		--rig-inner) echo innerout ; echo "⛔ ERROR: rig-inner" >&2 ; return 0 ;;
-		--rig-nested)
-			rigGot="$( DistroAgentsTools --rig-inner 2>&1 > /dev/null | LC_ALL=C awk 'index($0, "⛔") == 1' )"
-			rigCap="$( DistroAgentsTools --rig-inner 2> /dev/null )"
-			echo "got:$rigGot" ; echo "cap:$rigCap" ; return 0 ;;
 		--rig-daemon) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" ; AgentsToolsDaemonLine "housekeeping: rig-daemon" ; echo "daemon-op-stdout" ; return 0 ;;
-		--rig-env) echo "nested=${MDAT_TOOLS_NESTED+set} merge=${MDAT_MCP_STDERR_MERGE+set}" ; return 0 ;;
 RIGARMS
-rigDisp="$rigO2/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+rigDisp="$rigTool2"
 LC_ALL=C awk -v armsFile="$rigArms" '{ print } !done && $0 == "\tcase \"$1\" in" { while ( ( getline armLine < armsFile ) > 0 ) { print armLine } ; done = 1 }' "$rigDisp" > "$rigDisp.new" && mv "$rigDisp.new" "$rigDisp" && chmod +x "$rigDisp"
-rigCheck "control: the throwaway ops are in the rig copy's dispatcher"    "$( LC_ALL=C grep -c -e '--rig-alternate)' -e '--rig-nested)' "$rigDisp" || : )" 2
+rigCheck "control: the throwaway op is in the rig copy's dispatcher"      "$( LC_ALL=C grep -c -e '--rig-daemon)' "$rigDisp" || : )" 1
 rigNew s2
-rigS2(){ ## result prefix, merge (set|unset), fd4 (open|closed), arguments... -- one outermost call; <prefix>.out .err .fd4 .rc
-	local s2p="$1" s2merge="$2" s2fd4="$3" s2env=() ; shift 3
-	[ "$s2merge" != set ] || s2env=( MDAT_MCP_STDERR_MERGE=false )
+rigS2(){ ## result prefix, fd4 (open|closed), arguments... -- one call; <prefix>.out .err .fd4 .rc
+	local s2p="$1" s2fd4="$2" ; shift 2
 	: > "$s2p.fd4"
 	if [ "$s2fd4" = open ] ; then
-		( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u MDAT_TOOLS_NESTED -u MDAT_MCP_STDERR_MERGE ${s2env[@]+"${s2env[@]}"} HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$rigO2" MDAT_DATA_ROOT="$rigD" bash "$rigTool2" "$@" ) > "$s2p.out" 2> "$s2p.err" 4>> "$s2p.fd4"
+		( cd "$rigW" && env -u MDAT_SKILLSET_ROOT HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$rigO2" MDAT_DATA_ROOT="$rigD" bash "$rigTool2" "$@" ) > "$s2p.out" 2> "$s2p.err" 4>> "$s2p.fd4"
 	else
-		( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u MDAT_TOOLS_NESTED -u MDAT_MCP_STDERR_MERGE ${s2env[@]+"${s2env[@]}"} HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$rigO2" MDAT_DATA_ROOT="$rigD" bash "$rigTool2" "$@" ) > "$s2p.out" 2> "$s2p.err" 4>&-
+		( cd "$rigW" && env -u MDAT_SKILLSET_ROOT HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$rigO2" MDAT_DATA_ROOT="$rigD" bash "$rigTool2" "$@" ) > "$s2p.out" 2> "$s2p.err" 4>&-
 	fi
 	printf '%s' "$?" > "$s2p.rc"
 }
 rigN(){ ## file, fixed text -- how many lines of the file contain it
 	LC_ALL=C grep -c -F -- "$2" "$1" 2> /dev/null || :
 }
-echo "   1. a failing op, its error line"
-rigBad="invalid option: --bad"
-rigS2 "$rigTmp/s2a" set open --magic-advance-input-scan magic-coordinator --bad
-rigS2 "$rigTmp/s2b" unset open --magic-advance-input-scan magic-coordinator --bad
-rigCheck "control: the op fails with 1 and says so on stderr, env unset" "$( cat "$rigTmp/s2b.rc" ) $( rigN "$rigTmp/s2b.err" "$rigBad" )" "1 1"
-rigCheck "control: env unset, stdout is empty"                           "$( LC_ALL=C awk 'END { print NR }' "$rigTmp/s2b.out" )" 0
-rigCheck "env set, fd 4 open: the error line is on stdout"               "$( rigN "$rigTmp/s2a.out" "$rigBad" )" 1
-rigCheck "env set, fd 4 open: and on fd 4"                               "$( rigN "$rigTmp/s2a.fd4" "$rigBad" )" 1
-rigCheck "env set, fd 4 open: and not on stderr"                         "$( rigN "$rigTmp/s2a.err" "$rigBad" )" 0
-rigS2 "$rigTmp/s2c" set closed --magic-advance-input-scan magic-coordinator --bad
-rigCheck "env set, fd 4 closed: the error line is on stdout and on stderr" "$( rigN "$rigTmp/s2c.out" "$rigBad" ) $( rigN "$rigTmp/s2c.err" "$rigBad" )" "1 1"
-echo "   2. a success op's note"
-rigNote(){ ## prefix, merge -- a board move in a fresh rig data root; its note is "# ... wrote ..."
-	rigItem running task-rig-note.md task none none none
-	rigS2 "$1" "$2" open --intern-op-board-upsert-move-edit review task-rig-note.md --from-state:running --context rig
-}
-rigNote "$rigTmp/s2d" set
-rigCheck "env set: the success note is on stdout"                         "$( rigN "$rigTmp/s2d.out" 'wrote review/task-rig-note.md' )" 1
-rigCheck "control: the note really was written, the item is in review"    "$( rigLoc task-rig-note.md )" review
-mv "$rigD/board/review/task-rig-note.md" "$rigD/board/running/task-rig-note.md"
-rigNote "$rigTmp/s2e" unset
-rigCheck "control: env unset, the same note is on stderr and not on stdout" "$( rigN "$rigTmp/s2e.err" 'wrote review/task-rig-note.md' ) $( rigN "$rigTmp/s2e.out" 'wrote review/task-rig-note.md' )" "1 0"
-echo "   3. exit status is the same in both modes"
-rigRc(){ ## merge, expected rc, label, arguments...
-	local rcMerge="$1" rcWant="$2" rcLabel="$3" ; shift 3
-	rigS2 "$rigTmp/s2rc.$rcLabel.$rcMerge" "$rcMerge" open "$@"
-	rigCheck "$rcLabel, env $rcMerge: exit $rcWant"                       "$( cat "$rigTmp/s2rc.$rcLabel.$rcMerge.rc" )" "$rcWant"
-}
-for rigMode in set unset ; do
-	rigRc "$rigMode" 1 bad-argument --magic-advance-input-scan magic-coordinator --bad
-	rigRc "$rigMode" 2 gc-nothing --intern-team-data-final-gc-deletion magic-coordinator
-done
-for rigMode in set unset ; do
-	rigProcessedOne=1
-	rigItem processed "dispatch-rig-rc-$rigMode.md" dispatch dispatch-succeeded none none ; touch -t 202001010000 "$rigD/board/processed/dispatch-rig-rc-$rigMode.md"
-	rigRc "$rigMode" 0 gc-deletes --intern-team-data-final-gc-deletion magic-coordinator
-done
-echo "   4. each stream keeps its own order"
-rigS2 "$rigTmp/s2f" set open --rig-alternate
-rigCheck "stdout's own lines are in order"                                "$( LC_ALL=C grep '^out' "$rigTmp/s2f.out" | tr '\n' ' ' )" "out1 out2 out3 "
-rigCheck "the stderr copies on stdout are in order"                       "$( LC_ALL=C grep '^err' "$rigTmp/s2f.out" | tr '\n' ' ' )" "err1 err2 err3 "
-rigCheck "fd 4 has the stderr lines in order"                             "$( LC_ALL=C grep '^err' "$rigTmp/s2f.fd4" | tr '\n' ' ' )" "err1 err2 err3 "
-rigS2 "$rigTmp/s2g" unset open --rig-alternate
-rigCheck "control: env unset, stderr has them in order and stdout only the out lines" "$( LC_ALL=C grep '^err' "$rigTmp/s2g.err" | tr '\n' ' ' ) $( LC_ALL=C grep -c '^err' "$rigTmp/s2g.out" || : )" "err1 err2 err3  0"
-echo "   5. a nested call is untouched"
-rigS2 "$rigTmp/s2h" set open --rig-nested
-rigCheck "the outer op still receives the inner error line, once"         "$( LC_ALL=C grep -c -x 'got:⛔ ERROR: rig-inner' "$rigTmp/s2h.out" || : )" 1
-rigCheck "the inner stdout capture holds the inner stdout and no stderr copy" "$( LC_ALL=C grep -x 'cap:.*' "$rigTmp/s2h.out" )" 'cap:innerout'
-rigS2 "$rigTmp/s2i" unset open --rig-nested
-rigCheck "control: env unset gives the same two lines"                    "$( LC_ALL=C grep -x -e 'got:.*' -e 'cap:.*' "$rigTmp/s2i.out" | tr '\n' '|' )" 'got:⛔ ERROR: rig-inner|cap:innerout|'
-echo "   6. the daemon line is not copied to stdout"
-rigS2 "$rigTmp/s2j" set open --rig-daemon
-rigCheck "the daemon line is on fd 4"                                     "$( LC_ALL=C grep -c -x 'housekeeping: rig-daemon' "$rigTmp/s2j.fd4" || : )" 1
-rigCheck "the daemon line is not on stdout"                               "$( rigN "$rigTmp/s2j.out" 'housekeeping: rig-daemon' )" 0
+echo "   the daemon line"
+rigS2 "$rigTmp/s2j" open --rig-daemon
+rigCheck "fd 4 open: the line is on fd 4"                                 "$( LC_ALL=C grep -c -x 'housekeeping: rig-daemon' "$rigTmp/s2j.fd4" || : )" 1
+rigCheck "fd 4 open: it is not on stdout"                                 "$( rigN "$rigTmp/s2j.out" 'housekeeping: rig-daemon' )" 0
+rigCheck "fd 4 open: it is not on stderr"                                 "$( rigN "$rigTmp/s2j.err" 'housekeeping: rig-daemon' )" 0
 rigCheck "control: the op's own stdout is there"                          "$( LC_ALL=C grep -c -x 'daemon-op-stdout' "$rigTmp/s2j.out" || : )" 1
-rigS2 "$rigTmp/s2k" set closed --rig-daemon
-rigCheck "accepted fall-through, env set and fd 4 closed (the wrapper's contract is broken): the daemon line is on stderr" "$( LC_ALL=C grep -c -x 'housekeeping: rig-daemon' "$rigTmp/s2k.err" || : )" 1
-rigCheck "accepted fall-through, env set and fd 4 closed: and the filter copies it to stdout, visible not silent" "$( LC_ALL=C grep -c -x 'housekeeping: rig-daemon' "$rigTmp/s2k.out" || : )" 1
-rigS2 "$rigTmp/s2l" unset closed --rig-daemon
-rigCheck "env unset, fd 4 closed: the daemon line is on stderr only"      "$( LC_ALL=C grep -c -x 'housekeeping: rig-daemon' "$rigTmp/s2l.err" || : ) $( LC_ALL=C grep -c 'housekeeping: rig-daemon' "$rigTmp/s2l.out" || : )" "1 0"
-rigCheck "env unset, fd 4 closed: stdout is the op's own line and nothing else" "$( LC_ALL=C grep -c . "$rigTmp/s2l.out" || : )" 1
-echo "   7. through the real wrapper, merge_stderr false"
-rigMcpOpen m2
-rigMcpCall 3 execute "{\"command\":\"DistroAgentsTools --magic-advance-input-scan magic-coordinator --bad\",\"merge_stderr\":false}"
-rigCheck "the op's error line is in the result exactly once (the stdout copy)" "$( rigMcpText 3 | LC_ALL=C awk '{ n = gsub(/invalid option: --bad/, "&") ; t += n } END { print t + 0 }' )" 1
-rigMcpCall 4 execute "{\"command\":\"DistroAgentsTools --magic-advance-input-scan magic-coordinator --bad 2>&1\",\"merge_stderr\":false}"
-rigCheck "with the command's own 2>&1 it is still there once: fd 4 is open under the wrapper, so the second copy goes to fd 4" "$( rigMcpText 4 | LC_ALL=C awk '{ n = gsub(/invalid option: --bad/, "&") ; t += n } END { print t + 0 }' )" 1
-( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u MDAT_TOOLS_NESTED MDAT_MCP_STDERR_MERGE=false HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigD" \
-	bash -c 'bash "$0" "$@" 2>&1' "$rigTool" --magic-advance-input-scan magic-coordinator --bad ) > "$rigTmp/s2m.out" 4>&-
-rigCheck "accepted fall-through, fd 4 closed and the command's own 2>&1: the line is there twice, a visible duplicate" "$( rigN "$rigTmp/s2m.out" 'invalid option: --bad' )" 2
-rigMcpCall 5 execute "{\"command\":\"DistroAgentsTools --magic-advance-input-scan magic-coordinator --bad\",\"merge_stderr\":true}"
-rigCheck "control, merge_stderr true: the line is in the result once, as before" "$( rigMcpText 5 | LC_ALL=C awk '{ n = gsub(/invalid option: --bad/, "&") ; t += n } END { print t + 0 }' )" 1
+rigS2 "$rigTmp/s2l" closed --rig-daemon
+rigCheck "fd 4 closed: the line is on stderr"                             "$( LC_ALL=C grep -c -x 'housekeeping: rig-daemon' "$rigTmp/s2l.err" || : )" 1
+rigCheck "fd 4 closed: and never on stdout"                               "$( rigN "$rigTmp/s2l.out" 'housekeeping: rig-daemon' )" 0
+rigCheck "fd 4 closed: stdout is the op's own line and nothing else"      "$( LC_ALL=C grep -c . "$rigTmp/s2l.out" || : )" 1
+echo "   the daemon line function alone, under /bin/sh, bash 3.2, bash --posix and dash (fd 4 closed, a file, read-only)"
+rigDlFn="$rigTmp/daemonline.fn.sh"
+LC_ALL=C awk '/^AgentsToolsDaemonLine\(\)/ { on = 1 } on { print } on && /^}/ { exit }' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" > "$rigDlFn"
+rigCheck "control: the function text was cut out of the include"          "$( LC_ALL=C grep -c '^AgentsToolsDaemonLine()' "$rigDlFn" || : )" 1
+printf 'unchanged\n' > "$rigTmp/dl.ro"
+rigDlRun(){ ## label, fd 4 mode (closed|file|ro), shell and its options... -- <label>.out .err .status; the shell's own status line says it lived on
+	local dlLabel="$1" dlMode="$2" ; shift 2
+	: > "$rigTmp/dl.$dlLabel.rw"
+	case "$dlMode" in
+		closed) "$@" -c '. "$1" ; AgentsToolsDaemonLine "housekeeping: probe" ; echo "status=$? alive" > "$2"' x "$rigDlFn" "$rigTmp/dl.$dlLabel.status" 4>&- > "$rigTmp/dl.$dlLabel.out" 2> "$rigTmp/dl.$dlLabel.err" ;;
+		file)   "$@" -c '. "$1" ; AgentsToolsDaemonLine "housekeeping: probe" ; echo "status=$? alive" > "$2"' x "$rigDlFn" "$rigTmp/dl.$dlLabel.status" 4>> "$rigTmp/dl.$dlLabel.rw" > "$rigTmp/dl.$dlLabel.out" 2> "$rigTmp/dl.$dlLabel.err" ;;
+		ro)     "$@" -c '. "$1" ; AgentsToolsDaemonLine "housekeeping: probe" ; echo "status=$? alive" > "$2"' x "$rigDlFn" "$rigTmp/dl.$dlLabel.status" 4< "$rigTmp/dl.ro" > "$rigTmp/dl.$dlLabel.out" 2> "$rigTmp/dl.$dlLabel.err" ;;
+	esac
+}
+for rigDlSpec in "sh:/bin/sh" "bash:/bin/bash" "bash-posix:/bin/bash --posix" "dash:/bin/dash" ; do
+	rigDlName="${rigDlSpec%%:*}" ; rigDlCmd="${rigDlSpec#*:}"
+	[ -x "${rigDlCmd%% *}" ] || { rigCheck "${rigDlCmd%% *} exists on this machine" no yes ; continue ; }
+	rigDlRun "$rigDlName.c" closed $rigDlCmd
+	rigCheck "[$rigDlName] fd 4 closed: the line is on stderr once"        "$( LC_ALL=C grep -c -x 'housekeeping: probe' "$rigTmp/dl.$rigDlName.c.err" || : )" 1
+	rigCheck "[$rigDlName] fd 4 closed: nothing on stdout"                 "$( LC_ALL=C awk 'END { print NR }' "$rigTmp/dl.$rigDlName.c.out" )" 0
+	rigCheck "[$rigDlName] fd 4 closed: status 0 and the shell is alive"   "$( cat "$rigTmp/dl.$rigDlName.c.status" 2> /dev/null )" "status=0 alive"
+	rigDlRun "$rigDlName.f" file $rigDlCmd
+	rigCheck "[$rigDlName] fd 4 open to a file: the line is in the file once" "$( LC_ALL=C grep -c -x 'housekeeping: probe' "$rigTmp/dl.$rigDlName.f.rw" || : )" 1
+	rigCheck "[$rigDlName] fd 4 open to a file: nothing on stdout or stderr" "$( LC_ALL=C awk 'END { print NR }' "$rigTmp/dl.$rigDlName.f.out" "$rigTmp/dl.$rigDlName.f.err" )" 0
+	rigCheck "[$rigDlName] fd 4 open to a file: status 0 and alive"        "$( cat "$rigTmp/dl.$rigDlName.f.status" 2> /dev/null )" "status=0 alive"
+	rigDlRun "$rigDlName.r" ro $rigDlCmd
+	rigCheck "[$rigDlName] fd 4 read-only: the line is on stderr once"     "$( LC_ALL=C grep -c -x 'housekeeping: probe' "$rigTmp/dl.$rigDlName.r.err" || : )" 1
+	rigCheck "[$rigDlName] fd 4 read-only: nothing on stdout"              "$( LC_ALL=C awk 'END { print NR }' "$rigTmp/dl.$rigDlName.r.out" )" 0
+	rigCheck "[$rigDlName] fd 4 read-only: status 0 and alive"             "$( cat "$rigTmp/dl.$rigDlName.r.status" 2> /dev/null )" "status=0 alive"
+done
+rigCheck "and the read-only file was left as it was"                       "$( cat "$rigTmp/dl.ro" )" unchanged
+echo "   exit status is the same whether stderr is merged or not"
+rigNew s2rc
+rigMcpOpen m3
+rigCall=40
+for rigMerge in true false ; do
+	rigCall=$(( rigCall + 1 ))
+	rigMcpCall "$rigCall" execute "{\"command\":\"DistroAgentsTools --magic-advance-input-scan magic-coordinator --bad 2> /dev/null ; echo rc=\$?\",\"merge_stderr\":$rigMerge}"
+	rigCheck "a failing op, merge_stderr $rigMerge: it exits 1"           "$( rigMcpText "$rigCall" | LC_ALL=C grep -c 'rc=1$' || : )" 1
+	rigCall=$(( rigCall + 1 ))
+	rigMcpCall "$rigCall" execute "{\"command\":\"MDAT_DATA_ROOT=$rigD DistroAgentsTools --intern-team-data-final-gc-deletion magic-coordinator 2> /dev/null ; echo rc=\$?\",\"merge_stderr\":$rigMerge}"
+	rigCheck "an op with nothing to do, merge_stderr $rigMerge: it exits 2" "$( rigMcpText "$rigCall" | LC_ALL=C grep -c 'rc=2$' || : )" 1
+	rigCall=$(( rigCall + 1 ))
+	rigItem processed "dispatch-rig-rc-$rigCall.md" dispatch dispatch-succeeded none none ; touch -t 202001010000 "$rigD/board/processed/dispatch-rig-rc-$rigCall.md"
+	rigMcpCall "$rigCall" execute "{\"command\":\"MDAT_DATA_ROOT=$rigD DistroAgentsTools --intern-team-data-final-gc-deletion magic-coordinator 2> /dev/null ; echo rc=\$?\",\"merge_stderr\":$rigMerge}"
+	rigCheck "an op that deletes something, merge_stderr $rigMerge: it exits 0"        "$( rigMcpText "$rigCall" | LC_ALL=C grep -c 'rc=0$' || : )" 1
+done
 rigMcpClose
-echo "   9. a spawned child does not carry the markers"
-rigNew s2b9
-mkdir -p "$rigW/.local/.agents" "$rigTmp/s2b9/skills/rig-member" "$rigTmp/s2b9/home" "$rigW/source/rigrepo/rigpkg"
-printf 'SPAWN_CLI_SERVICE=rig-cli\n' > "$rigW/.local/.agents/magic-team.agent.env"
-printf '# rigpkg\n' > "$rigW/source/rigrepo/rigpkg/MAGIC.md" ; : > "$rigW/source/rigrepo/rigpkg/file.sh" ; printf '# workspace\n' > "$rigW/MAGIC.md"
-printf '# rig armed\n' > "$rigTmp/s2b9/skills/rig-member/rig-member.armed.md"
-printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigTmp/s2b9/skills/rig-member/rig-member.basic.md"
-printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\necho "nested=${MDAT_TOOLS_NESTED+set} merge=${MDAT_MCP_STDERR_MERGE+set}" > "%s/s2b9/markers.seen"\necho deliverable > "$MDAT_SPAWN_SANDBOX_ROOT/output/result.txt"\n' "$rigTmp" > "$rigW/DistroAgentsConsole.sh"
-chmod +x "$rigW/DistroAgentsConsole.sh"
-printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
-	| env -i HOME="$rigTmp/s2b9/home" PATH="/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_TOOLS_NESTED=1 MDAT_MCP_STDERR_MERGE=false \
-		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/s2b9/skills" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
-		bash -c '
-			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
-			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
-			cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-agent-spawn-proxy rig-member --dispatch-doc:create --wait
-		' > "$rigTmp/s2b9/spawn.out" 2> "$rigTmp/s2b9/spawn.err"
-[ -f "$rigTmp/s2b9/markers.seen" ] || rigRefuse "the fake console never ran, so its environment was never observed: $( tail -3 "$rigTmp/s2b9/spawn.err" )"
-rigCheck "control: the rig parent had both markers set, the child's own probe can see an env var" "$( env MDAT_TOOLS_NESTED=1 sh -c 'echo "nested=${MDAT_TOOLS_NESTED+set}"' )" "nested=set"
-rigCheck "a console launched by the spawn proxy carries neither marker"   "$( cat "$rigTmp/s2b9/markers.seen" )" "nested= merge="
+echo "   the withdrawn filter's names are gone from the package"
+rigNameA="MDAT_TOOLS_""NESTED" ; rigNameB="MDAT_MCP_STDERR_""MERGE"
+rigNameScan(){ ## directory -- how many files under it carry either name, this check's own file excluded
+	LC_ALL=C grep -r -l --exclude-dir=.git --exclude='AgentsAdvanceInputScanStatesCheck.test.sh' -e "$rigNameA" -e "$rigNameB" "$1" 2> /dev/null | LC_ALL=C awk 'END { print NR }'
+}
+mkdir -p "$rigTmp/namectl" ; printf 'x %s y\n' "$rigNameA" > "$rigTmp/namectl/probe.txt"
+rigCheck "control: the same scan finds a name in a temp file that carries it" "$( rigNameScan "$rigTmp/namectl" )" 1
+rigCheck "neither name appears anywhere in the package's code"            "$( rigNameScan "$MDLT_ORIGIN/myx/myx.distro-agents" )" 0
 
 echo "-- processed-item GC: a deleted item takes its sandbox folder, nothing else goes, twice --"
 rigNew b4

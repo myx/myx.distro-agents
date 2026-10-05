@@ -446,7 +446,7 @@ case "$1" in
 							exec 4>&2
 							if [ "false" = "$mcpMergeStderr" ] && [ "Monitor" != "$mcpToolName" ] ; then exec 5>&4 ; else exec 5>> "$mcpErrFile" ; fi
 							[ -z "$mcpWatchSeconds" ] || { AgentsMcpJobDeadline "$mcpWatchSeconds" "$mcpTimeoutMs" "$mcpJobsDir/$mcpJobId" 4>&- 5>&- & mcpWatchPid=$! ; }
-							printf '%s\n' "$mcpScript" | ( exec env MDAT_MCP_STDERR_MERGE="$mcpMergeStderr" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) >> "$mcpJobsDir/$mcpJobId/out" 4>&2 2>&5 5>&- || mcpJobRc=$?
+							printf '%s\n' "$mcpScript" | ( exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) >> "$mcpJobsDir/$mcpJobId/out" 4>&2 2>&5 5>&- || mcpJobRc=$?
 							printf '%s\n' "$mcpJobRc" > "$mcpJobsDir/$mcpJobId/rc"
 							[ -z "$mcpWatchSeconds" ] || kill "$mcpWatchPid" 2>/dev/null
 						) 3>&- &
@@ -456,7 +456,7 @@ case "$1" in
 							exec 4>&2
 							if [ "false" = "$mcpMergeStderr" ] && [ "Monitor" != "$mcpToolName" ] ; then exec 5>&4 ; else exec 5>> "$mcpErrFile" ; fi
 							[ -z "$mcpWatchSeconds" ] || { AgentsMcpJobDeadline "$mcpWatchSeconds" "$mcpTimeoutMs" "$mcpJobsDir/$mcpJobId" 4>&- 5>&- & mcpWatchPid=$! ; }
-							printf '%s\n' "$mcpScript" | MDAT_MCP_STDERR_MERGE="$mcpMergeStderr" DistroAgentsTools --intern-mcp-execute >> "$mcpJobsDir/$mcpJobId/out" 4>&2 2>&5 5>&- || mcpJobRc=$?
+							printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute >> "$mcpJobsDir/$mcpJobId/out" 4>&2 2>&5 5>&- || mcpJobRc=$?
 							printf '%s\n' "$mcpJobRc" > "$mcpJobsDir/$mcpJobId/rc"
 							[ -z "$mcpWatchSeconds" ] || kill "$mcpWatchPid" 2>/dev/null
 						) 3>&- &
@@ -488,9 +488,9 @@ case "$1" in
 					mcpExitCode=0
 					set -m
 					if [ -n "$mcpWorkspace" ] ; then
-						( printf '%s\n' "$mcpScript" | ( exec env MDAT_MCP_STDERR_MERGE="$mcpMergeStderr" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) ) > "$mcpOutFile" 4>&2 2>&$mcpStderrFd 3>&- &
+						( printf '%s\n' "$mcpScript" | ( exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) ) > "$mcpOutFile" 4>&2 2>&$mcpStderrFd 3>&- &
 					else
-						( printf '%s\n' "$mcpScript" | MDAT_MCP_STDERR_MERGE="$mcpMergeStderr" DistroAgentsTools --intern-mcp-execute ) > "$mcpOutFile" 4>&2 2>&$mcpStderrFd 3>&- &
+						( printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute ) > "$mcpOutFile" 4>&2 2>&$mcpStderrFd 3>&- &
 					fi
 					mcpCmdPid=$!
 

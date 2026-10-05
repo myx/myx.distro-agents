@@ -105,7 +105,10 @@ rigOp "$rigG" "$rigTmp/r1" magic-tester
 rigAssert "a member other than the coordinator is refused" "$( cat "$rigTmp/r1.rc" )" 1
 rigAssert "and nothing is committed"                   "$( rigCount "$rigG" )" "$rigCountBefore"
 mkdir -p "$rigTmp/notrepo"
+## With a remote configured the dispatcher clones a missing local board, so this store is outside any repository only with none.
+rigRemote ""
 rigOp "$rigTmp/notrepo" "$rigTmp/r2" magic-coordinator
+rigRemote "$rigBare"
 rigAssert "a store outside any repository is refused"  "$( cat "$rigTmp/r2.rc" ):$( rigHolds "$rigTmp/r2.err" 'is not in a git repository' )" "1:yes"
 : > "$rigG/.git/index.lock"
 rigOp "$rigG" "$rigTmp/r3" magic-coordinator

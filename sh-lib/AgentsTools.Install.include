@@ -1218,11 +1218,12 @@ case "$1" in
 		fi
 
 		## A run whose scan was not trusted reconciled no grant for this workspace, so
-		## the settings above are the registry as it already stood. Reported and exited
-		## as the failure it is -- a caller cannot otherwise tell it from a real install.
+		## the settings above are the registry as it already stood. Said as a warning and
+		## exited 0: a workspace with no projects yet is a state, the system is set up, and
+		## nothing declared is removed.
 		if [ "$grantsTrusted" != "true" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: declared allow-write was not determined for workspace $workspace, no grant was reconciled for it: $settingsFile $settingsState from the registry as it already stood ($memberCount member grant(s))" >&2
-			set +e ; return 1
+			echo "🙋 WARNING: $MDSC_CMD --install-claude-permissions: declared allow-write was not determined for workspace $workspace, no grant was reconciled for it: $settingsFile $settingsState from the registry as it already stood ($memberCount member grant(s))" >&2
+			return 0
 		fi
 
 		echo "✅ claude permissions $settingsState: $settingsFile ($memberCount member grant(s))" >&2

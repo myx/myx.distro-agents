@@ -258,13 +258,10 @@ AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
 }
 
 ## One line to the daemon output, never stdout: fd 4 where execute opened it (the request's own stderr, not the result), else stderr, which is the log in a console or harness run.
+## The write that can fail is a redirection on a subshell, stderr silenced first, since a failed redirection on a special builtin ends a POSIX shell.
+## fd 4 closed or not writable falls back to stderr.
 AgentsToolsDaemonLine(){ ## text...
-	if { : >&4 ; } 2> /dev/null ; then
-		printf '%s\n' "$*" >&4
-	else
-		printf '%s\n' "$*" >&2
-	fi
-	return 0
+	( printf '%s\n' "$*" ) 2> /dev/null >&4 || printf '%s\n' "$*" >&2
 }
 
 ## Reports housekeeping lines to the daemon output and as one message into this spawn's own event-track thread; nothing goes to stdout or stderr. No thread, no post.

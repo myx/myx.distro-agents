@@ -16,26 +16,6 @@ fi
 export MDLT_ORIGIN
 
 DistroAgentsTools(){
-	## merge_stderr:false (set by execute): the outermost op call copies each stderr line to the agent (stdout) and to the daemon side; nested calls and the execute op itself are left alone.
-	if [ "${MDAT_MCP_STDERR_MERGE:-}" = "false" ] && [ -z "${MDAT_TOOLS_NESTED:-}" ] && [ "$1" != "--intern-mcp-execute" ] ; then
-		local tapDir tapPid tapRc=0
-		mkdir -p "$MMDAPP/.local/temp" && tapDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-stderr-tap.XXXXXX" )" && mkfifo "$tapDir/tap" || {
-			MDAT_TOOLS_NESTED=1 DistroAgentsTools "$@" || tapRc=$?
-			return "$tapRc"
-		}
-		(
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
-			while IFS= read -r tapLine || [ -n "$tapLine" ] ; do
-				printf '%s\n' "$tapLine"
-				AgentsToolsDaemonLine "$tapLine"
-			done < "$tapDir/tap"
-			rm -rf "$tapDir"
-		) &
-		tapPid=$!
-		MDAT_TOOLS_NESTED=1 DistroAgentsTools "$@" 2> "$tapDir/tap" || tapRc=$?
-		wait "$tapPid" 2> /dev/null || :
-		return "$tapRc"
-	fi
 	local MDSC_CMD='DistroAgentsTools'
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
 

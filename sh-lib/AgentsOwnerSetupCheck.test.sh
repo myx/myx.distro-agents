@@ -105,6 +105,22 @@ rigExpect "install-claude-permissions without ~/.claude/skills is not reported b
 rigExpect "and its permissions registry is created" \
 	"$( [ -f "$rigInstallHome/.claude/skills/.linked.magic-team.permissions.txt" ] && printf present || printf absent )" "present"
 
+## A workspace whose scan selects no project is a state, not a failure: the run says so as a warning, exits 0, and
+## keeps the settings the registry already holds.
+rigUntrustedRc=0
+rigUntrustedOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT HOME="$rigInstallHome" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	bash "$rigTool" --install-claude-permissions 2>&1 )" || rigUntrustedRc=$?
+rigExpect "control: this rig's scan really was not trusted, so the warning is printed" \
+	"$rigUntrustedOut" "declared allow-write was not determined"
+rigExpect "an untrusted scan ends with exit 0" \
+	"rc=$rigUntrustedRc" "rc=0"
+rigExpect "and its warning opens with the warning mark, not an error mark" \
+	"$( printf '%s\n' "$rigUntrustedOut" | grep 'declared allow-write was not determined' | head -1 | cut -c1-4 )" "🙋"
+rigExpect "and it is not reported as an error" \
+	"$( printf '%s\n' "$rigUntrustedOut" | grep -c 'ERROR.*install-claude-permissions.*untrusted' )" "0"
+rigExpect "and the settings file is still there" \
+	"$( [ -f "$rigInstallHome/.claude/settings.json" ] && printf present || printf absent )" "present"
+
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ OWNER SETUP CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1
 fi

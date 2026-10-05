@@ -125,8 +125,8 @@ rigStoreWrite cli "" rig-spawn "$rigTmp/m7.out"
 rigAssert "cli with a spawn id is unattended"          "$( rigGated "$rigTmp/m7.out" )" unattended
 
 echo "-- offline --"
-## The proxy's session notice stops at channel resolution, before any request is made.
-rigAssert "the session notice failed at channel resolution" "$( LC_ALL=C grep -c 'could not resolve a channel' "$rigTmp/p.out" )" 1
+## With no bot token the proxy skips its session notice before any request is made, silently, and reports no thread.
+rigAssert "the session notice opened no thread"        "$( LC_ALL=C grep -c '^SESSION_THREAD=none$' "$rigTmp/p.out" )" 1
 rigAssert "no request left this box"                   "$( LC_ALL=C awk 'END { print NR ; }' "$rigTmp/curl.log" )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then

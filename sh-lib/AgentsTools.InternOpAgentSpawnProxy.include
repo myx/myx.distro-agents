@@ -982,17 +982,17 @@ case "$1" in
 			if [ -n "$parentSessionId" ] ; then
 				set -m
 				if [ -n "$outputFile" ] ; then
-					( trap '' HUP ; exec env -u MDAT_TOOLS_NESTED -u MDAT_MCP_STDERR_MERGE MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
 				else
-					( trap '' HUP ; exec env -u MDAT_TOOLS_NESTED -u MDAT_MCP_STDERR_MERGE MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
 				fi
 				spawnPid=$!
 				set +m
 			elif [ -n "$outputFile" ] ; then
-				env -u MDAT_TOOLS_NESTED -u MDAT_MCP_STDERR_MERGE MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
+				env MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
 				spawnPid=$!
 			else
-				env -u MDAT_TOOLS_NESTED -u MDAT_MCP_STDERR_MERGE MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
+				env MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
 				spawnPid=$!
 			fi
 			## Nothing to read until the child is actually running: started right
@@ -1128,7 +1128,7 @@ case "$1" in
 			## On its own, same as the wait-mode branch: not gated by outputFile.
 			AgentsToolsSpawnProxyEventTrackCliUpdate "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$eventTrackBody" 4>&- &
 			cliUpdatePid=$!
-			env -u MDAT_TOOLS_NESTED -u MDAT_MCP_STDERR_MERGE MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext"
+			env MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext"
 			bgExitCode=$?
 			[ -z "$batchPid" ] || { kill "$batchPid" 2>/dev/null ; wait "$batchPid" 2>/dev/null ; }
 			[ -z "$cliUpdatePid" ] || { kill "$cliUpdatePid" 2>/dev/null ; wait "$cliUpdatePid" 2>/dev/null ; }
