@@ -47,3 +47,8 @@ See exactly which operations one member is allowed to run:
 	- Remaining arguments are joined into one prompt.
 	- With no arguments, the prompt is read from stdin.
 	- Exits with an error rather than falling back to bash when no CLI is available.
+
+
+## Working with the team
+
+[Working with The Conclave](../vscode/magic-team/instructions.md) explains how to ask the team for work: whom to address, and what to expect back.

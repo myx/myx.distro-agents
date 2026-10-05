@@ -43,3 +43,13 @@ The CLI domains are `claude`, `claude-native`, `copilot`, `grok` and `scaleway`:
   `claude auth login`, and every workspace on the machine uses that sign-in.
 - `claude`, `copilot`, `grok` and `scaleway` each store their own credential in this
   workspace, so a workspace can run under an account of its own.
+
+
+## Setup manuals
+
+Each CLI domain has its own manual. It lists every option the domain takes, and what you must do yourself to obtain each value.
+
+- `DistroAgentsTools.fn.sh --help-setup-<domain>` prints one domain's manual.
+- [claude](../sh-lib/help/Help.DistroAgentsTools-setup-claude.help.md), [grok](../sh-lib/help/Help.DistroAgentsTools-setup-grok.help.md) and [scaleway](../sh-lib/help/Help.DistroAgentsTools-setup-scaleway.help.md) have manuals.
+
+For `claude`, `--apply` first records the workspace as trusted in the vendor's own state file. Claude discards the permission entries of a workspace it does not trust, so the later steps would do nothing without it.
