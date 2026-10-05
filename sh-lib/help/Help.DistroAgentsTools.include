@@ -74,6 +74,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope 
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-git-repo-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]..." >&2

@@ -85,6 +85,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-self-test
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-harden
+📘 syntax: DistroAgentsTools.fn.sh --member-git-repo-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>...
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
@@ -1591,6 +1592,24 @@
 			permissions, then runs verify and returns its result. Takes
 			no arguments. Call it when verify reports a path out of
 			hardening. Writes, unlike the other two.
+
+		--member-git-repo-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>...
+			Read-only commit history of one to 20 paths, through `git log`
+			only -- members run no git themselves. A path is relative to
+			the workspace root or absolute, and must resolve (symlinks
+			followed) inside the workspace or a readable access root; a
+			path that is itself a symbolic link, holds a dot-dot segment
+			or lies outside is rejected and skipped, not silently dropped.
+			The nearest existing directory is resolved, so the history of
+			a deleted file can be asked for. `--since` and `--until` are
+			dates (`--until` includes its whole day); `--limit` is 1 to
+			1000, default 50. Per path prints a `## <resolved path>`
+			header, then one line per commit, newest first: date and time
+			with zone, author, short hash, subject (cut at 200 characters),
+			tab-separated. When more commits exist than the limit, a final
+			`# ...: output limited to N commits` line says so on stdout.
+			Exit 1 when any path was skipped or git failed; the other
+			paths still print. Writes nothing and takes no git lock.
 
 		--librarian-list-team-files [<path>...]
 			Read-only path listing of skill-folder files. Faster than

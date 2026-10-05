@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberRepoHistory.include -- the --member-git-repo-history operation for
+## DistroAgentsTools.fn.sh's dispatcher: the commit history of paths inside the workspace
+## or a readable access root, through `git log` only. Sourced lazily from its own arm.
+## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD. Contract: MAGIC.md.
+##
+
+case "$1" in
+
+	--member-git-repo-history)
+		local historyOp="$1"
+		shift
+		local historyYear historyMonth historyDay historyDaysMax
+		local historySince="" historyUntil="" historyLimit=50 historyPaths=() historyFailed="false"
+		local historySyntax="⛔ ERROR: $MDSC_CMD $historyOp: syntax is [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>..."
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--since|--until)
+					case "${2:-}" in
+						[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-[0123456789][0123456789]) ;;
+						*) echo "$historySyntax -- $1 takes a date as YYYY-MM-DD, got: ${2:-<none>}" >&2 ; set +e ; return 1 ;;
+					esac
+					## The shape is right; the calendar day must exist too (month 1-12, day within that month, leap years counted).
+					historyYear="${2%%-*}" ; historyMonth="${2#*-}" ; historyDay="${historyMonth#*-}" ; historyMonth="${historyMonth%%-*}"
+					historyYear="$(( 10#$historyYear ))" ; historyMonth="$(( 10#$historyMonth ))" ; historyDay="$(( 10#$historyDay ))"
+					case "$historyMonth" in
+						1|3|5|7|8|10|12) historyDaysMax=31 ;;
+						4|6|9|11) historyDaysMax=30 ;;
+						2) if [ "$(( historyYear % 4 ))" -eq 0 ] && { [ "$(( historyYear % 100 ))" -ne 0 ] || [ "$(( historyYear % 400 ))" -eq 0 ] ; } ; then historyDaysMax=29 ; else historyDaysMax=28 ; fi ;;
+						*) historyDaysMax=0 ;;
+					esac
+					if [ "$historyDay" -lt 1 ] || [ "$historyDay" -gt "$historyDaysMax" ] ; then
+						echo "$historySyntax -- $1 takes an existing calendar date, got: $2" >&2 ; set +e ; return 1
+					fi
+					if [ "$1" = "--since" ] ; then historySince="$2" ; else historyUntil="$2" ; fi
+					shift 2
+				;;
+				--limit)
+					case "${2:-}" in
+						''|*[!0123456789]*) echo "$historySyntax -- --limit takes digits, got: ${2:-<none>}" >&2 ; set +e ; return 1 ;;
+					esac
+					if [ "${#2}" -gt 4 ] || [ "$2" -lt 1 ] || [ "$2" -gt 1000 ] ; then
+						echo "$historySyntax -- --limit is from 1 to 1000, got: $2" >&2 ; set +e ; return 1
+					fi
+					historyLimit="$2"
+					shift 2
+				;;
+				-*)
+					echo "$historySyntax -- unknown option: $1" >&2 ; set +e ; return 1
+				;;
+				*)
+					historyPaths+=( "$1" )
+					shift
+				;;
+			esac
+		done
+		if [ "${#historyPaths[@]}" -eq 0 ] || [ "${#historyPaths[@]}" -gt 20 ] ; then
+			echo "$historySyntax -- one to 20 paths are required, got: ${#historyPaths[@]}" >&2 ; set +e ; return 1
+		fi
+		[ -n "${MMDAPP:-}" ] || { echo "⛔ ERROR: $MDSC_CMD $historyOp: MMDAPP is not set" >&2 ; set +e ; return 1 ; }
+
+		## The readable roots: the workspace and the access roots the machine configures, each resolved once, so a containment check compares real paths.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
+		local historyRoots="" historyRoot historyRead
+		historyRead="$( AgentsToolsClientAccessReferenceRoots read "$MMDAPP" )" || { set +e ; return 1 ; }
+		while IFS= read -r historyRoot ; do
+			[ -n "$historyRoot" ] && historyRoot="$( cd "$historyRoot" 2>/dev/null && pwd -P )" || continue
+			historyRoots="$historyRoots$historyRoot"$'\n'
+		done <<< "$MMDAPP"$'\n'"$historyRead"
+
+		local historyArg historyAbs historyBase historySuffix historyDir historySpec historyOut historyRc historyTop
+		for historyArg in "${historyPaths[@]}" ; do
+			case "$historyArg" in /*) historyAbs="$historyArg" ;; *) historyAbs="$MMDAPP/$historyArg" ;; esac
+			if [ -L "$historyAbs" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $historyOp: path is a symbolic link, name its target instead: $historyArg" >&2
+				historyFailed="true" ; continue
+			fi
+			## The nearest existing directory is resolved and the rest kept as a name, so the history of a deleted file can be asked for.
+			historyBase="$historyAbs" ; historySuffix=""
+			while [ ! -d "$historyBase" ] && [ "$historyBase" != "/" ] ; do
+				historySuffix="/${historyBase##*/}$historySuffix"
+				historyBase="${historyBase%/*}"
+				[ -n "$historyBase" ] || historyBase="/"
+			done
+			historyBase="$( cd "$historyBase" 2>/dev/null && pwd -P )" || { echo "⛔ ERROR: $MDSC_CMD $historyOp: path cannot be resolved: $historyArg" >&2 ; historyFailed="true" ; continue ; }
+			historyDir="$historyBase$historySuffix"
+			historySpec="."
+			[ -z "$historySuffix" ] || historySpec="${historySuffix#/}"
+			case "$historyDir" in
+				*..*) echo "⛔ ERROR: $MDSC_CMD $historyOp: path holds a dot-dot segment: $historyArg" >&2 ; historyFailed="true" ; continue ;;
+			esac
+			historyTop=""
+			while IFS= read -r historyRoot ; do
+				[ -n "$historyRoot" ] || continue
+				case "$historyDir/" in "$historyRoot"/*) historyTop="in" ; break ;; esac
+			done <<< "$historyRoots"
+			if [ -z "$historyTop" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $historyOp: path is outside the readable roots: $historyArg (add its root to CLIENT_ACCESS_ROOTS_EXTRA)" >&2
+				historyFailed="true" ; continue
+			fi
+			historyTop="$( git -C "$historyBase" rev-parse --show-toplevel 2>&1 )" || {
+				echo "⛔ ERROR: $MDSC_CMD $historyOp: not a git repository, or git refused it: $historyArg: $historyTop" >&2
+				historyFailed="true" ; continue
+			}
+			historyRc=0
+			historyOut="$( GIT_OPTIONAL_LOCKS=0 GIT_TERMINAL_PROMPT=0 git --no-pager -c color.ui=never -C "$historyBase" log \
+				--max-count="$(( historyLimit + 1 ))" --date=format:'%Y-%m-%d %H:%M %z' --format='%ad%x09%an%x09%h%x09%s' \
+				${historySince:+--since="$historySince 00:00:00"} ${historyUntil:+--until="$historyUntil 23:59:59"} -- "$historySpec" 2>&1 )" || historyRc=$?
+			if [ "$historyRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $historyOp: git log failed (exit $historyRc): $historyArg: $historyOut" >&2
+				historyFailed="true" ; continue
+			fi
+			printf '## %s\n' "$historyDir"
+			printf '%s\n' "$historyOut" | LC_ALL=C awk -F'\t' -v limit="$historyLimit" -v op="$MDSC_CMD $historyOp" '
+				NF < 4 { next ; }
+				NR > limit { more = 1 ; next ; }
+				{
+					subject = $4 ;
+					for ( fieldIndex = 5 ; fieldIndex <= NF ; fieldIndex++ ) subject = subject "\t" $fieldIndex ;
+					printf "%s\t%s\t%s\t%s\n", $1, $2, $3, substr( subject, 1, 200 ) ;
+				}
+				END { if ( more ) printf "# %s: output limited to %d commits, more exist -- narrow with --since/--until or a path\n", op, limit ; }
+			'
+		done
+
+		if [ "$historyFailed" = "true" ] ; then
+			set +e ; return 1
+		fi
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

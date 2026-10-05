@@ -75,6 +75,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--member-git-repo-history)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberRepoHistory.include"
+			return $?
+		;;
+
 		--member-contact-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberContact.include"
 			return $?

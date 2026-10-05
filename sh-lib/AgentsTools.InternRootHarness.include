@@ -71,9 +71,22 @@ case "$1" in
 			rootHarnessSessionThread="event-track"
 		fi
 
+		if [ "$rootHarnessInteractive" = "false" ] && [ -z "$rootHarnessRoutineSelector" ] ; then
+			echo "$MDSC_CMD --intern-root-harness: ⛔ ERROR: --non-interactive requires --routine <selector>" >&2
+			return 1
+		fi
+
 		local rootHarnessSpawnArgs=( --magic-heartbeat-spawn-proxy magic-coordinator "--session-thread:$rootHarnessSessionThread" )
 		[ -z "$rootHarnessRoutineSelector" ] || rootHarnessSpawnArgs+=( --routine "$rootHarnessRoutineSelector" )
 		[ -z "$rootHarnessWaitFlag" ] || rootHarnessSpawnArgs+=( --wait )
+
+		## The payload routine goes into the packet by its resolved filename, so the pass reads which routine to run and never a flag name.
+		if [ -n "$rootHarnessRoutineSelector" ] ; then
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnRoutine.include"
+			local rootHarnessRoutineFile
+			rootHarnessRoutineFile="$( AgentsToolsSpawnRoutineResolve "$rootHarnessRoutineSelector" )" || return 1
+			rootHarnessModeLine="$rootHarnessModeLine"$'\n'"ROUTINE: ${rootHarnessRoutineFile##*/} -- the dispatch's --routine parameter: run it as this pass's payload."
+		fi
 
 		{ printf '%s\n\n' "$rootHarnessModeLine" ; cat "$rootHarnessBriefFile" ; } | DistroAgentsTools "${rootHarnessSpawnArgs[@]}"
 		return $?
