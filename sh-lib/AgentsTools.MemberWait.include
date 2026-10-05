@@ -18,8 +18,14 @@
 ##     WAIT-RESULT: RECEIVED   -- something arrived; the detail follows
 ##     WAIT-RESULT: TIMEOUT    -- the bound expired with nothing new; normal
 ##     WAIT-RESULT: ERROR      -- the wait could not be performed; see stderr
+##     WAIT-RESULT: CLOSED     -- --wait-close ended the stored wait; nothing was waited on
 ##
-## RECEIVED and TIMEOUT both return 0, because both are answers. ERROR returns 1.
+## RECEIVED, TIMEOUT and CLOSED all return 0, because all are answers. ERROR returns 1.
+##
+## MODES, mutually exclusive, each needing --wait-session-id: --wait-default resets the
+## stored state and waits, --wait-continue repeats the stored sources and per-source
+## floors, --wait-close removes the state. With none of them the call keeps no state.
+## Message ids named in --wait-react-seen|note|done|wait are reacted to before anything else.
 ##
 ## A source never read once during the wait is named on the line right after it:
 ##
@@ -79,17 +85,23 @@
 ## adapter with no such skip ignores it, same as an adapter that cannot tell one
 ## author from another ignores the fifth.
 ##
-## ONE THREAD PER WAIT. A thread source must be the only source of its wait, and it
-## must carry both of those values. A question and its answer are one thread, and a
-## wait fanned out over a conversation is the shape that returned the sending
-## session its own post. A wait over conversations keeps its wider shape, because
-## watching what anybody says to a member is a different job from waiting on an
-## answer, and the default sources below are exactly that job.
+## Any number of sources and threads may share one wait. A plain thread source, the
+## question-and-answer form, takes the one --wait-since-utime and --wait-addressee the
+## call carries, so several of them share those values; the own-post skip and the
+## addressee keep the sending session's own post from coming back.
+##
+## ITERATION DIVIDERS. $agentsWaitKindEvery says a kind is probed on every Nth poll
+## round (the first round always probes all), so a costly kind, a repository check later,
+## can be read less often than a session thread. 1 is every round.
+##
+## Not built, one probe away: repo:<name>, returning that repository HEAD through the
+## team git tooling. inbox:<member> is the own inbox only, board:<state> one board state.
 ##
 
 ## The kinds this build carries. One word per adapter, in the order they are
 ## offered to a caller that asks.
-agentsWaitSourceKinds="slack file"
+agentsWaitSourceKinds="slack file inbox board"
+agentsWaitKindEvery="slack:1 file:1 inbox:1 board:1"
 
 ## Slack. Through the team's own sanctioned read operation and no other path:
 ## the credential stays inside that operation and never reaches argv here.
@@ -143,12 +155,17 @@ AgentsWaitProbeSlack(){
 		[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
 		return 2
 	fi
-	if [ "$probeThread" = "false" ] ; then
-		mv -f "$probeOut.read" "$probeOut" || return 2
-		return 0
-	fi
+	## Rendered for a bare conversation too, so every message is one "<ts> | user | text" line and has an id.
 	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessagesFormat.awk" \
 		< "$probeOut.read" > "$probeOut.rendered" 2>> "$probeOut.err" || probeRc=$?
+	if [ "$probeThread" = "false" ] ; then
+		if [ "$probeRc" != "0" ] ; then
+			[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
+			return 2
+		fi
+		mv -f "$probeOut.rendered" "$probeOut" || return 2
+		return 0
+	fi
 	## A thread several questions share answers each by its tag (AgentsTools.AskThread.include).
 	## Conversation mode has no question to tag, so it skips this lookup entirely.
 	local probeStanding="" probeOthers=""
@@ -202,6 +219,16 @@ AgentsWaitProbeFile(){
 	return 0
 }
 
+## The own inbox and one board state are listings of a directory, so they are the file probe over it.
+AgentsWaitProbeInbox(){
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 2
+	AgentsWaitProbeFile "$1" "$MDAT_DATA_ROOT/inboxes/$2" "$3" "$4"
+}
+AgentsWaitProbeBoard(){
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 2
+	AgentsWaitProbeFile "$1" "$MDAT_DATA_ROOT/board/$2" "$3" "$4"
+}
+
 ## `slack` -> `AgentsWaitProbeSlack`, without ${var^} -- bash 3.2 has no such
 ## expansion, and this package targets it.
 AgentsWaitProbeFunctionName(){
@@ -235,8 +262,44 @@ case "$1" in
 		}
 
 		local waitSources="" waitTimeout="" waitPoll="" waitSince="" waitListOnly="false" waitAddressee="" waitIncludeOwn="false"
+		local waitMode="" waitSessionId="" waitReactions="" waitFloors="" reactWord
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				--wait-default|--wait-continue|--wait-close)
+					if [ -n "$waitMode" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: modes are mutually exclusive, and this call names --wait-$waitMode and $1. Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+					waitMode="${1#--wait-}"
+					shift
+				;;
+				--wait-session-id)
+					if [ -z "${2:-}" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-session-id: value required" >&2
+						set +e ; return 1
+					fi
+					waitSessionId="$2"
+					shift 2
+				;;
+				## Each id is kept as <set>=<id>, and gated byte-wise here before it can reach a command line.
+				--wait-react-seen|--wait-react-note|--wait-react-done|--wait-react-wait)
+					if [ -z "${2:-}" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: $1: value required (message ids, space-separated)" >&2
+						set +e ; return 1
+					fi
+					if ! LC_ALL=C awk -v ids="$2" 'BEGIN { exit ( ids ~ /[^0-9A-Za-z._: -]/ ) ; }' ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: $1: a message id holds only letters, digits, '.', ':', '-' and '_'. Nothing was reacted to or waited on." >&2
+						set +e ; return 1
+					fi
+					for reactWord in $2 ; do
+						waitReactions="$waitReactions${1#--wait-react-}=$reactWord "
+					done
+					shift 2
+				;;
 				--wait-source)
 					if [ -z "${2:-}" ] ; then
 						echo "WAIT-RESULT: ERROR"
@@ -314,6 +377,48 @@ case "$1" in
 			return 0
 		fi
 
+		## State is per session, never per member, and --wait-continue refuses a source or filter of its own.
+		local waitStateDir="" waitStateLine
+		if [ -n "$waitMode" ] ; then
+			if [ -z "$waitSessionId" ] ; then
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-$waitMode needs --wait-session-id, because the state it keeps or ends is the state of one session. Nothing was waited on." >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$waitSessionId" "<session-id>" member-wait-for-input || {
+				echo "WAIT-RESULT: ERROR"
+				set +e ; return 1
+			}
+			if [ "$waitMode" = "continue" ] && { [ -n "$waitSources" ] || [ -n "$waitSince" ] || [ -n "$waitAddressee" ] || [ "$waitIncludeOwn" = "true" ] ; } ; then
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-continue repeats the stored wait and takes no source, since, addressee or include-own of its own. Nothing was waited on: call --wait-default to change them." >&2
+				set +e ; return 1
+			fi
+			waitStateDir="$MMDAPP/.local/agents/sessions/$waitSessionId/wait"
+			echo "# --member-wait-for-input: mode=$waitMode member=$memberName session=$waitSessionId" >&2
+			## Abandoned state is swept on the way in, as the working directories below are.
+			find "$MMDAPP/.local/agents/sessions" -maxdepth 2 -type d -name wait -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+			if [ "$waitMode" = "continue" ] && [ ! -f "$waitStateDir/state" ] ; then
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-continue found no stored wait for session $waitSessionId. Nothing was waited on, and no default wait was started in its place: call --wait-default." >&2
+				set +e ; return 1
+			fi
+			## close names its own ids against the stored sources, unless it was given some.
+			if [ -f "$waitStateDir/state" ] && { [ "$waitMode" = "continue" ] || { [ "$waitMode" = "close" ] && [ -z "$waitSources" ] ; } ; } ; then
+				while IFS= read -r waitStateLine ; do
+					case "$waitStateLine" in
+						"sources: "*) waitSources="${waitStateLine#sources: }" ;;
+						"addressee: "*) waitAddressee="${waitStateLine#addressee: }" ;;
+						"include-own: "*) waitIncludeOwn="${waitStateLine#include-own: }" ;;
+						"floor "*)
+							waitStateLine="${waitStateLine#floor }"
+							waitFloors="$waitFloors${waitStateLine% *}=${waitStateLine##* } "
+						;;
+					esac
+				done < "$waitStateDir/state"
+			fi
+		fi
+
 		## Defaults. A caller inside a coworking session defaults to that session's
 		## own thread, any post but its own -- the common "tell me when this session
 		## moves" case. One shared by every entry point that reaches this operation,
@@ -335,7 +440,7 @@ case "$1" in
 			fi
 		fi
 		[ -n "$waitTimeout" ] || waitTimeout=300
-		[ -n "$waitPoll" ] || waitPoll=15
+		[ -n "$waitPoll" ] || waitPoll="${MDAT_WAIT_POLL_SECONDS:-19}"
 
 		case "$waitTimeout" in
 			''|*[!0-9]*)
@@ -387,18 +492,25 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: no input source of kind '$checkKind' exists in this build, so nothing was waited on -- this is NOT a wait that found nothing. Kinds this build carries: $agentsWaitSourceKinds" >&2
 				set +e ; return 1
 			fi
+			## A member waits on its own inbox only, and a board state is one of the nine directories.
+			case "$checkKind:$checkTarget" in
+				inbox:"$memberName"|board:backlog|board:pending|board:running|board:review|board:blocked|board:parked|board:processed|board:archived|board:retained) ;;
+				inbox:*|board:*)
+					echo "WAIT-RESULT: ERROR"
+					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: inbox:<own member name> is the own inbox only, and board:<state> is one of backlog pending running review blocked parked processed archived retained. Nothing was waited on." >&2
+					set +e ; return 1
+				;;
+			esac
 		done
 
-		## ONE THREAD PER WAIT, settled before the wait starts and not discovered in
-		## its result. A thread source is a question waiting on its own answer, and an
-		## answer is qualified by the message it came after and the party it came from.
-		## A thread source missing either of those, or sharing its wait with another
-		## source, is refused here rather than waited on.
+		## Settled before the wait starts and not discovered in its result. A thread source
+		## is a question waiting on its own answer, and an answer is qualified by the
+		## message it came after and the party it came from. A thread source missing
+		## either of those is refused here rather than waited on.
 		## `slack:<channel>:<ts>:conversation` is the "any new post" thread mode:
 		## no addressee, sibling to today's named `slack:magic-team` etc. targets.
-		local checkThreads=0 checkCount=0 checkConversation=0
+		local checkThreads=0 checkConversation=0
 		for checkSource in $waitSources ; do
-			checkCount=$(( checkCount + 1 ))
 			case "$checkSource" in
 				slack:*:*:conversation)
 					checkThreads=$(( checkThreads + 1 ))
@@ -409,22 +521,18 @@ case "$1" in
 				;;
 			esac
 		done
-		if [ "$checkThreads" -gt 0 ] && [ "$checkCount" -gt 1 ] ; then
-			echo "WAIT-RESULT: ERROR"
-			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a thread source must be the ONLY source of its wait, and this wait names $checkCount. A question and its answer are one thread, and a wait spread over more than that is the shape that came back holding the sending session's own post. Nothing was waited on: name the one thread." >&2
-			set +e ; return 1
-		fi
-		if [ "$checkThreads" -gt 0 ] && [ -z "$waitSince" ] ; then
+		## A continued or closed wait has its floors stored, so no since is asked for.
+		if [ "$checkThreads" -gt 0 ] && [ -z "$waitSince" ] && [ "$waitMode" != "continue" ] && [ "$waitMode" != "close" ] ; then
 			echo "WAIT-RESULT: ERROR"
 			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a thread source needs --wait-since-utime carrying the ts of our own message in that thread, because an answer is what arrives AFTER it. Without that floor every message already in the thread would count as an answer, our own included. Nothing was waited on." >&2
 			set +e ; return 1
 		fi
-		if [ "$checkConversation" = "0" ] && [ "$checkThreads" -gt 0 ] && [ -z "$waitAddressee" ] ; then
+		if [ "$checkThreads" -gt "$checkConversation" ] && [ -z "$waitAddressee" ] ; then
 			echo "WAIT-RESULT: ERROR"
 			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a thread source needs --wait-addressee carrying the Slack account the question was addressed to, because an answer is what that party wrote. Without it an unrelated message in the same thread would count as the answer, and so would our own next post. Nothing was waited on." >&2
 			set +e ; return 1
 		fi
-		if [ "$checkConversation" -gt 0 ] && [ -n "$waitAddressee" ] ; then
+		if [ "$checkConversation" -gt 0 ] && [ "$checkThreads" = "$checkConversation" ] && [ -n "$waitAddressee" ] ; then
 			echo "WAIT-RESULT: ERROR"
 			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a :conversation thread source takes no --wait-addressee, because any new post counts, not just one party's reply. Nothing was waited on." >&2
 			set +e ; return 1
@@ -444,6 +552,66 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-include-own only changes anything on a slack:<channel>:<ts>:conversation source, which already includes this member's own posts everywhere else. Nothing was waited on: name a :conversation source, or drop the flag." >&2
 			set +e ; return 1
 		fi
+		## Reactions follow every check and precede the wait; a failed one is listed and never stops it.
+		local reactSet reactId reactEmoji reactOk reactFailed="" reactSummary="" reactNew="" reactSlack=0 reactChannel=""
+		if [ -n "$waitReactions" ] ; then
+			for checkSource in $waitSources ; do
+				case "$checkSource" in
+					slack:*)
+						reactSlack=$(( reactSlack + 1 ))
+						reactChannel="${checkSource#slack:}"
+						reactChannel="${reactChannel%%:*}"
+					;;
+				esac
+			done
+			for reactWord in $waitReactions ; do
+				case "${reactWord#*=}" in
+					*:*) reactNew="$reactNew$reactWord " ;;
+					*)
+						if [ "$reactSlack" != "1" ] ; then
+							echo "WAIT-RESULT: ERROR"
+							echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: the message id '${reactWord#*=}' is a bare ts, which names a message only when the wait has exactly one slack source, and this one has $reactSlack. Nothing was reacted to or waited on: write it <channel>:<ts>." >&2
+							set +e ; return 1
+						fi
+						reactNew="$reactNew${reactWord%%=*}=$reactChannel:${reactWord#*=} "
+					;;
+				esac
+			done
+			waitReactions="$reactNew"
+		fi
+		for reactSet in seen note done wait ; do
+			reactOk=0
+			case "$reactSet" in
+				seen) reactEmoji="eyes" ;;
+				note) reactEmoji="writing_hand" ;;
+				done) reactEmoji="white_check_mark" ;;
+				wait) reactEmoji="hourglass_flowing_sand" ;;
+			esac
+			for reactWord in $waitReactions ; do
+				[ "${reactWord%%=*}" = "$reactSet" ] || continue
+				reactId="${reactWord#*=}"
+				## The member's own identity first, then the bot: which one may react differs by conversation.
+				if DistroAgentsTools --member-comms-slack-react "$memberName" "$reactId" "$reactEmoji" > /dev/null 2>&1 \
+					|| DistroAgentsTools --member-comms-slack-react "$memberName" "$reactId" "$reactEmoji" --identity-bot > /dev/null 2>&1 ; then
+					reactOk=$(( reactOk + 1 ))
+				else
+					reactFailed="$reactFailed$reactId "
+				fi
+			done
+			reactSummary="$reactSummary$reactSet=$reactOk "
+		done
+		reactSummary="${reactSummary}failed=${reactFailed:-none}"
+		reactSummary="${reactSummary% }"
+
+		if [ "$waitMode" = "close" ] ; then
+			rm -rf "$waitStateDir" 2>/dev/null || true
+			echo "WAIT-RESULT: CLOSED"
+			echo "WAIT-MODE: close"
+			echo "# reactions: $reactSummary"
+			return 0
+		fi
+		[ "$waitMode" != "default" ] || rm -rf "$waitStateDir" 2>/dev/null || true
+
 		## mktemp, never `$$`: this operation is a shell function inside a long-lived
 		## process, so every call in that process shares one PID. Two concurrent waits
 		## by one member then share a directory, and the first to finish removes the
@@ -486,19 +654,45 @@ case "$1" in
 		## sitting there still does not count as an arrival.
 		local waitReadFloor="${waitSince:-$waitStart}"
 
-		local waitRound=0 waitOutcome="TIMEOUT" waitHitSource="" waitHitFile=""
+		## One floor per source, the stored one where there is one; a continued wait also starts from stored baselines.
+		local waitFloorOf=() waitFloorNew=() waitFloorsUsed="" floorIndex=0
+		[ "$waitMode" != "continue" ] || waitBaselineMode="stored"
+		for checkSource in $waitSources ; do
+			floorIndex=$(( floorIndex + 1 ))
+			waitFloorOf[$floorIndex]="$waitReadFloor"
+			case " $waitFloors" in
+				*" $checkSource="*)
+					waitFloorOf[$floorIndex]="${waitFloors#*"$checkSource="}"
+					waitFloorOf[$floorIndex]="${waitFloorOf[$floorIndex]%% *}"
+				;;
+			esac
+			case "$checkSource" in
+				slack:*)
+					waitFloorsUsed="$waitFloorsUsed$checkSource=${waitFloorOf[$floorIndex]} "
+					[ "$waitMode" != "continue" ] || : > "$waitDir/base.$floorIndex"
+				;;
+				*)
+					[ "$waitMode" != "continue" ] || [ ! -f "$waitStateDir/base.$floorIndex" ] || cp "$waitStateDir/base.$floorIndex" "$waitDir/base.$floorIndex"
+				;;
+			esac
+		done
+
+		local waitRound=0 waitOutcome="TIMEOUT" waitHits=""
 		local waitProbeFailures="" waitReadSources=""
 		while : ; do
 			waitRound=$(( waitRound + 1 ))
-			local roundSource roundKind roundTarget roundFn roundIndex=0 roundRc
+			local roundSource roundKind roundTarget roundFn roundIndex=0 roundRc roundEvery
 			for roundSource in $waitSources ; do
 				roundIndex=$(( roundIndex + 1 ))
 				roundKind="${roundSource%%:*}"
 				roundTarget="${roundSource#*:}"
 				roundFn="$( AgentsWaitProbeFunctionName "$roundKind" )"
+				roundEvery="${agentsWaitKindEvery#*"$roundKind:"}"
+				roundEvery="${roundEvery%% *}"
+				[ "$waitRound" = "1" ] || [ $(( ( waitRound - 1 ) % roundEvery )) = "0" ] || continue
 
 				roundRc=0
-				"$roundFn" "$memberName" "$roundTarget" "$waitReadFloor" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" || roundRc=$?
+				"$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" || roundRc=$?
 				if [ "$roundRc" != "0" ] ; then
 					## A probe that cannot run is reported, and the wait carries on
 					## over the sources that can: one unreachable source must not
@@ -524,11 +718,10 @@ case "$1" in
 					fi
 				fi
 
+				## Every source is scanned, and every one that changed is returned, not the first.
 				if ! cmp -s "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ; then
 					waitOutcome="RECEIVED"
-					waitHitSource="$roundSource"
-					waitHitFile="$waitDir/now.$roundIndex"
-					break
+					waitHits="$waitHits$roundIndex=$roundSource "
 				fi
 			done
 			[ "$waitOutcome" != "RECEIVED" ] || break
@@ -558,7 +751,12 @@ case "$1" in
 		done
 
 		echo "WAIT-RESULT: $waitOutcome"
+		[ -z "$waitMode" ] || echo "WAIT-MODE: $waitMode"
 		[ -z "$waitNeverRead" ] || echo "WAIT-NEVER-READ: ${waitNeverRead% }"
+		if [ -n "$waitMode" ] ; then
+			echo "# filters: sources=${waitSources% } floors=${waitFloorsUsed% } addressee=${waitAddressee% } include-own=$waitIncludeOwn"
+			echo "# reactions: $reactSummary"
+		fi
 		echo "# member: $memberName"
 		echo "# sources: ${waitSources% }"
 		[ -z "$waitAddressee" ] || echo "# answers counted only from: ${waitAddressee% }"
@@ -567,22 +765,31 @@ case "$1" in
 
 		case "$waitOutcome" in
 			RECEIVED)
-				echo "# arrived on: $waitHitSource"
-				echo "# --- what that source holds now follows ---"
-				cat "$waitHitFile"
-				echo "# --- end ---"
-				## Only a thread rendering carries one "<ts> | ..." message head per line,
-				## in ts order (AgentsSlackThreadAnswers.awk keeps that order). A bare
-				## conversation source renders raw Slack JSON instead, and a file source
-				## carries no per-message ts at all -- neither has a single "newest
-				## message" this line could name, so neither gets one.
-				case "$waitHitSource" in
-					slack:*:*)
-						local waitLastTs
-						waitLastTs="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1; } END { if (ts != "") print ts; }' "$waitHitFile" )"
-						[ -z "$waitLastTs" ] || echo "WAIT-LAST-TS: $waitLastTs"
-					;;
-				esac
+				local waitHit waitHitIndex waitLastTs waitLastLines=""
+				for waitHit in $waitHits ; do
+					waitHitIndex="${waitHit%%=*}"
+					echo "# arrived on: ${waitHit#*=}"
+					echo "# --- what that source holds now follows ---"
+					cat "$waitDir/now.$waitHitIndex"
+					echo "# --- end ---"
+					## A slack rendering carries one "<ts> | ..." message head per line, in ts
+					## order; that newest ts is named, and is the floor a continued wait takes.
+					## A file, inbox or board listing has no per-message ts, so it names none.
+					case "${waitHit#*=}" in
+						slack:*)
+							waitLastTs="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1; } END { if (ts != "") print ts; }' "$waitDir/now.$waitHitIndex" )"
+							[ -n "$waitLastTs" ] || continue
+							waitFloorNew[$waitHitIndex]="$waitLastTs"
+							## One hit reads as it always did; several name the source each ts belongs to.
+							if [ -z "${waitHits#* }" ] ; then
+								waitLastLines="WAIT-LAST-TS: $waitLastTs"
+							else
+								waitLastLines="${waitLastLines}WAIT-LAST-TS: ${waitHit#*=} $waitLastTs"$'\n'
+							fi
+						;;
+					esac
+				done
+				[ -z "$waitLastLines" ] || printf '%s\n' "${waitLastLines%$'\n'}"
 			;;
 			*)
 				## A read is claimed only for a source read at least once, so the text differs by which were.
@@ -597,6 +804,30 @@ case "$1" in
 				fi
 			;;
 		esac
+
+		## Stored only after RECEIVED or TIMEOUT; floors are the newest ts returned, others keep base.<position>.
+		if [ -n "$waitMode" ] ; then
+			local waitStateTmp
+			mkdir -p "$waitStateDir" && waitStateTmp="$( mktemp "$waitStateDir/state.XXXXXX" )" || {
+				echo "# NOTE: the state of this wait could not be stored under $waitStateDir, so --wait-continue will not find it." >&2
+				rm -rf "$waitDir" 2>/dev/null || true
+				return 0
+			}
+			floorIndex=0
+			{
+				echo "sources: $waitSources"
+				echo "addressee: $waitAddressee"
+				echo "include-own: $waitIncludeOwn"
+				for checkSource in $waitSources ; do
+					floorIndex=$(( floorIndex + 1 ))
+					case "$checkSource" in
+						slack:*) echo "floor $checkSource ${waitFloorNew[$floorIndex]:-${waitFloorOf[$floorIndex]}}" ;;
+						*) [ ! -f "$waitDir/now.$floorIndex" ] || cp "$waitDir/now.$floorIndex" "$waitStateDir/base.$floorIndex" ;;
+					esac
+				done
+			} > "$waitStateTmp"
+			mv -f "$waitStateTmp" "$waitStateDir/state"
+		fi
 
 		rm -rf "$waitDir" 2>/dev/null || true
 		return 0

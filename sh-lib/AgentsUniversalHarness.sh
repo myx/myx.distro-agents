@@ -1527,12 +1527,34 @@ AgentsHarnessToolWebFetch(){
 	fi
 }
 
+## The one addressee rule of every send tool. The name below is the only place the parent's address is spelled.
+harnessParentName="session-parent"
+
+## This session's parent thread, from its own spawn record: prints "<thread> <parent id>", or an ERROR line
+## and returns 1. The sandbox folder is named by tracking name or session id, so records are found by file name.
+AgentsHarnessParentThread(){
+	local parentRecord parentId="" parentThread=""
+	for parentRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.md" ; do
+		[ ! -f "$parentRecord" ] || parentId="$( LC_ALL=C awk '/^parent-session-id: /{ sub( /^parent-session-id: /, "" ) ; print ; exit ; }' "$parentRecord" )"
+	done
+	if [ -z "$parentId" ] || [ "$parentId" = "none" ] ; then
+		printf 'ERROR: this session has no recorded parent session, so %s names nowhere. Nothing was sent. Pass to explicitly.\n' "$harnessParentName" ; return 1
+	fi
+	for parentRecord in "$MMDAPP"/.local/agents/spawned/*/"$parentId.md" ; do
+		[ ! -f "$parentRecord" ] || parentThread="$( LC_ALL=C awk '/^session-thread: /{ sub( /^session-thread: /, "" ) ; print ; exit ; }' "$parentRecord" )"
+	done
+	if [ -z "$parentThread" ] ; then
+		printf 'ERROR: the parent session %s has no recorded thread, so %s names nowhere. Nothing was sent. Pass to explicitly.\n' "$parentId" "$harnessParentName" ; return 1
+	fi
+	printf '%s %s\n' "$parentThread" "$parentId"
+}
+
 ## The team's own sanctioned send operation, never a Slack call of this harness's own:
 ## the credential stays inside that operation and never reaches argv. The text goes in
 ## on stdin, where no shell quoting can reach it -- a single apostrophe in a composed
 ## send emptied one live message in this estate.
-AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation)
-	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" toolBroadcast="${5:-}" sendRc=0
+AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation), no inbox (true: a team member with no Slack DM is refused, since an inbox cannot be waited on)
+	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" toolBroadcast="${5:-}" toolNoInbox="${6:-}" sendRc=0 toolShown="" toolParent toolInbox
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to send under, and one is never guessed here. Nothing was sent. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
@@ -1542,6 +1564,11 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 	if [ -z "$toolTarget" ] ; then
 		type AgentsToolsSessionThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
 		toolTarget="$( AgentsToolsSessionThreadFind 2>/dev/null )" || toolTarget=""
+	fi
+	if [ "$toolTarget" = "$harnessParentName" ] ; then
+		toolParent="$( AgentsHarnessParentThread )" || { printf '%s\n' "$toolParent" ; return 0 ; }
+		toolTarget="${toolParent%% *}"
+		toolShown="$toolTarget (the thread of parent session ${toolParent#* })"
 	fi
 	if [ -z "$toolTarget" ] || [ -z "$toolMessage" ] ; then
 		printf 'ERROR: both to and message are required, and one of them was empty. Nothing was sent.\n' ; return 0
@@ -1559,10 +1586,27 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 	## Output to a file rather than a capture: the operation forks curl, and a capture
 	## returns on pipe EOF rather than on the command it ran.
 	printf '%s' "$toolMessage" | "$@" --from-stdin >"$harnessScratch/send.out" 2>&1 || sendRc=$?
+	## A team member with no Slack DM of its own is reached by its inbox, a hand-off it reads later.
+	## A question cannot use it, because nothing can wait on a file.
+	if [ "$sendRc" != "0" ] && LC_ALL=C grep -q -E 'ERROR: .*--member-comms-slack-send-message: NO-SLACK-DM: ' "$harnessScratch/send.out" ; then
+		toolTarget="${toolTarget%%:*}"
+		if [ "$toolNoInbox" = "true" ] ; then
+			printf 'ERROR: %s has no Slack DM channel, and an inbox cannot carry a question that waits for an answer. Nothing was sent.\n' "$toolTarget" ; return 0
+		fi
+		toolInbox="inquiry-$( date -u +%Y%m%dT%H%MZ )-message-$( printf '%s' "$toolMessage" | cksum | cut -d' ' -f1 ).md"
+		if { printf -- '---\ntype: inquiry\nfrom: %s\ndate: %s\nowner: %s\n---\n\n%s\n' "$harnessAgent" "$( date +'%Y-%m-%d %H:%M %z' )" "$toolTarget" "$toolMessage" ; } \
+			| "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-upsert-member-inquiry "$toolTarget" "$toolInbox" > "$harnessScratch/inbox.out" 2>&1 ; then
+			printf 'Sent to the inbox of %s as %s, because that team member has no Slack DM channel of its own. It is read only when that member next processes its inbox.\n' "$toolTarget" "$toolInbox"
+		else
+			printf 'ERROR: %s has no Slack DM channel, and its inbox refused the hand-off, so nothing was sent. What the operation reported follows:\n' "$toolTarget"
+			cat "$harnessScratch/inbox.out"
+		fi
+		return 0
+	fi
 	if [ "$sendRc" != "0" ] ; then
 		printf 'ERROR: the send failed (rc=%s) and nothing was posted. What the operation reported follows:\n' "$sendRc"
 	else
-		printf 'Sent to %s as %s. What the operation reported follows:\n' "$toolTarget" "$harnessAgent"
+		printf 'Sent to %s as %s. What the operation reported follows:\n' "${toolShown:-$toolTarget}" "$harnessAgent"
 	fi
 	cat "$harnessScratch/send.out"
 }
@@ -1605,8 +1649,19 @@ AgentsHarnessToolListAgents(){
 ## A wait that comes back with nothing is NOT an error and is never dressed as one:
 ## the operation's own WAIT-RESULT line is passed through untouched, so the model
 ## reads TIMEOUT and ERROR as the different things they are.
+## A call naming a mode (arguments 7 to 11: mode, seen, note, done, wait) is a stateful wait kept per
+## session; an internal caller passing six arguments or fewer gets today's stateless wait.
 AgentsHarnessToolWait(){
-	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitSource
+	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitSource waitStateful="false" waitSession waitParent
+	local toolMode="${7:-}" toolSeen="${8:-}" toolNote="${9:-}" toolDone="${10:-}" toolWaitIds="${11:-}"
+	if [ $# -ge 7 ] ; then
+		waitStateful="true"
+		[ -n "$toolMode" ] || toolMode="default"
+		case "$toolMode" in
+			default|continue|close) ;;
+			*) printf 'ERROR: mode must be default, continue or close, got: %s\n' "$toolMode" ; return 0 ;;
+		esac
+	fi
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to wait as, and one is never guessed here. Nothing was waited on.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
@@ -1639,18 +1694,38 @@ AgentsHarnessToolWait(){
 	## but the caller's own, where a session thread exists. An ad-hoc/solo spawn
 	## holding none keeps today's default exactly -- magic-team and human-owner,
 	## resolved below by --member-wait-for-input itself from an empty sources list.
-	if [ -z "$toolSources" ] ; then
+	if [ -z "$toolSources" ] && [ "$toolMode" != "continue" ] && [ "$toolMode" != "close" ] ; then
 		type AgentsToolsSessionThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
 		local waitDefaultThread=""
 		waitDefaultThread="$( AgentsToolsSessionThreadFind 2>/dev/null )" || waitDefaultThread=""
 		[ -z "$waitDefaultThread" ] || toolSources="slack:$waitDefaultThread:conversation"
+		## A thread source needs a floor, and a bare call means what arrives from now on.
+		[ -z "$waitDefaultThread" ] || [ -n "$toolSince" ] || toolSince="$( date +%s )"
 	fi
+	## slack:session-parent names the parent's thread as a :conversation source, the value SendMessage to takes.
+	case " $toolSources " in
+		*" slack:$harnessParentName "*)
+			waitParent="$( AgentsHarnessParentThread )" || { printf '%s\n' "$waitParent" ; return 0 ; }
+			toolSources=" $toolSources "
+			toolSources="${toolSources/" slack:$harnessParentName "/" slack:${waitParent%% *}:conversation "}"
+			[ -n "$toolSince" ] || toolSince="$( date +%s )"
+		;;
+	esac
 	## Built as argv, so a source naming a thread stays one token rather than a
 	## quoted fragment, and an empty sources string adds no flag at all.
 	set -- "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-wait-for-input "$harnessAgent"
 	for waitSource in $toolSources ; do
 		set -- "$@" --wait-source "$waitSource"
 	done
+	if [ "$waitStateful" = "true" ] ; then
+		waitSession="$( AgentsHarnessSessionKey )"
+		set -- "$@" "--wait-$toolMode"
+		[ -z "$waitSession" ] || set -- "$@" --wait-session-id "$waitSession"
+		[ -z "$toolSeen" ] || set -- "$@" --wait-react-seen "$toolSeen"
+		[ -z "$toolNote" ] || set -- "$@" --wait-react-note "$toolNote"
+		[ -z "$toolDone" ] || set -- "$@" --wait-react-done "$toolDone"
+		[ -z "$toolWaitIds" ] || set -- "$@" --wait-react-wait "$toolWaitIds"
+	fi
 	set -- "$@" --wait-timeout "$toolTimeout"
 	[ -z "$toolPoll" ] || set -- "$@" --wait-poll-interval "$toolPoll"
 	[ -z "$toolSince" ] || set -- "$@" --wait-since-utime "$toolSince"
@@ -2266,7 +2341,7 @@ AgentsHarnessFormalSend(){ ## tool name, target, as_bot, body text
 ## Posting a handback does not end this run and releases nobody waiting on it -- the
 ## description says so, because a model reading otherwise stops working mid-task.
 AgentsHarnessToolSubagentHandback(){
-	local toolTo="$1" toolTask="$2" toolOutcome="$3" toolFindings="$4" toolUnfinished="$5" toolAsBot="$6" toolBody
+	local toolTo="${1:-$harnessParentName}" toolTask="$2" toolOutcome="$3" toolFindings="$4" toolUnfinished="$5" toolAsBot="$6" toolBody
 	if [ -z "$toolOutcome" ] ; then
 		printf 'ERROR: SubagentHandback: outcome is required and was empty. A handback carrying no outcome reports nothing, so nothing was sent.\n' ; return 0
 	fi
@@ -2465,6 +2540,11 @@ AgentsHarnessToolAskUserQuestion(){
 	if [ -z "$toolTo" ] ; then
 		printf 'ERROR: AskUserQuestion: to is required and was empty, so there is nobody to ask. Nothing was sent.\n' ; return 0
 	fi
+	## The parent's thread is one message-thread target like any other, so address_to is still required for it.
+	if [ "$toolTo" = "$harnessParentName" ] ; then
+		toolTo="$( AgentsHarnessParentThread )" || { printf 'ERROR: AskUserQuestion: %s\n' "${toolTo#ERROR: }" ; return 0 ; }
+		toolTo="${toolTo%% *}"
+	fi
 	## The thread numbers its questions itself, so a number the asker put in front of the
 	## text ("Q1: ...", "q2) ...", "Q3 - ...") would show beside it as a second one.
 	local askLabel='^[Qq][0-9]+[[:space:]]*[-:.)][[:space:]]*'
@@ -2631,7 +2711,7 @@ AgentsHarnessToolAskUserQuestion(){
 		esac
 	fi
 	if [ -z "$toolAddressTo" ] ; then
-		printf 'ERROR: AskUserQuestion: `to` names one message (%s) rather than a party, so address_to is required and was empty. An answer is recognised by who wrote it, so a question addressed to nobody could be answered by anybody. Nothing was sent.\n' "$toolTo" ; return 0
+		printf 'ERROR: AskUserQuestion: `to` names one message (%s) or the parent thread rather than a party, so address_to is required and was empty. An answer is recognised by who wrote it, so a question addressed to nobody could be answered by anybody. Nothing was sent.\n' "$toolTo" ; return 0
 	fi
 	askAsk="$toolTo"
 	[ -z "$askReuseThread" ] || askAsk="$askReuseChannel:$askReuseThread"
@@ -2639,7 +2719,7 @@ AgentsHarnessToolAskUserQuestion(){
 		*:*)
 		;;
 		*)
-			askOpen="$( AgentsHarnessToolSendMessage "$toolTo" "❓ $toolQuestion"$'\n\n'"The full question and how to answer it are in this thread." "$toolAsBot" "$toolAddressTo" )"
+			askOpen="$( AgentsHarnessToolSendMessage "$toolTo" "❓ $toolQuestion"$'\n\n'"The full question and how to answer it are in this thread." "$toolAsBot" "$toolAddressTo" "" true )"
 			case "$askOpen" in
 				ERROR:*)
 					[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
@@ -2658,7 +2738,7 @@ AgentsHarnessToolAskUserQuestion(){
 	esac
 	## A question joining a thread already running is also shown in the conversation, or it
 	## sits buried under earlier replies where the person never sees it.
-	askSent="$( AgentsHarnessToolSendMessage "$askAsk" "$askBody" "$toolAsBot" "$toolAddressTo" "${askReuseThread:+true}" )"
+	askSent="$( AgentsHarnessToolSendMessage "$askAsk" "$askBody" "$toolAsBot" "$toolAddressTo" "${askReuseThread:+true}" true )"
 	case "$askSent" in
 		ERROR:*)
 			[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
@@ -3407,7 +3487,8 @@ AgentsHarnessAnnounceTool(){
 		## one field that identifies the call rather than the whole body it composed.
 		SubagentHandback)
 			announceIcon="📦"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" to )" )$harnessOff"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" to )" )${harnessOff}"
+			[ -n "$( AgentsHarnessArgValue "$announceArgsRaw" to )" ] || announceDetail="${harnessValue}${harnessParentName}${harnessOff}"
 		;;
 		ReportFindings)
 			announceIcon="📊"
@@ -3560,7 +3641,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" )" ;;
 		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" message )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		ListAgents) harnessResult="$( AgentsHarnessToolListAgents "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" view )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" session_id )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" state )" )" ;;
-		Wait)      harnessResult="$( AgentsHarnessToolWait "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" sources )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" poll_interval )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" since_utime )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" addressee )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" include_own )" )" ;;
+		Wait)      harnessResult="$( AgentsHarnessToolWait "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" sources )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" poll_interval )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" since_utime )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" addressee )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" include_own )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" mode )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" seen )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" note )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" done )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait )" )" ;;
 		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" outcome )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" unfinished )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" subject )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" evidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" confidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
 		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" severity )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" headline )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" detail )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" action_required )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;

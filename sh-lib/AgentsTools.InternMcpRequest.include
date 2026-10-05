@@ -134,6 +134,10 @@ case "$1" in
 		mcpAction="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_action" 2>/dev/null || true )"
 		mcpDescription="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_description" 2>/dev/null || true )"
 		mcpTimeoutMs="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_timeout_ms" 2>/dev/null || true )"
+		mcpMergeStderr="$( cat "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ/arg_merge_stderr" 2>/dev/null || true )"
+		## Where a script's stderr goes: 1 is the result (the default), 4 is the daemon side. Only an explicit false moves it.
+		mcpStderrFd=1
+		[ "false" != "$mcpMergeStderr" ] || mcpStderrFd=4
 		rm -rf "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/req.$AGENTS_MCP_REQ_SEQ"
 
 		## The harness tool floor, rendered for THIS request from the same wire declarations
@@ -183,7 +187,7 @@ case "$1" in
 		## execute is served, so Monitor is withheld there with the harness tools.
 		mcpMonitorToolJson=''
 		[ -n "${MDAT_MCP_SERVED_MARKER:-}" ] || mcpMonitorToolJson='{"name":"Monitor","description":"Watch a long shell command as a background job of this server, with the myx.distro workspace environment set up as for execute. Each line the command writes to stdout is one event, and the command ending ends the watch. stderr goes to a file of its own, named in the start result. Give command and description to start: the call returns at once with a job id. Events do not arrive by themselves over this connection. Call Monitor again with job to receive the complete lines written since your last call. The reply also says whether the job is still running, or gives its exit code. Give job and action kill to stop it.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"The shell command to watch. May span multiple lines. Give it with description to start a watch. Leave it out, and give job, to poll or stop one."},"description":{"type":"string","description":"Required to start. A short label for this watch, repeated in the start result and in the status line of each poll."},"timeout_ms":{"type":"integer","description":"Optional, at start only. Milliseconds before the job is killed. Default 300000, capped at 1800000. The next poll says the job timed out."},"job":{"type":"integer","description":"Optional. The id a Monitor start returned. Give it without command to read the complete lines written since your last poll. The reply also says whether the job is still running, or gives its exit code. A line still being written comes on a later poll."},"action":{"type":"string","description":"Optional, only with job. kill stops the job. Leave it out to poll."}},"required":[]}},'
-		mcpToolsListJson='{"tools":['"$mcpServedToolsJson$mcpMonitorToolJson"'{"name":"execute","description":"Run a shell script with the myx.distro workspace environment already set up, and return its combined stdout and stderr and its exit status. MMDAPP is the workspace root and MDLT_ORIGIN the tooling tree, which may differ. DistroAgentsTools, DistroAgentsContext, Agents, Require, Distro, Action and DistroSystemContext are defined, and variables you already set are kept. No input tier is selected, so a script that reads a distro index selects one itself. Load a tool with Require before calling it through Distro. For example: DistroSystemContext --distro-from-source ; Require ListDistroProjects ; Distro ListDistroProjects --select-all.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"The shell script to run. May span multiple lines. Leave it out, and give job, to poll a background job."},"workspace":{"type":"string","description":"Optional. Absolute path of another myx.distro workspace, one with its own .local, to run this one call against. MMDAPP moves to it and MDLT_ORIGIN stays unchanged. Default: the workspace this server runs for."},"timeout":{"type":"integer","description":"Optional, foreground calls only. Seconds before the script is killed. Default 600, maximum 3600. On timeout the error names the file holding the partial output."},"background":{"type":"boolean","description":"Optional. true starts the script and returns at once with a job id. Use it for anything long, such as a build, deploy or sync. A background job has no timeout. Poll it with job and no command."},"job":{"type":"integer","description":"Optional. The id of a background job this server started. Give it without command to read the output since your last poll, and whether the job is still running or its exit code."},"action":{"type":"string","description":"Optional, only with job. kill stops the job. Leave it out to poll."}},"required":[]}}]}'
+		mcpToolsListJson='{"tools":['"$mcpServedToolsJson$mcpMonitorToolJson"'{"name":"execute","description":"Run a shell script with the myx.distro workspace environment already set up, and return its combined stdout and stderr and its exit status. MMDAPP is the workspace root and MDLT_ORIGIN the tooling tree, which may differ. DistroAgentsTools, DistroAgentsContext, Agents, Require, Distro, Action and DistroSystemContext are defined, and variables you already set are kept. No input tier is selected, so a script that reads a distro index selects one itself. Load a tool with Require before calling it through Distro. For example: DistroSystemContext --distro-from-source ; Require ListDistroProjects ; Distro ListDistroProjects --select-all.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"The shell script to run. May span multiple lines. Leave it out, and give job, to poll a background job."},"workspace":{"type":"string","description":"Optional. Absolute path of another myx.distro workspace, one with its own .local, to run this one call against. MMDAPP moves to it and MDLT_ORIGIN stays unchanged. Default: the workspace this server runs for."},"timeout":{"type":"integer","description":"Optional, foreground calls only. Seconds before the script is killed. Default 600, maximum 3600. On timeout the error names the file holding the partial output."},"background":{"type":"boolean","description":"Optional. true starts the script and returns at once with a job id. Use it for anything long, such as a build, deploy or sync. A background job has no timeout. Poll it with job and no command."},"job":{"type":"integer","description":"Optional. The id of a background job this server started. Give it without command to read the output since your last poll, and whether the job is still running or its exit code."},"action":{"type":"string","description":"Optional, only with job. kill stops the job. Leave it out to poll."},"merge_stderr":{"type":"boolean","description":"Optional. Default true: the script stderr is part of the result. false: it goes to the daemon log instead, so a command that needs both streams merges them itself with 2>&1."}},"required":[]}}]}'
 
 		## The whole catalogue a host last listed is remembered by checksum only, so a call
 		## made after it changed tells the host to list again (`listChanged`, declared
@@ -439,16 +443,20 @@ case "$1" in
 					if [ -n "$mcpWorkspace" ] ; then
 						(
 							mcpJobRc=0
-							[ -z "$mcpWatchSeconds" ] || { AgentsMcpJobDeadline "$mcpWatchSeconds" "$mcpTimeoutMs" "$mcpJobsDir/$mcpJobId" & mcpWatchPid=$! ; }
-							printf '%s\n' "$mcpScript" | ( exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) >> "$mcpJobsDir/$mcpJobId/out" 2>> "$mcpErrFile" || mcpJobRc=$?
+							exec 4>&2
+							if [ "false" = "$mcpMergeStderr" ] && [ "Monitor" != "$mcpToolName" ] ; then exec 5>&4 ; else exec 5>> "$mcpErrFile" ; fi
+							[ -z "$mcpWatchSeconds" ] || { AgentsMcpJobDeadline "$mcpWatchSeconds" "$mcpTimeoutMs" "$mcpJobsDir/$mcpJobId" 4>&- 5>&- & mcpWatchPid=$! ; }
+							printf '%s\n' "$mcpScript" | ( exec env MDAT_MCP_STDERR_MERGE="$mcpMergeStderr" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) >> "$mcpJobsDir/$mcpJobId/out" 4>&2 2>&5 5>&- || mcpJobRc=$?
 							printf '%s\n' "$mcpJobRc" > "$mcpJobsDir/$mcpJobId/rc"
 							[ -z "$mcpWatchSeconds" ] || kill "$mcpWatchPid" 2>/dev/null
 						) 3>&- &
 					else
 						(
 							mcpJobRc=0
-							[ -z "$mcpWatchSeconds" ] || { AgentsMcpJobDeadline "$mcpWatchSeconds" "$mcpTimeoutMs" "$mcpJobsDir/$mcpJobId" & mcpWatchPid=$! ; }
-							printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute >> "$mcpJobsDir/$mcpJobId/out" 2>> "$mcpErrFile" || mcpJobRc=$?
+							exec 4>&2
+							if [ "false" = "$mcpMergeStderr" ] && [ "Monitor" != "$mcpToolName" ] ; then exec 5>&4 ; else exec 5>> "$mcpErrFile" ; fi
+							[ -z "$mcpWatchSeconds" ] || { AgentsMcpJobDeadline "$mcpWatchSeconds" "$mcpTimeoutMs" "$mcpJobsDir/$mcpJobId" 4>&- 5>&- & mcpWatchPid=$! ; }
+							printf '%s\n' "$mcpScript" | MDAT_MCP_STDERR_MERGE="$mcpMergeStderr" DistroAgentsTools --intern-mcp-execute >> "$mcpJobsDir/$mcpJobId/out" 4>&2 2>&5 5>&- || mcpJobRc=$?
 							printf '%s\n' "$mcpJobRc" > "$mcpJobsDir/$mcpJobId/rc"
 							[ -z "$mcpWatchSeconds" ] || kill "$mcpWatchPid" 2>/dev/null
 						) 3>&- &
@@ -480,9 +488,9 @@ case "$1" in
 					mcpExitCode=0
 					set -m
 					if [ -n "$mcpWorkspace" ] ; then
-						( printf '%s\n' "$mcpScript" | ( exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) ) > "$mcpOutFile" 2>&1 3>&- &
+						( printf '%s\n' "$mcpScript" | ( exec env MDAT_MCP_STDERR_MERGE="$mcpMergeStderr" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute --workspace "$mcpWorkspace" ) ) > "$mcpOutFile" 4>&2 2>&$mcpStderrFd 3>&- &
 					else
-						( printf '%s\n' "$mcpScript" | DistroAgentsTools --intern-mcp-execute ) > "$mcpOutFile" 2>&1 3>&- &
+						( printf '%s\n' "$mcpScript" | MDAT_MCP_STDERR_MERGE="$mcpMergeStderr" DistroAgentsTools --intern-mcp-execute ) > "$mcpOutFile" 4>&2 2>&$mcpStderrFd 3>&- &
 					fi
 					mcpCmdPid=$!
 

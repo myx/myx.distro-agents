@@ -216,7 +216,7 @@ AgentsToolsFinalGcLookup(){
 ## which selects only where an `archive: true` item may be diverted to.
 ## Sets (accumulates into, never resets): gcSeenCount, gcDeletedCount,
 ## gcDeletedPaths[], gcAddPaths[], gcCommitPaths[], gcArchivedCount,
-## gcRetainedCount (all `local` in the caller, dynamic-scoped here). Never
+## gcRetainedCount, gcSandboxCount, gcSandboxLog (all `local` in the caller, dynamic-scoped here). Never
 ## prints. A failed `rm -f` and a failed diversion are the two real failures --
 ## returns 1 with gcScanFailedPath/gcScanFailedWhat set. An item whose date
 ## cannot be established is neither: it is kept.
@@ -224,6 +224,7 @@ AgentsToolsFinalGcScanDir(){
 	local scanDir="$1" nowEpoch="$2" mode="$3" population="$4"
 	local path fileBase thresholdDays ageSeconds thresholdSeconds
 	local clockEpoch inIndex inHead
+	local gcSandboxFolders gcSandboxRemovable gcSandboxOpen gcFolderName
 	AgentsToolsFinalGcGitNames "$scanDir"
 	if [ "$mode" = "immediate" ] ; then
 		gcGitTimes="$LF" ; gcMtimes="$LF"
@@ -293,6 +294,25 @@ AgentsToolsFinalGcScanDir(){
 					continue
 				;;
 			esac
+			## The item's spawn sandbox folders go with it, before it: an open one keeps the item for a later pass, a failed removal keeps it too.
+			gcSandboxRemovable="" ; gcSandboxOpen="false"
+			for gcFolderName in $( AgentsToolsSpawnSandboxFoldersOfItem "$path" ) ; do
+				case "$( AgentsToolsSpawnSandboxFolderState "$gcFolderName" "${fileBase%.md}" )" in
+					open) gcSandboxOpen="true" ;;
+					removable) gcSandboxRemovable="$gcSandboxRemovable $gcFolderName" ;;
+				esac
+			done
+			[ "$gcSandboxOpen" = "false" ] || continue
+			for gcFolderName in $gcSandboxRemovable ; do
+				chmod -R u+w "$MMDAPP/.local/agents/spawned/$gcFolderName" 2> /dev/null || :
+				if ! rm -rf -- "$MMDAPP/.local/agents/spawned/$gcFolderName" ; then
+					gcScanFailedPath="$MMDAPP/.local/agents/spawned/$gcFolderName"
+					gcScanFailedWhat="delete"
+					return 1
+				fi
+				gcSandboxCount=$(( gcSandboxCount + 1 ))
+				gcSandboxLog="${gcSandboxLog}housekeeping: removed sandbox $gcFolderName"$'\n'
+			done
 		fi
 
 		if ! rm -f -- "$path" ; then
@@ -363,8 +383,9 @@ case "$1" in
 		local gcScanFailedPath="" gcScanFailedWhat=""
 		local gcGitTimes="$LF" gcMtimes="$LF" gcLookupEpoch=""
 		local gcIndexNames="$LF" gcHeadNames="$LF" gcItemArchived="false"
-		local gcArchivedCount=0 gcRetainedCount=0
+		local gcArchivedCount=0 gcRetainedCount=0 gcSandboxCount=0 gcSandboxLog=""
 		local gcSeenCount=0 trashSeenCount=0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
 		local gcDependedNames="$LF$LF"
 		local inboxDeletedCount=0 boardDeletedCount=0 trashDeletedCount=0
 
@@ -469,7 +490,11 @@ case "$1" in
 		if [ "$gcRetainedCount" -gt 0 ] ; then
 			gcSummary="$gcSummary $gcRetainedCount board-items retained."
 		fi
+		if [ "$gcSandboxCount" -gt 0 ] ; then
+			gcSummary="$gcSummary $gcSandboxCount sandbox-folders removed."
+		fi
 		echo "$gcSummary"
+		AgentsToolsHousekeepingReport "$callingMember" "${gcSandboxLog%$'\n'}"
 
 		local gitOut="" gitRc=0
 		## Staged first, so an item the index held but HEAD never did leaves no

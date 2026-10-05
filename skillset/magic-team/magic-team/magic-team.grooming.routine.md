@@ -152,7 +152,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - run the `check-backlog-promote` procedure (below) against `board-backlog`
      - run the `check-reassess` procedure (below) against `board-pending`, `board-parked`, `board-blocked`, and `board-running` items — a separate call, own pass
      - `board-pending` items ready to dispatch into `board-running`
-     - closed spawn records in `board-pending` — the `dispatch-*` items a spawn's close parks there for grooming to adjudicate, steps:
+     - closed spawn records in `board-pending` — items whose spawn closed in place there, for grooming to adjudicate (a created `dispatch-*` item goes to `board-review` instead, not here), steps:
        - `status: dispatch-succeeded`: move it to `board-processed` with `--magic-grooming-to-processed`
        - `status: dispatch-failed` with a `tracks:` header: judge it — to re-dispatch, return the item it `tracks` to `board-pending` with `--magic-grooming-to-pending`, carrying what the retry needs; either way, close the record to `board-processed` with `--magic-grooming-to-processed`, stating the reason
        - `status: dispatch-failed` with no `tracks:` header: nothing is tracked, so nothing is re-dispatched from it. Close the record to `board-processed` with `--magic-grooming-to-processed`, stating the failure. Where the record's own body names the work it was for, `magic-coordinator` may re-dispatch that work by judgement, as new work, never by reviving the record.

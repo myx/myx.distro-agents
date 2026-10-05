@@ -60,7 +60,7 @@ rigSpawnAndEndPass(){ ## scenario, parent session id or empty, --wait or empty, 
 	rigDir="$rigTmp/$1"
 	mkdir -p "$rigDir"
 	set -m
-	( cd "$rigWs" && env -u MDAT_DATA_ROOT ${2:+MDAT_SPAWN_SESSION_ID="$2"} RIG_SCENARIO="$rigDir" RIG_RUN="$4" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	( cd "$rigWs" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID ${2:+MDAT_SPAWN_SESSION_ID="$2"} RIG_SCENARIO="$rigDir" RIG_RUN="$4" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		bash "$rigTool" --intern-op-agent-spawn-proxy keeper-myx --dispatch-doc:none $3 --context rig-spawn-detach <<< "RIG-BRIEF" > "$rigDir/proxy.out" 2>&1 ) &
 	rigPassPid=$!
 	set +m

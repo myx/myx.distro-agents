@@ -92,7 +92,7 @@ All four are equally valid; none is the "real" or "canonical" one. **Not the sam
 - **`board-review`**
   - Sits in the flow `board-running` → `board-review` → `board-processed`. Entered when a dispatch's spawn-proxy close marks the dispatch finished — that close now targets `board-review` instead of `board-pending`.
   - Carries the `review-by` header, written by the proxy at create time. Four forms: the literal `human-owner`, a bare `<team-member>` name, a bare `<session-id>` uuid, or `<session-id>:<team-member>` together.
-  - **No staleness check, unlike `board-blocked`/`board-parked`.** Entering this state fires one notice, once, to whoever `review-by` names (planned, not yet built). Nothing polls it afterward — only the reviewer's own move below resolves it.
+  - **No staleness check, unlike `board-blocked`/`board-parked`.** Entering this state fires one notice, once, to whoever `review-by` names (planned, not yet built). `magic-coordinator` works the item when `review-by` is `magic-coordinator`, `advance.routine` or empty; otherwise only the reviewer's own move below resolves it.
   - **review-rejection** — moves the item back to `board-running`, with the reviewer's own comments appended to that same item's body.
   - **review-acceptance** — moves the item to `board-processed`. Nothing further is wanted from this dispatch.
   - No `review-verdict` header, or any other stored verdict — the outcome is which of the two moves above actually happened, never a stored field.

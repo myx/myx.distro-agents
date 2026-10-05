@@ -567,6 +567,721 @@ rigAssert "control: the other member's post still counts"  "$( rigHolds "$rigAns
 rigVerdict "AgentsSlackThreadAnswers.awk -- the own-post skip is real, and includeOwn=1 lifts exactly it"
 
 ## ---------------------------------------------------------------------------
+## 10. The session Wait -- three mutually exclusive modes (--wait-default,
+##     --wait-continue, --wait-close), stored state, the seen/note/done/wait id
+##     sets reacted before any read, ids and floors, one round returning every
+##     source that differs, the own-inbox and board macro-event kinds, and the
+##     internal poll. Every call runs in a workspace of its own under this rig's
+##     temp tree, so no state lands in the real workspace, and the Slack-shaped
+##     fake curl (never the model-round one above) answers on its own log. Each
+##     row has a same-scenario control that answers the other way.
+## ---------------------------------------------------------------------------
+rigSlackBin="$rigTmp/slackbin"
+mkdir -p "$rigSlackBin"
+cp "$rigFixtures/harness-ask-check.curl.test.sh" "$rigSlackBin/curl" \
+	|| rigRefuse "the Slack-shaped fake curl fixture is missing from the package: $rigFixtures/harness-ask-check.curl.test.sh"
+chmod +x "$rigSlackBin/curl"
+rigSlackPath="$rigSlackBin:$PATH"
+[ "$( PATH="$rigSlackPath" command -v curl )" = "$rigSlackBin/curl" ] || rigRefuse "the Slack-shaped fake curl is not first on its PATH, so a new row could issue real requests"
+
+## One table, so the emoji map is one place to change: set, emoji, message ts.
+rigReactTable="seen:eyes:1700000001.000200 note:writing_hand:1700000001.000300 done:white_check_mark:1700000001.000400 wait:hourglass_flowing_sand:1700000001.000500"
+rigReactChannel="CRIG00001"
+rigReactThread="1700000001.000101"
+
+rigNewDir=""
+rigNewSession=""
+rigNewPoll="1"
+rigNewStatus=0
+rigNewElapsed=0
+rigNewOut=""
+rigNewErr=""
+rigNewGuard=40
+rigNewOrigin=""
+rigNewStart(){ ## scenario name
+	rigNewDir="$rigTmp/new-$1"
+	rigNewSession="rig-sess-$1"
+	rigNewPoll="1"
+	rigNewOrigin=""
+	mkdir -p "$rigNewDir/ws/.local/.agents" "$rigNewDir/ws/.local/temp" "$rigNewDir/data/inboxes/$rigMember" "$rigNewDir/data/board/pending"
+	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigNewDir/ws/.local/.agents/magic-team.agent.env"
+	printf 'SLACK_USER_TOKEN=rig-user-token-TESTER\n' > "$rigNewDir/ws/.local/.agents/$rigMember.agent.env"
+	: > "$rigNewDir/curl.log"
+}
+## The thread: opener, then the scenario's later messages. The fixture's own
+## account, URIGSELF1, is this member's; URIGOWNER's posts are the arrivals.
+rigNewReplies(){ ## later messages, optional thread ts (default: the shared replies.json)
+	local repliesFile="$rigNewDir/replies.json"
+	[ -z "${2:-}" ] || repliesFile="$rigNewDir/replies.$2.json"
+	printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGSELF1","text":"opener"}%s],"has_more":false}\n' "${2:-$rigReactThread}" "$1" > "$repliesFile"
+}
+rigOwnerPost(){ ## ts, text, thread ts
+	printf ',{"ts":"%s","user":"URIGOWNER","text":"%s","thread_ts":"%s"}' "$1" "$2" "$3"
+}
+## The operation under the scenario's own workspace, session store and inbox, with
+## the guard rigOp has: a wait that does not return is killed and says so. The poll
+## env is set from rigNewPoll, and an empty rigNewPoll leaves it unset.
+rigNew(){ ## output basename, then the operation's own arguments
+	local opName="$1" opStart opEnd opPid opWatchPid
+	shift
+	rigNewOut="$rigNewDir/$opName.out"
+	rigNewErr="$rigNewDir/$opName.err"
+	rigNewStatus=0
+	local opTool="$rigTool"
+	[ -z "$rigNewOrigin" ] || opTool="$rigNewOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	opStart="$( date +%s )"
+	env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_WAIT_POLL_SECONDS \
+		"PATH=$rigSlackPath" "RIG_CURL_LOG=$rigNewDir/curl.log" "RIG_SCENARIO=$rigNewDir" "MMDAPP=$rigNewDir/ws" "MDAT_DATA_ROOT=$rigNewDir/data" \
+		${rigNewOrigin:+MDLT_ORIGIN=$rigNewOrigin} \
+		${rigNewPoll:+MDAT_WAIT_POLL_SECONDS=$rigNewPoll} \
+		"$opTool" --member-wait-for-input "$rigMember" "$@" > "$rigNewOut" 2> "$rigNewErr" &
+	opPid=$!
+	(
+		opLeft="$rigNewGuard"
+		while [ "$opLeft" -gt 0 ] ; do
+			kill -0 "$opPid" 2>/dev/null || exit 0
+			sleep 1
+			opLeft=$(( opLeft - 1 ))
+		done
+		printf 'rig: the wait did not return within %ss, and was killed\n' "$rigNewGuard" >> "$rigNewErr"
+		kill -TERM "$opPid" 2>/dev/null
+		sleep 2
+		kill -KILL "$opPid" 2>/dev/null
+	) &
+	opWatchPid=$!
+	wait "$opPid" || rigNewStatus=$?
+	kill -TERM "$opWatchPid" 2>/dev/null
+	wait "$opWatchPid" 2>/dev/null || :
+	opEnd="$( date +%s )"
+	rigNewElapsed=$(( opEnd - opStart ))
+}
+rigNewIn(){ ## output basename, then arguments -- under the scenario's own session id
+	local inName="$1"
+	shift
+	rigNew "$inName" "$@" --wait-session-id "$rigNewSession"
+}
+## The Nth line of a file, or a token saying why there is none.
+rigNth(){ ## file, line number
+	[ -f "$1" ] || { printf 'no-such-output' ; return 0 ; }
+	LC_ALL=C awk -v wantLine="$2" 'NR == wantLine { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-such-line" ; } }' "$1"
+}
+## How many lines OPEN with a text.
+rigOpens(){ ## file, text
+	[ -f "$1" ] || { printf 'no-such-output' ; return 0 ; }
+	LC_ALL=C awk -v wantText="$2" 'index($0, wantText) == 1 { hitCount++ ; } END { print hitCount + 0 ; }' "$1"
+}
+rigLines(){ ## file -- how many lines it holds, 0 for a file never written
+	[ -f "$1" ] || { printf 0 ; return 0 ; }
+	LC_ALL=C awk 'END { print NR + 0 ; }' "$1"
+}
+rigReactCount(){ ## "<ts> <name>" -- how many times the fake Slack was asked for that reaction
+	[ -f "$rigNewDir/reactions" ] || { printf 0 ; return 0 ; }
+	LC_ALL=C awk -v wantText="$1" '$0 == wantText { hitCount++ ; } END { print hitCount + 0 ; }' "$rigNewDir/reactions"
+}
+rigNewState(){ ## session id -- the stored wait state directory, present or absent
+	[ -d "$rigNewDir/ws/.local/agents/sessions/$1/wait" ] && printf present || printf absent
+}
+rigNewStateFile(){ ## session id
+	[ -f "$rigNewDir/ws/.local/agents/sessions/$1/wait/state" ] && printf present || printf absent
+}
+## Every reaction before the first read of the thread: validate, react, then wait.
+rigReactsFirst(){
+	[ -f "$rigNewDir/curl.log" ] || { printf 'no-such-log' ; return 0 ; }
+	LC_ALL=C awk '
+		$0 == "reactions.add" { lastReact = NR ; }
+		$0 == "conversations.replies" && firstRead == 0 { firstRead = NR ; }
+		END {
+			if ( lastReact == 0 ) { print "no-reactions" ; }
+			else if ( firstRead == 0 ) { print "no-read" ; }
+			else if ( lastReact < firstRead ) { print "reactions-first" ; }
+			else { print "read-first" ; }
+		}' "$rigNewDir/curl.log"
+}
+
+## ---------------------------------------------------------------------------
+## 10a. Two or three modes together are ERROR and nothing is done. The control is
+##      the same call with one mode.
+## ---------------------------------------------------------------------------
+rigNewStart modes
+rigDropN="$rigNewDir/dropN.txt"
+: > "$rigDropN"
+rigPairNo=0
+for rigPair in "--wait-default --wait-continue" "--wait-default --wait-close" "--wait-continue --wait-close" "--wait-default --wait-continue --wait-close" ; do
+	rigPairNo=$(( rigPairNo + 1 ))
+	rigNewIn "pair-$rigPairNo" $rigPair --wait-source "file:$rigDropN" --wait-timeout 600
+	rigAssert "[$rigPair] the marker line opens stdout"        "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
+	rigAssert "[$rigPair] returns 1"                           "$rigNewStatus" 1
+	rigAssert "[$rigPair] refused at second zero, not the bound" "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+	rigAssert "[$rigPair] names the rule"                      "$( rigHolds "$rigNewErr" 'modes are mutually exclusive' )" yes
+	rigAssert "[$rigPair] nothing was waited on"               "$( rigHolds "$rigNewOut" '# waited:' )" no
+	rigAssert "[$rigPair] no state was stored"                 "$( rigNewState "$rigNewSession" )" absent
+done
+rigNewIn mode-one --wait-default --wait-source "file:$rigDropN" --wait-timeout 2
+rigAssert "control: one mode is a wait"                        "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigAssert "control: it returns 0"                              "$rigNewStatus" 0
+rigAssert "control: it says which mode ran"                    "$( rigNth "$rigNewOut" 2 )" "WAIT-MODE: default"
+rigAssert "control: no exclusivity diagnostic"                 "$( rigHolds "$rigNewErr" 'mutually exclusive' )" no
+rigAssert "no request left this box"                           "$( rigLines "$rigNewDir/curl.log" )" 0
+rigVerdict "the three modes are mutually exclusive -- ERROR at second zero with nothing done, one mode a wait"
+
+## ---------------------------------------------------------------------------
+## 10b. A mode flag with no session id is ERROR, for each mode. The control gives
+##      the session id.
+## ---------------------------------------------------------------------------
+rigNewStart nosession
+rigDropO="$rigNewDir/dropO.txt"
+: > "$rigDropO"
+for rigMode in default continue close ; do
+	rigNew "nosession-$rigMode" "--wait-$rigMode" --wait-source "file:$rigDropO" --wait-timeout 600
+	rigAssert "[$rigMode] the marker line opens stdout"        "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
+	rigAssert "[$rigMode] returns 1"                           "$rigNewStatus" 1
+	rigAssert "[$rigMode] refused at second zero"              "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+	rigAssert "[$rigMode] the diagnostic names the missing id" "$( rigHolds "$rigNewErr" '--wait-session-id' )" yes
+	rigAssert "[$rigMode] nothing was waited on"               "$( rigHolds "$rigNewOut" '# waited:' )" no
+done
+rigNewIn nosession-control --wait-close
+rigAssert "control: close with a session id completes"         "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: CLOSED"
+rigAssert "control: it returns 0"                              "$rigNewStatus" 0
+rigVerdict "a mode flag with no session id -- ERROR for each mode, and the same flag with one completes"
+
+## ---------------------------------------------------------------------------
+## 10c. --close resets and returns at once, and closing with nothing stored is
+##      still CLOSED. Its control is --default, which waits the bound out.
+## ---------------------------------------------------------------------------
+rigNewStart close
+rigDropP="$rigNewDir/dropP.txt"
+: > "$rigDropP"
+rigNewIn close-none --wait-close --wait-source "file:$rigDropP" --wait-timeout 600
+rigAssert "close with nothing stored: CLOSED opens stdout"     "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: CLOSED"
+rigAssert "it names its mode on the next line"                 "$( rigNth "$rigNewOut" 2 )" "WAIT-MODE: close"
+rigAssert "it returns 0"                                       "$rigNewStatus" 0
+rigAssert "it returned at once, not at the 600s bound"         "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+rigAssert "it did not wait"                                    "$( rigHolds "$rigNewOut" '# waited:' )" no
+rigAssert "it is visible in the log, with member and session"  "$( rigHolds "$rigNewErr" "# --member-wait-for-input: mode=close member=$rigMember session=$rigNewSession" )" yes
+rigNewIn close-twice --wait-close
+rigAssert "closing twice is CLOSED the second time too"        "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: CLOSED"
+rigAssert "and returns 0"                                      "$rigNewStatus" 0
+rigNewIn default-stores --wait-default --wait-source "file:$rigDropP" --wait-timeout 2
+rigAssert "control: default waited the bound out"              "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigAssert "control: it really waited"                          "$( rigAtLeast "$( rigWaited "$rigNewOut" )" 2 )" "at-least-2"
+rigAssert "a TIMEOUT stores the session state"                 "$( rigNewStateFile "$rigNewSession" )" present
+rigNewIn close-stored --wait-close --wait-timeout 600
+rigAssert "close with state stored: CLOSED"                    "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: CLOSED"
+rigAssert "close removed the wait directory"                   "$( rigNewState "$rigNewSession" )" absent
+rigNewIn continue-after-close --wait-continue --wait-timeout 600
+rigAssert "continue after close has nothing stored: ERROR"     "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
+rigAssert "it returns 1"                                       "$rigNewStatus" 1
+rigAssert "it is not a default wait run instead"               "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+rigAssert "no request left this box"                           "$( rigLines "$rigNewDir/curl.log" )" 0
+rigVerdict "--close -- returns at once, CLOSED even with nothing stored, removes the state; --default is its waiting control"
+
+## ---------------------------------------------------------------------------
+## 10d. --continue uses the stored sources and filters; --default resets and
+##      stores. Over file sources, so no message ids are involved.
+## ---------------------------------------------------------------------------
+rigNewStart continue
+rigDropA2="$rigNewDir/dropA.txt"
+rigDropB2="$rigNewDir/dropB.txt"
+: > "$rigDropA2"
+: > "$rigDropB2"
+rigNewIn continue-nostate --wait-continue --wait-timeout 600
+rigAssert "continue with no stored state: ERROR"               "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
+rigAssert "it returns 1"                                       "$rigNewStatus" 1
+rigAssert "it is not a default wait in disguise"               "$( rigHolds "$rigNewOut" '# waited:' )" no
+rigAssert "it returned at second zero"                         "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+rigAssert "it stored nothing"                                  "$( rigNewState "$rigNewSession" )" absent
+
+rigNewIn default-first --wait-default --wait-source "file:$rigDropA2" --wait-timeout 2
+rigAssert "default: the marker line opens stdout"              "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigAssert "default: the mode is the second line"               "$( rigNth "$rigNewOut" 2 )" "WAIT-MODE: default"
+rigAssert "default: it returns 0"                              "$rigNewStatus" 0
+rigAssert "default: the filters it used are returned"          "$( rigOpens "$rigNewOut" '# filters:' )" 1
+rigAssert "default: the reaction counts are returned"          "$( rigHolds "$rigNewOut" '# reactions: seen=0 note=0 done=0 wait=0 failed=' )" yes
+rigAssert "default: the stderr trace names mode, member and session" "$( rigHolds "$rigNewErr" "# --member-wait-for-input: mode=default member=$rigMember session=$rigNewSession" )" yes
+rigAssert "default: the state is stored"                       "$( rigNewStateFile "$rigNewSession" )" present
+
+rigNewIn continue-control --wait-continue --wait-timeout 2
+rigAssert "control: continue with state is a wait"             "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigAssert "control: the mode is continue"                      "$( rigNth "$rigNewOut" 2 )" "WAIT-MODE: continue"
+rigAssert "control: the stored source is the one waited on"    "$( rigHolds "$rigNewOut" "# sources: file:$rigDropA2" )" yes
+rigAssert "control: the trace says continue"                   "$( rigHolds "$rigNewErr" "# --member-wait-for-input: mode=continue member=$rigMember session=$rigNewSession" )" yes
+
+rigDropAfter 1 "$rigDropA2" RIG-CONTINUE-ARRIVAL
+rigNewIn continue-arrival --wait-continue --wait-timeout 30
+rigDropDone
+rigAssert "continue returns on an arrival at the stored source" "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "it names the stored source that fired"              "$( rigHolds "$rigNewOut" "# arrived on: file:$rigDropA2" )" yes
+rigAssert "it carries the arrival"                             "$( rigHolds "$rigNewOut" 'RIG-CONTINUE-ARRIVAL' )" yes
+rigAssert "it returned on the arrival, not the bound"          "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+
+## Continue takes its sources and filters from the store: naming them is ERROR.
+## Each refusal is checked against the stored state, so the argument is what is
+## refused, and the continue after them is the control that the state survived.
+for rigRefused in "--wait-source file:$rigDropB2" "--wait-since-utime 1700000000" "--wait-addressee URIGOWNER" "--wait-include-own" ; do
+	rigNewIn continue-refused --wait-continue $rigRefused --wait-timeout 600
+	rigAssert "[continue $rigRefused] the marker line opens stdout" "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
+	rigAssert "[continue $rigRefused] returns 1"               "$rigNewStatus" 1
+	rigAssert "[continue $rigRefused] refused at second zero"  "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+	rigAssert "[continue $rigRefused] nothing was waited on"   "$( rigHolds "$rigNewOut" '# waited:' )" no
+done
+rigNewIn continue-after-refusals --wait-continue --wait-timeout 2
+rigAssert "control: the state survived the refusals"           "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigAssert "control: still the stored source"                   "$( rigHolds "$rigNewOut" "# sources: file:$rigDropA2" )" yes
+
+## Default resets: the second default's source replaces the first's.
+rigNewIn default-second --wait-default --wait-source "file:$rigDropB2" --wait-timeout 2
+rigAssert "default again: waited on the new source"            "$( rigHolds "$rigNewOut" "# sources: file:$rigDropB2" )" yes
+rigNewIn continue-after-reset --wait-continue --wait-timeout 2
+rigAssert "continue after a reset uses the new source"         "$( rigHolds "$rigNewOut" "# sources: file:$rigDropB2" )" yes
+rigAssert "and nothing of the old one"                         "$( rigHolds "$rigNewOut" "file:$rigDropA2" )" no
+## State belongs to its session: another session's continue finds nothing.
+rigNew continue-other-session --wait-continue --wait-session-id "rig-sess-other" --wait-timeout 600
+rigAssert "another session has no state: ERROR"                "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
+rigAssert "it returns 1"                                       "$rigNewStatus" 1
+## State is written on RECEIVED or TIMEOUT only: an ERROR run stores nothing.
+rigNew default-error --wait-default --wait-session-id "rig-sess-erroring" --wait-source "pigeon:roost" --wait-timeout 600
+rigAssert "an erroring default is ERROR"                       "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
+rigAssert "it stored nothing"                                  "$( rigNewState rig-sess-erroring )" absent
+rigAssert "no request left this box"                           "$( rigLines "$rigNewDir/curl.log" )" 0
+rigVerdict "--continue repeats the stored wait, refuses what the store already holds, and --default resets it"
+
+## ---------------------------------------------------------------------------
+## 10e. Macro-events on a non-Slack kind: a file added to the own inbox, or the
+##      board, between two calls is returned at once by --continue. The control is
+##      the same two calls with nothing added, which times out.
+## ---------------------------------------------------------------------------
+rigNewStart inbox
+rigNewSession="rig-sess-inbox-control"
+rigNewIn inbox-control-default --wait-default --wait-source "inbox:$rigMember" --wait-timeout 2
+rigAssert "control: an empty own inbox is a TIMEOUT"           "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigNewIn inbox-control-continue --wait-continue --wait-timeout 2
+rigAssert "control: nothing added between the calls: TIMEOUT"  "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigAssert "control: it really waited"                          "$( rigAtLeast "$( rigWaited "$rigNewOut" )" 2 )" "at-least-2"
+rigNewSession="rig-sess-inbox"
+rigNewIn inbox-default --wait-default --wait-source "inbox:$rigMember" --wait-timeout 2
+rigAssert "the first call times out"                           "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+printf 'RIG-INBOX-NOTE\n' > "$rigNewDir/data/inboxes/$rigMember/note-rig-arrival.md"
+rigNewIn inbox-continue --wait-continue --wait-timeout 30
+rigAssert "a file added between two calls: RECEIVED"           "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "it returned at once, not at the bound"              "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+rigAssert "it names the inbox source"                          "$( rigHolds "$rigNewOut" "# arrived on: inbox:$rigMember" )" yes
+rigAssert "it lists the new item"                              "$( rigHolds "$rigNewOut" 'note-rig-arrival.md' )" yes
+rigNewIn inbox-other --wait-default --wait-source "inbox:magic-team" --wait-timeout 600
+rigAssert "another member's inbox is refused"                  "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
+rigAssert "it returns 1"                                       "$rigNewStatus" 1
+rigAssert "it refused at second zero"                          "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+rigNewSession="rig-sess-board"
+rigNewIn board-default --wait-default --wait-source "board:pending" --wait-timeout 2
+rigAssert "an unchanged board state is a TIMEOUT"              "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+printf 'RIG-BOARD-ITEM\n' > "$rigNewDir/data/board/pending/task-rig-arrival.md"
+rigNewIn board-continue --wait-continue --wait-timeout 30
+rigAssert "an item added to the board state: RECEIVED"         "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "it returned at once"                                "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+rigAssert "it names the board source"                          "$( rigHolds "$rigNewOut" '# arrived on: board:pending' )" yes
+rigAssert "it lists the new item"                              "$( rigHolds "$rigNewOut" 'task-rig-arrival.md' )" yes
+rigAssert "no request left this box"                           "$( rigLines "$rigNewDir/curl.log" )" 0
+rigVerdict "own-inbox and board macro-events are returned by --continue between calls, and a quiet pair times out"
+
+## ---------------------------------------------------------------------------
+## 10f. The internal poll: 19 seconds by default, MDAT_WAIT_POLL_SECONDS in tests,
+##      --wait-poll-interval over both -- and the caller's timeout never lengthened.
+## ---------------------------------------------------------------------------
+rigNewStart poll
+rigDropQ="$rigNewDir/dropQ.txt"
+: > "$rigDropQ"
+rigNewPoll=""
+rigNewIn poll-default --wait-default --wait-source "file:$rigDropQ" --wait-timeout 2
+rigAssert "without the env the poll is 19s"                    "$( rigHolds "$rigNewOut" 'poll round(s) at 19s' )" yes
+rigAssert "the caller's bound still ends it, not the 19s"      "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+rigAssert "it is a TIMEOUT"                                    "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigNewPoll="1"
+rigNewIn poll-env --wait-default --wait-source "file:$rigDropQ" --wait-timeout 2
+rigAssert "control: with the env the poll is 1s"               "$( rigHolds "$rigNewOut" 'poll round(s) at 1s' )" yes
+rigAssert "control: not 19s"                                   "$( rigHolds "$rigNewOut" 'at 19s' )" no
+rigNewIn poll-flag --wait-default --wait-source "file:$rigDropQ" --wait-timeout 2 --wait-poll-interval 3
+rigAssert "--wait-poll-interval wins over the env"             "$( rigHolds "$rigNewOut" 'poll round(s) at 3s' )" yes
+rigDropAfter 1 "$rigDropQ" RIG-POLL-ARRIVAL
+rigNewIn poll-arrival --wait-default --wait-source "file:$rigDropQ" --wait-timeout 30
+rigDropDone
+rigAssert "with the env an arrival is noticed at the next 1s poll" "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "it returned inside 10s of a 30s bound"              "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+rigVerdict "the poll defaults to 19s, MDAT_WAIT_POLL_SECONDS sets it for tests, --wait-poll-interval wins, the bound is never exceeded"
+
+## ---------------------------------------------------------------------------
+## 10g. The existing call shape, with no mode and no session id: unchanged -- a
+##      wait, no state stored. The 125 assertions above are the full control.
+## ---------------------------------------------------------------------------
+rigNewStart stateless
+rigDropR="$rigNewDir/dropR.txt"
+: > "$rigDropR"
+rigNew stateless --wait-source "file:$rigDropR" --wait-timeout 2 --wait-poll-interval 1
+rigAssert "no mode: still a wait that times out"               "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigAssert "no mode: returns 0"                                 "$rigNewStatus" 0
+rigAssert "no mode: no state directory was made"               "$( [ -d "$rigNewDir/ws/.local/agents/sessions" ] && printf present || printf absent )" absent
+rigVerdict "a call with no mode and no session id is the stateless wait it always was"
+
+## ---------------------------------------------------------------------------
+## 10h. The id sets: seen, note, done and wait are reacted on their messages
+##      BEFORE any read, through one emoji table; ids and floors; a refused
+##      reaction is listed and never stops the wait; validation reacts to nothing.
+## ---------------------------------------------------------------------------
+rigNewStart react
+rigReactSource="slack:$rigReactChannel:$rigReactThread:conversation"
+rigReactPosts="$( rigOwnerPost 1700000001.000200 msg-200 "$rigReactThread" )$( rigOwnerPost 1700000001.000300 msg-300 "$rigReactThread" )$( rigOwnerPost 1700000001.000400 msg-400 "$rigReactThread" )$( rigOwnerPost 1700000001.000500 msg-500 "$rigReactThread" )"
+rigNewReplies "$rigReactPosts"
+rigReactArgs=()
+for rigReactEntry in $rigReactTable ; do
+	rigReactSet="${rigReactEntry%%:*}"
+	rigReactRest="${rigReactEntry#*:}"
+	rigReactTs="${rigReactRest#*:}"
+	rigReactArgs=( "${rigReactArgs[@]+"${rigReactArgs[@]}"}" "--wait-react-$rigReactSet" "$rigReactChannel:$rigReactTs" )
+done
+rigNewIn react-all --wait-default --wait-source "$rigReactSource" --wait-since-utime 1700000001.000300 --wait-timeout 30 "${rigReactArgs[@]}"
+rigAssert "the marker line opens stdout"                       "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "it returns 0"                                       "$rigNewStatus" 0
+rigAssert "the mode line follows"                              "$( rigNth "$rigNewOut" 2 )" "WAIT-MODE: default"
+rigAssert "the counts say one of each"                         "$( rigHolds "$rigNewOut" '# reactions: seen=1 note=1 done=1 wait=1 failed=' )" yes
+for rigReactEntry in $rigReactTable ; do
+	rigReactSet="${rigReactEntry%%:*}"
+	rigReactRest="${rigReactEntry#*:}"
+	rigReactEmoji="${rigReactRest%%:*}"
+	rigReactTs="${rigReactRest#*:}"
+	rigAssert "$rigReactSet is reacted as :$rigReactEmoji: on $rigReactTs" "$( rigReactCount "$rigReactTs $rigReactEmoji" )" 1
+done
+rigAssert "nothing else was reacted"                           "$( rigLines "$rigNewDir/reactions" )" 4
+rigAssert "every reaction came before the first read"          "$( rigReactsFirst )" reactions-first
+## New messages are strictly newer than the floor, so the floor's own message is not one.
+rigAssert "the message at the floor is not returned"           "$( rigHolds "$rigNewOut" 'msg-300' )" no
+rigAssert "an older message is not returned"                   "$( rigHolds "$rigNewOut" 'msg-200' )" no
+rigAssert "a newer message is returned"                        "$( rigHolds "$rigNewOut" 'msg-400' )" yes
+rigAssert "the newest message is returned"                     "$( rigHolds "$rigNewOut" 'msg-500' )" yes
+rigAssert "the newest ts is named for the next floor"          "$( rigHolds "$rigNewOut" 'WAIT-LAST-TS: 1700000001.000500' )" yes
+rigAssert "the filters line carries the floor"                 "$( rigHolds "$rigNewOut" '1700000001.000300' )" yes
+## Control: the same thread from an earlier floor returns the messages the later one dropped.
+rigNewIn react-early --wait-default --wait-source "$rigReactSource" --wait-since-utime 1700000001.000101 --wait-timeout 30
+rigAssert "control: an earlier floor returns the older ones"   "$( rigHolds "$rigNewOut" 'msg-200' )" yes
+rigAssert "control: and the one at the later floor"            "$( rigHolds "$rigNewOut" 'msg-300' )" yes
+rigAssert "control: with no id sets no reaction was asked for" "$( rigLines "$rigNewDir/reactions" )" 4
+rigAssert "control: and the counts say zero"                   "$( rigHolds "$rigNewOut" '# reactions: seen=0 note=0 done=0 wait=0 failed=' )" yes
+
+## A refused reaction is listed and the wait carries on.
+: > "$rigNewDir/react-refuse"
+rigNewIn react-refused --wait-default --wait-source "$rigReactSource" --wait-since-utime 1700000001.000101 --wait-timeout 30 --wait-react-seen "$rigReactChannel:1700000001.000200"
+rm -f "$rigNewDir/react-refuse"
+rigAssert "a refused reaction does not stop the wait"          "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "it returns 0"                                       "$rigNewStatus" 0
+rigAssert "the failed id is listed"                            "$( rigHolds "$rigNewOut" "failed=$rigReactChannel:1700000001.000200" )" yes
+rigAssert "the new messages still came back"                   "$( rigHolds "$rigNewOut" 'msg-500' )" yes
+
+## Validation comes first: one bad id reacts to nothing, not even the good ones.
+rigReactsBefore="$( rigLines "$rigNewDir/reactions" )"
+rigBadNo=0
+for rigBadId in "$rigReactChannel:1700000001.000300;touch-x" "$rigReactChannel:1700000001.000300\$(id)" "$rigReactChannel:1700000001.000300\`id\`" ; do
+	rigBadNo=$(( rigBadNo + 1 ))
+	rigNewIn "react-bad-$rigBadNo" --wait-default --wait-source "$rigReactSource" --wait-since-utime 1700000001.000101 --wait-timeout 600 --wait-react-seen "$rigReactChannel:1700000001.000200" --wait-react-note "$rigBadId"
+	rigAssert "[bad id $rigBadNo] ERROR opens stdout"          "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
+	rigAssert "[bad id $rigBadNo] returns 1"                   "$rigNewStatus" 1
+	rigAssert "[bad id $rigBadNo] refused at second zero"      "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+	rigAssert "[bad id $rigBadNo] nothing was waited on"       "$( rigHolds "$rigNewOut" '# waited:' )" no
+	rigAssert "[bad id $rigBadNo] not even the good id was reacted" "$( rigLines "$rigNewDir/reactions" )" "$rigReactsBefore"
+done
+rigNewIn react-good-control --wait-default --wait-source "$rigReactSource" --wait-since-utime 1700000001.000101 --wait-timeout 30 --wait-react-seen "$rigReactChannel:1700000001.000200" --wait-react-note "$rigReactChannel:1700000001.000300"
+rigAssert "control: the same call with clean ids runs"         "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "control: and reacts"                                "$( rigLines "$rigNewDir/reactions" )" "$(( rigReactsBefore + 2 ))"
+
+## A bare ts is accepted on exactly one Slack source -- and refused otherwise.
+rigBareBefore="$( rigLines "$rigNewDir/reactions" )"
+rigNewIn react-bare-one --wait-default --wait-source "$rigReactSource" --wait-since-utime 1700000001.000101 --wait-timeout 30 --wait-react-done 1700000001.000400
+rigAssert "a bare ts on one Slack source runs"                 "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "and reacts on that source's conversation"           "$( rigLines "$rigNewDir/reactions" )" "$(( rigBareBefore + 1 ))"
+rigNewIn react-bare-none --wait-default --wait-source "file:$rigDropR" --wait-timeout 600 --wait-react-done 1700000001.000400
+rigAssert "a bare ts with no Slack source is ERROR"            "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
+rigAssert "it returns 1"                                       "$rigNewStatus" 1
+rigAssert "it reacted to nothing"                              "$( rigLines "$rigNewDir/reactions" )" "$(( rigBareBefore + 1 ))"
+
+## Close and continue take id sets too, and close reacts before it removes state.
+## The stored floor is the newest ts the last call returned (000500), so continue has
+## nothing to return until a newer post exists; the post is added first.
+rigNewReplies "$rigReactPosts$( rigOwnerPost 1700000001.000600 msg-600 "$rigReactThread" )"
+rigNewIn react-continue --wait-continue --wait-timeout 30 --wait-react-wait "$rigReactChannel:1700000001.000500"
+rigAssert "continue allows id sets"                            "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "and reacted"                                        "$( rigHolds "$rigNewOut" '# reactions: seen=0 note=0 done=0 wait=1 failed=' )" yes
+rigAssert "it returns what is newer than the stored floor"     "$( rigHolds "$rigNewOut" 'msg-600' )" yes
+rigAssert "and not what the last call already returned"        "$( rigHolds "$rigNewOut" 'msg-500' )" no
+rigNewIn react-continue-quiet --wait-continue --wait-timeout 2
+rigAssert "control: with nothing newer than the new floor, TIMEOUT" "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigCloseBefore="$( rigLines "$rigNewDir/reactions" )"
+rigNewIn react-close --wait-close --wait-react-done "$rigReactChannel:1700000001.000400"
+rigAssert "close with an id set: CLOSED"                       "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: CLOSED"
+rigAssert "it reacted first"                                   "$( rigLines "$rigNewDir/reactions" )" "$(( rigCloseBefore + 1 ))"
+rigAssert "then removed the state"                             "$( rigNewState "$rigNewSession" )" absent
+rigVerdict "seen, note, done and wait are reacted before any read through one emoji table; ids are strictly after the floor; a refused reaction never stops the wait; a bad id reacts to nothing"
+
+## ---------------------------------------------------------------------------
+## 10i. One round returns EVERY source that differs, one block each, and one
+##      WAIT-LAST-TS per hit source. Two :conversation sources hit together; the
+##      control is one source, which prints as it always did.
+## ---------------------------------------------------------------------------
+rigNewStart multi
+rigThreadA="1700000001.000101"
+rigThreadB="1700000002.000101"
+rigNewReplies "$( rigOwnerPost 1700000001.000300 msg-a "$rigThreadA" )" "$rigThreadA"
+rigNewReplies "$( rigOwnerPost 1700000002.000200 msg-b "$rigThreadB" )" "$rigThreadB"
+rigNewIn multi-two --wait-default --wait-source "slack:$rigReactChannel:$rigThreadA:conversation" --wait-source "slack:$rigReactChannel:$rigThreadB:conversation" --wait-since-utime 1700000001.000050 --wait-timeout 30
+rigAssert "two hits: RECEIVED"                                 "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "two hits: returns 0"                                "$rigNewStatus" 0
+rigAssert "two hits: one arrived-on block each"                "$( rigOpens "$rigNewOut" '# arrived on: ' )" 2
+rigAssert "two hits: the first source is named"                "$( rigHolds "$rigNewOut" "# arrived on: slack:$rigReactChannel:$rigThreadA:conversation" )" yes
+rigAssert "two hits: the second source is named"               "$( rigHolds "$rigNewOut" "# arrived on: slack:$rigReactChannel:$rigThreadB:conversation" )" yes
+rigAssert "two hits: both messages are carried"                "$( rigHolds "$rigNewOut" 'msg-a' )$( rigHolds "$rigNewOut" 'msg-b' )" yesyes
+rigAssert "two hits: one WAIT-LAST-TS per hit source"          "$( rigOpens "$rigNewOut" 'WAIT-LAST-TS: ' )" 2
+rigAssert "two hits: the first names its source and ts"        "$( rigHolds "$rigNewOut" "WAIT-LAST-TS: slack:$rigReactChannel:$rigThreadA:conversation 1700000001.000300" )" yes
+rigAssert "two hits: the second names its source and ts"       "$( rigHolds "$rigNewOut" "WAIT-LAST-TS: slack:$rigReactChannel:$rigThreadB:conversation 1700000002.000200" )" yes
+rigNewIn multi-one --wait-default --wait-source "slack:$rigReactChannel:$rigThreadA:conversation" --wait-since-utime 1700000001.000050 --wait-timeout 30
+rigAssert "control: one hit is one block"                      "$( rigOpens "$rigNewOut" '# arrived on: ' )" 1
+rigAssert "control: one hit prints WAIT-LAST-TS as it always did" "$( rigOpens "$rigNewOut" 'WAIT-LAST-TS: 1700000001.000300' )" 1
+rigVerdict "one round returns every source that differs, one block and one WAIT-LAST-TS each -- one hit prints as before"
+
+## ---------------------------------------------------------------------------
+## 10k. Many threads in one wait: two plain threads sharing the one --wait-since-utime
+##      and --wait-addressee, and a plain thread beside a :conversation source. The
+##      thread floor S is our own post in thread A (its parent) and a reply of ours in
+##      thread B, so each rendering carries the message the floor names. Controls: a
+##      thread with only a non-addressee post is not a hit, a quiet thread is not
+##      named, and the two refusals that must stay (a lone :conversation with an
+##      addressee, a plain thread with none).
+## ---------------------------------------------------------------------------
+rigNewStart threads
+rigThreadFloor="1700000001.000101"
+rigThreadPlainA="1700000001.000101"
+rigThreadPlainB="1700000000.000050"
+rigThreadConv="1700000003.000101"
+rigThreadBody(){ ## the thread's first message, then the later messages
+	printf '{"ok":true,"messages":[%s%s],"has_more":false}\n' "$1" "$2"
+}
+rigThreadPost(){ ## ts, user, text, thread ts -- with a leading comma
+	printf ',{"ts":"%s","user":"%s","text":"%s","thread_ts":"%s"}' "$1" "$2" "$3" "$4"
+}
+rigThreadAFile="$rigNewDir/replies.$rigThreadPlainA.json"
+rigThreadBFile="$rigNewDir/replies.$rigThreadPlainB.json"
+rigThreadCFile="$rigNewDir/replies.$rigThreadConv.json"
+rigThreadOpen(){ ## ts, user, text
+	printf '{"ts":"%s","user":"%s","text":"%s"}' "$1" "$2" "$3"
+}
+rigThreadBody "$( rigThreadOpen "$rigThreadPlainA" URIGSELF1 opener-a )" "$( rigThreadPost 1700000001.000300 URIGOWNER answer-a "$rigThreadPlainA" )" > "$rigThreadAFile"
+rigThreadBody "$( rigThreadOpen "$rigThreadPlainB" URIGOWNER opener-b )" "$( rigThreadPost "$rigThreadFloor" URIGSELF1 ours-b "$rigThreadPlainB" )$( rigThreadPost 1700000001.000400 URIGOWNER answer-b "$rigThreadPlainB" )" > "$rigThreadBFile"
+rigThreadBody "$( rigThreadOpen "$rigThreadConv" URIGSELF1 opener-c )" "$( rigThreadPost 1700000003.000200 URIGOWNER post-c "$rigThreadConv" )" > "$rigThreadCFile"
+rigPlainA="slack:$rigReactChannel:$rigThreadPlainA"
+rigPlainB="slack:$rigReactChannel:$rigThreadPlainB"
+rigConvC="slack:$rigReactChannel:$rigThreadConv:conversation"
+
+rigNewIn threads-two-plain --wait-default --wait-source "$rigPlainA" --wait-source "$rigPlainB" --wait-since-utime "$rigThreadFloor" --wait-addressee URIGOWNER --wait-timeout 30
+rigAssert "two plain threads: RECEIVED"                        "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "two plain threads: returns 0"                       "$rigNewStatus" 0
+rigAssert "two plain threads: not refused as a second thread"  "$( rigHolds "$rigNewErr" 'ONLY source' )" no
+rigAssert "two plain threads: one arrived-on block each"       "$( rigOpens "$rigNewOut" '# arrived on: ' )" 2
+rigAssert "two plain threads: thread A is named"               "$( rigHolds "$rigNewOut" "# arrived on: $rigPlainA" )" yes
+rigAssert "two plain threads: thread B is named"               "$( rigHolds "$rigNewOut" "# arrived on: $rigPlainB" )" yes
+rigAssert "two plain threads: both answers are carried"        "$( rigHolds "$rigNewOut" 'answer-a' )$( rigHolds "$rigNewOut" 'answer-b' )" yesyes
+rigAssert "two plain threads: our own post is not carried"     "$( rigHolds "$rigNewOut" 'ours-b' )" no
+rigAssert "two plain threads: one WAIT-LAST-TS per thread"     "$( rigOpens "$rigNewOut" 'WAIT-LAST-TS: ' )" 2
+rigAssert "two plain threads: the addressee is counted"        "$( rigHolds "$rigNewOut" '# answers counted only from: URIGOWNER' )" yes
+
+## Control: thread B holding only a non-addressee post is not a hit, and is not named.
+rigThreadBody "$( rigThreadOpen "$rigThreadPlainB" URIGOWNER opener-b )" "$( rigThreadPost "$rigThreadFloor" URIGSELF1 ours-b "$rigThreadPlainB" )$( rigThreadPost 1700000001.000400 URIGSTRANGER chatter-b "$rigThreadPlainB" )" > "$rigThreadBFile"
+rigNewIn threads-two-plain-b-quiet --wait-default --wait-source "$rigPlainA" --wait-source "$rigPlainB" --wait-since-utime "$rigThreadFloor" --wait-addressee URIGOWNER --wait-timeout 30
+rigAssert "control: thread A alone arrives"                    "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "control: one block only"                            "$( rigOpens "$rigNewOut" '# arrived on: ' )" 1
+rigAssert "control: thread A is the one named"                 "$( rigHolds "$rigNewOut" "# arrived on: $rigPlainA" )" yes
+rigAssert "control: thread B is not named as arrived"          "$( rigHolds "$rigNewOut" "# arrived on: $rigPlainB" )" no
+rigAssert "control: the non-addressee post is not carried"     "$( rigHolds "$rigNewOut" 'chatter-b' )" no
+
+## A plain thread (with its addressee) beside a :conversation thread.
+rigNewIn threads-mixed --wait-default --wait-source "$rigPlainA" --wait-source "$rigConvC" --wait-since-utime "$rigThreadFloor" --wait-addressee URIGOWNER --wait-timeout 30
+rigAssert "plain beside conversation: RECEIVED"                "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "plain beside conversation: returns 0"               "$rigNewStatus" 0
+rigAssert "plain beside conversation: the addressee is allowed" "$( rigHolds "$rigNewErr" 'takes no --wait-addressee' )" no
+rigAssert "plain beside conversation: one block each"          "$( rigOpens "$rigNewOut" '# arrived on: ' )" 2
+rigAssert "plain beside conversation: the plain thread is named" "$( rigHolds "$rigNewOut" "# arrived on: $rigPlainA" )" yes
+rigAssert "plain beside conversation: the conversation is named" "$( rigHolds "$rigNewOut" "# arrived on: $rigConvC" )" yes
+rigAssert "plain beside conversation: both posts are carried"  "$( rigHolds "$rigNewOut" 'answer-a' )$( rigHolds "$rigNewOut" 'post-c' )" yesyes
+
+## The refusals that stay: a lone :conversation with an addressee, and a plain thread without one.
+rigNewIn threads-conv-addressee --wait-default --wait-source "$rigConvC" --wait-since-utime "$rigThreadFloor" --wait-addressee URIGOWNER --wait-timeout 600
+rigAssert "control: a lone :conversation with an addressee is still ERROR" "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
+rigAssert "control: it says why"                               "$( rigHolds "$rigNewErr" 'takes no --wait-addressee' )" yes
+rigAssert "control: refused at second zero"                    "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+rigNewIn threads-plain-no-addressee --wait-default --wait-source "$rigPlainA" --wait-source "$rigConvC" --wait-since-utime "$rigThreadFloor" --wait-timeout 600
+rigAssert "control: a plain thread with no addressee is still ERROR" "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: ERROR"
+rigAssert "control: it asks for the addressee"                 "$( rigHolds "$rigNewErr" '--wait-addressee' )" yes
+rigAssert "control: refused at second zero"                    "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+rigVerdict "many threads in one wait -- two plain threads, a plain thread beside a :conversation, and the refusals that stay"
+
+## ---------------------------------------------------------------------------
+## 10l. Iteration dividers: $agentsWaitKindEvery makes a kind probed on round 1 and then
+##      on every Nth round. The variable is a plain assignment in the include, so these
+##      rows run the real operation from a scratch origin whose one include differs
+##      by that line, and count the probes on the fake Slack's log against the rounds the
+##      operation itself reports. The control is "slack:1", which probes every round.
+## ---------------------------------------------------------------------------
+rigMakeOrigin(){ ## directory, kind-every value
+	local originDir="$1" originEvery="$2" originEntry originName originInclude="myx/myx.distro-agents/sh-lib/AgentsTools.MemberWait.include"
+	grep -q '^agentsWaitKindEvery="' "$MDLT_ORIGIN/$originInclude" || rigRefuse "the include no longer assigns agentsWaitKindEvery on a line of its own, so the divider rows would test nothing"
+	mkdir -p "$originDir/myx/myx.distro-agents/sh-lib"
+	for originEntry in "$MDLT_ORIGIN"/* ; do
+		originName="${originEntry##*/}"
+		[ "$originName" = "myx" ] || ln -s "$originEntry" "$originDir/$originName"
+	done
+	for originEntry in "$MDLT_ORIGIN/myx"/* ; do
+		originName="${originEntry##*/}"
+		[ "$originName" = "myx.distro-agents" ] || ln -s "$originEntry" "$originDir/myx/$originName"
+	done
+	for originEntry in "$MDLT_ORIGIN/myx/myx.distro-agents"/* ; do
+		originName="${originEntry##*/}"
+		[ "$originName" = "sh-lib" ] || ln -s "$originEntry" "$originDir/myx/myx.distro-agents/$originName"
+	done
+	for originEntry in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"/* ; do
+		originName="${originEntry##*/}"
+		[ "$originName" = "AgentsTools.MemberWait.include" ] || ln -s "$originEntry" "$originDir/myx/myx.distro-agents/sh-lib/$originName"
+	done
+	LC_ALL=C sed "s/^agentsWaitKindEvery=\".*\"/agentsWaitKindEvery=\"$originEvery\"/" "$MDLT_ORIGIN/$originInclude" > "$originDir/$originInclude"
+	[ "$( rigHolds "$originDir/$originInclude" "agentsWaitKindEvery=\"$originEvery\"" )" = yes ] || rigRefuse "the scratch include does not carry the divider $originEvery, so the divider rows would test nothing"
+}
+rigRoundsOf(){ ## stdout file -- the poll rounds the operation reports
+	LC_ALL=C awk '/^# waited: / { roundText = $0 ; sub(/.*bound, /, "", roundText) ; sub(/ poll round.*/, "", roundText) ; } END { if ( roundText == "" ) { roundText = "no-rounds-line" ; } print roundText ; }' "$1" 2>/dev/null || printf 'no-such-output'
+}
+rigSlackReads(){ ## the fake Slack's own count of thread reads in this scenario
+	LC_ALL=C awk '$0 == "conversations.replies" { hitCount++ ; } END { print hitCount + 0 ; }' "$rigNewDir/curl.log" 2>/dev/null || printf 'no-such-log'
+}
+rigNewStart divider
+rigDivThread="slack:$rigReactChannel:$rigReactThread:conversation"
+rigNewReplies ""
+rigMakeOrigin "$rigNewDir/origin-slack3" "slack:3 file:1 inbox:1 board:1"
+rigNewOrigin="$rigNewDir/origin-slack3"
+: > "$rigNewDir/curl.log"
+rigNewIn divider-three --wait-default --wait-source "$rigDivThread" --wait-since-utime "$rigReactThread" --wait-timeout 7 --wait-poll-interval 1
+rigDivRounds="$( rigRoundsOf "$rigNewOut" )"
+rigDivReads="$( rigSlackReads )"
+rigAssert "every 3rd: a quiet thread is a TIMEOUT"             "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigAssert "every 3rd: enough rounds ran for a divider to show" "$( rigAtLeast "$rigDivRounds" 5 )" "at-least-5"
+rigAssert "every 3rd: reads are round 1 and every 3rd round after" "$rigDivReads" "$(( ( rigDivRounds - 1 ) / 3 + 1 ))"
+rigAssert "every 3rd: fewer reads than rounds"                 "$( rigWithin "$rigDivReads" "$(( rigDivRounds - 1 ))" )" "within-$(( rigDivRounds - 1 ))"
+rigNewOrigin=""
+: > "$rigNewDir/curl.log"
+rigNewIn divider-one --wait-default --wait-source "$rigDivThread" --wait-since-utime "$rigReactThread" --wait-timeout 7 --wait-poll-interval 1
+rigDivRounds="$( rigRoundsOf "$rigNewOut" )"
+rigAssert "control, every 1: a quiet thread is a TIMEOUT"      "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigAssert "control, every 1: the thread is read on every round" "$( rigSlackReads )" "$rigDivRounds"
+rigAssert "control, every 1: enough rounds ran"                "$( rigAtLeast "$rigDivRounds" 5 )" "at-least-5"
+
+## A divider is per kind: a file source still notices its arrival on the next round while the
+## Slack thread beside it is left alone until its own turn.
+rigMakeOrigin "$rigNewDir/origin-slack5" "slack:5 file:1 inbox:1 board:1"
+rigNewOrigin="$rigNewDir/origin-slack5"
+rigDropDv="$rigNewDir/dropDv.txt"
+: > "$rigDropDv"
+: > "$rigNewDir/curl.log"
+rigDropAfter 1 "$rigDropDv" RIG-DIVIDER-ARRIVAL
+rigNewIn divider-mixed --wait-default --wait-source "$rigDivThread" --wait-source "file:$rigDropDv" --wait-since-utime "$rigReactThread" --wait-timeout 30 --wait-poll-interval 1
+rigDropDone
+rigAssert "mixed, slack every 5th: the file arrival is returned"  "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "mixed: it names the file source"                    "$( rigHolds "$rigNewOut" "# arrived on: file:$rigDropDv" )" yes
+rigAssert "mixed: it returned within a few polls"              "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+rigAssert "mixed: more than one round ran"                     "$( rigAtLeast "$( rigRoundsOf "$rigNewOut" )" 2 )" "at-least-2"
+rigAssert "mixed: the thread was read once, on round 1 only"   "$( rigSlackReads )" 1
+rigNewOrigin=""
+rigDropDw="$rigNewDir/dropDw.txt"
+: > "$rigDropDw"
+: > "$rigNewDir/curl.log"
+rigDropAfter 1 "$rigDropDw" RIG-DIVIDER-ARRIVAL
+rigNewIn divider-mixed-control --wait-default --wait-source "$rigDivThread" --wait-source "file:$rigDropDw" --wait-since-utime "$rigReactThread" --wait-timeout 30 --wait-poll-interval 1
+rigDropDone
+rigAssert "control, every 1: the file arrival is returned"     "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "control, every 1: the thread is read on every round it ran" "$( rigSlackReads )" "$( rigRoundsOf "$rigNewOut" )"
+rigAssert "control, every 1: more than one round ran"          "$( rigAtLeast "$( rigRoundsOf "$rigNewOut" )" 2 )" "at-least-2"
+rigVerdict "iteration dividers -- a kind with N is read on round 1 and every Nth round, per kind, and N of 1 reads every round"
+
+## ---------------------------------------------------------------------------
+## 10j. The Wait tool through the real harness: the declaration carries the mode and
+##      the four id sets and no longer a poll interval; an omitted mode is default;
+##      mode close is CLOSED; and the state lands in the session store.
+## ---------------------------------------------------------------------------
+rigWaitModeStream(){ ## canned-stream file, sources value, timeout value, mode value
+	printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-wait-call","type":"function","function":{"name":"Wait","arguments":"{\\"sources\\":\\"%s\\",\\"timeout\\":\\"%s\\",\\"mode\\":\\"%s\\"}"}}]}}]}\n' "$2" "$3" "$4" > "$1"
+	printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\n' >> "$1"
+	printf 'data: [DONE]\n' >> "$1"
+}
+rigStart tool-mode-default
+rigDropT="$rigScenarioDir/dropT.txt"
+: > "$rigDropT"
+rigWaitModeStream "$rigScenarioDir/res.1" "file:$rigDropT" 2 default
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER
+rigRun --agent "$rigMember"
+rigToolResult "$rigScenarioDir/req.2" "$rigScenarioDir/result"
+rigAssert "the run ends normally"                              "$rigRunStatus" 0
+rigAssert "two rounds were requested"                          "$rigRoundCount" 2
+## Only the Wait declaration is searched: AskUserQuestion declares a `wait` of its
+## own, so a probe over the whole body would hold for that one whatever Wait declared.
+LC_ALL=C awk 'BEGIN { RS = "\001" ; }
+	{
+		declText = $0
+		declAt = index(declText, "\"name\":\"Wait\"")
+		if ( declAt == 0 ) { print "no-wait-declaration" ; exit ; }
+		declText = substr(declText, declAt)
+		nextAt = index(substr(declText, 20), "{\"type\":\"function\"")
+		if ( nextAt > 0 ) { declText = substr(declText, 1, nextAt + 18) ; }
+		print declText
+	}' "$rigScenarioDir/req.1" > "$rigScenarioDir/wait-declaration"
+rigAssert "the Wait declaration was found in the request"      "$( rigHolds "$rigScenarioDir/wait-declaration" 'no-wait-declaration' )" no
+rigAssert "the declaration carries mode"                       "$( rigHolds "$rigScenarioDir/wait-declaration" '"mode":{' )" yes
+rigAssert "the declaration carries seen"                       "$( rigHolds "$rigScenarioDir/wait-declaration" '"seen":{' )" yes
+rigAssert "the declaration carries note"                       "$( rigHolds "$rigScenarioDir/wait-declaration" '"note":{' )" yes
+rigAssert "the declaration carries done"                       "$( rigHolds "$rigScenarioDir/wait-declaration" '"done":{' )" yes
+rigAssert "the declaration carries wait"                       "$( rigHolds "$rigScenarioDir/wait-declaration" '"wait":{' )" yes
+rigAssert "poll_interval left the declaration"                 "$( rigHolds "$rigScenarioDir/wait-declaration" 'poll_interval' )" no
+rigAssert "control: the declaration slice is the Wait one"     "$( rigHolds "$rigScenarioDir/wait-declaration" '"since_utime":{' )" yes
+rigAssert "control: and stops before the next tool"            "$( rigHolds "$rigScenarioDir/wait-declaration" '"name":"AskUserQuestion"' )" no
+rigAssert "the model is shown TIMEOUT as its opening"          "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: TIMEOUT' )" yes
+rigAssert "it is shown the mode that ran"                      "$( rigHolds "$rigScenarioDir/result" 'WAIT-MODE: default' )" yes
+rigAssert "the session state landed in the session store"      "$( ls "$rigScenarioDir"/.local/agents/sessions/*/wait/state 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
+rigAssert "the round carried on to an answer"                  "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
+rigVerdict "the Wait tool declares mode and the id sets, and an explicit default stores its state"
+
+rigStart tool-mode-omitted
+rigDropU="$rigScenarioDir/dropU.txt"
+: > "$rigDropU"
+rigWaitStream "$rigScenarioDir/res.1" "file:$rigDropU" 2
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER
+rigRun --agent "$rigMember"
+rigToolResult "$rigScenarioDir/req.2" "$rigScenarioDir/result"
+rigAssert "an omitted mode is a wait that times out"           "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: TIMEOUT' )" yes
+rigAssert "an omitted mode is the default mode"                "$( rigHolds "$rigScenarioDir/result" 'WAIT-MODE: default' )" yes
+rigAssert "and stored its state"                               "$( ls "$rigScenarioDir"/.local/agents/sessions/*/wait/state 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
+rigVerdict "the Wait tool with no mode -- the existing call shape -- is the default mode"
+
+rigStart tool-mode-close
+rigDropV="$rigScenarioDir/dropV.txt"
+: > "$rigDropV"
+## 20s, not a long bound: a build that ignored the mode would wait it out, and the
+## `# waited:` assertion below is what tells that from a CLOSED.
+rigWaitModeStream "$rigScenarioDir/res.1" "file:$rigDropV" 20 close
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER
+rigRun --agent "$rigMember"
+rigToolResult "$rigScenarioDir/req.2" "$rigScenarioDir/result"
+rigAssert "mode close through the tool: CLOSED opens the result" "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: CLOSED' )" yes
+rigAssert "it is not a wait that ran the 600s bound"           "$( rigHolds "$rigScenarioDir/result" '# waited:' )" no
+rigAssert "no state is left in the session store"              "$( ls "$rigScenarioDir"/.local/agents/sessions/*/wait/state 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 0
+rigVerdict "the Wait tool with mode close returns CLOSED at once and leaves no state"
+
+## ---------------------------------------------------------------------------
+## The new rows made no request but Slack-shaped ones, on logs of their own.
+## ---------------------------------------------------------------------------
+rigSlackLogs="$( cat "$rigTmp"/new-*/curl.log 2>/dev/null )"
+rigAssert "no new row issued a request that was not a Slack method" "$( printf '%s\n' "$rigSlackLogs" | LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' )" 0
+rigAssert "and the new rows did issue some, so the logs are live" "$( printf '%s\n' "$rigSlackLogs" | LC_ALL=C awk 'NF { n++ ; } END { print ( n >= 6 ) ? "live" : "silent" ; }' )" live
+rigVerdict "the session Wait rows stayed offline -- every request is on a log, and each was a Slack-shaped one"
+
+## ---------------------------------------------------------------------------
 ## The offline claim, asserted rather than stated. Every request any part of this
 ## check made is in the log, and the only requests there may be are this check's
 ## own canned model rounds against a .invalid host.

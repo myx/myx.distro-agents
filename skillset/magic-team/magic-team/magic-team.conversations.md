@@ -175,6 +175,7 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
      - Is it a significant correction? If so, readback either to whoever said it, or about the steps taken
        in light of what they said — unless they're already in the thread where the "Does it need
        confirmation?" check above was discussed, where it's visible to them already.
+   - Any member who asks anyone for a reply, in any context, waits for it with `Wait`, or makes sure it will be checked and waits again if it is still needed.
    - Proceed with whatever activity this feedback assessment was for.
 
 18. **foreign-language-handling**: Respect the participant's own language.
@@ -381,6 +382,8 @@ Every confirmation this section asks for comes through the chain of command: ses
    rephrase per **relay-rephrase-needs-confirm** instead. If annotation and the verbatim content could be read as conflicting, the
    verbatim content wins — annotation is never a substitute for the command. Short of a conflict, a
    session coordinator's annotation carries that coordinator's own authority.
+   Exception: a relay of the human-owner's reply to a session carries his words, as the prefix sets them,
+   and the caption only. It takes no annotation, labelled or not, because the recipient knows the context better.
 
 39. **waiting-on-human-owner-needs-marker**: A "waiting on human-owner" claim requires a marker, not narrative inference.
     The literal marker `NEEDS REPLY:`, on its own line immediately before the question, is the only

@@ -292,7 +292,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-advance-input-scan` operation reference
 
-`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — read-only: `magic-coordinator.advance.routine`'s own board scan. Each board row is labelled `<state>/<item-filename>`. This routine's **Test email report** takes its Active processes lines from those rows. `<team-member>` is the only argument.
+`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — `magic-coordinator.advance.routine`'s own board scan. Each board row is labelled `<state>/<item-filename>`. This routine's **Test email report** takes its Active processes lines from those rows. `<team-member>` is the only argument.
 
 ## `--magic-heartbeat-lock-acquire` / `--magic-heartbeat-lock-refresh` / `--magic-heartbeat-close-state-and-unlock` / `--magic-heartbeat-lock-status` operation reference
 

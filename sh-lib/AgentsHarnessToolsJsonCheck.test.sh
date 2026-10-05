@@ -162,6 +162,24 @@ if [ "$checkIndex" -gt "$checkTextCount" ] ; then
 	exit 1
 fi
 
+## SubagentHandback alone has an optional addressee; the tools sharing its send path keep a required one.
+## An empty read is a FAIL as well, so a declaration the awk cannot find never reads as a pass.
+checkRequiredOf(){ ## tool name -- its required list as written
+	printf '%s\n' "$checkToolsJson" | LC_ALL=C awk -v name="$1" '
+		index($0, "\"name\":\"" name "\"") { partCount = split($0, parts, "\"required\":") ; tail = parts[partCount] ; sub(/\].*/, "]", tail) ; print tail ; exit ; }
+	'
+}
+for checkPair in 'SubagentHandback=["outcome"]' 'ReportFindings=["to","subject","findings"]' 'PushNotification=["to","severity","headline"]' 'Artifact=["to","url"]' ; do
+	checkGot="$( checkRequiredOf "${checkPair%%=*}" )"
+	if [ "$checkGot" != "${checkPair#*=}" ] ; then
+		echo "HARNESS_TOOLS_JSON: FAIL"
+		echo "  warn: ${checkPair%%=*} declares required ${checkGot:-<nothing found>}, expected ${checkPair#*=}"
+		echo "  fix:  SubagentHandback requires outcome only, its addressee defaulting to the parent session;"
+		echo "        the other three keep to required, whatever that tool's own fields are"
+		exit 1
+	fi
+done
+
 printf 'HARNESS_TOOLS_JSON: OK (%d declarations parse, text and parser agree)\n' "$checkIndex"
 printf '  tools:%s\n' "$checkNames"
 exit 0

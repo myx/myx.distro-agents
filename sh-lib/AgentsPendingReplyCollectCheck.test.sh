@@ -174,6 +174,178 @@ rigAssert "the handback is posted"                        "$( ls "$rigScenarioDi
 rigAssert "with the collected field"                      "$( rigHolds "$rigScenarioDir/post.1" 'Answers collected, and questions still open:' )" yes
 rigAssert "carrying the answer"                           "$( rigHolds "$rigScenarioDir/post.1" 'yes, keep it' )" yes
 rigAssert "and the record is closed"                      "$( rigStatus "$rigQ1" )" reply-received
+rigAssert "control: the body names its channel as this check reads it" "$( rigHolds "$rigScenarioDir/post.1" '"channel":"CRIG00001"' )" yes
+
+## The addressee of a handback, and of the tools that share its send path. The child's record
+## sits in a folder named for neither id, so only a lookup by record name can find it.
+rigSpawnRecords(){ ## parent id for the child record, the parent's thread (empty for none)
+	local spawnDir="$rigScenarioDir/ws/.local/agents/spawned"
+	mkdir -p "$spawnDir/child-folder" "$spawnDir/parent-folder" "$spawnDir/prefix-folder"
+	printf -- '---\nspawn-id: rig-child-id\nparent-session-id: %s\n---\n' "$1" > "$spawnDir/child-folder/rig-child-id.md"
+	printf '%s\n' 'CCHILD01:1700000002.000202' > "$spawnDir/child-folder/session.thread"
+	printf -- '---\nspawn-id: rig-parent-id\nparent-session-id: none\n%s---\n' "${2:+session-thread: $2
+}" > "$spawnDir/parent-folder/rig-parent-id.md"
+	printf '%s\n' 'CWRONG01:1.1' > "$spawnDir/parent-folder/session.thread"
+	printf -- '---\nspawn-id: rig-parent-id-extra\nparent-session-id: none\nsession-thread: CWRONG01:1.1\n---\n' > "$spawnDir/prefix-folder/rig-parent-id-extra.md"
+}
+rigCall(){ ## tool name, arguments JSON
+	printf '%s' "$2" | rigEnv env -u MDAT_SESSION_THREAD MDAT_SPAWN_SESSION_ID=rig-child-id MDAT_SPAWN_AGENT="$rigMember" MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" \
+		bash "$rigHarness" --intern-tool "$1" > "$rigScenarioDir/tool.out" 2> "$rigScenarioDir/tool.err"
+}
+rigPosts(){
+	ls "$rigScenarioDir"/post.* 2>/dev/null | wc -l | tr -d ' '
+}
+rigFirstIs(){ ## prefix of the result's first line
+	LC_ALL=C awk -v want="$1" 'NR == 1 { print ( index($0, want) == 1 ? "yes" : "no" ) ; exit ; }' "$rigScenarioDir/tool.out"
+}
+rigPostedTo(){ ## channel, thread ts (empty for none)
+	[ "$( rigHolds "$rigScenarioDir/post.1" "\"channel\":\"$1\"" )" = yes ] && { [ -z "$2" ] || [ "$( rigHolds "$rigScenarioDir/post.1" "\"thread_ts\":\"$2\"" )" = yes ] ; } && printf yes || printf no
+}
+rigInbox(){ ## member -> how many inquiry items it holds
+	ls "$rigScenarioDir/data/inboxes/$1/" 2>/dev/null | LC_ALL=C grep -c -E '^inquiry-[0-9]{8}T[0-9]{4}Z-' || :
+}
+
+echo "-- a handback with no addressee goes to the parent session's thread --"
+rigStart hbDefault
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall SubagentHandback '{"outcome":"rig done"}'
+rigAssert "one post"                                      "$( rigPosts )" 1
+rigAssert "in the parent's channel and thread"            "$( rigPostedTo CPARENT1 1700000001.000101 )" yes
+rigAssert "as a handback"                                 "$( rigHolds "$rigScenarioDir/post.1" 'Handback' )" yes
+rigAssert "and the result's first line names the route"   "$( rigFirstIs 'Sent to CPARENT1:1700000001.000101 (the thread of parent session rig-parent-id) as magic-tester.' )" yes
+rigAssert "the child's own thread was not used"           "$( rigHolds "$rigScenarioDir/post.1" 'CCHILD01' )" no
+rigAssert "nor the thread of a longer parent id"          "$( rigHolds "$rigScenarioDir/post.1" 'CWRONG01' )" no
+
+echo "-- session-parent, named or empty, is the same route --"
+rigStart hbNamed
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall SubagentHandback '{"to":"session-parent","outcome":"x"}'
+rigAssert "named: posted to the parent"                   "$( rigPostedTo CPARENT1 1700000001.000101 )" yes
+rigStart hbEmpty
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall SubagentHandback '{"to":"","outcome":"x"}'
+rigAssert "empty: posted to the parent"                   "$( rigPostedTo CPARENT1 1700000001.000101 )" yes
+
+echo "-- no recorded parent: an error, nothing sent, no other thread --"
+rigStart hbNoParent
+rigSpawnRecords none CPARENT1:1700000001.000101
+rigCall SubagentHandback '{"outcome":"x"}'
+rigAssert "no post"                                       "$( rigPosts )" 0
+rigAssert "it is an error"                                "$( rigFirstIs 'ERROR: this session has no recorded parent session' )" yes
+
+echo "-- a parent with no thread: an error, nothing sent, never the child's own thread --"
+rigStart hbNoThread
+rigSpawnRecords rig-parent-id ""
+rigCall SubagentHandback '{"outcome":"x"}'
+rigAssert "no post"                                       "$( rigPosts )" 0
+rigAssert "it names the parent"                           "$( rigFirstIs 'ERROR: the parent session rig-parent-id has no recorded thread' )" yes
+
+echo "-- no record at all: an error, nothing sent --"
+rigStart hbNoRecord
+rigCall SubagentHandback '{"outcome":"x"}'
+rigAssert "no post"                                       "$( rigPosts )" 0
+rigAssert "it is an error"                                "$( rigFirstIs 'ERROR: this session has no recorded parent session' )" yes
+
+echo "-- an explicit thread wins over the default --"
+rigStart hbExplicit
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall SubagentHandback '{"to":"CEXPL001:1700000009.000009","outcome":"x"}'
+rigAssert "posted to that thread"                         "$( rigPostedTo CEXPL001 1700000009.000009 )" yes
+rigAssert "and not to the parent's"                       "$( rigHolds "$rigScenarioDir/post.1" 'CPARENT1' )" no
+
+echo "-- a team member name: its Slack DM where it has an account, its inbox where it has none --"
+rigStart hbMemberDm
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall SubagentHandback '{"to":"magic-tester","outcome":"x"}'
+rigAssert "a member with an account: one post"            "$( rigPosts )" 1
+rigAssert "to its own account, as the DM"                 "$( rigPostedTo URIGSELF1 "" )" yes
+rigAssert "and nothing in its inbox"                      "$( rigInbox magic-tester )" 0
+rigStart hbMemberInbox
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall SubagentHandback '{"to":"magic-librarian","outcome":"rig done"}'
+rigAssert "a member with none: no post"                   "$( rigPosts )" 0
+rigAssert "one inquiry in its inbox"                      "$( rigInbox magic-librarian )" 1
+rigAssert "of type inquiry"                               "$( cat "$rigScenarioDir/data/inboxes/magic-librarian/"inquiry-*.md 2>/dev/null | LC_ALL=C grep -c -x 'type: inquiry' )" 1
+rigAssert "carrying the handback"                         "$( cat "$rigScenarioDir/data/inboxes/magic-librarian/"inquiry-*.md 2>/dev/null | LC_ALL=C grep -c -F 'rig done' )" 1
+rigAssert "and the first line names the inbox route"      "$( rigFirstIs 'Sent to the inbox of magic-librarian as inquiry-' )" yes
+rigStart hbMemberUnknown
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall SubagentHandback '{"to":"no-such-member","outcome":"x"}'
+rigAssert "a name that is no member: no post"             "$( rigPosts )" 0
+rigAssert "it is an error"                                "$( rigFirstIs 'ERROR:' )" yes
+rigAssert "and no inbox was made for it"                  "$( ls "$rigScenarioDir/data/inboxes" 2>/dev/null | LC_ALL=C grep -c -x 'no-such-member' || : )" 0
+
+echo "-- human-owner is unchanged --"
+rigStart hbOwner
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall SubagentHandback '{"to":"human-owner","outcome":"x"}'
+rigAssert "posted to the owner's conversation"            "$( rigPostedTo URIGOWNER "" )" yes
+
+echo "-- each tool keeps its own rules that are not about the addressee --"
+rigStart sharedRefused
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall ReportFindings '{"subject":"s","findings":"f"}'
+rigAssert "ReportFindings with no to"                     "$( rigFirstIs 'ERROR: ReportFindings: to is required' )" yes
+rigCall PushNotification '{"severity":"info","headline":"h"}'
+rigAssert "PushNotification with no to"                   "$( rigFirstIs 'ERROR: PushNotification: to is required' )" yes
+rigCall Artifact '{"url":"https://x/y"}'
+rigAssert "Artifact with no to"                           "$( rigFirstIs 'ERROR: Artifact: to is required' )" yes
+rigCall Artifact '{"to":"magic-librarian","url":"not-a-url"}'
+rigAssert "Artifact still checks its url first"           "$( rigFirstIs 'ERROR: Artifact: url must be' )" yes
+rigCall ReportFindings '{"to":"session-parent","subject":"s"}'
+rigAssert "ReportFindings still needs its findings"       "$( rigFirstIs 'ERROR: ReportFindings: both subject and findings are required' )" yes
+rigCall SubagentHandback '{"findings":"f"}'
+rigAssert "a handback with no outcome and no to"          "$( rigFirstIs 'ERROR: SubagentHandback: outcome is required' )" yes
+rigAssert "none of these posted or reached an inbox"      "$( rigPosts )$( rigInbox magic-librarian )" 00
+
+rigRow(){ ## scenario name, tool, arguments JSON
+	rigStart "$1"
+	rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+	rigCall "$2" "$3"
+}
+echo "-- the same addressee values work in all six tools --"
+rigRow allParentSend SendMessage '{"to":"session-parent","message":"m"}'
+rigAssert "SendMessage to session-parent"                 "$( rigPosts )$( rigPostedTo CPARENT1 1700000001.000101 )" 1yes
+rigRow allParentReport ReportFindings '{"to":"session-parent","subject":"s","findings":"f"}'
+rigAssert "ReportFindings to session-parent"              "$( rigPosts )$( rigPostedTo CPARENT1 1700000001.000101 )" 1yes
+rigRow allParentPush PushNotification '{"to":"session-parent","severity":"info","headline":"h"}'
+rigAssert "PushNotification to session-parent"            "$( rigPosts )$( rigPostedTo CPARENT1 1700000001.000101 )" 1yes
+rigRow allParentArtifact Artifact '{"to":"session-parent","url":"https://x/y"}'
+rigAssert "Artifact to session-parent"                    "$( rigPosts )$( rigPostedTo CPARENT1 1700000001.000101 )" 1yes
+rigRow allParentAsk AskUserQuestion '{"to":"session-parent","address_to":"human-owner","question":"May the rig go on?","wait":false}'
+rigAssert "AskUserQuestion to session-parent"             "$( rigPosts )$( rigPostedTo CPARENT1 1700000001.000101 )" 1yes
+rigRow allParentAskBare AskUserQuestion '{"to":"session-parent","question":"May the rig go on?","wait":false}'
+rigAssert "AskUserQuestion there needs address_to, as for any thread" "$( rigPosts )$( rigFirstIs 'ERROR: AskUserQuestion:' )" 0yes
+for rigPair in 'SendMessage={"to":"magic-tester","message":"m"}' 'ReportFindings={"to":"magic-tester","subject":"s","findings":"f"}' 'PushNotification={"to":"magic-tester","severity":"info","headline":"h"}' 'Artifact={"to":"magic-tester","url":"https://x/y"}' ; do
+	rigRow "allDm${rigPair%%=*}" "${rigPair%%=*}" "${rigPair#*=}"
+	rigAssert "${rigPair%%=*} to a member with an account: its DM"  "$( rigPosts )$( rigPostedTo URIGSELF1 "" )$( rigInbox magic-tester )" 1yes0
+done
+for rigPair in 'SendMessage={"to":"magic-librarian","message":"m"}' 'ReportFindings={"to":"magic-librarian","subject":"s","findings":"f"}' 'PushNotification={"to":"magic-librarian","severity":"info","headline":"h"}' 'Artifact={"to":"magic-librarian","url":"https://x/y"}' ; do
+	rigRow "allInbox${rigPair%%=*}" "${rigPair%%=*}" "${rigPair#*=}"
+	rigAssert "${rigPair%%=*} to a member with none: its inbox"     "$( rigPosts )$( rigInbox magic-librarian )$( rigFirstIs 'Sent to the inbox of magic-librarian' )" 01yes
+done
+rigRow allAskDm AskUserQuestion '{"to":"magic-tester","question":"May the rig go on?","wait":false}'
+rigAssert "AskUserQuestion to a member with an account: its DM" "$( rigPostedTo URIGSELF1 "" )" yes
+rigRow allAskInbox AskUserQuestion '{"to":"magic-librarian","question":"May the rig go on?","wait":false}'
+rigAssert "AskUserQuestion to a member with none is refused, as an inbox cannot answer" "$( rigPosts )$( rigInbox magic-librarian )$( rigHolds "$rigScenarioDir/tool.out" 'cannot carry a question' )" 00yes
+
+echo "-- PushNotification to a team member: DM, else inbox --"
+rigStart pushOwner
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall PushNotification '{"to":"human-owner","severity":"info","headline":"h"}'
+rigAssert "to human-owner: one post, in its conversation" "$( rigPosts )$( rigPostedTo URIGOWNER "" )" 1yes
+rigStart pushMember
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall PushNotification '{"to":"magic-tester","severity":"warn","headline":"h"}'
+rigAssert "to a member with an account: its DM"           "$( rigPosts )$( rigPostedTo URIGSELF1 "" )" 1yes
+rigStart pushInbox
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall PushNotification '{"to":"magic-librarian","severity":"alert","headline":"h"}'
+rigAssert "to a member with none: its inbox, no post"     "$( rigPosts )$( rigInbox magic-librarian )" 01
+rigStart pushBogus
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
+rigCall PushNotification '{"to":"human-owner","severity":"bogus","headline":"h"}'
+rigAssert "control: a bad severity is refused, no post"   "$( rigPosts )$( rigFirstIs 'ERROR: PushNotification: severity must be' )" 0yes
 
 echo "-- no model was called anywhere --"
 rigAssert "no claude or codex call"                       "$( cat "$rigTmp/model-calls" 2>/dev/null | wc -l | tr -d ' ' )" 0

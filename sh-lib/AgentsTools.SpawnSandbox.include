@@ -146,11 +146,213 @@ AgentsToolsSpawnSandboxSweep(){ ## where
 			sweepSession="$( LC_ALL=C awk '/^spawn-id: /{ print substr($0, 11) ; exit ; }' "$sweepRecord" )"
 			sweepHost="$( LC_ALL=C awk '/^host: /{ print substr($0, 7) ; exit ; }' "$sweepRecord" )"
 			if [ "$sweepHost" != "$thisHost" ] ; then sweepLive="other-host" ; break ; fi
+			[ -n "$sweepSession" ] || continue
 			case "$psText" in *"$sweepSession"*) sweepLive="running" ; break ;; esac
 		done
 		[ -z "$sweepLive" ] || continue
 		AgentsToolsSpawnSandboxCleanInput "$sweepDir"
 		echo "# $MDSC_CMD: $1: emptied input/ of ${sweepDir##*/}, whose session is no longer running" >&2
 	done
+	return 0
+}
+
+## Which board state folder actually holds an item, or empty when none does.
+## --intern-op-data-read searches several lookup folders and does not report which
+## one matched, and the board upsert has to be told the state -- so it is
+## established here rather than assumed to be `running`, which is true only of a
+## document this op created itself. A reused tracking document belongs to a caller
+## and may sit in any state; moving it would relocate that caller's own work item
+## as a side effect of spawning.
+AgentsToolsSpawnProxyBoardStateOf(){ ## item-filename
+	local stateName
+	for stateName in running pending review backlog blocked parked processed archived retained ; do
+		if [ -f "$MDAT_DATA_ROOT/board/$stateName/$1" ] ; then
+			printf '%s' "$stateName"
+			return 0
+		fi
+	done
+	return 0
+}
+
+AgentsToolsSpawnProxyCloseDispatch(){
+	local itemName="$1" briefBody="$2" childExit="$3" childOutputFile="$4" outcome="$5"
+	## Defaulted rather than required, so the create path calls this exactly as it
+	## always has and only the reuse path names a state of its own.
+	local itemState="${6:-running}"
+	## Where the closed item rests, named by the caller rather than derived here.
+	## Defaults to no move, so a caller naming no target keeps what it had: a
+	## REUSED document belongs to a caller and is never relocated by a spawn
+	## closing. One this op created itself moves to `review`, so `running` holds
+	## only sessions that are actually running. It stops at `review` and not at
+	## `processed` because grooming owns entry to that state -- human-owner ruling,
+	## 2026-09-23: "grooming owns the state - but spawn moves to pending - ok? so
+	## grooming sees" -- board-review now sits between them, entered here and left
+	## only by a reviewer's own reject/accept. This op marks and parks; it never adjudicates the close.
+	local itemTargetState="${7:-$itemState}"
+	local currentBody resultBody
+	currentBody="$( DistroAgentsTools --intern-op-data-read "$itemName" \
+		--lookup-folder "$MDAT_DATA_ROOT/board/$itemState" \
+		--context --intern-op-agent-spawn-proxy )" || currentBody="$briefBody"
+	resultBody="$( printf '%s\n' \
+		"$currentBody" \
+		"" \
+		"## Result" \
+		"" \
+		"status: $outcome" \
+		"exit-code: $childExit" \
+		"output-file: $childOutputFile" \
+		"completed-at: $( date -u +%Y-%m-%dT%H:%M:%SZ )" )"
+	mkdir -p "$MDAT_DATA_ROOT/board/$itemTargetState" || {
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: can't create board state directory $MDAT_DATA_ROOT/board/$itemTargetState, so dispatch item $itemName was not closed" >&2
+		return 0
+	}
+	printf '%s\n' "$resultBody" | DistroAgentsTools --intern-op-board-upsert-move-edit "$itemTargetState" "$itemName" \
+		--from-state:"$itemState" \
+		--header:upsert:status:dispatch-"$outcome" \
+		--header:upsert:resolved-at:"$( date +"%Y-%m-%d %H:%M %z" )" \
+		--upsert-from-stdin \
+		--context --intern-op-agent-spawn-proxy \
+		--log-verb:updated \
+		|| echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: could not close dispatch item $itemName" >&2
+	return 0
+}
+
+## Closes the session tracking file by updating its frontmatter, through this
+## package's own header writer -- nothing here parses or re-emits frontmatter of its
+## own. The headers ARE the state, so a close is a header update and never a rewrite
+## of the file. A failure leaves the file exactly as it was: a tracking record that
+## still says started is recoverable by a rescan, where a truncated one is not.
+AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
+	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxOps sandboxBody
+	[ -f "$sandboxFile" ] || return 0
+	sandboxOps="$MMDAPP/.local/temp/mdat-session-header-ops.$$"
+	mkdir -p "$MMDAPP/.local/temp" || return 0
+	{
+		## `status` carries the outcome, and `outcome` itself is deliberately absent:
+		## the entity model defines that name with a closed set of values for what an
+		## advance pass did to a running board item, so a spawn's exit result written
+		## there would be an undefined value in a defined set. `resolved-at` is the
+		## model's own conclusion stamp, and is used rather than a second spelling of
+		## it. `exit-code` has no counterpart in the model at all, which is not a
+		## re-mint: this file is the session's own record, not team data, so nothing
+		## defines that concept for it.
+		printf 'upsert\tstatus\tspawn-%s\n' "$sandboxOutcome"
+		printf 'upsert\texit-code\t%s\n' "$sandboxExit"
+		printf 'upsert\tresolved-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+		## Whether the session read its own duty file, as the harness recorded it beside this file.
+		## "no" only where the harness loop ran and could see it; a native CLI's session is unknown.
+		if [ -s "${sandboxFile%.md}.armed" ] ; then
+			printf 'upsert\tarmed\tyes\n'
+			printf 'upsert\tarmed-at\t%s\n' "$( head -1 "${sandboxFile%.md}.armed" )"
+		elif [ -e "${sandboxFile%.md}.harness" ] ; then
+			printf 'upsert\tarmed\tno\n'
+		else
+			printf 'upsert\tarmed\tunknown\n'
+		fi
+	} > "$sandboxOps" || return 0
+	sandboxBody="$( LC_ALL=C awk -v opsFile="$sandboxOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$sandboxFile" )" || sandboxBody=""
+	rm -f "$sandboxOps"
+	[ -n "$sandboxBody" ] || return 0
+	printf '%s\n' "$sandboxBody" > "$sandboxFile"
+	return 0
+}
+
+## One line to the daemon output, never stdout: fd 4 where execute opened it (the request's own stderr, not the result), else stderr, which is the log in a console or harness run.
+AgentsToolsDaemonLine(){ ## text...
+	if { : >&4 ; } 2> /dev/null ; then
+		printf '%s\n' "$*" >&4
+	else
+		printf '%s\n' "$*" >&2
+	fi
+	return 0
+}
+
+## Reports housekeeping lines to the daemon output and as one message into this spawn's own event-track thread; nothing goes to stdout or stderr. No thread, no post.
+AgentsToolsHousekeepingReport(){ ## member, lines
+	local reportThread="" reportRoot="${MDAT_SPAWN_SANDBOX_ROOT:-}" reportLine
+	[ -n "$2" ] || return 0
+	while IFS= read -r reportLine ; do
+		AgentsToolsDaemonLine "$reportLine"
+	done <<< "$2"
+	[ -n "$reportRoot" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || reportRoot="$MMDAPP/.local/agents/spawned/$MDAT_SPAWN_SESSION_ID"
+	[ -s "$reportRoot/event-track.thread" ] || return 0
+	IFS= read -r reportThread < "$reportRoot/event-track.thread" || :
+	[ -n "$reportThread" ] || return 0
+	printf '%s\n' "$2" | DistroAgentsTools --member-comms-slack-send-message "$1" "$reportThread" --identity-bot --from-stdin > /dev/null 2>&1 || :
+	return 0
+}
+
+## First value of one frontmatter header of a file, empty when absent. Bounded to the frontmatter block, so a body line cannot spoof it.
+AgentsToolsSpawnSandboxRecordHeader(){ ## file, header
+	LC_ALL=C awk -v wantHeader="$2" '
+		$0 == "---" { fmCount++ ; if ( fmCount > 1 ) { exit ; } next ; }
+		fmCount == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; exit ; }
+	' "$1" 2> /dev/null || :
+}
+
+## Sandbox folder names linked to one board item, one per line, sorted, empty when none. Two links, either one is enough:
+## the item's own spawn-id naming a record, and a record's spawns/spawned-by naming the item. An empty or `-` spawn-id matches nothing.
+AgentsToolsSpawnSandboxFoldersOfItem(){ ## item path
+	local itemStem="${1##*/}" itemSpawn
+	itemStem="${itemStem%.md}"
+	itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )"
+	[ -d "$MMDAPP/.local/agents/spawned" ] || return 0
+	LC_ALL=C awk -v wantStem="$itemStem" -v wantSpawn="$itemSpawn" '
+		FNR == 1 {
+			fmCount = 0 ;
+			folderName = FILENAME ; sub( /\/[^\/]*$/, "", folderName ) ; sub( /^.*\//, "", folderName ) ;
+			recordName = FILENAME ; sub( /^.*\//, "", recordName ) ;
+			if ( wantSpawn != "" && wantSpawn != "-" && recordName == wantSpawn ".md" ) { print folderName ; }
+		}
+		$0 == "---" { fmCount++ ; next ; }
+		fmCount == 1 && ( index( $0, "spawns: " ) == 1 || index( $0, "spawned-by: " ) == 1 ) {
+			linkText = $0 ; sub( /^[^:]*: /, "", linkText ) ;
+			partCount = split( linkText, linkParts, / *, */ ) ;
+			for ( partIndex = 1 ; partIndex <= partCount ; partIndex++ ) {
+				linkStem = linkParts[partIndex] ; sub( /\.md$/, "", linkStem ) ;
+				if ( linkStem == wantStem ) { print folderName ; break ; }
+			}
+		}
+	' "$MMDAPP/.local/agents/spawned"/*/*.md 2> /dev/null | LC_ALL=C sort -u || :
+}
+
+## Whether a sandbox folder may be removed for one item that is going: `open` (a record still started or without a status),
+## `shared` (another board item still links to it, or the folder is not a plain directory under the spawned root), else `removable`.
+AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
+	local folderName="$1" skipStem="$2" spawnRoot="$MMDAPP/.local/agents/spawned"
+	local recordPath recordStatus recordSpawn linkField linkText linkStem boardPath spawnIds=""
+	case "$folderName" in ''|.|..|*/*) echo shared ; return 0 ;; esac
+	[ -d "$spawnRoot/$folderName" ] && [ ! -L "$spawnRoot/$folderName" ] || { echo shared ; return 0 ; }
+	for recordPath in "$spawnRoot/$folderName"/*.md ; do
+		[ -f "$recordPath" ] || continue
+		recordStatus="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )"
+		case "$recordStatus" in ''|spawn-started) echo open ; return 0 ;; esac
+	done
+	for recordPath in "$spawnRoot/$folderName"/*.md ; do
+		[ -f "$recordPath" ] || continue
+		recordSpawn="${recordPath##*/}"
+		spawnIds="$spawnIds ${recordSpawn%.md}"
+		for linkField in spawns spawned-by ; do
+			linkText="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" "$linkField" )"
+			for linkStem in ${linkText//,/ } ; do
+				linkStem="${linkStem%.md}"
+				[ "$linkStem" != "$skipStem" ] || continue
+				for boardPath in "$MDAT_DATA_ROOT"/board/*/"$linkStem.md" ; do
+					[ ! -f "$boardPath" ] || { echo shared ; return 0 ; }
+				done
+			done
+		done
+	done
+	if LC_ALL=C awk -v wantIds="$spawnIds" -v skipStem="$skipStem" '
+		BEGIN { idCount = split( wantIds, idParts, " " ) ; for ( idIndex = 1 ; idIndex <= idCount ; idIndex++ ) { idSet[idParts[idIndex]] = 1 ; } }
+		FNR == 1 { fmCount = 0 ; fileBase = FILENAME ; sub( /^.*\//, "", fileBase ) ; skipFile = ( fileBase == skipStem ".md" ) ; }
+		skipFile { next ; }
+		$0 == "---" { fmCount++ ; next ; }
+		fmCount == 1 && index( $0, "spawn-id: " ) == 1 && ( substr( $0, 11 ) in idSet ) { found = 1 ; exit ; }
+		END { exit ( found ? 0 : 1 ) ; }
+	' "$MDAT_DATA_ROOT"/board/*/*.md 2> /dev/null ; then
+		echo shared ; return 0
+	fi
+	echo removable
 	return 0
 }

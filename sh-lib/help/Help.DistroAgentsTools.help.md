@@ -5,7 +5,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [--metadata <json>] [text...]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--metadata <json>] [text...]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--format markdown|text] [--in-reply-to <message-id>]
@@ -130,7 +130,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-data-commit-pending <team-member> [--commit-message <message>] [--no-push]
-📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own]
+📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]
 📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> --wait-list-sources
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read <team-member> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer <team-member> <request-id> <verdict> [text]
@@ -302,11 +302,15 @@
 
 		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
 			Posts <text> to magic-team, human-owner, event-track,
-			event-alert, a <channel>:<ts> thread, or a bare
-			conversation id, attributed to <team-member>. Target is
-			read in that order; anything else is refused. Content is
+			event-alert, a <channel>:<ts> thread, a bare
+			conversation id, or a team member name, attributed to
+			<team-member>. Target is read in that order, and
+			anything else is refused. Content is
 			exactly one of: trailing text args, --from-stdin, or
-			--from-file <path>.
+			--from-file <path>. A team member name, with or without
+			:<ts>, is that member's own Slack DM. A member with no
+			Slack account is refused with NO-SLACK-DM and nothing
+			is sent (unrun: read from the code, not from a run).
 
 			--identity-bot posts as the team bot; default is the
 			member's own identity if configured, else the bot -- a
@@ -2303,7 +2307,7 @@
 			some not, 4 none scanned, 1 failed before producing a
 			document.
 
-		--member-wait-for-input <team-member> [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own]
+		--member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]
 		--member-wait-for-input <team-member> --wait-list-sources
 			Waits on a list of input sources, returns as soon as one
 			changes or the timeout expires.
@@ -2314,22 +2318,34 @@
 			(bound expired, nothing new), or `WAIT-RESULT: ERROR`
 			(wait could not run, see stderr). RECEIVED and TIMEOUT
 			both exit 0 -- a TIMEOUT is a complete, successful
-			wait, not a failure; ERROR exits 1.
+			wait, not a failure; ERROR exits 1. `WAIT-RESULT:
+			CLOSED` (--wait-close ended the stored wait, nothing
+			was waited on) exits 0.
 
 			A source is `<kind>:<target>`, --wait-source is
-			repeatable; given none, defaults to `slack:magic-team`
-			and `slack:human-owner`. `slack:<conversation>` waits
+			repeatable; given none, waits on this session's own
+			thread (as the `:conversation` form below, from the
+			current time) when the session has one, else on
+			`slack:magic-team` and `slack:human-owner`.
+			`slack:<conversation>` waits
 			on a conversation; `slack:<channel>:<ts>` on that
 			message's thread; `slack:<channel>:<ts>:conversation`
 			on any new post in that thread not from this member;
 			`file:<absolute-path>` on a local path (file or dir)
-			-- an absent path is a state, not a failure.
+			-- an absent path is a state, not a failure;
+			`inbox:<member>` on that member's own inbox, which
+			must be the caller's own; `board:<state>` on one
+			board state (backlog, pending, running, review,
+			blocked, parked, processed, archived or retained).
+			Neither carries message ids. Another member's inbox
+			or another state name is an ERROR at second zero.
 			--wait-list-sources prints the source kinds this
 			build carries and waits on nothing.
 
 			--wait-timeout: bound in whole seconds, default 300.
 			--wait-poll-interval: whole seconds between probes,
-			default 15, minimum 1 -- only affects how soon an
+			default 19 (MDAT_WAIT_POLL_SECONDS when set), minimum
+			1 -- only affects how soon an
 			arrival is noticed. --wait-since-utime: epoch seconds;
 			give it to catch something already posted (e.g. a
 			message just sent) so it counts as an immediate
@@ -2337,13 +2353,17 @@
 
 			--wait-addressee names the Slack accounts whose answer
 			counts; required with a `slack:<channel>:<ts>` thread
-			source, which must then be the only source, with
-			--wait-since-utime set to the question's own ts --
-			only a reply from those accounts, or a reaction on the
-			question, is an arrival. `slack:<channel>:<ts>:
-			conversation` has the same only-source/
-			--wait-since-utime requirement but takes no
-			--wait-addressee: any new post counts, and this
+			source, with --wait-since-utime set to the question's
+			own ts -- only a reply from those accounts, or a
+			reaction on the question, is an arrival. Any number of
+			sources and threads may share one wait. Several plain
+			thread sources share the one --wait-since-utime and
+			--wait-addressee of the call, so a thread that does
+			not hold that ts is named in WAIT-NEVER-READ.
+			`slack:<channel>:<ts>:conversation` needs
+			--wait-since-utime too, and takes no --wait-addressee
+			when every thread source is a `:conversation` one:
+			any new post counts, and this
 			member's own posts never do unless --wait-include-own
 			is given (refused on every other source, where posts
 			already count). On this source shape only,
@@ -2361,14 +2381,66 @@
 			wait -- absent when every source was read at least
 			once; never changes the outcome or exit code.
 
-			On a thread source (`slack:<channel>:<ts>` or its
-			`:conversation` form), RECEIVED ends with:
+			RECEIVED returns every source that changed in that
+			round, one `# arrived on: <source>` block each. On a
+			slack source it ends with:
 
 			    WAIT-LAST-TS: <ts>
 
-			Pass that back as the next call's --wait-since-utime
-			to keep reading forward. Absent on a bare conversation
-			or file source -- neither has a single ts to name.
+			When several slack sources changed, there is one line
+			`WAIT-LAST-TS: <source> <ts>` per source. Pass the ts
+			back as the next call's --wait-since-utime to keep
+			reading forward. Absent on a file, inbox or board
+			source -- none has a ts to name.
+
+			Modes, mutually exclusive (else ERROR "modes are
+			mutually exclusive"), each needing --wait-session-id
+			(else ERROR naming it). The wait is then kept per
+			session, under
+			$MMDAPP/.local/agents/sessions/<session-id>/wait/,
+			and a stored wait older than 7 days is removed when
+			any mode call starts. With no mode the call keeps no
+			state.
+			--wait-default: forgets any stored wait, waits on the
+			sources given (else the default above), and stores
+			the wait when it returns RECEIVED or TIMEOUT.
+			--wait-continue: repeats the stored wait with its
+			sources, addressee, include-own and per-source
+			floors (kept only from the second call on), so a
+			message that arrived between two calls returns at
+			once. It takes no --wait-source,
+			--wait-since-utime, --wait-addressee or
+			--wait-include-own, and with nothing stored it is an
+			ERROR, never a default wait.
+			--wait-close: removes the stored wait and returns
+			`WAIT-RESULT: CLOSED` without waiting, also when
+			nothing is stored.
+
+			--wait-react-seen, --wait-react-note,
+			--wait-react-done and --wait-react-wait each take
+			message ids, space-separated, from earlier results:
+			`<channel>:<ts>`, or a bare ts when the wait has
+			exactly one slack source. An id holds only letters,
+			digits, `.`, `:`, `-` and `_`, else ERROR. Each id
+			gets the reaction of its set (seen `eyes`, note
+			`writing_hand`, done `white_check_mark`, wait
+			`hourglass_flowing_sand`), under the member's own
+			identity and then the bot. A reaction already there
+			is no change. A failed one is listed and does not
+			stop the wait. Reactions are never removed here.
+
+			Order: every argument is checked first, then the
+			reactions are applied, then the wait or the close
+			runs. A refused call reacts to nothing.
+
+			With a mode, stdout continues after the marker with
+			`WAIT-MODE: <mode>`, then WAIT-NEVER-READ if any,
+			then `# filters: sources=.. floors=<source>=<ts>..
+			addressee=.. include-own=..`, then `# reactions:
+			seen=N note=N done=N wait=N failed=<ids or none>`,
+			then the usual `#` lines. stderr carries one trace
+			line: `# --member-wait-for-input: mode=<mode>
+			member=<name> session=<id>`.
 
 		--member-escalation-read <team-member> <request-id>
 			The verdict of one escalation: an AskUserQuestion of kind
@@ -2562,7 +2634,7 @@
 			rest; any failure makes the whole call exit non-zero.
 
 		--magic-advance-input-scan <team-member>
-			Read-only: routine-advance's own board scan (the same scan
+			Routine-advance's own board scan (the same scan
 			routine-update-board and routine-heartbeat read). Scans
 			pending/running/review/blocked/parked, every board-item type, every
 			frontmatter field -- not backlog, which is
@@ -2575,6 +2647,34 @@
 			only argument -- no --state/--header override. After the
 			board digest come three sections: `## team members`, `##
 			spawned sessions` and `## pending replies`.
+
+			Not read-only. Before anything is read it closes what a dead
+			spawn left open, so the output already shows the result:
+			a spawn record still started whose session is gone (this
+			host: no live process, no open ask and nothing under its
+			sandbox changed in the last 15 minutes; any other host: no
+			open ask and nothing changed in 24 hours; a change is any
+			file under its sandbox or under
+			`.local/agents/sessions/<id>/`, which is where a waiting
+			session keeps its Wait state) is closed with the
+			ended-without-close outcome; the dispatch item it links is
+			closed with that outcome too (a created dispatch item
+			moves to board-review, a reused item stays where it is); a
+			running dispatch item whose record already ended is closed
+			with that record's own outcome and moves to board-review,
+			and one with no record that has not changed in 24 hours is
+			closed with the ended-without-close outcome and moves to
+			board-review. Nothing about this is written
+			into the scan's output: the actions go as one post into the
+			calling spawn's own event-track thread, when it has one. A
+			second scan changes nothing more.
+
+			It also hands a board-review item whose `review-by` names a
+			session that has ended (no live row for it, or no row and
+			the item unchanged for 24 hours) to `magic-coordinator`
+			by rewriting `review-by`. A member name, `human-owner`, a
+			live session and a missing `review-by` stay as they are.
+			Accepting or returning an item stays the caller's own call.
 
 			Inbox scope is `<team-member>`'s own inbox, notes only: the
 			pending-slack-reaction and pending-trello-update records the
@@ -2805,7 +2905,10 @@
 			On completion, `status:` moves to
 			`dispatch-succeeded`/`dispatch-failed`, a "## Result"
 			section is appended, and the item moves to
-			board-pending. No `RECEIPT_FILE` key is ever written.
+			board-review. A session that died without closing is
+			closed later by --magic-advance-input-scan, with the
+			ended-without-close outcome. No `RECEIPT_FILE` key is
+			ever written.
 
 			The spawned session gets its own coworking session's
 			thread as `session_thread_ts`, separate from the

@@ -1597,6 +1597,27 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		## A team-member name, with or without :<ts>, is that member's own Slack DM where it has an account. The named aliases come first.
+		local targetMember="${target%%:*}" targetMemberId=""
+		case "$targetMember" in
+			event-track|event-alert|magic-team|human-owner|''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) ;;
+			*)
+				if [ -f "$MDAT_SKILLSET_ROOT/$targetMember/$targetMember.basic.md" ] ; then
+					targetMemberId="$( AgentsToolsCommsSlackMentionUserId "$targetMember" )"
+					if [ -z "$targetMemberId" ] ; then
+						## A member holding a token whose account could not be read is a fault, never a member without a DM.
+						if [ -n "$( DistroAgentsTools --member-config-option "$targetMember" --select SLACK_USER_TOKEN 2>/dev/null )" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: team member '$targetMember' holds a Slack user token but its account could not be read, so nothing was sent and its inbox was not used" >&2
+							set +e ; return 1
+						fi
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: NO-SLACK-DM: team member '$targetMember' has no Slack DM channel of its own" >&2
+						set +e ; return 1
+					fi
+					target="$targetMemberId${target#"$targetMember"}"
+				fi
+			;;
+		esac
+
 		AgentsToolsEmitRequestDetailHeader "$memberName" "$target"
 
 		local resolved rc channel="" threadTs="" failoverRouting=""

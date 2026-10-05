@@ -59,6 +59,11 @@ if [ ! -f "$rigLocalContext" ] ; then
 fi
 mkdir -p "$rigTmp/ws/.local/.agents" "$rigTmp/home" "$rigTmp/ws/.local/myx/myx.distro-.local/sh-lib"
 ln -s "$rigLocalContext" "$rigTmp/ws/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
+## The installer finds the MCP server script in the workspace's own installed myx.common.
+rigCommonRoot="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
+[ -x "$rigCommonRoot/bin/lib/agentMcpServer.Common" ] || rigRefuse "agentMcpServer.Common not found or not executable under $rigCommonRoot"
+mkdir -p "$rigTmp/ws/.local/myx/myx.common/os-myx.common/host/tarball/share"
+ln -s "$rigCommonRoot" "$rigTmp/ws/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
 rigInstall(){
 	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \

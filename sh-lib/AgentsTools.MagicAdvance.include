@@ -96,6 +96,125 @@ AgentsToolsAdvanceLockHeadCheck(){
 	return 0
 }
 
+## Closes what a dead spawn left open, silently on stdout, so the reads after it see the moved items: a started sandbox record whose session
+## is dead (a local one by process list, any other by age), the dispatch item it links, a running dispatch item whose own record already ended,
+## and a review item whose reviewer session has ended.
+AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
+	local staleHours="$1" spawnRoot="$MMDAPP/.local/agents/spawned"
+	local measureText startedRows rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowSessionThread rowWorkspace rowLive rowState
+	local reviewBy reviewId sessionKind housekeepingLog=""
+	## The one place the outcome word of a closed-by-tooling spawn is spelled; the status values are `spawn-` and `dispatch-` plus it.
+	local endedOutcome="ended-without-close"
+	local recordPath recordCandidate recordStatus recordExit rowSide linkField linkStem itemName itemState itemPath itemSpawn itemOutput targetState closeOutcome
+	measureText="$( AgentsToolsRegistryRenderSpawnedSessions agents )"
+	case "$measureText" in
+		*"**NOTE:** no scan was made"*) return 0 ;;
+	esac
+	startedRows="$( printf '%s\n' "$measureText" | LC_ALL=C awk 'NF == 13 && $6 == "spawn-started" && $8 != "-" { print ; }' )"
+	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowSessionThread rowWorkspace rowLive rowState ; do
+		[ -n "$rowTracking" ] || continue
+		recordPath="$spawnRoot/$rowTracking/$rowSpawn.md"
+		[ -f "$recordPath" ] || continue
+		case "$rowLive" in
+			running) continue ;;
+			no-process)
+				[ "$rowState" != waiting ] || continue
+				[ -z "$( find "$spawnRoot/$rowTracking" "$MMDAPP/.local/agents/sessions/$rowSpawn" "$MMDAPP/.local/agents/sessions/$rowSession" -type f -mmin -15 2> /dev/null | head -1 )" ] || continue
+				rowSide=local
+			;;
+			*)
+				if AgentsToolsRegistryPendingSessionOpen "$rowSession" ; then continue ; fi
+				[ -z "$( find "$spawnRoot/$rowTracking" "$MMDAPP/.local/agents/sessions/$rowSpawn" "$MMDAPP/.local/agents/sessions/$rowSession" -type f -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue
+				rowSide=foreign
+			;;
+		esac
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" = spawn-started ] || continue
+		AgentsToolsSpawnProxyCloseSandbox "$recordPath" "$endedOutcome" unknown
+		if [ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" != "spawn-$endedOutcome" ] ; then
+			echo "⚠️ WARNING: $MDSC_CMD --magic-advance-input-scan: could not close the record of spawn $rowSpawn in $rowTracking" >&2
+			continue
+		fi
+		housekeepingLog="${housekeepingLog}housekeeping: closed record $rowTracking $rowSpawn"$'\n'
+		itemOutput="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" output-file )"
+		[ -n "$itemOutput" ] || itemOutput="-"
+		for linkField in spawns spawned-by ; do
+			linkStem="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" "$linkField" )"
+			[ -n "$linkStem" ] || continue
+			itemName="${linkStem%.md}.md"
+			itemState="$( AgentsToolsSpawnProxyBoardStateOf "$itemName" )"
+			[ -n "$itemState" ] || continue
+			itemPath="$MDAT_DATA_ROOT/board/$itemState/$itemName"
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" status )" = dispatch-started ] || continue
+			## An item that names a newer spawn belongs to that one, not to this dead record.
+			itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" spawn-id )"
+			[ -z "$itemSpawn" ] || [ "$itemSpawn" = "-" ] || [ "$itemSpawn" = "$rowSpawn" ] || continue
+			targetState="$itemState"
+			[ "$linkField" != spawns ] || [ "$itemState" != running ] || targetState=review
+			AgentsToolsSpawnProxyCloseDispatch "$itemName" "" unknown "$itemOutput" "$endedOutcome" "$itemState" "$targetState" > /dev/null 2>&1
+			if [ "$( AgentsToolsSpawnSandboxRecordHeader "$MDAT_DATA_ROOT/board/$targetState/$itemName" status )" = "dispatch-$endedOutcome" ] ; then
+				housekeepingLog="${housekeepingLog}housekeeping: $itemName $itemState->$targetState $endedOutcome"$'\n'
+			fi
+		done
+	done <<< "$startedRows"
+	for itemPath in "$MDAT_DATA_ROOT"/board/running/dispatch-*.md ; do
+		[ -f "$itemPath" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" status )" = dispatch-started ] || continue
+		itemName="${itemPath##*/}"
+		itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" spawn-id )"
+		recordPath=""
+		if [ -n "$itemSpawn" ] && [ "$itemSpawn" != "-" ] ; then
+			for recordCandidate in "$spawnRoot"/*/"$itemSpawn.md" ; do
+				[ ! -f "$recordCandidate" ] || { recordPath="$recordCandidate" ; break ; }
+			done
+		fi
+		if [ -n "$recordPath" ] ; then
+			recordStatus="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )"
+			case "$recordStatus" in ''|spawn-started) continue ;; esac
+			closeOutcome="${recordStatus#spawn-}"
+			recordExit="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" exit-code )"
+			[ -n "$recordExit" ] || recordExit="unknown"
+			itemOutput="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" output-file )"
+			[ -n "$itemOutput" ] || itemOutput="-"
+		else
+			[ -z "$( find "$itemPath" -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue
+			closeOutcome="$endedOutcome" ; recordExit="unknown" ; itemOutput="-"
+		fi
+		AgentsToolsSpawnProxyCloseDispatch "$itemName" "" "$recordExit" "$itemOutput" "$closeOutcome" running review > /dev/null 2>&1
+		if [ -f "$MDAT_DATA_ROOT/board/review/$itemName" ] ; then
+			housekeepingLog="${housekeepingLog}housekeeping: $itemName running->review $closeOutcome"$'\n'
+		fi
+	done
+	## A review item whose named reviewer session has ended goes to the coordinator. A bare member name, `human-owner`, a live session and a missing review-by stay as they are.
+	measureText="$( AgentsToolsRegistryRenderSpawnedSessions agents )"
+	for itemPath in "$MDAT_DATA_ROOT"/board/review/*.md ; do
+		[ -f "$itemPath" ] || continue
+		itemName="${itemPath##*/}"
+		reviewBy="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" review-by )"
+		case "$reviewBy" in
+			''|human-owner|advance.routine) continue ;;
+			*:*) reviewId="${reviewBy%%:*}" ;;
+			magic-*|keeper-*|warden-*|partner-*|client-*|oncall-*|expert-*) continue ;;
+			*) [ ! -f "${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}/$reviewBy/SKILL.md" ] || continue ; reviewId="$reviewBy" ;;
+		esac
+		sessionKind="$( printf '%s\n' "$measureText" | LC_ALL=C awk -v wantSession="$reviewId" '
+			NF == 13 && $2 == wantSession { sawRow = 1 ; if ( $13 == "running" || $13 == "waiting" ) { sawLive = 1 ; } }
+			END { if ( sawLive ) { print "live" ; } else if ( sawRow ) { print "ended" ; } }
+		' )"
+		case "$sessionKind" in
+			live) continue ;;
+			ended) ;;
+			*) [ -z "$( find "$itemPath" -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue ;;
+		esac
+		if DistroAgentsTools --intern-op-board-upsert-move-edit review "$itemName" --from-state:review \
+			--header:upsert:review-by:magic-coordinator --context --magic-advance-input-scan > /dev/null 2>&1 ; then
+			housekeepingLog="${housekeepingLog}housekeeping: $itemName review-by -> magic-coordinator"$'\n'
+		fi
+	done
+	## What was done never enters the scan's output; it goes to this spawn's own event-track thread.
+	AgentsToolsHousekeepingReport "$2" "${housekeepingLog%$'\n'}"
+	return 0
+}
+
 case "$1" in
 
 	--magic-advance-input-scan)
@@ -123,6 +242,9 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+		AgentsToolsAdvanceSpawnHousekeeping 24 "$callingMember"
 		printf '%s\n\n' "## state-and-lock (routine-advance)"
 		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
@@ -151,7 +273,6 @@ case "$1" in
 		## magic-coordinator.advance.routine, not here -- this emits the facts that
 		## instruction is carried out against.
 		printf '\n'
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 		AgentsToolsRegistryRenderAll || :
 		return $advanceScanRc
 	;;

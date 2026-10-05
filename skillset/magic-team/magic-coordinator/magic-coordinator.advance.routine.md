@@ -10,7 +10,7 @@ Routine-advance is a lightweight, every-iteration mechanical reconciliation betw
 
 ## Goals
 
-The board isn't trustworthy between daily/grooming cycles — sessions die mid-work, dispatches go stale, approvals land continuously, not on a weekly schedule. This routine runs every main-loop iteration and executes only already-decided moves, never new judgment — what makes it safe to run unattended. Same logic covers stalled spawned work (nudge, report) and deferred actions (Slack reactions, Trello updates) once their conditions are actually met. One bounded exception, inside `check-process-board`'s own dependency-recompute step: recording a dependency edge is never a risky call, since an uncertain one is flagged rather than forced — reasoning worked out ad hoc in a chat reply would otherwise evaporate the moment the conversation moves on, with nowhere to live.
+The board isn't trustworthy between daily/grooming cycles — sessions die mid-work, dispatches go stale, approvals land continuously, not on a weekly schedule. This routine runs every main-loop iteration and executes only already-decided moves, never new judgment — what makes it safe to run unattended. Same logic covers stalled spawned work (nudge, report) and deferred actions (Slack reactions, Trello updates) once their conditions are actually met. One bounded exception, inside `check-process-board`'s own dependency-recompute step: recording a dependency edge is never a risky call, since an uncertain one is flagged rather than forced — reasoning worked out ad hoc in a chat reply would otherwise evaporate the moment the conversation moves on, with nowhere to live. A second bounded exception: a `board-review` item whose `review-by` is `magic-coordinator`, `advance.routine` or empty. The coordinator judges a trivial review from the item's Result block, the output log it names, the spawn's handback answer and the sandbox output folder, and accepts it with `--magic-board-to-processed`.
 
 **Naming note**: "Advance" names what this routine actually does: bringing the board's *recorded* state back into alignment with what's *actually* true, not re-litigating priorities or scope.
 
@@ -20,6 +20,7 @@ The board isn't trustworthy between daily/grooming cycles — sessions die mid-w
 - All new incoming communication (email, Trello, Slack) — the full `magic-coordinator.communication-sweep.routine` pass (**check** + **process-each-message**, every found message, ascending timestamp order), not a narrow slice.
 - `board-running` — every item, every pass, including its own in-place testing round; no separate `board/testing/` folder.
 - `board-pending` — every item, every pass: mechanical `board-pending`→`board-running` moves, readiness-flagging only — not a full re-triage. `board-backlog` is not read here: promoting a backlog item is `magic-team.grooming.routine`'s **check-backlog-promote**.
+- `board-review`, narrowly — only items whose `review-by` is `magic-coordinator`, `advance.routine` or empty, per **advance-review-items** and the second exception in Goals.
 - `board-parked` and `board-blocked`, narrowly — only items whose `recheck-date` has arrived or which carry none (or, for `board-blocked`, an early-fire per `check-process-board`'s **board-reassess-parked-blocked**).
 - `magic-coordinator`'s own inbox, narrowly — only `pending-slack-reaction` and `pending-trello-update` records (used in `check-pending-comms-actions`). One record per deferred action, not one standing record; the input-scan surfaces them, so no filename is written down or matched here.
 - Dependency-graph recomputation (`blocks:`/`blocked-by:` edges and ordering) — bounded, not every pass (`check-process-board`'s **board-recompute-dependencies**).
@@ -59,7 +60,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - step: write the note via the `--magic-advance-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close.
 4. **advance-reconcile-sessions**: compare the scan's registries with the board, before any further work this pass. Each handler states its outcome in this pass's run output, steps:
    - **reconcile-read**: read the spawned-sessions and pending-replies registries the scan carries, with the liveness it measured, and match each `board-running` item to its session by its `session-id`.
-   - **reconcile-dead-session**: a `board-running` item whose session the registry shows as not live is a failed spawn, steps:
+   - **reconcile-dead-session**: a `board-running` item that is not a `dispatch-*` item, whose session the registry shows as not live, is a failed spawn. Steps:
      - record the registry reading in its `execution-receipt`
      - it declares `restart-session`: respawn that group at the item's recorded state — outcome `respawned`
      - otherwise: move it to `board-blocked` with `condition:` naming the dead session — outcome `flagged-once`
@@ -69,11 +70,15 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - an addressee's answer is there: apply it as the reply, and continue the item
      - no answer is there: re-ask in that same thread with `AskUserQuestion`, to the same party, and keep the item blocked — outcome `nudged`
      - a missing record is never consent and never a deny
-5. **advance-process-comms**: run `magic-coordinator.communication-sweep.routine`'s own Steps in full, inline, this same pass, against this pass's own board read from **advance-read-board-state** — messages can't be assessed without the current process-flow state, so this step never runs before the board is loaded. Reused by reference, not duplicated logic, steps:
+5. **advance-review-items**: for each `board-review` item whose `review-by` is `magic-coordinator`, `advance.routine` or empty, read its Result block, the output log it names, the spawn's handback answer and the sandbox output folder, steps:
+   - judged trivial and complete: accept it with `--magic-board-to-processed`
+   - judged trivial and not complete: return it to `board-running` with `--magic-advance-to-running`, your comments appended to its body
+   - anything else: it stays in `board-review`, untouched
+6. **advance-process-comms**: run `magic-coordinator.communication-sweep.routine`'s own Steps in full, inline, this same pass, against this pass's own board read from **advance-read-board-state** — messages can't be assessed without the current process-flow state, so this step never runs before the board is loaded. Reused by reference, not duplicated logic, steps:
    - **check** (`--magic-sweep-input-scan`, every live platform, board-tracked threads plus every open thread)
    - **process-each-message** (every found message, one at a time, ascending timestamp order, cross-referenced against this pass's own board state, including the mandatory `conversations.replies` check on every open thread)
-6. **advance-run-process-board**: Run the `check-process-board` procedure (`magic-coordinator.armed.md`) against this pass's own read.
-7. **advance-run-execute-board**: Run the `check-execute-board` procedure (below) against this pass's own read.
+7. **advance-run-process-board**: Run the `check-process-board` procedure (`magic-coordinator.armed.md`) against this pass's own read.
+8. **advance-run-execute-board**: Run the `check-execute-board` procedure (below) against this pass's own read.
 
 # Closure steps
 
@@ -200,7 +205,7 @@ No pass-wide blanket defer is allowed for `board-running` restart work. Apply th
 
 **Staleness inputs feeding the mechanism above**:
 - Console-session-backed work: for any in-scope item naming/depending on a `DistroAgentsTools` workspace console session, run `--console-list`, cross-reference. Console expected but gone → flag/report it; do not autonomously restart the console.
-- Agent/Task-dispatch-backed work: for any `board-running` item recording an unresolved dispatch note, compute how long unresolved. Treat "unresolved past ~5 main-loop iterations or ~1 hour, whichever comes first" as the staleness signal.
+- Agent/Task-dispatch-backed work: for any `board-running` item other than a `dispatch-*` item, recording an unresolved dispatch note, compute how long unresolved. Treat "unresolved past ~5 main-loop iterations or ~1 hour, whichever comes first" as the staleness signal.
   - The board-item's current state already prescribes a specific, safe, mechanical next step (e.g. a stale in-place testing round: dispatch a fresh `magic-tester` round): dispatch, record the new dispatch (id/time), report the redispatch once.
   - Otherwise: flag and report once. Escalate-once — don't re-flag the identical stale dispatch every pass; wait for a human/grooming response.
 - Never-dispatched work: a `board-running` item, any prefix, carrying `approved-by`/`approved-at` but none of `session-id`, `restart-session:`, an active console session, or an unresolved dispatch note — no dispatch was ever actually made, whatever moved it into `board-running`. Compute elapsed time since `started-at`; the same "~5 main-loop iterations or ~1 hour, whichever comes first" threshold applies.
@@ -302,9 +307,10 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 ## DistroAgentsTools magic-tooling operations
 
 - `--magic-advance-input-scan <team-member>` (**advance-read-board-state**: read the in-scope board state; also `check-process-board`'s own **board-recompute-dependencies**, on the same already-loaded read)
-- `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board`'s own never-started-`board-pending`-items step: basic-task start)
+- `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board`'s own never-started-`board-pending`-items step: basic-task start; **advance-review-items**: return a rejected `board-review` item with `--from-state:review`)
 - `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board` fallback when spawn is required but cannot execute in this pass)
 - `--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:...]...` (**reconcile-dead-session**: a `board-running` item whose session is dead and which declares no `restart-session`, moved with `condition:` naming that session)
+- `--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:...]...` (**advance-review-items**: the coordinator accepts a `board-review` item it judged trivial)
 - `--magic-advance-lock-acquire <team-member> <owner-label>` (**advance-acquire-lock**: take this routine's lock before anything else runs)
 - `--magic-advance-lock-refresh <team-member>` (hold the lock across a long pass)
 - `--magic-advance-close-state-and-unlock <team-member>` (**advance-close-state-and-unlock**: release, setting `state: advance-finished`)
@@ -326,7 +332,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-advance-input-scan` operation reference
 
-`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — read-only scan of `board-pending`, `board-running`, `board-blocked` and `board-parked` — every item type, every frontmatter field, never `board-backlog` — plus this routine's own `state-and-lock` note as part of the same prepared input. After the board digest come three registry sections: `## team members`, `## spawned sessions` and `## pending replies`. `<team-member>` is the only argument; the scan's shape is fixed, and it reads every baseline item this routine needs — an item name is not a parameter to it.
+`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — scan of `board-pending`, `board-running`, `board-review`, `board-blocked` and `board-parked` — every item type, every frontmatter field, never `board-backlog` — plus this routine's own `state-and-lock` note as part of the same prepared input. After the board digest come three registry sections: `## team members`, `## spawned sessions` and `## pending replies`. `<team-member>` is the only argument; the scan's shape is fixed, and it reads every baseline item this routine needs — an item name is not a parameter to it.
 
 **Inbox scope**: `<team-member>`'s own inbox, notes only — the `pending-slack-reaction` and `pending-trello-update` records `check-pending-comms-actions` acts on. No inquiries, no reflections and no `client-*` inbox: those are `--magic-grooming-input-scan`'s. Board scope is all types / any owner, so a board item a `client-*` member filed is visible here on that ground alone.
 

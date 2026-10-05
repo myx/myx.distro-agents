@@ -377,10 +377,13 @@ cannot execute as written: escalate it, and never skip it silently.
       round on its own judgement."
     - rule: "Every message crossing between the human-owner and a spawned session carries a caption naming
       the session it came from or is going to — both directions, every message. Outbound: 'Relaying to
-      <session>:'. Inbound: 'From <session>, for you:'. The session's report follows the caption verbatim. A
-      root remark is allowed only as a separate, labelled annotation per
-      `magic-team/magic-team.conversations.md`'s **labeled-annotation-not-rephrasing**. A root turn that
-      relays nothing carries no caption, so an uncaptioned message is always the root's own words."
+      <session>:'. Inbound: 'From <session>, for you:'. The session's report follows the caption verbatim. An
+      outbound relay of the human-owner's reply is his words, as its prefix sets them, and the caption only,
+      with no root annotation: the recipient knows the context better. The `Human-owner verbatim:` marker,
+      where Step 12 requires it, is part of the caption, not an annotation. On an inbound report, a root
+      remark is allowed only as a separate, labelled annotation per
+      `magic-team/magic-team.conversations.md`'s **labeled-annotation-not-rephrasing**. A root turn that relays nothing carries no caption, so an
+      uncaptioned message is always the root's own words."
 
 11. **apply-addressing-prefix-scheme**: `Chat:`/`Main:`/`Root:`/`Relay:`/`Relay All:`/`All:`, verbatim-diff-
     check.
@@ -396,13 +399,15 @@ cannot execute as written: escalate it, and never skip it silently.
       about it."
     - "`Main:` / `Root:` — relay the message literally, unmodified, to the main spawned sub-session. No
       rephrasing, no summarizing, no added commentary — the root's relay role, made literal. A clearly
-      separated, explicitly labeled annotation is a distinct case, not commentary — see
-      `magic-team/magic-team.conversations.md`'s **labeled-annotation-not-rephrasing**."
+      separated, explicitly labeled annotation is a distinct case, not commentary, except on a relay of his
+      reply, which takes none — see `magic-team/magic-team.conversations.md`'s
+      **labeled-annotation-not-rephrasing**."
     - rule: "Verbatim check: when a literal/verbatim requirement applies, verify the output actually matches
       the source exactly before sending — a close paraphrase is not verbatim. If it doesn't match, use the
       source text directly."
     - "`Relay:` — the root session processes/rephrases the message first, then relays that reworked version
-      to the main spawned sub-session. Never verbatim — this is what keeps it distinct from `Main:`/`Root:`."
+      to the main spawned sub-session. Never verbatim — this is what keeps it distinct from `Main:`/`Root:`.
+      The reworked version carries no root annotation either: the recipient knows the context better."
     - "`Relay All:` / `All:` — broadcast to every spawned sub-session below the root, at any depth, not just
       the main one. `Relay All:` broadcasts non-literally (processed/rephrased, same treatment as `Relay:`
       but fanned out to the whole tree); `All:` broadcasts literally (unmodified, same treatment as
@@ -593,6 +598,8 @@ resolved against the whole skillset, not this file alone. **IMPORTANT**: not app
   a report a spawned session sent it, and what it writes is a dispatch, never a file.
 - A spawn is watched while it runs and its result is read back to the human-owner, so nothing the root
   spawned closes on the root's own judgement.
+- A relay of the human-owner's reply to a session carries his words, as the prefix sets them, and the
+  caption only: the recipient knows the context better.
 - "Update root-harness routine to: distinct steps by interactive/non-interactive."
 
 ## Verbatim-tests (benchmarks)
@@ -614,6 +621,9 @@ resolved against the whole skillset, not this file alone. **IMPORTANT**: not app
 - A spawned session reports and the root carries it to the human-owner. The message opens "From <session>,
   for you:" and carries the report verbatim. An uncaptioned or paraphrased read-back fails, however
   accurate.
+- The human-owner replies to a spawned session and the root relays the reply. The message opens
+  "Relaying to <session>:" and carries his words, as the prefix sets them, with no root annotation after
+  the caption.
 - "make root-harness not loop but exit after first loop in non-interactive" — a non-interactive
   `--intern-root-harness` spawn runs Step 16 once and exits; it never re-enters Step 15's loop.
 

@@ -173,7 +173,7 @@ AgentsToolsRegistryPendingSessionOpen(){ ## session-id
 AgentsToolsRegistryDeriveState(){ ## status, live, session-id
 	local dsStatus="$1" dsLive="$2" dsSession="$3"
 	case "$dsStatus" in
-		spawn-succeeded|spawn-failed) printf 'finished\n' ; return 0 ;;
+		spawn-succeeded|spawn-failed|spawn-ended-without-close) printf 'finished\n' ; return 0 ;;
 	esac
 	[ "$dsLive" != "other-host" ] || { printf 'unknown-foreign\n' ; return 0 ; }
 	[ "$dsLive" != "running" ] || { printf 'running\n' ; return 0 ; }
