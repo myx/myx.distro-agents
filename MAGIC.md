@@ -44,7 +44,7 @@ Team-owned notes for the magic-* team.
 - **A domain declares `--install-command` only where `myx.common` actually carries the installer.** `myx.common which install/claude` resolves and `install/copilot` exits 1, so the shared `claude|copilot` arm declares the command for `claude` alone. The engine already answers the other case correctly: a domain declaring a probe and no command reports "is not installed and this domain declares no way to install it" and stops, where declaring a command that does not exist ran it and reported a failed install instead. A new CLI domain therefore gets no install command until one exists for it, rather than inheriting a `myx.common install/<domain>` that may not.
 - **The copilot access fragment has no user-facing operation.** Ruled against a suggestion that the human-owner run one: there is no such command for him to run, because installing the workspace integrations already does the whole of it — that was the task. There is no separate fragment step for a user; it is all internal, and nobody outside needs to know it exists. `--install-copilot-access-fragment` stays as an internal step of `--install-workspace-integrations`, which calls it — the same shape `--install-skillset-report-render` already has, and the reason it is not renamed to an `--intern-op-*`. It is out of help, out of every `--owner-setup-*` remedy and step list, and out of every printed line; those name `--make-workspace-integrations`, which regenerates the console and rewrites the fragment in one call.
 - **Gotcha: a setting is removed by two forms, and a fix covers both or it is not a fix.** `KEY=` in a `--values-from-stdin` set and `--<option> ""` on the command line are the same request, and both land in the engine's one value set as `KEY=`, whose own remove path (`--agents-config-option <scope> --delete`) answers "removed" or "is not set", and refuses a key the domain `--require`s. The front end tests for a missing value by argument count, never by `-z "$2"`: an emptiness test there refused the flag form with "a value is required" while the stdin form worked, and a fix verified through the stdin form alone was declared done over it. A value missing entirely — the flag is the last argument — is still refused.
-- **Gotcha: removing a setting only works where its absence has a meaning.** The flag-form fix above still left `--owner-setup-storage --team-data-directory "" --apply` refused, because storage `--require`d `TEAM_DATA_DIRECTORY` and the engine refuses to remove a required key, and deleting it by hand left no team data at all: `MDAT_DATA_ROOT` unset, every board op dead. Unset now means the workspace's own hidden store, `$MMDAPP/.local/agents/team-data-root`, answered by the resolver in `AgentsContext.UseAgentsTools.include`; the setting is only an override, for workspaces that share team data. Every reader of the key follows that one answer — `--owner-setup-storage --check`, `--magic-heartbeat-config-check` and the main-loop floor report the unset key as OK with the path — so a check that still demands the key reintroduces the refusal. `sh-lib/AgentsOwnerSetupCheck.test.sh` holds both forms of removal and the default, and runs in `--owner-setup-scaleway --check`.
+- **Gotcha: removing a setting only works where its absence has a meaning.** The flag-form fix above still left `--owner-setup-storage --team-data-directory "" --apply` refused, because storage `--require`d `TEAM_DATA_DIRECTORY` and the engine refuses to remove a required key, and deleting it by hand left no team data at all: `MDAT_DATA_ROOT` unset, every board op dead. Unset now means the workspace's own hidden store, `$MMDAPP/.local/agents/team-data-root`, answered by the resolver in `AgentsContext.UseAgentsTools.include`; the setting is only an override, for workspaces that share team data. Every reader of the key follows that one answer — `--owner-setup-storage --check`, `--magic-heartbeat-config-check` and the main-loop floor report the unset key as OK with the path — so a check that still demands the key reintroduces the refusal. `sh-test/AgentsOwnerSetupCheck.test.sh` holds both forms of removal and the default, and runs in `--owner-setup-scaleway --check`.
 
 ## Which help a reader needs
 
@@ -385,7 +385,7 @@ Team-owned notes for the magic-* team.
 - **Unserved is ABSENT from `tools/list`, not present-and-refusing**: a tool that exists and refuses reads
   as a broken server. `tools/call` still names what to use instead for each unserved tool, because a
   caller who names one anyway needs somewhere to go.
-- **`sh-lib/AgentsHarnessServedFloorCheck.test.sh` now holds this, so the subtraction is no longer a list
+- **`sh-test/AgentsHarnessServedFloorCheck.test.sh` now holds this, so the subtraction is no longer a list
   somebody has to remember.** It reads the served set off the real server's own `tools/list` answer rather
   than re-applying the subtraction, and holds it in both forms below.
 - **The rule's scope is the harness tool floor, not everything served, and writing it the wider way makes
@@ -565,8 +565,8 @@ Three bugs found and fixed in that splice, by real execution against the live te
 - The op name is the stable interface a routine calls and its own skillset file declares; the argument list behind it is free to change for that routine alone. Collapsing them, or rewriting one as a call to another, couples independent routines to a single argument list and makes a later divergence a breaking change for a consumer that never asked for it.
 - A wrapper is fixed, not flexible: it exposes no caller-facing `--state`/`--header` override. A caller wanting a different scan shape calls `--intern-op-session-context-scan` directly.
 - What each wrapper sweeps is split so two wrappers do not intersect. Content that no step of the consuming routine asked for is the defect that split exists to prevent.
-- `--magic-sweep-input-scan` sweeps the team and each client-* account concurrently, each into its own document and status, and emits nothing until all are done: the team's document first, each client's after, as before. `lib/parallel` runs in a nested subshell because it installs an EXIT trap that would otherwise replace the sweep's own. Accounts run at Parallel's own bound. That fan-out is safe because `--intern-op-slack-call` waits out a Slack rate limit (`ratelimited` or HTTP 429) for its `Retry-After`, with a stated line, and retries up to 5 attempts, so a limited read is slower, not lost. One helper, `AgentsToolsSlackRateLimitWait`, serves every branch -- API, upload and raw GET -- off one `-D` header dump; `sh-lib/AgentsSlackRateLimitCheck.test.sh` holds each branch and both outcomes. Scan work paths are `mktemp`-unique, never `$$`: concurrent scans share one `$$`.
-- `sh-lib/AgentsSweepTimingInstrument.sh` is a timing instrument, not a rig: it asserts nothing, stays off `.test.sh` so no test sweep runs it, and times one `--magic-sweep-input-scan` against a fixture behind a fake curl with a fixed per-call latency. Run it as `MMDAPP=<workspace> sh-lib/AgentsSweepTimingInstrument.sh [<latency-seconds> [<dms> [<clients>]]]` (defaults `0.3 30 2`); it prints `SWEEP_TIMING: rc= seconds= calls= mdat-left=`.
+- `--magic-sweep-input-scan` sweeps the team and each client-* account concurrently, each into its own document and status, and emits nothing until all are done: the team's document first, each client's after, as before. `lib/parallel` runs in a nested subshell because it installs an EXIT trap that would otherwise replace the sweep's own. Accounts run at Parallel's own bound. That fan-out is safe because `--intern-op-slack-call` waits out a Slack rate limit (`ratelimited` or HTTP 429) for its `Retry-After`, with a stated line, and retries up to 5 attempts, so a limited read is slower, not lost. One helper, `AgentsToolsSlackRateLimitWait`, serves every branch -- API, upload and raw GET -- off one `-D` header dump; `sh-test/AgentsSlackRateLimitCheck.test.sh` holds each branch and both outcomes. Scan work paths are `mktemp`-unique, never `$$`: concurrent scans share one `$$`.
+- `sh-test/AgentsSweepTimingInstrument.sh` is a timing instrument, not a rig: it asserts nothing, stays off `.test.sh` so no test sweep runs it, and times one `--magic-sweep-input-scan` against a fixture behind a fake curl with a fixed per-call latency. Run it as `MMDAPP=<workspace> sh-test/AgentsSweepTimingInstrument.sh [<latency-seconds> [<dms> [<clients>]]]` (defaults `0.3 30 2`); it prints `SWEEP_TIMING: rc= seconds= calls= mdat-left=`.
 
 ## `--intern-op-session-context-scan`: what a wrapper owes the document
 
@@ -714,21 +714,21 @@ Three bugs found and fixed in that splice, by real execution against the live te
 - **`table` had to be added to that validator's `TOPLEVELTYPES` in the same change, and `link` did not have to be — that difference is the rule.** The set is closed and holds TOP-LEVEL BLOCK TYPES ONLY, so a block outside it is rejected before the send: the first table the converter emitted would have failed with "invalid or missing top-level type" and posted nothing, while `link`, a rich_text element rather than a block, was never closed against. A new top-level block type is blocked until it is listed there; a new rich_text element is not. Adding the type also makes `walkNode` descend into `rows` for the first time, which is what makes the empty-cell space element load-bearing rather than cosmetic.
 - **`AgentsSlackBlocksTextVersion.py` has no `table` arm.** The converter's own `markdown` path never reaches it — the text version of a `markdown` body is that body itself — so a table written in markdown is unaffected. A `--format blocks` caller hand-writing a `table` block and supplying no `--message-text` gets `[table]` as the message text, the renderer's visible-placeholder-and-stderr behaviour for an element with no known text form. Working as designed, and the fix for that caller is `--message-text`, not a converter change.
 
-## `sh-lib/AgentsSlackBlocksLinkifyCheck.test.sh` — the bare-URL/bare-address branch in `parseInlineStyles()`
+## `sh-test/AgentsSlackBlocksLinkifyCheck.test.sh` — the bare-URL/bare-address branch in `parseInlineStyles()`
 
 - Proves: a bare `http(s)://` URL becomes a real `link` element, and a bare `local@domain` address becomes a bold `text` element instead, never a link — trailing `.,:!?'"` and a lone unmatched closing bracket stripped from the URL first; the URL check wins on `https://user@host/path`, so it never also triggers the bold-address rule; and an invalid-domain address (no dot in the domain tail), a dotted name, a version number, a file name, an unresolved `@name`, an existing `[text](url)` link, a code span, a fence and a header line all render exactly as before the branch existed.
 - Does not prove: anything about a real Slack send, or `AgentsBlockKitValidate.py`'s/`AgentsSlackBlocksTextVersion.py`'s own handling of the new `link` elements — pure pipe into the converter only, no send path, no validator run.
 - Invoked: `LC_ALL=C awk -v mentionMap="" -f sh-lib/AgentsSlackBlocksBuild.awk`, fed one or more lines via `printf`, same convention as `AgentsHarnessAwkAxiomCheck.test.sh`. Green is `SLACK_BLOCKS_LINKIFY: OK (21 assertions, offline)`.
 - Its red: measured by hand before the real assertion was written — wrongly expecting `foo@localhost` (no dot in its domain) to become a link reports `FAIL got: no want: yes`; the real, correct expectation (stays literal) reports `PASS`.
 
-## `sh-lib/AgentsSlackBareUrlLinkCheck.test.sh` — the bare-URL/bare-address branch through a real send
+## `sh-test/AgentsSlackBareUrlLinkCheck.test.sh` — the bare-URL/bare-address branch through a real send
 
 - Proves: the same bare `http(s)://` URL and bare `local@domain` address rules reach a real `--member-comms-slack-send-message` send — a bare URL posts as a real `link` element and a bare address posts as bold `text` instead, never a link; a code span and a fence keep theirs literal, an existing `[text](url)` link is not linkified a second time, trailing punctuation and a lone unmatched closing bracket are stripped off the posted url, and the url check still wins over the address check on `https://user@host/path`. Also proves the tooling-built sender/addressee preamble block carries no `link` element of its own — only the agent-written text block, run through `AgentsSlackBlocksBuild.awk`, does; by construction, since the preamble is assembled directly as JSON and never reaches `parseInlineStyles`.
 - Does not prove: anything `AgentsSlackBlocksLinkifyCheck.test.sh` already covers at the converter's own level — the CommonMark emphasis interplay, the exact stripped-punctuation set, or the mention/link ordering rules. This rig is the wiring proof, not a second copy of that grammar.
-- Invoked: through the real `DistroAgentsTools.fn.sh --member-comms-slack-send-message` path (default `markdown` format, trailing-argv or `--from-stdin` body), with `sh-lib/check-fixtures/slack-send-identity-check.curl.test.sh` first on `PATH` as a fake `curl` — same fixture and scenario-workspace shape as `AgentsSlackSendIdentityCheck.test.sh`, reused unchanged. Green is `SLACK_BARE_URL_LINK: OK (15 assertions, offline)`.
+- Invoked: through the real `DistroAgentsTools.fn.sh --member-comms-slack-send-message` path (default `markdown` format, trailing-argv or `--from-stdin` body), with `sh-test/check-fixtures/slack-send-identity-check.curl.test.sh` first on `PATH` as a fake `curl` — same fixture and scenario-workspace shape as `AgentsSlackSendIdentityCheck.test.sh`, reused unchanged. Green is `SLACK_BARE_URL_LINK: OK (15 assertions, offline)`.
 - Its red: measured by hand — flipping the bold-address assertion's own expectation to `no` reports `FAIL got: yes want: no` and a non-zero exit; the real, correct expectation reports `PASS`.
 
-## `sh-lib/AgentsEmailHtmlPartCheck.test.sh` — the HTML part on `--member-comms-email-send`
+## `sh-test/AgentsEmailHtmlPartCheck.test.sh` — the HTML part on `--member-comms-email-send`
 
 - Proves: `--member-comms-email-send` now sends `multipart/alternative`, plain part first, both parts UTF-8, closed by the real boundary marker; a bare `http(s)://` URL in the body becomes a real `<a>` link in the `text/html` part, and a bare `local@domain` address becomes bold, blue text instead, with no anchor and no `mailto:`; the url check wins over the address check on `https://user@host/path`, with trailing punctuation stripped from the linked url; a code span, a fence, and an existing `[text](url)` link are each left out of the linkifier and render as `<code>`/`<pre>`/one `<a>` respectively; `&`/`<`/`>` are HTML-escaped in the html part only, the plain part staying literal; a tooling-built part (the Subject header) is never run through the converter; markdown is the body format with no `--format` given; and `--format text` turns off code spans/fences/emphasis/`[text](url)` links while still bold-bluing a bare address.
 - Does not prove: a real SMTP send, or how a real mail client renders either part — build-only throughout, via `AGENTS_EMAIL_SEND_BUILD_ONLY=true`, with a fake `curl` on `PATH` as a backstop the check also confirms is never reached.
@@ -1152,7 +1152,7 @@ Consequence for this package: the members installed at the workspace root cannot
 - **A conditional guard carries its own wording, and it is not a reroute message.** The memory-index Read guard answers with what to read instead — the workspace, repository and project `MAGIC.md` — which names a destination rather than a method, and would be wrong in a reroute's mouth.
 - **The `PreToolUse` hooks this estate wires are ROUTERS, and the denial is the redirect.** A reroute refuses with a reason naming the MCP method to use instead; a refusal naming none sends the caller nowhere and it retries the same call. Reading them as a security boundary is how a reader ends up hardening something that was never a wall — a reroute denies every invocation alike, discarding the payload without reading it, which is what a router does and what a boundary would not. **What they route is a claude/copilot-native session**, which has to be sent to the MCP tooling; this harness is not one and reaches that tooling directly, so the absence of a route here is not the absence of a guard.
 - **Which tools are rerouted is stated once, and the refusal wording lives where it is said.** `sh-lib/AgentsTools.ClientToolPolicy.include` is the single source of the set, the installed hook path and the keys each entry is recognised by; the reason each tool answers with is in the hook script itself. Two facts, one home each. A name in the set with no arm in the script is the two disagreeing, and the script's last arm denies loudly rather than falling through, because a hook emitting no decision reads as ALLOW.
-- **The reroute set carries only a tool whose native-call test passes.** That is because a reroute denies the native tool outright, and the MCP twin becomes the caller's only path. `AgentsToolsClientToolPolicyRerouteToolNames` must not carry a tool whose native-call test in `sh-lib/AgentsHarnessNativeCallCheck.test.sh` is missing or failing. No readiness grading marks a rerouted tool Ready without that test passing. A test of the twin against its own contract is not that test.
+- **The reroute set carries only a tool whose native-call test passes.** That is because a reroute denies the native tool outright, and the MCP twin becomes the caller's only path. `AgentsToolsClientToolPolicyRerouteToolNames` must not carry a tool whose native-call test in `sh-test/AgentsHarnessNativeCallCheck.test.sh` is missing or failing. No readiness grading marks a rerouted tool Ready without that test passing. A test of the twin against its own contract is not that test.
 - **A tool nothing routes receives no routing, which is coverage the router does not yet have rather than a guard that failed.** `Skill` is currently such a tool, in both halves of the mechanism: no configured matcher names it — the matcher set is the reroute set the policy include states, plus the one the memory-index guard takes — and `AgentsHarnessHooksRefusal` shapes a `tool_input` per tool, so a tool with no arm of its own falls to `*)` and is handed its own parameter names. `Skill` presents `name`/`file`/`list` and no `file_path`, so a matcher naming it tomorrow and reading `.tool_input.file_path`, the shape these hooks use, would still find nothing to route on. Routing a newly added tool therefore takes both: a matcher naming it, and an arm emitting the field the routing reads. Whether `Skill` should be routed at all is a design question and is not settled here.
 - **Retiring a hook takes both halves: the installed FILE, and its `PreToolUse` ENTRY.** A test proving the file is gone proves nothing about the entry. An entry invoking a file that is not there exits 127: a `*-native` client reads that as no decision, which is ALLOW, and the harness fails closed on it, refusing every call the entry matches. `AgentsToolsClientToolPolicyRetiredHookNames` states the retired names once, and `--install-workspace-restrictions` drives both halves from it. The settings merge removes each entry running a retired script, its one removal path, and the files are deleted only after `settings.json` is rewritten.
 - **A registered hook script that is missing fails the install and the diagnosis, whoever wrote the hook.** The verifier only asserts that named keys are present, so it cannot see a stale entry. `--install-workspace-restrictions` therefore also lists every command hook running `"$CLAUDE_PROJECT_DIR"/.claude/hooks/<script>` and fails on one whose script is missing or not executable. The `--owner-setup-*` row `WORKSPACE_HOOK_SCRIPTS` runs the same test. Foreign hooks are included, because a missing one blocks the harness just the same.
@@ -1823,7 +1823,7 @@ because they would hold the same way against any provider.
 
 ## The harness tool set
 
-The harness declares these tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`, `WebSearch`, `WebFetch`, `SendMessage`, `ListAgents`, `Wait`, `SubagentHandback`, `ReportFindings`, `PushNotification`, `Artifact`, `AskUserQuestion`, `ListMcpResourcesTool`, `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `Skill`, `Agent`, `TaskStop`, `TaskOutput`, `Monitor`, `ToolSearch`. Each occupies four structural sites -- the `harnessToolsJson` literal in `sh-lib/AgentsOpenAiChatWire.sh`, and the announce arm, the dispatch arm and the tool function in `sh-lib/AgentsUniversalHarness.sh` -- and `sh-lib/AgentsHarnessSelfCheck.test.awk` proves all four for every one of them. MCP tools are added separately under `mcp__<server>__<tool>` and are not part of this set.
+The harness declares these tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`, `WebSearch`, `WebFetch`, `SendMessage`, `ListAgents`, `Wait`, `SubagentHandback`, `ReportFindings`, `PushNotification`, `Artifact`, `AskUserQuestion`, `ListMcpResourcesTool`, `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `Skill`, `Agent`, `TaskStop`, `TaskOutput`, `Monitor`, `ToolSearch`. Each occupies four structural sites -- the `harnessToolsJson` literal in `sh-lib/AgentsOpenAiChatWire.sh`, and the announce arm, the dispatch arm and the tool function in `sh-lib/AgentsUniversalHarness.sh` -- and `sh-test/AgentsHarnessSelfCheck.test.awk` proves all four for every one of them. MCP tools are added separately under `mcp__<server>__<tool>` and are not part of this set.
 
 `SendMessage` posts through `--member-comms-slack-send-message`, under the member identity `--agent` named. A served call (`--intern-tool`) names none, so the harness resolves it itself on that call: a spawned session's own `MDAT_SPAWN_AGENT`, else `magic-coordinator` for a root session, kept only when that member's `.basic.md` is readable in the skillset -- otherwise the tools that send refuse and every other tool is still served. The MCP server passes no identity and holds none. A harness started directly for a model run without `--agent` still refuses to send rather than choosing one. The message text goes in on `--from-stdin`, so no shell parses it, and no credential ever reaches argv. **An empty `to` now resolves through `AgentsToolsSessionThreadFind`**, reading `session.thread` from the calling agent's own sandbox root (see "Spawn sandbox root: the session tracking document" above) -- the old requirement, refusing to send with nothing resolved, is the fallback once that lookup itself comes back empty. This lives in `--member-comms-slack-send-message` itself, not only in the harness tool function, so an MCP-served call gets the same default; the MCP tool's own schema no longer marks `to` required, only the message. `AskUserQuestion` resolves its own default target the same way. All six addressing tools (`SendMessage`, `SubagentHandback`, `PushNotification`, `ReportFindings`, `Artifact`, `AskUserQuestion`) take the same `to` values, resolved in one place. Beside the named conversations, a bare conversation id and `<channel>:<ts>`, two values are added. `session-parent` is the thread of the session that started this one, the `session.thread` in the parent's sandbox, found through the caller's own record and its `parent-session-id`. The sandbox folder is named by tracking name or session id, so the record is found by `spawned/*/<id>.md`. With no recorded parent or no parent thread the send is an error and nothing is sent, never another thread. A team member name, with or without `:<ts>`, is that member's own Slack DM, found by `AgentsToolsCommsSlackMentionUserId`, so `human-*` names are covered. A member with no Slack account gets an `inquiry-*` item in its inbox through `--member-upsert-member-inquiry`, and the result's first line says so. `AskUserQuestion` refuses that inbox route, since nothing can wait on a file, and still needs `address_to` for a thread target. `SubagentHandback` alone defaults an empty `to` to `session-parent`. `SendMessage` and `AskUserQuestion` keep their session-thread default. The full spawn-time environment is `MDAT_SPAWN_AGENT`, `MDAT_SPAWN_LAUNCH_MARKER`, `MDAT_SPAWN_SESSION_ID` and, once a coworking session has one, `MDAT_SESSION_ID`/`MDAT_SESSION_THREAD`.
 
@@ -1881,7 +1881,7 @@ The rendered skill loses its frontmatter and opens with `Base directory for this
 - **Credentials reach the child through its environment and never through argv.** `.mcp.json`'s own `env` object is passed as `NAME=value` tokens to `env`, which is also why `command` must be an absolute path: the leading `/` is what guarantees it can never be read as one of those assignments.
 - **The catalogue is the shape `harnessHooksList` carries** -- newline-delimited, TAB-separated `server<TAB>toolName<TAB>declaredName<TAB>schemaFile` -- so the per-call path stays builtins-only. The schema file holds that tool's own `inputSchema` as raw bytes, in the harness's own scratch directory, and goes with it on EXIT.
 - **A degrade names its reason once and says it twice**: a loud stderr line for the operator, and the same reason built into `$harnessMcpUnavailableNote`, the sentence the model is owed. Publishing it is this file's job; the core is what places it, appending it to `$harnessSystemText` before `AgentsWireInitMessages` builds the first request -- that server's tools are absent from the declarations, and nothing else in the run says why.
-- **No production caller passes `--mcp-server`.** No spawn proxy, console CLI or skillset operation names a server, so every production spawn runs on the workspace set above, and the flag is reached by hand and by `sh-lib/AgentsHarnessMcpCheck.test.sh`, which drives it against its own fake server.
+- **No production caller passes `--mcp-server`.** No spawn proxy, console CLI or skillset operation names a server, so every production spawn runs on the workspace set above, and the flag is reached by hand and by `sh-test/AgentsHarnessMcpCheck.test.sh`, which drives it against its own fake server.
 
 ## An MCP tool on the wire -- declared per tool, dispatched last, enumerated per round
 
@@ -1934,7 +1934,7 @@ check, and is gated on `--check` for the work rather than only for the output: t
 awk processes and run several legs of the harness, and `--apply` must neither pay that nor start
 returning non-zero on a diagnostic finding.
 
-- **`sh-lib/AgentsHarnessAccessRootsCheck.test.sh` — where the no-flag access-root set comes from.**
+- **`sh-test/AgentsHarnessAccessRootsCheck.test.sh` — where the no-flag access-root set comes from.**
   - Proves: with no `--access-root` passed, the set is taken from `sh-lib/AgentsTools.ClientAccessRoots.include`, the one place it is defined. It is not taken from a client's published launch fragment. The discriminator is a root only such a fragment names. Our own mechanism cannot yield it, so its presence on the wire says the fragment was read. A root the mechanism always yields, `$workspace/source`, is asserted present too, so an empty or truncated body cannot pass.
   - Why it exists: that path had no instrument at all. A path with no instrument is one where a false green is the default. An earlier ad-hoc probe of it could not fail. The core exits at its own `HARNESS_*` provider gate before the resolution runs, so merely starting the harness measures the gate and reports on nothing.
   - How a gated path is reached, which is the part worth keeping. Set the dummy `HARNESS_*` a provider stub sets, and put a fake `curl` first on `PATH`. Those are a provider name, a `.invalid` endpoint and host, a wire name, a credential name, and a token that is not one. The core then runs as far as the wire. The resolved roots travel inside the system prompt, so the recorded request body is the observation. The behaviour checks below use the same technique.
@@ -1942,14 +1942,14 @@ returning non-zero on a diagnostic finding.
   - Red recipe: point the no-flag resolution back at the fragment. Both assertions fail. The planted core still parses, which is why no syntax or text check reaches this class and a behavioural one must.
   - Self-contained in its fixtures, not in its inputs. Every fixture is built in its own `mktemp -d`, and the scenario's own `MMDAPP` is that directory, so no file of the real workspace is read. The harness under test and the fake `curl` fixture both come from `MDLT_ORIGIN`, so a run whose origin does not carry this package fails before it measures anything.
   - Does not prove: whether a path is inside the roots once resolved. That is `AgentsHarnessContainmentCheck.test.sh`'s, and neither answers the other.
-- **`sh-lib/AgentsHarnessWriteSplitCheck.test.sh` — which of the two sets a path is inside.**
+- **`sh-test/AgentsHarnessWriteSplitCheck.test.sh` — which of the two sets a path is inside.**
   - Proves: where a write root is given, writes narrow to it while reads stay wider, and a root on the read side only is refused for writing **and still readable**. Where no write root is given at all, writes stay exactly as wide as reads, which is what every console generated before the split passes.
   - Why it exists: the two root flags do opposite things to the set they join and neither name says so. A root flag replaces the default set; a write flag narrows writes. So a caller passing one write root in order to grant one directory takes every other write away in the same call, and the call reports success.
   - The controls, and why each is there. A write into a granted-for-writing root must succeed, or the refusal above passes on a core that refuses every write. The read-only root must be **readable**, or it passes on a core that dropped the grant entirely. And a root granted on neither side must be unreadable, or that readability control passes on a core that reads anything at all. `Write` refuses an ungranted path and a read-only path with the same message, because it tests the write set first and never reaches the other, so the refusal text cannot tell those apart and readability is what does.
   - Offline and unmetered: `--intern-tool` reaches no endpoint and needs no credential, so the tool gate itself is the observation. No wire, no stub `curl`, no recorded request body.
   - Red recipe: drop the guard on the write set's fallback so it always takes the read set. The readable-but-not-writable assertion then reports a write where it must report a refusal.
   - Does not prove: where the set came from, or whether a path is inside it at all. Those are the two checks beside it, and none of the three answers another.
-- **`sh-lib/AgentsHarnessSelfCheck.test.awk` — every tool occupies all four of its structural sites.**
+- **`sh-test/AgentsHarnessSelfCheck.test.awk` — every tool occupies all four of its structural sites.**
   - Proves: each tool has its declaration (in the wire adapter), its announce arm, its dispatch arm and
     its tool function (those three in the core), and no `AgentsHarnessTool*` function survives with no
     tool behind it. An empty tool population reports FAIL rather than passing, so an extraction that
@@ -1974,12 +1974,12 @@ returning non-zero on a diagnostic finding.
     single-quoted `harnessToolsJson` literal, `bash -n` rejects the file, and this still reports
     `OK (N tools, four sites each)`. `HARNESS_PARSES` is the check that sees it.
   - Invoked: `cat sh-lib/AgentsUniversalHarness.sh sh-lib/AgentsOpenAiChatWire.sh | LC_ALL=C awk -f
-    sh-lib/AgentsHarnessSelfCheck.test.awk`. The two files are concatenated because the sites span both;
+    sh-test/AgentsHarnessSelfCheck.test.awk`. The two files are concatenated because the sites span both;
     pointed at either alone it sees a half-populated set, which it correctly reports as FAIL.
   - Its red: drop one tool's declaration line from a copy of the wire adapter. Measured —
     `WebSearch: declared site missing`, exit 1.
 
-- **`sh-lib/AgentsHarnessToolsJsonCheck.test.sh` — the tools declaration literal is valid JSON, reached by a parser and not by a text match.**
+- **`sh-test/AgentsHarnessToolsJsonCheck.test.sh` — the tools declaration literal is valid JSON, reached by a parser and not by a text match.**
   - Proves: that every declaration in `harnessToolsJson` is reachable by the parser, that each carries a
     `function.name`, and that the PARSED count equals the TEXT count of declaration envelopes. That last
     comparison is the whole instrument: a missing comma merges two objects, leaving the text count
@@ -1990,14 +1990,14 @@ returning non-zero on a diagnostic finding.
     responses through: a literal validated by the same code that consumes it proves only that the two agree.
   - An extraction matching nothing is a FAIL rather than a pass, the same rule the site check holds
     itself to, and a literal that parses but declares nothing likewise.
-  - Invoked: `./sh-lib/AgentsHarnessToolsJsonCheck.test.sh [<wire adapter>]`, defaulting to the adapter beside
+  - Invoked: `./sh-test/AgentsHarnessToolsJsonCheck.test.sh [<wire adapter>]`, defaulting to the adapter beside
     it. Wired into the same `--owner-setup-scaleway --check` pass, immediately after `HARNESS_PARSES`.
   - Its red: drop the trailing comma from one declaration in a copy of the wire adapter. Measured —
     `bash -n` CLEAN and `HARNESS_TOOL_SITES: OK (N tools, four sites each)` over that same broken file,
     while this reports `HARNESS_TOOLS_JSON: FAIL ... NOT VALID JSON`, exit 1. That contrast is the reason
     it exists, and all three halves of it were measured in one invocation.
 
-- **`sh-lib/AgentsHarnessServedFloorCheck.test.sh` — which tools the MCP server actually serves.**
+- **`sh-test/AgentsHarnessServedFloorCheck.test.sh` — which tools the MCP server actually serves.**
   - Proves: that no harness tool on the served floor declares a `command` argument, and — independently of
     any argument name — that no tool whose own function in the core runs a caller-supplied string as a
     shell command is served. The served set is read off the real server's own `tools/list` answer, so the
@@ -2028,34 +2028,34 @@ returning non-zero on a diagnostic finding.
     check does not locate itself: a planted copy that is merely executed reads the origin the caller
     carries, so its own modification is never measured and the run passes. A red run therefore requires
     naming the planted tree as `MDLT_ORIGIN`.
-  - Invoked: `./sh-lib/AgentsHarnessServedFloorCheck.test.sh`. Wired into the same
+  - Invoked: `./sh-test/AgentsHarnessServedFloorCheck.test.sh`. Wired into the same
     `--owner-setup-scaleway --check` pass, after `HARNESS_ACCESS_ROOTS`.
 
-- **`sh-lib/AgentsHarnessContainmentCheck.test.sh` — access-root containment, in both polarities.**
+- **`sh-test/AgentsHarnessContainmentCheck.test.sh` — access-root containment, in both polarities.**
   - Proves: `AgentsHarnessResolveDir` and `AgentsHarnessPathAllowed` as a pair, behaviourally, against a
     real symlink fixture — must-allow cases where a refusal locks an agent out of its own grant, and
     must-refuse cases where an allow is an escape. The pair, because the defect it was written for lived
     in their composition rather than in either one.
   - Does not prove: that any tool honours the verdict. It calls the two functions directly, so a tool
     that ignored `harnessResolvedPath` would pass this untouched.
-  - Invoked: `./sh-lib/AgentsHarnessContainmentCheck.test.sh`. **It is wired into nothing** — the setup arm
+  - Invoked: `./sh-test/AgentsHarnessContainmentCheck.test.sh`. **It is wired into nothing** — the setup arm
     above runs every other instrument and not this one, so it is reached only by hand.
   - Its red: stop canonicalising the roots in a copy's `AgentsHarnessResolveDir`. Measured — every
     must-allow case turns REFUSE while every must-refuse case still passes, which is what makes carrying
     both polarities load-bearing rather than decorative.
 
-- **`sh-lib/AgentsHarnessAwkAxiom.test.awk` — no statement shares a line with its closing brace without a `;`.**
+- **`sh-test/AgentsHarnessAwkAxiom.test.awk` — no statement shares a line with its closing brace without a `;`.**
   - Proves: that one hazard, across whichever awk sources it is given. The awks that reject the form are
     the ones not on a dev box, so a clean run under the local awk proves nothing and the axiom is held by
     an instrument instead of by anyone remembering it.
   - Does not prove: that an awk source parses, loads or does what it says. Own-line braces and a brace
     inside a quoted payload are skipped as documented false positives.
-  - Invoked: `LC_ALL=C awk -f sh-lib/AgentsHarnessAwkAxiom.test.awk <awk source>...` — silent and exit 0 when
+  - Invoked: `LC_ALL=C awk -f sh-test/AgentsHarnessAwkAxiom.test.awk <awk source>...` — silent and exit 0 when
     clean, one `<file>:<line>: <text>` line per hit otherwise. The wired call passes it the awks this leg
     loads.
   - Its red: a file carrying `{ nestDepth = 2 }`. Measured — one hit line, exit 1.
 
-- **`sh-lib/AgentsHarnessRestartCheck.test.sh` — summarise-and-restart, run rather than read.**
+- **`sh-test/AgentsHarnessRestartCheck.test.sh` — summarise-and-restart, run rather than read.**
   - Proves: behaviour, over summarise-and-restart and the restart budget that bounds it. A fake `curl`
     first on PATH records each request body and replays a canned stream per round, while the real core
     and the real wire drive the scenarios: the threshold fires and the leg restarts onto the original
@@ -2068,7 +2068,7 @@ returning non-zero on a diagnostic finding.
   - Offline by construction: it refuses to run at all unless the fake `curl` is first on PATH, that fake
     opens no socket, the token is a literal and the host a reserved `.invalid` name that cannot resolve,
     and an EXIT trap takes the whole fixture with it.
-  - Invoked: `bash sh-lib/AgentsHarnessRestartCheck.test.sh`. Through its interpreter, the way the two awk
+  - Invoked: `bash sh-test/AgentsHarnessRestartCheck.test.sh`. Through its interpreter, the way the two awk
     instruments at that call site are invoked, so a lost execute bit cannot turn a behaviour check into a
     fault.
   - Its red: copy `sh-lib`, remove `harnessSummariseRound=1` from the copied core so the leg is told to
@@ -2079,7 +2079,7 @@ returning non-zero on a diagnostic finding.
     questions of the same canned rounds and requires the opposite answers, so an instrument that had
     stopped measuring would have to fail one of the two.
 
-- **`sh-lib/AgentsHarnessMcpCheck.test.sh` — the dynamic tool class, run rather than read.**
+- **`sh-test/AgentsHarnessMcpCheck.test.sh` — the dynamic tool class, run rather than read.**
   - Proves: that an enumerated MCP tool reaches all four of its sites, behaviourally — the rendered
     declaration on the wire carrying the server's own description and input schema, the announce arm, the
     dispatch arm, and the round trip to the server — while a built-in is still declared beside it. That
@@ -2097,7 +2097,7 @@ returning non-zero on a diagnostic finding.
     read from, the token is a literal and the host a reserved `.invalid` name that cannot resolve, an EXIT
     trap takes the whole fixture with it, and a scenario in which the harness issued no request at all
     stops the run instead of reaching a PASS line.
-  - Invoked: `bash sh-lib/AgentsHarnessMcpCheck.test.sh`, through its interpreter on the same terms as the
+  - Invoked: `bash sh-test/AgentsHarnessMcpCheck.test.sh`, through its interpreter on the same terms as the
     behaviour check above. Green is `HARNESS_MCP: OK (4 scenarios, 35 assertions, offline)`.
   - Its red: copy `sh-lib`, and in the copy's `AgentsHarnessHooks.sh` make the `*)` arm hand the hook `{}`
     instead of the call's own arguments. Measured — the other three scenarios still pass, the hook
@@ -2107,7 +2107,7 @@ returning non-zero on a diagnostic finding.
     nothing spawned and the call refused as unknown, so an instrument that had stopped measuring would
     have to fail one of the two.
 
-- **`sh-lib/AgentsHarnessWaitCheck.test.sh` — the wait class, run rather than read.**
+- **`sh-test/AgentsHarnessWaitCheck.test.sh` — the wait class, run rather than read.**
   - Proves: behaviour, over `--member-wait-for-input` and the `Wait` tool that drives it. Seven scenarios
     take the operation alone — an arrival mid-wait returns on the arrival rather than the bound, naming
     the source that fired and what it now holds; the bound expiring with nothing new is
@@ -2138,7 +2138,7 @@ returning non-zero on a diagnostic finding.
     all stops the run instead of reaching a PASS line. The fake logs the destination and never the argv,
     because the `Wait` tool's own description carries the word `slack` and a log of argv would report a
     Slack request on every model round.
-  - Invoked: `bash sh-lib/AgentsHarnessWaitCheck.test.sh`, through its interpreter on the same terms as the two
+  - Invoked: `bash sh-test/AgentsHarnessWaitCheck.test.sh`, through its interpreter on the same terms as the two
     behaviour checks above. `MMDAPP` must be set, since the operation places its own working directory
     under it. Green is `HARNESS_WAIT: OK (10 scenarios, 98 assertions, offline)`.
   - Its red, both measured against a copy of the package with `MDLT_ORIGIN` pointed at it, breaking the
@@ -2155,7 +2155,7 @@ returning non-zero on a diagnostic finding.
     runs the flag and its omission over one unchanging file, so each leg is the other's control; and the
     listing scenario requires a kind nothing defines, `pigeon`, to be absent from what it offers.
 
-- **`sh-lib/AgentsHarnessCopilotLegCheck.test.sh` — the Copilot leg, run rather than read.**
+- **`sh-test/AgentsHarnessCopilotLegCheck.test.sh` — the Copilot leg, run rather than read.**
   - Proves: that `sh-lib/AgentsCopilotHarness.sh`'s own declarations reach the wire and that the core
     behaves under them — the endpoint in argv; the provider name in the diagnostics and in what the model
     is told; the tier-to-model mapping both ways; the bearer alone on curl's stdin as one line and
@@ -2185,7 +2185,7 @@ returning non-zero on a diagnostic finding.
     It alone cannot ALSO sit behind a `.invalid` host, the leaf's real endpoint being the subject, so
     `COPILOT_GITHUB_TOKEN` is forced to a literal before the leaf is invoked — which is what stops a
     machine holding the real token from ever having it enter the process.
-  - Invoked: `bash sh-lib/AgentsHarnessCopilotLegCheck.test.sh`, on the same terms as the three behaviour
+  - Invoked: `bash sh-test/AgentsHarnessCopilotLegCheck.test.sh`, on the same terms as the three behaviour
     checks above. Green is `HARNESS_COPILOT_LEG: OK (7 scenarios, 57 assertions, offline)`.
   - Its red, all measured against a changed copy of `sh-lib`, the package untouched:
     - The leaf repointed at a wrong endpoint and host. Scenario A 15 of 16, the error-body one 4 of 5,
@@ -2204,10 +2204,10 @@ returning non-zero on a diagnostic finding.
     results, and say so in their own assertion text — both require that no bearer exchange ran, and
     nothing in this package declares one, so neither can fail until a leaf does.
 
-- **`sh-lib/AgentsHarnessAnthropicWireCheck.test.sh` — the Anthropic Messages wire, run rather than read.**
+- **`sh-test/AgentsHarnessAnthropicWireCheck.test.sh` — the Anthropic Messages wire, run rather than read.**
   - Proves: that `sh-lib/AgentsAnthropicMessagesWire.sh`, the `claude` leg's wire, keeps the replay contract `AgentsAnthropicStub.sh` records under GAP-2 — the second request begins with the first byte for byte; the assistant turn goes back with its thinking block exactly as streamed, text, trailing newline and signature, ahead of its text and its tool call in stream order; the tool result answers that exact call id; the request asks for prompt caching with a top-level `cache_control`; `system` is top-level and tools carry `input_schema`; the cache written and read are reported per round; and a refusal body with no trailing newline, the shape the API sends, is reported by type and message rather than read as a disconnect.
   - Does not prove: anything about the live endpoint — the canned streams are Messages-shaped by construction, so the adapter is proven against itself.
-  - Invoked: `bash sh-lib/AgentsHarnessAnthropicWireCheck.test.sh`. Green is `HARNESS_ANTHROPIC_WIRE: OK (2 scenarios, 19 assertions, offline)`.
+  - Invoked: `bash sh-test/AgentsHarnessAnthropicWireCheck.test.sh`. Green is `HARNESS_ANTHROPIC_WIRE: OK (2 scenarios, 19 assertions, offline)`.
   - Its red, measured against a changed copy of `sh-lib`: the assistant turn rebuilt from the calls the core assembles instead of replayed — 2 of 19, exit 1, the thinking block and the stream order both gone.
 
 ## Arm before acting
@@ -2473,4 +2473,4 @@ The single scan behind every `--*-input-scan` wrapper. It is internal, so it is 
 - **An Allow once is spent when the gate admits the call**, before the write happens, so a write that then fails still uses it up and the call needs a new escalation.
 - **The local lock trusts a pid.** A dead holder's pid reused by an unrelated live process keeps that lock looking held until the process exits; this is accepted. A fresh lock moved by a breaker is recreated with `ln -s`, which never overwrites: if another caller took the path in between, the conflict is logged naming both pids rather than lost.
 - **Exit status.** Under `set -e`, bash 3.2 hands an EXIT trap `$?=0` on a syntax error. So the harness trap keeps a 0 only when the run reached one of its own two successful exits, which set `harnessExitClean`. A harness cut short, or one that does not parse, therefore never exits 0 with nothing on stdout, and the MCP server reports empty output from a harness tool as an error.
-- **A refusal's target is always natural; each format escapes only what it needs.** Storing a value is a presentation like any other, so nothing is kept encoded for its own sake. The refusal record (`AgentsToolsPermissionEscapeRecord`, `sh-lib/AgentsTools.InternOpPermission.include`) escapes only `%`, newline, CR and edge whitespace, so a colon or comma stays and a URL reads as a URL in the file. The colon-delimited grants file also needs the comma and colon escaped, which `AgentsToolsPermissionRecordToGrantField` adds when a grant copies the record's target into it; `AgentsToolsPermissionEscape` is that same two-step form for a natural value, and a grant match compares grants-form against grants-form. Reading the target back materialises it: `AgentsHarnessRefusedTargetDecode` (`sh-lib/AgentsUniversalHarness.sh`, beside `AgentsHarnessFormalField`) is the exact inverse of the record escaper (`%`, newline, CR, edge whitespace), `%` last. There is no rule for records an older writer escaped in full: those were rewritten once, in place, on the machine that held them. The permission ask's Refused call block, the stored escalation record and any later forward to the human-owner all carry that natural text. `sh-lib/AgentsRefusedTargetDecodeCheck.test.sh` checks this offline, 19 assertions, including a grants round trip of a target made of colon, comma, pipe, space and a literal `%3A`. Three single-line reverts each fail it: the decode call removed fails 3, the full escaper put back on the record writer fails 2, and the grants conversion removed fails 4.
+- **A refusal's target is always natural; each format escapes only what it needs.** Storing a value is a presentation like any other, so nothing is kept encoded for its own sake. The refusal record (`AgentsToolsPermissionEscapeRecord`, `sh-lib/AgentsTools.InternOpPermission.include`) escapes only `%`, newline, CR and edge whitespace, so a colon or comma stays and a URL reads as a URL in the file. The colon-delimited grants file also needs the comma and colon escaped, which `AgentsToolsPermissionRecordToGrantField` adds when a grant copies the record's target into it; `AgentsToolsPermissionEscape` is that same two-step form for a natural value, and a grant match compares grants-form against grants-form. Reading the target back materialises it: `AgentsHarnessRefusedTargetDecode` (`sh-lib/AgentsUniversalHarness.sh`, beside `AgentsHarnessFormalField`) is the exact inverse of the record escaper (`%`, newline, CR, edge whitespace), `%` last. There is no rule for records an older writer escaped in full: those were rewritten once, in place, on the machine that held them. The permission ask's Refused call block, the stored escalation record and any later forward to the human-owner all carry that natural text. `sh-test/AgentsRefusedTargetDecodeCheck.test.sh` checks this offline, 19 assertions, including a grants round trip of a target made of colon, comma, pipe, space and a literal `%3A`. Three single-line reverts each fail it: the decode call removed fails 3, the full escaper put back on the record writer fails 2, and the grants conversion removed fails 4.
