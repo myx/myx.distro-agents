@@ -81,7 +81,7 @@ This file itself stays thin: a rollup pointing into `board/`'s folders, not wher
 
 **Uncommitted repo state is never itself a blocking condition.** The rule:
 - Uncommitted repo changes are normal, active working state — never a reason to pause further iteration on the same epic. Work continues freely on uncommitted files, same as any other in-progress state.
-- Team data is committed by the tooling itself on every write, never held back. No member runs git. A source `git commit` (human-owner-only, per the standing rule in `magic-team/magic-team.armed.md`'s "Engineering & operating discipline" section) happens only once, as the actual final step, once the whole unit of work — the full epic, not one piece of it — is genuinely finished and ready, either to cleanly start a new epic or to release/ship this one.
+- No member runs git. A source `git commit` (human-owner-only, per the standing rule in `magic-team/magic-team.armed.md`'s "Engineering & operating discipline" section) happens only once, as the actual final step, once the whole unit of work — the full epic, not one piece of it — is genuinely finished and ready, either to cleanly start a new epic or to release/ship this one.
 - "Awaiting the human-owner's commit sign-off" is only a legitimate `board-blocked` reason once the referenced epic is actually, fully finished — every piece of work it needs is done and verified, with nothing left to build. If any real remaining work still exists, the item belongs in `board-running` (including mid-testing-round), not `board-blocked` — finish the work first, and only land in `board-blocked` once there's genuinely nothing left but the human's own keystroke.
 - This never blocks *other*, independent work either: another item that merely depends on the same uncommitted files/epic is not itself validly blocked just because that epic hasn't been committed yet. A real dependency is "the other epic's own content/design isn't finished yet," not "isn't committed yet."
 
@@ -93,7 +93,7 @@ This file itself stays thin: a rollup pointing into `board/`'s folders, not wher
 
 All four are equally valid; none is the "real" or "canonical" one. **Not the same as `board-parked`**: `board-blocked` keeps getting worked *at* even while it can't move; `board-parked` is the team consciously choosing to stop that active effort and just wait instead (see below).
 
-**Every `board-running`→`board-blocked` move carries an `execution-receipt`**, same "never a silent close-over" principle already stated for `magic-coordinator.advance.routine`'s own `board-running` continuation outcomes: the executing op (`--magic-board-to-blocked`, `--magic-grooming-to-blocked`) auto-stamps a default `blocked:<timestamp>` value itself unless the invoking routine's own call already supplied one via `--header:upsert:execution-receipt:*`/`--header:append:execution-receipt:*`, in which case that value stands. This is not a second writer — `magic-coordinator` remains the board's sole write authority throughout; what varies by call site is only how much evidence that one writer's own invocation happens to carry. Distinct from the four already-exhaustive continuation-outcome shapes (spawn-receipt-id, dispatch/session-id, `inline:<timestamp>`, `no-action:<reason-code>`) and from `board-pending`→`board-parked`'s own `<proxy-receipt-id-or-failure-marker>` shape — `blocked:<timestamp>` is its own shape, specific to this transition.
+**Every `board-running`→`board-blocked` move carries an `execution-receipt`**, same "never a silent close-over" principle already stated for `magic-coordinator.advance.routine`'s own `board-running` continuation outcomes. The calling step supplies one only where it holds more specific evidence than the move itself.
 
 - **`board-parked`**
   - **Blocked on a subtask, parked on a condition.** That is the distinction between the two states.
@@ -120,17 +120,17 @@ All four are equally valid; none is the "real" or "canonical" one. **Not the sam
 - **Ignored** items do not go to `board-processed` — removed from the board entirely instead, no resolution text, nothing else kept.
 - **`board-archived`** — terminal, with two distinct populations:
   - Items the team has decided are genuinely abandoned/cancelled for good, not just deferred — reached directly, if dropped outright at triage with no future intent, or from `board-parked`, once the team concludes the trigger condition it was waiting on is never coming.
-  - A `board-processed` item grooming judged worth permanent retention, marked `archive: true` (presence-only header, no `archive: false` — its absence is the ordinary default) — this diverts the item from GC's normal eventual-removal path to `board-archived` instead once its retention threshold fires.
+  - A `board-processed` item grooming judged worth permanent retention, marked `archive: true` (presence-only header, no `archive: false` — its absence is the ordinary default) — such an item is kept permanently, in `board-archived`.
   - Neither population is part of grooming's regular all-board scan.
 - **`board-retained`**
-  - Terminal-adjacent, passive holding state for an item that has otherwise concluded (would ordinarily proceed through `board-processed` toward GC) but is kept from being removed/`board-archived` because at least one other still-*live* board-item's `blocked-by` or `spawned-by` field points at it.
-  - This is a **structural** reason ("something else still needs this to resolve"), distinct from `board-archived`'s `archive: true` population, which is a **value judgment** about the item's own importance — `archive: true` is always checked first and always wins: an item carrying it goes straight to `board-archived` regardless of dependency status, so `board-retained` only ever catches what `archive: true` doesn't, never both at once.
+  - Terminal-adjacent, passive holding state for an item that has otherwise concluded but is kept from being removed/`board-archived` because at least one other still-*live* board-item's `blocked-by` or `spawned-by` field points at it.
+  - This is a **structural** reason ("something else still needs this to resolve"), distinct from `board-archived`'s `archive: true` population, which is a **value judgment** about the item's own importance.
   - No new frontmatter field for the still-depended-on check itself: that fact is never hand-set — it's derived fresh via lookup whenever it's actually checked, the same "no reciprocal stored, derive via lookup" property `blocks`/`spawns` already have on their own paired-field side (`magic-team.armed.md`). Scheduling a **`recheck-and-exit`** pass (below) reuses the existing `recheck-date` header instead of a new field name — it already fits `board-retained`'s own "when to next look" need the same way it fits `board-blocked`/`board-parked` (`magic-team.armed.md`'s frontmatter field list).
   - A qualifying `blocked-by`/`spawned-by` pointer must originate from an active state (`board-backlog`/`board-pending`/`board-running`/`board-blocked`/`board-parked`) or from `board-archived` itself — one from another `board-processed`/`board-retained` item, or from an already-removed item, never qualifies, which is what stops two mutually-dependent concluded items from retaining each other forever.
   - Reached either:
     - Directly — an item concludes and is immediately still depended-on (e.g. an assessed `inquiry-*` whose spawned children carry `spawned-by` pointing back at it, never passing through `board-processed` at all).
-    - From `board-processed` — the same periodic GC check that already looks for `archive: true` also finds it newly still depended-on.
-  - **`recheck-and-exit`**: grooming's own job, not automatic GC — a judgment call for the authority group (`magic-coordinator` + `magic-librarian` + `magic-architect`), `recheck-date`-scheduled rather than run unconditionally every pass. Still depended-on → stays, `recheck-date` renewed. No longer depended-on → exits into the normal `board-processed` GC flow (eligible for removal or `board-archived` per `archive: true`).
+    - From `board-processed` — moved by the tooling while still depended-on.
+  - **`recheck-and-exit`**: grooming's own job — a judgment call for the authority group (`magic-coordinator` + `magic-librarian` + `magic-architect`), `recheck-date`-scheduled rather than run unconditionally every pass. Still depended-on → stays, `recheck-date` renewed. No longer depended-on → moves back to `board-processed`.
   - **Why `blocked-by`/`spawned-by` specifically, not `supersedes`/`superseded-by`**: a qualifying pointer must be structurally load-bearing — something that genuinely can't resolve without this item still being here to point at (a child that depends on its parent still being resolvable, such as an `inquiry-*`'s spawned children; a blocked item's own blocker). `blocks`/`blocked-by` and `spawns`/`spawned-by` are hard-typed relations by construction (`magic-team.armed.md`'s frontmatter field list) — an incidental passing mention never lands in either field to begin with. `supersedes`/`superseded-by` describes a replacement, not a resolvability dependency, so it never qualifies here.
 
 **Resolving a Slack-originated `board-item` also closes the loop on its originating message.**
@@ -184,26 +184,9 @@ The same item's *own* ongoing back-and-forth (still-pending replies on the ident
 
 ## GC (garbage collection)
 
-`board-processed` items are retained then deleted — timing is **not uniform**, it varies by `board-item` type/size (a completed Project shouldn't be purged on the same clock as a resolved Note).
-
-**Per-type retention thresholds** — days in `board-processed` before GC removes an item from the board, subject to the `archive: true`/still-referenced diversions below:
-
-| `board-item` prefix | Days |
-|---|---|
-| default | 7 |
-| `warning-*` | 1 |
-| `reflection-*` | 1 |
-
-GC is not a standalone routine — it's folded into `magic-coordinator.heartbeat.routine`'s own sub-step:
-- Each run checks whether any `board-processed` items have passed their retention threshold and, if so, removes them from the board rather than deleting them directly (real deletion mechanics live outside this file — see `magic-coordinator.heartbeat.routine`'s own GC step).
-- Before removal, checked in this order:
-  1. An item carrying `archive: true` diverts to `board-archived` instead (see `board-archived`'s own entry above) — checked first, always wins.
-  2. Failing that, an item still depended on (via another live board-item's `blocked-by`/`spawned-by` field) diverts to `board-retained` instead (see `board-retained`'s own entry above).
-  - Both are diversions from the same default removal path; only one ever applies, `archive: true` taking precedence when both would otherwise fire.
-- **Not board-only**: the same GC sub-step covers every per-member `<member>/processed/` folder (each keeper's own converted log) the same way, on the same type-dependent-threshold/removal-or-archived mechanism — see `magic-coordinator.heartbeat.routine`'s own GC step for the generalized version.
-- **An inbox root is never scanned.** GC reaches `processed/` folders and nothing else. An item sitting in a member's own live inbox root carries no clock at all, whatever its age.
-- **The move into `processed/` is what starts the clock, so it is a disposal decision.** Moving an item there is one-way, and it is the act that condemns the item to the table above. Move an item whose content is still wanted and that content ages out on schedule; leave it in the inbox root and it keeps. Any member can cause this, so any member weighs it before moving.
-- **A GC removal is recoverable from git; a tooling call is not.** Removal is followed by a commit carrying the path, so the content stays reachable in history (reported, not measured — confirming it takes a git action). That is a recovery route for a human holding the repo, never grounds to treat a one-way call as reversible. No tooling reverses one. Which calls move an item, and which of those are one-way, is the acting member's own tooling section.
+The tooling removes items from `board-processed` and from every per-member `<member>/processed/` folder after a retention period. A `board-processed` item marked `archive: true` is kept in `board-archived` instead, and one still depended on is kept in `board-retained` (see both entries above). An item in a member's own live inbox root is never removed.
+- **The move into `processed/` is a disposal decision.** Moving an item there is one-way. Move an item whose content is still wanted and that content ages out; leave it in the inbox root and it keeps. Any member can cause this, so any member weighs it before moving.
+- **A one-way tooling call is not treated as reversible.** No tooling reverses one. Which calls move an item, and which of those are one-way, is the acting member's own tooling section.
 
 **Per-member `<member>/processed/` file shape** (each keeper's own converted log, same GC treatment as above but not board-items themselves — no `owner` field, no typed relation fields, this isn't the board's own `board-item` model):
 - One file per dated entry, named `<document-type>-<date>-<short-topic>.md`, with `<date>` in the naming **Rule** of `magic-team.armed.md`'s tooling section, `YYYYMMDD'T'HHmm'Z'` (e.g. `task-20260929T0930Z-short-matter.md`) — the prefix is one real, already-established document type, same vocabulary the board itself uses (see "Two independent dimensions" above: `task-`, `note-`, `proposal-`, `inquiry-`, `interview-`, etc.), picked per entry to fit what it actually is; never an invented word.

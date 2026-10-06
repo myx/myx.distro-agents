@@ -650,7 +650,23 @@ fi
 ## the id to stderr, which is the only "join" possible for it.
 DAGC_SESSION_ID_ARGS=()
 if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
-	if DagcCliIsLeg "$DAGC_CLI" || [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] || [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "copilot-native" ] ; then
+	## MDAT_SPAWN_RESUME: set by the spawn proxy's own one-shot handback-enforcement
+	## retry (AgentsToolsSpawnProxyHandbackWarn) to continue the SAME transcript
+	## rather than open a new one, so the model gets a real second turn instead
+	## of a session it has no memory of. Only claude/claude-native carry a real
+	## --resume; every other CLI refuses rather than silently starting a plain
+	## new session that would be reported as a resume and is not one.
+	if [ "${MDAT_SPAWN_RESUME:-false}" = "true" ] ; then
+		case "$DAGC_CLI" in
+			claude|claude-native)
+				DAGC_SESSION_ID_ARGS=( --resume "$MDAT_SPAWN_SESSION_ID" )
+			;;
+			*)
+				echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_RESUME is true but '$DAGC_CLI' has no --resume flag -- refusing rather than starting a session that would look resumed and is not one" >&2
+				exit 1
+			;;
+		esac
+	elif DagcCliIsLeg "$DAGC_CLI" || [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] || [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "copilot-native" ] ; then
 		DAGC_SESSION_ID_ARGS=( --session-id "$MDAT_SPAWN_SESSION_ID" )
 	else
 		echo "🙋 WARNING: DistroAgentsConsole: MDAT_SPAWN_SESSION_ID is set but '$DAGC_CLI' has no --session-id flag -- this spawn runs without it, and its dispatch record will not join the agent's own session" >&2

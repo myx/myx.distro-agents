@@ -8,11 +8,17 @@
 ## in .claude/settings.json -- one entry per matcher, each naming its own tool. That
 ## string is run by a shell, so the name reaches here as an ordinary argument.
 ##
-## Every reroute here is unconditional and payload-blind: the tool is denied whatever
-## arguments it was called with, so stdin is drained and never looked at. The drain is
-## there so the client does not see a broken pipe. The conditional, path-scoped Read
-## guard is deny-memory-md-read.sh, a separate script, because that one has to read the
-## payload and it has an allow path. NOTHING HERE ALLOWS ANYTHING.
+## Every reroute here is payload-blind: the tool is denied whatever arguments it was
+## called with, so stdin is drained and never looked at. The drain is there so the
+## client does not see a broken pipe. The conditional, path-scoped Read guard is
+## deny-memory-md-read.sh, a separate script, because that one has to read the payload
+## and it has an allow path.
+##
+## The one allow path here is the spawn markers below: our own spawned sessions --
+## this estate's managed fleet, on whatever backend CLI -- carry MDAT_SPAWN_SESSION_ID
+## or MDAT_SPAWN_AGENT. A genuine native-harness session, a human at this CLI's own
+## terminal with neither marker set, carries nothing of ours at all. The restriction
+## is for that second case only: a spawned session keeps its normal tools, unrerouted.
 ##
 ## A reroute names the MCP method to use instead. A refusal naming none sends the caller
 ## nowhere and it retries the same call.
@@ -27,6 +33,13 @@
 ## written to need neither.
 
 cat >/dev/null
+
+## Our own spawned session, any backend CLI: keep its normal tools, unrerouted.
+## Silence with a clean exit is the allow a *-native client reads, same as every
+## other allow path in this estate's hooks.
+if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || [ -n "${MDAT_SPAWN_AGENT:-}" ] ; then
+	exit 0
+fi
 
 ## The one document a PreToolUse hook answers with. $1 is the reason, and the reason is
 ## the only thing that differs between the tools below.

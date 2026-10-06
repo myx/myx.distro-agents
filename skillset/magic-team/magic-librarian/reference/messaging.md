@@ -29,7 +29,7 @@ reason this module exists as a separate layer.
 - Required permissions — the settled list, and how to re-derive it
   - The derivation method — this is the durable part
   - Endpoints actually called
-  - Required scopes — needed on BOTH identities
+  - Required scopes
   - The honesty bound — never separate it from the check
 - Reading list
 
@@ -211,19 +211,10 @@ Literal-URL form: `auth.test`, `chat.postMessage`, `conversations.info`, `conver
 Argument form: `chat.delete`, `chat.update`, `conversations.history`, `conversations.info`,
 `conversations.replies`, `files.info`, `reactions.add`, `search.messages`.
 
-`rtm.connect` is the exception to the list below: it is the presence path, it takes a user token only
-(a bot token answers `not_allowed_token_type`), and its scope `rtm:stream` is therefore required on
-the user identity alone.
+### Required scopes
 
-### Required scopes — needed on BOTH identities
-
-`chat:write`, `users:read`, `channels:read`, `channels:history`, `channels:join`, `groups:read`,
-`groups:history`, `im:read`, `im:history`, `im:write`, `mpim:read`, `mpim:history`, `mpim:write`,
-`reactions:read`, `reactions:write`, `files:read`
-
-Current gaps: **BOT** missing `mpim:history`, `mpim:write`; **USER** missing
-`channels:join`, `files:read`, `mpim:write`. **`mpim:write` is missing on both — no identity can open a
-group DM.**
+Each operation declares its own, and `--magic-heartbeat-config-check` reports them against both
+identities; the list and its current gaps are not restated here.
 
 Scopes are fixed at authorization, so granting one requires re-installing the app and storing the new
 token; adding a scope in a settings page does not change a token already issued.

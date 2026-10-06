@@ -145,12 +145,10 @@ conversion carries it across unchanged.]
   state; the escalation log is how it got there, and a level carries the escalation that produced it.
 - rule: **The log entry keeps the record on the contact; a digest tells the human-owner.** Every
   assessment this note takes part in — granted, denied or escalated — is written to him as a small
-  compact digest opening with the `client-`/`partner-` that received the request — carried in the `to`
-  position, as he has ruled — then who wanted what, then the resolution: auto approvals and denials to the
-  bot's own conversation with him, cases needing his ruling to his own Slack DM. A relay identifies whose
-  words it carries, so the sending account does not stand in for the origin. One event, filed in both
-  places.
-  See **non-owner-contact-tiers-and-escalation** for the routing.
+  compact digest opening with the `client-`/`partner-` that received the request, then who wanted what,
+  then the resolution. A relay identifies whose words it carries, so the sending account does not stand
+  in for the origin. One event, filed in both places.
+  See **non-owner-contact-tiers-and-escalation** for how the digest is sent.
 - rule: One contact appears in **one** identity's note per identity that reaches them. The same
   person reachable under both the user and the bot identity is two records, because what may be said
   can differ by the identity saying it.

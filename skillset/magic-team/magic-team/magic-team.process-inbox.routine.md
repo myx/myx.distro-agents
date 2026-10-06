@@ -1,5 +1,5 @@
 ---
-executors: any acting member (for its own inbox); magic-coordinator (for non-acting-owner content, board-formal-state writes, and the main-loop GC sub-step)
+executors: any acting member (for its own inbox); magic-coordinator (for non-acting-owner content and board-formal-state writes)
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-team.process-inbox.routine — the actual procedure
@@ -43,7 +43,6 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **read-and-classify**: a status/block report, a request/question, a routine handoff, a reflection, something else. Not an exhaustive list — classify by what it actually says.
 2. **act-lightweight**: reply, route to another member or to `magic-coordinator`, or resolve inline if it's genuinely simple/obvious and within this member's own duties. Needs a formal board change and this isn't `magic-coordinator` running the pass: route to `magic-coordinator` rather than attempting the write.
 3. **reply-on-cross-member-handoff**: a reply/route/handoff touching another member (including routing to `magic-coordinator`) sends an immediate reply to `slack-magic-team` via the `--member-comms-slack-send-message` operation — compact, who + what it relates to. `magic-coordinator` sends it even when it isn't the one who performed the underlying write. Self-writes to one's own inbox don't need one.
-4. **run-gc-in-heartbeat**: when `magic-coordinator` runs this for its own inbox as part of `magic-coordinator.heartbeat.routine`, run `magic-coordinator.heartbeat.routine`'s own GC sub-step — full mechanics live there, not restated here.
 
 **Not automatic just because a spawn happened**: a spawned session processes the executing member's own inbox only when its `.routine.md` Steps sequence contains an explicit `magic-team.process-inbox.routine <that member>` call — a real step each routine's own file is responsible for including, same as any acting member's duties include reading its mail. A routine whose own Steps never contain this explicit call gives no guarantee its executor's inbox is ever read, no matter how routine its invocation looks.
 
@@ -65,7 +64,7 @@ None currently defined.
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
 
-- Whichever member is named as the executor for a given call — any acting member for its own inbox, `magic-coordinator` for non-acting-owner content/board-formal-state writes/the main-loop GC sub-step — is permitted and obliged to execute every step exactly as written, in order.
+- Whichever member is named as the executor for a given call — any acting member for its own inbox, `magic-coordinator` for non-acting-owner content/board-formal-state writes — is permitted and obliged to execute every step exactly as written, in order.
 - Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
 - Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
 - Every acting member gets a personal inbox — created lazily, first use. Separate from the board (`magic-coordinator`'s own formal-state tool, not a mailbox).

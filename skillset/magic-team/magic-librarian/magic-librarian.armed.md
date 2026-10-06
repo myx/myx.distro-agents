@@ -349,7 +349,7 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 - `--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>`
 - `--librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]`
+- `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
 
 Note: `--librarian-list-team-files`/`-dates` (below) are this skill's dedicated replacement for raw `Bash`/`stat`/`find` when listing/verifying skill files — same optional scope args on both (zero or more: a bare path relative to the skill-root, or an absolute path resolving inside it; no args means the whole skill-root; a missing/outside-root arg is skipped and reported, not a hard abort).
 
@@ -361,19 +361,19 @@ Note: `--librarian-inbox-item-trash` (below) is inbox-sourced and does not rever
 
 ## `--librarian-list-team-files` Operation Reference
 
-`DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]` — read-only path listing of skill-folder files — no per-file stat call, so this stays fast even across the whole skill-root, where the `-dates` variant pays a stat per file. Default choice for existence/listing checks. Prints one skill-root-relative path per matched file, sorted alphabetically.
+`DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]` — read-only path listing of skill-folder files. Default choice for existence/listing checks. Prints one skill-root-relative path per matched file, sorted alphabetically.
 
 ## `--librarian-list-team-files-dates` Operation Reference
 
-`DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]` — same listing plus `mtime`, and slower for it: one stat call per file. Use only when mtimes are actually needed: mtime-before-editing checks, staleness sweeps. Prints one line per matched file: mtime (`YYYY-MM-DD HH:MM:SS`) then two spaces then the skill-root-relative path, sorted newest-first.
+`DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]` — same listing plus `mtime`. Use only when mtimes are actually needed: mtime-before-editing checks, staleness sweeps. Prints one line per matched file: mtime (`YYYY-MM-DD HH:MM:SS`) then two spaces then the skill-root-relative path, sorted newest-first.
 
 ## `--librarian-inbox-item-trash` Operation Reference
 
-`DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>` — deletes one of `<member>`'s inbox items, a live one or an already-processed one alike. `--from-inbox:` is colon-style, never a spaced `--from-inbox <member>` pair. `<member>` and `<item-filename>` must both be bare names, and `<item-filename>` must end in `.md`. Resolving the item's actual location is the operation's own concern — the caller never passes a path segment; the live inbox root is searched first, then that inbox's processed-items area, first match wins, so a basename held in both resolves to the live-root copy. Neither directory is ever created, and a miss in both errors naming both. **Nothing is kept — the item is deleted, and there is no restoring it.**
+`DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>` — deletes one of `<member>`'s inbox items, a live one or an already-processed one alike. `--from-inbox:` is colon-style, never a spaced `--from-inbox <member>` pair. `<member>` and `<item-filename>` must both be bare names, and `<item-filename>` must end in `.md`. The caller never passes a path segment. **Nothing is kept — the item is deleted, and there is no restoring it.**
 
 ## `--librarian-inbox-to-processed` Operation Reference
 
-`DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves one item out of `<team-member>`'s own live inbox root into that same inbox's processed-items area: the first step the sibling above already assumes has happened. Unlike it, there is no `--from-inbox:<member>` here — the source and the acting member are the same one positional, since the source is that member's own inbox root, not a cross-member processed-items item. `--from-state:`/`--from-inbox:` are both rejected outright if given. Same `<item-filename>` rules as its sibling, and `--header:*` and the three body-input modes behave as they do on the `--magic-board-to-*` family. Refuses rather than overwrites when that basename is already held, leaving the source in place, so a refused call is safe to fix and re-run. **ONE-WAY — treat every call as final.** The move also starts the item's GC retention clock — `magic-team/magic-team.board.md`'s own GC section holds the per-type thresholds — so this call is a disposal decision rather than filing. An inbox root is never scanned, so an item whose content is still wanted keeps where it is.
+`DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves one item out of `<team-member>`'s own live inbox root into that same inbox's processed-items area: the first step the sibling above already assumes has happened. Unlike it, there is no `--from-inbox:<member>` here — the source and the acting member are the same one positional, since the source is that member's own inbox root, not a cross-member processed-items item. `--from-state:`/`--from-inbox:` are both rejected outright if given. Same `<item-filename>` rules as its sibling, and `--header:*` and the three body-input modes behave as they do on the `--magic-board-to-*` family. Refuses rather than overwrites when that basename is already held, leaving the source in place, so a refused call is safe to fix and re-run. **ONE-WAY — treat every call as final.** This call is a disposal decision rather than filing (`magic-team/magic-team.board.md`'s own GC section), so an item whose content is still wanted keeps where it is.
 
 ## `--member-inbox-note-upsert` Operation Reference
 
@@ -381,7 +381,7 @@ Note: `--librarian-inbox-item-trash` (below) is inbox-sourced and does not rever
 
 ## `--member-append-session-transcript` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]` — appends exactly one canonical transcript-entry block (`<speaker-name> (<timestamp>): followed by quoted message lines`) to the team's shared audit tree. Missing target transcript is an error unless `--create` is passed. Payload must be provided by exactly one source among `--message`, `--from-stdin`, or `--from-file <path>`.
+`DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]` — appends one entry to the named transcript. Missing target transcript is an error unless `--create` is passed. Payload must be provided by exactly one source among `--message`, `--from-stdin`, or `--from-file <path>`.
 
 # Maintainer Notes
 

@@ -374,15 +374,15 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-advance-state-and-lock-upsert` operation reference
 
-`DistroAgentsTools.fn.sh --magic-advance-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]` — writes this routine's own `state-and-lock` note: the pass's session tracking content. Body content via `--from-file` or `--edit-patch-from-stdin`. Every call stamps `state: advance-running` and renews `recheck-date` itself — the caller never supplies `recheck-date`, and never names the note.
+`DistroAgentsTools.fn.sh --magic-advance-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]` — writes this routine's own `state-and-lock` note: the pass's session tracking content. Body content via `--from-file` or `--edit-patch-from-stdin`.
 
 ## `--magic-advance-to-parked` operation reference
 
-`DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-parked` in one call, and/or patches its frontmatter. It stamps nothing: the calling step supplies `condition`/`handoff-action`/`recheck-date`/`execution-receipt` itself via `--header:*`.
+`DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-parked` in one call, and/or patches its frontmatter. The calling step supplies `condition`/`handoff-action`/`recheck-date`/`execution-receipt` itself via `--header:*`.
 
 ## `--magic-advance-to-running` operation reference
 
-`DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board/running/` in one call, auto-stamping `started-at` (date-time). `--from-state:<state>` is required. `--header:*`/`--upsert-from-stdin`/`--edit-script-from-stdin`/`--edit-patch-from-stdin` pass straight through for whatever else the move also needs.
+`DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-running` in one call. `--from-state:<state>` is required. `--header:*`/`--upsert-from-stdin`/`--edit-script-from-stdin`/`--edit-patch-from-stdin` pass straight through for whatever else the move also needs.
 
 ## `--magic-heartbeat-state-upsert` operation reference
 

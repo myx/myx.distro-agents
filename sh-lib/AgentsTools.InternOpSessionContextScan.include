@@ -490,6 +490,11 @@ case "$1" in
 				local slackSourceSpecs=()
 				local slackOwnCredentials="true"
 				local slackRosterIdentityArg="--identity both"
+				local slackRosterTypesArg=()
+				## Declared here, not only inside the branch below, so the CONV-loop's
+				## own de-dup check further down always has a defined (if empty) value
+				## to compare against, team-scope included.
+				local configuredSources=""
 				if [ "$commsMemberScopeOnly" = "true" ] ; then
 					## Presence only -- reduced to a boolean on the next lines and
 					## dropped. No credential is compared, stored or printed.
@@ -505,8 +510,16 @@ case "$1" in
 					## -- a different workspace entirely -- which is exactly what the
 					## partial note below has always refused to do.
 					slackRosterIdentityArg="--identity user"
+					## Channels get the same live-enumeration DMs already have below --
+					## a client-* member added to a new channel in Slack must not stay
+					## invisible to this scan until SLACK_CONVERSATIONS is hand-edited to
+					## name it too. This widens the roster call's own --types alongside
+					## the existing im,mpim; the CONV loop below skips whatever
+					## SLACK_CONVERSATIONS already names, so one conversation is never
+					## read twice.
+					slackRosterTypesArg=( --types im,mpim,public_channel,private_channel )
 
-					local configuredSources="" configuredSource
+					local configuredSource
 					configuredSources="$( DistroAgentsTools --member-config-option "$actingMember" --select SLACK_CONVERSATIONS )" || configuredSources=""
 					for configuredSource in ${configuredSources//,/ } ; do
 						slackSourceSpecs+=( "user|$configuredSource|$configuredSource|" )
@@ -552,7 +565,8 @@ case "$1" in
 				## and nothing there may be turned into a DM scope test.)
 				local dmRosterOutput="" dmRosterRc=0
 				if [ "$slackOwnCredentials" = "true" ] ; then
-					dmRosterOutput="$( DistroAgentsTools --magic-comms-slack-conversations-roster "$actingMember" $slackRosterIdentityArg )" || dmRosterRc=$?
+					dmRosterOutput="$( DistroAgentsTools --magic-comms-slack-conversations-roster "$actingMember" $slackRosterIdentityArg \
+						"${slackRosterTypesArg[@]+"${slackRosterTypesArg[@]}"}" )" || dmRosterRc=$?
 				else
 					dmRosterRc=4
 				fi
@@ -620,6 +634,13 @@ case "$1" in
 					rosterHandle="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|handle=\([^|]*\)|.*/\1/p' )"
 					[ -n "$rosterConv" ] && [ -n "$rosterAuth" ] || continue
 					if [ -n "$humanOwnerParty" ] && [ "$rosterParty" = "$humanOwnerParty" ] ; then continue ; fi
+					## A channel already named in SLACK_CONVERSATIONS is read once, not
+					## twice -- the static list above and this live roster can now name
+					## the same channel, and a duplicate source would double its read,
+					## its count and its blocks in the document.
+					case ",$configuredSources," in
+						*",$rosterConv,"*) continue ;;
+					esac
 					## An unresolved handle keeps the party id rather than an empty
 					## name: a group heading has to identify SOMEONE.
 					[ "$rosterHandle" != "-" ] && [ -n "$rosterHandle" ] || rosterHandle="$rosterParty"
@@ -865,9 +886,23 @@ case "$1" in
 					printf 'read\n' > "$sourcePrefetchDir/state.$1"
 					return 0
 				}
+				## Default 8, overridable -- the roster now enumerates every channel a
+				## client-* member belongs to (not DMs alone), so a member with many
+				## channel memberships has far more than a handful of sources here.
+				## `Parallel`'s own bare default is 4 (parallel.Common), which was sized
+				## for the DM-only roster this loop used to read; left unset against a
+				## source count in the hundreds, a full pass takes long enough that a
+				## caller with any real timeout never sees it finish. Same overridable
+				## shape as `ENV_MAGIC_SWEEP_THREAD_WORKERS` below, one dial per fan-out.
+				local sourceFetchWorkers="${ENV_MAGIC_SWEEP_SOURCE_WORKERS:-8}"
+				case "$sourceFetchWorkers" in
+					*[!0123456789]*|''|0)
+						sourceFetchWorkers=8
+					;;
+				esac
 				if [ ${#slackSourceSpecs[@]} -gt 0 ] ; then
 					( type Parallel > /dev/null 2>&1 || . "$MYXROOT/bin/lib/parallel.Common" || exit 1
-						Parallel AgentsSessionContextSourceFetchOne ) < <( seq 0 $(( ${#slackSourceSpecs[@]} - 1 )) ) \
+						Parallel --workers "$sourceFetchWorkers" AgentsSessionContextSourceFetchOne ) < <( seq 0 $(( ${#slackSourceSpecs[@]} - 1 )) ) \
 						|| echo "$MDSC_CMD: session-context-scan: ⚠️ WARNING: the concurrent source reads did not all report; each one missing is stated below" >&2
 				fi
 

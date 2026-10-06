@@ -170,7 +170,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --make-agents-indices" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-script" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-space-list <team-member> [--cursor <value>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-contact-digest-send <team-member> (--resolved|--needs-ruling) <text...>" >&2

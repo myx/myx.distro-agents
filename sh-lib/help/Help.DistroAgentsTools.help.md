@@ -93,7 +93,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
+📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-trash <member> <item-filename>
 📘 syntax: DistroAgentsTools.fn.sh --member-audit-item-read <team-member> <document-name> [--start-line <N> --end-line <N>]
@@ -1718,15 +1718,15 @@
 			enforced. The old name `--member-upsert-inbox-reflection`
 			still works as an alias.
 
-		--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> --workspace-root <path> [--create]
+		--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]
 			Appends one canonical transcript-entry block: `<speaker-name>
 			(<timestamp>):` followed by quoted message lines, to the
 			team's shared audit tree (not a board state folder). The
 			month bucket it lands in comes from the date embedded in
-			`<transcript-file-name>` (`transcript-YYYY-MM-DD-*`), falling
-			back to the current UTC year-month otherwise.
+			`<transcript-file-name>` (`transcript-YYYY-MM-DD-*` or
+			`transcript-YYYYMMDDTHHmmZ-*`), falling back to the current
+			UTC year-month otherwise.
 			`<team-member>` must already be a real team member.
-			`--workspace-root` must be an absolute, existing directory.
 			Does not rewrite prior content. Missing target transcript is
 			an error unless `--create` is passed. Payload from exactly
 			one of `--message`, `--from-stdin`, or `--from-file <path>`
@@ -2654,10 +2654,14 @@
 			EMAIL_APP_PASSWORD, TRELLO_KEY, TRELLO_TOKEN.
 			TEAM_DATA_DIRECTORY is optional and never SKIP: unset
 			reads OK, naming the workspace's own default. Required:
-			the four SLACK_CHANNEL_* keys -- any missing prints a fix
-			command and returns 1. The rest (plus SLACK_BOT_TOKEN,
-			TEAM_DATA_GIT_REMOTE) are optional -- unset reads SKIP,
-			prints its own fix command, never affects the exit code.
+			SLACK_CHANNEL_MAGIC_TEAM, SLACK_CHANNEL_HUMAN_OWNER,
+			SPAWN_CLI_SERVICE, and at least one Slack token
+			(SLACK_TOKEN line: magic-coordinator's SLACK_USER_TOKEN or
+			SLACK_BOT_TOKEN, or magic-team's SLACK_BOT_TOKEN) -- any
+			missing prints a fix and returns 1. The rest (plus
+			SLACK_BOT_TOKEN, TEAM_DATA_GIT_REMOTE) are optional --
+			unset reads SKIP, prints its own fix command, never
+			affects the exit code.
 			For credential-bearing keys (EMAIL_APP_PASSWORD,
 			TRELLO_KEY, TRELLO_TOKEN, SLACK_BOT_TOKEN) that fix
 			command is the `--upsert-from-stdin` form, so a secret
@@ -3271,7 +3275,7 @@
 		`DistroAgentsTools.fn.sh --member-inbox-note-upsert keeper-myx 2026-07-22-note-example.md --from-file /path/to/note.md`
 
 		# Append one session transcript entry (one call = one entry block)
-		`DistroAgentsTools.fn.sh --member-append-session-transcript magic-coordinator --speaker human-owner --timestamp 2026-07-26T12:34:56Z --message "Approved. Proceed." --transcript-name transcript-2026-07-26-example.md --workspace-root /path/to/workspace --create`
+		`DistroAgentsTools.fn.sh --member-append-session-transcript magic-coordinator --speaker human-owner --timestamp 2026-07-26T12:34:56Z --message "Approved. Proceed." --transcript-name transcript-2026-07-26-example.md --create`
 
 		# Read a transcript audit document by filename (no raw path argument)
 		`DistroAgentsTools.fn.sh --member-audit-item-read magic-coordinator transcript-2026-07-26-example.md`

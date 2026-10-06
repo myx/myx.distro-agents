@@ -705,13 +705,13 @@ Every confirmation this section asks for comes through the chain of command: ses
     **Every assessment is reported, whatever it produced** — granted, denied or escalated alike, as one
     small compact digest carrying three things in this order: **the originating member or `client-*` it
     came from, who wanted what, and the resolution.** His own shape for it:
-    `from client-<organisation> the user <name> asked for <what> - was denied.` The origin goes in the
-    digest's `to` position, as he has ruled. It appears at all because **a relay identifies whose words it
-    carries**: a digest reports a contact's request rather than the sending account's own speech, so what
-    he needs at a glance is which `client-*` or `partner-*` received it.
-    Routing: **resolved by me → bot DM, needs you → Slack DM.** Auto approvals and auto denials, anything
-    settled under tiers 1-2 or an already-recorded level, go informational to the bot's own conversation
-    with him; anything needing his ruling goes to his own Slack DM, because that is where he replies.
+    `from client-<organisation> the user <name> asked for <what> - was denied.` The origin appears
+    because **a relay identifies whose words it carries**: a digest reports a contact's request rather than
+    the sending account's own speech, so what he needs at a glance is which `client-*` or `partner-*`
+    received it.
+    Send it with `--member-contact-digest-send` (`--magic-contact-digest-send` for another identity's
+    correspondence), marked `--resolved` for auto approvals and auto denials, anything settled under tiers
+    1-2 or an already-recorded level, and `--needs-ruling` for anything needing his ruling.
     The two records serve two readers: the digest tells the human-owner, the note's `### Escalations`
     entry keeps the record on the contact.
     verbatim-intent: `ingest is unconditional, basic exchange needs no record, and a recorded level gates

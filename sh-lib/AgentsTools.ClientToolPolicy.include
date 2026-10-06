@@ -33,12 +33,17 @@ AgentsToolsClientToolPolicyClaudeAllowJson(){
 }
 
 ## The fixed permissions.deny additions, one JSON array.
-## Bash: removed outright. Shell commands still run through mcp__myx_distro__execute, its
-## mcp__myx_distro__Monitor twin, myx.common's lib_execShStdin, and the native Monitor tool,
-## which is neither denied nor rerouted. Native Slack MCP tool, hard-blocked -- separate path from the
-## team's own sanctioned --member-comms-slack-* ops, which this cannot reach.
+## Bash is deliberately NOT here: a static permissions.deny entry cannot be made
+## conditional on the spawn markers, so it would block Bash outright for our own
+## spawned sessions too, with no escape. The hooks.PreToolUse entry for Bash already
+## denies-with-reroute for a genuine native-harness session and allows a spawned one
+## through -- see deny-native-tool-reroute.sh. Shell commands still run through
+## mcp__myx_distro__execute, its mcp__myx_distro__Monitor twin, myx.common's
+## lib_execShStdin, and the native Monitor tool, which is neither denied nor rerouted.
+## Native Slack MCP tool, hard-blocked -- separate path from the team's own sanctioned
+## --member-comms-slack-* ops, which this cannot reach.
 AgentsToolsClientToolPolicyClaudeDenyJson(){
-	printf '%s\n' '["Bash", "mcp__claude_ai_Slack"]'
+	printf '%s\n' '["mcp__claude_ai_Slack"]'
 }
 
 ## The enabledMcpjsonServers entries, one JSON array.

@@ -98,11 +98,34 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 ## idiom AgentsToolsSpawnProxyEventTrackClose already uses above. Silent when there is no
 ## session thread, or no output file to check: a spawn with nowhere captured is not reported
 ## wrongly as silent.
-##   $1 = session thread, $2 = member, $3 = output file
+##   $1 = session thread, $2 = member, $3 = output file, $4 = workspace to retry the spawn in
 AgentsToolsSpawnProxyHandbackWarn(){
-	local warnThread="$1" warnMember="$2" warnLog="$3"
+	local warnThread="$1" warnMember="$2" warnLog="$3" warnWorkspace="$4"
 	[ -n "$warnThread" ] && [ -n "$warnLog" ] && [ -f "$warnLog" ] || return 0
 	LC_ALL=C grep -qE '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$warnLog" 2>/dev/null && return 0
+	## One bounded retry, mechanical rather than a reminder: the run ended
+	## without calling SubagentHandback, so it is resumed once, in its own
+	## transcript, and told to call it now. No `timeout`/`gtimeout` dependency --
+	## this package is not guaranteed one on Darwin -- so the bound is the same
+	## background-sleep-then-kill idiom this file's own --wait branch already
+	## uses. MDAT_SPAWN_RESUME on a CLI with no real --resume refuses itself in
+	## the console (AgentsConsoleShellScript.template.sh), so a resume that
+	## cannot really happen is never silently reported as one.
+	if [ -n "$warnWorkspace" ] && [ -x "$warnWorkspace/DistroAgentsConsole.sh" ] ; then
+		local warnRetryPid warnWatchPid
+		( MDAT_SPAWN_RESUME=true "$warnWorkspace/DistroAgentsConsole.sh" --cli-configured --non-interactive \
+			<<< "$( printf '%s\n%s\n%s\n' \
+				"Your previous run on this task ended without calling SubagentHandback." \
+				"Call SubagentHandback now with your outcome so far." \
+				"Do not do new work first." )" >> "$warnLog" 2>&1 ) &
+		warnRetryPid=$!
+		( sleep 180 ; kill -TERM "$warnRetryPid" 2>/dev/null ; sleep 5 ; kill -KILL "$warnRetryPid" 2>/dev/null ) &
+		warnWatchPid=$!
+		wait "$warnRetryPid" 2>/dev/null || :
+		kill "$warnWatchPid" 2>/dev/null || :
+		wait "$warnWatchPid" 2>/dev/null || :
+		LC_ALL=C grep -qE '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$warnLog" 2>/dev/null && return 0
+	fi
 	printf '⚠️ %s ended without a posted handback -- no SubagentHandback call seen in its output.\n' "$warnMember" \
 	  | DistroAgentsTools --member-comms-slack-send-message "$warnMember" "$warnThread" --identity-bot --from-stdin 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: handback-missing notice not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
@@ -128,12 +151,21 @@ AgentsToolsSpawnProxyOpenQuestionWarn(){
 }
 
 ## Batched per-operation lines to the event-track thread, for the length of a
-## --wait spawn. Polls the growing OUTPUT_FILE for lines starting "-> tool: "
-## -- the marker AgentsClaudeStreamJsonFormat.awk already prints for every real
-## tool call -- and posts whatever is new as one Slack message per interval.
-## Silent when no thread was opened. The caller kills this once the child
-## exits, so it never outlives the spawn it reports on, and never posts the
-## same line twice because lastLineCount only moves forward.
+## --wait spawn. Polls the growing OUTPUT_FILE for a real tool call, in
+## whichever of this package's two progress-line shapes the spawn's own
+## console actually wrote: the vendor CLI's JSON-stream shape ("  -> tool: "/
+## "  <- tool result", from AgentsClaudeStreamJsonFormat.awk, DAGC_CLI
+## claude-native/copilot-native/etc.) or this package's own harness-leg shape
+## (three leading spaces, then a tool icon, from AgentsHarnessAnnounceTool in
+## AgentsUniversalHarness.sh, DAGC_CLI claude/scaleway/grok/...). The two never
+## mix in one log: one spawn runs on exactly one console. The harness-leg
+## shape's own "thinking" line (same three-space lead, icon 🧠) is excluded --
+## it is model narration, not a tool call, and the vendor shape excludes its
+## own "thinking: " lines the same way already. Posts whatever is new as one
+## Slack message per interval. Silent when no thread was opened. The caller
+## kills this once the child exits, so it never outlives the spawn it reports
+## on, and never posts the same line twice because lastLineCount only moves
+## forward.
 AgentsToolsSpawnProxyEventTrackBatch(){ ## thread, member, output file
 	local batchThread="$1" batchMember="$2" batchLog="$3"
 	local batchIntervalSeconds=20 lastLineCount=0 totalLineCount newLines
@@ -146,7 +178,17 @@ AgentsToolsSpawnProxyEventTrackBatch(){ ## thread, member, output file
 		totalLineCount="$( LC_ALL=C awk 'END{ print NR + 0 }' "$batchLog" 2>/dev/null )"
 		[ -n "$totalLineCount" ] || totalLineCount=0
 		[ "$totalLineCount" -gt "$lastLineCount" ] || continue
-		newLines="$( LC_ALL=C awk -v fromLine="$(( lastLineCount + 1 ))" 'NR >= fromLine && ( index( $0, "  -> tool: " ) == 1 || index( $0, "  <- tool result" ) == 1 )' "$batchLog" )"
+		## Every line break here falls right after a binary operator and right
+		## before a real token -- never right after "(" and never right before
+		## ")" on its own line. One-true-awk 20200816 (this fleet's floor, per
+		## reference/shell.md) hard-fails to parse either of those two shapes,
+		## confirmed by running this exact program against a sample log.
+		newLines="$( LC_ALL=C awk -v fromLine="$(( lastLineCount + 1 ))" '
+			NR >= fromLine && ( index( $0, "  -> tool: " ) == 1 ||
+				index( $0, "  <- tool result" ) == 1 ||
+				( substr( $0, 1, 3 ) == "   " && substr( $0, 4, 1 ) != " " &&
+				  substr( $0, 4, 4 ) != "🧠" ) )
+		' "$batchLog" )"
 		lastLineCount="$totalLineCount"
 		[ -n "$newLines" ] || continue
 		printf '%s\n' "$newLines" | DistroAgentsTools --member-comms-slack-send-message "$batchMember" "$batchThread" --identity-bot --from-stdin > /dev/null 2>&1 || :
@@ -1072,7 +1114,7 @@ case "$1" in
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$spawnOutcome" "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" "$timedOut" "$waitTimeoutSeconds"
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$spawnOutcome" "$exitCode"
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile"
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace"
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running review
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
@@ -1146,7 +1188,7 @@ case "$1" in
 			bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode"
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile"
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace"
 			local spawnCollected=""
 			spawnCollected="$( DistroAgentsTools --intern-op-pending-reply-collect --session-id "$MDAT_SPAWN_SESSION_ID" --mark-ended \
 				--context --intern-op-agent-spawn-proxy 2>/dev/null )" || spawnCollected=""

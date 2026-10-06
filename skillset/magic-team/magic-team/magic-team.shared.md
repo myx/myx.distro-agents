@@ -342,9 +342,9 @@ Contract: `magic-team/templates/keeper-warden.contract.format.md`'s own `# Contr
 
 Contract: `magic-team/templates/partner-client.contract.format.md`'s own `# Contract`.
 
-Comms-sweep for any `client-*` member reads via `--client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]`. It is generic across every `client-*` member, per-member-credentialed, and client-only. A `partner-*` member is not accepted. The member name and the optional cut-off are its only arguments. It reads every baseline source that member holds credentials for. An item name is not a parameter to it.
+Comms-sweep for any `client-*` member reads via `--client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]`. It is generic across every `client-*` member, and client-only. A `partner-*` member is not accepted. The member name and the optional cut-off are its only arguments. It reads every baseline source that member holds credentials for. An item name is not a parameter to it.
 
-`magic-coordinator.communication-sweep.routine` is the wrapper around it. That routine's own pass reads every `client-*` member, alongside the executor's own team-scoped sources, under each member's own credentials.
+`magic-coordinator.communication-sweep.routine` is the wrapper around it. That routine's own pass reads every `client-*` member, alongside the executor's own team-scoped sources.
 
 ### Oncall / Expert (`oncall-*`/`expert-*`)
 
@@ -365,8 +365,8 @@ What a session reading it relies on:
 - Three distinct `**NOTE:**` forms, never interchangeable: *no new X* (looked, found nothing), *not requested* (nobody asked and nobody declined, so nothing looked) and *no scan was made* (asked, could not look). That distinction is the document's own reason to exist: an empty result, an unstated request and an unperformed scan must never read alike.
 - **`**NOTE:** not requested` reports the request, never the tree.** It says the run stated nothing about that section — neither asking for it nor excluding it — so a reader takes it as an incomplete request and never as an absence of content.
 - The aggregate `no new incoming communications` fires only when every requested comms sub-section is **empty and successfully scanned**. An unscannable sub-section is unknown, not empty, and blocks it.
-- **The wider inbox breadth is live plus not-yet-collected `processed/`, never complete history.** `processed/` is garbage-collected on a retention threshold that varies by document type, so what it still holds when the document is generated is what that section reports. A reader must not treat it as an archive.
-- **Handled means moved, never edited in place**. The sort key is modification time. Any write that leaves an item where it is makes it the newest item in the inbox — an in-place edit, a header change. Such a write buries it behind the far edge, beyond the cap's reach. Draining does not reorder the live root. The drained item leaves the root rather than moving within it. The processed copy carries the drain time. A scope reading `processed/` too therefore sorts recently drained items to the newest edge, the end an oldest-first cap cuts first.
+- **The wider inbox breadth is live plus not-yet-collected `processed/`, never complete history.** A reader must not treat it as an archive.
+- **Handled means moved, never edited in place**. Any write that leaves an item where it is makes it the newest item in the inbox — an in-place edit, a header change. Such a write buries it behind the far edge, beyond the cap's reach.
 
 
 

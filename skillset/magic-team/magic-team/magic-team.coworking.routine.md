@@ -102,8 +102,6 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **conclude-session-thread**: conclude the session's own `slack-magic-team` thread — every session, both types, conditional on a live thread actually existing.
      - react `:white_check_mark:` on that thread's root message (the same `session_thread_ts` **post-closing-broadcast** posted into) via the `--member-comms-slack-react` operation — same "black tick on completion" pattern `magic-coordinator.heartbeat.routine`'s own closure already uses for its `slack-event-track` thread
      - no live thread for this session (none handed over, and none opened at **post-opening-broadcast**) → skip, no error
-     - already reacted (`already_reacted`) → harmless no-op, not a failure
-
 # Routine's local procedures
 
 Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.

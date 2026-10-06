@@ -54,7 +54,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    Log files (a keeper's own `processed/` entries, board Items, inbox items) are exempt — their whole point is being a dated record. The `heartbeat-state-note` is NOT exempt — it holds current, standing state rather than a closed dated record, so it takes the same current-state-not-changelog treatment as any other rule-bearing file: strictly structured, overwritten-in-place fields, no narrative trail. Full statement of this standard: `magic-librarian`'s own "Skill-folder content hygiene" content.
 5. **recheck-blocked-and-parked**: re-check `blocked/` and `parked/` items specifically for whether their condition has changed — per the board's own definitions, this doesn't have to happen at every grooming pass, but this session is a good light-touch moment for it.
 6. **check-cross-file-consistency**: not just in-file cleanup — a status claim in one file against the actual current content of another. Budget explicit attention for this, not just a same-file dedupe pass.
-7. **flag-gc-candidates**: GC-adjacent, but not GC itself — `board-processed` retention/GC is folded into `magic-coordinator.heartbeat.routine`'s post-sweep inbox-processing sub-step, not this session's job. This session can flag a `processed/` item that looks like it should already be gone, but doesn't do the deletion itself.
+7. **flag-gc-candidates**: GC-adjacent, but not GC itself — removal from `processed/` is the tooling's, not this session's job. This session can flag a `processed/` item that looks like it should already be gone, but doesn't do the deletion itself.
 
 # Closure steps
 

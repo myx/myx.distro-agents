@@ -94,16 +94,6 @@ Exact instructions. Execute in order, every step, literally as written — not l
        - Items owned by a non-acting owner (human-owner, external contacts): run `magic-coordinator.external-inbox-handle-loop.routine` — their content lives inside `magic-coordinator`'s own inbox too, since they have no skill folder of their own.
        - Items owned by an acting member: leave for the next `magic-coordinator.daily.routine`/`magic-team.grooming.routine` pass to fold into that member's properly-registered assignment, unless there's a specific reason to invoke `magic-team.process-inbox.routine` standalone for that member right now.
          - **Automatic nudge**: content that looks stale (age-based, same light check this sub-step already does across acting members' inboxes) gets a `warning-*` board-item in `board-blocked` instead of silently waiting — `recheck-date` set to today, `condition: <member> hasn't processed inbox item <item-filename> yet`, referencing the stale item. Already one open for this item: refresh `recheck-date` only, don't duplicate.
-       - **GC**, generalized across every `processed/` folder in the tree, not just the board's own, same pass:
-         - Check whether any `board-processed` item, has passed its (type-dependent) retention threshold.
-         - If so, remove it — not a direct delete, `rm` needs explicit permission granted separately by the human-owner — except, checked in this order:
-           1. `archive: true` on the item diverts it to `archived/` instead (see the board's own `archived/` entry) — checked first, always wins. **`board-processed` items only** — a per-member `<member>/processed/` log entry ignores the marker entirely and ages out on the ordinary retention table whatever its frontmatter says.
-           2. Failing that, **`board-processed` items only** — a per-member log entry carries no typed relation field at all (the board's own "Per-member `<member>/processed/` file shape" note: no `owner` field, no typed relation fields, this isn't the board's own `board-item` model — so this check never fires for one): an item still depended on via another live board-item's `blocked-by`/`spawned-by` field diverts it to `board-retained` instead (see the board's own `retained/` entry). A qualifying `blocked-by`/`spawned-by` pointer:
-              - originates from an active state (`board-backlog`/`board-pending`/`board-running`/`board-blocked`/`board-parked`) or from `board-archived` itself — one from another `board-processed`/`board-retained` item, or from an already-removed item, never qualifies, which is what stops two mutually-dependent concluded items from retaining each other forever.
-              - is also structurally load-bearing by construction — `blocks`/`blocked-by` and `spawns`/`spawned-by` are hard-typed relations, never an incidental passing mention (see the board's own `retained/` entry for why `supersedes`/`superseded-by` doesn't qualify here).
-         - `archived/` and `retained/` are diversions from the default removal path; only one ever applies, `archive: true` taking precedence when both would otherwise fire.
-         - For `board-processed` items specifically, removal means calling the `--magic-heartbeat-board-item-trash` operation. Per-member `<member>/processed/` log entries aren't board-items and have no tooling op yet backing their own removal — flagged as a real gap, not silently invented a mechanism for here.
-         - GC is not a separate routine, it's folded in here — this generalization is what makes every member's own `processed/` folder a maintained, bounded log rather than an ever-growing pile with no external steward.
      - **Test email report** (hourly cadence, testing only): a conditional, date/context-based step, not a separate routine — happens after the Comms step above, not every `next-iteration`.
        - This is the still-undesigned evening day-wrap-up email report, run **hourly instead of once-daily purely for closer testing convenience** — a literal frequency change, not a timescale/ratio compression of the eventual real cadence.
        - Two intended cadences exist in the eventual design (hourly-during-the-day, and one evening wrap-up), neither fully specified yet — this step exists only to exercise the send mechanism while real cadence/content design waits on the human-owner seeing real hourly test reports in practice.
@@ -301,7 +291,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 - `--magic-heartbeat-lock-status <team-member>` (check lock state before starting a new run)
 - `--magic-heartbeat-state-read <team-member>` (**read-state-and-branch**: read the `heartbeat-state-note`)
 - `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (**use-direct-tooling-calls** and **run-one-bounded-substep**: rewrite the `heartbeat-state-note`)
-- `--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` (GC step: relocate a terminal board-item to `trash/`)
+- `--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` (relocate a terminal board-item to `trash/`)
 - `--magic-heartbeat-spawn-proxy <team-member> [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]` (spawn relay used by unattended heartbeat/advance execution paths)
 
 ## `--member-comms-slack-send-message` operation reference
@@ -310,15 +300,15 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--member-comms-email-send` operation reference
 
-`DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (also `-- --from-stdin` or `-- --from-file <path>`) — real, standalone SMTP send. `<team-member>` comes first and is required: it is the acting identity, and the credentials the send authenticates with are that member's own, strictly — never another member's, and never a fallback to one. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; body is everything after. Exactly one body source required. This routine's own **Test email report** sub-step uses it to send the hourly test email report.
+`DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (also `-- --from-stdin` or `-- --from-file <path>`) — real, standalone SMTP send. `<team-member>` comes first and is required: it is the acting identity. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; body is everything after. Exactly one body source required. This routine's own **Test email report** sub-step uses it to send the hourly test email report.
 
 ## `--member-comms-slack-react` operation reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]` — posts one Slack reaction to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut, since a reaction always targets one exact message, not a channel. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). An `already_reacted` error is treated as a harmless no-op, not a failure. `<team-member>` is the acting identity — the reaction is posted BY that member. This routine's own Closure-steps usage: resolve `event-track`'s real `<channel>` id first (no alias shortcut here), then `magic-coordinator <channel>:<thread-ts> white_check_mark`.
+`DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]` — posts one Slack reaction to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut, since a reaction always targets one exact message, not a channel. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). `<team-member>` is the acting identity — the reaction is posted BY that member. This routine's own Closure-steps usage: resolve `event-track`'s real `<channel>` id first (no alias shortcut here), then `magic-coordinator <channel>:<thread-ts> white_check_mark`.
 
 ## `--magic-heartbeat-config-check` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-config-check` — takes no arguments. Checks magic-coordinator's own config, plus magic-team's for `SLACK_BOT_TOKEN` and the four `SLACK_CHANNEL_*` keys, the team's own credential and channels rather than any one member's. Prints one `<KEY>: OK`/`<KEY>: FAIL` line per key (name only, never the value) for `TEAM_DATA_DIRECTORY`, `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_EVENT_TRACK`, `SLACK_CHANNEL_EVENT_ALERT`, `SLACK_CHANNEL_MAGIC_TEAM`, `SLACK_CHANNEL_HUMAN_OWNER`, `EMAIL_IMAP_HOST`, `EMAIL_USER`, `EMAIL_APP_PASSWORD`, `TRELLO_KEY`, `TRELLO_TOKEN`, `TEAM_DATA_GIT_REMOTE`, each FAIL with its own exact fix command. The four `SLACK_CHANNEL_*` keys gate the exit code (1 if any is missing). `TEAM_DATA_DIRECTORY` never gates: unset, it reads OK and names the workspace's own `.local/agents/team-data-root` it defaults to. The rest — `SLACK_BOT_TOKEN`, `TEAM_DATA_GIT_REMOTE`, and the email/Trello keys — are informational; a FAIL there does not affect the exit code.
+`DistroAgentsTools.fn.sh --magic-heartbeat-config-check` — takes no arguments. Prints one `<KEY>: OK`/`<KEY>: FAIL` line per checked key, each FAIL with its own exact fix command. Returns non-zero when a key this pass cannot run without is missing.
 
 ## `--magic-heartbeat-input-scan` operation reference
 
@@ -342,7 +332,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-heartbeat-board-item-trash` operation reference
 
-`DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` — relocates one terminal board-item out of the board entirely, for this routine's own GC step. `<board-state>` is the item's current real board state (`backlog/pending/running/blocked/parked/processed/archived/retained`); `<item-name>` is a bare filename. Thin wrapper, always trashes, never restores — there is no restore anywhere in this tool: a trashed item is recovered from git history, or by hand out of `trash/`.
+`DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` — relocates one terminal board-item out of the board entirely. `<board-state>` is the item's current real board state (`backlog/pending/running/blocked/parked/processed/archived/retained`); `<item-name>` is a bare filename.
 
 ## `--magic-heartbeat-spawn-proxy` operation reference
 
@@ -380,7 +370,6 @@ Used to check this file's own definitions against its own goals when it is updat
 - `magic-team/magic-team.armed.md` — delegated-authority rule the weekend-detection branch relies on.
 - `magic-coordinator/TEAM-ORGANIZATION-VISION.md` — the main-loop-elevation facets and architect-resolution addendum.
 - `magic-librarian/magic-librarian.armed.md`'s `own-inbox-batch-processing` procedure — "Own inbox: collect and batch, don't fix ad hoc" standard, applied by the first-today-only sub-step.
-- `magic-team/magic-team.board.md` — `archived/`/`retained/` diversion entries, per-member `processed/` file shape, used by the GC sub-step.
 - The host loop, which spawns each `next-iteration` — its call contract is this package's own `MAGIC.md`.
 
 ### Conventions

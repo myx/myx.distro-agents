@@ -2274,6 +2274,17 @@ blocks|verbatim|caller|stdin file"
 			set +e ; return 1
 		fi
 
+		## Outbound-to-unlisted-people gate: scoped to a send actually
+		## presenting into an external/client workspace ($presentExternal,
+		## set above) -- every internal team conversation (magic-team,
+		## event-track, a member's own DM, the human-owner's own channel)
+		## never sets it, so this never touches the team's own traffic.
+		if [ "$presentExternal" = "true" ] ; then
+			DistroAgentsTools --intern-op-contact-assert-known "$memberName" \
+				--tool member-comms-slack-send-message --target "$channel" \
+				--message "$rawText" || { set +e ; return 1 ; }
+		fi
+
 		if [ -n "$blocksJson" ] ; then
 			local blocksProblems blocksProblemsRc=0
 			blocksProblems="$( printf '%s' "$blocksJson" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBlockKitValidate.py" )" || blocksProblemsRc=$?
@@ -2325,11 +2336,14 @@ blocks|verbatim|caller|stdin file"
 		## the token because the shared-identity rule needs the account this posts
 		## under, which nothing earlier knows. A blocks payload is JSON, not prose.
 		if [ "$format" != "blocks" ] ; then
-			## The predicates this site refuses on, and the whole of a graduation:
-			## a name here refuses, a name absent reports beside it. sentence-cap
-			## is absent because it cannot tell a prose paragraph from a block
-			## written one fact per line -- see MAGIC.md.
-			printf '%s' "$sourceText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "$botTokenSource" "word-cap semicolon paragraph-gate" || { set +e ; return 1 ; }
+			## Measured, never refused: a live member's own message into its own
+			## session landing nowhere is worse than one the floor would have
+			## flagged. Same posture as the spawn-brief call in
+			## AgentsTools.InternOpAgentSpawnProxy.include. A style fault is still
+			## recorded (rowKind=report) and still named on stderr; it no longer
+			## blocks delivery at this one site. sentence-cap stays an instrument
+			## everywhere regardless -- see MAGIC.md.
+			printf '%s' "$sourceText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "$botTokenSource" none || { set +e ; return 1 ; }
 		fi
 
 		## Token on curl's stdin, never argv -- keeps it out of ps. Reassigned

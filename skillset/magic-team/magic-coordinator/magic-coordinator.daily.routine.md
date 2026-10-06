@@ -213,7 +213,7 @@ Every `magic-tooling` operation this routine uses. Full syntax and behavior here
 
 ## `--magic-daily-state-and-lock-upsert` operation reference
 
-`DistroAgentsTools.fn.sh --magic-daily-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]` — writes this routine's own `state-and-lock` note: the pass's session tracking content. Body content via `--from-file` or `--edit-patch-from-stdin`. Every call stamps `state: daily-running` and renews `recheck-date` itself — the caller never supplies `recheck-date`, and never names the note. Closing the routine is expressed by passing `--header:upsert:state:daily-finished`.
+`DistroAgentsTools.fn.sh --magic-daily-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]` — writes this routine's own `state-and-lock` note: the pass's session tracking content. Body content via `--from-file` or `--edit-patch-from-stdin`. Closing the routine is expressed by passing `--header:upsert:state:daily-finished`.
 
 ## `--member-comms-slack-send-message` operation reference
 

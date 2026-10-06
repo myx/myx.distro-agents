@@ -249,7 +249,10 @@ case "$1" in
 			decision:*)
 				while IFS= read -r answerOptionLine ; do
 					answerOptionLine="${answerOptionLine#- }"
-					[ "${answerOptionLine%%[ $'\t']*}" != "$answerVerdict" ] || answerFound=1
+					answerOptionLine="${answerOptionLine%%[ $'\t']*}"
+					answerOptionLine="${answerOptionLine%:}"
+					answerOptionLine="$( printf '%s' "$answerOptionLine" | LC_ALL=C tr 'A-Z' 'a-z' )"
+					[ "$answerOptionLine" != "$answerVerdict" ] || answerFound=1
 				done < "${answerFile%.md}.options"
 			;;
 		esac

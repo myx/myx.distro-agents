@@ -63,7 +63,7 @@ rigAfter "team-roster"
 echo "-- writer: --member-append-session-transcript --"
 rigStep
 "$rigFn" --member-append-session-transcript magic-tester --speaker rig --timestamp 2026-09-29T00:00:00Z \
-	--message "one line" --transcript-name transcript-2026-09-29-rig.md --workspace-root "$rigWs" --create > "$rigTmp/out" 2>&1
+	--message "one line" --transcript-name transcript-2026-09-29-rig.md --create > "$rigTmp/out" 2>&1
 rigAfter "session-transcript"
 
 echo "-- writer: output-style refusal log --"

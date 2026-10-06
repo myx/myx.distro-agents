@@ -155,6 +155,18 @@ case "$1" in
 		else
 			echo "SPAWN_CLI_SERVICE: OK"
 		fi
+		## A pass posts to Slack: with none of the tokens a coordinator send can
+		## resolve to, every send it makes fails, so having none is a FAIL.
+		if [ -z "$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_USER_TOKEN 2>/dev/null )" ] \
+			&& [ -z "$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_BOT_TOKEN 2>/dev/null )" ] \
+			&& [ -z "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN 2>/dev/null )" ]
+		then
+			echo "SLACK_TOKEN: FAIL"
+			echo "  fail: no SLACK_USER_TOKEN or SLACK_BOT_TOKEN for magic-coordinator, and no SLACK_BOT_TOKEN for magic-team, so this pass cannot post to Slack"
+			configRc=1
+		else
+			echo "SLACK_TOKEN: OK"
+		fi
 		DistroAgentsTools --intern-op-slack-check-scopes magic-coordinator \
 			--scope-source --member-comms-slack-send-message \
 			--scope-source --intern-op-slack-check \

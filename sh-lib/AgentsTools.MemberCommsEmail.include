@@ -347,6 +347,16 @@ case "$1" in
 			printf '%s' "$subject" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients (subject)" "" "word-cap semicolon paragraph-gate" || { set +e ; return 1 ; }
 			printf '%s' "$bodyLines" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients" "" "word-cap semicolon paragraph-gate" || { set +e ; return 1 ; }
 
+			## Outbound-to-unlisted-people gate: email has no internal/team
+			## conversation concept the way Slack does, so every recipient
+			## address is checked, with no $presentExternal-style exemption.
+			local gateAddr
+			for gateAddr in $recipients ; do
+				DistroAgentsTools --intern-op-contact-assert-known "$memberName" \
+					--tool member-comms-email-send --target "$gateAddr" \
+					--message "$subject"$'\n'"$bodyLines" || { set +e ; return 1 ; }
+			done
+
 			local emailUser emailPass smtpHost smtpPort
 			emailUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
 			emailPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )"

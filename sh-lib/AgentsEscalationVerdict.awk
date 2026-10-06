@@ -37,6 +37,7 @@ BEGIN {
 		optionWord = optionLines[optionIndex] ;
 		sub( /^- /, "", optionWord ) ;
 		sub( /[ \t].*$/, "", optionWord ) ;
+		sub( /:$/, "", optionWord ) ;
 		optionWord = lowered( optionWord ) ;
 		if ( optionWord != "" ) { optionSet[optionWord] = 1 ; }
 	}

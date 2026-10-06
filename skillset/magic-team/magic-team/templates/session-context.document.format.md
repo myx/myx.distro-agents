@@ -257,9 +257,7 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, all types, 
   board items related to the member (active states, or every state). A pair's two breadths are
   mutually exclusive: one breadth per run, never both.
 - rule: The wider inbox breadth is live **plus not-yet-collected** `processed/`, never complete
-  history. `processed/` is garbage-collected on a retention threshold that varies by document type,
-  so what it still holds when the document is generated is what that section reports. It is not an
-  archive and must not be read as one.
+  history. It is not an archive and must not be read as one.
 - rule: Relatedness is `owner:` alone. `participants:` and `restart-session:` are deliberately not
   consulted — an item naming a member is not thereby that member's work, and widening relatedness to
   them would return items nobody has been assigned.
@@ -285,11 +283,10 @@ scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, all types, 
 - rule: Every item block states its **type name and id** on its heading line.
 - rule: A `slack-message` item block additionally carries `identity: <user|bot>` right after
   `channel:` — **optional**, present only when the leg it came from is known to be one identity or
-  the other (a human-owner fan-out read's own per-leg marker), absent otherwise. Not the same line
+  the other, absent otherwise. Not the same line
   as a comms sub-section's own `identity:` (the account a sub-section was read *through* — see the
   rule above); this one names which identity the message was originally found under. Diagnostic
-  only — `reply-if-warranted` never needs to read or pass it: `--member-comms-slack-send-message`
-  resolves the correct identity internally on its own.
+  only — `reply-if-warranted` never needs to read or pass it.
 - rule: Caps: **128** IM conversations — a thread, a channel or a DM is **one** unit, not one
   message — **128** email, **64** Trello, **64** each inbox section, and **8192 bytes** per inbox item
   body. A truncated section says so on
@@ -363,7 +360,7 @@ Not a contract — the shape of a **generated** document, produced by tooling an
   - `scope: board/<state>/*.md -- backlog|pending|running|blocked|parked, <type filter>, owner: <member>` — the board section at its narrower breadth.
   - `scope: board/<state>/*.md -- backlog|pending|running|blocked|parked|processed|archived|retained, <type filter>, owner: <member>` — the board section at its wider breadth.
   - The board form carries a **type filter** between its state list and its owner, because the board section is the one that can be filtered by board-item type: `all types` when none was applied, otherwise the prefixes that were. The two inbox forms carry no type filter — each inbox section already *is* its type. `owner: any owner` where no owner filter applied.
-- **The wider inbox breadth is live plus not-yet-collected `processed/`, never complete history.** `processed/` is garbage-collected on a retention threshold that varies by document type, so what it still holds when the document is generated is what that section reports. A reader must not treat it as an archive.
+- **The wider inbox breadth is live plus not-yet-collected `processed/`, never complete history.** A reader must not treat it as an archive.
 - **Relatedness is `owner:` alone.** `participants:` and `restart-session:` are deliberately not consulted: an item naming a member is not thereby that member's work, and widening relatedness to them would return items nobody has been assigned.
 - **Every scope is in one of three states, and no two of them render alike.** A scope is requested, declined, or neither. A requested scope produces its section. A declined scope produces no section at all — no heading, no `**NOTE:**` line. A scope that was neither requested nor declined produces its heading and `**NOTE:** not requested`, and nothing beside it.
 - **`**NOTE:** not requested` reports the request, never the tree.** It says the run stated nothing about that section — neither asking for it nor excluding it — so a reader takes it as an incomplete request and never as an absence of content.
