@@ -86,7 +86,8 @@ done
 
 export LANG=en_US.UTF-8
 
-echo "AgentsConsole: bash fallback — no --cli given (or the CLI wasn't found). Run 'claude' or 'copilot' directly to start a CLI session." >&2
+echo "AgentsConsole: bash console — ${MDAT_CONSOLE_FALLBACK_REASON:-no agent CLI was started: this console was opened without the agent console launcher (DistroAgentsConsole.sh), which is what chooses one.} Run 'claude' or 'copilot' directly to start a CLI session." >&2
+unset MDAT_CONSOLE_FALLBACK_REASON
 
 complete -W "Help Require claude copilot" \
 		 -o default -o filenames \

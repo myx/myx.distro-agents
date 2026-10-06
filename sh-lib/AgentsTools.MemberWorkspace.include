@@ -13,6 +13,8 @@ AgentsToolsWorkspaceSwitch(){ ## workspace path
 	export MMDAPP="$1"
 	## all derived from the previous root, and an index path is matched before MDSC_CACHED
 	unset MDSC_OPTION MDSC_INMODE MDSC_SOURCE MDSC_CACHED MDSC_OUTPUT MDSC_MEMORY
+	## the team data store of the previous root; resolved again from the new one
+	unset MDAT_DATA_ROOT
 	## by prefix, so a new index variable needs no edit here
 	for switchStale in ${!MDSC_ID*} ; do unset "$switchStale" ; done
 }

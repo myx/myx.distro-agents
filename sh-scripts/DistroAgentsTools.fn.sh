@@ -18,9 +18,9 @@ export MDLT_ORIGIN
 DistroAgentsTools(){
 	local MDSC_CMD='DistroAgentsTools'
 	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
-	## An operation naming a team member runs in a workspace where that member is present; the spawn proxy resolves its own, since its records stay here.
+	## An operation naming a team member runs in a workspace where that member is present; the spawn operations resolve their own, since their records stay here.
 	case "$1:${2:-}" in
-		--intern-op-agent-spawn-proxy:*|--intern-mcp-execute:*|*:|*:-*) ;;
+		--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|*:|*:-*) ;;
 		--*:*)
 			local memberWorkspace
 			memberWorkspace="$( AgentsToolsMemberWorkspaceResolve "$2" "$1" )" || { set +e ; return 1 ; }

@@ -73,6 +73,8 @@ DAGC_CLI="copilot"
 DAGC_CLI_GIVEN="false"
 DAGC_CLI_AUTO="false"
 DAGC_CLI_CONFIGURED="false"
+## Where DAGC_CLI came from, for the message a bash console prints when it cannot start it.
+DAGC_CLI_BY="the default"
 ## ---- harness legs, one mechanism for every provider ---------------------
 ## A harness leg is a FILE, not a name in a list. sh-lib/Agents<Name>Harness.sh
 ## IS the leg <name>: it declares one provider's endpoint, models, wire and
@@ -244,6 +246,12 @@ DagcCliPresent(){
 		*) command -v "$1" >/dev/null 2>&1 ;;
 	esac
 }
+## Every bash console this file opens goes through here, so each one says why.
+## console-agents-bashrc.rc prints the reason and forgets it.
+DagcExecBashConsole(){ ## the reason this is a bash console and not an agent CLI
+	export MDAT_CONSOLE_FALLBACK_REASON="$1"
+	exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
+}
 while true ; do
 	case "$1" in
 		--cli-auto)
@@ -262,6 +270,7 @@ while true ; do
 			fi
 			DAGC_CLI="$2"
 			DAGC_CLI_GIVEN="true"
+			DAGC_CLI_BY="--cli"
 			shift 2
 		;;
 		*)
@@ -272,7 +281,10 @@ done
 # --cli-auto takes magic-team's own SPAWN_CLI_SERVICE where it is set, else the first installed known CLI.
 # --cli-configured takes the same setting and stops there: an unset setting means no external CLI was chosen,
 # which is a different answer from "none could be started" and is reported as rc=5 so a caller can branch on it.
-if [ "$DAGC_CLI_AUTO" = "true" ] || [ "$DAGC_CLI_GIVEN" != "true" ] ; then
+## An explicit --cli on an interactive start is the person's own choice and is honoured: it skips this block,
+## which would otherwise replace it with SPAWN_CLI_SERVICE or the scan whenever --cli-auto came first
+## (Agents --start-console always puts it first). A spawn (--non-interactive) takes the block as before.
+if { [ "$DAGC_CLI_AUTO" = "true" ] || [ "$DAGC_CLI_GIVEN" != "true" ] ; } && ! { [ "$DAGC_CLI_GIVEN" = "true" ] && [ "$1" != "--non-interactive" ] ; } ; then
 	DAGC_CLI_GIVEN="false"
 	## Tested, not bare: set -e would kill the console on an unreadable scope instead of falling through to the scan below.
 	DAGC_CLI_SERVICE="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )" || DAGC_CLI_SERVICE=""
@@ -280,6 +292,7 @@ if [ "$DAGC_CLI_AUTO" = "true" ] || [ "$DAGC_CLI_GIVEN" != "true" ] ; then
 		# Its name, its non-interactive capability and its presence in PATH are each checked below, at their own use site.
 		DAGC_CLI="$DAGC_CLI_SERVICE"
 		DAGC_CLI_GIVEN="true"
+		DAGC_CLI_BY="SPAWN_CLI_SERVICE"
 	elif [ "$DAGC_CLI_CONFIGURED" = "true" ] ; then
 		## Every spawn service is named, not one of them. This error reaches a
 		## workspace that has chosen NOTHING yet, so naming a single flag steers
@@ -300,6 +313,7 @@ if [ "$DAGC_CLI_AUTO" = "true" ] || [ "$DAGC_CLI_GIVEN" != "true" ] ; then
 			if DagcCliPresent "$DAGC_AUTO_CLI" ; then
 				DAGC_CLI="$DAGC_AUTO_CLI"
 				DAGC_CLI_GIVEN="true"
+				DAGC_CLI_BY="the PATH scan"
 				break
 			fi
 		done
@@ -322,17 +336,19 @@ case " $DAGC_SELECTABLE_CLIS " in
 		fi
 	;;
 esac
-## A leg has no interactive shape at all -- there is no real binary and no
-## REPL, only a harness that runs one request/response tool-calling cycle to
-## completion and exits -- so an interactive launch cannot reach for one, and
-## must not fall through to a plain `exec <name>` that the shell itself would
-## reject as "not found" for a reason this console never explains.
-## It is neither said nor refused: a console whose whole purpose is to open must
-## open. The same bash console this file already falls back to below is what
-## an interactive launch gets here, which is also exactly what the source,
-## deploy and .local consoles do unconditionally.
-if DagcCliIsLeg "$DAGC_CLI" && [ "$1" != "--non-interactive" ] ; then
-	exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
+## An interactive launch (no --non-interactive) of a harness leg (claude, copilot,
+## scaleway) runs the existing `DistroAgentsTools.fn.sh --intern-root-harness`, with
+## no option of its own, started as it is by hand; this terminal is only where its
+## output goes. No vendor binary is run and nothing is renamed to -native. That
+## operation resolves the CLI itself from SPAWN_CLI_SERVICE, so it is run only for a
+## leg that setting named; a leg chosen any other way (--cli, the PATH scan) cannot
+## be what it would run, and opens the bash console and says what happened.
+if [ "$1" != "--non-interactive" ] && DagcCliIsLeg "$DAGC_CLI" ; then
+	DAGC_ROOT_HARNESS_TOOLS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	if [ "$DAGC_CLI_BY" = "SPAWN_CLI_SERVICE" ] && [ -x "$DAGC_ROOT_HARNESS_TOOLS" ] ; then
+		exec "$DAGC_ROOT_HARNESS_TOOLS" --intern-root-harness
+	fi
+	DagcExecBashConsole "nothing was started: '$DAGC_CLI' is a harness leg (chosen by $DAGC_CLI_BY), and an interactive start of a leg runs --intern-root-harness, which takes its CLI from SPAWN_CLI_SERVICE and needs $DAGC_ROOT_HARNESS_TOOLS to be executable."
 fi
 if [ "$1" == "--non-interactive" ] ; then
 	## The leg test comes first, and is not covered by the set above: that set
@@ -375,7 +391,7 @@ elif ! DagcCliPresent "$DAGC_CLI" ; then
 	if DagcCliPresent "$DAGC_CLI" ; then
 		:
 	else
-		exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
+		DagcExecBashConsole "no agent CLI was started: '$DAGC_CLI' and every other known CLI ($DAGC_SELECTABLE_CLIS) was looked for by 'command -v' in PATH and none was found."
 	fi
 fi
 
