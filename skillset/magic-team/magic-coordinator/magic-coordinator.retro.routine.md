@@ -4,6 +4,28 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-coordinator.retro.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--magic-retro-lock-acquire` / `--magic-retro-lock-refresh` / `--magic-retro-close-state-and-unlock` / `--magic-retro-lock-status` operation reference
+  - `--magic-retro-state-and-lock-upsert` operation reference
+  - `--member-comms-slack-send-message` operation reference
+  - `--member-inbox-note-upsert` operation reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-retro is the team's retrospective — how the work itself has been going, drawing on recent work-sprint history, not a status roll call.

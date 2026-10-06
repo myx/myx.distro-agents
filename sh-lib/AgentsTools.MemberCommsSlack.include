@@ -37,13 +37,69 @@ AgentsToolsCommsSlackFileInfoEmitField(){
 	return 1
 }
 
-## One member's own display marks from its .basic.md, tab-separated: the icon
-## (Slack shortcode, else the unicode character) and the alias (the member's
-## own name instead, when the alias is absent or malformed).
-AgentsToolsCommsSlackMemberMarks(){
-	local marksFile="$MDAT_SKILLSET_ROOT/$1/$1.basic.md"
-	[ -f "$marksFile" ] || return 1
-	LC_ALL=C awk -F": " -v who="$1" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsToolsCommsSlackMemberMarks.awk" "$marksFile"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+
+## One field, counted from 1, of a tab-separated presentation line. Empty
+## fields count, which a plain `read` would collapse.
+AgentsToolsCommsSlackPresentationField(){ ## number, line
+	printf '%s\n' "$2" | LC_ALL=C awk -F'\t' -v wanted="$1" '{ print $wanted ; }'
+}
+
+## A member's presentation, as "<mark> TAB <first> TAB <family> TAB <alias>", an
+## absent value empty. It reads the team-members-names registry and nothing else:
+## no member file, no config, no check that the registry is current. A member with
+## no row, or no registry at all, returns 1. The registry holds a name's spaces as
+## underscores, so they are turned back here for the two name fields.
+AgentsToolsCommsSlackMemberPresentation(){ ## member
+	local presentationFile
+	presentationFile="$( AgentsToolsRegistryFile team-members-names )"
+	[ -f "$presentationFile" ] || return 1
+	LC_ALL=C awk -v who="$1" '
+		$1 == who {
+			for ( fieldIndex = 2 ; fieldIndex <= 5 ; fieldIndex++ ) { if ( $fieldIndex == "-" ) { $fieldIndex = "" ; } }
+			gsub( /_/, " ", $3 ) ;
+			gsub( /_/, " ", $4 ) ;
+			printf "%s\t%s\t%s\t%s\n", $2, $3, $4, $5 ;
+			found = 1 ;
+			exit ;
+		}
+		END { exit found ? 0 : 1 ; }
+	' "$presentationFile"
+}
+
+## The account columns of one cache row: "handle=real name=display name=workspace
+## domain", from one read-only users.info call under the member's own token (the
+## human-owner has none, so the call is made as the member named in $3). A value
+## the API does not give is "-", and a failed call gives all four: the row is
+## then complete for this lock cycle and is not asked for again. The domain is
+## the member's configured workspace domain, because users.info names no domain.
+## "=" and control characters are stripped so a value never breaks a row.
+AgentsToolsCommsSlackMentionAccountColumns(){ ## member, user id, calling member
+	local columnsResp columnsValue columnsPath columnsLine=""
+	columnsResp="$( DistroAgentsTools --intern-op-slack-call "${3:-$1}" --api users.info --form "user=$2" --context "AgentsToolsCommsSlackMentionUserId" 2>/dev/null )" || columnsResp=""
+	for columnsPath in user.name user.real_name user.profile.display_name ; do
+		columnsValue="$( printf '%s\n' "$columnsResp" | LC_ALL=C awk -v path="$columnsPath" -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" 2>/dev/null | LC_ALL=C tr -d '\\\000-\037=' )" || columnsValue=""
+		columnsLine="$columnsLine${columnsValue:--}="
+	done
+	columnsValue="$( AgentsToolsResolveSlackWorkspaceDomain "$1" 2>/dev/null | LC_ALL=C tr -d '\\\000-\037=' )" || columnsValue=""
+	printf '%s%s\n' "$columnsLine" "${columnsValue:--}"
+}
+
+## A cached row that holds only member=id is completed in place with the
+## account columns; nothing else about the cache changes.
+AgentsToolsCommsSlackMentionRowBackfill(){ ## member, user id
+	local backfillFile="$MMDAPP/.local/.agents/slack-mention-ids.cache"
+	local backfillRow
+	backfillRow="$1=$2=$( AgentsToolsCommsSlackMentionAccountColumns "$1" "$2" "$( [ "$1" != "human-owner" ] || printf magic-coordinator )" )"
+	LC_ALL=C awk -F= -v who="$1" -v row="$backfillRow" '$1 == who { print row ; next ; } { print ; }' "$backfillFile" > "$backfillFile.new" 2>/dev/null \
+		&& chmod 600 "$backfillFile.new" 2>/dev/null && mv -f "$backfillFile.new" "$backfillFile" 2>/dev/null || rm -f "$backfillFile.new" 2>/dev/null || true
+}
+
+## The cached person whose handle, real name or display name is the text,
+## ASCII case-insensitive: "<member> TAB <id>" per match. It reads the cache
+## and nothing else, so a person no member row names is not found.
+AgentsToolsCommsSlackMentionFindByName(){ ## text
+	LC_ALL=C awk -F= -v want="$1" 'BEGIN { want = tolower( want ) ; } NF >= 6 && $2 != "-" && ( tolower( $3 ) == want || tolower( $4 ) == want || tolower( $5 ) == want ) { printf "%s\t%s\n", $1, $2 ; }' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2>/dev/null
 }
 
 ## One member's Slack user id, for a real mention element; nothing at all when
@@ -66,7 +122,11 @@ AgentsToolsCommsSlackMentionUserId(){
 	local cachedId
 	cachedId="$( LC_ALL=C awk -F= -v who="$1" '$1 == who { cachedId = $2 ; } END { print cachedId ; }' "$cacheFile" 2>/dev/null )" || cachedId=""
 	if [ -n "$cachedId" ] ; then
-		[ "$cachedId" = "-" ] || printf '%s\n' "$cachedId"
+		if [ "$cachedId" != "-" ] ; then
+			printf '%s\n' "$cachedId"
+			## A row from before the account columns is completed once, after the id is already out.
+			[ "$( LC_ALL=C awk -F= -v who="$1" '$1 == who { cols = NF ; } END { print cols + 0 ; }' "$cacheFile" 2>/dev/null )" -ge 6 ] || AgentsToolsCommsSlackMentionRowBackfill "$1" "$cachedId"
+		fi
 		return 0
 	fi
 
@@ -86,7 +146,11 @@ AgentsToolsCommsSlackMentionUserId(){
 			*) memberId="" ;;
 		esac
 	fi
-	printf '%s=%s\n' "$1" "${memberId:--}" >> "$cacheFile" 2>/dev/null || true
+	if [ -n "$memberId" ] ; then
+		printf '%s=%s=%s\n' "$1" "$memberId" "$( AgentsToolsCommsSlackMentionAccountColumns "$1" "$memberId" "$( [ "$1" != "human-owner" ] || printf magic-coordinator )" )" >> "$cacheFile" 2>/dev/null || true
+	else
+		printf '%s=-\n' "$1" >> "$cacheFile" 2>/dev/null || true
+	fi
 	echo "# $MDSC_CMD: Slack mention id for '$1': ${memberId:-<none -- renders as plain text>} (resolved and cached for lock generation $lockGen)" >&2
 	[ -z "$memberId" ] || printf '%s\n' "$memberId"
 	return 0
@@ -1602,7 +1666,7 @@ case "$1" in
 		case "$targetMember" in
 			event-track|event-alert|magic-team|human-owner|''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) ;;
 			*)
-				if [ -f "$MDAT_SKILLSET_ROOT/$targetMember/$targetMember.basic.md" ] ; then
+				if [ -d "$MDAT_SKILLSET_ROOT/$targetMember" ] ; then
 					targetMemberId="$( AgentsToolsCommsSlackMentionUserId "$targetMember" )"
 					if [ -z "$targetMemberId" ] ; then
 						## A member holding a token whose account could not be read is a fault, never a member without a DM.
@@ -1675,6 +1739,7 @@ case "$1" in
 		## bareness of $memberName is already asserted above, so it never
 		## needs JSON-escaping here.
 		local sendMetadata="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$memberName\"}}"
+		local defaultMetadata="$sendMetadata"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--identity-bot)
@@ -1786,36 +1851,6 @@ case "$1" in
 			sourceText="${textArgs# }"
 		fi
 
-		## In-body "@name" mentions, through the same resolver and the same
-		## per-lock-cycle cache the header's addressee field uses. Only names
-		## this body carries are resolved; one absent from the map stays
-		## literal text, and never fails the send.
-		local slackMentionMap="" mentionName mentionId
-		for mentionName in $( printf '%s\n' "$sourceText" | LC_ALL=C awk '
-			{
-				rest = $0 ;
-				while ( ( at = index( rest, "@" ) ) > 0 ) {
-					rest = substr( rest, at + 1 ) ;
-					## The same "@"-to-next-space run the converter itself
-					## takes: a shorter one keys the map on a name it never
-					## looks up. Code spans and fences are excluded by the
-					## converter itself, so an over-wide scan converts nothing.
-					name = rest ;
-					sub( /[[:space:]].*$/, "", name ) ;
-					if ( name ~ /^[A-Za-z0-9._-]+$/ && name !~ /^[-.]/ && !( name in seen ) ) {
-						seen[name] = 1 ;
-						print name ;
-					}
-					rest = substr( rest, length( name ) + 1 ) ;
-				}
-			}
-		' ) ; do
-			[ -d "$MDAT_SKILLSET_ROOT/$mentionName" ] || continue
-			mentionId="$( AgentsToolsCommsSlackMentionUserId "$mentionName" )" || mentionId=""
-			[ -n "$mentionId" ] || continue
-			slackMentionMap="$slackMentionMap${slackMentionMap:+;}$mentionName=$mentionId"
-		done
-
 		local slackFormatRegistry="markdown|converter|body|argv stdin file
 blocks|verbatim|caller|stdin file"
 
@@ -1879,6 +1914,82 @@ blocks|verbatim|caller|stdin file"
 			;;
 		esac
 
+		## A client presents under the names of its own member index row in a workspace that is not ours:
+		## its own user token posts there, and so does its own bot token. The
+		## shared bot token and a relay under another member's token are our
+		## workspace, which keeps the internal identifier. Decided here, before
+		## the header is built; the bot token is resolved once and carried to
+		## the send below.
+		local presentExternal="false" earlyBotResolved="false" earlyBotTokenLine=""
+		case "$memberName" in
+			client-*)
+				if [ "$relayedForMember" != "true" ] ; then
+					if [ "$sendIdentity" = "user" ] ; then
+						[ -z "$memberUserToken" ] || presentExternal="true"
+					else
+						earlyBotTokenLine="$( AgentsToolsResolveSlackBotToken "$memberName" )" || earlyBotTokenLine=""
+						earlyBotResolved="true"
+						case "$earlyBotTokenLine" in
+							"member-bot-token "*) presentExternal="true" ;;
+						esac
+					fi
+				fi
+			;;
+		esac
+		local externalMark="" externalName="" externalAlias="" externalFirst externalFamily externalPres externalMissing=""
+		if [ "$presentExternal" = "true" ] ; then
+			## The member's own row, and nothing else: a client presents under the names in its own SKILL.md.
+			externalPres="$( AgentsToolsCommsSlackMemberPresentation "$memberName" )" || externalPres=""
+			externalMark="$( AgentsToolsCommsSlackPresentationField 1 "$externalPres" )"
+			externalFirst="$( AgentsToolsCommsSlackPresentationField 2 "$externalPres" )"
+			externalFamily="$( AgentsToolsCommsSlackPresentationField 3 "$externalPres" )"
+			externalAlias="$( AgentsToolsCommsSlackPresentationField 4 "$externalPres" )"
+			[ -n "$externalFirst" ] || externalMissing="first-name"
+			[ -n "$externalFamily" ] || externalMissing="$externalMissing${externalMissing:+, }family-name"
+			[ -n "$externalAlias" ] || externalMissing="$externalMissing${externalMissing:+, }alias"
+			if [ -n "$externalMissing" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: the external presentation of '$memberName' needs first-name, family-name and alias in its SKILL.md and in the team-members-names registry: missing $externalMissing; nothing was sent" >&2
+				set +e ; return 1
+			fi
+			externalName="$externalFirst $externalFamily"
+			## The default metadata names the member; an external payload carries no internal identifier.
+			[ "$sendMetadata" != "$defaultMetadata" ] || sendMetadata=""
+		fi
+
+		## In-body "@name" mentions, through the same resolver and the same
+		## per-lock-cycle cache the header's addressee field uses. Only names
+		## this body carries are resolved; one absent from the map stays
+		## literal text, and never fails the send.
+		local slackMentionMap="" mentionName mentionId
+		for mentionName in $( printf '%s\n' "$sourceText" | LC_ALL=C awk '
+			{
+				rest = $0 ;
+				while ( ( at = index( rest, "@" ) ) > 0 ) {
+					rest = substr( rest, at + 1 ) ;
+					## The same "@"-to-next-space run the converter itself
+					## takes: a shorter one keys the map on a name it never
+					## looks up. Code spans and fences are excluded by the
+					## converter itself, so an over-wide scan converts nothing.
+					name = rest ;
+					sub( /[[:space:]].*$/, "", name ) ;
+					if ( name ~ /^[A-Za-z0-9._-]+$/ && name !~ /^[-.]/ && !( name in seen ) ) {
+						seen[name] = 1 ;
+						print name ;
+					}
+					rest = substr( rest, length( name ) + 1 ) ;
+				}
+			}
+		' ) ; do
+			[ -d "$MDAT_SKILLSET_ROOT/$mentionName" ] || continue
+			## A client has its only Slack account in another workspace, so its id renders wrongly here: it is mapped only as the sender itself in an external send, where it is the account posting.
+			case "$mentionName" in
+				client-*) { [ "$presentExternal" = "true" ] && [ "$mentionName" = "$memberName" ] ; } || continue ;;
+			esac
+			mentionId="$( AgentsToolsCommsSlackMentionUserId "$mentionName" )" || mentionId=""
+			[ -n "$mentionId" ] || continue
+			slackMentionMap="$slackMentionMap${slackMentionMap:+;}$mentionName=$mentionId"
+		done
+
 		## The one-line header: [<from> ]→ <to>. <body>. Slack collapses a
 		## caller's text to one line whenever blocks travel with it, so a
 		## header that is already one line reads the same in both versions.
@@ -1889,16 +2000,22 @@ blocks|verbatim|caller|stdin file"
 		## Who the message is from. Built always -- the identity swap below
 		## needs it too -- but inserted only where the Slack account shown
 		## is not the member's own: a bot post, or one relayed for them.
-		local fromMarks fromMark fromAlias fromElems=""
-		fromMarks="$( AgentsToolsCommsSlackMemberMarks "$memberName" )" || fromMarks=$'\t'"$memberName"
-		fromMark="${fromMarks%%$'\t'*}" ; fromAlias="${fromMarks#*$'\t'}"
-		local fromText="${fromMark:+$fromMark }*_${memberName}_* @$fromAlias "
+		local fromPres fromMark="" fromName="$memberName" fromAlias="$memberName" fromElems=""
+		if [ "$presentExternal" = "true" ] ; then
+			fromMark="$externalMark" ; fromName="$externalName" ; fromAlias="$externalAlias"
+		elif fromPres="$( AgentsToolsCommsSlackMemberPresentation "$memberName" )" ; then
+			## No row, or no alias in it, leaves the member name as the alias and no mark.
+			fromMark="$( AgentsToolsCommsSlackPresentationField 1 "$fromPres" )"
+			fromAlias="$( AgentsToolsCommsSlackPresentationField 4 "$fromPres" )"
+			[ -n "$fromAlias" ] || fromAlias="$memberName"
+		fi
+		local fromText="${fromMark:+$fromMark }*_${fromName}_* @$fromAlias "
 		case "$fromMark" in
 			"")	;;
 			:*:)	fromElems="{\"type\":\"emoji\",\"name\":\"${fromMark//:/}\"},{\"type\":\"text\",\"text\":\" \"}," ;;
 			*)	fromElems="{\"type\":\"text\",\"text\":\"$fromMark \"}," ;;
 		esac
-		fromElems="$fromElems{\"type\":\"text\",\"text\":\"$memberName\",\"style\":{\"bold\":true,\"italic\":true}},{\"type\":\"text\",\"text\":\" @$fromAlias \"},"
+		fromElems="$fromElems{\"type\":\"text\",\"text\":\"$fromName\",\"style\":{\"bold\":true,\"italic\":true}},{\"type\":\"text\",\"text\":\" @$fromAlias \"},"
 
 		## Nothing named, and the conversation is a DM or a group DM: its own
 		## participants are the addressees, minus the sender. Keyed on the
@@ -1996,7 +2113,7 @@ blocks|verbatim|caller|stdin file"
 		## author, so a caller is told the list is empty rather than given a name that
 		## would never match.
 		local addressedIds=""
-		local addrWho addrMarks addrMark addrAlias addrUserId addrHandleText addrHandleElems
+		local addrWho addrMarks addrMark addrName addrAlias addrUserId addrHandleText addrHandleElems
 		for addrWho in $addressToList ; do
 			if [ -n "$addressedText" ] ; then
 				addressedText="$addressedText; "
@@ -2022,16 +2139,41 @@ blocks|verbatim|caller|stdin file"
 					## The name reaches the payload as a JSON string, so it is
 					## held to the same bare-name shape as the sender's own.
 					AgentsToolsAssertBareName "$addrWho" "--address-to" member-comms-slack-send-message || { set +e ; return 1 ; }
-					addrMarks="$( AgentsToolsCommsSlackMemberMarks "$addrWho" )" || {
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': no such team member -- expected $MDAT_SKILLSET_ROOT/$addrWho/$addrWho.basic.md" >&2
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$addrWho" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': no such team member -- expected $MDAT_SKILLSET_ROOT/$addrWho" >&2
 						set +e ; return 1
-					}
-					addrMark="${addrMarks%%$'\t'*}" ; addrAlias="${addrMarks#*$'\t'}"
+					fi
+					## A member with no row, or no registry at all, reads as its plain name with no mark, never a refusal. Its mention id is a Slack fact and does not depend on the row.
+					addrMarks="$( AgentsToolsCommsSlackMemberPresentation "$addrWho" )" || addrMarks=""
+					addrMark="$( AgentsToolsCommsSlackPresentationField 1 "$addrMarks" )" ; addrAlias="$( AgentsToolsCommsSlackPresentationField 4 "$addrMarks" )" ; addrName="$addrWho"
+					[ -n "$addrAlias" ] || addrAlias="$addrWho"
 					## The handle half of the field, in the two forms the same
 					## field takes. Where the member has a Slack account, both
 					## are that account and Slack renders its real handle; where
 					## it has none, both stay the roster alias as plain text.
-					addrUserId="$( AgentsToolsCommsSlackMentionUserId "$addrWho" )" || addrUserId=""
+					## A client is the exception: its only Slack account is in
+					## another workspace, where a foreign id renders wrongly, so
+					## it keeps the plain alias; the one id used is the sender's
+					## own in an external send, the account it posts as. In an
+					## external send a client addressee reads under the names of
+					## its own row, or of the sender's external presentation when
+					## its row lacks one, and never under its identifier.
+					case "$addrWho" in
+						client-*)
+							addrUserId=""
+							if [ "$presentExternal" = "true" ] ; then
+								[ "$addrWho" != "$memberName" ] || addrUserId="$( AgentsToolsCommsSlackMentionUserId "$addrWho" )" || addrUserId=""
+								if [ -n "$( AgentsToolsCommsSlackPresentationField 2 "$addrMarks" )" ] && [ -n "$( AgentsToolsCommsSlackPresentationField 3 "$addrMarks" )" ] && [ -n "$( AgentsToolsCommsSlackPresentationField 4 "$addrMarks" )" ] ; then
+									addrName="$( AgentsToolsCommsSlackPresentationField 2 "$addrMarks" ) $( AgentsToolsCommsSlackPresentationField 3 "$addrMarks" )"
+								else
+									addrMark="$externalMark" ; addrName="$externalName" ; addrAlias="$externalAlias"
+								fi
+							fi
+						;;
+						*)
+							addrUserId="$( AgentsToolsCommsSlackMentionUserId "$addrWho" )" || addrUserId=""
+						;;
+					esac
 					if [ -n "$addrUserId" ] ; then
 						addrHandleText="<@$addrUserId>"
 						addressedIds="$addressedIds$addrUserId "
@@ -2040,13 +2182,13 @@ blocks|verbatim|caller|stdin file"
 						addrHandleText="@$addrAlias"
 						addrHandleElems="{\"type\":\"text\",\"text\":\" @$addrAlias\"},"
 					fi
-					addressedText="$addressedText${addrMark:+$addrMark }*_${addrWho}_* $addrHandleText"
+					addressedText="$addressedText${addrMark:+$addrMark }*_${addrName}_* $addrHandleText"
 					case "$addrMark" in
 						"")	;;
 						:*:)	addressedElems="$addressedElems{\"type\":\"emoji\",\"name\":\"${addrMark//:/}\"},{\"type\":\"text\",\"text\":\" \"}," ;;
 						*)	addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"$addrMark \"}," ;;
 					esac
-					addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"$addrWho\",\"style\":{\"bold\":true,\"italic\":true}},$addrHandleElems"
+					addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"$addrName\",\"style\":{\"bold\":true,\"italic\":true}},$addrHandleElems"
 				;;
 			esac
 		done
@@ -2166,7 +2308,11 @@ blocks|verbatim|caller|stdin file"
 			token="$memberUserToken"
 		else
 			local botTokenLine=""
-			botTokenLine="$( AgentsToolsResolveSlackBotToken "$memberName" )" || botTokenLine=""
+			if [ "$earlyBotResolved" = "true" ] ; then
+				botTokenLine="$earlyBotTokenLine"
+			else
+				botTokenLine="$( AgentsToolsResolveSlackBotToken "$memberName" )" || botTokenLine=""
+			fi
 			read -r botTokenSource token <<< "$botTokenLine"
 		fi
 		if [ -z "$token" ] ; then
@@ -2269,6 +2415,10 @@ blocks|verbatim|caller|stdin file"
 				local botToken="" swapTokenLine="" swapTokenSource=""
 				swapTokenLine="$( AgentsToolsResolveSlackBotToken "$memberName" )" || swapTokenLine=""
 				read -r swapTokenSource botToken <<< "$swapTokenLine"
+				## The payload already presents the client under its external names, which only the member's own bot token may post: a swap to the shared bot would show it in our workspace.
+				if [ "$presentExternal" = "true" ] && [ "$swapTokenSource" != "member-bot-token" ] ; then
+					botToken=""
+				fi
 				if [ -n "$botToken" ] ; then
 					botTokenSource="$swapTokenSource"
 					sendIdentity="bot"

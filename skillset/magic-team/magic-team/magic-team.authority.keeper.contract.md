@@ -7,6 +7,13 @@ Shared policy file, cross-referenced from each of the four keepers' own `.armed.
 and from `magic-coordinator/magic-coordinator.armed.md`'s own Local rules — one copy, read here for the actual policy,
 never a paraphrase at each call site.
 
+## Contents
+
+- Why
+- Relationship shape
+- The policy
+- The broader frame this sits inside
+
 ## Why
 
 A keeper (`keeper-*`) that invents its own fix or reduction design without that authority having been

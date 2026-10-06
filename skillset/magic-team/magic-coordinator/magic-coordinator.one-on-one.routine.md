@@ -4,6 +4,25 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-coordinator.one-on-one.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-comms-slack-send-message` operation reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-one-on-one is a direct, focused channel to one specific `magic-*` member without collapsing the coordinating instance's own context into that member's.

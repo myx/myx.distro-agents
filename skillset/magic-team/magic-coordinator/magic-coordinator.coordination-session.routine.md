@@ -5,6 +5,24 @@ invitees: human-owner
 ---
 # magic-coordinator.coordination-session.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-coordination-session is the operating cycle for a `coordination-session` instance: any

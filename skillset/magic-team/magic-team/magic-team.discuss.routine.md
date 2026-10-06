@@ -4,6 +4,25 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-team.discuss.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-comms-slack-send-message` operation reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-discuss is the named place for conversations whose actual goal is reaching agreement by the end.

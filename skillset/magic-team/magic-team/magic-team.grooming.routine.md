@@ -5,6 +5,49 @@ invitees: magic-librarian, magic-architect
 ---
 # magic-team.grooming.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+  - `rice-scoring` — the four-dimension scoring model (defined once here)
+    - Four dimensions
+    - Priority number (optional)
+    - Multiple scores per item
+    - When scores get set or updated
+    - Using the scores in prioritisation and assessment
+  - `check-backlog-promote` procedure
+  - `check-reassess` procedure
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--help` operation reference
+  - `--magic-grooming-input-scan` operation reference
+  - `--magic-grooming-lock-acquire` / `--magic-grooming-lock-refresh` / `--magic-grooming-close-state-and-unlock` / `--magic-grooming-lock-status` operation reference
+  - `--magic-grooming-state-and-lock-upsert` operation reference
+  - `--magic-grooming-to-backlog` operation reference
+  - `--magic-grooming-to-pending` operation reference
+  - `--magic-grooming-to-processed` operation reference
+  - `--magic-grooming-to-parked` operation reference
+  - `--magic-grooming-to-running` operation reference
+  - `--magic-grooming-create-*` operation reference
+  - `--magic-grooming-to-retained` operation reference
+  - `--magic-grooming-to-archived` operation reference
+  - `--magic-grooming-to-blocked` operation reference
+  - `--member-comms-google-file-find` operation reference
+  - `--member-comms-slack-send-message` operation reference
+  - `--member-work-session-input-scan` operation reference
+  - `--member-inbox-note-upsert` operation reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-grooming is backlog grooming: review, triage, and reprioritize the team's open backlog — is each item still worth doing, correctly owned, correctly sequenced.

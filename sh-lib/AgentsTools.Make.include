@@ -2,6 +2,17 @@
 # ^^^ for syntax checking in the editor only
 
 case "$1" in
+	--make-agents-indices)
+		shift
+		if [ $# -ne 0 ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: --make-agents-indices takes no arguments, got: $*" >&2
+			set +e ; return 1
+		fi
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+		AgentsToolsRegistryAgentsIndicesBuild || { set +e ; return 1 ; }
+		return 0
+	;;
+
 	--make-workspace-integrations)
 		shift
 

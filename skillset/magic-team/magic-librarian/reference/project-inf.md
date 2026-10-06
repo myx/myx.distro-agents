@@ -15,6 +15,18 @@ statement lives in the manual and this module points at it — a rule stated twi
 What follows is established from the working project population, not from a manual, and is what a
 session otherwise re-derives or invents.
 
+## Contents
+
+- A project is reachable by more names than it declares
+- The key set, and which keys do anything
+- Grouping inside a value
+- Ordering is declaration order, and the `after` list is reversed
+- SSH target resolution is assembled, not read off one project
+- Synced data travels as a declared pair
+- Account and permission declaration lines
+- Fragment file conventions
+- Reading list
+
 ## A project is reachable by more names than it declares
 
 - **The index adds the `Name` value and every trailing path-segment form of the project's location.** A

@@ -2,6 +2,19 @@
 
 Read this for any shell/AWK cross-platform portability question — writing or reviewing a script that must run unmodified on Linux, FreeBSD, and Darwin, regardless of which project it's for. It covers both shell standards, POSIX `sh` and bash 3.2; the section below settles which one a given file is held to, and everything after it applies to both unless it says otherwise. Canonical home for this content; `magic-devops` reads this module directly rather than duplicating it, since it's the team's heaviest day-to-day user of it. [code-craft.md](code-craft.md) applies on top of this one for any shell code actually being written: straight-line, top-to-bottom, structure only where the code genuinely has structure.
 
+## Contents
+
+- Two shell standards, and which one a file is held to
+  - The bash 3.2 baseline, and what follows from it
+  - Shell features and external tools are different constraints
+  - Which language a piece of tooling is written in
+- A scratch file is the most expensive name in a shell script
+  - Worked example: a temp dir with a trap against `<<< "$( … )"`
+- Principles
+- Reusable POSIX patterns worth knowing
+- AWK mechanics that read as something else
+- Shell constructs that fail quietly
+
 ## Two shell standards, and which one a file is held to
 
 The same three platforms — Darwin, FreeBSD and Linux — produce two different standards, and a file is held to exactly one of them. What the file itself requires settles which one; what it happens to run on does not.

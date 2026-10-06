@@ -7,6 +7,27 @@ invitees: <only if this routine has genuine multi-member sessions>
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the skeleton disagree, `# Contract` wins. `# Contract` is not part of the skeleton and is not copied.
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+  - `<local-procedure-name>` — [goal+intent short summary]
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--operation-name` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+- Contract
+
 # Summary
 
 [One short sentence, names the routine.]

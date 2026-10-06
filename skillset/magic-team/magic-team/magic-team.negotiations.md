@@ -13,6 +13,19 @@ Referenced from: `magic-team.interview.routine`, `magic-team.discuss.routine`, `
 Owner: `magic-librarian`.
 Maintainers (`quorum-all-agree`): `magic-coordinator` + `magic-librarian` + `magic-architect`.
 
+## Contents
+
+- Topics and questions
+- Topic surfacing
+- Gap surfacing
+- Queue and ordering
+- Presentation modes
+- Question atomicity
+- Topic persistence across rounds
+- Check-restart procedure
+- Topic closure
+- Inheritance
+
 ## Topics and questions
 
 - A **topic** is a queue-level unit of work: it ranges from one simple question to a long, multi-round

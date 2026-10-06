@@ -3,6 +3,25 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # human-owner — armed (professional-ready) content
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Terminology: none
+- Team-Member's (-specific) local procedures
+  - `reach-human-owner` - contact the real human-owner asynchronously when they're needed but not present in the current session
+- Team-Member's (-specific) local rules
+- Domain knowledge: none
+- Team-Member's (-specific) tooling
+  - DistroAgentsTools magic-tooling operations
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 `human-owner` is a reference-only identity record — never an acting member, never invoked as a behavior; it exists so other files have somewhere real to point at when they mean "the human-owner."

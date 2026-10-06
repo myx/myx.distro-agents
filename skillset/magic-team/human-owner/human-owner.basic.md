@@ -9,6 +9,10 @@ For the rest of what this reference record covers (authority model, contact-data
 
 Every team member reads `magic-team/magic-team.shared.md` unconditionally, simply by being on the team.
 
+## Contents
+
+- Identity marks
+
 ## Identity marks
 
 - **Unicode character**: 👀

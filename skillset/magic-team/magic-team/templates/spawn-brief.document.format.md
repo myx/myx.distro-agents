@@ -7,6 +7,14 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
 
 Not a member/routine contract — this is the fixed text the tooling fills and emits as the mechanical half of a spawn brief. The spawning session still supplies the judgement half: which warnings are relevant, the held context, and what it checked.
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Skeleton
+- Contract
+
 # Summary
 
 The part of every spawn brief that tooling produces the same way each time: the target member, the tool routing, the read-and-obey line naming the member's duty file and the session's routine, the routine's executors and invitees, and the open warnings.

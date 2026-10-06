@@ -22,6 +22,78 @@ maintainers: magic-librarian, magic-coordinator, human-owner
 
 This file's own content is binding and obligatory on every team member who reads it — not merely informational or reference material.
 
+## Contents
+
+- Core idea
+- Tooling
+- Writing code
+  - Searching the skillset
+- Human-owner conversations: two identities
+- Identifier and identity
+  - Identity marks
+- Folder shape — the typed-suffix scheme
+  - A skillset file is not automatically ours
+  - Every typed file is reached by prose instruction
+- Duty content only — tooling internals belong to the package, never the skillset
+  - The test
+  - A member-facing document citing internal code is invalid on its face
+  - A count belongs in a report, never in a durable document
+  - Where it goes instead
+  - A capability gap gets closed in tooling, not reworded in the doc
+- Armed & Routine contracts
+  - Basic (`<name>.basic.md`)
+  - Routine (`<owning-member>.<short-name>.routine.md`)
+  - Team-member (`magic-*`)
+  - Keeper / Warden (`keeper-*`/`warden-*`)
+  - Partner / Client (`partner-*`/`client-*`)
+  - Oncall / Expert (`oncall-*`/`expert-*`)
+  - Human-owner (`human-owner`)
+  - Session-context document (`# Session Sweep Report`)
+  - Escalation ask (`AskUserQuestion` `kind`)
+- Nested-item grammar
+  - When conversion is required
+  - Actor phrases
+- `.access.md` content lives in `.armed.md`
+  - Routine access facts (a routine's own frontmatter, not a separate file)
+  - Executors vs. maintainers, and the maintainer quorum rule
+  - Owner-guaranteed rules
+  - Invitees (routines only)
+- Doc/disk mismatch repair loop
+- Two independent dimensions (pointer, not duplicated)
+- Where the roster lives
+- Human-owner's standing rules
+  - Recheck before reporting
+  - Atomic move edits
+  - Never re-touch approved content
+  - Corrections go forward, never by reverting
+  - No rephrasing for human-owner commands, corrections, clarifications, no annotation without readback and approval
+  - A one-word answer covers the object of its own question
+  - Naming goes via approval, with siblings shown
+  - Conflicts and ambiguities go to the human-owner
+  - Readback-confirm and propose-approve, in any process
+  - "later" has two gates
+  - Anything needing the human-owner to act reaches him on his own direct channel
+  - Nothing stops on its own: log, escalate, resolve
+  - One topic per message, and the decision leads it
+  - Every message is addressed, tagged, and sent on a real channel
+  - A reply threads onto the message it answers
+  - All work runs in a coworking session with the right members
+  - We build software, not fixes for one workspace
+  - The team works in one workspace; the others are clients
+  - A rule statement stays a rule statement
+  - Say it only if it is relevant to the reader, or genuinely a fun fact
+  - Compact, structured, simple, important first
+  - The output-style floor
+  - Generalise a rule, sharpen an instruction
+  - Never mention local-cache sync staleness
+  - Skillset first on a failed or denied operation
+  - A rule that was violated is a proven gap
+  - The outcome is the whole measure
+  - An unchecked reading is said to be one
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+
 ## Core idea
 
 Every team routine or activity is a named procedure. Examples: `daily`, `grooming`, `retro`, `one-on-one`, `heartbeat`, plus conversational ones such as `interview`, `discuss` and `brainstorm`.
@@ -81,7 +153,7 @@ A member, or the team, may carry two names. Neither is ever corrected into the o
 
 Both are correct at once, in their own registers. A reader who finds two names for one thing reads this before deciding either is wrong. A change to one is never a reason to change the other.
 
-The team's own identifier is `magic-team`. The team's own identity is The Conclave. A member's persona sits below both and belongs to that member, never to the group.
+The team's own identifier is `magic-team`. The team's own identity is The Conclave. A member's persona sits below both and belongs to that member, never to the group. A member's persona name and alias are the `first-name`, `family-name` and `alias` keys in the frontmatter of its `SKILL.md`, required for every acting member. A member with `status: reference-only` is exempt.
 
 ### Identity marks
 

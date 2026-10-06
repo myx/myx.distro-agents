@@ -4,6 +4,25 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-team.process-inbox.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-comms-slack-send-message` operation reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-process-inbox is the real, working mailbox for every acting team member, so cross-member handoffs and routed requests land and get worked without relaying through `magic-coordinator` first.

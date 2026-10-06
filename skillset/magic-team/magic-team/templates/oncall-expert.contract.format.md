@@ -5,6 +5,29 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>, h
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the skeleton disagree, `# Contract` wins. `# Contract` is not part of the skeleton and is not copied. No live `oncall-*`/`expert-*` member exists yet — roster category reserved.
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+    - Engagement shape
+- Terminology: <topic>
+  - Term: <term-name>
+- Team-Member's (-specific) local procedures
+  - `<local-procedure-name>` — [goal+intent short summary]
+- Team-Member's (-specific) local rules
+- Domain knowledge: <topic>
+- Team-Member's (-specific) tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--operation-name` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+- Contract
+
 # Summary
 
 [One short sentence, names the team-member.]

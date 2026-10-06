@@ -109,6 +109,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]
+📘 syntax: DistroAgentsTools.fn.sh --make-agents-indices
 📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]
 📘 syntax: DistroAgentsTools.fn.sh --make-console-script
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -319,6 +320,15 @@
 			if neither token is configured. <team-member> must be a
 			real member directory or the send is refused; a
 			routine-* name sends as the bot and skips that check.
+			A client-* member posting from its own token into its
+			own workspace presents under the first name, family
+			name and alias of its own row in team-members-names
+			(--make-agents-indices) and never as its own identifier;
+			the send is refused when that row lacks one of them. A
+			sender or addressee reads its mark and alias from the
+			same registry. An addressee with no row reads as its plain
+			name, and only a member directory that does not exist is
+			refused.
 
 			**Hazard: trailing text args are shell argv.** A
 			shell-meaningful character (quote, backtick, $,
@@ -2026,6 +2036,22 @@
 			--install-workspace-restrictions, against $MMDAPP. A step
 			that fails ends the run; later steps don't run. `--quiet`
 			suppresses the usage guidance normally printed.
+
+		--make-agents-indices
+			Rebuilds the prepared registries of this workspace's team
+			members in `$MMDAPP/.local/agents`: `team-members.registry`
+			(member, workspace, link kind, skillset path) and
+			`team-members-names.registry` (member, mark, first name,
+			family name, alias), rows only for members that have a path
+			in this workspace. Names come from each SKILL.md
+			frontmatter (first-name, family-name, alias), replaced by
+			the member's scope key FIRST_NAME, FAMILY_NAME or ALIAS
+			when set; a value that is missing, `not decided yet` or
+			not valid is stored `-` and warned about, unless the
+			member is reference-only. Takes no arguments, prints
+			nothing on stdout, notes each file on stderr, and fails
+			only when a file cannot be written. Run by the install
+			and by the source-prepare build.
 
 		--make-console-command [--quiet]
 			Re-creates `DistroAgentsConsole.sh`, the command to quickly

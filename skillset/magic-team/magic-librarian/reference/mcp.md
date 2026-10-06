@@ -2,6 +2,15 @@
 
 Read this for building, reviewing, or debugging a hand-rolled MCP server — JSON-RPC message handling, tools/resources capabilities, async execution and cancellation semantics — especially where a framework/SDK isn't available and JSON-RPC has to be parsed/emitted by hand (e.g. POSIX shell with no jq/python/node).
 
+## Contents
+
+- Existing servers in this estate
+- Protocol shape
+- Hand-rolling JSON in POSIX awk (no jq/python/node)
+- Tool-call semantics
+- Async execution and cancellation
+- Testing
+
 ## Existing servers in this estate
 
 `os-myx.common` carries one at `source/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common`, registered via `setup/agentMcp`. `myx.distro-agents` has its own, separate server, reached as `DistroAgentsTools.fn.sh --intern-mcp-server --run`. The two share no code: each tool family's server is independent, and changing one must never require changing the other. For portable-shell conventions beyond MCP itself (dispatcher patterns, OS-variant files, general POSIX gotchas), see `magic-developer`'s [reference/shell.md](../../magic-developer/reference/shell.md) — that module and this one are meant to be used together for myx.common MCP work, not as substitutes for each other. For actually operating/deploying the real `agentMcpServer.Common` on myx.common hardware, that's `magic-devops`'s/the owning `keeper-*`'s territory, not this reference module.

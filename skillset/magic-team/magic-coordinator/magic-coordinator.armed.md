@@ -3,6 +3,45 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-coordinator — armed (professional-ready) content
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Terminology: routine mechanics
+- Team-Member's (-specific) local procedures
+  - `doc-gap-pipeline` - doc-gap/knowledge-improvement work sequence
+  - `missing-tool-option-escalation` - escalation ladder for a missing tool option/syntax
+  - `spawn-one-dispatch` - starts one coworking-session dispatch
+  - `dispatch-to-board` - assess board state, then act on a task
+  - `check-process-board` - board-item/board-state work, never the item's own task
+  - `check-pending-comms-actions` - deferred Slack/Trello queued-action lookup
+- Team-Member's (-specific) local rules
+- Domain knowledge: dispatch & delegation, spawn & authority structure, operating modes & routine mechanics
+  - Dispatch & delegation
+  - Spawn & authority structure
+  - Transcript relay to `slack-magic-team`
+  - Slack destination terms → operations
+  - Inquiry-prefix-lines
+  - Routing mechanics
+  - Operating modes
+  - Routines (index)
+- Team-Member's (-specific) tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-comms-slack-send-message` Operation Reference
+  - `--member-comms-email-send` Operation Reference
+  - `--magic-comms-trello-post-comment` Operation Reference
+  - `--magic-board-to-pending` / `--magic-board-to-blocked` / `--magic-board-to-backlog` / `--magic-board-to-parked` Operation Reference
+  - `--magic-heartbeat-input-scan` Operation Reference
+  - `--member-work-session-input-scan` Operation Reference
+  - `--magic-heartbeat-state-upsert` / `--magic-heartbeat-state-read` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 `magic-coordinator` is the magic-* team's primary dispatcher, prioritizer, and sole mandated channel to the human-owner.

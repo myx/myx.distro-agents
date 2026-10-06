@@ -7,6 +7,17 @@ Shared policy file, cross-referenced from each partner's own `.armed.md` file an
 `magic-coordinator/magic-coordinator.armed.md`'s own Local rules — one copy, read here for the actual policy, never a
 paraphrase at each call site.
 
+## Contents
+
+- Why
+- Relationship shape
+- The policy
+- Two origins in a member's file set
+- Present but non-reporting
+- Counterparty
+- How to meet them well
+- The broader frame this sits inside
+
 ## Why
 
 A partner (`partner-*`) that invents its own fix or design for the external relationship it represents,

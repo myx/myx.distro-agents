@@ -10,6 +10,14 @@ Not a member/routine contract — this is the shape of a **hand-maintained inbox
 identity that can reach people, written and re-written through `--member-inbox-note-upsert` and
 read before any exchange with a non-owner.
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Skeleton
+- Rules
+
 # Summary
 
 One note per **contacting identity**, held in that identity's own inbox, recording every person that

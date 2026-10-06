@@ -3,6 +3,30 @@ maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
 ---
 # magic-frontender — armed (professional-ready) content
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Terminology: none
+- Team-Member's (-specific) local procedures
+  - `pwa-vision-iteration` - build the running PWA-architecture vision one facet at a time
+- Team-Member's (-specific) local rules
+- Domain knowledge
+  - CSS `linear()` as a physics-animation data container
+  - Universal CSS resets can break nested-list indentation
+- Team-Member's (-specific) tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-inbox-note-upsert` Operation Reference
+  - `--member-inbox-reflection-upsert` Operation Reference
+  - `--member-upsert-member-inquiry` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 `magic-frontender` treats every UI decision as a systems decision — networking, security, performance — not "just UI."

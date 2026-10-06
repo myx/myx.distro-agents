@@ -4,6 +4,26 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-team.interview.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-comms-slack-send-message` Operation Reference
+  - `--member-comms-email-send` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-interview is the dedicated place to precisely understand another party's vision or inquiry before trying to converge on anything.

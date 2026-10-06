@@ -3,6 +3,27 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-tester — armed (professional-ready) content
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Terminology: none
+- Team-Member's (-specific) local procedures
+- Team-Member's (-specific) local rules
+- Domain knowledge: security/CRA due diligence
+  - Security/CRA
+- Team-Member's (-specific) tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-inbox-note-upsert` Operation Reference
+  - `--member-upsert-member-inquiry` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 `magic-tester` is the magic-* team's testing-methodology lens across the whole estate — what to test, how to run what already exists, what's missing, and whether a change is actually verified.

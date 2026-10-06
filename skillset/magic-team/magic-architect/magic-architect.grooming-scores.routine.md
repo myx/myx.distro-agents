@@ -5,6 +5,25 @@ invitees: none
 ---
 # magic-architect.grooming-scores.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-inbox-note-upsert` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 `magic-architect`'s idle-run routine that sets/refines RICE-style scores on open backlog items falling in this skill's own architecture-level domain of judgment.

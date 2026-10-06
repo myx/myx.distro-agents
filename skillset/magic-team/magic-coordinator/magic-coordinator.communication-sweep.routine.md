@@ -4,6 +4,38 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-coordinator.communication-sweep.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+  - `slack-reaction-tracking` procedure
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--magic-sweep-input-scan` Operation Reference
+  - `--member-comms-email-check` Operation Reference
+  - `--member-comms-trello-check` Operation Reference
+  - `--member-comms-slack-send-message` Operation Reference
+  - `--member-upsert-member-inquiry` Operation Reference
+  - `--member-inbox-note-upsert` Operation Reference
+  - `--member-comms-email-send` Operation Reference
+  - `--member-comms-email-mark-seen` Operation Reference
+  - `--member-comms-slack-react` Operation Reference
+  - `--member-comms-slack-read` Operation Reference
+  - `--magic-sweep-state-read` Operation Reference
+    - Reads are whole conversations, and a truncated one fails rather than shortens
+  - `--magic-sweep-state-upsert` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-communication-sweep is a fast, reliable check-and-act pass across every live communication platform (email, Trello, Slack), run every `magic-coordinator.heartbeat.routine` iteration.

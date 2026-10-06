@@ -15,6 +15,15 @@ magic-architect — this skill does not decide macro-architecture questions.
 
 ---
 
+## Contents
+
+- 2026-07-15 — Facet: Offline-First Architecture & Service Worker Caching Strategy
+- 2026-07-16 — Facet: Installability & Web App Manifest
+- 2026-07-16 — Architect response: separate origins vs. shared-storage
+- 2026-07-16 — Facet: Auth Flow Under an Offline-Capable Service Worker
+- 2026-07-17 — Facet: CSP Posture for a SW-Heavy, Installable Shell
+- 2026-07-20 — Facet: Trusted Types Policy for the App Shell
+
 ## 2026-07-15 — Facet: Offline-First Architecture & Service Worker Caching Strategy
 
 This is the opening facet because almost everything else in the PWA vision

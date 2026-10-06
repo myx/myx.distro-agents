@@ -4,6 +4,25 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-coordinator.external-inbox-handle-loop.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-comms-slack-send-message` operation reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-external-inbox-handle-loop gives non-acting owners (human-owner, external contacts) the same working-mailbox continuity acting members get, despite having no skill folder of their own.

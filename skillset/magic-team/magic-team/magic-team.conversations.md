@@ -13,6 +13,24 @@ This file's own content is binding and obligatory on every team member who reads
 
 Every item below is sequentially numbered (flat, no letter suffixes) and also carries a **step-name**, phrased as an imperative instruction. Cited elsewhere by that step-name alone in bold, never by "rule N" — a name doesn't shift when an item is inserted, removed, or reordered the way a number does.
 
+## Contents
+
+- Fast use model
+- Baseline rules (always in force)
+  - Message and reaction discipline
+  - Clarification and correction handling
+  - Mode and pacing
+  - Approval and relay safety
+  - Anchor refusal safeguard (critical, do not relax)
+  - Correction persistence and answer precision
+  - Contact authority and disclosure
+  - Proposal-to-human-owner thread lifecycle
+- Interview-alike checkpoint mode
+  - When this mode is required
+  - When this mode is optional
+  - Checkpoint loop (operational form)
+  - Policy-bearing changes workflow
+
 ## Fast use model
 
 1. Identify mode: live-interactive or async-batched.

@@ -4,6 +4,38 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-coordinator.advance.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+  - `check-execute-board` procedure
+    - Starting never-started `board-pending` items
+    - How to actually work an item -- a real decision tree (the missing procedure, applies before any per-type rule below decides an outcome)
+    - Continuing already-dispatched `board-running` items
+    - Per-`board-running`-item task rules, by filename prefix
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--magic-advance-sleep-run` operation reference
+  - `--magic-advance-batch-outcome` operation reference
+  - `--magic-advance-input-scan` operation reference
+  - `--magic-advance-lock-acquire` / `--magic-advance-lock-refresh` / `--magic-advance-close-state-and-unlock` / `--magic-advance-lock-status` operation reference
+  - `--magic-advance-state-and-lock-upsert` operation reference
+  - `--magic-advance-to-parked` operation reference
+  - `--magic-advance-to-running` operation reference
+  - `--magic-heartbeat-state-upsert` operation reference
+  - `--member-comms-slack-send-message` operation reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-advance is a lightweight, every-iteration mechanical reconciliation between the board's recorded state and reality — closes the gap between full daily/grooming cycles — plus the board's own dependency-ordering recompute (part of `check-process-board`), bounded to once a day or on direct request.

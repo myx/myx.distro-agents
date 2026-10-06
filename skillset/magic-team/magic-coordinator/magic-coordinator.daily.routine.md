@@ -5,6 +5,29 @@ invitees: magic-team
 ---
 # magic-coordinator.daily.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--magic-daily-lock-acquire` / `--magic-daily-lock-refresh` / `--magic-daily-close-state-and-unlock` / `--magic-daily-lock-status` operation reference
+  - `--magic-daily-state-and-lock-upsert` operation reference
+  - `--member-comms-slack-send-message` operation reference
+  - `--member-work-session-input-scan` operation reference
+  - `--member-inbox-note-upsert` operation reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-daily is the team's standing daily checkpoint: surface every member's state, assign the day's work in dependency order, run a supervised work session, and report honestly.

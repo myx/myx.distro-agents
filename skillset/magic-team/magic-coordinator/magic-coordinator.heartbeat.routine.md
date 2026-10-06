@@ -4,6 +4,40 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-coordinator.heartbeat.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+  - `day-rhythm-state` procedure
+  - `single-instance-lock` procedure
+  - `spawn-proxy` procedure
+    - Prompt packet (required)
+    - Receipt packet (required)
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-comms-slack-send-message` operation reference
+  - `--member-comms-email-send` operation reference
+  - `--member-comms-slack-react` operation reference
+  - `--magic-heartbeat-config-check` operation reference
+  - `--magic-heartbeat-input-scan` operation reference
+  - `--magic-advance-input-scan` operation reference
+  - `--magic-heartbeat-lock-acquire` / `--magic-heartbeat-lock-refresh` / `--magic-heartbeat-close-state-and-unlock` / `--magic-heartbeat-lock-status` operation reference
+  - `--magic-heartbeat-state-read` operation reference
+  - `--magic-heartbeat-state-upsert` operation reference
+  - `--magic-heartbeat-board-item-trash` operation reference
+  - `--magic-heartbeat-spawn-proxy` operation reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-heartbeat is the team's continuous, self-driven operating rhythm — deciding what's due (`magic-coordinator.advance.routine`, once-daily grooming, the daily meeting's work-session fan-out), running advance inline and dispatching the rest as separate spawned sessions — so the team acts without a human re-triggering each step.

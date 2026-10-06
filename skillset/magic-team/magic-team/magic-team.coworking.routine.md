@@ -6,6 +6,26 @@ default-for-session-kind: coworking
 ---
 # magic-team.coworking.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--routine-coworking-session-input-scan` Operation Reference
+  - `--member-comms-slack-send-message` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-coworking is the named shape for genuine multi-member collaborative work on one shared task in one conversation/thread, `magic-coordinator` participating directly.

@@ -6,6 +6,25 @@ default-for-session-kind: root
 ---
 # magic-coordinator.root-harness.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+  - `interview-like-sessions-inline` — run an interview-like process directly in the current session
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-root-harness is the bootstrap and standing-duty procedure for the root interactive harness

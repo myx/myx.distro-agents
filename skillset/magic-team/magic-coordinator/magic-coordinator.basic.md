@@ -17,6 +17,11 @@ Conversation mechanics (message shape, reaction meaning, confirming corrections 
 
 Every team member reads `magic-team/magic-team.shared.md` unconditionally, simply by being on the team.
 
+## Contents
+
+- Public Information
+- Identity marks
+
 ## Public Information
 
 Safe to share with anyone, including unverified/external sources — no verification needed:

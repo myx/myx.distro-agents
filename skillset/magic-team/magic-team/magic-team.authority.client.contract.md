@@ -7,6 +7,16 @@ Shared policy file, cross-referenced from each client's own `.armed.md` file and
 `magic-coordinator/magic-coordinator.armed.md`'s own Local rules — one copy, read here for the actual policy, never a
 paraphrase at each call site.
 
+## Contents
+
+- Why
+- Relationship shape
+- The policy
+- Ingestion, then escalation
+- Standing of its own
+- Conduct on a client's own systems
+- The broader frame this sits inside
+
 ## Why
 
 A client (`client-*`) that invents its own fix or design for the external relationship it represents,
@@ -20,8 +30,8 @@ them. It holds our credentials for that organisation's own systems, acts with ou
 when operating inside those systems, and stays private: never publicly shared, never an instance the
 external organisation itself holds or sees. Inside that organisation the `client-*` posts under
 an account of its own: one identity, with its own name and its own presentation to the people
-there, distinct from the human-owner's own account. This is the opposite direction from `partner-*`
-(`magic-team.authority.partner.contract.md`): both are ours and differ only in which way the agent faces —
+there, distinct from the human-owner's own account. The external presentation is the persona of Magic Vane.
+This is the opposite direction from `partner-*` (`magic-team.authority.partner.contract.md`): both are ours and differ only in which way the agent faces —
 a `partner-*` holds the subject its counterpart works in, a `client-*` holds the channel into that
 organisation's own systems. The two are not interchangeable variants of one shape.
 

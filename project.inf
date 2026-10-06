@@ -10,5 +10,6 @@ Declares: \
 Requires: \
 	myx/myx.distro-source \
 
-Provides: myx/myx.distro-agents \
+Provides: \
+	myx/myx.distro-agents \
 

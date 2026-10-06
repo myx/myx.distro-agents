@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-## Three registries, one pattern: a columnar cache rebuilt from a store, never
+## Four registries, one pattern: a columnar cache rebuilt from a store, never
 ## maintained beside it, built like the distro's own indices -- whitespace columns,
 ## temp name renamed into place. A missing value is always `-`, never empty. No
 ## registry stores a date or liveness, both measured live.
-##   team-members      <- the skillset's own linked-members index, machine-wide
-##   spawned-sessions  <- the spawn sandbox roots in this workspace
-##   pending-replies   <- the questions AskUserQuestion posted, and the board items
-##                        that some of them became
+##   team-members        <- the skillset's own linked-members index, this workspace's members
+##   team-members-names  <- those members' names, alias and mark
+##   spawned-sessions    <- the spawn sandbox roots in this workspace
+##   pending-replies     <- the questions AskUserQuestion posted, and the board items
+##                          that some of them became
 
 AgentsToolsRegistryFile(){ ## registry name
 	printf '%s\n' "$MMDAPP/.local/agents/$1.registry"
@@ -49,6 +50,24 @@ AgentsToolsRegistryHeader(){ ## frontmatter text, header name
 	printf '%s\n' "$headerValue"
 }
 
+## The same header value as AgentsToolsRegistryHeader reads it, but as written: trimmed,
+## the whitespace inside it kept, and nothing at all where absent. For a check that
+## has to see what the author wrote, before a column collapses it.
+AgentsToolsRegistryHeaderRaw(){ ## frontmatter text, header name
+	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '
+		{
+			line = $0
+			pos = index(line, ":")
+			if (pos < 2) next
+			key = substr(line, 1, pos - 1)
+			if (key != want) next
+			val = substr(line, pos + 1)
+			gsub(/^[ \t]+|[ \t\r]+$/, "", val)
+			if (val != "") { print val ; exit ; }
+		}
+	'
+}
+
 ## Every `key: value` frontmatter line of one file, through this package's own
 ## frontmatter printer -- no second parser is written here.
 AgentsToolsRegistryFrontmatter(){ ## file
@@ -56,25 +75,28 @@ AgentsToolsRegistryFrontmatter(){ ## file
 }
 
 ##
-## team-members -- every team-member available from every workspace on this machine.
+## team-members -- every team-member that has a path in this workspace.
 ## Columns: member workspace link-kind skillset-path
 ##
 ## Built from the skillset's own linked-members index, which the skillset-symlink
 ## installer already writes and already keys by member and workspace. That index IS
 ## this registry's store; this is the same records in the common column format, so
-## nothing enumerates members a second way.
+## nothing enumerates members a second way. Only the rows whose workspace is this
+## one are kept: a member with paths only in other workspaces has no row here.
 ##
 AgentsToolsRegistryTeamMembersRows(){
-	local membersIndex membersLine
+	local membersIndex membersLine thisWorkspace
 	membersIndex="$MDAT_SKILLSET_ROOT/.linked.magic-team.members.txt"
 	[ -f "$membersIndex" ] || return 0
+	thisWorkspace="$( basename "$MMDAPP" 2>/dev/null )" || thisWorkspace=""
 	while IFS= read -r membersLine ; do
 		[ -n "$membersLine" ] || continue
 		case "$membersLine" in '#'*) continue ;; esac
 		## The store's own separator is a colon; the registries' is whitespace. The
 		## fields are a member name, a workspace name, a link kind and a path
 		## relative to that workspace, none of which contains either.
-		printf '%s\n' "$membersLine" | LC_ALL=C awk -F: '
+		printf '%s\n' "$membersLine" | LC_ALL=C awk -F: -v here="$thisWorkspace" '
+			$2 != here { next ; }
 			NF >= 4 { printf "%s %s %s %s\n", $1, $2, $3, $4 ; next ; }
 			{ printf "%s %s %s %s\n", ($1 == "" ? "-" : $1), ($2 == "" ? "-" : $2), ($3 == "" ? "-" : $3), ($4 == "" ? "-" : $4) ; }
 		'
@@ -84,6 +106,109 @@ AgentsToolsRegistryTeamMembersRows(){
 
 AgentsToolsRegistryTeamMembersRebuild(){
 	AgentsToolsRegistryWrite team-members AgentsToolsRegistryTeamMembersRows
+}
+
+## One member's own display marks from its .basic.md, tab-separated: the icon
+## (Slack shortcode, else the unicode character) and the alias (the member's
+## own name instead, when the alias is absent or malformed).
+AgentsToolsCommsSlackMemberMarks(){
+	local marksFile="$MDAT_SKILLSET_ROOT/$1/$1.basic.md"
+	[ -f "$marksFile" ] || return 1
+	LC_ALL=C awk -F": " -v who="$1" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsToolsCommsSlackMemberMarks.awk" "$marksFile"
+}
+
+## Why a name or alias value, as written, cannot be stored, or nothing when it can. A
+## value is a plain scalar (not quoted), is held to what a JSON string carries
+## (pinned to the C locale, so the verdict does not follow the caller: a double quote,
+## a backslash, an ASCII control and a two-byte C1 control refuse, every other UTF-8
+## byte passes), and an alias to what an @handle carries, which has no space. A name
+## keeps its spaces, which the registry writes as `_`, so a name holds no `_` itself.
+AgentsToolsRegistryNameInvalid(){ ## key, value as written
+	local invalidBad
+	case "$2" in
+		\"*|\'*)
+			printf '%s\n' "is quoted"
+			return 0
+		;;
+	esac
+	if [ "$1" != "alias" ] && [ "${2#*_}" != "$2" ] ; then
+		printf '%s\n' "holds an underscore, which the registry keeps for a space"
+		return 0
+	fi
+	invalidBad="$( printf '["\\\\]|[[:cntrl:]]|\302[\200-\237]' )"
+	if printf '%s' "$2" | LC_ALL=C grep -qE "$invalidBad" ; then
+		printf '%s\n' "holds a double quote, a backslash or a control character"
+		return 0
+	fi
+	if [ "$1" = "alias" ] && { ! printf '%s' "$2" | LC_ALL=C grep -qE '^[A-Za-z0-9._-]+$' || [ "${2#-}" != "$2" ] ; } ; then
+		printf '%s\n' "is not a handle: letters, digits, dot, underscore and dash, not starting with a dash"
+	fi
+	return 0
+}
+
+##
+## team-members-names -- the display names of this workspace's team-members.
+## Columns: member mark first-name family-name alias
+##
+## One row per team-members row. first-name, family-name and alias are the member's
+## own SKILL.md frontmatter, each replaced by the member's scope key FIRST_NAME,
+## FAMILY_NAME or ALIAS when that key is set; the mark is read from its basic.md.
+## A value that is empty, is `not decided yet`, or cannot be stored is `-`, and
+## warns unless the member is reference-only. The Slack send reads this file and
+## nothing else for a member's names.
+##
+AgentsToolsRegistryTeamMembersNamesRows(){
+	local namesMember namesWorkspace namesKind namesPath namesFile namesText namesStatus namesKey namesScopeKey namesRaw namesValue namesReason namesMark namesRow
+	while read -r namesMember namesWorkspace namesKind namesPath ; do
+		[ -n "$namesMember" ] || continue
+		namesFile="$MDAT_SKILLSET_ROOT/$namesMember/SKILL.md"
+		namesText=""
+		[ ! -f "$namesFile" ] || namesText="$( AgentsToolsRegistryFrontmatter "$namesFile" )"
+		namesStatus="$( AgentsToolsRegistryHeader "$namesText" status )"
+		namesMark="$( AgentsToolsCommsSlackMemberMarks "$namesMember" 2>/dev/null | LC_ALL=C awk -F'\t' '{ print $1 ; }' )" || namesMark=""
+		namesMark="$( printf '%s' "$namesMark" | LC_ALL=C tr -d ' \t' )"
+		namesRow="$namesMember ${namesMark:--}"
+		for namesKey in first-name family-name alias ; do
+			namesScopeKey="$( printf '%s' "${namesKey//-/_}" | LC_ALL=C tr 'a-z' 'A-Z' )"
+			namesRaw="$( DistroAgentsTools --member-config-option "$namesMember" --select "$namesScopeKey" 2>/dev/null )" || namesRaw=""
+			[ -n "$namesRaw" ] || namesRaw="$( AgentsToolsRegistryHeaderRaw "$namesText" "$namesKey" )"
+			[ "$namesRaw" != "not decided yet" ] || namesRaw=""
+			namesReason=""
+			[ -z "$namesRaw" ] || namesReason="$( AgentsToolsRegistryNameInvalid "$namesKey" "$namesRaw" )"
+			if [ -z "$namesRaw" ] || [ -n "$namesReason" ] ; then
+				namesValue="-"
+				[ "$namesStatus" = "reference-only" ] || echo "⚠️ WARNING: $MDSC_CMD --make-agents-indices: member $namesMember: required field $namesKey is missing or not valid in its SKILL.md (the value must be an unquoted plain value)" >&2
+			else
+				namesValue="$( AgentsToolsRegistryHeader "$namesKey: $namesRaw" "$namesKey" )"
+			fi
+			namesRow="$namesRow $namesValue"
+		done
+		printf '%s\n' "$namesRow"
+	done < <( AgentsToolsRegistryTeamMembersRows )
+	return 0
+}
+
+AgentsToolsRegistryTeamMembersNamesRebuild(){
+	AgentsToolsRegistryWrite team-members-names AgentsToolsRegistryTeamMembersNamesRows
+}
+
+## The prepared registries of this workspace's members, rebuilt in one pass. The
+## set is the one list below: another registry is one more line. Each file is
+## noted on stderr; fails only when a file cannot be written.
+AgentsToolsRegistryAgentsIndicesBuild(){
+	local indicesFailed="false" indicesName indicesRebuild indicesFile indicesRows
+	while read -r indicesName indicesRebuild ; do
+		indicesFile="$( AgentsToolsRegistryFile "$indicesName" )"
+		if "$indicesRebuild" ; then
+			indicesRows="$( LC_ALL=C awk 'END { print NR + 0 ; }' "$indicesFile" )"
+			echo "# $MDSC_CMD --make-agents-indices: wrote $indicesFile ($indicesRows rows)" >&2
+		else
+			echo "⛔ ERROR: $MDSC_CMD --make-agents-indices: could not write $indicesFile" >&2
+			indicesFailed="true"
+		fi
+	done <<< "team-members AgentsToolsRegistryTeamMembersRebuild
+team-members-names AgentsToolsRegistryTeamMembersNamesRebuild"
+	[ "$indicesFailed" = "false" ]
 }
 
 ##

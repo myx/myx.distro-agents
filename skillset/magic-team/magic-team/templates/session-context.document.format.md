@@ -10,6 +10,16 @@ and read by a session at its start. Nothing writes it by hand. The producing ope
 tooling; a session never calls it directly, only through its own routine's/member's own stub, and
 each stub passes exactly the scopes its own invocation place needs.
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Skeleton
+- Rules
+- Recorded gaps
+- Contract
+
 # Summary
 
 One document carrying everything a session needs to start: what was asked for, what arrived over

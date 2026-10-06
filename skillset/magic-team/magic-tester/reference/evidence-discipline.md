@@ -6,6 +6,26 @@ properties of the evidence itself, independent of any one domain, language, or
 test framework. Companion to `live-side-effect-verification.md`, which covers
 managing blast radius when the run itself has real consequences.
 
+## Contents
+
+- The governing question: what result would have falsified this
+- Establish the failing case before the passing one
+- Verify what stores, not what sends
+- Byte-identical output over a full-grammar corpus, for a package that carries no test assets
+- Read the instrument before trusting the measurement
+- A system's enforcement path and its reporting path are different surfaces
+- A refusal for want of privilege reads exactly like an empty result
+- A probe answers its own predicate, not the question it was asked
+- A measurement carries its timestamp
+- A guard that fires is evidence; a guard that stays silent carries none
+- Establish which way a check errs before deciding whether it needs a fallback
+- An oracle settles what opinions divide
+- Test the inputs the design is silent about
+- A sanitised environment manufactures the failure it then reports
+- Absence of a notification is not evidence of progress
+- A working-tree probe is evidence only in a checkout the task owns
+- Where a package's checks live, and how a row is shown able to fail
+
 ## The governing question: what result would have falsified this
 
 Ask it of any measurement before trusting it. Where there is no such result,

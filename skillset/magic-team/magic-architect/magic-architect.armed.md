@@ -3,6 +3,27 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-architect — armed (professional-ready) content
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Terminology: none
+- Team-Member's (-specific) local procedures
+  - `grooming-scores-review` - select and run this skill's idle-run scoring routine
+- Team-Member's (-specific) local rules
+- Domain knowledge: idle-run scheduling
+  - Idle-Tasks
+- Team-Member's (-specific) tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-inbox-note-upsert` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 `magic-architect` reviews and designs system structure at the macro level — boundaries, data flow, failure modes, scalability, coupling, tradeoffs — across both application architecture and infrastructure/deployment topology.

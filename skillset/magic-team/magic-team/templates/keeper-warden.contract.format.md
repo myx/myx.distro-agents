@@ -5,6 +5,32 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>, h
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the skeleton disagree, `# Contract` wins. `# Contract` is not part of the skeleton and is not copied.
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+    - Domain anchor
+    - Tree restriction
+- Terminology: <topic>
+  - Term: <term-name>
+- Team-Member's (-specific) local procedures
+  - `daily-idle-task` - pick and run one idle activity, log the outcome
+  - `<local-procedure-name>` — [goal+intent short summary]
+- Team-Member's (-specific) local rules
+- Domain knowledge: <topic>
+  - Idle-Tasks
+- Team-Member's (-specific) tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--operation-name` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+- Contract
+
 # Summary
 
 [One short sentence, names the team-member.]

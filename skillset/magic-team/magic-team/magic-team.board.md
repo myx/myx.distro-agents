@@ -25,6 +25,19 @@ This file's own content is binding and obligatory on every team member who reads
 
 This file itself stays thin: a rollup pointing into `board/`'s folders, not where substance lives. Substance lives in the individual `board-item` files.
 
+## Contents
+
+- States
+- Two independent dimensions: item types vs. routines/activities
+- General item lifecycle (non-exhaustive — a floor of required beats, not a closed cycle)
+- Denial can happen at any stage, at (at least) two speeds
+- Distinct follow-on work spawns a new subtask, it doesn't reopen the original
+- GC (garbage collection)
+- Process-Flow, the board dynamics
+  - What counts as process-flow
+  - Who actually reads/writes the board
+  - Sole live status source
+
 ## States
 
 - **`triage` is a process, not a folder** — not board-only.

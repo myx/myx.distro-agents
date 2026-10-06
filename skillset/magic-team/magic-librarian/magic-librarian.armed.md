@@ -3,6 +3,49 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-librarian — armed (professional-ready) content
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Terminology: none
+- Team-Member's (-specific) local procedures
+  - `mode-check` — read-only documentation audit
+  - `mode-update` — make changes
+  - `daily-idle-check` — idle default when nothing else is pending
+  - `own-inbox-batch-processing` — process this skill's own doc-fix inbox
+  - `team-self-sufficiency-audit` — daily widened check across every `magic-*` skill directory
+- Team-Member's (-specific) local rules
+- Domain knowledge: skill-file content standards, Verbatim-intents/Verbatim-benchmarks convention
+  - Routines (index)
+  - Content standards (team-wide, authored and stewarded by `magic-librarian`)
+    - Unit boundaries
+    - Content philosophy
+    - Skill-folder content hygiene: rewrite as current state, not a history of edits
+    - Two writing modes for skill-folder `.md` files
+    - Text groups
+    - Applying the output-style floor
+    - Member-addressed files
+    - Keeper/partner references stay generic in shared files
+    - A role-family enumeration widens only where the capability does
+  - Verbatim-intents and Verbatim-benchmarks convention (authoritative definition)
+- Team-Member's (-specific) tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--help` Operation Reference
+  - `--librarian-list-team-files` Operation Reference
+  - `--librarian-list-team-files-dates` Operation Reference
+  - `--librarian-inbox-item-trash` Operation Reference
+  - `--librarian-inbox-to-processed` Operation Reference
+  - `--member-inbox-note-upsert` Operation Reference
+  - `--member-append-session-transcript` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+      - Named future candidates (not built yet)
+    - Conventions
+
 # Summary
 
 `magic-librarian` is the team's documentation and reference steward: it keeps README.md/AGENTS.md/CLAUDE.md current per-repo, and separately owns team-wide protocol/format reference knowledge and the skill-file authoring conventions the whole `magic-*` team is checked against — including `magic-librarian`'s own.

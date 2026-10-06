@@ -4,6 +4,26 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-librarian.morning-review.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-comms-slack-send-message` operation reference
+  - `--member-upsert-member-inquiry` operation reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-librarian-morning-review is the once-per-workday joint `magic-coordinator`+`magic-librarian` checkpoint catching board state-model drift, not ordinary content staleness.

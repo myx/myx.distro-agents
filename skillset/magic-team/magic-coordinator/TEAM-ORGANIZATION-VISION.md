@@ -3,6 +3,14 @@
 How the magic-* team is organizationally structured: execution model, operating rhythm, work
 pacing, human-owner involvement, and partner posture.
 
+## Contents
+
+- Execution model: UI/relay instance vs. spawned work instances
+- Operating rhythm: seven days a week, one continuous loop
+- Work-lifecycle pacing: staged as default, marathon as exception
+- Human-owner involvement: approval vs. routine triage
+- Partner-* activity posture, and the proposal pipeline
+
 ## Execution model: UI/relay instance vs. spawned work instances
 
 - The instance a human is actually talking to (the UI/chat instance) never executes an activity's

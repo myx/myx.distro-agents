@@ -16,6 +16,23 @@ help pair, which is its real manual. Routine docs and the conventions file stay 
 future platform inherits the rules instead of needing its own set. That abstraction boundary is the
 reason this module exists as a separate layer.
 
+## Contents
+
+- Why a session reply does not reach the human-owner
+- Why an ask leads its own message
+- The core property: a response describes acceptance, not retention
+- Measured behaviour (Slack, `chat.postMessage`)
+- Consequences for composition
+- Retry output can carry more than one verdict
+- Identity-scoped access — send and read are not symmetric
+  - Why this matters for stored addresses
+- Required permissions — the settled list, and how to re-derive it
+  - The derivation method — this is the durable part
+  - Endpoints actually called
+  - Required scopes — needed on BOTH identities
+  - The honesty bound — never separate it from the check
+- Reading list
+
 ## Why a session reply does not reach the human-owner
 
 - **A request that needs him goes to his own direct channel** — a decision, a ratification, an answer,

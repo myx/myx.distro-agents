@@ -2,6 +2,18 @@
 
 Read this before writing code in any language — it is not a per-language module and does not compete with them: it governs how code is written at all, and applies on top of whichever language module is open, in any project.
 
+## Contents
+
+- The style
+- The human-owner's standing words on this
+- A check is code, and it is proven by its red
+- Comments: quantity and content are two separate checks
+- A requirement is a property of the result, not a structure in the code
+- The habit this exists to break
+- The three costs of needless work
+- The counter-rule
+- What already works is not rewritten
+
 ## The style
 
 - Code is straight-line, top-to-bottom prose: the reader starts at the top of a block and reaches the end of it without leaving.

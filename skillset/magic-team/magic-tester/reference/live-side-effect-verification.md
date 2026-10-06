@@ -6,6 +6,17 @@ touches the network or filesystem for real rather than in a sandbox. Distinct fr
 ordinary unit/integration test running: there's no fixture to reset, so the
 verification technique itself has to manage the blast radius.
 
+## Contents
+
+- Preview mode beats grepping for blast radius
+- Timeout-guard every live-execution reproduction attempt
+- Know the codebase's verbose-tracing lever before reaching for ad hoc debugging
+- Stale background state is a false-positive class for "hang"
+- Clean diff + static audit is necessary, not sufficient
+- "Ruled out" vs "couldn't reproduce" — say which one you mean
+- Two checkouts of one repository are not divergence
+- A detection check with only negative results, run for real against live traffic
+
 ## Preview mode beats grepping for blast radius
 
 Before running anything that does real clone/pull/write across a workspace's

@@ -3,6 +3,58 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-team — armed (professional-ready) content
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Terminology: Team terminology
+- Team-Member's (-specific) local procedures
+  - `post-inquiry` — file an `inquiry-*` item into own or another member's inbox
+- Team-Member's (-specific) local rules
+  - Escalation and chain of command
+  - Engineering & operating discipline
+  - Duties: three kinds, plus reflection
+  - Rule/instruction/definition/description conventions
+  - Help/instruction-entry scope: call-contract only (rule)
+  - Verbatim-intents / Verbatim-benchmarks sections (a rule about every team skill file, this one included)
+  - Non-acting owners (rule)
+  - Workspace (rule)
+- Routines
+- The board
+- Board & Inbox board-items entity model
+  - `project-*`
+  - `task-*`
+  - `change-*`
+  - `note-*`
+  - `inquiry-*`
+  - `warning-*`
+  - `reflection-*`
+  - `proposal-*`
+  - `interview-*`
+  - `approval-*`
+  - `dispatch-*`
+  - `transcript-*`
+- Vault-items, audit-items, referencing and enveloping
+- Shared reference files (librarian-owned, on-demand)
+- Non-acting owners
+- Workspace
+  - The team on a machine is the sum of the workspaces present on it
+  - What a member does not edit
+- Team-Member's (-specific) tooling
+  - `DistroAgentsTools.fn.sh`
+  - DistroAgentsTools magic-tooling operations
+  - `--member-comms-slack-send-message` Operation Reference
+  - `--member-inbox-note-upsert` Operation Reference
+  - Execution mechanisms
+  - Rule
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 `magic-team` is the team-avatar / shared-scaffolding skill: it holds the board and the team's librarian-maintained shared reference files (terminology, the board/inbox entity model, tooling), and passes through anything else to `magic-coordinator` rather than making decisions itself.

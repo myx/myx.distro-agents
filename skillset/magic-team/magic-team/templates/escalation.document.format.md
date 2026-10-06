@@ -7,6 +7,14 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
 
 Not a member/routine contract — this is the shape of one escalation ask: an `AskUserQuestion` call whose `kind` is `readback`, `decision` or `permission`. The member passes the fields, and the tooling composes the message.
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Skeleton
+- Contract
+
 # Summary
 
 One ask, to one addressee, about one thing a member needs before one part of its task can go on.

@@ -5,6 +5,26 @@ invitees: human-owner
 ---
 # magic-coordinator.bootstrap.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - AskUserQuestion operation
+  - Direct Slack API checks used by this routine
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-bootstrap-magic-vane is the one-time (and re-runable) coordinator bootstrap for Magic Vane's real operating identity: confirm identity, configure credentials, verify delivery semantics, confirm Slack profile shape, and fail loud with a human-owner handoff when any step cannot be completed autonomously.

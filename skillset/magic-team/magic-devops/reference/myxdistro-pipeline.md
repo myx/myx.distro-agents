@@ -2,6 +2,26 @@
 
 Read this when working on `myx.distro-*` itself (source/deploy/system/remote/.local packages), a workspace's console entry points, or fleet-execution tooling (`ExecuteParallel`/`ExecuteSequence`/`ShellTo`).
 
+## Contents
+
+- A different, larger system — don't conflate with myx.common
+- `builders/` is an overloaded directory name — establish the convention before reasoning
+- The full stage vocabulary — what is callable, and what was only ever planned
+  - `stage:submode` is the mechanism already in production
+  - The data flow the sketch encodes
+  - `export/` and `distro/` are two different trees
+  - Three open design questions
+- Learn syntax from --help/README, not from reading source — default, not fallback
+- The console entry points — one tool family, every non-Eclipse workspace
+  - Console `PATH` is hand-authored — the templating layer stops one layer short of it
+- Index/provides mechanics: the live lookup path and the cached-snapshot path are different files
+- Building blocks vs. actions — two different layers, don't conflate them
+- Baseline ownership of lib/myx/acm namespace roots, wherever they appear
+- A bare `<Tool>.fn.sh` run answers from a built snapshot, not from the working tree
+- The workspace-root consoles are generated, so a correct template proves nothing about a workspace
+- `BuildSingleIndex.awk` accumulates every provider of a required name, silently
+- Reaching one target, and checking a generated installer
+
 ## A different, larger system — don't conflate with myx.common
 
 `myx.distro-*` (`myx.distro-source`, `myx.distro-deploy`, `myx.distro-system`, `myx.distro-remote`, `myx.distro-.local`) is a project build/deploy pipeline, not a simple CLI dispatcher — treat as genuinely separate terrain from myx.common. Its source-level vocabulary (pipeline stages, `project.inf`, context env vars, declarative directives) is the owning `keeper-*`'s territory now — see that skill for the details. This file covers *operating* the pipeline: consoles, fleet execution, and real build/deploy runs against real infra.

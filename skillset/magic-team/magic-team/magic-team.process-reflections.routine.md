@@ -4,6 +4,26 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-team.process-reflections.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-inbox-note-upsert` operation reference
+  - `--librarian-inbox-to-processed` operation reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-process-reflections is the standing mechanism turning a session's own accumulated `reflection-*` inbox notes into durable team knowledge — a magic-team skillset md-files update, a routine-file correction, or a new inquiry.

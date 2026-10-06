@@ -4,6 +4,28 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-team.proposal.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+  - `proposal-thread-mechanic` — the proposal-thread mechanic (defined once here, referenced by the Steps)
+- Routine's local rules
+- Routine-specific tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-comms-slack-send-message` Operation Reference
+  - `--member-comms-slack-delete-message` Operation Reference
+  - `--member-comms-slack-read` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-proposal is the named shape for taking one proposal to the human-owner through its whole propose→work-out→approve life, in a single standing thread. The routine holds the sequence/flow/logic in its Steps; the proposal-thread mechanic holds the invariant shape, defined once in this file and referenced by the Steps.

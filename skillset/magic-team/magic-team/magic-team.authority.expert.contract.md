@@ -7,6 +7,12 @@ Shared policy file, cross-referenced from each expert's own `.armed.md` file and
 `magic-coordinator/magic-coordinator.armed.md`'s own Local rules — one copy, read here for the actual policy, never a
 paraphrase at each call site.
 
+## Contents
+
+- Why
+- The policy
+- The broader frame this sits inside
+
 ## Why
 
 An expert (`expert-*`) that invents its own fix or design without that authority having been granted for

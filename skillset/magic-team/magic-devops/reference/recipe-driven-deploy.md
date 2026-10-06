@@ -1,5 +1,11 @@
 # Deploy tooling: multiple distinct, purpose-specific tools — not one universal mechanism
 
+## Contents
+
+- `BuildDistroFromSource.fn.sh` has no project scoping — don't reach for it to refresh one project
+- This tooling family has multiple distinct, purpose-specific deploy tools — match the tool to the actual target category, don't assume one mechanism covers everything
+- `DeployProjectSsh.fn.sh` real invocation — the pieces `--help` alone doesn't give you
+
 ## `BuildDistroFromSource.fn.sh` has no project scoping — don't reach for it to refresh one project
 
 Its own `--help`: "Orchestrates the full build pipeline from source ingest to final distro/export artifacts." Only takes `--continue`/`--only`/`--help*` — no project/selector argument at all, and neither do its two stage-scripts (`BuildCachedFromSource.fn.sh`, `BuildOutputFromCached.fn.sh`, both explicitly "Arguments: None"). Running it to pick up one project's local edit genuinely works, but processes the entire repository set (every namespace) and, at the final stage, spreads built artifacts out to remote hosts — real, unrelated side effects, not just slow.

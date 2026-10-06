@@ -2,6 +2,16 @@
 
 Read this when inspecting live network traffic on a real fleet (e.g. `tcpdump`-based sweeps across multiple hosts) — a different sub-domain from `myxdistro-pipeline.md`'s fleet-execution/console mechanics, covering the traffic-capture and packet-content-classification layer itself, not the SSH/parallelism plumbing around it. `(draft)` — filename is a first-draft proposal, open to renaming.
 
+## Contents
+
+- `tcpdump -A` + `grep -B<N>` context-matching to recover a packet's header line is fragile — a real bug class, not a one-off
+- Reverse-DNS-to-known-hosting-provider is not a legitimate-traffic signal
+- IPv4 packet loss on a dual-stack host says nothing about that host's IPv6 health, or vice versa
+- A firewall's own rule comments can reveal an allowed port beyond the one documented
+- A reachable guest VM on the same hypervisor as an unreachable host is a free second vantage point
+- A software bridge/VLAN interface's healthy state doesn't describe the physical NIC underneath it
+- Cross-reference
+
 ## `tcpdump -A` + `grep -B<N>` context-matching to recover a packet's header line is fragile — a real bug class, not a one-off
 
 Reconstructing "which source IP produced this payload match" by counting a fixed number of lines backward from a `grep -B<N>` hit on `tcpdump -A` output is unreliable: the number of intervening binary/hex garbage lines between a packet's header line and its ASCII payload varies with packet size, so a fixed `-B1`/`-B2` silently misses matches or attributes them to the wrong source IP. Real risk, not theoretical: this can silently break an embedded detector for dozens of consecutive check rounds with zero errors — reading the whole time as a clean "no hits" streak, not a failure.

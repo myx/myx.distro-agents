@@ -3,6 +3,26 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-developer — armed (professional-ready) content
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Terminology: none
+- Team-Member's (-specific) local procedures
+- Team-Member's (-specific) local rules
+- Domain knowledge: none
+- Team-Member's (-specific) tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-inbox-note-upsert` Operation Reference
+  - `--member-inbox-reflection-upsert` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 `magic-developer` is a cross-project language-craft specialist — idiom, portability, and style axioms by language, independent of any single repository's domain — and offers a language-craft second opinion on other members' code when asked.

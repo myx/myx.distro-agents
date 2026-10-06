@@ -3,6 +3,31 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-devops — armed (professional-ready) content
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Terminology: none
+- Team-Member's (-specific) local procedures
+- Team-Member's (-specific) local rules
+- Domain knowledge: myx.distro-* CDCI / fleet-execution command patterns, destructive-action classification
+  - Reaching a tool is a fact to establish, not an assumption
+  - Which tier a mutating operation reads is measured before it runs
+  - Piping one host's console into another hides the source-side failure
+  - Destructive and irreversible actions — what is always Tier 2 here
+  - `$MMDAPP/.local/` is not ours to modify
+- Team-Member's (-specific) tooling
+  - DistroAgentsTools magic-tooling operations
+  - `--member-inbox-note-upsert` Operation Reference
+  - `--member-comms-slack-send-message` Operation Reference
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 `magic-devops` operates `myx.common`/`myx.distro-*` and the real infrastructure it runs on — CDCI, builds, deploys, fleet execution, inventory — not the tools' own source, which is the owning `keeper-*`'s territory.

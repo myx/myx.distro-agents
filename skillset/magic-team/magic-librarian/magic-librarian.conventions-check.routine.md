@@ -4,6 +4,24 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-librarian.conventions-check.routine — the actual procedure
 
+## Contents
+
+- Summary
+  - Goals
+  - Scope
+- Steps
+- Closure steps
+- Routine's local procedures
+  - `override-queue-read` — the bounded sweep over the exchange-floor declarations log
+- Routine's local rules
+- Routine-specific tooling
+- Maintainer Notes
+  - Verbatim-goals (intents)
+  - Verbatim-tests (benchmarks)
+  - Librarian Comments
+    - Reference
+    - Conventions
+
 # Summary
 
 Routine-conventions-check is a review pass checking a proposed change — a source-code diff, a skill/routine file, or a chat message — against the team's own established conventions before it lands.
