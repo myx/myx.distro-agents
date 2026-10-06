@@ -20,6 +20,8 @@ case "$1" in
 			mkdir -p "$MMDAPP/.agents"
 		fi
 
+		## First, so the steps below start from the registries of this workspace's members.
+		DistroAgentsTools --make-agents-indices || { set +e ; return 1 ; }
 		DistroAgentsTools --make-console-command "$@" || { set +e ; return 1 ; }
 		DistroAgentsTools --install-workspace-integrations "$@" || { set +e ; return 1 ; }
 		## The restrictions -- the hooks that route a client's tool calls to this
